@@ -19,6 +19,8 @@ Psysonic is a beautiful desktop music player built completely from the ground up
 
 Designed specifically for users hosting their own music via Navidrome or other Subsonic API servers, Psysonic aims to be the best way to interact with your personal library.
 
+![Psysonic Screenshot](public/screenshot.png)
+
 ## ✨ Features
 
 - 🎨 **Gorgeous UI**: Deeply integrated Catppuccin themes (Mocha & Latte) with smooth glassmorphism effects and micro-animations.
