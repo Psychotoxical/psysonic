@@ -91,10 +91,3 @@ Contributions are completely welcome! Whether it is translating the app into a n
 ## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
-<p align="center">
-  <i>Core Components developed with <b>Claude Code</b></i><br/>
-  <i>UI/UX developed with <b>Gemini 2.0 Flash</b> using <b>Antigravity</b></i>
-</p>
