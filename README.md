@@ -40,13 +40,6 @@ Linux (drag & drop cursor feedback): Due to a WebKitGTK limitation, the drag cur
 
 - **Linux (drag & drop cursor feedback)**: Due to a WebKitGTK limitation, the drag cursor does not reflect the drop operation type — it may appear as a "forbidden" symbol or show no indicator at all, depending on the desktop environment. Drag and drop itself works correctly.
 
-## 🛡️ Security
-
-With the **v1.0.0 Release**, Psysonic has been hardened for public use:
-- **Secured Credentials**: Industry-standard security using Tauri's native encrypted store.
-- **Hardened Sandbox**: Restricted filesystem permissions to only necessary directories.
-- **Native Security**: Disabled global Tauri objects to significantly reduce XSS attack vectors.
-
 ## 📥 Installation
 
 Navigate to the [Releases](https://github.com/Psychotoxical/psysonic/releases) page and download the installer for your operating system.
