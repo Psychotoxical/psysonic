@@ -78,9 +78,10 @@ export default function RandomMix() {
         </div>
       ) : (
         <div className="tracklist">
-          <div className="tracklist-header" style={{ gridTemplateColumns: '36px 1fr 1fr 60px 80px' }}>
+          <div className="tracklist-header" style={{ gridTemplateColumns: '36px 1fr 1fr 1fr 60px 80px' }}>
             <span></span>
             <span>{t('randomMix.trackTitle')}</span>
+            <span>{t('randomMix.trackArtist')}</span>
             <span>{t('randomMix.trackAlbum')}</span>
             <span style={{ textAlign: 'center' }}>{t('randomMix.trackFavorite')}</span>
             <span style={{ textAlign: 'right' }}>{t('randomMix.trackDuration')}</span>
@@ -90,7 +91,7 @@ export default function RandomMix() {
             <div
               key={song.id}
               className="track-row"
-              style={{ gridTemplateColumns: '36px 1fr 1fr 60px 80px' }}
+              style={{ gridTemplateColumns: '36px 1fr 1fr 1fr 60px 80px' }}
               onDoubleClick={() => playTrack(song, songs)}
               role="row"
               draggable
@@ -101,7 +102,7 @@ export default function RandomMix() {
                   albumId: song.albumId, duration: song.duration, coverArt: song.coverArt, track: song.track,
                   year: song.year, bitRate: song.bitRate, suffix: song.suffix, userRating: song.userRating,
                 };
-                e.dataTransfer.setData('application/json', JSON.stringify({ type: 'song', track }));
+                e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'song', track }));
               }}
             >
               <button
@@ -115,7 +116,10 @@ export default function RandomMix() {
 
               <div className="track-info">
                 <span className="track-title" data-tooltip={song.title}>{song.title}</span>
-                <span className="track-artist">{song.artist}</span>
+              </div>
+
+              <div className="track-artist-cell">
+                <span className="track-artist" data-tooltip={song.artist}>{song.artist}</span>
               </div>
 
               <div className="track-info">

@@ -83,7 +83,7 @@ export default function PlayerBar() {
           </button>
           
           <button className="player-btn" onClick={previous} aria-label={t('player.prev')} data-tooltip={t('player.prev')}>
-            <SkipBack size={18} />
+            <SkipBack size={20} />
           </button>
 
           <button
@@ -92,11 +92,11 @@ export default function PlayerBar() {
             aria-label={isPlaying ? t('player.pause') : t('player.play')}
             data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
           >
-            {isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
+            {isPlaying ? <Pause size={22} /> : <Play size={22} fill="currentColor" />}
           </button>
 
           <button className="player-btn" onClick={next} aria-label={t('player.next')} data-tooltip={t('player.next')}>
-            <SkipForward size={18} />
+            <SkipForward size={20} />
           </button>
 
           <button 

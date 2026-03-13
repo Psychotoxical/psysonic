@@ -424,7 +424,7 @@ export default function AlbumDetail() {
                       albumId: song.albumId, duration: song.duration, coverArt: song.coverArt, track: song.track,
                       year: song.year, bitRate: song.bitRate, suffix: song.suffix, userRating: song.userRating,
                     };
-                    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'song', track }));
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'song', track }));
                   }}
                 >
                   <div className="track-num" style={{ textAlign: 'center' }}>{song.track ?? i + 1}</div>

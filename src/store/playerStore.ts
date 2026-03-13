@@ -74,6 +74,7 @@ interface PlayerState {
 }
 
 let progressInterval: ReturnType<typeof setInterval> | null = null;
+let seekDebounce: ReturnType<typeof setTimeout> | null = null;
 
 function clearProgress() {
   if (progressInterval) {
@@ -243,8 +244,15 @@ export const usePlayerStore = create<PlayerState>()(
     const { howl, currentTrack } = get();
     if (!howl || !currentTrack) return;
     const time = progress * (howl.duration() || currentTrack.duration);
-    howl.seek(time);
+    // Update UI immediately for responsiveness
     set({ progress, currentTime: time });
+    // Debounce the actual seek — GStreamer on Linux stalls if two seeks arrive
+    // before the first one completes (reproducible after the 2nd seek)
+    if (seekDebounce) clearTimeout(seekDebounce);
+    seekDebounce = setTimeout(() => {
+      get().howl?.seek(time);
+      seekDebounce = null;
+    }, 100);
   },
 
   setVolume: (v) => {

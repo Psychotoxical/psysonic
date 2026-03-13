@@ -179,8 +179,14 @@ export default function Settings() {
               onChange={(e) => theme.setTheme(e.target.value as any)}
               aria-label={t('settings.theme')}
             >
-              <option value="mocha">Catppuccin Mocha (Dark)</option>
-              <option value="latte">Catppuccin Latte (Light)</option>
+              <option value="mocha">Catppuccin Mocha</option>
+              <option value="macchiato">Catppuccin Macchiato</option>
+              <option value="frappe">Catppuccin Frappé</option>
+              <option value="latte">Catppuccin Latte</option>
+              <option value="nord">Nord · Polar Night</option>
+              <option value="nord-snowstorm">Nord · Snowstorm</option>
+              <option value="nord-frost">Nord · Frost</option>
+              <option value="nord-aurora">Nord · Aurora</option>
             </select>
           </div>
         </div>
@@ -368,7 +374,7 @@ export default function Settings() {
                 Psysonic
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                {t('settings.aboutVersion')} 1.0.5
+                {t('settings.aboutVersion')} 1.0.6
               </div>
             </div>
           </div>

@@ -56,6 +56,106 @@
   --danger:        var(--ctp-red);
 }
 
+/* ─── Catppuccin Macchiato Variables ─── */
+[data-theme='macchiato'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23b8c0e0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  --ctp-rosewater: #f4dbd6;
+  --ctp-flamingo:  #f0c6c6;
+  --ctp-pink:      #f5bde6;
+  --ctp-mauve:     #c6a0f6;
+  --ctp-red:       #ed8796;
+  --ctp-maroon:    #ee99a0;
+  --ctp-peach:     #f5a97f;
+  --ctp-yellow:    #eed49f;
+  --ctp-green:     #a6da95;
+  --ctp-teal:      #8bd5ca;
+  --ctp-sky:       #91d7e3;
+  --ctp-sapphire:  #7dc4e4;
+  --ctp-blue:      #8aadf4;
+  --ctp-lavender:  #b7bdf8;
+  --ctp-text:      #cad3f5;
+  --ctp-subtext1:  #b8c0e0;
+  --ctp-subtext0:  #a5adcb;
+  --ctp-overlay2:  #939ab7;
+  --ctp-overlay1:  #8087a2;
+  --ctp-overlay0:  #6e738d;
+  --ctp-surface2:  #5b6078;
+  --ctp-surface1:  #494d64;
+  --ctp-surface0:  #363a4f;
+  --ctp-base:      #24273a;
+  --ctp-mantle:    #1e2030;
+  --ctp-crust:     #181926;
+
+  --bg-app:        var(--ctp-base);
+  --bg-sidebar:    var(--ctp-mantle);
+  --bg-card:       var(--ctp-surface0);
+  --bg-hover:      var(--ctp-surface1);
+  --bg-player:     var(--ctp-crust);
+  --bg-glass:      rgba(36, 39, 58, 0.75);
+  --accent:        var(--ctp-mauve);
+  --accent-dim:    rgba(198, 160, 246, 0.15);
+  --accent-glow:   rgba(198, 160, 246, 0.3);
+  --text-primary:  var(--ctp-text);
+  --text-secondary:var(--ctp-subtext1);
+  --text-muted:    var(--ctp-overlay1);
+  --border:        var(--ctp-surface1);
+  --border-subtle: var(--ctp-surface0);
+  --positive:      var(--ctp-green);
+  --warning:       var(--ctp-yellow);
+  --danger:        var(--ctp-red);
+}
+
+/* ─── Catppuccin Frappé Variables ─── */
+[data-theme='frappe'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23b5bfe2%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  --ctp-rosewater: #f2d5cf;
+  --ctp-flamingo:  #eebebe;
+  --ctp-pink:      #f4b8e4;
+  --ctp-mauve:     #ca9ee6;
+  --ctp-red:       #e78284;
+  --ctp-maroon:    #ea999c;
+  --ctp-peach:     #ef9f76;
+  --ctp-yellow:    #e5c890;
+  --ctp-green:     #a6d189;
+  --ctp-teal:      #81c8be;
+  --ctp-sky:       #99d1db;
+  --ctp-sapphire:  #85c1dc;
+  --ctp-blue:      #8caaee;
+  --ctp-lavender:  #babbf1;
+  --ctp-text:      #c6d0f5;
+  --ctp-subtext1:  #b5bfe2;
+  --ctp-subtext0:  #a5adce;
+  --ctp-overlay2:  #949cbb;
+  --ctp-overlay1:  #838ba7;
+  --ctp-overlay0:  #737994;
+  --ctp-surface2:  #626880;
+  --ctp-surface1:  #51576d;
+  --ctp-surface0:  #414559;
+  --ctp-base:      #303446;
+  --ctp-mantle:    #292c3c;
+  --ctp-crust:     #232634;
+
+  --bg-app:        var(--ctp-base);
+  --bg-sidebar:    var(--ctp-mantle);
+  --bg-card:       var(--ctp-surface0);
+  --bg-hover:      var(--ctp-surface1);
+  --bg-player:     var(--ctp-crust);
+  --bg-glass:      rgba(48, 52, 70, 0.75);
+  --accent:        var(--ctp-mauve);
+  --accent-dim:    rgba(202, 158, 230, 0.15);
+  --accent-glow:   rgba(202, 158, 230, 0.3);
+  --text-primary:  var(--ctp-text);
+  --text-secondary:var(--ctp-subtext1);
+  --text-muted:    var(--ctp-overlay1);
+  --border:        var(--ctp-surface1);
+  --border-subtle: var(--ctp-surface0);
+  --positive:      var(--ctp-green);
+  --warning:       var(--ctp-yellow);
+  --danger:        var(--ctp-red);
+}
+
 /* ─── Catppuccin Latte Variables (Light Theme) ─── */
 [data-theme='latte'] {
   color-scheme: light;
@@ -105,6 +205,221 @@
   --positive:      var(--ctp-green);
   --warning:       var(--ctp-yellow);
   --danger:        var(--ctp-red);
+}
+
+/* ─── Nord – Polar Night (Dark) ─── */
+[data-theme='nord'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23e5e9f0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  /* Polar Night */
+  --ctp-crust:     #2e3440;
+  --ctp-mantle:    #2e3440;
+  --ctp-base:      #3b4252;
+  --ctp-surface0:  #434c5e;
+  --ctp-surface1:  #4c566a;
+  --ctp-surface2:  #576070;
+  --ctp-overlay0:  #7a8898;
+  --ctp-overlay1:  #8894a4;
+  --ctp-overlay2:  #96a2b0;
+  /* Snow Storm as text */
+  --ctp-text:      #eceff4;
+  --ctp-subtext1:  #e5e9f0;
+  --ctp-subtext0:  #d8dee9;
+  /* Frost */
+  --ctp-teal:      #8fbcbb;
+  --ctp-sky:       #88c0d0;
+  --ctp-sapphire:  #81a1c1;
+  --ctp-blue:      #5e81ac;
+  --ctp-lavender:  #81a1c1;
+  --ctp-mauve:     #88c0d0;
+  /* Aurora */
+  --ctp-red:       #bf616a;
+  --ctp-maroon:    #d08770;
+  --ctp-peach:     #d08770;
+  --ctp-yellow:    #ebcb8b;
+  --ctp-green:     #a3be8c;
+  --ctp-pink:      #b48ead;
+  --ctp-flamingo:  #bf616a;
+  --ctp-rosewater: #d08770;
+
+  --bg-app:        #3b4252;
+  --bg-sidebar:    #2e3440;
+  --bg-card:       #434c5e;
+  --bg-hover:      #4c566a;
+  --bg-player:     #2e3440;
+  --bg-glass:      rgba(59, 66, 82, 0.75);
+  --accent:        #88c0d0;
+  --accent-dim:    rgba(136, 192, 208, 0.15);
+  --accent-glow:   rgba(136, 192, 208, 0.3);
+  --text-primary:  #eceff4;
+  --text-secondary:#e5e9f0;
+  --text-muted:    #8894a4;
+  --border:        #434c5e;
+  --border-subtle: #3b4252;
+  --positive:      #a3be8c;
+  --warning:       #ebcb8b;
+  --danger:        #bf616a;
+}
+
+/* ─── Nord – Snow Storm (Light) ─── */
+[data-theme='nord-snowstorm'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%233b4252%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  /* Snow Storm as backgrounds */
+  --ctp-crust:     #d8dee9;
+  --ctp-mantle:    #e5e9f0;
+  --ctp-base:      #eceff4;
+  --ctp-surface0:  #d8dee9;
+  --ctp-surface1:  #c8d0de;
+  --ctp-surface2:  #b8c2d0;
+  --ctp-overlay0:  #7a8898;
+  --ctp-overlay1:  #636e7e;
+  --ctp-overlay2:  #4c566a;
+  /* Polar Night as text */
+  --ctp-text:      #2e3440;
+  --ctp-subtext1:  #3b4252;
+  --ctp-subtext0:  #434c5e;
+  /* Frost */
+  --ctp-teal:      #8fbcbb;
+  --ctp-sky:       #88c0d0;
+  --ctp-sapphire:  #81a1c1;
+  --ctp-blue:      #5e81ac;
+  --ctp-lavender:  #81a1c1;
+  --ctp-mauve:     #5e81ac;
+  /* Aurora */
+  --ctp-red:       #bf616a;
+  --ctp-maroon:    #d08770;
+  --ctp-peach:     #d08770;
+  --ctp-yellow:    #9a7200;
+  --ctp-green:     #4e7c3f;
+  --ctp-pink:      #7e5d8c;
+  --ctp-flamingo:  #bf616a;
+  --ctp-rosewater: #d08770;
+
+  --bg-app:        #eceff4;
+  --bg-sidebar:    #e5e9f0;
+  --bg-card:       #d8dee9;
+  --bg-hover:      #c8d0de;
+  --bg-player:     #e5e9f0;
+  --bg-glass:      rgba(236, 239, 244, 0.80);
+  --accent:        #5e81ac;
+  --accent-dim:    rgba(94, 129, 172, 0.15);
+  --accent-glow:   rgba(94, 129, 172, 0.3);
+  --text-primary:  #2e3440;
+  --text-secondary:#3b4252;
+  --text-muted:    #636e7e;
+  --border:        #c8d0de;
+  --border-subtle: #d8dee9;
+  --positive:      #4e7c3f;
+  --warning:       #9a7200;
+  --danger:        #bf616a;
+}
+
+/* ─── Nord – Frost (Deep Ocean Blue) ─── */
+[data-theme='nord-frost'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23e5e9f0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  /* Deep ocean blue – Frost-inspired dark backgrounds */
+  --ctp-crust:     #1a2535;
+  --ctp-mantle:    #1d2b3a;
+  --ctp-base:      #253545;
+  --ctp-surface0:  #2d3f52;
+  --ctp-surface1:  #354a60;
+  --ctp-surface2:  #3d546e;
+  --ctp-overlay0:  #6888a4;
+  --ctp-overlay1:  #7898b4;
+  --ctp-overlay2:  #88a8c4;
+  /* Snow Storm as text */
+  --ctp-text:      #eceff4;
+  --ctp-subtext1:  #e5e9f0;
+  --ctp-subtext0:  #d8dee9;
+  /* Frost accent */
+  --ctp-teal:      #8fbcbb;
+  --ctp-sky:       #88c0d0;
+  --ctp-sapphire:  #81a1c1;
+  --ctp-blue:      #5e81ac;
+  --ctp-lavender:  #8fbcbb;
+  --ctp-mauve:     #88c0d0;
+  /* Aurora */
+  --ctp-red:       #bf616a;
+  --ctp-maroon:    #d08770;
+  --ctp-peach:     #d08770;
+  --ctp-yellow:    #ebcb8b;
+  --ctp-green:     #a3be8c;
+  --ctp-pink:      #b48ead;
+  --ctp-flamingo:  #bf616a;
+  --ctp-rosewater: #d08770;
+
+  --bg-app:        #253545;
+  --bg-sidebar:    #1d2b3a;
+  --bg-card:       #2d3f52;
+  --bg-hover:      #354a60;
+  --bg-player:     #1a2535;
+  --bg-glass:      rgba(37, 53, 69, 0.75);
+  --accent:        #88c0d0;
+  --accent-dim:    rgba(136, 192, 208, 0.15);
+  --accent-glow:   rgba(136, 192, 208, 0.35);
+  --text-primary:  #eceff4;
+  --text-secondary:#e5e9f0;
+  --text-muted:    #7898b4;
+  --border:        #2d3f52;
+  --border-subtle: #253545;
+  --positive:      #a3be8c;
+  --warning:       #ebcb8b;
+  --danger:        #bf616a;
+}
+
+/* ─── Nord – Aurora (Dark + Aurora Purple) ─── */
+[data-theme='nord-aurora'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23e5e9f0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  /* Polar Night base */
+  --ctp-crust:     #2e3440;
+  --ctp-mantle:    #2e3440;
+  --ctp-base:      #3b4252;
+  --ctp-surface0:  #434c5e;
+  --ctp-surface1:  #4c566a;
+  --ctp-surface2:  #576070;
+  --ctp-overlay0:  #7a8898;
+  --ctp-overlay1:  #8894a4;
+  --ctp-overlay2:  #96a2b0;
+  /* Snow Storm as text */
+  --ctp-text:      #eceff4;
+  --ctp-subtext1:  #e5e9f0;
+  --ctp-subtext0:  #d8dee9;
+  /* Aurora accents — purple as mauve/lavender for button gradients */
+  --ctp-mauve:     #b48ead;
+  --ctp-lavender:  #a3be8c;
+  --ctp-pink:      #b48ead;
+  --ctp-teal:      #8fbcbb;
+  --ctp-sky:       #88c0d0;
+  --ctp-sapphire:  #81a1c1;
+  --ctp-blue:      #5e81ac;
+  --ctp-red:       #bf616a;
+  --ctp-maroon:    #d08770;
+  --ctp-peach:     #d08770;
+  --ctp-yellow:    #ebcb8b;
+  --ctp-green:     #a3be8c;
+  --ctp-flamingo:  #bf616a;
+  --ctp-rosewater: #d08770;
+
+  --bg-app:        #3b4252;
+  --bg-sidebar:    #2e3440;
+  --bg-card:       #434c5e;
+  --bg-hover:      #4c566a;
+  --bg-player:     #2e3440;
+  --bg-glass:      rgba(59, 66, 82, 0.75);
+  --accent:        #b48ead;
+  --accent-dim:    rgba(180, 142, 173, 0.15);
+  --accent-glow:   rgba(180, 142, 173, 0.3);
+  --text-primary:  #eceff4;
+  --text-secondary:#e5e9f0;
+  --text-muted:    #8894a4;
+  --border:        #434c5e;
+  --border-subtle: #3b4252;
+  --positive:      #a3be8c;
+  --warning:       #ebcb8b;
+  --danger:        #bf616a;
 }
 
 /* ─── Global Base Settings ─── */

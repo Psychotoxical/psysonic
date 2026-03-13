@@ -89,7 +89,7 @@ const FsPlayBtn = memo(function FsPlayBtn() {
   const togglePlay = usePlayerStore(s => s.togglePlay);
   return (
     <button className="fs-btn fs-btn-play" onClick={togglePlay} aria-label={isPlaying ? t('player.pause') : t('player.play')}>
-      {isPlaying ? <Pause size={36} /> : <Play size={36} fill="currentColor" />}
+      {isPlaying ? <Pause size={25} /> : <Play size={25} fill="currentColor" />}
     </button>
   );
 });
@@ -163,21 +163,21 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
 
           <div className="fs-controls">
             <button className="fs-btn fs-btn-sm" onClick={stop} data-tooltip="Stop">
-              <Square size={20} fill="currentColor" />
+              <Square size={14} fill="currentColor" />
             </button>
             <button className="fs-btn" onClick={previous} aria-label={t('player.prev')}>
-              <SkipBack size={28} />
+              <SkipBack size={20} />
             </button>
             <FsPlayBtn />
             <button className="fs-btn" onClick={next} aria-label={t('player.next')}>
-              <SkipForward size={28} />
+              <SkipForward size={20} />
             </button>
             <button
               className={`fs-btn fs-btn-sm ${repeatMode !== 'off' ? 'active' : ''}`}
               onClick={toggleRepeat}
               data-tooltip={`${t('player.repeat')}: ${repeatMode === 'off' ? t('player.repeatOff') : repeatMode === 'all' ? t('player.repeatAll') : t('player.repeatOne')}`}
             >
-              {repeatMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
+              {repeatMode === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
             </button>
           </div>
         </div>

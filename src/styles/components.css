@@ -53,13 +53,13 @@
   inset: 0;
   background: linear-gradient(
     to right,
-    rgba(30, 30, 46, 0.92) 0%,
-    rgba(30, 30, 46, 0.6) 50%,
-    rgba(30, 30, 46, 0.3) 100%
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.45) 50%,
+    rgba(0, 0, 0, 0.18) 100%
   ),
   linear-gradient(
     to top,
-    rgba(30, 30, 46, 0.95) 0%,
+    rgba(0, 0, 0, 0.88) 0%,
     transparent 60%
   );
 }
@@ -94,7 +94,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ctp-lavender);
   margin-bottom: var(--space-2);
 }
 
@@ -102,16 +102,16 @@
   font-family: var(--font-display);
   font-size: clamp(24px, 3vw, 36px);
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
   margin-bottom: var(--space-1);
   line-height: 1.2;
-  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 12px rgba(0,0,0,0.6);
   max-width: 500px;
 }
 
 .hero-artist {
   font-size: 16px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.72);
   margin-bottom: var(--space-3);
 }
 
@@ -905,16 +905,16 @@
   to   { transform: translateY(0);    opacity: 1; }
 }
 
-/* Blurred background — GPU layer, will not repaint with React re-renders */
+/* Blurred background */
 .fs-bg {
   position: absolute;
   inset: -10%;
   background-size: cover;
   background-position: center;
   filter: blur(50px) brightness(0.28) saturate(1.6);
-  transform: scale(1.2) translateZ(0);
+  transform: scale(1.2);
   z-index: 0;
-  will-change: auto;
+  will-change: opacity;
   pointer-events: none;
   transition: opacity 700ms ease;
 }
@@ -963,7 +963,7 @@
   display: flex;
   flex: 1;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: clamp(28px, 4vw, 72px);
   padding: 72px clamp(40px, 6vw, 100px) 48px;
@@ -1019,7 +1019,7 @@
   font-family: var(--font-display);
   font-size: clamp(16px, 1.8vw, 26px);
   font-weight: 800;
-  color: var(--text-primary);
+  color: #ffffff;
   margin: 0 0 4px;
   line-height: 1.2;
   white-space: nowrap;
@@ -1029,12 +1029,12 @@
 .fs-artist {
   font-size: clamp(13px, 1.1vw, 16px);
   font-weight: 600;
-  color: var(--accent);
+  color: var(--ctp-lavender);
   margin: 0;
 }
 .fs-album {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
   margin: 3px 0 0;
   white-space: nowrap;
   overflow: hidden;
@@ -1049,7 +1049,7 @@
   border: 1px solid rgba(255,255,255,0.1);
   padding: 2px 8px;
   border-radius: var(--radius-full);
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.45);
   margin-top: 6px;
 }
 
@@ -1098,14 +1098,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 11px;
 }
 .fs-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1114,29 +1114,29 @@
 }
 .fs-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }
 .fs-btn.active { color: var(--accent); }
-.fs-btn-sm { width: 36px; height: 36px; }
+.fs-btn-sm { width: 25px; height: 25px; }
 .fs-btn-play {
-  width: 68px;
-  height: 68px;
-  background: white;
-  color: #1e1e2e;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--ctp-mauve), var(--ctp-lavender));
+  color: var(--ctp-crust);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
 }
 .fs-btn-play:hover {
-  background: var(--ctp-lavender);
-  color: #1e1e2e;
+  background: linear-gradient(135deg, var(--ctp-lavender), var(--ctp-mauve));
+  color: var(--ctp-crust);
   transform: scale(1.06);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.6);
 }
 
-/* Right column: upcoming tracks — same vertical center as left column */
+/* Right column: upcoming tracks — top-aligned with cover */
 .fs-right {
   display: flex;
   flex-direction: column;
   gap: 12px;
   flex-shrink: 0;
   width: clamp(240px, 26vw, 380px);
-  align-self: center;
+  align-self: flex-start;
   height: min(clamp(400px, 60vh, 840px), calc(100vh - 180px));
   overflow: hidden;
 }
@@ -1145,7 +1145,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.4);
   margin: 0;
   flex-shrink: 0;
 }
@@ -1195,21 +1195,21 @@
 .fs-upcoming-name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .fs-upcoming-artist {
   font-size: 12px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .fs-upcoming-dur {
   font-size: 12px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.4);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }

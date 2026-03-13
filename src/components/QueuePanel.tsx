@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Track, usePlayerStore } from '../store/playerStore';
 import { Play, Music, Star, X, Trash2, Save, FolderOpen } from 'lucide-react';
 import { buildCoverArtUrl, getAlbum, getPlaylists, getPlaylist, createPlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
@@ -124,6 +124,7 @@ export default function QueuePanel() {
 
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const isDraggingInternalRef = useRef(false);
 
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
@@ -142,41 +143,57 @@ export default function QueuePanel() {
   };
 
   const onDragStart = (e: React.DragEvent, index: number) => {
+    isDraggingInternalRef.current = true;
     setDraggedIdx(index);
-    e.dataTransfer.effectAllowed = 'copyMove';
-    e.dataTransfer.setData('application/json', JSON.stringify({
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
       type: 'queue_reorder',
       index
     }));
   };
 
+  const onDragEnterItem = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = isDraggingInternalRef.current ? 'move' : 'copy';
+  };
+
   const onDragOverItem = (e: React.DragEvent, index: number) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = isDraggingInternalRef.current ? 'move' : 'copy';
     setDragOverIdx(index);
   };
 
   const onDragEnd = () => {
+    isDraggingInternalRef.current = false;
     setDraggedIdx(null);
     setDragOverIdx(null);
   };
 
   const onDropQueue = async (e: React.DragEvent, dropIndex?: number) => {
     e.preventDefault();
+
+    // Handle internal queue reorder using state — more reliable than dataTransfer on Windows/WebView2
+    if (draggedIdx !== null) {
+      const targetIdx = dropIndex !== undefined ? dropIndex : queue.length;
+      if (draggedIdx !== targetIdx) {
+        reorderQueue(draggedIdx, targetIdx);
+      }
+      isDraggingInternalRef.current = false;
+      setDraggedIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+
+    isDraggingInternalRef.current = false;
     setDraggedIdx(null);
     setDragOverIdx(null);
-    
+
     try {
-      const dataStr = e.dataTransfer.getData('application/json');
+      const dataStr = e.dataTransfer.getData('text/plain');
       if (!dataStr) return;
       const data = JSON.parse(dataStr);
-      
-      if (data.type === 'queue_reorder') {
-        const fromIdx = data.index;
-        const targetIdx = dropIndex !== undefined ? dropIndex : queue.length;
-        if (fromIdx !== undefined && fromIdx !== targetIdx) {
-          reorderQueue(fromIdx, targetIdx);
-        }
-      } else if (data.type === 'song') {
+
+      if (data.type === 'song') {
         const track = data.track;
         if (dropIndex !== undefined) {
           // If dropped on a specific item, we might want to insert it there.
@@ -201,9 +218,10 @@ export default function QueuePanel() {
   };
 
   return (
-    <aside 
-      className="queue-panel" 
-      onDragOver={e => e.preventDefault()}
+    <aside
+      className="queue-panel"
+      onDragEnter={e => { e.preventDefault(); e.dataTransfer.dropEffect = isDraggingInternalRef.current ? 'move' : 'copy'; }}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = isDraggingInternalRef.current ? 'move' : 'copy'; }}
       onDrop={e => onDropQueue(e)}
       style={{ 
         borderLeftWidth: isQueueVisible ? 1 : 0
@@ -293,6 +311,7 @@ export default function QueuePanel() {
                 }}
                 draggable
                 onDragStart={(e) => onDragStart(e, idx)}
+                onDragEnter={(e) => onDragEnterItem(e)}
                 onDragOver={(e) => onDragOverItem(e, idx)}
                 onDragEnd={onDragEnd}
                 onDrop={(e) => {

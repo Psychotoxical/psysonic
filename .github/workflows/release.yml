@@ -117,7 +117,7 @@ jobs:
           APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -not -name "*.tar.gz" | head -1)
           echo "Patching: $APPIMAGE"
           APPIMAGE_EXTRACT_AND_RUN=1 ./"$APPIMAGE" --appimage-extract
-          sed -i '/^exec /i export WEBKIT_DISABLE_COMPOSITING_MODE=1\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' squashfs-root/AppRun
+          sed -i '/^exec /i export WEBKIT_DISABLE_COMPOSITING_MODE=1\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1\nexport GDK_BACKEND=x11' squashfs-root/AppRun
           wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O appimagetool
           chmod +x appimagetool

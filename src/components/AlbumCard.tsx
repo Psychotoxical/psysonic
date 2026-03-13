@@ -29,7 +29,7 @@ export default function AlbumCard({ album }: AlbumCardProps) {
       draggable
       onDragStart={e => {
         e.dataTransfer.effectAllowed = 'copy';
-        e.dataTransfer.setData('application/json', JSON.stringify({
+        e.dataTransfer.setData('text/plain', JSON.stringify({
           type: 'album',
           id: album.id,
           name: album.name,
