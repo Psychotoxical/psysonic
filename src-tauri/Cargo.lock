@@ -2732,7 +2732,7 @@ dependencies = [
 
 [[package]]
 name = "psysonic"
-version = "1.0.6"
+version = "1.0.8"
 dependencies = [
  "serde",
  "serde_json",

@@ -133,7 +133,7 @@ export default function Hero() {
                   const albumData = await getAlbum(album.id);
                   const tracks = albumData.songs.map(s => ({
                     id: s.id, title: s.title, artist: s.artist, album: s.album,
-                    albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+                    albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
                     year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
                   }));
                   usePlayerStore.getState().enqueue(tracks);

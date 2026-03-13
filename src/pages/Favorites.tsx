@@ -72,7 +72,7 @@ export default function Favorites() {
                       e.dataTransfer.effectAllowed = 'copy';
                       const track = {
                         id: song.id, title: song.title, artist: song.artist, album: song.album,
-                        albumId: song.albumId, duration: song.duration, coverArt: song.coverArt, track: song.track,
+                        albumId: song.albumId, artistId: song.artistId, duration: song.duration, coverArt: song.coverArt, track: song.track,
                         year: song.year, bitRate: song.bitRate, suffix: song.suffix, userRating: song.userRating,
                       };
                       e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'song', track }));

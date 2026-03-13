@@ -34,7 +34,7 @@ export default function Playlists() {
       const data = await getPlaylist(id);
       const tracks = data.songs.map((s: any) => ({
         id: s.id, title: s.title, artist: s.artist, album: s.album,
-        albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+        albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
         year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
       }));
       if (tracks.length > 0) {

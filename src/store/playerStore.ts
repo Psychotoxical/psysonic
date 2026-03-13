@@ -10,6 +10,7 @@ export interface Track {
   artist: string;
   album: string;
   albumId: string;
+  artistId?: string;
   duration: number;
   coverArt?: string;
   track?: number;
@@ -75,6 +76,9 @@ interface PlayerState {
 
 let progressInterval: ReturnType<typeof setInterval> | null = null;
 let seekDebounce: ReturnType<typeof setTimeout> | null = null;
+// Blocks progress interval from overwriting the UI position while GStreamer
+// processes a seek on the HTTP pipeline (can take several hundred ms on Linux).
+let isSeeking = false;
 
 function clearProgress() {
   if (progressInterval) {
@@ -144,6 +148,8 @@ export const usePlayerStore = create<PlayerState>()(
     // Stop current
     state.howl?.unload();
     clearProgress();
+    if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; }
+    isSeeking = false;
 
     const newQueue = queue ?? state.queue;
     const idx = newQueue.findIndex(t => t.id === track.id);
@@ -162,6 +168,9 @@ export const usePlayerStore = create<PlayerState>()(
         progressInterval = setInterval(() => {
           const h = get().howl;
           if (!h) return;
+          // Skip position updates while a seek is in flight — GStreamer may
+          // still report the old position and would overwrite the UI value.
+          if (isSeeking) return;
           const cur = typeof h.seek() === 'number' ? h.seek() as number : 0;
           const dur = h.duration() || 1;
           const prog = cur / dur;
@@ -244,14 +253,28 @@ export const usePlayerStore = create<PlayerState>()(
     const { howl, currentTrack } = get();
     if (!howl || !currentTrack) return;
     const time = progress * (howl.duration() || currentTrack.duration);
-    // Update UI immediately for responsiveness
+    // Update UI immediately and block interval from overwriting it.
     set({ progress, currentTime: time });
-    // Debounce the actual seek — GStreamer on Linux stalls if two seeks arrive
-    // before the first one completes (reproducible after the 2nd seek)
+    isSeeking = true;
+    // Debounce so rapid slider drags collapse into one seek.
     if (seekDebounce) clearTimeout(seekDebounce);
     seekDebounce = setTimeout(() => {
-      get().howl?.seek(time);
-      seekDebounce = null;
+      const h = get().howl;
+      if (!h) { isSeeking = false; seekDebounce = null; return; }
+      // GStreamer HTTP pipelines require the element to be paused before a
+      // seek is accepted reliably. Seek while playing can silently fail on
+      // Linux (tested on Mint + CachyOS), leaving the pipeline at the old
+      // position on the next seek.
+      const wasPlaying = h.playing();
+      if (wasPlaying) h.pause();
+      h.seek(time);
+      // Resume after GStreamer has had time to flush and re-buffer.
+      seekDebounce = setTimeout(() => {
+        const h2 = get().howl;
+        if (h2 && wasPlaying) h2.play();
+        isSeeking = false;
+        seekDebounce = null;
+      }, 300);
     }, 100);
   },
 
@@ -329,7 +352,7 @@ export const usePlayerStore = create<PlayerState>()(
       if (q.songs.length > 0) {
         const mappedTracks: Track[] = q.songs.map((s: SubsonicSong) => ({
           id: s.id, title: s.title, artist: s.artist, album: s.album,
-          albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+          albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
           year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
         }));
         

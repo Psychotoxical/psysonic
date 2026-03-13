@@ -125,6 +125,10 @@ export default function QueuePanel() {
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const isDraggingInternalRef = useRef(false);
+  // Refs mirror state so drop handler always reads fresh values even when
+  // macOS WKWebView fires dragend before drop (spec violation).
+  const draggedIdxRef = useRef<number | null>(null);
+  const dragOverIdxRef = useRef<number | null>(null);
 
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
@@ -144,12 +148,12 @@ export default function QueuePanel() {
 
   const onDragStart = (e: React.DragEvent, index: number) => {
     isDraggingInternalRef.current = true;
+    draggedIdxRef.current = index;
     setDraggedIdx(index);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      type: 'queue_reorder',
-      index
-    }));
+    // Store index in dataTransfer too — on macOS WKWebView dragend fires before
+    // drop, so the ref will already be null; dataTransfer survives that race.
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'queue_reorder', index }));
   };
 
   const onDragEnterItem = (e: React.DragEvent) => {
@@ -160,60 +164,58 @@ export default function QueuePanel() {
   const onDragOverItem = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = isDraggingInternalRef.current ? 'move' : 'copy';
+    dragOverIdxRef.current = index;
     setDragOverIdx(index);
   };
 
   const onDragEnd = () => {
     isDraggingInternalRef.current = false;
+    draggedIdxRef.current = null;
+    dragOverIdxRef.current = null;
     setDraggedIdx(null);
     setDragOverIdx(null);
   };
 
-  const onDropQueue = async (e: React.DragEvent, dropIndex?: number) => {
+  const onDropQueue = async (e: React.DragEvent) => {
     e.preventDefault();
 
-    // Handle internal queue reorder using state — more reliable than dataTransfer on Windows/WebView2
-    if (draggedIdx !== null) {
-      const targetIdx = dropIndex !== undefined ? dropIndex : queue.length;
-      if (draggedIdx !== targetIdx) {
-        reorderQueue(draggedIdx, targetIdx);
-      }
-      isDraggingInternalRef.current = false;
-      setDraggedIdx(null);
-      setDragOverIdx(null);
-      return;
-    }
+    // Capture refs before resetting — dragend may have already cleared them on Mac.
+    const fromIdx = draggedIdxRef.current;
+    const toIdx = dragOverIdxRef.current ?? queue.length;
 
     isDraggingInternalRef.current = false;
+    draggedIdxRef.current = null;
+    dragOverIdxRef.current = null;
     setDraggedIdx(null);
     setDragOverIdx(null);
 
+    // Read dataTransfer — set during dragstart, outlives dragend on all platforms.
+    let parsedData: any = null;
     try {
-      const dataStr = e.dataTransfer.getData('text/plain');
-      if (!dataStr) return;
-      const data = JSON.parse(dataStr);
+      const raw = e.dataTransfer.getData('text/plain');
+      if (raw) parsedData = JSON.parse(raw);
+    } catch { /* ignore */ }
 
-      if (data.type === 'song') {
-        const track = data.track;
-        if (dropIndex !== undefined) {
-          // If dropped on a specific item, we might want to insert it there.
-          // For now we just enqueue it at the end to keep it simple, or insert it.
-          // Since we don't have an insert method, we use enqueue (appends to end).
-          enqueue([track]);  
-        } else {
-          enqueue([track]);
-        }
-      } else if (data.type === 'album') {
-        const albumData = await getAlbum(data.id);
-        const tracks: Track[] = albumData.songs.map(s => ({
-          id: s.id, title: s.title, artist: s.artist, album: s.album,
-          albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
-          year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
-        }));
-        enqueue(tracks);
-      }
-    } catch (err) {
-      console.error('Drop error', err);
+    // Internal reorder: prefer ref value (fast path), fall back to dataTransfer
+    // for the Mac dragend-before-drop race condition.
+    const reorderFrom = fromIdx ?? (parsedData?.type === 'queue_reorder' ? parsedData.index : null);
+    if (reorderFrom !== null) {
+      if (reorderFrom !== toIdx) reorderQueue(reorderFrom, toIdx);
+      return;
+    }
+
+    // External drop (song / album dragged from elsewhere in the app)
+    if (!parsedData) return;
+    if (parsedData.type === 'song') {
+      enqueue([parsedData.track]);
+    } else if (parsedData.type === 'album') {
+      const albumData = await getAlbum(parsedData.id);
+      const tracks: Track[] = albumData.songs.map(s => ({
+        id: s.id, title: s.title, artist: s.artist, album: s.album,
+        albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+        year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
+      }));
+      enqueue(tracks);
     }
   };
 
@@ -222,7 +224,7 @@ export default function QueuePanel() {
       className="queue-panel"
       onDragEnter={e => { e.preventDefault(); e.dataTransfer.dropEffect = isDraggingInternalRef.current ? 'move' : 'copy'; }}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = isDraggingInternalRef.current ? 'move' : 'copy'; }}
-      onDrop={e => onDropQueue(e)}
+      onDrop={onDropQueue}
       style={{ 
         borderLeftWidth: isQueueVisible ? 1 : 0
       }}
@@ -314,10 +316,6 @@ export default function QueuePanel() {
                 onDragEnter={(e) => onDragEnterItem(e)}
                 onDragOver={(e) => onDragOverItem(e, idx)}
                 onDragEnd={onDragEnd}
-                onDrop={(e) => {
-                  e.stopPropagation();
-                  onDropQueue(e, idx);
-                }}
                 style={dragStyle}
               >
                 <div className="queue-item-info">
@@ -358,7 +356,7 @@ export default function QueuePanel() {
               const data = await getPlaylist(id);
               const tracks: Track[] = data.songs.map(s => ({
                 id: s.id, title: s.title, artist: s.artist, album: s.album,
-                albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+                albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
                 year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
               }));
               if (tracks.length > 0) {

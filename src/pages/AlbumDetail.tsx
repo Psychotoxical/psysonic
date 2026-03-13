@@ -135,7 +135,7 @@ export default function AlbumDetail() {
     if (!album) return;
     const tracks = album.songs.map(s => ({
       id: s.id, title: s.title, artist: s.artist, album: s.album,
-      albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+      albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
       year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
     }));
     if (tracks[0]) playTrack(tracks[0], tracks);
@@ -145,7 +145,7 @@ export default function AlbumDetail() {
     if (!album) return;
     const tracks = album.songs.map(s => ({
       id: s.id, title: s.title, artist: s.artist, album: s.album,
-      albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+      albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
       year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
     }));
     enqueue(tracks);
@@ -154,7 +154,7 @@ export default function AlbumDetail() {
   const handlePlaySong = (song: SubsonicSong) => {
     const track = {
       id: song.id, title: song.title, artist: song.artist, album: song.album,
-      albumId: song.albumId, duration: song.duration, coverArt: song.coverArt,
+      albumId: song.albumId, artistId: song.artistId, duration: song.duration, coverArt: song.coverArt,
       track: song.track, year: song.year, bitRate: song.bitRate,
       suffix: song.suffix, userRating: song.userRating
     };
@@ -410,7 +410,7 @@ export default function AlbumDetail() {
                     e.preventDefault();
                     const track = {
                       id: song.id, title: song.title, artist: song.artist, album: song.album,
-                      albumId: song.albumId, duration: song.duration, coverArt: song.coverArt, track: song.track,
+                      albumId: song.albumId, artistId: song.artistId, duration: song.duration, coverArt: song.coverArt, track: song.track,
                       year: song.year, bitRate: song.bitRate, suffix: song.suffix, userRating: song.userRating,
                     };
                     openContextMenu(e.clientX, e.clientY, track, 'album-song');
@@ -421,7 +421,7 @@ export default function AlbumDetail() {
                     e.dataTransfer.effectAllowed = 'copy';
                     const track = {
                       id: song.id, title: song.title, artist: song.artist, album: song.album,
-                      albumId: song.albumId, duration: song.duration, coverArt: song.coverArt, track: song.track,
+                      albumId: song.albumId, artistId: song.artistId, duration: song.duration, coverArt: song.coverArt, track: song.track,
                       year: song.year, bitRate: song.bitRate, suffix: song.suffix, userRating: song.userRating,
                     };
                     e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'song', track }));

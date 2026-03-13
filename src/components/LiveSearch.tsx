@@ -138,7 +138,7 @@ export default function LiveSearch() {
                   onClick={() => {
                     playTrack({
                       id: s.id, title: s.title, artist: s.artist, album: s.album,
-                      albumId: s.albumId, duration: s.duration, coverArt: s.coverArt,
+                      albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt,
                       year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating
                     });
                     setOpen(false); setQuery('');

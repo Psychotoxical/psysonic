@@ -62,7 +62,7 @@ export default function ContextMenu() {
         const top = await getTopSongs(artistName);
         const radioTracks = [...top, ...similar].map(s => ({
           id: s.id, title: s.title, artist: s.artist, album: s.album,
-          albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+          albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
           year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
         }));
         playTrack(radioTracks[0], radioTracks);
@@ -137,7 +137,7 @@ export default function ContextMenu() {
                   const albumData = await getAlbum(song.albumId);
                   const tracks = albumData.songs.map(s => ({
                     id: s.id, title: s.title, artist: s.artist, album: s.album,
-                    albumId: s.albumId, duration: s.duration, coverArt: s.coverArt, track: s.track,
+                    albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
                     year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating,
                   }));
                   enqueue(tracks);
