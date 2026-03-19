@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.6.0] - 2026-03-19
 
+> ⚠️ **Wichtiger Hinweis / Important Notice**
+>
+> **DE:** Der Bundle-Identifier der App wurde von `dev.psysonic.app` auf `dev.psysonic.player` geändert. **Alle gespeicherten Einstellungen (Server-Profile, Theme, EQ, Sprache usw.) gehen beim Update auf diese Version einmalig verloren** und müssen neu eingetragen werden. Zukünftige Updates sind davon nicht betroffen.
+>
+> **EN:** The app's bundle identifier has changed from `dev.psysonic.app` to `dev.psysonic.player`. **All saved settings (server profiles, theme, EQ, language, etc.) will be reset once when updating to this version** and need to be re-entered. Future updates are not affected.
+
 ### Added
 
 #### Replay Gain
