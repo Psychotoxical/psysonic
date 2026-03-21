@@ -121,6 +121,7 @@ export default function QueuePanel() {
   const queue = usePlayerStore(s => s.queue);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
+  const currentTime = usePlayerStore(s => s.currentTime);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
   const playTrack = usePlayerStore(s => s.playTrack);
   const toggleQueue = usePlayerStore(s => s.toggleQueue);
@@ -138,6 +139,7 @@ export default function QueuePanel() {
   const setCrossfadeSecs = useAuthStore(s => s.setCrossfadeSecs);
   const setGaplessEnabled = useAuthStore(s => s.setGaplessEnabled);
 
+  const [showRemainingTime, setShowRemainingTime] = useState(false);
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
   const crossfadeBtnRef = useRef<HTMLButtonElement>(null);
   const crossfadePopoverRef = useRef<HTMLDivElement>(null);
@@ -284,14 +286,25 @@ export default function QueuePanel() {
           <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0, flexShrink: 0 }}>{t('queue.title')}</h2>
           {queue.length > 0 && (() => {
             const totalSecs = queue.reduce((acc, t) => acc + (t.duration || 0), 0);
-            const h = Math.floor(totalSecs / 3600);
-            const m = Math.floor((totalSecs % 3600) / 60);
-            const s = totalSecs % 60;
-            const dur = h > 0
-              ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-              : `${m}:${s.toString().padStart(2, '0')}`;
+            const remainingSecs = Math.max(0,
+              (queue[queueIndex]?.duration ?? 0) - currentTime
+              + queue.slice(queueIndex + 1).reduce((acc, t) => acc + (t.duration || 0), 0)
+            );
+            const fmt = (secs: number) => {
+              const h = Math.floor(secs / 3600);
+              const m = Math.floor((secs % 3600) / 60);
+              const s = secs % 60;
+              return h > 0
+                ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+                : `${m}:${s.toString().padStart(2, '0')}`;
+            };
+            const dur = showRemainingTime ? `-${fmt(Math.floor(remainingSecs))}` : fmt(Math.floor(totalSecs));
             return (
-              <span style={{ fontSize: '13px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+              <span
+                onClick={() => setShowRemainingTime(v => !v)}
+                data-tooltip={showRemainingTime ? t('queue.showTotal') : t('queue.showRemaining')}
+                style={{ fontSize: '13px', color: 'var(--accent)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}
+              >
                 {queue.length} {queue.length === 1 ? t('queue.trackSingular') : t('queue.trackPlural')} · {dur}
               </span>
             );

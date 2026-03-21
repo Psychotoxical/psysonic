@@ -5,6 +5,7 @@ import { getRandomAlbums, SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey, get
 import CachedImage, { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
+import { playAlbum } from '../utils/playAlbum';
 
 const INTERVAL_MS = 10000;
 
@@ -124,7 +125,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
             <button
               className="hero-play-btn"
               id="hero-play-btn"
-              onClick={e => { e.stopPropagation(); navigate(`/album/${album.id}`); }}
+              onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
               aria-label={`${t('hero.playAlbum')} ${album.name}`}
             >
               <Play size={18} fill="currentColor" />

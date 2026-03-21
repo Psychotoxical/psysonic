@@ -50,7 +50,10 @@ There are no test scripts. TypeScript compilation (`tsc`) is part of the build.
 | `src/store/authStore.ts` | Multi-server support via `ServerProfile[]` + `activeServerId`. `getBaseUrl()` / `getActiveServer()` used by subsonic.ts. Also stores Last.fm session key, username, scrobbling toggle. Persisted via **`localStorage`** (synchronous — do not change to async storage). |
 | `src/store/playerStore.ts` | Playback state, queue, scrobbling at 50% via Last.fm, server queue sync (debounced 1.5s). On `playTrack`: calls `reportNowPlaying` (Navidrome) + `lastfmUpdateNowPlaying` (Last.fm) independently. Persists `currentTrack`, `queue`, `queueIndex`, `currentTime` for cold-start resume. |
 | `src-tauri/src/audio.rs` | Rust audio engine: `audio_play`, `audio_pause`, `audio_resume`, `audio_stop`, `audio_seek`, `audio_set_volume` commands. Emits `audio:playing`, `audio:progress` (500ms), `audio:ended`, `audio:error` events. |
-| `src/store/themeStore.ts` | Theme selection (21 themes), applied as `data-theme` on `<html>` |
+| `src/store/themeStore.ts` | Theme selection (30 themes), applied as `data-theme` on `<html>` |
+| `src/store/fontStore.ts` | Font selection (10 fonts), applied as `data-font` on `<html>`. Persisted in `psysonic_font`. |
+| `src/store/keybindingsStore.ts` | Configurable keybindings — maps `KeyAction` to `e.code` strings. Persisted in `psysonic_keybindings`. |
+| `src/utils/playAlbum.ts` | `playAlbum(albumId)` — fetches album, fades out current track (700 ms), restores volume in store only (no Rust invoke), calls `playTrack`. Used by `AlbumCard` and `Hero` play buttons. |
 | `src-tauri/src/lib.rs` | Tray menu, media key global shortcuts (disabled on Linux), `exit_app` command |
 | `src/App.tsx` | Root routing, `RequireAuth` guard, `TauriEventBridge` (media keys → store actions), `<TooltipPortal />` mount |
 | `src/i18n.ts` | All translations (en + de + fr + nl) inline. Language persisted in `localStorage('psysonic_language')`. |
@@ -107,12 +110,25 @@ Use `getActiveServer()` to get the current server, `getBaseUrl()` to get its URL
 Add a function to `src/api/subsonic.ts` using the `api<T>()` helper. The helper automatically injects auth params and unwraps `subsonic-response`.
 
 ### Themes
-21 themes are available, selectable in Settings via `ThemePicker` (grouped). `themeStore` persists the choice and sets `data-theme` on `<html>`. All component CSS uses semantic tokens (`--accent`, `--text-primary`, etc.) — only the player button gradient and a few decorative elements reference `--ctp-*` palette vars directly, so every theme must define the full `--ctp-*` set.
+30 themes are available, selectable in Settings via `ThemePicker` (grouped). `themeStore` persists the choice and sets `data-theme` on `<html>`. All component CSS uses semantic tokens (`--accent`, `--text-primary`, etc.) — only the player button gradient and a few decorative elements reference `--ctp-*` palette vars directly, so every theme must define the full `--ctp-*` set.
 
-`--volume-accent` overrides the volume slider colour independently of `--accent` (used by Classic Winamp for orange volume, yellow accent elsewhere).
+`--volume-accent` overrides the volume slider colour independently of `--accent` (used by WnAmp for orange volume, yellow accent elsewhere).
 
 | Theme | Group | Style | Accent |
 |---|---|---|---|
+| `poison` | Psysonic Themes | dark charcoal, phosphor green LCD glow | Green `#1bd655` |
+| `nucleo` | Psysonic Themes | warm brass/cream light | Brass `#7a5218` |
+| `psychowave` | Psysonic Themes | deep violet synthwave | Purple `#a06ae0` |
+| `vintage-tube-radio` | Psysonic Themes | warm brown, VFD orange | Orange `#FF6F00` |
+| `neon-drift` | Psysonic Themes | midnight blue, electric cyan glow | Cyan `#00f2ff` |
+| `wnamp` | Psysonic — Mediaplayer | cool gray-blue dark, LCD glow, Courier New | Yellow `#d4cc46`, volume `#de9b35` |
+| `navy-jukebox` | Psysonic — Mediaplayer | silver/blue light | Blue `#0070a0` |
+| `cobalt-media` | Psysonic — Mediaplayer | cobalt blue dark | Lime `#45ff00` |
+| `onyx-cinema` | Psysonic — Mediaplayer | near-black cinematic | Cyan `#00aaff` |
+| `cupertino-light` | Betriebssysteme | macOS light, frosted glass | Apple Blue `#0071e3` |
+| `cupertino-dark` | Betriebssysteme | macOS Space Grey, frosted glass | Vibrant Blue `#007aff` |
+| `aero-glass` | Betriebssysteme | Win7 Aero glass blue | Blue `#1878e8` |
+| `luna-teal` | Betriebssysteme | WinXP Luna, green gel buttons | Green `#3c9d29` |
 | `mocha` | Catppuccin | dark | Mauve |
 | `macchiato` | Catppuccin | medium-dark | Mauve |
 | `frappe` | Catppuccin | medium | Mauve |
@@ -127,13 +143,9 @@ Add a function to `src/api/subsonic.ts` using the `api<T>()` helper. The helper 
 | `gruvbox-light-hard` | Retro | Gruvbox light hard | Orange `#af3a03` |
 | `gruvbox-light-medium` | Retro | Gruvbox light medium | Orange `#af3a03` |
 | `gruvbox-light-soft` | Retro | Gruvbox light soft | Orange `#af3a03` |
-| `tokyo-night` | Tokyo Night | dark blue | Purple `#7aa2f7` |
-| `tokyo-night-storm` | Tokyo Night | stormy blue-gray | Purple `#7aa2f7` |
-| `tokyo-night-light` | Tokyo Night | light | Purple `#7aa2f7` |
-| `classic-winamp` | Psysonic | cool gray-blue dark, LCD glow, Courier New | Yellow `#d4cc46`, volume `#de9b35` |
-| `poison` | Psysonic | dark charcoal, phosphor green LCD glow | Green `#1bd655` |
-| `nucleo` | Psysonic | warm brass/cream light | Gold `#c8a860` |
-| `psychowave` | Psysonic | deep violet synthwave | Purple `#a06ae0` |
+| `tokyo-night` | Tokyo Night | dark blue | Blue `#7aa2f7` |
+| `tokyo-night-storm` | Tokyo Night | stormy blue-gray | Blue `#7aa2f7` |
+| `tokyo-night-light` | Tokyo Night | light | Blue `#7aa2f7` |
 
 **Light-theme gotcha**: The Hero and Fullscreen Player sit on top of album-art backgrounds with dark overlays. Their text colors are hardcoded white (not `var(--text-primary)`) so they stay readable in light themes (Latte, Nord Snowstorm).
 
@@ -210,4 +222,4 @@ The workflow is split into three jobs: `create-release` (creates the GitHub Rele
 - **Last.fm API key**: Stored in `.env` as `VITE_LASTFM_API_KEY` / `VITE_LASTFM_API_SECRET`. Bundled into the JS at build time (Vite). Not in git. For desktop apps this is acceptable — Last.fm's own docs acknowledge client-side keys can't be truly hidden.
 - **NowPlayingDropdown refresh**: `spinning` state is separate from `loading` — button is always clickable. Spin lasts min 600 ms via `setTimeout`. Background poll (`loading`) does not block the button.
 - **CoverLightbox**: Shared component (`src/components/CoverLightbox.tsx`). Props: `{ src, alt, onClose }`. ESC + overlay click to close. Used in `AlbumHeader` (album cover) and `ArtistDetail` (artist avatar, wrapped in `.artist-detail-avatar-btn`).
-- **Version**: 1.8.0
+- **Version**: 1.9.0

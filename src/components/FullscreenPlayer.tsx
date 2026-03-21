@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useState, useRef, memo } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
-  ChevronDown, Repeat, Repeat1, Square, Music, AudioWaveform, Shuffle
+  ChevronDown, Repeat, Repeat1, Square, Music
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { buildCoverArtUrl, coverArtCacheKey, getArtistInfo } from '../api/subsonic';
 import CachedImage, { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
-import VisualizerCanvas from './VisualizerCanvas';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -148,10 +147,6 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const stop         = usePlayerStore(s => s.stop);
   const toggleRepeat = usePlayerStore(s => s.toggleRepeat);
 
-  const [vizActive, setVizActive] = useState(false);
-  const [nextPresetTrigger, setNextPresetTrigger] = useState(0);
-  const [presetName, setPresetName] = useState('');
-
   const duration = currentTrack?.duration ?? 0;
   const coverUrl = currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 800) : '';
   const coverKey = currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 800) : '';
@@ -182,55 +177,15 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   return (
     <div className="fs-player" role="dialog" aria-modal="true" aria-label={t('player.fullscreen')}>
 
-      {/* Layer 1 — blurred artist image OR visualizer */}
-      {vizActive && currentTrack ? (
-        <VisualizerCanvas
-          trackId={currentTrack.id}
-          nextPresetTrigger={nextPresetTrigger}
-          onPresetName={setPresetName}
-        />
-      ) : (
-        <>
-          <FsBg url={bgUrl} />
-          <div className="fs-bg-overlay" aria-hidden="true" />
-        </>
-      )}
+      {/* Layer 1 — blurred artist image */}
+      <FsBg url={bgUrl} />
+      <div className="fs-bg-overlay" aria-hidden="true" />
 
       {/* Close */}
       <button className="fs-close" onClick={onClose} aria-label={t('player.closeFullscreen')}>
         <ChevronDown size={28} />
       </button>
 
-      {/* Visualizer toggle + preset controls */}
-      <div style={{ position: 'absolute', top: '1.25rem', right: '4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        {vizActive && (
-          <>
-            {presetName && (
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {presetName}
-              </span>
-            )}
-            <button
-              className="fs-btn fs-btn-sm"
-              onClick={() => setNextPresetTrigger(n => n + 1)}
-              aria-label={t('player.nextPreset')}
-              data-tooltip={t('player.nextPreset')}
-              style={{ color: 'rgba(255,255,255,0.7)' }}
-            >
-              <Shuffle size={14} />
-            </button>
-          </>
-        )}
-        <button
-          className={`fs-btn fs-btn-sm ${vizActive ? 'active' : ''}`}
-          onClick={() => setVizActive(v => !v)}
-          aria-label={t('player.visualizer')}
-          data-tooltip={t('player.visualizer')}
-          style={{ color: vizActive ? 'white' : 'rgba(255,255,255,0.5)' }}
-        >
-          <AudioWaveform size={16} />
-        </button>
-      </div>
 
       {/* Center stage — everything vertically + horizontally centered */}
       <div className="fs-stage">

@@ -3,7 +3,7 @@
    Catppuccin Mocha Color Palette + Inter Typography
    ───────────────────────────────────────────────────────────── */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300..700&family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=Nunito:ital,wght@0,300..800;1,300..800&family=Rubik:ital,wght@0,300..700;1,300..700&family=Figtree:ital,wght@0,300..800;1,300..800&family=Manrope:wght@300..800&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Lexend:wght@300..700&display=swap');
 
 /* ─── Catppuccin Mocha Variables ─── */
 :root, [data-theme='mocha'] {
@@ -503,7 +503,7 @@
 }
 
 /* ─── Classic Winamp — Winamp 2.x Base Skin ─── */
-[data-theme='classic-winamp'] {
+[data-theme='wnamp'] {
   color-scheme: dark;
   --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c8c8d0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
 
@@ -558,25 +558,32 @@
 }
 
 /* ── Classic Winamp: LCD display + bevel buttons ── */
-[data-theme='classic-winamp'] .player-track-name {
+[data-theme='wnamp'] .connection-type {
+  color: var(--text-primary);
+}
+[data-theme='wnamp'] .connection-server {
+  color: var(--text-secondary);
+}
+
+[data-theme='wnamp'] .player-track-name {
   color: #00ff00;
   text-shadow: 0 0 6px rgba(0, 255, 0, 0.65), 0 0 2px rgba(0, 255, 0, 0.4);
   font-family: 'Courier New', 'Lucida Console', monospace;
   letter-spacing: 0.04em;
 }
 
-[data-theme='classic-winamp'] .player-track-artist {
+[data-theme='wnamp'] .player-track-artist {
   color: #00cc00;
   font-family: 'Courier New', 'Lucida Console', monospace;
   opacity: 0.85;
 }
 
-[data-theme='classic-winamp'] .btn {
+[data-theme='wnamp'] .btn {
   box-shadow: inset 1px 1px 0 rgba(255,255,255,0.18), inset -1px -1px 0 rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4);
 }
 
-[data-theme='classic-winamp'] .player-btn,
-[data-theme='classic-winamp'] .player-btn-primary {
+[data-theme='wnamp'] .player-btn,
+[data-theme='wnamp'] .player-btn-primary {
   box-shadow: inset 1px 1px 0 rgba(255,255,255,0.18), inset -1px -1px 0 rgba(0,0,0,0.55), 0 2px 5px rgba(0,0,0,0.5);
 }
 
@@ -598,9 +605,9 @@
   --ctp-text:      #2c1e10;
   --ctp-subtext1:  #5a3e20;
   --ctp-subtext0:  #8c7356;
-  /* Accents — silver metal + muted brass tones */
-  --ctp-mauve:     #9e9a92;   /* silver — primary accent */
-  --ctp-lavender:  #b8b4ac;   /* lighter silver */
+  /* Accents — burnished brass + warm tones */
+  --ctp-mauve:     #7a5218;   /* dark burnished brass — primary accent */
+  --ctp-lavender:  #9a6a28;   /* mid brass — hover/lighter variant */
   --ctp-pink:      #c06880;
   --ctp-flamingo:  #c06050;
   --ctp-rosewater: #d08070;
@@ -621,9 +628,9 @@
   --bg-hover:      #e3cc9e;
   --bg-player:     #dfc08f;
   --bg-glass:      rgba(245, 228, 195, 0.90);
-  --accent:        #9e9a92;
-  --accent-dim:    rgba(158, 154, 146, 0.15);
-  --accent-glow:   rgba(158, 154, 146, 0.35);
+  --accent:        #7a5218;
+  --accent-dim:    rgba(122, 82, 24, 0.15);
+  --accent-glow:   rgba(122, 82, 24, 0.30);
   --text-primary:  #2c1e10;
   --text-secondary:#5a3e20;
   --text-muted:    #8c7356;
@@ -1517,6 +1524,1513 @@ input[type="range"]:hover::-webkit-slider-thumb {
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+/* ─── Musicmatch Jukebox — Y2K Metallic Silver / Blue Display ─── */
+[data-theme='navy-jukebox'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%234a4a4a%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust:     #001358;   /* deep blue — LCD display */
+  --ctp-mantle:    #b5babc;   /* dark silver — panels, sidebar */
+  --ctp-base:      #d4d8db;   /* metallic silver — main body */
+  --ctp-surface0:  #c8ccce;
+  --ctp-surface1:  #bec2c4;
+  --ctp-surface2:  #8a9094;   /* border gray */
+  --ctp-overlay0:  #6a7074;
+  --ctp-overlay1:  #505458;
+  --ctp-overlay2:  #3a3e42;
+  --ctp-text:      #1a1a1a;
+  --ctp-subtext1:  #3a3a3a;
+  --ctp-subtext0:  #4a4a4a;
+  /* Cyan accent + Musicmatch orange */
+  --ctp-mauve:     #00d0ff;   /* cyan — primary accent */
+  --ctp-lavender:  #40e0ff;
+  --ctp-sky:       #00c0e8;
+  --ctp-sapphire:  #0088c8;
+  --ctp-blue:      #0058b8;
+  --ctp-teal:      #009898;
+  --ctp-green:     #008840;
+  --ctp-yellow:    #cc8800;
+  --ctp-peach:     #ff6600;   /* Musicmatch orange — secondary accent */
+  --ctp-pink:      #d04060;
+  --ctp-flamingo:  #c05040;
+  --ctp-rosewater: #c87060;
+  --ctp-maroon:    #b02828;
+  --ctp-red:       #c82020;
+
+  /* ── Semantic tokens ── */
+  --bg-app:        #d4d8db;
+  --bg-sidebar:    #b5babc;
+  --bg-card:       #c8ccce;
+  --bg-hover:      #bec2c4;
+  --bg-player:     #001358;   /* LCD display — deep blue */
+  --bg-glass:      rgba(212, 216, 219, 0.92);
+  --accent:        #00d0ff;
+  --accent-dim:    rgba(0, 208, 255, 0.15);
+  --accent-glow:   rgba(0, 208, 255, 0.35);
+  --volume-accent: #ff6600;   /* Musicmatch orange for volume */
+  --text-primary:  #1a1a1a;
+  --text-secondary:#4a4a4a;
+  --text-muted:    #6a7074;
+  --border:        #8a9094;
+  --border-subtle: #c0c4c6;
+  --positive:      #008840;
+  --warning:       #cc8800;
+  --danger:        #c82020;
+}
+
+/* ── Musicmatch: contrast fixes ── */
+/* Active elements: navy text on cyan bg — high contrast, on-brand */
+[data-theme='navy-jukebox'] .queue-round-btn.active {
+  color: #001358;
+}
+
+/* Accent-coloured text on silver body needs to be darker */
+[data-theme='navy-jukebox'] {
+  --accent: #0070a0;           /* darker cyan — readable as text on silver */
+  --accent-dim:  rgba(0, 112, 160, 0.15);
+  --accent-glow: rgba(0, 112, 160, 0.35);
+}
+
+/* Player bar keeps the bright cyan since it's on dark blue bg */
+[data-theme='navy-jukebox'] .player-bar {
+  --accent: #00d0ff;
+}
+
+/* ── Musicmatch: metallic bevel buttons ── */
+[data-theme='navy-jukebox'] .btn {
+  background: linear-gradient(180deg, #e4e8eb 0%, #c0c4c7 100%);
+  color: #1a1a1a;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.9),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.28),
+    0 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+[data-theme='navy-jukebox'] .btn:hover {
+  background: linear-gradient(180deg, #eceef0 0%, #cacdd0 100%);
+}
+
+[data-theme='navy-jukebox'] .btn-primary {
+  background: linear-gradient(180deg, #40e0ff 0%, #00a8d8 100%);
+  color: #001358;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.6),
+    inset -1px -1px 0 rgba(0, 60, 120, 0.4),
+    0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Player bar: blue LCD display area ── */
+[data-theme='navy-jukebox'] .player-bar {
+  background: #001358;
+  border-top: 2px solid #8a9094;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='navy-jukebox'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(0, 208, 255, 0.75), 0 0 2px rgba(0, 208, 255, 0.4);
+  letter-spacing: 0.02em;
+}
+
+[data-theme='navy-jukebox'] .player-track-artist {
+  color: #00d0ff;
+  opacity: 0.85;
+}
+
+[data-theme='navy-jukebox'] .player-btn,
+[data-theme='navy-jukebox'] .player-btn-primary {
+  background: linear-gradient(180deg, #1a2880 0%, #000e40 100%);
+  color: #00d0ff;
+  box-shadow:
+    inset 1px 1px 0 rgba(0, 208, 255, 0.25),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.5),
+    0 2px 5px rgba(0, 0, 0, 0.4);
+  border-radius: 50%;
+}
+
+[data-theme='navy-jukebox'] .player-btn:hover,
+[data-theme='navy-jukebox'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #2030a0 0%, #001060 100%);
+  color: #40e8ff;
+}
+
+/* ── Sidebar: brushed-metal look ── */
+[data-theme='navy-jukebox'] .sidebar {
+  background: linear-gradient(180deg, #c8ccce 0%, #b0b4b7 100%);
+  border-right: 2px solid #8a9094;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ── Cards / panels: inset bevel ── */
+[data-theme='navy-jukebox'] .glass,
+[data-theme='navy-jukebox'] .card {
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.8),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.15),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+/* ─── WMP8 Classic — Windows Media Player 8 / XP Luna ─── */
+[data-theme='cobalt-media'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c2d4f2%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust:     #000000;   /* black — LCD display / playlist */
+  --ctp-mantle:    #1a3060;   /* darkest blue — sidebar */
+  --ctp-base:      #3a62a5;   /* Luna blue — main body (dark enough for white text) */
+  --ctp-surface0:  #4a72b8;
+  --ctp-surface1:  #5480cc;
+  --ctp-surface2:  #6090d8;
+  --ctp-overlay0:  #7090c0;
+  --ctp-overlay1:  #8aaad8;
+  --ctp-overlay2:  #a0c0e8;
+  --ctp-text:      #ffffff;
+  --ctp-subtext1:  #dce8ff;
+  --ctp-subtext0:  #b8d0f8;
+  /* WMP green + XP blue-cool palette */
+  --ctp-mauve:     #45ff00;   /* WMP poison green — primary accent */
+  --ctp-lavender:  #70ff40;
+  --ctp-green:     #30dd00;
+  --ctp-teal:      #00cc88;
+  --ctp-sky:       #88ccff;
+  --ctp-blue:      #5599ee;
+  --ctp-sapphire:  #3378cc;
+  --ctp-pink:      #ff88cc;
+  --ctp-flamingo:  #ff7788;
+  --ctp-rosewater: #ffaabb;
+  --ctp-yellow:    #ffdd44;
+  --ctp-peach:     #ff9944;
+  --ctp-maroon:    #dd4455;
+  --ctp-red:       #ee3344;
+
+  /* ── Semantic tokens ── */
+  --bg-app:        #3a62a5;   /* ~12% luminance → white contrast 6:1 */
+  --bg-sidebar:    #1a3060;
+  --bg-card:       #4a72b8;
+  --bg-hover:      #5480cc;
+  --bg-player:     #000000;
+  --bg-glass:      rgba(30, 58, 110, 0.88);
+  --accent:        #45ff00;
+  --accent-dim:    rgba(69, 255, 0, 0.15);
+  --accent-glow:   rgba(69, 255, 0, 0.45);
+  --text-primary:  #ffffff;
+  --text-secondary:#dce8ff;
+  --text-muted:    #b8d0f8;   /* lighter so readable on #3a62a5 */
+  --border:        #2a5090;
+  --border-subtle: #4a72b8;
+  --positive:      #30dd00;
+  --warning:       #ffdd44;
+  --danger:        #ee3344;
+}
+
+/* ── WMP8: Luna-style gradients + skeuomorphic detail ── */
+
+/* Sidebar: deep WMP task-pane blue */
+[data-theme='cobalt-media'] .sidebar {
+  background: linear-gradient(180deg, #244080 0%, #1a3060 60%, #0e2048 100%);
+  border-right: 2px solid #0e2048;
+  box-shadow: inset -1px 0 0 rgba(120, 160, 220, 0.2);
+}
+
+/* Main body: Luna blue */
+[data-theme='cobalt-media'] .app-shell {
+  background: linear-gradient(160deg, #4a72b8 0%, #3a62a5 40%, #2e5498 100%);
+}
+
+/* Player bar: black LCD display with green glow ambience */
+[data-theme='cobalt-media'] .player-bar {
+  background: #000000;
+  border-top: 2px solid #1a3060;
+  box-shadow: inset 0 1px 0 rgba(69, 255, 0, 0.06), 0 -2px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Track name: WMP green glow */
+[data-theme='cobalt-media'] .player-track-name {
+  color: #45ff00;
+  text-shadow:
+    0 0 8px rgba(69, 255, 0, 0.80),
+    0 0 16px rgba(69, 255, 0, 0.40),
+    0 0 2px rgba(69, 255, 0, 0.60);
+  letter-spacing: 0.03em;
+}
+
+[data-theme='cobalt-media'] .player-track-artist {
+  color: #30dd00;
+  opacity: 0.85;
+  text-shadow: 0 0 4px rgba(69, 255, 0, 0.4);
+}
+
+/* Transport buttons: round, radial metallic gradient, drop shadow */
+[data-theme='cobalt-media'] .player-btn,
+[data-theme='cobalt-media'] .player-btn-primary {
+  background: radial-gradient(circle at 38% 32%, #c8dcf8 0%, #8aacdc 40%, #4870b8 100%);
+  color: #ffffff;
+  border-radius: 50%;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 50, 0.3);
+  border: 1px solid #2a5090;
+}
+
+[data-theme='cobalt-media'] .player-btn:hover,
+[data-theme='cobalt-media'] .player-btn-primary:hover {
+  background: radial-gradient(circle at 38% 32%, #d8ecff 0%, #a0c0ee 40%, #5888d0 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(0, 0, 50, 0.3);
+}
+
+/* Regular buttons: Luna soft rounded pill */
+[data-theme='cobalt-media'] .btn {
+  background: linear-gradient(180deg, #b8d0f0 0%, #7898d8 55%, #5878c0 100%);
+  color: #ffffff;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 80, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 1px solid #3a60b0;
+}
+
+[data-theme='cobalt-media'] .btn:hover {
+  background: linear-gradient(180deg, #cce0ff 0%, #90aaee 55%, #6888d0 100%);
+}
+
+[data-theme='cobalt-media'] .btn-primary {
+  background: linear-gradient(180deg, #70ff40 0%, #38cc00 55%, #28aa00 100%);
+  color: #003300;
+  border: 1px solid #208800;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 60, 0, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    0 0 8px rgba(69, 255, 0, 0.25);
+}
+
+/* Active queue round buttons: green bg, dark text */
+[data-theme='cobalt-media'] .queue-round-btn.active {
+  color: #003300;
+}
+
+/* Cards / glass panels: slightly elevated with border */
+[data-theme='cobalt-media'] .glass,
+[data-theme='cobalt-media'] .card {
+  background: rgba(90, 128, 190, 0.55);
+  border: 1px solid rgba(160, 190, 230, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Content header: slightly darker Luna band */
+[data-theme='cobalt-media'] .content-header {
+  background: linear-gradient(180deg, rgba(58, 98, 165, 0.55) 0%, rgba(58, 98, 165, 0.2) 100%);
+  border-bottom: 1px solid #6888c2;
+}
+
+/* ─── PowerDVD Classic — Virtual HiFi Receiver / VFD Display ─── */
+[data-theme='onyx-cinema'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666666%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust:     #000000;   /* pure black — VFD glass */
+  --ctp-mantle:    #0a0a0a;   /* drive bay depth */
+  --ctp-base:      #141414;   /* brushed aluminium chassis */
+  --ctp-surface0:  #1c1c1c;
+  --ctp-surface1:  #242424;
+  --ctp-surface2:  #2e2e2e;
+  --ctp-overlay0:  #3a3a3a;
+  --ctp-overlay1:  #4a4a4a;
+  --ctp-overlay2:  #5a5a5a;
+  --ctp-text:      #b3b3b3;   /* matte metal label */
+  --ctp-subtext1:  #888888;
+  --ctp-subtext0:  #666666;
+  /* VFD blue + chrome accents */
+  --ctp-mauve:     #00aaff;   /* VFD blue — primary accent */
+  --ctp-lavender:  #00c8ff;
+  --ctp-sky:       #00e5ff;   /* glow/highlight cyan */
+  --ctp-teal:      #00cccc;
+  --ctp-blue:      #0080e0;
+  --ctp-sapphire:  #0060c0;
+  --ctp-green:     #00cc66;
+  --ctp-yellow:    #ccaa00;
+  --ctp-peach:     #e07040;
+  --ctp-pink:      #cc5588;
+  --ctp-flamingo:  #bb4466;
+  --ctp-rosewater: #cc6666;
+  --ctp-maroon:    #aa3333;
+  --ctp-red:       #cc2222;
+
+  /* ── Semantic tokens ── */
+  --bg-app:        #141414;
+  --bg-sidebar:    #0a0a0a;
+  --bg-card:       #1c1c1c;
+  --bg-hover:      #242424;
+  --bg-player:     #000000;
+  --bg-glass:      rgba(20, 20, 20, 0.94);
+  --accent:        #00aaff;
+  --accent-dim:    rgba(0, 170, 255, 0.12);
+  --accent-glow:   rgba(0, 170, 255, 0.35);
+  --text-primary:  #b3b3b3;
+  --text-secondary:#888888;
+  --text-muted:    #555555;
+  --border:        #2a2a2a;
+  --border-subtle: #1c1c1c;
+  --positive:      #00cc66;
+  --warning:       #ccaa00;
+  --danger:        #cc2222;
+}
+
+/* ── PowerDVD: Brushed aluminium chassis texture ── */
+[data-theme='onyx-cinema'] .app-shell,
+[data-theme='onyx-cinema'] .sidebar {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.018) 0px,
+    rgba(255, 255, 255, 0.018) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Sidebar: darker than chassis, drive-bay feel */
+[data-theme='onyx-cinema'] .sidebar {
+  background-color: #0a0a0a;
+  border-right: 1px solid #1e1e1e;
+  box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.6);
+}
+
+/* ── VFD Display (Player Bar) ── */
+[data-theme='onyx-cinema'] .player-bar {
+  background: #000000;
+  border-top: 2px solid #1a1a1a;
+  box-shadow:
+    inset 0 1px 0 rgba(0, 170, 255, 0.06),
+    0 -3px 20px rgba(0, 0, 0, 0.8);
+}
+
+/* Track name: VFD blue glow — the key effect */
+[data-theme='onyx-cinema'] .player-track-name {
+  color: #00e5ff;
+  text-shadow:
+    0 0 6px rgba(0, 229, 255, 0.90),
+    0 0 14px rgba(0, 170, 255, 0.60),
+    0 0 28px rgba(0, 170, 255, 0.30);
+  letter-spacing: 0.04em;
+}
+
+[data-theme='onyx-cinema'] .player-track-artist {
+  color: #00aaff;
+  text-shadow: 0 0 6px rgba(0, 170, 255, 0.55);
+  opacity: 1;
+}
+
+/* Time display: VFD blue, tabular */
+[data-theme='onyx-cinema'] .player-time {
+  color: #00aaff;
+  text-shadow: 0 0 5px rgba(0, 170, 255, 0.60);
+}
+
+/* ── Chrome transport buttons: silver metallic ── */
+[data-theme='onyx-cinema'] .player-btn,
+[data-theme='onyx-cinema'] .player-btn-primary {
+  background: linear-gradient(170deg, #e8e8e8 0%, #ffffff 30%, #c0c0c0 70%, #989898 100%);
+  color: #1a1a1a;
+  border: 1px solid #707070;
+  box-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='onyx-cinema'] .player-btn:hover,
+[data-theme='onyx-cinema'] .player-btn-primary:hover {
+  background: linear-gradient(170deg, #f2f2f2 0%, #ffffff 30%, #d0d0d0 70%, #aaaaaa 100%);
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* ── Regular buttons: dark matte chassis style ── */
+[data-theme='onyx-cinema'] .btn {
+  background: linear-gradient(180deg, #2a2a2a 0%, #1c1c1c 100%);
+  color: #b3b3b3;
+  border: 1px solid #383838;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='onyx-cinema'] .btn:hover {
+  background: linear-gradient(180deg, #333333 0%, #242424 100%);
+}
+
+[data-theme='onyx-cinema'] .btn-primary {
+  background: linear-gradient(180deg, #00bbff 0%, #0088dd 100%);
+  color: #000000;
+  border: 1px solid #0060bb;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.4),
+    0 0 8px rgba(0, 170, 255, 0.3);
+}
+
+/* Active queue round buttons: dark text on VFD blue */
+[data-theme='onyx-cinema'] .queue-round-btn.active {
+  color: #000000;
+}
+
+/* Cards / glass panels: chassis inset */
+[data-theme='onyx-cinema'] .glass,
+[data-theme='onyx-cinema'] .card {
+  background: rgba(28, 28, 28, 0.85);
+  border: 1px solid #2a2a2a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Vintage Tube Radio — 1950s Bakelite & Vacuum Tube ─── */
+[data-theme='vintage-tube-radio'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23BCAAA4%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust:     #1E110A;   /* deep warm black-brown — dial background */
+  --ctp-mantle:    #5D4037;   /* speaker cloth brown — sidebar */
+  --ctp-base:      #3E2723;   /* polished bakelite — chassis */
+  --ctp-surface0:  #4E342E;
+  --ctp-surface1:  #5D4037;
+  --ctp-surface2:  #6D4C41;
+  --ctp-overlay0:  #795548;
+  --ctp-overlay1:  #8D6E63;
+  --ctp-overlay2:  #A1887F;
+  --ctp-text:      #FFECB3;   /* ivory/cream — dial lettering */
+  --ctp-subtext1:  #D7CCC8;
+  --ctp-subtext0:  #BCAAA4;   /* aged ivory — secondary labels */
+  /* Tube glow + tarnished brass accents */
+  --ctp-mauve:     #FF6F00;   /* vacuum tube orange — primary accent */
+  --ctp-lavender:  #FF8F00;
+  --ctp-yellow:    #FFC107;   /* warm dial backlight */
+  --ctp-peach:     #FFB300;
+  --ctp-green:     #558B2F;
+  --ctp-teal:      #00695C;
+  --ctp-sky:       #B08D57;   /* tarnished brass */
+  --ctp-blue:      #5C6BC0;
+  --ctp-sapphire:  #3949AB;
+  --ctp-pink:      #C2185B;
+  --ctp-flamingo:  #AD1457;
+  --ctp-rosewater: #E91E63;
+  --ctp-maroon:    #B71C1C;
+  --ctp-red:       #C62828;
+
+  /* ── Semantic tokens ── */
+  --bg-app:        #3E2723;
+  --bg-sidebar:    #5D4037;
+  --bg-card:       #4E342E;
+  --bg-hover:      #5D4037;
+  --bg-player:     #1E110A;
+  --bg-glass:      rgba(62, 39, 35, 0.92);
+  --accent:        #FF6F00;
+  --accent-dim:    rgba(255, 111, 0, 0.15);
+  --accent-glow:   rgba(255, 111, 0, 0.40);
+  --text-primary:  #FFECB3;
+  --text-secondary:#BCAAA4;
+  --text-muted:    #8D6E63;
+  --border:        #B08D57;   /* tarnished brass */
+  --border-subtle: #4E342E;
+  --positive:      #558B2F;
+  --warning:       #FFC107;
+  --danger:        #C62828;
+}
+
+/* ── Tube Radio: polished bakelite chassis texture ── */
+[data-theme='vintage-tube-radio'] .app-shell {
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(255, 111, 0, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(255, 193, 7, 0.03) 0%, transparent 50%),
+    #3E2723;
+}
+
+/* Sidebar: speaker cloth — soft radial texture */
+[data-theme='vintage-tube-radio'] .sidebar {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.12) 0px,
+      rgba(0, 0, 0, 0.12) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.08) 0px,
+      rgba(0, 0, 0, 0.08) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    #5D4037;
+  border-right: 2px solid #B08D57;
+  box-shadow: inset -2px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Frequency dial (Player Bar) ── */
+[data-theme='vintage-tube-radio'] .player-bar {
+  background: #1E110A;
+  border-top: 2px solid #B08D57;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 193, 7, 0.08),
+    0 -3px 20px rgba(0, 0, 0, 0.7);
+}
+
+/* Track name: warm tube-glow */
+[data-theme='vintage-tube-radio'] .player-track-name {
+  color: #FFC107;
+  text-shadow:
+    0 0 6px rgba(255, 193, 7, 0.90),
+    0 0 14px rgba(255, 111, 0, 0.60),
+    0 0 28px rgba(255, 111, 0, 0.30);
+  letter-spacing: 0.04em;
+}
+
+[data-theme='vintage-tube-radio'] .player-track-artist {
+  color: #FF8F00;
+  text-shadow: 0 0 6px rgba(255, 111, 0, 0.50);
+  opacity: 1;
+}
+
+[data-theme='vintage-tube-radio'] .player-time {
+  color: #FF8F00;
+  text-shadow: 0 0 5px rgba(255, 111, 0, 0.55);
+}
+
+/* ── Transport buttons: turned brass knobs ── */
+[data-theme='vintage-tube-radio'] .player-btn,
+[data-theme='vintage-tube-radio'] .player-btn-primary {
+  background: radial-gradient(circle at 38% 32%, #d4a843 0%, #b08d57 45%, #7a5e2a 100%);
+  color: #1E110A;
+  border: 1px solid #7a5e2a;
+  box-shadow:
+    0 3px 7px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 220, 120, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='vintage-tube-radio'] .player-btn:hover,
+[data-theme='vintage-tube-radio'] .player-btn-primary:hover {
+  background: radial-gradient(circle at 38% 32%, #e8bc55 0%, #c09a65 45%, #8a6e38 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 230, 140, 0.65),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ── Regular buttons: bakelite style ── */
+[data-theme='vintage-tube-radio'] .btn {
+  background: linear-gradient(180deg, #4E342E 0%, #3E2723 100%);
+  color: #FFECB3;
+  border: 1px solid #B08D57;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 150, 0.10),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='vintage-tube-radio'] .btn:hover {
+  background: linear-gradient(180deg, #5D4037 0%, #4E342E 100%);
+}
+
+[data-theme='vintage-tube-radio'] .btn-primary {
+  background: linear-gradient(180deg, #FF8F00 0%, #E65100 100%);
+  color: #1E110A;
+  border: 1px solid #BF360C;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 120, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.4),
+    0 0 10px rgba(255, 111, 0, 0.30);
+}
+
+/* Active queue buttons: dark text on orange */
+[data-theme='vintage-tube-radio'] .queue-round-btn.active {
+  color: #1E110A;
+}
+
+/* Cards / panels: inset bakelite */
+[data-theme='vintage-tube-radio'] .glass,
+[data-theme='vintage-tube-radio'] .card {
+  background: rgba(78, 52, 46, 0.80);
+  border: 1px solid #B08D57;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 150, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Content header: warm band */
+[data-theme='vintage-tube-radio'] .content-header {
+  background: linear-gradient(180deg, rgba(93, 64, 55, 0.60) 0%, rgba(62, 39, 35, 0.20) 100%);
+  border-bottom: 1px solid #B08D57;
+}
+
+/* ─── Windows 7 Aero — Aero Glass & Frutiger Aero ─── */
+[data-theme='aero-glass'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%234c607a%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust:     #1d4268;   /* Aero taskbar navy */
+  --ctp-mantle:    #e6f0fa;   /* inner glass panel */
+  --ctp-base:      #cddbed;   /* window glass blue-gray */
+  --ctp-surface0:  #d8e6f2;
+  --ctp-surface1:  #e0ecf5;
+  --ctp-surface2:  #e8f2f8;
+  --ctp-overlay0:  #a9c4eb;
+  --ctp-overlay1:  #8ab0de;
+  --ctp-overlay2:  #6a9cd0;
+  --ctp-text:      #1a1a1a;
+  --ctp-subtext1:  #2e4260;
+  --ctp-subtext0:  #4c607a;
+  /* Aero blue highlight palette */
+  --ctp-mauve:     #1878e8;   /* Windows highlight blue */
+  --ctp-lavender:  #3399ff;
+  --ctp-sky:       #5bb3ff;
+  --ctp-blue:      #1d4268;
+  --ctp-sapphire:  #1366c8;
+  --ctp-teal:      #0099aa;
+  --ctp-green:     #107c10;
+  --ctp-yellow:    #f7c948;
+  --ctp-peach:     #e8890c;
+  --ctp-pink:      #e3008c;
+  --ctp-flamingo:  #c50f1f;
+  --ctp-rosewater: #da3b01;
+  --ctp-maroon:    #a4262c;
+  --ctp-red:       #c42b1c;
+
+  /* ── Semantic tokens ── */
+  --bg-app:        #cddbed;
+  --bg-sidebar:    #e6f0fa;
+  --bg-card:       #d8e6f2;
+  --bg-hover:      #c0d8ef;
+  --bg-player:     #1d4268;
+  --bg-glass:      rgba(205, 219, 237, 0.70);
+  --accent:        #1878e8;   /* 4.0:1 on #cddbed ✓ */
+  --accent-dim:    rgba(24, 120, 232, 0.12);
+  --accent-glow:   rgba(24, 120, 232, 0.35);
+  --text-primary:  #1a1a1a;
+  --text-secondary:#2e4260;
+  --text-muted:    #4c607a;
+  --border:        #a9c4eb;
+  --border-subtle: #d0e3f5;
+  --positive:      #107c10;
+  --warning:       #c87400;
+  --danger:        #c42b1c;
+}
+
+/* ── Aero: background — soft sky gradient ── */
+[data-theme='aero-glass'] .app-shell {
+  background: linear-gradient(160deg, #daeaf8 0%, #cddbed 45%, #b8d0e8 100%);
+}
+
+/* ── Sidebar: Aero glass panel with backdrop blur ── */
+[data-theme='aero-glass'] .sidebar {
+  background: rgba(230, 240, 250, 0.62);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-right: 1px solid rgba(169, 196, 235, 0.75);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+/* ── Player bar: Aero taskbar — deep glass navy ── */
+[data-theme='aero-glass'] .player-bar {
+  background: rgba(29, 66, 104, 0.90);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(100, 160, 220, 0.45);
+  box-shadow: inset 0 1px 0 rgba(120, 180, 255, 0.15), 0 -2px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Track name: white on dark taskbar, subtle blue glow */
+[data-theme='aero-glass'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(51, 153, 255, 0.60), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='aero-glass'] .player-track-artist {
+  color: #a9c8f0;
+  opacity: 1;
+}
+
+[data-theme='aero-glass'] .player-time {
+  color: #a9c8f0;
+}
+
+/* ── Transport buttons: glossy Aero pill ── */
+[data-theme='aero-glass'] .player-btn,
+[data-theme='aero-glass'] .player-btn-primary {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(200, 228, 255, 0.80) 48%,
+    rgba(90, 160, 230, 0.90) 50%,
+    rgba(40, 120, 200, 0.95) 100%
+  );
+  color: #ffffff;
+  border: 1px solid rgba(24, 80, 180, 0.55);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(100, 160, 220, 0.3);
+}
+
+[data-theme='aero-glass'] .player-btn:hover,
+[data-theme='aero-glass'] .player-btn-primary:hover {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(215, 238, 255, 0.88) 48%,
+    rgba(110, 175, 245, 0.93) 50%,
+    rgba(55, 135, 215, 0.98) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 3px 8px rgba(0, 0, 0, 0.35),
+    0 0 8px rgba(51, 153, 255, 0.40);
+}
+
+/* ── Regular buttons: glossy Aero style ── */
+[data-theme='aero-glass'] .btn {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(255, 255, 255, 0.82) 48%,
+    rgba(195, 220, 245, 0.92) 50%,
+    rgba(160, 200, 240, 0.95) 100%
+  );
+  color: #1a1a1a;
+  border: 1px solid rgba(130, 175, 220, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.90),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+}
+
+[data-theme='aero-glass'] .btn:hover {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(255, 255, 255, 0.92) 48%,
+    rgba(210, 232, 252, 0.95) 50%,
+    rgba(175, 212, 248, 0.98) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 4px rgba(0, 0, 0, 0.20),
+    0 0 6px rgba(51, 153, 255, 0.25);
+}
+
+[data-theme='aero-glass'] .btn-primary {
+  background: linear-gradient(180deg,
+    rgba(110, 180, 255, 0.90) 0%,
+    rgba(80, 155, 240, 0.90) 48%,
+    rgba(24, 100, 200, 0.95) 50%,
+    rgba(15, 75, 170, 0.98) 100%
+  );
+  color: #ffffff;
+  border: 1px solid rgba(15, 60, 150, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 4px rgba(0, 0, 0, 0.3),
+    0 0 8px rgba(51, 153, 255, 0.35);
+}
+
+/* Active queue buttons: white text on blue */
+[data-theme='aero-glass'] .queue-round-btn.active {
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(51, 153, 255, 0.50);
+}
+
+/* Cards / panels: frosted glass */
+[data-theme='aero-glass'] .glass,
+[data-theme='aero-glass'] .card {
+  background: rgba(230, 240, 250, 0.60);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(169, 196, 235, 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.70),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Content header: glassy strip */
+[data-theme='aero-glass'] .content-header {
+  background: rgba(210, 230, 248, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(169, 196, 235, 0.60);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ─── Windows XP Luna — Classic 2001 ─── */
+[data-theme='luna-teal'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust:     #0041b8;
+  --ctp-mantle:    #0055e5;
+  --ctp-base:      #ece9d8;
+  --ctp-surface0:  #f5f3ec;
+  --ctp-surface1:  #faf9f6;
+  --ctp-surface2:  #ffffff;
+  --ctp-overlay0:  #c0bba8;
+  --ctp-overlay1:  #8a8675;
+  --ctp-overlay2:  #5e5a4c;
+  --ctp-text:      #000000;
+  --ctp-subtext1:  #1a1a1a;
+  --ctp-subtext0:  #444444;
+  /* XP green + Luna blue family */
+  --ctp-mauve:     #3c9d29;
+  --ctp-lavender:  #52b83c;
+  --ctp-green:     #3c9d29;
+  --ctp-teal:      #007c8a;
+  --ctp-sky:       #8fa8f4;
+  --ctp-blue:      #0055e5;
+  --ctp-sapphire:  #0041b8;
+  --ctp-pink:      #cc2288;
+  --ctp-flamingo:  #cc2020;
+  --ctp-rosewater: #dd4400;
+  --ctp-yellow:    #b87800;
+  --ctp-peach:     #cc6600;
+  --ctp-maroon:    #aa1111;
+  --ctp-red:       #cc1111;
+
+  /* ── Semantic tokens ── */
+  --bg-app:        #ece9d8;
+  --bg-sidebar:    #8fa8f4;
+  --bg-card:       #f5f3ec;
+  --bg-hover:      #dddac8;
+  --bg-player:     #0055e5;
+  --bg-glass:      rgba(236, 233, 216, 0.92);
+  --accent:        #3c9d29;
+  --accent-dim:    rgba(60, 157, 41, 0.14);
+  --accent-glow:   rgba(60, 157, 41, 0.35);
+  --volume-accent: #3c9d29;
+  --text-primary:  #000000;
+  --text-secondary:#333333;
+  --text-muted:    #666666;
+  --border:        #003399;
+  --border-subtle: #ccc8b4;
+  --positive:      #3c9d29;
+  --warning:       #b87800;
+  --danger:        #cc1111;
+  --radius-sm:     4px;
+  --radius-md:     6px;
+  --radius-lg:     8px;
+}
+
+/* ── Luna: Explorer window background ── */
+[data-theme='luna-teal'] .app-shell {
+  background: #ece9d8;
+}
+
+/* ── Sidebar: Luna Explorer task pane ── */
+[data-theme='luna-teal'] .sidebar {
+  background: linear-gradient(180deg, #a8bef8 0%, #8fa8f4 30%, #7a96ee 100%);
+  border-right: 2px solid #003399;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.35), 2px 0 6px rgba(0, 0, 0, 0.18);
+}
+
+/* Sidebar text: dark on medium blue */
+[data-theme='luna-teal'] .sidebar-link,
+[data-theme='luna-teal'] .sidebar-section-title,
+[data-theme='luna-teal'] .sidebar-logo-text,
+[data-theme='luna-teal'] .nav-section-label,
+[data-theme='luna-teal'] .brand-name {
+  color: #000e40;
+}
+
+/* Nav links: override accent-based active state */
+[data-theme='luna-teal'] .nav-link {
+  color: #000e40;
+}
+[data-theme='luna-teal'] .nav-link:hover {
+  background: rgba(255, 255, 255, 0.30);
+  color: #000000;
+}
+[data-theme='luna-teal'] .nav-link.active {
+  background: rgba(0, 0, 80, 0.18);
+  color: #ffffff;
+}
+[data-theme='luna-teal'] .nav-link.active::before {
+  background: #ffffff;
+}
+[data-theme='luna-teal'] .nav-link.active svg,
+[data-theme='luna-teal'] .nav-link:hover svg {
+  opacity: 1;
+}
+
+/* Now Playing nav link: same treatment */
+[data-theme='luna-teal'] .nav-link-nowplaying {
+  background: rgba(0, 0, 80, 0.14);
+  color: #000e40;
+}
+[data-theme='luna-teal'] .nav-link-nowplaying:hover {
+  background: rgba(255, 255, 255, 0.30);
+  color: #000000;
+}
+[data-theme='luna-teal'] .nav-link-nowplaying.active {
+  background: rgba(0, 0, 80, 0.22);
+  color: #ffffff;
+}
+
+/* ── Player bar: Luna taskbar — glossy blue ── */
+[data-theme='luna-teal'] .player-bar {
+  background: linear-gradient(180deg,
+    #4488ff 0%,
+    #0055e5 40%,
+    #0044cc 70%,
+    #0038b0 100%
+  );
+  border-top: 2px solid #6699ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 2px 0 rgba(255, 255, 255, 0.18),
+    0 -2px 8px rgba(0, 0, 0, 0.30);
+}
+
+/* Track name: white with XP title-bar glow */
+[data-theme='luna-teal'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0 8px rgba(100, 160, 255, 0.50);
+  font-weight: 700;
+}
+
+[data-theme='luna-teal'] .player-track-artist {
+  color: #b8d0ff;
+  opacity: 1;
+}
+
+[data-theme='luna-teal'] .player-time {
+  color: #b8d0ff;
+}
+
+/* ── Transport buttons: Luna plastic/gel ── */
+[data-theme='luna-teal'] .player-btn,
+[data-theme='luna-teal'] .player-btn-primary {
+  background: linear-gradient(180deg,
+    #6699ff 0%,
+    #3366ee 45%,
+    #0044cc 50%,
+    #0033aa 100%
+  );
+  color: #ffffff;
+  border: 1px solid #002288;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.60),
+    0 2px 5px rgba(0, 0, 0, 0.40);
+}
+
+[data-theme='luna-teal'] .player-btn:hover,
+[data-theme='luna-teal'] .player-btn-primary:hover {
+  background: linear-gradient(180deg,
+    #88aaff 0%,
+    #4477ff 45%,
+    #1155dd 50%,
+    #0044bb 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.70),
+    0 3px 8px rgba(0, 0, 0, 0.40),
+    0 0 10px rgba(100, 160, 255, 0.40);
+}
+
+/* ── Regular buttons: XP 3D bevel ── */
+[data-theme='luna-teal'] .btn {
+  background: linear-gradient(180deg, #f5f3ec 0%, #f5f3ec 48%, #e0ddd0 50%, #d4d0c0 100%);
+  color: #000000;
+  border: 1px solid #888480;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.90),
+    inset 1px 0 0 rgba(255, 255, 255, 0.70),
+    0 1px 2px rgba(0, 0, 0, 0.22);
+  border-radius: 4px;
+}
+
+[data-theme='luna-teal'] .btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #ffffff 48%, #e8e5d8 50%, #dcd8c8 100%);
+  border-color: #0055e5;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 1px 3px rgba(0, 0, 0, 0.20);
+}
+
+[data-theme='luna-teal'] .btn-primary {
+  background: linear-gradient(180deg,
+    #52cc3c 0%,
+    #3c9d29 45%,
+    #2e8020 50%,
+    #236618 100%
+  );
+  color: #ffffff;
+  border: 1px solid #1a5010;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.50),
+    0 1px 3px rgba(0, 0, 0, 0.30);
+  border-radius: 6px;
+}
+
+[data-theme='luna-teal'] .btn-primary:hover {
+  background: linear-gradient(180deg,
+    #66dd50 0%,
+    #4db035 45%,
+    #3c9d29 50%,
+    #2e8020 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 4px rgba(0, 0, 0, 0.30),
+    0 0 8px rgba(60, 157, 41, 0.40);
+}
+
+[data-theme='luna-teal'] .btn-surface {
+  background: linear-gradient(180deg, #f5f3ec 0%, #e0ddd0 100%);
+  color: #000000;
+  border: 1px solid #888480;
+}
+
+/* ── Cards: XP dialog/panel style ── */
+[data-theme='luna-teal'] .card {
+  background: #f5f3ec;
+  border: 1px solid #c0bba8;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.80),
+    0 1px 4px rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+}
+
+/* ── Content header: Luna title bar strip ── */
+[data-theme='luna-teal'] .content-header {
+  background: linear-gradient(180deg, #b8c8f8 0%, #8fa8f4 100%);
+  border-bottom: 2px solid #003399;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.50), 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Connection indicators: dark text on blue header */
+[data-theme='luna-teal'] .connection-type,
+[data-theme='luna-teal'] .connection-server {
+  color: #000e40;
+}
+
+/* Active queue item: deep XP blue instead of green */
+[data-theme='luna-teal'] .queue-item.active {
+  background: rgba(0, 55, 180, 0.10);
+  color: #0041b8;
+}
+[data-theme='luna-teal'] .queue-item.active .queue-item-artist,
+[data-theme='luna-teal'] .queue-item.active .queue-item-duration {
+  color: #0055e5;
+  opacity: 0.8;
+}
+
+/* NowPlaying page active track title */
+[data-theme='luna-teal'] .np-queue-item-active {
+  color: #0041b8;
+}
+[data-theme='luna-teal'] .np-queue-item.active {
+  background: rgba(0, 55, 180, 0.08);
+}
+
+/* NowPlaying album tracklist active */
+[data-theme='luna-teal'] .np-album-track.active .np-album-track-title,
+[data-theme='luna-teal'] .np-album-track.active .np-album-track-num {
+  color: #0041b8;
+}
+
+/* ─── macOS Ventura Light ─── */
+[data-theme='cupertino-light'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23636366%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Palette */
+  --ctp-crust:    #f5f5f7;
+  --ctp-mantle:   #e8e8ed;
+  --ctp-base:     #ffffff;
+  --ctp-surface0: #f2f2f7;
+  --ctp-surface1: #e5e5ea;
+  --ctp-surface2: #d1d1d6;
+  --ctp-overlay0: #8e8e93;
+  --ctp-overlay1: #6c6c70;
+  --ctp-overlay2: #48484a;
+  --ctp-text:     #1c1c1e;
+  --ctp-subtext1: #3a3a3c;
+  --ctp-subtext0: #636366;
+  --ctp-mauve:    #0071e3;
+  --ctp-lavender: #2c9af0;
+  --ctp-green:    #34c759;
+  --ctp-teal:     #5ac8fa;
+  --ctp-sky:      #32ade6;
+  --ctp-blue:     #0071e3;
+  --ctp-sapphire: #0051a8;
+  --ctp-pink:     #ff2d55;
+  --ctp-flamingo: #ff6b81;
+  --ctp-rosewater:#ffd6d6;
+  --ctp-yellow:   #ffd60a;
+  --ctp-peach:    #ff9f0a;
+  --ctp-maroon:   #c0392b;
+  --ctp-red:      #ff3b30;
+
+  /* Semantic tokens */
+  --bg-app:        #ffffff;
+  --bg-sidebar:    #f2f2f7;
+  --bg-card:       #ffffff;
+  --bg-hover:      #f2f2f7;
+  --bg-player:     rgba(255, 255, 255, 0.85);
+  --bg-glass:      rgba(255, 255, 255, 0.72);
+  --accent:        #0071e3;
+  --accent-dim:    rgba(0, 113, 227, 0.12);
+  --accent-glow:   rgba(0, 113, 227, 0.30);
+  --text-primary:  #1c1c1e;
+  --text-secondary:#3a3a3c;
+  --text-muted:    #8e8e93;
+  --border:        #d1d1d6;
+  --border-subtle: #e5e5ea;
+  --positive:      #34c759;
+  --warning:       #ff9f0a;
+  --danger:        #ff3b30;
+
+  --shadow-dropdown: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+}
+
+[data-theme='cupertino-light'] .app-shell {
+  background: #f2f2f7;
+}
+
+[data-theme='cupertino-light'] .sidebar {
+  background: rgba(242, 242, 247, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(0,0,0,0.08);
+}
+
+[data-theme='cupertino-light'] .player-bar {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0,0,0,0.10);
+  box-shadow: 0 -1px 0 rgba(0,0,0,0.06);
+}
+
+/* Player text: dark on light bar */
+[data-theme='cupertino-light'] .player-track-name {
+  color: #1c1c1e;
+}
+[data-theme='cupertino-light'] .player-track-artist {
+  color: #636366;
+}
+[data-theme='cupertino-light'] .player-time {
+  color: #636366;
+}
+[data-theme='cupertino-light'] .player-btn {
+  color: #1c1c1e;
+}
+[data-theme='cupertino-light'] .player-btn:hover {
+  color: #0071e3;
+  background: rgba(0, 113, 227, 0.10);
+}
+[data-theme='cupertino-light'] .player-btn-primary {
+  color: #ffffff;
+  background: #0071e3;
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.35);
+}
+[data-theme='cupertino-light'] .player-btn-primary:hover {
+  background: #0077ed;
+  box-shadow: 0 4px 12px rgba(0, 113, 227, 0.45);
+}
+
+/* Nav links */
+[data-theme='cupertino-light'] .nav-link {
+  color: #3a3a3c;
+}
+[data-theme='cupertino-light'] .nav-link:hover {
+  background: rgba(0,0,0,0.06);
+  color: #1c1c1e;
+}
+[data-theme='cupertino-light'] .nav-link.active {
+  background: #0071e3;
+  color: #ffffff;
+  border-left-color: transparent;
+  border-radius: 8px;
+}
+[data-theme='cupertino-light'] .nav-link.active::before {
+  display: none;
+}
+[data-theme='cupertino-light'] .nav-link-nowplaying {
+  color: #0071e3;
+  font-weight: 600;
+}
+
+/* Queue active */
+[data-theme='cupertino-light'] .queue-item.active {
+  background: rgba(0, 113, 227, 0.10);
+  color: #0071e3;
+}
+
+/* NowPlaying overrides */
+[data-theme='cupertino-light'] .np-queue-item-active {
+  color: #0071e3;
+}
+[data-theme='cupertino-light'] .np-album-track.active .np-album-track-title,
+[data-theme='cupertino-light'] .np-album-track.active .np-album-track-num {
+  color: #0071e3;
+}
+
+/* ─── macOS Ventura Dark ─── */
+[data-theme='cupertino-dark'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2398989d%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Palette */
+  --ctp-crust:    #0d0d0e;
+  --ctp-mantle:   #161617;
+  --ctp-base:     #1e1e1f;
+  --ctp-surface0: #2d2d2f;
+  --ctp-surface1: #3a3a3c;
+  --ctp-surface2: #48484a;
+  --ctp-overlay0: #636366;
+  --ctp-overlay1: #8e8e93;
+  --ctp-overlay2: #aeaeb2;
+  --ctp-text:     #f5f5f7;
+  --ctp-subtext1: #e5e5ea;
+  --ctp-subtext0: #c7c7cc;
+  --ctp-mauve:    #007aff;
+  --ctp-lavender: #409cff;
+  --ctp-green:    #30d158;
+  --ctp-teal:     #5ac8fa;
+  --ctp-sky:      #32ade6;
+  --ctp-blue:     #007aff;
+  --ctp-sapphire: #0a84ff;
+  --ctp-pink:     #ff375f;
+  --ctp-flamingo: #ff6b81;
+  --ctp-rosewater:#ffd6d6;
+  --ctp-yellow:   #ffd60a;
+  --ctp-peach:    #ff9f0a;
+  --ctp-maroon:   #c0392b;
+  --ctp-red:      #ff453a;
+
+  /* Semantic tokens */
+  --bg-app:        #1e1e1f;
+  --bg-sidebar:    #161617;
+  --bg-card:       #2d2d2f;
+  --bg-hover:      #3a3a3c;
+  --bg-player:     rgba(16, 16, 17, 0.90);
+  --bg-glass:      rgba(30, 30, 31, 0.80);
+  --accent:        #007aff;
+  --accent-dim:    rgba(0, 122, 255, 0.15);
+  --accent-glow:   rgba(0, 122, 255, 0.35);
+  --text-primary:  #f5f5f7;
+  --text-secondary:#c7c7cc;
+  --text-muted:    #8e8e93;
+  --border:        #3a3a3c;
+  --border-subtle: #2d2d2f;
+  --positive:      #30d158;
+  --warning:       #ff9f0a;
+  --danger:        #ff453a;
+
+  --shadow-dropdown: 0 8px 30px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.30);
+}
+
+[data-theme='cupertino-dark'] .app-shell {
+  background: #1e1e1f;
+}
+
+[data-theme='cupertino-dark'] .sidebar {
+  background: rgba(22, 22, 23, 0.90);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+[data-theme='cupertino-dark'] .player-bar {
+  background: rgba(16, 16, 17, 0.90);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+[data-theme='cupertino-dark'] .player-btn:hover {
+  color: #007aff;
+  background: rgba(0, 122, 255, 0.12);
+}
+[data-theme='cupertino-dark'] .player-btn-primary {
+  color: #ffffff;
+  background: #007aff;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.40);
+}
+[data-theme='cupertino-dark'] .player-btn-primary:hover {
+  background: #0a84ff;
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.50);
+}
+
+/* Nav links */
+[data-theme='cupertino-dark'] .nav-link.active {
+  background: #007aff;
+  color: #ffffff;
+  border-left-color: transparent;
+  border-radius: 8px;
+}
+[data-theme='cupertino-dark'] .nav-link.active::before {
+  display: none;
+}
+[data-theme='cupertino-dark'] .nav-link-nowplaying {
+  color: #409cff;
+  font-weight: 600;
+}
+
+/* Queue active */
+[data-theme='cupertino-dark'] .queue-item.active {
+  background: rgba(0, 122, 255, 0.15);
+  color: #007aff;
+}
+
+/* NowPlaying overrides */
+[data-theme='cupertino-dark'] .np-queue-item-active {
+  color: #007aff;
+}
+[data-theme='cupertino-dark'] .np-album-track.active .np-album-track-title,
+[data-theme='cupertino-dark'] .np-album-track.active .np-album-track-num {
+  color: #007aff;
+}
+
+/* ─── Neon Drift ─── */
+[data-theme='neon-drift'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2300f2ff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #080916;
+  --ctp-mantle:   #0d0e21;
+  --ctp-base:     #12132c;
+  --ctp-surface0: #1a1b3b;
+  --ctp-surface1: #242650;
+  --ctp-surface2: #2f3166;
+  --ctp-overlay0: #51548a;
+  --ctp-overlay1: #7277ad;
+  --ctp-overlay2: #9299cf;
+  --ctp-text:     #e0e2ff;
+  --ctp-subtext1: #aeb3e0;
+  --ctp-subtext0: #8b91c4;
+  --ctp-mauve:    #00f2ff;
+  --ctp-lavender: #7000ff;
+  --ctp-green:    #00ffa3;
+  --ctp-teal:     #00d4cc;
+  --ctp-sky:      #00c8ff;
+  --ctp-blue:     #0077ff;
+  --ctp-sapphire: #0055cc;
+  --ctp-pink:     #ff00cc;
+  --ctp-flamingo: #ff44aa;
+  --ctp-rosewater:#ffaadd;
+  --ctp-yellow:   #ffe600;
+  --ctp-peach:    #ff9900;
+  --ctp-maroon:   #cc2244;
+  --ctp-red:      #ff2d55;
+
+  --bg-app:        #12132c;
+  --bg-sidebar:    #0d0e21;
+  --bg-card:       #1a1b3b;
+  --bg-hover:      #242650;
+  --bg-player:     #080916;
+  --bg-glass:      rgba(13, 14, 33, 0.85);
+  --accent:        #00f2ff;
+  --accent-dim:    rgba(0, 242, 255, 0.12);
+  --accent-glow:   rgba(0, 242, 255, 0.40);
+  --text-primary:  #e0e2ff;
+  --text-secondary:#aeb3e0;
+  --text-muted:    #7277ad;
+  --border:        #2f3166;
+  --border-subtle: #242650;
+  --positive:      #00ffa3;
+  --warning:       #ffe600;
+  --danger:        #ff2d55;
+
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+[data-theme='neon-drift'] .player-bar {
+  border-top: 1px solid rgba(0, 242, 255, 0.20);
+  box-shadow: 0 -10px 30px -15px rgba(0, 242, 255, 0.15);
+}
+
+[data-theme='neon-drift'] .player-track-name {
+  color: #00f2ff;
+  text-shadow: 0 0 12px rgba(0, 242, 255, 0.30);
+  font-weight: 600;
+}
+
+[data-theme='neon-drift'] .nav-link.active {
+  color: #00f2ff;
+  text-shadow: 0 0 8px rgba(0, 242, 255, 0.50);
+}
+
+[data-theme='neon-drift'] .nav-link.active::before {
+  box-shadow: 0 0 10px #00f2ff;
+}
+
+[data-theme='neon-drift'] .btn-primary {
+  background: linear-gradient(135deg, #00f2ff, #0077ff);
+  border: none;
+  color: #080916 !important;
+  box-shadow: 0 4px 15px rgba(0, 242, 255, 0.30);
+}
+
+[data-theme='neon-drift'] input[type="range"]::-webkit-slider-thumb {
+  background: white;
+  box-shadow: 0 0 10px #00f2ff;
+}
+
+/* ─── Font overrides ─── */
+[data-font='outfit'] {
+  --font-sans: 'Outfit', system-ui, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+}
+[data-font='dm-sans'] {
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'DM Sans', sans-serif;
+}
+[data-font='nunito'] {
+  --font-sans: 'Nunito', system-ui, sans-serif;
+  --font-display: 'Nunito', sans-serif;
+}
+[data-font='rubik'] {
+  --font-sans: 'Rubik', system-ui, sans-serif;
+  --font-display: 'Rubik', sans-serif;
+}
+
+[data-font='space-grotesk'] {
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+}
+[data-font='figtree'] {
+  --font-sans: 'Figtree', system-ui, sans-serif;
+  --font-display: 'Figtree', sans-serif;
+}
+[data-font='manrope'] {
+  --font-sans: 'Manrope', system-ui, sans-serif;
+  --font-display: 'Manrope', sans-serif;
+}
+[data-font='plus-jakarta-sans'] {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+}
+[data-font='lexend'] {
+  --font-sans: 'Lexend', system-ui, sans-serif;
+  --font-display: 'Lexend', sans-serif;
 }
 
 /* ─── Equalizer bars animation ─── */

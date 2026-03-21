@@ -4,6 +4,7 @@ import { Play } from 'lucide-react';
 import { SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import CachedImage from './CachedImage';
+import { playAlbum } from '../utils/playAlbum';
 
 interface AlbumCardProps {
   album: SubsonicAlbum;
@@ -50,10 +51,10 @@ export default function AlbumCard({ album }: AlbumCardProps) {
         <div className="album-card-play-overlay">
           <button
             className="album-card-details-btn"
-            onClick={e => { e.stopPropagation(); navigate(`/album/${album.id}`); }}
-            aria-label={`Details zu ${album.name}`}
+            onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
+            aria-label={`${album.name} abspielen`}
           >
-            Details
+            <Play size={15} fill="currentColor" />
           </button>
         </div>
       </div>

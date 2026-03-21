@@ -324,8 +324,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  flex-shrink: 0;
-  width: 220px;
+  flex: 0 0 auto;
+  max-width: min(40vw, 480px);
   min-width: 0;
 }
 
@@ -386,6 +386,7 @@
 
 .player-track-meta {
   min-width: 0;
+  overflow: hidden;
 }
 
 .player-track-name {

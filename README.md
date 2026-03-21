@@ -22,7 +22,7 @@ Designed specifically for users hosting their own music via Navidrome or other S
 
 ## ✨ Features
 
-- 🎨 **Gorgeous UI**: 21 deeply integrated themes — Catppuccin, Nord, Retro (Gruvbox), Tokyo Night, and Psysonic originals (Classic Winamp, Poison, Nucleo, Psychowave) — with smooth glassmorphism effects and micro-animations.
+- 🎨 **Gorgeous UI**: 30 deeply integrated themes across 7 groups — Catppuccin, Nord, Retro (Gruvbox), Tokyo Night, Betriebssysteme (Cupertino, Aero Glass, Luna Teal), and Psysonic originals (WnAmp, Poison, Nucleo, Neon Drift…) — with smooth glassmorphism effects and micro-animations.
 - ⚡ **Blazing Fast**: Built with Rust & Tauri — native audio engine (rodio), minimal RAM usage compared to typical Electron apps.
 - 🌍 **Internationalization (i18n)**: Fully translated into English, German, French, and Dutch.
 - 📻 **Live "Now Playing"**: See what other users on your server are currently listening to in real-time.
@@ -31,8 +31,9 @@ Designed specifically for users hosting their own music via Navidrome or other S
 - 📀 **Album Downloads**: Support for downloading entire albums directly to your local machine.
 - 💿 **Album & Artist Views**: Beautiful grid displays and detailed artist pages with related albums and color-coded initial avatars for fast browsing.
 - 〰️ **Waveform Seekbar**: Canvas-based waveform with a blue-to-mauve gradient and glow effect — click or drag anywhere to seek.
-- 🌊 **MilkDrop Visualizer**: Full-screen Butterchurn/MilkDrop visualizer in the Ambient Stage with hundreds of presets and smooth transitions.
 - 🎛️ **Queue Management**: Drag & drop reordering, shuffle, playlist saving/loading, and server-side queue synchronization.
+- ⌨️ **Configurable Keybindings**: Rebind any playback action (play/pause, next, seek, volume…) directly in Settings.
+- 🔤 **Font Picker**: 10 UI fonts to choose from in Settings → Appearance.
 - 🎼 **Random Mix**: Generate a random playlist from your entire library. Filter by keyword or pick a Super Genre (Metal, Rock, Electronic, Jazz…) for a focused mix with progressive loading.
 - 🔄 **Update Notifications**: Built-in update checker (on startup + every 10 minutes) that notifies you when a new version is available on GitHub.
 - 🖥️ **Cross-Platform**: Available natively for Windows, macOS, and Linux (including Wayland support).
@@ -45,7 +46,6 @@ Designed specifically for users hosting their own music via Navidrome or other S
 - [x] Crossfade between tracks
 - [x] Replay Gain (track + album mode)
 - [x] Gapless playback *(experimental)*
-- [x] MilkDrop/Butterchurn visualizer
 - [x] Waveform seekbar
 - [x] Last.fm scrobbling, Now Playing & love/unlove *(beta)*
 - [x] Similar Artists via Last.fm, filtered to library
@@ -53,9 +53,11 @@ Designed specifically for users hosting their own music via Navidrome or other S
 - [x] Multi-server support
 - [x] IndexedDB image caching
 - [x] Random Mix with keyword filter & Super Genre mix
-- [x] 21 themes: Catppuccin, Nord, Retro (Gruvbox), Tokyo Night, Psysonic originals (Classic Winamp, Poison, Nucleo, Psychowave)
+- [x] 30 themes across 7 groups: Catppuccin, Nord, Retro (Gruvbox), Tokyo Night, Betriebssysteme, Psysonic originals, Psysonic Mediaplayer
 - [x] Internationalization (English, German, French, Dutch)
 - [x] AUR package (Arch / CachyOS)
+- [x] Configurable keybindings
+- [x] Font picker (10 UI fonts)
 
 ### 🚧 In Progress
 - [ ] **Last.fm integration** — stabilising, moving out of beta

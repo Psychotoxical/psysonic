@@ -124,6 +124,7 @@ export interface SubsonicArtistInfo {
   smallImageUrl?: string;
   mediumImageUrl?: string;
   largeImageUrl?: string;
+  similarArtist?: Array<{ id: string; name: string; albumCount?: number }>;
 }
 
 // ─── API Methods ──────────────────────────────────────────────

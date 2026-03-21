@@ -10,6 +10,34 @@ interface ThemeDef {
 
 const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
   {
+    group: 'Psysonic Themes',
+    themes: [
+      { id: 'poison',              label: 'Poison',         bg: '#1f1f1f', card: '#282828', accent: '#1bd655' },
+      { id: 'nucleo',              label: 'Nucleo',         bg: '#f5e4c3', card: '#dfc08f', accent: '#7a5218' },
+      { id: 'psychowave',          label: 'Psychowave',     bg: '#161428', card: '#1f1c38', accent: '#a06ae0' },
+      { id: 'vintage-tube-radio',  label: 'Tube Radio',     bg: '#3E2723', card: '#1E110A', accent: '#FF6F00' },
+      { id: 'neon-drift',          label: 'Neon Drift',     bg: '#12132c', card: '#080916', accent: '#00f2ff' },
+    ],
+  },
+  {
+    group: 'Psysonic Themes — Mediaplayer',
+    themes: [
+      { id: 'wnamp',         label: 'WnAmp',        bg: '#2b2b3a', card: '#000000', accent: '#00ff00' },
+      { id: 'navy-jukebox',  label: 'Navy Jukebox', bg: '#d4d8db', card: '#001358', accent: '#0070a0' },
+      { id: 'cobalt-media',  label: 'Cobalt Media', bg: '#3a62a5', card: '#000000', accent: '#45ff00' },
+      { id: 'onyx-cinema',   label: 'Onyx Cinema',  bg: '#141414', card: '#000000', accent: '#00aaff' },
+    ],
+  },
+  {
+    group: 'Betriebssysteme',
+    themes: [
+      { id: 'cupertino-light', label: 'Cupertino Light', bg: '#ffffff', card: '#f2f2f7', accent: '#0071e3' },
+      { id: 'cupertino-dark',  label: 'Cupertino Dark',  bg: '#1e1e1f', card: '#2d2d2f', accent: '#007aff' },
+      { id: 'aero-glass',      label: 'Aero Glass',      bg: '#cddbed', card: '#1d4268', accent: '#1878e8' },
+      { id: 'luna-teal',       label: 'Luna Teal',        bg: '#ece9d8', card: '#0055e5', accent: '#3c9d29' },
+    ],
+  },
+  {
     group: 'Catppuccin',
     themes: [
       { id: 'mocha',     label: 'Mocha',     bg: '#1e1e2e', card: '#313244', accent: '#cba6f7' },
@@ -44,15 +72,6 @@ const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
       { id: 'tokyo-night',       label: 'Standard', bg: '#1a1b26', card: '#24283b', accent: '#7aa2f7' },
       { id: 'tokyo-night-storm', label: 'Storm',    bg: '#24283b', card: '#2f334d', accent: '#7aa2f7' },
       { id: 'tokyo-night-light', label: 'Light',    bg: '#d5d6db', card: '#e9e9ec', accent: '#34548a' },
-    ],
-  },
-  {
-    group: 'Psysonic Themes',
-    themes: [
-      { id: 'classic-winamp', label: 'Classic Winamp', bg: '#2b2b3a', card: '#000000', accent: '#00ff00' },
-      { id: 'poison',         label: 'Poison',         bg: '#1f1f1f', card: '#282828', accent: '#1bd655' },
-      { id: 'nucleo',         label: 'Nucleo',         bg: '#f5e4c3', card: '#dfc08f', accent: '#9e9a92' },
-      { id: 'psychowave',     label: 'Psychowave',     bg: '#161428', card: '#1f1c38', accent: '#a06ae0' },
     ],
   },
 ];

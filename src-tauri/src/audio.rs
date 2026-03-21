@@ -389,7 +389,7 @@ pub(crate) struct PreloadedTrack {
 
 /// Info about the track that has been appended (chained) to the current Sink
 /// but whose source has not yet started playing (gapless mode only).
-struct ChainedInfo {
+pub(crate) struct ChainedInfo {
     /// The URL that was chained — used by audio_play to detect a pre-chain hit.
     url: String,
     duration_secs: f64,
@@ -445,6 +445,19 @@ impl AudioCurrent {
 
 pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
     let (tx, rx) = std::sync::mpsc::sync_channel::<rodio::OutputStreamHandle>(0);
+
+    // Request a larger audio buffer from PipeWire/PulseAudio to reduce ALSA underruns.
+    // Only set if the user hasn't already configured these themselves.
+    // PIPEWIRE_LATENCY: 4096 frames / 48000 Hz ≈ 85 ms — enough to absorb scheduler jitter.
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var("PIPEWIRE_LATENCY").is_err() {
+            std::env::set_var("PIPEWIRE_LATENCY", "4096/48000");
+        }
+        if std::env::var("PULSE_LATENCY_MSEC").is_err() {
+            std::env::set_var("PULSE_LATENCY_MSEC", "85");
+        }
+    }
 
     let thread = std::thread::Builder::new()
         .name("psysonic-audio-stream".into())

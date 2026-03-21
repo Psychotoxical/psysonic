@@ -4,7 +4,7 @@ import changelogRaw from '../../CHANGELOG.md?raw';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
-  Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play
+  Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard
 } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, LastfmUserInfo } from '../api/lastfm';
@@ -13,6 +13,8 @@ import CustomSelect from '../components/CustomSelect';
 import ThemePicker from '../components/ThemePicker';
 import { useAuthStore, ServerProfile } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { useFontStore, FontId } from '../store/fontStore';
+import { useKeybindingsStore, KeyAction, formatKeyCode, DEFAULT_BINDINGS } from '../store/keybindingsStore';
 import { pingWithCredentials } from '../api/subsonic';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +22,7 @@ import Equalizer from '../components/Equalizer';
 
 const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
 
-type Tab = 'playback' | 'library' | 'appearance' | 'server' | 'about';
+type Tab = 'playback' | 'library' | 'appearance' | 'shortcuts' | 'server' | 'about';
 
 function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile, 'id'>) => void; onCancel: () => void }) {
   const { t } = useTranslation();
@@ -83,6 +85,9 @@ function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile
 export default function Settings() {
   const auth = useAuthStore();
   const theme = useThemeStore();
+  const fontStore = useFontStore();
+  const kb = useKeybindingsStore();
+  const [listeningFor, setListeningFor] = useState<KeyAction | null>(null);
   const navigate = useNavigate();
   const { state: routeState } = useLocation();
   const { t, i18n } = useTranslation();
@@ -210,6 +215,7 @@ export default function Settings() {
     { id: 'playback',    label: t('settings.tabPlayback'),    icon: <Play size={15} /> },
     { id: 'library',     label: t('settings.tabLibrary'),     icon: <Shuffle size={15} /> },
     { id: 'appearance',  label: t('settings.tabAppearance'),  icon: <Palette size={15} /> },
+    { id: 'shortcuts',   label: t('settings.tabShortcuts'),   icon: <Keyboard size={15} /> },
     { id: 'server',      label: t('settings.tabServer'),      icon: <Server size={15} /> },
     { id: 'about',       label: t('settings.tabAbout'),       icon: <Info size={15} /> },
   ];
@@ -492,7 +498,137 @@ export default function Settings() {
               </div>
             </div>
           </section>
+
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <Type size={18} />
+              <h2>{t('settings.font')}</h2>
+            </div>
+            <div className="settings-card">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {([
+                  { id: 'inter',   label: 'Inter',            sample: 'The quick brown fox' },
+                  { id: 'outfit',  label: 'Outfit',           sample: 'The quick brown fox' },
+                  { id: 'dm-sans', label: 'DM Sans',          sample: 'The quick brown fox' },
+                  { id: 'nunito',  label: 'Nunito',           sample: 'The quick brown fox' },
+                  { id: 'rubik',             label: 'Rubik',             sample: 'The quick brown fox' },
+                  { id: 'space-grotesk',     label: 'Space Grotesk',     sample: 'The quick brown fox' },
+                  { id: 'figtree',           label: 'Figtree',           sample: 'The quick brown fox' },
+                  { id: 'manrope',           label: 'Manrope',           sample: 'The quick brown fox' },
+                  { id: 'plus-jakarta-sans', label: 'Plus Jakarta Sans',  sample: 'The quick brown fox' },
+                  { id: 'lexend',            label: 'Lexend',            sample: 'The quick brown fox' },
+                ] as { id: FontId; label: string; sample: string }[]).map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => fontStore.setFont(f.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      background: fontStore.font === f.id ? 'var(--accent-dim)' : 'transparent',
+                      border: `1px solid ${fontStore.font === f.id ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      borderRadius: 'var(--radius-md)', padding: '10px 14px',
+                      cursor: 'pointer', textAlign: 'left', width: '100%',
+                    }}
+                  >
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+                      border: `2px solid ${fontStore.font === f.id ? 'var(--accent)' : 'var(--border)'}`,
+                      background: fontStore.font === f.id ? 'var(--accent)' : 'transparent',
+                    }} />
+                    <div>
+                      <div style={{ fontFamily: `'${f.label}', sans-serif`, fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{f.label}</div>
+                      <div style={{ fontFamily: `'${f.label}', sans-serif`, fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{f.sample}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
         </>
+      )}
+
+      {/* ── Shortcuts ────────────────────────────────────────────────────────── */}
+      {activeTab === 'shortcuts' && (
+        <section className="settings-section">
+          <div className="settings-section-header">
+            <Keyboard size={18} />
+            <h2>{t('settings.tabShortcuts')}</h2>
+          </div>
+          <div className="settings-card">
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+              <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => { kb.resetToDefaults(); setListeningFor(null); }}>
+                {t('settings.shortcutsReset')}
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {([
+                ['play-pause',        t('settings.shortcutPlayPause')],
+                ['next',              t('settings.shortcutNext')],
+                ['prev',              t('settings.shortcutPrev')],
+                ['volume-up',         t('settings.shortcutVolumeUp')],
+                ['volume-down',       t('settings.shortcutVolumeDown')],
+                ['seek-forward',      t('settings.shortcutSeekForward')],
+                ['seek-backward',     t('settings.shortcutSeekBackward')],
+                ['toggle-queue',      t('settings.shortcutToggleQueue')],
+                ['fullscreen-player', t('settings.shortcutFullscreenPlayer')],
+                ['native-fullscreen', t('settings.shortcutNativeFullscreen')],
+              ] as [KeyAction, string][]).map(([action, label]) => {
+                const bound = kb.bindings[action];
+                const isListening = listeningFor === action;
+                return (
+                  <div key={action} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+                    background: isListening ? 'var(--accent-dim)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        onClick={() => {
+                          if (isListening) { setListeningFor(null); return; }
+                          setListeningFor(action);
+                          const handler = (e: KeyboardEvent) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (e.code !== 'Escape') {
+                              // unbind any existing action with this key first
+                              const existing = (Object.entries(kb.bindings) as [KeyAction, string | null][])
+                                .find(([, c]) => c === e.code)?.[0];
+                              if (existing && existing !== action) kb.setBinding(existing, null);
+                              kb.setBinding(action, e.code);
+                            }
+                            setListeningFor(null);
+                            window.removeEventListener('keydown', handler, true);
+                          };
+                          window.addEventListener('keydown', handler, true);
+                        }}
+                        style={{
+                          minWidth: 72, padding: '3px 10px', borderRadius: 'var(--radius-sm)',
+                          fontSize: 12, fontWeight: 600, fontFamily: 'monospace',
+                          background: isListening ? 'var(--accent)' : bound ? 'var(--bg-hover)' : 'var(--bg-card)',
+                          color: isListening ? 'var(--ctp-base)' : bound ? 'var(--text-primary)' : 'var(--text-muted)',
+                          border: `1px solid ${isListening ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isListening ? t('settings.shortcutListening') : bound ? formatKeyCode(bound) : t('settings.shortcutUnbound')}
+                      </button>
+                      {bound && !isListening && (
+                        <button
+                          onClick={() => kb.setBinding(action, null)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px', lineHeight: 1 }}
+                          data-tooltip={t('settings.shortcutClear')}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
       )}
 
       {/* ── Server ───────────────────────────────────────────────────────────── */}

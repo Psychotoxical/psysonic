@@ -2619,14 +2619,394 @@
 }
 
 /* ─ Now Playing Page ─ */
+/* ─── Now Playing Page ─────────────────────────────────────── */
 .np-page {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
-  overflow-y: auto;
 }
 
-/* Hero */
+/* Main scrollable content */
+.np-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Hero card: 3-column (cover+info | EQ | tag cloud) ── */
+.np-hero-card {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  min-height: 200px;
+}
+
+/* Left column: cover + meta, left-aligned — takes equal share with right */
+.np-hero-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.np-hero-cover-wrap {
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.np-hero-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  justify-content: center;
+}
+
+/* Center column: fixed width so it stays truly centered between equal outer columns */
+.np-eq-wrap {
+  flex: 0 0 clamp(100px, 20vw, 220px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  mask-image: linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%);
+}
+
+.np-eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+  width: 100%;
+}
+
+.np-eq-bar {
+  flex: 1;
+  min-width: 3px;
+  max-width: 8px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+  height: 8%;
+  transition: background 0.3s;
+  will-change: height;
+}
+
+/* Right column: tag cloud — takes equal share with left so EQ stays centered */
+.np-tag-cloud {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-content: flex-start;
+  padding-top: 4px;
+  justify-content: flex-end;
+}
+
+.np-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.np-tag-accent {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+.np-tag-clickable {
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.np-tag-clickable:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: white;
+}
+
+/* ── Info cards (artist / album) ── */
+.np-info-card {
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.np-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.np-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255, 255, 255, 0.70);
+  margin: 0;
+}
+
+.np-card-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.np-card-link:hover { opacity: 0.75; }
+
+/* ── Artist bio ── */
+.np-artist-bio-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.np-artist-thumb {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.np-bio-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.np-bio-text {
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.72);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.np-bio-text.expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.np-bio-text a { color: var(--accent); }
+
+.np-bio-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 0;
+  align-self: flex-start;
+  opacity: 0.8;
+}
+.np-bio-toggle:hover { opacity: 1; }
+
+/* ── Album tracklist ── */
+.np-album-tracklist {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.np-album-track {
+  display: grid;
+  grid-template-columns: 28px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.np-album-track:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.np-album-track.active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.np-album-track-num {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.np-album-track.active .np-album-track-num {
+  color: var(--accent);
+}
+
+.np-album-track-title {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.80);
+}
+.np-album-track.active .np-album-track-title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.np-album-track-dur {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── Queue Sidebar ── */
+.np-queue-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  position: relative;
+  z-index: 1;
+}
+
+.np-qs-header {
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.np-qs-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+}
+
+.np-qs-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.40);
+  margin-top: 2px;
+}
+
+.np-qs-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.np-qs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.np-qs-item {
+  display: grid;
+  grid-template-columns: 26px 1fr 36px 22px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.np-qs-item:hover,
+.np-qs-item.context-active {
+  background: rgba(255, 255, 255, 0.06);
+}
+.np-qs-item.active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.np-qs-num {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.30);
+  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.np-qs-info {
+  min-width: 0;
+}
+
+.np-qs-track-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.80);
+  line-height: 1.3;
+}
+.np-qs-track-title.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.np-qs-track-artist {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 1px;
+}
+
+.np-qs-dur {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.30);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── Shared np- classes (kept) ── */
+/* Hero (old, kept for NpBg) */
 .np-hero {
   position: relative;
   min-height: 280px;
@@ -2637,7 +3017,7 @@
 
 .np-bg-wrap {
   position: absolute;
-  inset: 0 0 -80px 0;
+  inset: 0;
   z-index: 0;
   overflow: hidden;
   contain: paint;
@@ -2648,7 +3028,7 @@
   inset: -15%;
   background-size: cover;
   background-position: center;
-  filter: blur(50px) brightness(0.25) saturate(1.8);
+  filter: blur(40px) brightness(0.55) saturate(1.6);
   transition: opacity 0.6s ease;
   will-change: opacity;
 }
@@ -2656,7 +3036,7 @@
 .np-bg-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 40%, var(--bg-app) 100%);
+  background: rgba(0, 0, 0, 0.38);
 }
 
 .np-hero-content {
@@ -2683,8 +3063,8 @@
 
 .np-cover-glow {
   position: absolute;
-  width: 170px;
-  height: 170px;
+  width: 200px;
+  height: 200px;
   border-radius: 50%;
   object-fit: cover;
   filter: blur(36px) saturate(1.5) brightness(0.85);
@@ -2704,8 +3084,8 @@
 .np-cover {
   position: relative;
   z-index: 1;
-  width: 160px;
-  height: 160px;
+  width: 196px;
+  height: 196px;
   border-radius: 14px;
   object-fit: cover;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
@@ -2720,7 +3100,7 @@
   color: var(--text-muted);
 }
 
-/* Info column */
+/* Info column (legacy, kept for compat) */
 .np-info {
   display: flex;
   flex-direction: column;
@@ -2743,7 +3123,7 @@
   color: rgba(255, 255, 255, 0.75);
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
   align-items: center;
 }
@@ -2760,7 +3140,7 @@
 .np-tech-row {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   align-items: center;
   margin-top: 4px;

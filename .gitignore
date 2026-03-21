@@ -34,3 +34,9 @@ src-tauri/target/
 
 # Documentation
 CLAUDE.md
+
+# Claude Code memory (local only)
+memory/
+
+# Local scratchpad / notes (not committed)
+tmp/

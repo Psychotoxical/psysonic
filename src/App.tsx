@@ -38,7 +38,9 @@ import { useConnectionStatus } from './hooks/useConnectionStatus';
 import { useAuthStore } from './store/authStore';
 import { usePlayerStore, initAudioListeners } from './store/playerStore';
 import { useThemeStore } from './store/themeStore';
+import { useFontStore } from './store/fontStore';
 import { useEqStore } from './store/eqStore';
+import { useKeybindingsStore } from './store/keybindingsStore';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, servers, activeServerId } = useAuthStore();
@@ -207,24 +209,49 @@ function TauriEventBridge() {
   const previous = usePlayerStore(s => s.previous);
   const { minimizeToTray } = useAuthStore();
 
-  // Spacebar → play/pause, F11 → window fullscreen
+  // Configurable keybindings
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'F11') {
-        e.preventDefault();
-        const win = getCurrentWindow();
-        win.isFullscreen().then(fs => win.setFullscreen(!fs));
-        return;
-      }
-      if (e.code !== 'Space') return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const { bindings } = useKeybindingsStore.getState();
+      const { togglePlay, next, previous, setVolume, seek, toggleQueue, toggleFullscreen } = usePlayerStore.getState();
+
+      const action = (Object.entries(bindings) as [string, string | null][])
+        .find(([, code]) => code === e.code)?.[0];
+
+      if (!action) return;
       e.preventDefault();
-      togglePlay();
+
+      switch (action) {
+        case 'play-pause':        togglePlay(); break;
+        case 'next':              next(); break;
+        case 'prev':              previous(); break;
+        case 'volume-up':         setVolume(Math.min(1, usePlayerStore.getState().volume + 0.05)); break;
+        case 'volume-down':       setVolume(Math.max(0, usePlayerStore.getState().volume - 0.05)); break;
+        case 'seek-forward': {
+          const s = usePlayerStore.getState();
+          seek(Math.min(s.currentTrack?.duration ?? 0, s.currentTime + 10));
+          break;
+        }
+        case 'seek-backward': {
+          const s = usePlayerStore.getState();
+          seek(Math.max(0, s.currentTime - 10));
+          break;
+        }
+        case 'toggle-queue':      toggleQueue(); break;
+        case 'fullscreen-player': toggleFullscreen(); break;
+        case 'native-fullscreen': {
+          const win = getCurrentWindow();
+          win.isFullscreen().then(fs => win.setFullscreen(!fs));
+          break;
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay]);
+  }, []);
 
   useEffect(() => {
     const unlisten: Array<() => void> = [];
@@ -255,10 +282,15 @@ function TauriEventBridge() {
 
 export default function App() {
   const theme = useThemeStore(s => s.theme);
+  const font = useFontStore(s => s.font);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-font', font);
+  }, [font]);
 
   useEffect(() => {
     return initAudioListeners();

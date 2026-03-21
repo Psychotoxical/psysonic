@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-03-21
+
+### Added
+
+#### Three New Themes
+- **Neon Drift**: Deep midnight-blue background (`#12132c`) with electric cyan accent (`#00f2ff`) — subtle synthwave/cyberpunk aesthetic. Glowing player track name, cyan-glow nav active state, neon-lit primary buttons, glowing range slider thumb.
+- **Cupertino Light**: macOS Ventura-inspired light theme. Clean white base, Apple-grey sidebar (`#f2f2f7`), Apple blue accent (`#0071e3`). Frosted-glass sidebar and player bar with `backdrop-filter: blur`. Solid blue pill nav active (white text, no left border).
+- **Cupertino Dark**: macOS Ventura-inspired dark theme. Space Grey base (`#1e1e1f`), dark frosted sidebar, vibrant blue accent (`#007aff`). Same pill nav active as Cupertino Light. Solid blue Play/Pause button with glow.
+
+#### New Theme Group: Betriebssysteme
+- OS-aesthetic themes are now consolidated into one group: **Cupertino Light**, **Cupertino Dark**, **Aero Glass**, **Luna Teal**.
+- **Psysonic Themes** and **Psysonic Themes — Mediaplayer** moved to the top of the theme picker.
+
+#### Configurable Keybindings
+- New `keybindingsStore` with 10 bindable actions: Play/Pause, Next, Previous, Volume Up/Down, Seek ±10 s, Toggle Queue, Fullscreen Player, Native Fullscreen.
+- Rebind any action in **Settings → Keybindings** — click the key badge, press any key, saved immediately to `localStorage`.
+- Defaults: `Space` = Play/Pause, `F11` = Native Fullscreen. All other actions unbound by default.
+
+#### Font Picker
+- 10 UI fonts selectable in **Settings → Appearance**: Inter, Outfit, DM Sans, Nunito, Rubik, Space Grotesk, Figtree, Manrope, Plus Jakarta Sans, Lexend.
+- Persisted in `localStorage` (`psysonic_font`), applied via `data-font` attribute on `<html>`.
+
+#### Home Page — Instant Play
+- **Album cards**: "Details" button replaced with a **Play** button — clicking plays the album immediately with a smooth 700 ms fade-out of the current track.
+- **Hero**: "Play Album" button now starts playback directly (with fade-out) instead of navigating to the album detail page.
+- Fade-out implemented via `playAlbum.ts` utility: fades volume to 0 over 700 ms, restores volume in the store (no Rust side-effect) before handing off to `playTrack`.
+
+#### Now Playing Page — Layout & Readability
+- **3-column hero layout**: album cover + info (left, `flex: 1`) — EQ bars (centre, fixed width) — tag cloud (right, `flex: 1`). EQ bars are now truly centred regardless of content length on either side.
+- **Background**: increased brightness from `0.25` to `0.55`, reduced overlay opacity from `0.55` to `0.38` — background art is now visible instead of near-black.
+- **Text contrast**: track times, card links (artist/album), and section title opacity all increased for better readability on the blurred background.
+
+### Changed
+
+#### Theme Renames — Trademark-Safe Names
+All media-player and OS-themed theme IDs and labels have been renamed to avoid potential trademark conflicts:
+
+| Old Name | New Name |
+|---|---|
+| Classic Winamp | WnAmp |
+| Musicmatch Jukebox | Navy Jukebox |
+| WMP8 Classic | Cobalt Media |
+| PowerDVD Classic | Onyx Cinema |
+| Win7 Aero | Aero Glass |
+| WinXP Luna | Luna Teal |
+
+> **Note**: If you had one of these themes selected, your preference will reset to Mocha on first launch. Re-select your preferred theme in Settings.
+
+### Fixed
+
+- **Linux — ALSA underruns**: `PIPEWIRE_LATENCY` (`4096/48000` ≈ 85 ms) and `PULSE_LATENCY_MSEC` (`85`) are now set before audio stream creation, reducing the frequency of ALSA `snd_pcm_recover` underrun events on PipeWire systems. Existing user-set values are respected.
+
+---
+
 ## [1.8.0] - 2026-03-21
 
 ### Added
