@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type as FilterType};
 use rodio::{Decoder, Sink, Source};
+use rodio::source::UniformSourceIterator;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
@@ -209,7 +210,7 @@ impl<S: Source<Item = f32>> Iterator for EqualPowerFadeIn<S> {
             (t * std::f32::consts::FRAC_PI_2).sin()
         };
         self.sample_count += 1;
-        Some(sample * gain)
+        Some((sample * gain).clamp(-1.0, 1.0))
     }
 }
 
@@ -222,6 +223,82 @@ impl<S: Source<Item = f32>> Source for EqualPowerFadeIn<S> {
         // Restart the fade envelope after seeking (avoids a mid-song click if
         // the user seeks to the very beginning while a fade was in progress).
         self.sample_count = 0;
+        self.inner.try_seek(pos)
+    }
+}
+
+// ─── TriggeredFadeOut — sample-level cos(t·π/2) fade-out triggered externally ─
+//
+// Every track source is wrapped with this. It passes through at unity gain
+// until `trigger` is set to true, at which point it reads `fade_total_samples`
+// and applies a cos(t·π/2) envelope:
+//   gain(t) = cos(t · π/2),  t ∈ [0, 1]
+//   At t = 0 gain = 1, at t = 1 gain = 0.
+// After the fade completes, returns None to exhaust the source.
+//
+// Combined with EqualPowerFadeIn (sin curve) on Track B, this gives a
+// symmetric constant-power crossfade: sin²+cos² = 1.
+
+struct TriggeredFadeOut<S: Source<Item = f32>> {
+    inner: S,
+    trigger: Arc<AtomicBool>,
+    fade_total_samples: Arc<AtomicU64>,
+    fade_progress: u64,
+    fading: bool,
+    cached_total: u64,
+}
+
+impl<S: Source<Item = f32>> TriggeredFadeOut<S> {
+    fn new(inner: S, trigger: Arc<AtomicBool>, fade_total_samples: Arc<AtomicU64>) -> Self {
+        Self {
+            inner,
+            trigger,
+            fade_total_samples,
+            fade_progress: 0,
+            fading: false,
+            cached_total: 0,
+        }
+    }
+}
+
+impl<S: Source<Item = f32>> Iterator for TriggeredFadeOut<S> {
+    type Item = f32;
+    fn next(&mut self) -> Option<f32> {
+        // Check trigger on first fade sample only (avoid atomic load per sample).
+        if !self.fading && self.trigger.load(Ordering::Relaxed) {
+            self.fading = true;
+            self.cached_total = self.fade_total_samples.load(Ordering::Relaxed).max(1);
+            self.fade_progress = 0;
+        }
+
+        if self.fading {
+            if self.fade_progress >= self.cached_total {
+                // Fade complete — exhaust the source.
+                return None;
+            }
+            let sample = self.inner.next()?;
+            let t = self.fade_progress as f32 / self.cached_total as f32;
+            let gain = (t * std::f32::consts::FRAC_PI_2).cos();
+            self.fade_progress += 1;
+            Some((sample * gain).clamp(-1.0, 1.0))
+        } else {
+            self.inner.next()
+        }
+    }
+}
+
+impl<S: Source<Item = f32>> Source for TriggeredFadeOut<S> {
+    fn current_frame_len(&self) -> Option<usize> { self.inner.current_frame_len() }
+    fn channels(&self) -> u16 { self.inner.channels() }
+    fn sample_rate(&self) -> u32 { self.inner.sample_rate() }
+    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        // If we seek back during a fade, cancel the fade.
+        if self.fading {
+            self.fading = false;
+            self.trigger.store(false, Ordering::Relaxed);
+        }
+        self.fade_progress = 0;
         self.inner.try_seek(pos)
     }
 }
@@ -265,6 +342,48 @@ impl<S: Source<Item = f32>> Source for NotifyingSource<S> {
         // If we seek backwards the source is no longer exhausted.
         self.signalled = false;
         self.done.store(false, Ordering::SeqCst);
+        self.inner.try_seek(pos)
+    }
+}
+
+// ─── CountingSource — atomic sample counter for drift-free position tracking ─
+//
+// Wraps the outermost source and increments a shared AtomicU64 on every sample.
+// The progress task reads this counter and divides by (sample_rate * channels)
+// to get the exact playback position — no wall-clock drift.
+
+struct CountingSource<S: Source<Item = f32>> {
+    inner: S,
+    counter: Arc<AtomicU64>,
+}
+
+impl<S: Source<Item = f32>> CountingSource<S> {
+    fn new(inner: S, counter: Arc<AtomicU64>) -> Self {
+        Self { inner, counter }
+    }
+}
+
+impl<S: Source<Item = f32>> Iterator for CountingSource<S> {
+    type Item = f32;
+    fn next(&mut self) -> Option<f32> {
+        let sample = self.inner.next();
+        if sample.is_some() {
+            self.counter.fetch_add(1, Ordering::Relaxed);
+        }
+        sample
+    }
+}
+
+impl<S: Source<Item = f32>> Source for CountingSource<S> {
+    fn current_frame_len(&self) -> Option<usize> { self.inner.current_frame_len() }
+    fn channels(&self) -> u16 { self.inner.channels() }
+    fn sample_rate(&self) -> u32 { self.inner.sample_rate() }
+    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        // Reset counter to the sought position in samples.
+        let samples = (pos.as_secs_f64() * self.inner.sample_rate() as f64
+            * self.inner.channels() as f64) as u64;
+        self.counter.store(samples, Ordering::Relaxed);
         self.inner.try_seek(pos)
     }
 }
@@ -326,12 +445,28 @@ fn parse_gapless_info(data: &[u8]) -> GaplessInfo {
     GaplessInfo { delay_samples: delay, total_valid_samples: total_valid }
 }
 
-/// Build a fully-prepared playback source: decode → trim → EQ → fade-in → notify.
+/// Result of build_source: the fully-wrapped source plus metadata and control Arcs.
+struct BuiltSource {
+    source: CountingSource<NotifyingSource<TriggeredFadeOut<EqualPowerFadeIn<EqSource<DynSource>>>>>,
+    duration_secs: f64,
+    output_rate: u32,
+    output_channels: u16,
+    /// Trigger for the sample-level crossfade fade-out.
+    fadeout_trigger: Arc<AtomicBool>,
+    /// Total samples for the fade-out (set before triggering).
+    fadeout_samples: Arc<AtomicU64>,
+}
+
+/// Build a fully-prepared playback source:
+///   decode → trim → resample → EQ → fade-in → triggered-fade-out → notify → count
 ///
 /// `fade_in_dur`:
 ///   • `Duration::ZERO`          — unity gain; used for gapless chain (no click)
 ///   • `Duration::from_millis(5)` — micro-fade; used for hard cuts (anti-click)
 ///   • `Duration::from_secs_f32(cf)` — full equal-power fade-in for crossfade
+///
+/// `sample_counter`: atomic counter incremented per sample for drift-free position.
+/// `target_rate`: canonical output sample rate for resampling (0 = no resampling).
 fn build_source(
     data: Vec<u8>,
     duration_hint: f64,
@@ -339,12 +474,15 @@ fn build_source(
     eq_enabled: Arc<AtomicBool>,
     done_flag: Arc<AtomicBool>,
     fade_in_dur: Duration,
-) -> Result<(NotifyingSource<EqualPowerFadeIn<EqSource<DynSource>>>, f64), String> {
+    sample_counter: Arc<AtomicU64>,
+    target_rate: u32,
+) -> Result<BuiltSource, String> {
     let gapless = parse_gapless_info(&data);
 
     let cursor = Cursor::new(data);
     let decoder = Decoder::new(cursor).map_err(|e| e.to_string())?;
     let sample_rate = decoder.sample_rate();
+    let channels = decoder.channels();
 
     // Determine effective duration.
     // Prefer hint from Subsonic API (reliable) over decoder (unreliable for VBR MP3).
@@ -356,7 +494,8 @@ fn build_source(
             .unwrap_or(duration_hint)
     };
 
-    // Apply encoder-delay trim and optional end-padding trim.
+    // Apply encoder-delay trim and optional end-padding trim,
+    // then resample to the canonical target rate if needed.
     let dyn_src: DynSource = if gapless.delay_samples > 0 || gapless.total_valid_samples.is_some() {
         let delay_dur = Duration::from_secs_f64(
             gapless.delay_samples as f64 / sample_rate as f64
@@ -365,19 +504,47 @@ fn build_source(
 
         if let Some(total) = gapless.total_valid_samples {
             let valid_dur = Duration::from_secs_f64(total as f64 / sample_rate as f64);
-            DynSource::new(base.take_duration(valid_dur))
+            let trimmed = base.take_duration(valid_dur);
+            if target_rate > 0 && sample_rate != target_rate {
+                DynSource::new(UniformSourceIterator::new(trimmed, channels, target_rate))
+            } else {
+                DynSource::new(trimmed)
+            }
         } else {
-            DynSource::new(base)
+            if target_rate > 0 && sample_rate != target_rate {
+                DynSource::new(UniformSourceIterator::new(base, channels, target_rate))
+            } else {
+                DynSource::new(base)
+            }
         }
     } else {
-        DynSource::new(decoder.convert_samples::<f32>())
+        let converted = decoder.convert_samples::<f32>();
+        if target_rate > 0 && sample_rate != target_rate {
+            DynSource::new(UniformSourceIterator::new(converted, channels, target_rate))
+        } else {
+            DynSource::new(converted)
+        }
     };
+
+    let output_rate = if target_rate > 0 && sample_rate != target_rate { target_rate } else { sample_rate };
+
+    let fadeout_trigger = Arc::new(AtomicBool::new(false));
+    let fadeout_samples = Arc::new(AtomicU64::new(0));
 
     let eq_src = EqSource::new(dyn_src, eq_gains, eq_enabled);
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
-    let notifying = NotifyingSource::new(fade_in, done_flag);
+    let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
+    let notifying = NotifyingSource::new(fade_out, done_flag);
+    let counting = CountingSource::new(notifying, sample_counter);
 
-    Ok((notifying, effective_dur))
+    Ok(BuiltSource {
+        source: counting,
+        duration_secs: effective_dur,
+        output_rate,
+        output_channels: channels,
+        fadeout_trigger,
+        fadeout_samples,
+    })
 }
 
 // ─── Engine state ─────────────────────────────────────────────────────────────
@@ -397,6 +564,9 @@ pub(crate) struct ChainedInfo {
     base_volume: f32,
     /// Set by NotifyingSource when this chained track's source is exhausted.
     source_done: Arc<AtomicBool>,
+    /// Atomic sample counter for this chained source (swapped into
+    /// samples_played on transition).
+    sample_counter: Arc<AtomicU64>,
 }
 
 pub struct AudioEngine {
@@ -417,6 +587,16 @@ pub struct AudioEngine {
     /// Info about the next-up chained track (gapless mode).
     /// The progress task reads this when `current_source_done` fires.
     pub chained_info: Arc<Mutex<Option<ChainedInfo>>>,
+    /// Atomic sample counter — incremented by CountingSource in the audio thread.
+    /// Progress task reads this for drift-free position tracking.
+    pub samples_played: Arc<AtomicU64>,
+    /// Sample rate of the currently playing source (for samples → seconds).
+    pub current_sample_rate: Arc<AtomicU32>,
+    /// Channel count of the currently playing source.
+    pub current_channels: Arc<AtomicU32>,
+    /// Instant (as nanos since UNIX epoch via Instant hack) of the last gapless
+    /// auto-advance. Commands arriving within 500 ms are rejected as ghost commands.
+    pub gapless_switch_at: Arc<AtomicU64>,
 }
 
 pub struct AudioCurrent {
@@ -427,6 +607,10 @@ pub struct AudioCurrent {
     pub paused_at: Option<f64>,
     pub replay_gain_linear: f32,
     pub base_volume: f32,
+    /// Crossfade: trigger for sample-level fade-out of the current source.
+    pub fadeout_trigger: Option<Arc<AtomicBool>>,
+    /// Crossfade: total fade samples (set before triggering).
+    pub fadeout_samples: Option<Arc<AtomicU64>>,
 }
 
 impl AudioCurrent {
@@ -459,6 +643,16 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         }
     }
 
+    // macOS: request a smaller CoreAudio buffer to reduce output latency.
+    // Smaller buffers = lower latency between decoded samples and DAC output,
+    // which tightens the gap between actual audio and UI event delivery.
+    #[cfg(target_os = "macos")]
+    {
+        if std::env::var("COREAUDIO_BUFFER_SIZE").is_err() {
+            std::env::set_var("COREAUDIO_BUFFER_SIZE", "512");
+        }
+    }
+
     let thread = std::thread::Builder::new()
         .name("psysonic-audio-stream".into())
         .spawn(move || match rodio::OutputStream::try_default() {
@@ -482,6 +676,8 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             paused_at: None,
             replay_gain_linear: 1.0,
             base_volume: 0.8,
+            fadeout_trigger: None,
+            fadeout_samples: None,
         })),
         generation: Arc::new(AtomicU64::new(0)),
         http_client: reqwest::Client::builder()
@@ -496,6 +692,10 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         fading_out_sink: Arc::new(Mutex::new(None)),
         gapless_enabled: Arc::new(AtomicBool::new(false)),
         chained_info: Arc::new(Mutex::new(None)),
+        samples_played: Arc::new(AtomicU64::new(0)),
+        current_sample_rate: Arc::new(AtomicU32::new(44100)),
+        current_channels: Arc::new(AtomicU32::new(2)),
+        gapless_switch_at: Arc::new(AtomicU64::new(0)),
     };
 
     (engine, thread)
@@ -574,6 +774,24 @@ pub async fn audio_play(
 ) -> Result<(), String> {
     let gapless = state.gapless_enabled.load(Ordering::Relaxed);
 
+    // ── Ghost-command guard ───────────────────────────────────────────────────
+    // After a gapless auto-advance, the frontend may fire a stale playTrack()
+    // call via IPC. If we're within 500 ms of the last gapless switch AND the
+    // requested URL matches the already-playing chained track, reject it.
+    {
+        let switch_ms = state.gapless_switch_at.load(Ordering::SeqCst);
+        if switch_ms > 0 {
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            if now_ms.saturating_sub(switch_ms) < 500 {
+                // Within the guard window — suppress this ghost command.
+                return Ok(());
+            }
+        }
+    }
+
     // ── Gapless pre-chain hit ─────────────────────────────────────────────────
     // audio_chain_preload already appended this URL to the Sink 30 s in
     // advance. The source is live in the queue — just return and let the
@@ -640,16 +858,29 @@ pub async fn audio_play(
         Duration::from_millis(5)
     };
 
-    // Build source: decode → trim → EQ → fade-in → notify.
+    // Build source: decode → trim → resample → EQ → fade-in → fade-out → notify → count.
     let done_flag = Arc::new(AtomicBool::new(false));
-    let (source, duration_secs) = build_source(
+    // Reset sample counter for the new track.
+    state.samples_played.store(0, Ordering::Relaxed);
+    let target_rate = state.current_sample_rate.load(Ordering::Relaxed);
+    let built = build_source(
         data,
         duration_hint,
         state.eq_gains.clone(),
         state.eq_enabled.clone(),
         done_flag.clone(),
         fade_in_dur,
+        state.samples_played.clone(),
+        target_rate,
     ).map_err(|e| { app.emit("audio:error", &e).ok(); e })?;
+    let source = built.source;
+    let duration_secs = built.duration_secs;
+    let output_rate = built.output_rate;
+    let output_channels = built.output_channels;
+
+    // Store the actual output rate/channels for position calculation.
+    state.current_sample_rate.store(output_rate, Ordering::Relaxed);
+    state.current_channels.store(output_channels as u32, Ordering::Relaxed);
 
     if state.generation.load(Ordering::SeqCst) != gen {
         return Ok(());
@@ -681,11 +912,12 @@ pub async fn audio_play(
 
     sink.append(source);
 
-    // Atomically swap sinks.
-    let (old_sink, old_vol) = {
+    // Atomically swap sinks — extract old sink + its fade-out trigger.
+    let (old_sink, old_fadeout_trigger, old_fadeout_samples) = {
         let mut cur = state.current.lock().unwrap();
-        let old_vol = (cur.base_volume * cur.replay_gain_linear).clamp(0.0, 1.0);
         let old = cur.sink.take();
+        let old_fo_trigger = cur.fadeout_trigger.take();
+        let old_fo_samples = cur.fadeout_samples.take();
         cur.sink = Some(sink);
         cur.duration_secs = duration_secs;
         cur.seek_offset = 0.0;
@@ -693,39 +925,33 @@ pub async fn audio_play(
         cur.paused_at = None;
         cur.replay_gain_linear = gain_linear;
         cur.base_volume = volume.clamp(0.0, 1.0);
-        (old, old_vol)
+        cur.fadeout_trigger = Some(built.fadeout_trigger);
+        cur.fadeout_samples = Some(built.fadeout_samples);
+        (old, old_fo_trigger, old_fo_samples)
     };
 
-    // Handle old sink: equal-power crossfade or immediate stop.
+    // Handle old sink: symmetric crossfade or immediate stop.
     if crossfade_enabled {
         if let Some(old) = old_sink {
+            // Trigger sample-level fade-out on Track A via TriggeredFadeOut.
+            // Calculate total fade samples from the measured actual_fade_secs.
+            let rate = state.current_sample_rate.load(Ordering::Relaxed);
+            let ch = state.current_channels.load(Ordering::Relaxed);
+            let fade_total = (actual_fade_secs as f64 * rate as f64 * ch as f64) as u64;
+
+            if let (Some(trigger), Some(samples)) = (old_fadeout_trigger, old_fadeout_samples) {
+                samples.store(fade_total.max(1), Ordering::SeqCst);
+                trigger.store(true, Ordering::SeqCst);
+            }
+
+            // Keep old sink alive until the fade completes + small margin,
+            // then drop it. No volume stepping needed — the fade-out runs
+            // at sample level inside the audio thread.
             *state.fading_out_sink.lock().unwrap() = Some(old);
             let fo_arc = state.fading_out_sink.clone();
+            let cleanup_dur = Duration::from_secs_f32(actual_fade_secs + 0.5);
             tokio::spawn(async move {
-                // ~100 steps/sec (one step every 10 ms) for smooth equal-power fade.
-                // Duration = actual_fade_secs (Track A's measured remaining time),
-                // so the fade reaches exactly 0 when the source is exhausted.
-                const STEP_MS: u64 = 10;
-                let total_steps = ((actual_fade_secs * 1000.0) / STEP_MS as f32).round() as u32;
-                for i in (0..=total_steps).rev() {
-                    let alive = {
-                        let fo = fo_arc.lock().unwrap();
-                        match fo.as_ref() {
-                            Some(s) => {
-                                // Equal-power cos curve: gain_a = cos(t · π/2)
-                                // t goes 1→0 as i goes total_steps→0
-                                let t = i as f32 / total_steps as f32;
-                                let gain = (t * std::f32::consts::FRAC_PI_2).cos();
-                                s.set_volume(old_vol * gain);
-                                true
-                            }
-                            None => false,
-                        }
-                        // MutexGuard dropped here before the await
-                    };
-                    if !alive { return; }
-                    tokio::time::sleep(Duration::from_millis(STEP_MS)).await;
-                }
+                tokio::time::sleep(cleanup_dur).await;
                 if let Some(s) = fo_arc.lock().unwrap().take() {
                     s.stop();
                 }
@@ -747,6 +973,10 @@ pub async fn audio_play(
         state.crossfade_secs.clone(),
         done_flag,
         app,
+        state.samples_played.clone(),
+        state.current_sample_rate.clone(),
+        state.current_channels.clone(),
+        state.gapless_switch_at.clone(),
     );
 
     Ok(())
@@ -815,14 +1045,22 @@ pub async fn audio_chain_preload(
     let (gain_linear, effective_volume) = compute_gain(replay_gain_db, replay_gain_peak, volume);
 
     let done_next = Arc::new(AtomicBool::new(false));
-    let (source, duration_secs) = build_source(
+    // Use a dedicated counter for the chained source — it will be swapped into
+    // samples_played when the chained track becomes active.
+    let chain_counter = Arc::new(AtomicU64::new(0));
+    let target_rate = state.current_sample_rate.load(Ordering::Relaxed);
+    let built = build_source(
         data,
         duration_hint,
         state.eq_gains.clone(),
         state.eq_enabled.clone(),
         done_next.clone(),
         Duration::ZERO, // gapless: no fade-in — sample-accurate boundary, no click
+        chain_counter.clone(),
+        target_rate,
     ).map_err(|e| e.to_string())?;
+    let source = built.source;
+    let duration_secs = built.duration_secs;
 
     // Final gen check — reject if a manual skip happened during decode.
     if state.generation.load(Ordering::SeqCst) != snapshot_gen {
@@ -847,6 +1085,7 @@ pub async fn audio_chain_preload(
         replay_gain_linear: gain_linear,
         base_volume: volume.clamp(0.0, 1.0),
         source_done: done_next,
+        sample_counter: chain_counter,
     });
 
     Ok(())
@@ -859,6 +1098,12 @@ pub async fn audio_chain_preload(
 /// done flag is set AND `chained_info` has data, it swaps `done` to the
 /// chained source's flag and transitions state — all without creating a new
 /// task or changing the generation counter.
+///
+/// Key changes from the previous implementation:
+///   • 100 ms tick (was 500 ms) — halves worst-case event latency
+///   • Position from atomic sample counter (no wall-clock drift)
+///   • Immediate `audio:track_switched` event at decoder boundary
+///   • `audio:ended` only fires when no chained successor exists
 fn spawn_progress_task(
     gen: u64,
     gen_counter: Arc<AtomicU64>,
@@ -868,6 +1113,10 @@ fn spawn_progress_task(
     crossfade_secs_arc: Arc<AtomicU32>,
     initial_done: Arc<AtomicBool>,
     app: AppHandle,
+    samples_played: Arc<AtomicU64>,
+    sample_rate_arc: Arc<AtomicU32>,
+    channels_arc: Arc<AtomicU32>,
+    gapless_switch_at: Arc<AtomicU64>,
 ) {
     tokio::spawn(async move {
         let mut near_end_ticks: u32 = 0;
@@ -875,7 +1124,8 @@ fn spawn_progress_task(
         let mut current_done = initial_done;
 
         loop {
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            // 100 ms tick — tight enough for responsive UI, low enough CPU cost.
+            tokio::time::sleep(Duration::from_millis(100)).await;
 
             if gen_counter.load(Ordering::SeqCst) != gen {
                 break;
@@ -884,24 +1134,40 @@ fn spawn_progress_task(
             // ── Gapless transition detection ─────────────────────────────────
             // If the current source is exhausted AND we have a chained track
             // ready, transition seamlessly: swap tracking state, emit
-            // audio:playing for the new track, and continue the loop.
+            // audio:track_switched for the new track, and continue the loop.
             if current_done.load(Ordering::SeqCst) {
                 let chained = chained_arc.lock().unwrap().take();
                 if let Some(info) = chained {
                     // Swap to the chained source's done flag.
                     current_done = info.source_done;
-                    // Tracking was already updated in audio_play_gapless_chain;
-                    // just update replay gain fields in case they differ.
+
+                    // Swap the sample counter: the chained source's counter
+                    // is already being incremented by CountingSource. Copy its
+                    // current value into the shared samples_played so the
+                    // progress calculation stays accurate.
+                    let chained_samples = info.sample_counter.load(Ordering::Relaxed);
+                    samples_played.store(chained_samples, Ordering::Relaxed);
+
+                    // Update tracking state.
                     {
                         let mut cur = current_arc.lock().unwrap();
                         cur.replay_gain_linear = info.replay_gain_linear;
                         cur.base_volume = info.base_volume;
-                        // Reset play_started to now — the old track physically
-                        // ended, the new one is now actively producing samples.
+                        cur.duration_secs = info.duration_secs;
                         cur.seek_offset = 0.0;
                         cur.play_started = Some(Instant::now());
                     }
-                    app.emit("audio:playing", info.duration_secs).ok();
+
+                    // Record the gapless switch timestamp for ghost-command guard.
+                    let switch_ts = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as u64;
+                    gapless_switch_at.store(switch_ts, Ordering::SeqCst);
+
+                    // Emit the new track_switched event — this is immediate,
+                    // not delayed by 500 ms like the old audio:playing was.
+                    app.emit("audio:track_switched", info.duration_secs).ok();
                     near_end_ticks = 0;
                     continue;
                 }
@@ -910,9 +1176,26 @@ fn spawn_progress_task(
                 // the near-end logic below.
             }
 
-            let (pos, dur, is_paused) = {
+            // ── Position from atomic sample counter ──────────────────────────
+            let rate = sample_rate_arc.load(Ordering::Relaxed) as f64;
+            let ch = channels_arc.load(Ordering::Relaxed) as f64;
+            let samples = samples_played.load(Ordering::Relaxed) as f64;
+            let divisor = (rate * ch).max(1.0);
+
+            let dur = {
                 let cur = current_arc.lock().unwrap();
-                (cur.position(), cur.duration_secs, cur.paused_at.is_some())
+                cur.duration_secs
+            };
+            let is_paused = {
+                let cur = current_arc.lock().unwrap();
+                cur.paused_at.is_some()
+            };
+
+            let pos = if is_paused {
+                let cur = current_arc.lock().unwrap();
+                cur.paused_at.unwrap_or(0.0)
+            } else {
+                (samples / divisor).min(dur.max(0.001))
             };
 
             app.emit("audio:progress", ProgressPayload { current_time: pos, duration: dur }).ok();
@@ -927,7 +1210,8 @@ fn spawn_progress_task(
 
             if dur > end_threshold && pos >= dur - end_threshold {
                 near_end_ticks += 1;
-                if near_end_ticks >= 2 {
+                // At 100 ms ticks, 10 ticks ≈ 1 s — equivalent to the old 2×500ms.
+                if near_end_ticks >= 10 {
                     gen_counter.fetch_add(1, Ordering::SeqCst);
                     app.emit("audio:ended", ()).ok();
                     break;
@@ -982,6 +1266,20 @@ pub fn audio_stop(state: State<'_, AudioEngine>) {
 
 #[tauri::command]
 pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), String> {
+    // Ghost-command guard: reject seeks within 500 ms of a gapless auto-advance.
+    {
+        let switch_ms = state.gapless_switch_at.load(Ordering::SeqCst);
+        if switch_ms > 0 {
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            if now_ms.saturating_sub(switch_ms) < 500 {
+                return Ok(());
+            }
+        }
+    }
+
     // Seeking far back invalidates any pending gapless chain.
     let cur_pos = {
         let cur = state.current.lock().unwrap();

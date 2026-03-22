@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { Track, usePlayerStore } from '../store/playerStore';
-import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves } from 'lucide-react';
+import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic } from 'lucide-react';
 import { buildCoverArtUrl, getAlbum, getPlaylists, getPlaylist, createPlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useLyricsStore } from '../store/lyricsStore';
+import LyricsPane from './LyricsPane';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -138,6 +140,9 @@ export default function QueuePanel() {
   const setCrossfadeEnabled = useAuthStore(s => s.setCrossfadeEnabled);
   const setCrossfadeSecs = useAuthStore(s => s.setCrossfadeSecs);
   const setGaplessEnabled = useAuthStore(s => s.setGaplessEnabled);
+
+  const activeTab  = useLyricsStore(s => s.activeTab);
+  const setTab     = useLyricsStore(s => s.setTab);
 
   const [showRemainingTime, setShowRemainingTime] = useState(false);
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
@@ -348,7 +353,8 @@ export default function QueuePanel() {
         </div>
       )}
 
-      <div className="queue-toolbar">
+      {activeTab === 'queue' ? (<>
+        <div className="queue-toolbar">
         <button className="queue-round-btn" onClick={() => shuffleQueue()} disabled={queue.length < 2} data-tooltip={t('queue.shuffle')} aria-label={t('queue.shuffle')}>
           <Shuffle size={13} />
         </button>
@@ -471,6 +477,28 @@ export default function QueuePanel() {
             );
           })
         )}
+      </div>
+      </>) : (
+        <LyricsPane currentTrack={currentTrack} />
+      )}
+
+      <div className="queue-tab-bar">
+        <button
+          className={`queue-tab-btn${activeTab === 'queue' ? ' active' : ''}`}
+          onClick={() => setTab('queue')}
+          aria-label={t('queue.title')}
+        >
+          <ListMusic size={14} />
+          {t('queue.title')}
+        </button>
+        <button
+          className={`queue-tab-btn${activeTab === 'lyrics' ? ' active' : ''}`}
+          onClick={() => setTab('lyrics')}
+          aria-label={t('player.lyrics')}
+        >
+          <MicVocal size={14} />
+          {t('player.lyrics')}
+        </button>
       </div>
 
       {saveModalOpen && (

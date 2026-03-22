@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music,
-  Square, Repeat, Repeat1, Maximize2, SlidersHorizontal, X, Heart
+  Square, Repeat, Repeat1, Maximize2, SlidersHorizontal, X, Heart, MicVocal
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -12,6 +12,7 @@ import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { useLyricsStore } from '../store/lyricsStore';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -24,11 +25,14 @@ export default function PlayerBar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [eqOpen, setEqOpen] = useState(false);
+  const showLyrics   = useLyricsStore(s => s.showLyrics);
+  const activeTab    = useLyricsStore(s => s.activeTab);
   const {
     currentTrack, isPlaying, currentTime, volume,
     togglePlay, next, previous, setVolume,
     stop, toggleRepeat, repeatMode, toggleFullscreen,
     lastfmLoved, toggleLastfmLove,
+    isQueueVisible, toggleQueue,
   } = usePlayerStore();
   const { lastfmSessionKey } = useAuthStore();
 
@@ -115,7 +119,7 @@ export default function PlayerBar() {
           aria-label={isPlaying ? t('player.pause') : t('player.play')}
           data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
         >
-          {isPlaying ? <Pause size={22} /> : <Play size={22} fill="currentColor" />}
+          {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
         </button>
         <button className="player-btn" onClick={next} aria-label={t('player.next')} data-tooltip={t('player.next')}>
           <SkipForward size={19} />
@@ -139,6 +143,16 @@ export default function PlayerBar() {
         </div>
         <span className="player-time">{formatTime(duration)}</span>
       </div>
+
+      {/* Lyrics Button */}
+      <button
+        className={`player-btn player-btn-sm ${activeTab === 'lyrics' && isQueueVisible ? 'active' : ''}`}
+        onClick={() => { if (!isQueueVisible) toggleQueue(); showLyrics(); }}
+        aria-label={t('player.lyrics')}
+        data-tooltip={t('player.lyrics')}
+      >
+        <MicVocal size={15} />
+      </button>
 
       {/* EQ Button */}
       <button

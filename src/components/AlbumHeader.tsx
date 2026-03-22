@@ -191,7 +191,7 @@ export default function AlbumHeader({
                   id="album-star-btn"
                   onClick={onToggleStar}
                   data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
-                  style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
+                  style={{ color: isStarred ? 'var(--color-star-active, var(--accent))' : 'inherit', border: isStarred ? '1px solid var(--color-star-active, var(--accent))' : undefined }}
                 >
                   <Star size={16} fill={isStarred ? 'currentColor' : 'none'} />
                   {t('albumDetail.favorite')}

@@ -935,6 +935,7 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background var(--transition-fast);
+  user-select: none;
 }
 
 .track-row.track-row-va {
@@ -1214,6 +1215,7 @@
   font-size: 14px;
   line-height: 1.7;
   color: var(--text-secondary);
+  user-select: text;
 }
 
 .artist-bio a {
@@ -1301,6 +1303,7 @@
   line-height: 1.75;
   color: var(--text-secondary);
   max-width: 100%;
+  user-select: text;
 }
 
 .artist-bio-text a {
@@ -1486,6 +1489,170 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
+
+/* ── Theme Accordion ─────────────────────────────────────────────────────── */
+
+.theme-accordion {
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-accordion-item {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.theme-accordion-item:last-child {
+  border-bottom: none;
+}
+
+.theme-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  padding: 10px var(--space-4);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border-left: 3px solid transparent;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.theme-accordion-header:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.theme-accordion-open .theme-accordion-header {
+  color: var(--accent);
+  background: var(--bg-hover);
+  border-left: 3px solid var(--accent);
+  padding-left: calc(var(--space-5) + 3px);
+}
+
+.theme-accordion-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.theme-accordion-open .theme-accordion-chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.theme-accordion-content {
+  padding: 14px var(--space-4) var(--space-4) calc(var(--space-4) + 3px);
+  background: var(--bg-app);
+  border-top: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent);
+}
+
+.theme-accordion-active-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: 8px;
+  vertical-align: middle;
+  opacity: 0.8;
+}
+
+/* ── Queue Tab Bar ────────────────────────────────────────────────────────── */
+
+.queue-tab-bar {
+  display: flex;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.queue-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color 0.15s, background 0.15s;
+}
+
+.queue-tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.queue-tab-btn.active { color: var(--accent); }
+
+/* ── Lyrics Pane (sidebar) ────────────────────────────────────────────────── */
+
+.lyrics-pane {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 8px;
+  scroll-behavior: smooth;
+}
+
+.lyrics-pane-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lyrics-status {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 40px 0;
+}
+
+.lyrics-synced {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0 16px;
+}
+
+.lyrics-line {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 5px 8px;
+  border-radius: 6px;
+  line-height: 1.6;
+  transition: color 0.25s, font-size 0.2s, font-weight 0.2s;
+  cursor: default;
+}
+
+.lyrics-line.active {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lyrics-plain {
+  padding: 4px 0 16px;
+}
+
+.lyrics-plain-line {
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+
+/* ── Help ─────────────────────────────────────────────────────────────────── */
 
 .help-item {
   border-bottom: 1px solid var(--border-subtle);
@@ -2334,6 +2501,7 @@
   padding: 6px var(--space-3);
   border-radius: var(--radius-md);
   transition: background 0.15s;
+  user-select: none;
 }
 
 .playlist-row:hover {
@@ -2814,6 +2982,7 @@
   font-size: 13px;
   line-height: 1.65;
   color: rgba(255, 255, 255, 0.72);
+  user-select: text;
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
@@ -3328,6 +3497,7 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 0.12s;
+  user-select: none;
 }
 
 .np-queue-item:hover,

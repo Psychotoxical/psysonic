@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Music, Star, ExternalLink } from 'lucide-react';
+import { Music, Star, ExternalLink, MicVocal } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
+import { useLyricsStore } from '../store/lyricsStore';
 import {
   buildCoverArtUrl, coverArtCacheKey, getSong, star, unstar,
   getAlbum, getArtistInfo,
@@ -123,12 +124,12 @@ function TagCloud({ similarArtists, onArtistClick }: TagCloudProps) {
 
   const getTagStyle = (name: string, idx: number): React.CSSProperties => {
     const h = strHash(name);
-    const sizePool = [12, 13, 14, 15, 16, 17, 18, 20, 22];
+    const sizePool = [10, 11, 12, 13, 14, 15, 16];
     const size = sizePool[(h + idx * 7) % sizePool.length];
-    const weight = size >= 19 ? 700 : size >= 16 ? 500 : 400;
-    const pad = size >= 18 ? '7px 15px' : size >= 15 ? '6px 12px' : '5px 10px';
+    const weight = size >= 15 ? 600 : size >= 13 ? 500 : 400;
+    const pad = size >= 15 ? '5px 10px' : '4px 8px';
     const opacity = 0.6 + ((h % 5) * 0.08);
-    const verticals = [-10, -6, -3, 0, 4, 7, 10, -8, 3, -4, 8, -1, 5, -7, 2];
+    const verticals = [-5, -3, -1, 0, 2, 4, 5, -4, 2, -2, 4, 0, 3, -3, 1];
     const ty = verticals[(h + idx * 4) % verticals.length];
     return { fontSize: `${size}px`, fontWeight: weight, padding: pad, opacity, transform: `translateY(${ty}px)` };
   };
@@ -137,7 +138,7 @@ function TagCloud({ similarArtists, onArtistClick }: TagCloudProps) {
     <div className="np-tag-cloud">
       <div className="np-tag-cloud-header">{t('artistDetail.similarArtists')}</div>
       {([similarArtists.slice(0, 3), similarArtists.slice(3, 6)] as const).map((row, rowIdx) => (
-        <div key={rowIdx} className="np-tag-cloud-tags" style={rowIdx === 0 ? { marginBottom: '26px' } : undefined}>
+        <div key={rowIdx} className="np-tag-cloud-tags" style={rowIdx === 0 ? { marginBottom: '14px' } : undefined}>
           {row.map((a, i) => (
             <span
               key={a.id}
@@ -239,6 +240,10 @@ export default function NowPlaying() {
 
   const currentTrack    = usePlayerStore(s => s.currentTrack);
   const isPlaying       = usePlayerStore(s => s.isPlaying);
+  const showLyrics      = useLyricsStore(s => s.showLyrics);
+  const activeTab       = useLyricsStore(s => s.activeTab);
+  const isQueueVisible  = usePlayerStore(s => s.isQueueVisible);
+  const toggleQueue     = usePlayerStore(s => s.toggleQueue);
 
   const stableNavigate = useCallback((path: string) => navigate(path), [navigate]);
 
@@ -355,6 +360,14 @@ export default function NowPlaying() {
                       data-tooltip={starred ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
                     >
                       <Star size={17} fill={starred ? 'var(--ctp-yellow)' : 'none'} color={starred ? 'var(--ctp-yellow)' : 'white'} />
+                    </button>
+                    <button
+                      className="np-star-btn"
+                      onClick={() => { if (!isQueueVisible) toggleQueue(); showLyrics(); }}
+                      data-tooltip={t('player.lyrics')}
+                      style={{ color: activeTab === 'lyrics' && isQueueVisible ? 'var(--accent)' : 'white' }}
+                    >
+                      <MicVocal size={17} />
                     </button>
                   </div>
                 </div>

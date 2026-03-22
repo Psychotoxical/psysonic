@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-03-22
+
+### Added
+
+- **Synchronized Lyrics**: Lyrics pane integrated into the Queue sidebar, powered by [LRCLIB](https://lrclib.net) — no API key required. Shows time-synced lyrics with auto-scroll and active-line highlighting; falls back to plain text when synced lyrics are unavailable. Access via the microphone icon in the player bar, fullscreen player, or Now Playing page.
+
+#### 15 New Themes
+
+**Games** (new group — 6 themes):
+- **Ascalon**: Dark stone fantasy inspired by Guild Wars 1. Near-black base, gold accent (`#d4af37`).
+- **Azerothian Gold**: World of Warcraft inspired. Charcoal base, warm gold accent (`#c19e67`).
+- **Grand Theft Audio**: GTA-inspired night city aesthetic. Pure black base, green accent (`#57b05a`).
+- **Lambda 17**: Half-Life inspired. Deep blue-black base, amber accent (`#ff9d00`).
+- **NightCity 2077**: Cyberpunk 2077 inspired. Near-total black base, neon yellow accent (`#FCEE0A`).
+- **V-Tactical**: Battlefield inspired. Gunmetal base, burnt orange accent (`#ff8a00`).
+
+**Series** (new group — 3 themes):
+- **A Theme of Ice and Fire**: Game of Thrones inspired. Cold dark navy base, ice blue accent (`#70a1ff`).
+- **D'oh-matic**: The Simpsons inspired. Cream/yellow light base, blue accent (`#1F75FE`).
+- **Heisenberg**: Breaking Bad inspired. Dark desaturated green base, crystal blue accent (`#3fe0ff`).
+
+**Movies** (2 additions):
+- **Imperial Sith**: Star Wars dark side. Pure black base, red accent (`#e60000`).
+- **Order of the Phoenix**: Harry Potter inspired. Deep charcoal base, ember-orange accent (`#e63900`).
+
+**Operating Systems** (1 addition):
+- **W98**: Windows 98 teal desktop aesthetic. Classic teal background, silver card, navy accent (`#000080`).
+
+### Changed
+
+- **Last.fm integration**: Promoted out of beta — scrobbling, Now Playing, love/unlove, Similar Artists, and top stats are considered stable.
+- **Crossfade**: No longer marked experimental. Stable on Windows and Linux; macOS under observation.
+- **Gapless playback**: Experimental badge removed — considered stable.
+- **Theme picker — groups reorganised**: Catppuccin, Nord, and Retro (Gruvbox) merged into a single **Open Source Classics** group. Streaming themes (Spotless, DZR, Cupertino Beats) moved into **Psysonic Themes — Mediaplayer**. The app now ships **47 themes** across **7 groups**.
+- **Tokyo Night themes removed**: `tokyo-night`, `tokyo-night-storm`, and `tokyo-night-light` retired to make room for the new groups.
+- **Settings — tab order**: Reordered to Server → Appearance → Playback → Library → Shortcuts → About.
+- **Settings — Theme picker**: "Betriebssysteme" group renamed to "Operating Systems".
+
+### Fixed
+
+- **Text selection on double-click**: Double-clicking song titles or anywhere in the UI no longer accidentally selects text. `user-select: none` applied globally; re-enabled for bio/description text areas.
+- **Middle Earth theme — star buttons**: Active favourite star in the album tracklist and album header was barely visible (gold on parchment, ~1.4:1 contrast). Both active and inactive states now use darker brown tones with proper contrast.
+- **Middle Earth theme — play button hover**: Hovering the primary play/pause button no longer makes the icon invisible (gold icon on gold background).
+
 ## [1.11.0] - 2026-03-22
 
 ### Added

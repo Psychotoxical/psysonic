@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-type Theme = 'mocha' | 'macchiato' | 'frappe' | 'latte' | 'nord' | 'nord-snowstorm' | 'nord-frost' | 'nord-aurora' | 'psychowave' | 'wnamp' | 'poison' | 'nucleo' | 'navy-jukebox' | 'cobalt-media' | 'onyx-cinema' | 'vintage-tube-radio' | 'neon-drift' | 'aero-glass' | 'luna-teal' | 'cupertino-light' | 'cupertino-dark' | 'gruvbox-dark-hard' | 'gruvbox-dark-medium' | 'gruvbox-dark-soft' | 'gruvbox-light-hard' | 'gruvbox-light-medium' | 'gruvbox-light-soft' | 'tokyo-night' | 'tokyo-night-storm' | 'tokyo-night-light' | 'spotless' | 'dzr0' | 'cupertino-beats' | 'middle-earth' | 'morpheus' | 'pandora' | 'stark-hud' | 'blade';
+type Theme = 'mocha' | 'macchiato' | 'frappe' | 'latte' | 'nord' | 'nord-snowstorm' | 'nord-frost' | 'nord-aurora' | 'psychowave' | 'wnamp' | 'poison' | 'nucleo' | 'navy-jukebox' | 'cobalt-media' | 'onyx-cinema' | 'vintage-tube-radio' | 'neon-drift' | 'aero-glass' | 'luna-teal' | 'w98' | 'cupertino-light' | 'cupertino-dark' | 'gruvbox-dark-hard' | 'gruvbox-dark-medium' | 'gruvbox-dark-soft' | 'gruvbox-light-hard' | 'gruvbox-light-medium' | 'gruvbox-light-soft' | 'spotless' | 'dzr0' | 'cupertino-beats' | 'lambda-17' | 'azerothian-gold' | 'ascalon' | 'grand-theft-audio' | 'v-tactical' | 'nightcity-2077' | 'middle-earth' | 'morpheus' | 'pandora' | 'stark-hud' | 'blade' | 'imperial-sith' | 'order-of-the-phoenix' | 'heisenberg' | 'ice-and-fire' | 'doh-matic';
 
 interface ThemeState {
   theme: Theme;

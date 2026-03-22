@@ -525,7 +525,10 @@ const enTranslation = {
     repeatOne: 'One',
     progress: 'Song Progress',
     volume: 'Volume',
-    toggleQueue: 'Toggle Queue'
+    toggleQueue: 'Toggle Queue',
+    lyrics: 'Lyrics',
+    lyricsLoading: 'Loading lyrics…',
+    lyricsNotFound: 'No lyrics found for this track',
   }
 };
 
@@ -1053,7 +1056,10 @@ const deTranslation = {
     repeatOne: 'Einen',
     progress: 'Songfortschritt',
     volume: 'Lautstärke',
-    toggleQueue: 'Warteschlange umschalten'
+    toggleQueue: 'Warteschlange umschalten',
+    lyrics: 'Lyrics',
+    lyricsLoading: 'Lyrics werden geladen…',
+    lyricsNotFound: 'Keine Lyrics für diesen Titel gefunden',
   }
 };
 
@@ -1581,7 +1587,10 @@ const frTranslation = {
     repeatOne: 'Un',
     progress: 'Progression',
     volume: 'Volume',
-    toggleQueue: 'Afficher/masquer la file'
+    toggleQueue: 'Afficher/masquer la file',
+    lyrics: 'Paroles',
+    lyricsLoading: 'Chargement des paroles…',
+    lyricsNotFound: 'Aucune parole trouvée pour ce titre',
   }
 };
 
@@ -2109,7 +2118,10 @@ const nlTranslation = {
     repeatOne: 'Één',
     progress: 'Nummervoortgang',
     volume: 'Volume',
-    toggleQueue: 'Wachtrij in-/uitschakelen'
+    toggleQueue: 'Wachtrij in-/uitschakelen',
+    lyrics: 'Songtekst',
+    lyricsLoading: 'Songtekst laden…',
+    lyricsNotFound: 'Geen songtekst gevonden voor dit nummer',
   }
 };
 

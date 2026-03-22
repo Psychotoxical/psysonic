@@ -156,7 +156,7 @@ export default function AlbumTrackList({
                   className="btn btn-ghost track-star-btn"
                   onClick={e => onToggleSongStar(song, e)}
                   data-tooltip={starredSongs.has(song.id) ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
-                  style={{ color: starredSongs.has(song.id) ? 'var(--accent)' : 'var(--text-muted)' }}
+                  style={{ color: starredSongs.has(song.id) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}
                 >
                   <Star size={14} fill={starredSongs.has(song.id) ? 'currentColor' : 'none'} />
                 </button>

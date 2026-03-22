@@ -50,7 +50,10 @@ There are no test scripts. TypeScript compilation (`tsc`) is part of the build.
 | `src/store/authStore.ts` | Multi-server support via `ServerProfile[]` + `activeServerId`. `getBaseUrl()` / `getActiveServer()` used by subsonic.ts. Also stores Last.fm session key, username, scrobbling toggle. Persisted via **`localStorage`** (synchronous — do not change to async storage). |
 | `src/store/playerStore.ts` | Playback state, queue, scrobbling at 50% via Last.fm, server queue sync (debounced 1.5s). On `playTrack`: calls `reportNowPlaying` (Navidrome) + `lastfmUpdateNowPlaying` (Last.fm) independently. Persists `currentTrack`, `queue`, `queueIndex`, `currentTime` for cold-start resume. |
 | `src-tauri/src/audio.rs` | Rust audio engine: `audio_play`, `audio_pause`, `audio_resume`, `audio_stop`, `audio_seek`, `audio_set_volume` commands. Emits `audio:playing`, `audio:progress` (500ms), `audio:ended`, `audio:error` events. |
-| `src/store/themeStore.ts` | Theme selection (30 themes), applied as `data-theme` on `<html>` |
+| `src/store/themeStore.ts` | Theme selection (47 themes across 7 groups), applied as `data-theme` on `<html>` |
+| `src/store/lyricsStore.ts` | Sidebar tab state (`activeTab: 'queue' \| 'lyrics'`). `showLyrics()` / `showQueue()` / `setTab()`. Not persisted. |
+| `src/components/LyricsPane.tsx` | Lyrics pane rendered inside QueuePanel when `activeTab === 'lyrics'`. Fetches from LRCLIB, parses LRC, auto-scrolls active line. Only subscribes to `currentTime` when synced lyrics are present. |
+| `src/api/lrclib.ts` | Fetches lyrics from `https://lrclib.net/api/get`. Returns `{ syncedLyrics, plainLyrics }`. `parseLrc()` parses LRC timestamps into sorted `LrcLine[]`. |
 | `src/store/fontStore.ts` | Font selection (10 fonts), applied as `data-font` on `<html>`. Persisted in `psysonic_font`. |
 | `src/store/keybindingsStore.ts` | Configurable keybindings — maps `KeyAction` to `e.code` strings. Persisted in `psysonic_keybindings`. |
 | `src/utils/playAlbum.ts` | `playAlbum(albumId)` — fetches album, fades out current track (700 ms), restores volume in store only (no Rust invoke), calls `playTrack`. Used by `AlbumCard` and `Hero` play buttons. |
@@ -110,7 +113,7 @@ Use `getActiveServer()` to get the current server, `getBaseUrl()` to get its URL
 Add a function to `src/api/subsonic.ts` using the `api<T>()` helper. The helper automatically injects auth params and unwraps `subsonic-response`.
 
 ### Themes
-30 themes are available, selectable in Settings via `ThemePicker` (grouped). `themeStore` persists the choice and sets `data-theme` on `<html>`. All component CSS uses semantic tokens (`--accent`, `--text-primary`, etc.) — only the player button gradient and a few decorative elements reference `--ctp-*` palette vars directly, so every theme must define the full `--ctp-*` set.
+47 themes across 7 groups, selectable in Settings via `ThemePicker`. `themeStore` persists the choice and sets `data-theme` on `<html>`. All component CSS uses semantic tokens (`--accent`, `--text-primary`, etc.) — only the player button gradient and a few decorative elements reference `--ctp-*` palette vars directly, so every theme must define the full `--ctp-*` set.
 
 `--volume-accent` overrides the volume slider colour independently of `--accent` (used by WnAmp for orange volume, yellow accent elsewhere).
 
@@ -125,30 +128,44 @@ Add a function to `src/api/subsonic.ts` using the `api<T>()` helper. The helper 
 | `navy-jukebox` | Psysonic — Mediaplayer | silver/blue light | Blue `#0070a0` |
 | `cobalt-media` | Psysonic — Mediaplayer | cobalt blue dark | Lime `#45ff00` |
 | `onyx-cinema` | Psysonic — Mediaplayer | near-black cinematic | Cyan `#00aaff` |
-| `cupertino-light` | Betriebssysteme | macOS light, frosted glass | Apple Blue `#0071e3` |
-| `cupertino-dark` | Betriebssysteme | macOS Space Grey, frosted glass | Vibrant Blue `#007aff` |
-| `aero-glass` | Betriebssysteme | Win7 Aero glass blue | Blue `#1878e8` |
-| `luna-teal` | Betriebssysteme | WinXP Luna, green gel buttons | Green `#3c9d29` |
-| `mocha` | Catppuccin | dark | Mauve |
-| `macchiato` | Catppuccin | medium-dark | Mauve |
-| `frappe` | Catppuccin | medium | Mauve |
-| `latte` | Catppuccin | light | Mauve |
-| `nord` | Nord | Polar Night dark | Frost `#88c0d0` |
-| `nord-snowstorm` | Nord | Snow Storm light | Deep-Blue `#5e81ac` |
-| `nord-frost` | Nord | deep ocean blue | Frost `#88c0d0` |
-| `nord-aurora` | Nord | Polar Night + aurora | Purple `#b48ead` |
-| `gruvbox-dark-hard` | Retro | Gruvbox dark hard | Orange `#fe8019` |
-| `gruvbox-dark-medium` | Retro | Gruvbox dark medium | Orange `#fe8019` |
-| `gruvbox-dark-soft` | Retro | Gruvbox dark soft | Orange `#fe8019` |
-| `gruvbox-light-hard` | Retro | Gruvbox light hard | Orange `#af3a03` |
-| `gruvbox-light-medium` | Retro | Gruvbox light medium | Orange `#af3a03` |
-| `gruvbox-light-soft` | Retro | Gruvbox light soft | Orange `#af3a03` |
-| `tokyo-night` | Tokyo Night | dark blue | Blue `#7aa2f7` |
-| `tokyo-night-storm` | Tokyo Night | stormy blue-gray | Blue `#7aa2f7` |
-| `tokyo-night-light` | Tokyo Night | light | Blue `#7aa2f7` |
-| `spotless` | Streaming Series | flat dark, Spotify-inspired | Green `#1ED760` |
-| `dzr0` | Streaming Series | flat light, Deezer-inspired | Purple `#A238FF` |
-| `cupertino-beats` | Streaming Series | Apple Music dark, glassmorphism | Red `#fa243c` |
+| `spotless` | Psysonic — Mediaplayer | flat dark, Spotify-inspired | Green `#1ED760` |
+| `dzr0` | Psysonic — Mediaplayer | flat light, Deezer-inspired | Purple `#A238FF` |
+| `cupertino-beats` | Psysonic — Mediaplayer | Apple Music dark, glassmorphism | Red `#fa243c` |
+| `cupertino-light` | Operating Systems | macOS light, frosted glass | Apple Blue `#0071e3` |
+| `cupertino-dark` | Operating Systems | macOS Space Grey, frosted glass | Vibrant Blue `#007aff` |
+| `aero-glass` | Operating Systems | Win7 Aero glass blue | Blue `#1878e8` |
+| `w98` | Operating Systems | Windows 98 teal desktop | Navy `#000080` |
+| `luna-teal` | Operating Systems | WinXP Luna, green gel buttons | Green `#3c9d29` |
+| `ascalon` | Games | Guild Wars 1 dark stone fantasy | Gold `#d4af37` |
+| `azerothian-gold` | Games | World of Warcraft | Gold `#c19e67` |
+| `grand-theft-audio` | Games | GTA night city | Green `#57b05a` |
+| `lambda-17` | Games | Half-Life orange alert | Amber `#ff9d00` |
+| `nightcity-2077` | Games | Cyberpunk 2077 | Neon Yellow `#FCEE0A` |
+| `v-tactical` | Games | Battlefield | Burnt Orange `#ff8a00` |
+| `blade` | Movies | deep black, blood-red | Red `#b30000` |
+| `imperial-sith` | Movies | Star Wars dark side | Red `#e60000` |
+| `middle-earth` | Movies | warm parchment light (LOTR) | Gold `#d4af37` |
+| `morpheus` | Movies | Matrix terminal | Phosphor Green `#00ff41` |
+| `order-of-the-phoenix` | Movies | Harry Potter | Ember Orange `#e63900` |
+| `pandora` | Movies | Avatar bioluminescent | Cyan `#00f2ff` |
+| `stark-hud` | Movies | Iron Man HUD | Cyan `#00f2ff` |
+| `ice-and-fire` | Series | Game of Thrones | Ice Blue `#70a1ff` |
+| `doh-matic` | Series | The Simpsons | Blue `#1F75FE` |
+| `heisenberg` | Series | Breaking Bad | Crystal Blue `#3fe0ff` |
+| `mocha` | Open Source Classics | Catppuccin dark | Mauve |
+| `macchiato` | Open Source Classics | Catppuccin medium-dark | Mauve |
+| `frappe` | Open Source Classics | Catppuccin medium | Mauve |
+| `latte` | Open Source Classics | Catppuccin light | Mauve |
+| `nord` | Open Source Classics | Polar Night dark | Frost `#88c0d0` |
+| `nord-snowstorm` | Open Source Classics | Snow Storm light | Deep-Blue `#5e81ac` |
+| `nord-frost` | Open Source Classics | deep ocean blue | Frost `#88c0d0` |
+| `nord-aurora` | Open Source Classics | Polar Night + aurora | Purple `#b48ead` |
+| `gruvbox-dark-hard` | Open Source Classics | Gruvbox dark hard | Orange `#fe8019` |
+| `gruvbox-dark-medium` | Open Source Classics | Gruvbox dark medium | Orange `#fe8019` |
+| `gruvbox-dark-soft` | Open Source Classics | Gruvbox dark soft | Orange `#fe8019` |
+| `gruvbox-light-hard` | Open Source Classics | Gruvbox light hard | Orange `#af3a03` |
+| `gruvbox-light-medium` | Open Source Classics | Gruvbox light medium | Orange `#af3a03` |
+| `gruvbox-light-soft` | Open Source Classics | Gruvbox light soft | Orange `#af3a03` |
 
 **Light-theme gotcha**: The Hero and Fullscreen Player sit on top of album-art backgrounds with dark overlays. Their text colors are hardcoded white (not `var(--text-primary)`) so they stay readable in light themes (Latte, Nord Snowstorm).
 
@@ -227,4 +244,4 @@ The workflow is split into three jobs: `create-release` (creates the GitHub Rele
 - **CoverLightbox**: Shared component (`src/components/CoverLightbox.tsx`). Props: `{ src, alt, onClose }`. ESC + overlay click to close. Used in `AlbumHeader` (album cover) and `ArtistDetail` (artist avatar, wrapped in `.artist-detail-avatar-btn`).
 - **Home page**: Section order: recent → discover → artist discovery (pill-buttons, no images) → starred → mostPlayed. Artist discovery uses `getArtists()` full list + client-side Fisher-Yates shuffle (16 random), rendered as `artist-ext-link` pill-buttons (same as ArtistDetail "Similar Artists") — no image loading, no performance impact.
 - **CoverLightbox + EQ popup**: Both use `createPortal(…, document.body)` to escape `backdrop-filter` CSS containing-block issues on the player bar and other ancestors.
-- **Version**: 1.11.0
+- **Version**: 1.12.0

@@ -22,11 +22,12 @@ Designed specifically for users hosting their own music via Navidrome or other S
 
 ## ✨ Features
 
-- 🎨 **Gorgeous UI**: 30 deeply integrated themes across 7 groups — Catppuccin, Nord, Retro (Gruvbox), Tokyo Night, Betriebssysteme (Cupertino, Aero Glass, Luna Teal), and Psysonic originals (WnAmp, Poison, Nucleo, Neon Drift…) — with smooth glassmorphism effects and micro-animations.
+- 🎨 **Gorgeous UI**: 47 deeply integrated themes across 7 groups — Open Source Classics (Catppuccin, Nord, Gruvbox), Operating Systems, Games, Movies, Series, Psysonic originals, and Psysonic Mediaplayer — with smooth glassmorphism effects and micro-animations.
 - ⚡ **Blazing Fast**: Built with Rust & Tauri — native audio engine (rodio), minimal RAM usage compared to typical Electron apps.
 - 🌍 **Internationalization (i18n)**: Fully translated into English, German, French, and Dutch.
 - 📻 **Live "Now Playing"**: See what other users on your server are currently listening to in real-time.
-- 🎵 **Last.fm Integration** *(Beta)*: Direct scrobbling, Now Playing updates, love/unlove, Similar Artists, and top stats — no Navidrome configuration required.
+- 🎵 **Last.fm Integration**: Direct scrobbling, Now Playing updates, love/unlove, Similar Artists, and top stats — no Navidrome configuration required.
+- 🎤 **Synchronized Lyrics**: In-sidebar lyrics pane powered by LRCLIB — synced with auto-scroll and line highlighting, plain-text fallback.
 - 💾 **IndexedDB Caching**: Ultra-fast loading times with persistent IndexedDB image caching for cover art and artist images.
 - 📀 **Album Downloads**: Support for downloading entire albums directly to your local machine.
 - 💿 **Album & Artist Views**: Beautiful grid displays and detailed artist pages with related albums and color-coded initial avatars for fast browsing.
@@ -47,21 +48,18 @@ Designed specifically for users hosting their own music via Navidrome or other S
 - [x] Replay Gain (track + album mode)
 - [x] Gapless playback
 - [x] Waveform seekbar
-- [x] Last.fm scrobbling, Now Playing & love/unlove *(beta)*
+- [x] Last.fm scrobbling, Now Playing & love/unlove
 - [x] Similar Artists via Last.fm, filtered to library
 - [x] Statistics — Last.fm top charts & recent scrobbles
+- [x] Synchronized lyrics via LRCLIB (in-sidebar, auto-scroll)
 - [x] Multi-server support
 - [x] IndexedDB image caching
 - [x] Random Mix with keyword filter & Super Genre mix
-- [x] 35 themes across 8 groups: Catppuccin, Nord, Retro (Gruvbox), Tokyo Night, Operating Systems, Movies, Psysonic originals, Psysonic Mediaplayer
+- [x] 47 themes across 7 groups: Open Source Classics, Operating Systems, Games, Movies, Series, Psysonic originals, Psysonic Mediaplayer
 - [x] Internationalization (English, German, French, Dutch)
 - [x] AUR package (Arch / CachyOS)
 - [x] Configurable keybindings
 - [x] Font picker (10 UI fonts)
-
-### 🚧 In Progress
-- [ ] **Last.fm integration** — stabilising, moving out of beta
-- [ ] **Crossfade** — stability improvements
 
 ### 📋 Planned
 - [ ] FLAC seeking fix

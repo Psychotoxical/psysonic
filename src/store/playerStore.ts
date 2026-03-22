@@ -127,6 +127,10 @@ let seekDebounce: ReturnType<typeof setTimeout> | null = null;
 // to the Rust backend before it has finished the previous one.
 let togglePlayLock = false;
 
+// Timestamp of the last gapless auto-advance (from audio:track_switched).
+// Used to suppress ghost-commands from stale IPC arriving after the switch.
+let lastGaplessSwitchTime = 0;
+
 // ─── Server queue sync ─────────────────────────────────────────────────────────
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 function syncQueueToServer(queue: Track[], currentTrack: Track | null, currentTime: number) {
@@ -204,6 +208,12 @@ function handleAudioProgress(current_time: number, duration: number) {
 }
 
 function handleAudioEnded() {
+  // If a gapless switch happened recently, this ended event is stale — the
+  // progress task fired it for the OLD source before seeing the chained one.
+  if (Date.now() - lastGaplessSwitchTime < 600) {
+    return;
+  }
+
   const { repeatMode, currentTrack, queue } = usePlayerStore.getState();
   isAudioPaused = false;
   usePlayerStore.setState({ isPlaying: false, progress: 0, currentTime: 0, buffered: 0 });
@@ -214,6 +224,61 @@ function handleAudioEnded() {
       usePlayerStore.getState().next();
     }
   }, 150);
+}
+
+/**
+ * Handle gapless auto-advance: the Rust engine has already switched to the
+ * next source sample-accurately. We just need to update the UI state without
+ * touching the audio stream (no playTrack() call!).
+ */
+function handleAudioTrackSwitched(duration: number) {
+  lastGaplessSwitchTime = Date.now();
+  isAudioPaused = false;
+
+  const store = usePlayerStore.getState();
+  const { queue, queueIndex, repeatMode } = store;
+  const nextIdx = queueIndex + 1;
+  let nextTrack: Track | null = null;
+  let newIndex = queueIndex;
+
+  if (repeatMode === 'one' && store.currentTrack) {
+    nextTrack = store.currentTrack;
+    // queueIndex stays the same
+  } else if (nextIdx < queue.length) {
+    nextTrack = queue[nextIdx];
+    newIndex = nextIdx;
+  } else if (repeatMode === 'all' && queue.length > 0) {
+    nextTrack = queue[0];
+    newIndex = 0;
+  }
+
+  if (!nextTrack) return;
+
+  usePlayerStore.setState({
+    currentTrack: nextTrack,
+    queueIndex: newIndex,
+    isPlaying: true,
+    progress: 0,
+    currentTime: 0,
+    buffered: 0,
+    scrobbled: false,
+    lastfmLoved: false,
+  });
+
+  // Report Now Playing to Navidrome + Last.fm
+  reportNowPlaying(nextTrack.id);
+  const { scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
+  if (lastfmSessionKey) {
+    if (scrobblingEnabled) lastfmUpdateNowPlaying(nextTrack, lastfmSessionKey);
+    lastfmGetTrackLoved(nextTrack.title, nextTrack.artist, lastfmSessionKey).then(loved => {
+      const cacheKey = `${nextTrack!.title}::${nextTrack!.artist}`;
+      usePlayerStore.setState(s => ({
+        lastfmLoved: loved,
+        lastfmLovedCache: { ...s.lastfmLovedCache, [cacheKey]: loved },
+      }));
+    });
+  }
+  syncQueueToServer(queue, nextTrack, 0);
 }
 
 function handleAudioError(message: string) {
@@ -241,6 +306,7 @@ export function initAudioListeners(): () => void {
     ),
     listen<void>('audio:ended', () => handleAudioEnded()),
     listen<string>('audio:error', ({ payload }) => handleAudioError(payload)),
+    listen<number>('audio:track_switched', ({ payload }) => handleAudioTrackSwitched(payload)),
   ];
 
   // Sync Last.fm loved tracks cache on startup.
@@ -364,6 +430,12 @@ export const usePlayerStore = create<PlayerState>()(
 
       // ── playTrack ────────────────────────────────────────────────────────────
       playTrack: (track, queue) => {
+        // Ghost-command guard: if a gapless switch happened within 500 ms,
+        // this playTrack call is likely a stale IPC echo — suppress it.
+        if (Date.now() - lastGaplessSwitchTime < 500) {
+          return;
+        }
+
         const gen = ++playGeneration;
         isAudioPaused = false;
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; }

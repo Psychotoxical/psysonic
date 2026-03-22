@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState, useRef, memo } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
-  ChevronDown, Repeat, Repeat1, Square, Music
+  ChevronDown, Repeat, Repeat1, Square, Music, MicVocal
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
+import { useLyricsStore } from '../store/lyricsStore';
 import { buildCoverArtUrl, coverArtCacheKey, getArtistInfo } from '../api/subsonic';
 import CachedImage, { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
@@ -147,6 +148,11 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const stop         = usePlayerStore(s => s.stop);
   const toggleRepeat = usePlayerStore(s => s.toggleRepeat);
 
+  const showLyrics      = useLyricsStore(s => s.showLyrics);
+  const activeTab       = useLyricsStore(s => s.activeTab);
+  const isQueueVisible  = usePlayerStore(s => s.isQueueVisible);
+  const toggleQueue     = usePlayerStore(s => s.toggleQueue);
+
   const duration = currentTrack?.duration ?? 0;
   const coverUrl = currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 800) : '';
   const coverKey = currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 800) : '';
@@ -240,6 +246,14 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
             aria-label={t('player.repeat')}
           >
             {repeatMode === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
+          </button>
+          <button
+            className={`fs-btn fs-btn-sm ${activeTab === 'lyrics' && isQueueVisible ? 'active' : ''}`}
+            onClick={() => { if (!isQueueVisible) toggleQueue(); showLyrics(); }}
+            aria-label={t('player.lyrics')}
+            data-tooltip={t('player.lyrics')}
+          >
+            <MicVocal size={14} />
           </button>
         </div>
 
