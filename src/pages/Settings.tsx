@@ -552,6 +552,7 @@ export default function Settings() {
                     { value: 'en', label: t('settings.languageEn') },
                     { value: 'fr', label: t('settings.languageFr') },
                     { value: 'de', label: t('settings.languageDe') },
+                    { value: 'zh', label: t('settings.languageZh') },
                   ]}
                 />
               </div>
