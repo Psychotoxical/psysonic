@@ -632,6 +632,15 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
+  min-width: 2.5rem;
+}
+
+.player-time:first-child {
+  text-align: right;
+}
+
+.player-time:last-child {
+  text-align: left;
 }
 
 /* Volume section */
