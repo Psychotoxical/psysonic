@@ -3,6 +3,10 @@
 # resolve (ring_core_* symbols). Fix: force cc as linker driver and append
 # -fuse-ld=bfd so it overrides the hardcoded -fuse-ld=lld (last flag wins).
 # bfd is always available via binutils (part of base-devel on Arch).
+#
+# NOTE: When building via makepkg (AUR), RUSTFLAGS from /etc/makepkg.conf
+# overrides target-specific rustflags here. The PKGBUILD's build() applies
+# the same fix by patching the RUSTFLAGS env var directly.
 [target.x86_64-unknown-linux-gnu]
 linker = "cc"
 rustflags = ["-C", "link-arg=-fuse-ld=bfd"]
