@@ -478,13 +478,21 @@ impl SizedDecoder {
 
         let probed = symphonia::default::get_probe()
             .format(&hint, mss, &format_opts, &MetadataOptions::default())
-            .map_err(|e| format!("probe failed: {e}"))?;
+            .map_err(|e| {
+                let hint_str = format_hint.unwrap_or("unknown");
+                // Symphonia returns "unsupported" for formats it has no demuxer for.
+                if e.to_string().to_lowercase().contains("unsupported") {
+                    format!("unsupported format: .{hint_str} files cannot be played (no demuxer)")
+                } else {
+                    format!("could not open audio stream (.{hint_str}): {e}")
+                }
+            })?;
 
         let track = probed.format
             .tracks()
             .iter()
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .ok_or_else(|| "no supported audio track".to_string())?;
+            .ok_or_else(|| "no playable audio track found in file".to_string())?;
 
         let track_id = track.id;
         let total_duration = track.codec_params.time_base
@@ -493,7 +501,14 @@ impl SizedDecoder {
 
         let mut decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &DecoderOptions::default())
-            .map_err(|e| format!("codec init failed: {e}"))?;
+            .map_err(|e| {
+                // Symphonia returns "unsupported" when it has no decoder for the codec.
+                if e.to_string().to_lowercase().contains("unsupported") {
+                    "unsupported codec: no decoder available for this audio format".to_string()
+                } else {
+                    format!("failed to initialise audio decoder: {e}")
+                }
+            })?;
 
         let mut format = probed.format;
 
@@ -505,7 +520,7 @@ impl SizedDecoder {
                 Err(symphonia::core::errors::Error::IoError(_)) => {
                     break decoder.last_decoded();
                 }
-                Err(e) => return Err(format!("first packet: {e}")),
+                Err(e) => return Err(format!("could not read audio data: {e}")),
             };
             if packet.track_id() != track_id { continue; }
             match decoder.decode(&packet) {
@@ -513,10 +528,10 @@ impl SizedDecoder {
                 Err(symphonia::core::errors::Error::DecodeError(_)) => {
                     decode_errors += 1;
                     if decode_errors > DECODE_MAX_RETRIES {
-                        return Err("too many decode errors".into());
+                        return Err("too many decode errors — file may be corrupt".into());
                     }
                 }
-                Err(e) => return Err(format!("decode: {e}")),
+                Err(e) => return Err(format!("audio decode error: {e}")),
             }
         };
 
