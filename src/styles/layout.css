@@ -693,7 +693,7 @@
 
 /* Star + Last.fm heart — visually separated from track title */
 .player-star-btn {
-  margin-left: var(--space-3);
+  margin: var(--space-1);
 }
 
 .player-btn-primary {
