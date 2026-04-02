@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { showToast } from './utils/toast';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -433,20 +434,7 @@ export default function App() {
 
   const handleExport = async (since: number) => {
     setExportPickerOpen(false);
-    const showToast = (text: string) => {
-      const toast = document.createElement('div');
-      toast.textContent = text;
-      toast.style.cssText = `
-        position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
-        background:#24273a; color:#cad3f5; border:1px solid #363a4f;
-        padding:10px 20px; border-radius:10px; font-size:14px;
-        z-index:999999; pointer-events:none;
-        box-shadow:0 4px 24px rgba(0,0,0,0.5);
-        white-space:nowrap;
-      `;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 4000);
-    };
+
     try {
       const { exportNewAlbumsImage } = await import('./utils/exportNewAlbums');
       const result = await exportNewAlbumsImage(since);

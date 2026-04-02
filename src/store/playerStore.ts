@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { showToast } from '../utils/toast';
 import { buildStreamUrl, buildCoverArtUrl, getPlayQueue, savePlayQueue, reportNowPlaying, scrobbleSong, SubsonicSong, getSong, getRandomSongs } from '../api/subsonic';
 import { lastfmScrobble, lastfmUpdateNowPlaying, lastfmLoveTrack, lastfmUnloveTrack, lastfmGetTrackLoved, lastfmGetAllLovedTracks } from '../api/lastfm';
 import { useAuthStore } from './authStore';
@@ -321,12 +322,19 @@ function handleAudioTrackSwitched(duration: number) {
 function handleAudioError(message: string) {
   console.error('[psysonic] Audio error from backend:', message);
   isAudioPaused = false;
+
+  // Show a brief, user-friendly toast. The message from the Rust backend is
+  // already human-readable (e.g. "unsupported format: .opus files cannot be
+  // played (no demuxer)"). Cap it to avoid overflowing the UI.
+  const detail = message.length > 80 ? message.slice(0, 80) + '…' : message;
+  showToast(`Couldn't play track — skipping. ${detail}`, 8000, 'error');
+
   const gen = playGeneration;
   usePlayerStore.setState({ isPlaying: false });
   setTimeout(() => {
     if (playGeneration !== gen) return;
     usePlayerStore.getState().next();
-  }, 500);
+  }, 1500);
 }
 
 /**
