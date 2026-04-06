@@ -548,7 +548,7 @@ export const deTranslation = {
     a11: 'Das Banner oben auf der Startseite wählt zufällige Alben aus der Bibliothek und rotiert alle 10 Sekunden weiter. Mit den Punkten kann man manuell springen, Klick auf das Banner öffnet das Album.',
     s4: 'Einstellungen',
     q12: 'Wie ändere ich das Theme?',
-    a12: 'Einstellungen → Design. Eine große Auswahl an Themes in 8 Gruppen: Psysonic Themes, Mediaplayer, Betriebssysteme, Spiele, Filme, Serien, Social Media und Open-Source-Classics (Catppuccin, Nord, Gruvbox).',
+    a12: 'Einstellungen → Design. Eine große Auswahl an Themes in 8 Gruppen: Psysonic Themes, Mediaplayer, Betriebssysteme, Spiele, Filme, Serien, Social Media und Open-Source-Classics (Catppuccin, Nord, Gruvbox, Nightfox).',
     q13: 'Wie ändere ich die Sprache?',
     a13: 'Einstellungen → Sprache. Englisch, Deutsch, Französisch, Niederländisch und Chinesisch werden unterstützt.',
     q15: 'Wie lege ich einen Download-Ordner fest?',
