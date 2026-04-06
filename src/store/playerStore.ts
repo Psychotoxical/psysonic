@@ -522,6 +522,9 @@ export function initAudioListeners(): () => void {
       // Pass elapsed when playing so Discord shows a live running timer.
       // Pass null when paused — Discord shows the song/artist without a timer.
       elapsedSecs: isPlaying ? currentTime : null,
+      // coverArtUrl is intentionally not passed — Subsonic URLs require auth.
+      // Backend will fetch artwork from iTunes Search API instead.
+      coverArtUrl: null,
     }).catch(() => {});
   }
 
