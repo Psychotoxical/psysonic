@@ -1463,6 +1463,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         generation: Arc::new(AtomicU64::new(0)),
         http_client: reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
+            .use_rustls_tls()
             .build()
             .unwrap_or_default(),
         eq_gains: Arc::new(std::array::from_fn(|_| AtomicU32::new(0f32.to_bits()))),
