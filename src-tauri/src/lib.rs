@@ -1414,6 +1414,16 @@ fn is_tiling_wm() -> bool {
     false
 }
 
+/// Tauri command: returns true when WEBKIT_DISABLE_COMPOSITING_MODE=1 is set.
+/// The frontend uses this to apply a CSS class that swaps out GPU-only effects
+/// (backdrop-filter, CSS filter, mask-image) for software-friendly equivalents.
+#[tauri::command]
+fn no_compositing_mode() -> bool {
+    std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
 /// Tauri command: lets the frontend know whether we're running under a tiling
 /// WM so it can decide whether to render the custom TitleBar component.
 #[tauri::command]
@@ -1608,6 +1618,7 @@ pub fn run() {
             greet,
             exit_app,
             set_window_decorations,
+            no_compositing_mode,
             is_tiling_wm_cmd,
             register_global_shortcut,
             unregister_global_shortcut,

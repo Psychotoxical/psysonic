@@ -3433,6 +3433,8 @@
   align-items: center;
   overflow: hidden;
   white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
   font-size: 2vh;
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.22);
@@ -3461,6 +3463,59 @@
   transform: scaleX(1.015);   /* subtle compositor-only emphasis, no layout cost */
 }
 
+
+/* ── no-compositing overrides ─────────────────────────────────────────────────
+   Applied only when WEBKIT_DISABLE_COMPOSITING_MODE=1 is set (Arch Linux etc).
+   Replaces GPU-only effects (backdrop-filter, CSS filter, mask-image) with
+   software-friendly equivalents so the fullscreen player stays responsive.     */
+
+/* fs-player: remove will-change — without GPU compositor it only wastes RAM */
+html.no-compositing .fs-player {
+  will-change: auto;
+}
+
+/* Close button: replace frosted-glass blur with flat semi-opaque background */
+html.no-compositing .fs-close {
+  backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* Portrait: remove CSS filter (drop-shadow) and will-change */
+html.no-compositing .fs-portrait {
+  filter: none;
+  will-change: auto;
+}
+
+/* Portrait wrap: replace mask-image fade with a pseudo-element overlay gradient.
+   pointer-events: none on wrap means the overlay never blocks clicks. */
+html.no-compositing .fs-portrait-wrap {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+html.no-compositing .fs-portrait-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    #06060e 0%,
+    rgba(6, 6, 14, 0.4) 6%,
+    transparent 16%
+  );
+}
+
+/* Lyrics overlay: just remove the fade — no replacement needed */
+html.no-compositing .fs-lyrics-overlay {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* Lyrics rail: remove will-change */
+html.no-compositing .fs-lyrics-rail {
+  will-change: auto;
+}
 
 /* Chat */
 .chat-popup {

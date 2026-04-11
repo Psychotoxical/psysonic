@@ -88,6 +88,13 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
+    if (!IS_LINUX) return;
+    invoke<boolean>('no_compositing_mode').then(noComp => {
+      if (noComp) document.documentElement.classList.add('no-compositing');
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const win = getCurrentWindow();
     // Check initial state (e.g. app launched maximised / already fullscreen).
     win.isFullscreen().then(setIsWindowFullscreen).catch(() => {});
