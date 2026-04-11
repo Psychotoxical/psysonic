@@ -3112,6 +3112,17 @@
   display: block;
 }
 
+/* Subtle darkening overlay — plain div paint, no GPU cost.
+   Alpha driven by --fs-portrait-dim (set via inline style on .fs-player). */
+.fs-portrait-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, var(--fs-portrait-dim, 0.28));
+}
+
 /* ── Horizontal scrim — dark left edge for text legibility ── */
 .fs-scrim {
   position: absolute;

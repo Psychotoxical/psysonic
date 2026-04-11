@@ -355,7 +355,9 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   }, [currentTrack?.artistId]);
 
   const portraitUrl = artistBgUrl || resolvedCoverUrl;
-  const showFullscreenLyrics = useAuthStore(s => s.showFullscreenLyrics);
+  const showFullscreenLyrics   = useAuthStore(s => s.showFullscreenLyrics);
+  const showFsArtistPortrait   = useAuthStore(s => s.showFsArtistPortrait);
+  const fsPortraitDim          = useAuthStore(s => s.fsPortraitDim);
 
   // Pre-fetch next track's 300px cover into the IndexedDB cache.
   // Selector returns only the coverArt id, so it only re-runs on actual changes.
@@ -419,7 +421,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
       aria-label={t('player.fullscreen')}
       data-idle={isIdle}
       onMouseMove={handleMouseMove}
-      style={dynamicAccent ? { '--dynamic-fs-accent': dynamicAccent } as React.CSSProperties : undefined}
+      style={{
+        ...(dynamicAccent ? { '--dynamic-fs-accent': dynamicAccent } : {}),
+        '--fs-portrait-dim': String(fsPortraitDim / 100),
+      } as React.CSSProperties}
     >
 
       {/* Layer 0 — animated dark mesh gradient (real divs = will-change possible) */}
@@ -429,7 +434,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
       </div>
 
       {/* Layer 1 — artist portrait, right half, object-fit: contain */}
-      <FsPortrait url={portraitUrl} />
+      {showFsArtistPortrait && <FsPortrait url={portraitUrl} />}
 
       {/* Layer 2 — horizontal scrim: dark left → transparent right */}
       <div className="fs-scrim" aria-hidden="true" />
