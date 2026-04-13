@@ -502,6 +502,8 @@ export const nlTranslation = {
     audioOutputDeviceDesc: 'Kies via welk audioapparaat Psysonic afspeelt. Wijzigingen worden direct toegepast en starten het huidige nummer opnieuw.',
     audioOutputDeviceDefault: 'Systeemstandaard',
     audioOutputDeviceRefresh: 'Apparatenlijst vernieuwen',
+    audioOutputDeviceOsDefaultNow: 'huidige systeemuitvoer',
+    audioOutputDeviceListError: 'De lijst met audio-apparaten kon niet worden geladen.',
     hiResTitle: 'Natieve hi-res-weergave',
     hiResEnabled: 'Natieve hi-res-weergave inschakelen',
     hiResDesc: "Beperkt de uitvoer standaard tot 44,1 kHz voor maximale stabiliteit. Alleen inschakelen als hardware en netwerk hoge samplerates (88,2 kHz+) ondersteunen.",

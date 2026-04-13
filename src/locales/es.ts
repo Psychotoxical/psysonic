@@ -506,6 +506,8 @@ export const esTranslation = {
     audioOutputDeviceDesc: 'Selecciona el dispositivo de audio que usa Psysonic. Los cambios surten efecto de inmediato y reinician la pista actual.',
     audioOutputDeviceDefault: 'Predeterminado del sistema',
     audioOutputDeviceRefresh: 'Actualizar lista de dispositivos',
+    audioOutputDeviceOsDefaultNow: 'salida actual del sistema',
+    audioOutputDeviceListError: 'No se pudo cargar la lista de dispositivos de audio.',
     hiResTitle: 'Reproducción Nativa Hi-Res',
     hiResEnabled: 'Habilitar reproducción nativa hi-res',
     hiResDesc: "Fuerza 44.1 kHz de salida por defecto para máxima estabilidad. Habilita solo si tu hardware y red soportan confiablemente altas tasas de muestreo (88.2 kHz+).",

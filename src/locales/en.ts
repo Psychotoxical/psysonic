@@ -505,6 +505,8 @@ export const enTranslation = {
     audioOutputDeviceDesc: 'Select which audio device Psysonic plays through. Changes take effect immediately and restart the current track.',
     audioOutputDeviceDefault: 'System Default',
     audioOutputDeviceRefresh: 'Refresh device list',
+    audioOutputDeviceOsDefaultNow: 'current system output',
+    audioOutputDeviceListError: 'Could not load the audio device list.',
     hiResTitle: 'Native Hi-Res Playback',
     hiResEnabled: 'Enable native hi-res playback',
     hiResDesc: "Forces 44.1 kHz output by default for maximum stability. Enable only if your hardware and network reliably support high sample rates (88.2 kHz+).",

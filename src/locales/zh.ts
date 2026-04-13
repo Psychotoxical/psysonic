@@ -498,6 +498,8 @@ export const zhTranslation = {
     audioOutputDeviceDesc: '选择 Psysonic 播放音频的设备。更改立即生效并重新开始当前曲目。',
     audioOutputDeviceDefault: '系统默认',
     audioOutputDeviceRefresh: '刷新设备列表',
+    audioOutputDeviceOsDefaultNow: '当前系统输出',
+    audioOutputDeviceListError: '无法加载音频设备列表。',
     hiResTitle: '原生高清晰度播放',
     hiResEnabled: '启用原生高清晰度播放',
     hiResDesc: "默认强制 44.1 kHz 输出以获得最大稳定性。仅在硬件和网络可靠支持高采样率（88.2 kHz+）时启用。",

@@ -2911,34 +2911,53 @@ pub async fn audio_play_radio(
     Ok(())
 }
 
+/// ALSA probes noisy plugins during device queries — suppress stderr on Unix.
+#[cfg(unix)]
+fn with_suppressed_alsa_stderr<R>(f: impl FnOnce() -> R) -> R {
+    struct StderrGuard(i32);
+    impl Drop for StderrGuard {
+        fn drop(&mut self) {
+            unsafe { libc::dup2(self.0, 2); libc::close(self.0); }
+        }
+    }
+    let _guard = unsafe {
+        let saved = libc::dup(2);
+        let devnull = libc::open(b"/dev/null\0".as_ptr() as *const libc::c_char, libc::O_WRONLY);
+        libc::dup2(devnull, 2);
+        libc::close(devnull);
+        StderrGuard(saved)
+    };
+    f()
+}
+
+#[cfg(not(unix))]
+#[inline]
+fn with_suppressed_alsa_stderr<R>(f: impl FnOnce() -> R) -> R {
+    f()
+}
+
 /// Returns the names of all available audio output devices on the current host.
 /// On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
 /// stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
 #[tauri::command]
 pub fn audio_list_devices() -> Vec<String> {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    with_suppressed_alsa_stderr(|| {
+        let host = rodio::cpal::default_host();
+        host.output_devices()
+            .map(|iter| iter.filter_map(|d| d.name().ok()).collect())
+            .unwrap_or_default()
+    })
+}
 
-    #[cfg(unix)]
-    let _guard = {
-        struct StderrGuard(i32);
-        impl Drop for StderrGuard {
-            fn drop(&mut self) {
-                unsafe { libc::dup2(self.0, 2); libc::close(self.0); }
-            }
-        }
-        unsafe {
-            let saved = libc::dup(2);
-            let devnull = libc::open(b"/dev/null\0".as_ptr() as *const libc::c_char, libc::O_WRONLY);
-            libc::dup2(devnull, 2);
-            libc::close(devnull);
-            StderrGuard(saved)
-        }
-    };
-
-    let host = rodio::cpal::default_host();
-    host.output_devices()
-        .map(|iter| iter.filter_map(|d| d.name().ok()).collect())
-        .unwrap_or_default()
+/// Device id string for the host default output (matches an entry from `audio_list_devices` when present).
+#[tauri::command]
+pub fn audio_default_output_device_name() -> Option<String> {
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    with_suppressed_alsa_stderr(|| {
+        let host = rodio::cpal::default_host();
+        host.default_output_device().and_then(|d| d.name().ok())
+    })
 }
 
 /// Switch the audio output device. `device_name = null` → follow system default.

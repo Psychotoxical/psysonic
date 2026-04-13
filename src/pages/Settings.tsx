@@ -11,6 +11,7 @@ import i18n from '../i18n';
 import { exportBackup, importBackup } from '../utils/backup';
 import { showToast } from '../utils/toast';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { getImageCacheSize, clearImageCache } from '../utils/imageCache';
 import { useOfflineStore } from '../store/offlineStore';
@@ -225,7 +226,7 @@ function snapHotCacheMb(v: number): number {
  *  Values are kept as-is (rodio needs the ALSA name); only the displayed label is cleaned.
  *  e.g. "sysdefault:CARD=U192k" → "U192k"
  *       "hw:CARD=U192k,DEV=0"   → "U192k (hw · PCM 0)"
- *       "hdmi:CARD=NVidia,DEV=1" → "NVidia (HDMI 2)"  (DEV is 0-based ALSA index)
+ *       "hdmi:CARD=NVidia,DEV=1" → "NVidia (HDMI · DEV 1)"  (same DEV as in ALSA string)
  *       "iec958:CARD=PCH,DEV=0" → "PCH (S/PDIF)"
  *  Names without ALSA prefix (pipewire, pulse, default…) are returned unchanged. */
 function formatAudioDeviceLabel(name: string): string {
@@ -239,8 +240,8 @@ function formatAudioDeviceLabel(name: string): string {
 
   if (name.startsWith('iec958:')) return `${card} (S/PDIF)`;
   if (name.startsWith('hdmi:')) {
-    const n = devNum !== null ? devNum + 1 : 1;
-    return `${card} (HDMI ${n})`;
+    const d = devNum !== null ? devNum : 0;
+    return `${card} (HDMI · DEV ${d})`;
   }
   if (name.startsWith('sysdefault:')) {
     if (devNum !== null && devNum > 0) return `${card} (default · PCM ${devNum})`;
@@ -292,7 +293,12 @@ function disambiguatedAudioDeviceLabel(raw: string, baseLabel: string, duplicate
   return `${baseLabel} · ${audioDeviceDuplicateHint(raw)}`;
 }
 
-function buildAudioDeviceSelectOptions(devices: string[], defaultLabel: string): { value: string; label: string }[] {
+function buildAudioDeviceSelectOptions(
+  devices: string[],
+  defaultLabel: string,
+  osDefaultDeviceId: string | null,
+  osDefaultMark: string,
+): { value: string; label: string }[] {
   const baseLabels = devices.map(formatAudioDeviceLabel);
   const countByBase = new Map<string, number>();
   for (const b of baseLabels) countByBase.set(b, (countByBase.get(b) ?? 0) + 1);
@@ -301,7 +307,9 @@ function buildAudioDeviceSelectOptions(devices: string[], defaultLabel: string):
     ...devices.map((d, i) => {
       const base = baseLabels[i];
       const dup = (countByBase.get(base) ?? 0) > 1;
-      return { value: d, label: disambiguatedAudioDeviceLabel(d, base, dup) };
+      let label = disambiguatedAudioDeviceLabel(d, base, dup);
+      if (osDefaultDeviceId && d === osDefaultDeviceId) label = `${label} · ${osDefaultMark}`;
+      return { value: d, label };
     }),
   ];
 }
@@ -346,6 +354,7 @@ export default function Settings() {
   const [offlineCacheBytes, setOfflineCacheBytes] = useState<number | null>(null);
   const [hotCacheBytes, setHotCacheBytes] = useState<number | null>(null);
   const [audioDevices, setAudioDevices] = useState<string[]>([]);
+  const [osDefaultAudioDeviceId, setOsDefaultAudioDeviceId] = useState<string | null>(null);
   const [deviceSwitching, setDeviceSwitching] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -364,19 +373,53 @@ export default function Settings() {
     invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null }).then(setHotCacheBytes).catch(() => setHotCacheBytes(0));
   }, [activeTab, auth.offlineDownloadDir, auth.hotCacheDownloadDir]);
 
-  const refreshAudioDevices = () => {
-    setDevicesLoading(true);
-    invoke<string[]>('audio_list_devices')
-      .then(setAudioDevices)
-      .catch(() => {})
-      .finally(() => setDevicesLoading(false));
-  };
+  const refreshAudioDevices = useCallback((opts?: { silent?: boolean }) => {
+    const silent = !!opts?.silent;
+    if (!silent) setDevicesLoading(true);
+    const listP = invoke<string[]>('audio_list_devices').catch((e) => {
+      console.error(e);
+      showToast(t('settings.audioOutputDeviceListError'), 5000, 'error');
+      return [] as string[];
+    });
+    const defP = invoke<string | null>('audio_default_output_device_name').catch(() => null);
+    Promise.all([listP, defP])
+      .then(([devices, osDefault]) => {
+        setAudioDevices(devices);
+        setOsDefaultAudioDeviceId(osDefault ?? null);
+      })
+      .finally(() => {
+        if (!silent) setDevicesLoading(false);
+      });
+  }, [t]);
 
   // Load available audio output devices when Audio tab opens.
   useEffect(() => {
     if (activeTab !== 'audio') return;
     refreshAudioDevices();
-  }, [activeTab]);
+  }, [activeTab, refreshAudioDevices]);
+
+  // Keep device list + "current system output" mark in sync when the backend reopens the stream.
+  useEffect(() => {
+    if (activeTab !== 'audio') return;
+    let cancelled = false;
+    const unlisteners: Array<() => void> = [];
+    (async () => {
+      for (const ev of ['audio:device-changed', 'audio:device-reset'] as const) {
+        const u = await listen(ev, () => {
+          if (!cancelled) refreshAudioDevices({ silent: true });
+        });
+        if (cancelled) {
+          u();
+          return;
+        }
+        unlisteners.push(u);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      for (const u of unlisteners) u();
+    };
+  }, [activeTab, refreshAudioDevices]);
 
   /** Live disk usage for hot cache while Audio settings are open (interval + refresh when index changes). */
   useEffect(() => {
@@ -616,7 +659,12 @@ export default function Settings() {
                     } catch { /* device open failed — don't persist */ }
                     setDeviceSwitching(false);
                   }}
-                  options={buildAudioDeviceSelectOptions(audioDevices, t('settings.audioOutputDeviceDefault'))}
+                  options={buildAudioDeviceSelectOptions(
+                    audioDevices,
+                    t('settings.audioOutputDeviceDefault'),
+                    osDefaultAudioDeviceId,
+                    t('settings.audioOutputDeviceOsDefaultNow'),
+                  )}
                 />
                 <button
                   className="icon-btn"

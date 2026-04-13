@@ -504,6 +504,8 @@ export const nbTranslation = {
     audioOutputDeviceDesc: 'Velg hvilken lydenhet Psysonic spiller gjennom. Endringer trer i kraft umiddelbart og starter gjeldende spor på nytt.',
     audioOutputDeviceDefault: 'Systemstandard',
     audioOutputDeviceRefresh: 'Oppdater enhetsliste',
+    audioOutputDeviceOsDefaultNow: 'gjeldende systemutgang',
+    audioOutputDeviceListError: 'Kunne ikke laste listen over lydenheter.',
     hiResTitle: 'Innebygd hi-res-avspilling',
     hiResEnabled: 'Aktiver innebygd hi-res-avspilling',
     hiResDesc: "Begrenser utdata til 44,1 kHz som standard for maksimal stabilitet. Aktiver kun hvis maskinvare og nettverk støtter høye samplingsrater (88,2 kHz+) pålitelig.",

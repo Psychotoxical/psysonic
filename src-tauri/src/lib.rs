@@ -1714,6 +1714,7 @@ pub fn run() {
             audio::audio_set_crossfade,
             audio::audio_set_gapless,
             audio::audio_list_devices,
+            audio::audio_default_output_device_name,
             audio::audio_set_device,
             audio::audio_chain_preload,
             discord::discord_update_presence,
