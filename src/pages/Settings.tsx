@@ -300,6 +300,20 @@ function disambiguatedAudioDeviceLabel(raw: string, baseLabel: string, duplicate
   return `${baseLabel} · ${audioDeviceDuplicateHint(raw)}`;
 }
 
+/** cpal order is arbitrary; sort by readable label, current OS default first. */
+function sortAudioDeviceIds(devices: string[], osDefaultDeviceId: string | null): string[] {
+  return [...devices].sort((a, b) => {
+    const aDef = osDefaultDeviceId && a === osDefaultDeviceId;
+    const bDef = osDefaultDeviceId && b === osDefaultDeviceId;
+    if (aDef !== bDef) return aDef ? -1 : 1;
+    const la = formatAudioDeviceLabel(a);
+    const lb = formatAudioDeviceLabel(b);
+    const byLabel = la.localeCompare(lb, undefined, { sensitivity: 'base' });
+    if (byLabel !== 0) return byLabel;
+    return a.localeCompare(b);
+  });
+}
+
 function buildAudioDeviceSelectOptions(
   devices: string[],
   defaultLabel: string,
@@ -414,8 +428,9 @@ export default function Settings() {
         const finalList = canon
           ? await invoke<string[]>('audio_list_devices').catch(() => devices)
           : devices;
-        setAudioDevices(finalList);
-        setOsDefaultAudioDeviceId(osDefault ?? null);
+        const defId = osDefault ?? null;
+        setAudioDevices(sortAudioDeviceIds(finalList, defId));
+        setOsDefaultAudioDeviceId(defId);
       })
       .finally(() => {
         if (!silent) setDevicesLoading(false);
