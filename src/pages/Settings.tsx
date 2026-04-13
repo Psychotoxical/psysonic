@@ -305,12 +305,25 @@ function buildAudioDeviceSelectOptions(
   defaultLabel: string,
   osDefaultDeviceId: string | null,
   osDefaultMark: string,
+  pinnedDevice: string | null,
+  notInListSuffix: string,
 ): { value: string; label: string }[] {
   const baseLabels = devices.map(formatAudioDeviceLabel);
   const countByBase = new Map<string, number>();
   for (const b of baseLabels) countByBase.set(b, (countByBase.get(b) ?? 0) + 1);
+  const pinned = pinnedDevice?.trim() || null;
+  const pinnedNotListed = !!(pinned && !devices.includes(pinned));
+  const ghost: { value: string; label: string }[] = pinnedNotListed
+    ? (() => {
+        const base = formatAudioDeviceLabel(pinned);
+        let label = `${base} · ${notInListSuffix}`;
+        if (osDefaultDeviceId && pinned === osDefaultDeviceId) label = `${label} · ${osDefaultMark}`;
+        return [{ value: pinned, label }];
+      })()
+    : [];
   return [
     { value: '', label: defaultLabel },
+    ...ghost,
     ...devices.map((d, i) => {
       const base = baseLabels[i];
       const dup = (countByBase.get(base) ?? 0) > 1;
@@ -390,8 +403,18 @@ export default function Settings() {
     });
     const defP = invoke<string | null>('audio_default_output_device_name').catch(() => null);
     Promise.all([listP, defP])
-      .then(([devices, osDefault]) => {
-        setAudioDevices(devices);
+      .then(async ([devices, osDefault]) => {
+        let canon: string | null = null;
+        try {
+          canon = await invoke<string | null>('audio_canonicalize_selected_device');
+          if (canon) useAuthStore.getState().setAudioOutputDevice(canon);
+        } catch {
+          /* ignore */
+        }
+        const finalList = canon
+          ? await invoke<string[]>('audio_list_devices').catch(() => devices)
+          : devices;
+        setAudioDevices(finalList);
         setOsDefaultAudioDeviceId(osDefault ?? null);
       })
       .finally(() => {
@@ -671,11 +694,13 @@ export default function Settings() {
                     t('settings.audioOutputDeviceDefault'),
                     osDefaultAudioDeviceId,
                     t('settings.audioOutputDeviceOsDefaultNow'),
+                    auth.audioOutputDevice,
+                    t('settings.audioOutputDeviceNotInCurrentList'),
                   )}
                 />
                 <button
                   className="icon-btn"
-                  onClick={refreshAudioDevices}
+                  onClick={() => refreshAudioDevices()}
                   disabled={devicesLoading || deviceSwitching}
                   data-tooltip={t('settings.audioOutputDeviceRefresh')}
                 >

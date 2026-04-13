@@ -507,6 +507,7 @@ export const enTranslation = {
     audioOutputDeviceRefresh: 'Refresh device list',
     audioOutputDeviceOsDefaultNow: 'current system output',
     audioOutputDeviceListError: 'Could not load the audio device list.',
+    audioOutputDeviceNotInCurrentList: 'not in current list',
     hiResTitle: 'Native Hi-Res Playback',
     hiResEnabled: 'Enable native hi-res playback',
     hiResDesc: "Forces 44.1 kHz output by default for maximum stability. Enable only if your hardware and network reliably support high sample rates (88.2 kHz+).",

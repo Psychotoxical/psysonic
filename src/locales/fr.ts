@@ -505,6 +505,7 @@ export const frTranslation = {
     audioOutputDeviceRefresh: 'Actualiser la liste',
     audioOutputDeviceOsDefaultNow: 'sortie système actuelle',
     audioOutputDeviceListError: 'Impossible de charger la liste des périphériques audio.',
+    audioOutputDeviceNotInCurrentList: 'absent de la liste actuelle',
     hiResTitle: 'Lecture haute résolution native',
     hiResEnabled: 'Activer la lecture haute résolution native',
     hiResDesc: "Force une sortie à 44,1 kHz par défaut pour une stabilité maximale. N'activer que si le matériel et le réseau prennent en charge les hautes fréquences d'échantillonnage (88,2 kHz+).",

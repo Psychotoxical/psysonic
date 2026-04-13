@@ -2936,11 +2936,7 @@ fn with_suppressed_alsa_stderr<R>(f: impl FnOnce() -> R) -> R {
     f()
 }
 
-/// Returns the names of all available audio output devices on the current host.
-/// On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
-/// stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
-#[tauri::command]
-pub fn audio_list_devices() -> Vec<String> {
+fn enumerate_output_device_names() -> Vec<String> {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
     with_suppressed_alsa_stderr(|| {
         let host = rodio::cpal::default_host();
@@ -2948,6 +2944,92 @@ pub fn audio_list_devices() -> Vec<String> {
             .map(|iter| iter.filter_map(|d| d.name().ok()).collect())
             .unwrap_or_default()
     })
+}
+
+/// Linux ALSA-style cpal names: same physical sink can appear with different suffixes;
+/// busy devices are sometimes omitted from `output_devices()` while playback works.
+#[cfg(target_os = "linux")]
+fn linux_alsa_sink_fingerprint(name: &str) -> Option<(String, String, u32)> {
+    const IFACES: &[&str] = &[
+        "hdmi", "hw", "plughw", "sysdefault", "iec958", "front", "dmix", "surround40",
+        "surround51", "surround71",
+    ];
+    let colon = name.find(':')?;
+    let iface = name[..colon].to_ascii_lowercase();
+    if !IFACES.iter().any(|&i| i == iface.as_str()) {
+        return None;
+    }
+    let card = name.split("CARD=").nth(1)?.split(',').next()?.to_string();
+    let dev = name
+        .split("DEV=")
+        .nth(1)
+        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    Some((iface, card, dev))
+}
+
+#[cfg(not(target_os = "linux"))]
+#[inline]
+fn linux_alsa_sink_fingerprint(_name: &str) -> Option<(String, String, u32)> {
+    None
+}
+
+fn output_devices_logically_same(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    match (
+        linux_alsa_sink_fingerprint(a),
+        linux_alsa_sink_fingerprint(b),
+    ) {
+        (Some(fa), Some(fb)) => fa == fb,
+        _ => false,
+    }
+}
+
+/// True if `pinned` is the same sink as some entry (exact or Linux ALSA logical match).
+fn output_enumeration_includes_pinned(available: &[String], pinned: &str) -> bool {
+    available
+        .iter()
+        .any(|d| output_devices_logically_same(d, pinned))
+}
+
+/// If the pinned id is missing from cpal's list but another listed id is the same
+/// physical sink (e.g. suffix drift), rewrite `selected_device` to the listed form.
+#[tauri::command]
+pub fn audio_canonicalize_selected_device(state: State<'_, AudioEngine>) -> Option<String> {
+    let pinned = state.selected_device.lock().unwrap().clone()?;
+    if pinned.is_empty() {
+        return None;
+    }
+    let list = enumerate_output_device_names();
+    if list.iter().any(|d| d == &pinned) {
+        return None;
+    }
+    let canon = list
+        .iter()
+        .find(|d| output_devices_logically_same(d, &pinned))?
+        .clone();
+    *state.selected_device.lock().unwrap() = Some(canon.clone());
+    Some(canon)
+}
+
+/// Returns the names of all available audio output devices on the current host.
+/// On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
+/// stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
+///
+/// The user-pinned device name is appended when cpal omits it (e.g. HDMI busy while
+/// streaming) so the Settings dropdown still matches `audioOutputDevice`.
+#[tauri::command]
+pub fn audio_list_devices(state: State<'_, AudioEngine>) -> Vec<String> {
+    let mut list = enumerate_output_device_names();
+    if let Some(ref name) = *state.selected_device.lock().unwrap() {
+        if !name.is_empty() && !output_enumeration_includes_pinned(&list, name) {
+            list.push(name.clone());
+        }
+    }
+    list
 }
 
 /// Device id string for the host default output (matches an entry from `audio_list_devices` when present).
@@ -3006,9 +3088,10 @@ pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
 // Polls every 3 s for two conditions:
 //   1. System default device changed (Bluetooth, USB DAC plug/unplug) while no
 //      device is pinned → reopen on new default, emit audio:device-changed.
-//   2. User-pinned device disappeared (DAC unplugged) → fall back to system
-//      default, clear selected_device, emit audio:device-reset so the frontend
-//      can reset its dropdown and persist the change.
+//   2. (macOS / Windows only) User-pinned device disappeared from cpal's list →
+//      fall back to system default, clear selected_device, emit audio:device-reset.
+//      Linux: case 2 is disabled — ALSA/cpal often omit the active sink from
+//      enumeration while streaming, which caused false resets to system default.
 
 pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
     let reopen_tx       = engine.stream_reopen_tx.clone();
@@ -3026,10 +3109,8 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 .and_then(|d| d.name().ok())
         }).await.unwrap_or(None);
 
-        // How many consecutive checks the pinned device has been absent.
-        // ALSA can temporarily fail to enumerate a device that is busy (e.g. actively
-        // streaming), so we require 3 consecutive misses (~9 s) before treating it
-        // as truly unplugged.
+        // macOS/Windows: consecutive polls where a pinned device is absent from cpal's list.
+        #[cfg(not(target_os = "linux"))]
         let mut pinned_miss_count: u32 = 0;
 
         loop {
@@ -3060,14 +3141,31 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 (default, available)
             }).await.unwrap_or((None, vec![]));
 
+            // Empty list almost always means a transient enumeration failure, not
+            // that every output device vanished. Treating it as "pinned missing"
+            // caused false audio:device-reset (UI jumped back to system default)
+            // when switching to external USB / class-compliant interfaces.
+            if available.is_empty() {
+                continue;
+            }
+
             let pinned = selected_device.lock().unwrap().clone();
 
+            #[cfg(target_os = "linux")]
+            if pinned.is_some() {
+                // Do not infer "unplugged" from `output_devices()` when a device is pinned.
+                // ALSA/cpal often omit the active HDMI/USB sink from enumeration for the
+                // whole session — any miss counter eventually tripped audio:device-reset.
+                // Clearing the pin is left to the user (Settings → System Default) or
+                // to a future explicit error signal from the output stream.
+                continue;
+            }
+
+            // ── Case 2 (non-Linux): pinned device disappeared from enumeration ─
+            #[cfg(not(target_os = "linux"))]
             if let Some(ref dev_name) = pinned {
-                // ── Case 2: pinned device disappeared ────────────────────────
-                if !available.iter().any(|d| d == dev_name) {
+                if !output_enumeration_includes_pinned(&available, dev_name) {
                     pinned_miss_count += 1;
-                    // Only act after 3 consecutive misses (~9 s) to avoid false
-                    // positives when ALSA temporarily hides a busy device.
                     if pinned_miss_count < 3 {
                         continue;
                     }
@@ -3075,7 +3173,6 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     pinned_miss_count = 0;
                     *selected_device.lock().unwrap() = None;
 
-                    // Debounce so the OS finishes reconfiguring.
                     tokio::time::sleep(Duration::from_millis(500)).await;
 
                     let rate = stream_rate.load(Ordering::Relaxed);
@@ -3093,17 +3190,13 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                         *stream_handle.lock().unwrap() = handle;
                         if let Some(s) = current.lock().unwrap().sink.take() { s.stop(); }
                         if let Some(s) = fading_out.lock().unwrap().take()   { s.stop(); }
-                        // audio:device-reset tells the frontend to clear its
-                        // audioOutputDevice setting and restart playback.
                         app.emit("audio:device-reset", ()).ok();
                     }
 
                     last_default = current_default;
                 } else {
-                    // Device is present — reset miss counter.
                     pinned_miss_count = 0;
                 }
-                // Pinned device still present (or not yet confirmed gone) — nothing to do.
                 continue;
             }
 

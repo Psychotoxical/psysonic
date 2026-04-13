@@ -522,6 +522,7 @@ export const ruTranslation = {
     audioOutputDeviceRefresh: 'Обновить список устройств',
     audioOutputDeviceOsDefaultNow: 'текущий системный вывод',
     audioOutputDeviceListError: 'Не удалось загрузить список аудиоустройств.',
+    audioOutputDeviceNotInCurrentList: 'нет в текущем списке',
     hiResTitle: 'Нативное воспроизведение Hi-Res',
     hiResEnabled: 'Включить нативное Hi-Res воспроизведение',
     hiResDesc: "По умолчанию вывод ограничен до 44,1 кГц для максимальной стабильности. Включайте только если оборудование и сеть надёжно поддерживают высокие частоты (88,2 кГц+).",

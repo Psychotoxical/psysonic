@@ -506,6 +506,7 @@ export const nbTranslation = {
     audioOutputDeviceRefresh: 'Oppdater enhetsliste',
     audioOutputDeviceOsDefaultNow: 'gjeldende systemutgang',
     audioOutputDeviceListError: 'Kunne ikke laste listen over lydenheter.',
+    audioOutputDeviceNotInCurrentList: 'ikke i gjeldende liste',
     hiResTitle: 'Innebygd hi-res-avspilling',
     hiResEnabled: 'Aktiver innebygd hi-res-avspilling',
     hiResDesc: "Begrenser utdata til 44,1 kHz som standard for maksimal stabilitet. Aktiver kun hvis maskinvare og nettverk støtter høye samplingsrater (88,2 kHz+) pålitelig.",

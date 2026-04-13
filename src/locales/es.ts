@@ -508,6 +508,7 @@ export const esTranslation = {
     audioOutputDeviceRefresh: 'Actualizar lista de dispositivos',
     audioOutputDeviceOsDefaultNow: 'salida actual del sistema',
     audioOutputDeviceListError: 'No se pudo cargar la lista de dispositivos de audio.',
+    audioOutputDeviceNotInCurrentList: 'no está en la lista actual',
     hiResTitle: 'Reproducción Nativa Hi-Res',
     hiResEnabled: 'Habilitar reproducción nativa hi-res',
     hiResDesc: "Fuerza 44.1 kHz de salida por defecto para máxima estabilidad. Habilita solo si tu hardware y red soportan confiablemente altas tasas de muestreo (88.2 kHz+).",

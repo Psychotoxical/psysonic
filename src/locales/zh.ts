@@ -500,6 +500,7 @@ export const zhTranslation = {
     audioOutputDeviceRefresh: '刷新设备列表',
     audioOutputDeviceOsDefaultNow: '当前系统输出',
     audioOutputDeviceListError: '无法加载音频设备列表。',
+    audioOutputDeviceNotInCurrentList: '不在当前列表中',
     hiResTitle: '原生高清晰度播放',
     hiResEnabled: '启用原生高清晰度播放',
     hiResDesc: "默认强制 44.1 kHz 输出以获得最大稳定性。仅在硬件和网络可靠支持高采样率（88.2 kHz+）时启用。",

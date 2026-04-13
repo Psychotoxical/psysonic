@@ -505,6 +505,7 @@ export const deTranslation = {
     audioOutputDeviceRefresh: 'Geräteliste aktualisieren',
     audioOutputDeviceOsDefaultNow: 'aktuelle Systemausgabe',
     audioOutputDeviceListError: 'Audiogeräteliste konnte nicht geladen werden.',
+    audioOutputDeviceNotInCurrentList: 'nicht in der aktuellen Liste',
     hiResTitle: 'Native Hi-Res-Wiedergabe',
     hiResEnabled: 'Native Hi-Res-Wiedergabe aktivieren',
     hiResDesc: "Standardmäßig wird auf 44,1 kHz begrenzt (maximale Stabilität). Nur aktivieren, wenn Hardware und Netzwerk zuverlässig hohe Abtastraten (88,2 kHz+) unterstützen.",
