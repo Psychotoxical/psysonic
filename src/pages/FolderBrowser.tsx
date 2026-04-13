@@ -66,6 +66,35 @@ function entryToTrack(e: SubsonicDirectoryEntry): Track {
   };
 }
 
+function isFolderBrowserArrowKey(e: React.KeyboardEvent): boolean {
+  return (
+    e.key === 'ArrowUp' ||
+    e.key === 'ArrowDown' ||
+    e.key === 'ArrowLeft' ||
+    e.key === 'ArrowRight' ||
+    e.code === 'ArrowUp' ||
+    e.code === 'ArrowDown' ||
+    e.code === 'ArrowLeft' ||
+    e.code === 'ArrowRight'
+  );
+}
+
+/** Modifiers from native event + getModifierState (WebKit/WebView can miss flags on the synthetic event). */
+function folderBrowserHasKeyModifiers(e: React.KeyboardEvent): boolean {
+  const n = e.nativeEvent;
+  if (n.ctrlKey || n.altKey || n.shiftKey || n.metaKey) return true;
+  if (typeof n.getModifierState === 'function') {
+    return (
+      n.getModifierState('Control') ||
+      n.getModifierState('Alt') ||
+      n.getModifierState('Shift') ||
+      n.getModifierState('Meta') ||
+      n.getModifierState('OS')
+    );
+  }
+  return false;
+}
+
 export default function FolderBrowser() {
   const { t } = useTranslation();
   const [columns, setColumns] = useState<Column[]>([]);
@@ -449,6 +478,7 @@ export default function FolderBrowser() {
       });
       return;
     }
+    if (isFolderBrowserArrowKey(e) && folderBrowserHasKeyModifiers(e)) return;
     if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(key)) return;
     setKeyboardNavActive(true);
     const current = keyboardPos ?? fallbackNavPos(columns);
@@ -718,7 +748,7 @@ export default function FolderBrowser() {
                       requestAnimationFrame(() => wrapperRef.current?.focus({ preventScroll: true }));
                       return;
                     }
-                    if (e.key === 'ArrowDown') {
+                    if (e.key === 'ArrowDown' && !folderBrowserHasKeyModifiers(e)) {
                       e.preventDefault();
                       e.stopPropagation();
                       const rowIndex = preferredRowIndex(colIndex);
@@ -776,6 +806,10 @@ export default function FolderBrowser() {
                       setKeyboardPos({ colIndex, rowIndex });
                       if (item.isDir) handleDirClick(colIndex, item);
                       else handleFileClick(colIndex, item);
+                    }}
+                    onKeyDown={e => {
+                      if (!isFolderBrowserArrowKey(e) || folderBrowserHasKeyModifiers(e)) return;
+                      e.preventDefault();
                     }}
                     onContextMenu={e => {
                       setKeyboardPos({ colIndex, rowIndex });
