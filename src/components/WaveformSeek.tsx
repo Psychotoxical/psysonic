@@ -869,6 +869,17 @@ export default function WaveformSeek({ trackId }: Props) {
     return () => ro.disconnect();
   }, [seekbarStyle]);
 
+  // Theme change observer — redraw canvas when theme changes.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const observer = new MutationObserver(() => {
+      drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, [seekbarStyle]);
+
   const trackIdRef = useRef(trackId);
   trackIdRef.current = trackId;
   const seekRef = useRef(seek);

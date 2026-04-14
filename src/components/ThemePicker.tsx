@@ -94,6 +94,19 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
     ],
   },
   {
+    group: 'COMMUNITY',
+    themes: [
+      { id: 'amber-night', label: 'Amber Night', bg: '#1a1410', card: '#201a12', accent: '#d4a96a' },
+      { id: 'amoled-black-pure', label: 'AMOLED Black Pure', bg: '#000000', card: '#000000', accent: '#ffffff' },
+      { id: 'ice-blue', label: 'Ice Blue', bg: '#0e1d28', card: '#132430', accent: '#7dd3e8' },
+      { id: 'midnight-blue', label: 'Midnight Blue', bg: '#0d1420', card: '#111a28', accent: '#60a5fa' },
+      { id: 'monochrome', label: 'Monochrome Dark', bg: '#161616', card: '#1c1c1c', accent: '#c0c0c0' },
+      { id: 'phosphor-green', label: 'Phosphor Green', bg: '#0d1a0d', card: '#111f11', accent: '#4ade80' },
+      { id: 'rose-dark', label: 'Rose Dark', bg: '#1a0d14', card: '#20111a', accent: '#f472b6' },
+      { id: 'sepia-dark', label: 'Sepia Dark', bg: '#1e1a14', card: '#252018', accent: '#c8b89a' },
+    ],
+  },
+  {
     group: 'Mediaplayer',
     themes: [
       { id: 'winmedplayer',    label: 'WinMedPlayer',    bg: '#3a62a5', card: '#000000', accent: '#45ff00' },
