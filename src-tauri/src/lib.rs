@@ -385,6 +385,49 @@ async fn nd_delete_user(
     Ok(())
 }
 
+/// GET `/api/library` — list all libraries (admin only). Returns the raw JSON array.
+#[tauri::command]
+async fn nd_list_libraries(
+    server_url: String,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    let resp = reqwest::Client::new()
+        .get(format!("{}/api/library", server_url))
+        .header("X-ND-Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>().await.map_err(|e| e.to_string())
+}
+
+/// PUT `/api/user/{id}/library` — assign libraries to a non-admin user.
+/// Admin users auto-receive all libraries; calling this for an admin returns HTTP 400.
+#[tauri::command]
+async fn nd_set_user_libraries(
+    server_url: String,
+    token: String,
+    id: String,
+    library_ids: Vec<i64>,
+) -> Result<(), String> {
+    let body = serde_json::json!({ "libraryIds": library_ids });
+    let resp = reqwest::Client::new()
+        .put(format!("{}/api/user/{}/library", server_url, id))
+        .header("X-ND-Authorization", format!("Bearer {}", token))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {}: {}", status, text));
+    }
+    Ok(())
+}
+
 const RADIO_PAGE_SIZE: u32 = 25;
 
 /// Search the radio-browser.info directory (needs User-Agent header — CORS would block WebView).
@@ -3342,6 +3385,8 @@ pub fn run() {
             nd_create_user,
             nd_update_user,
             nd_delete_user,
+            nd_list_libraries,
+            nd_set_user_libraries,
             search_radio_browser,
             get_top_radio_stations,
             fetch_url_bytes,

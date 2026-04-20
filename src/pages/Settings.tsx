@@ -6,7 +6,7 @@ import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
   GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
-  Users, UserPlus, Pencil, Shield
+  Users, UserPlus, Shield
 } from 'lucide-react';
 import i18n from '../i18n';
 import { exportBackup, importBackup } from '../utils/backup';
@@ -36,10 +36,12 @@ import { ALL_NAV_ITEMS } from '../config/navItems';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
 import {
   ndLogin, ndListUsers, ndCreateUser, ndUpdateUser, ndDeleteUser,
-  type NdUser,
+  ndListLibraries, ndSetUserLibraries,
+  type NdUser, type NdLibrary,
 } from '../api/navidromeAdmin';
 import { switchActiveServer } from '../utils/switchActiveServer';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import ConfirmModal from '../components/ConfirmModal';
 import { Trans, useTranslation } from 'react-i18next';
 import Equalizer from '../components/Equalizer';
 import StarRating from '../components/StarRating';
@@ -255,41 +257,55 @@ interface UserFormState {
   email: string;
   password: string;
   isAdmin: boolean;
+  libraryIds: number[];
 }
 
-function initialUserFormState(u?: NdUser): UserFormState {
+function initialUserFormState(u: NdUser | undefined, allLibraries: NdLibrary[]): UserFormState {
+  const defaultIds = allLibraries.map(l => l.id);
   return {
     userName: u?.userName ?? '',
     name: u?.name ?? '',
     email: u?.email ?? '',
     password: '',
     isAdmin: !!u?.isAdmin,
+    libraryIds: u ? [...u.libraryIds] : defaultIds,
   };
 }
 
 function UserForm({
   initial,
+  libraries,
   onSave,
   onCancel,
   busy,
 }: {
   initial: NdUser | null;
+  libraries: NdLibrary[];
   onSave: (form: UserFormState) => void;
   onCancel: () => void;
   busy: boolean;
 }) {
   const { t } = useTranslation();
-  const [form, setForm] = useState<UserFormState>(() => initialUserFormState(initial ?? undefined));
+  const [form, setForm] = useState<UserFormState>(() => initialUserFormState(initial ?? undefined, libraries));
   const [showPass, setShowPass] = useState(false);
   const isEdit = !!initial;
 
   const set = <K extends keyof UserFormState>(k: K, v: UserFormState[K]) =>
     setForm(f => ({ ...f, [k]: v }));
 
+  const toggleLib = (id: number) =>
+    setForm(f => ({
+      ...f,
+      libraryIds: f.libraryIds.includes(id)
+        ? f.libraryIds.filter(x => x !== id)
+        : [...f.libraryIds, id],
+    }));
+
   const canSave =
     form.userName.trim().length > 0 &&
     form.name.trim().length > 0 &&
-    form.password.length > 0;
+    form.password.length > 0 &&
+    (form.isAdmin || form.libraryIds.length > 0);
 
   return (
     <div className="settings-card" style={{ marginBottom: '1.25rem' }}>
@@ -364,6 +380,54 @@ function UserForm({
         <Shield size={14} />
         {t('settings.userMgmtRoleAdmin')}
       </label>
+      <div className="form-group" style={{ marginBottom: '1rem' }}>
+        <label style={{ fontSize: 13, marginBottom: 6, display: 'block' }}>
+          {t('settings.userMgmtLibraries')}
+        </label>
+        {form.isAdmin ? (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {t('settings.userMgmtLibrariesAdminHint')}
+          </div>
+        ) : libraries.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {t('settings.userMgmtLibrariesEmpty')}
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                maxHeight: 180,
+                overflowY: 'auto',
+                padding: '6px 8px',
+                border: `1px solid ${form.libraryIds.length === 0 ? 'var(--danger)' : 'var(--border)'}`,
+                borderRadius: 6,
+              }}
+            >
+              {libraries.map(lib => (
+                <label
+                  key={lib.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', padding: '2px 0' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.libraryIds.includes(lib.id)}
+                    onChange={() => toggleLib(lib.id)}
+                  />
+                  {lib.name}
+                </label>
+              ))}
+            </div>
+            {form.libraryIds.length === 0 && (
+              <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>
+                {t('settings.userMgmtLibrariesValidation')}
+              </div>
+            )}
+          </>
+        )}
+      </div>
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
         <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>
           {t('settings.userMgmtCancel')}
@@ -391,17 +455,23 @@ function UserManagementSection({
 }) {
   const { t } = useTranslation();
   const [users, setUsers] = useState<NdUser[]>([]);
+  const [libraries, setLibraries] = useState<NdLibrary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<NdUser | 'new' | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<NdUser | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const list = await ndListUsers(serverUrl, token);
+      const [list, libs] = await Promise.all([
+        ndListUsers(serverUrl, token),
+        ndListLibraries(serverUrl, token).catch(() => [] as NdLibrary[]),
+      ]);
       setUsers([...list].sort((a, b) => a.userName.localeCompare(b.userName)));
+      setLibraries([...libs].sort((a, b) => a.name.localeCompare(b.name)));
     } catch (e) {
       const msg = (e instanceof Error && e.message) ? e.message : t('settings.userMgmtLoadError');
       setLoadError(msg);
@@ -420,19 +490,36 @@ function UserManagementSection({
       showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
       return;
     }
+    if (!form.isAdmin && form.libraryIds.length === 0 && libraries.length > 0) {
+      showToast(t('settings.userMgmtLibrariesValidation'), 4000, 'error');
+      return;
+    }
     if (!token) return;
     setBusy(true);
     try {
+      let targetId: string;
       if (editing === 'new') {
-        await ndCreateUser(serverUrl, token, {
+        const created = await ndCreateUser(serverUrl, token, {
           userName, name, email, password: form.password, isAdmin: form.isAdmin,
         });
+        targetId = created.id;
         showToast(t('settings.userMgmtCreated'), 3000, 'info');
       } else if (editing) {
         await ndUpdateUser(serverUrl, token, editing.id, {
           userName, name, email, password: form.password, isAdmin: form.isAdmin,
         });
+        targetId = editing.id;
         showToast(t('settings.userMgmtUpdated'), 3000, 'info');
+      } else {
+        return;
+      }
+      if (!form.isAdmin && form.libraryIds.length > 0) {
+        try {
+          await ndSetUserLibraries(serverUrl, token, targetId, form.libraryIds);
+        } catch (e) {
+          const msg = (e instanceof Error && e.message) ? e.message : String(e);
+          showToast(`${t('settings.userMgmtLibrariesUpdateError')}: ${msg}`, 5000, 'error');
+        }
       }
       setEditing(null);
       await load();
@@ -447,9 +534,9 @@ function UserManagementSection({
     }
   };
 
-  const handleDelete = async (u: NdUser) => {
+  const performDelete = async (u: NdUser) => {
     if (!token) return;
-    if (!confirm(t('settings.userMgmtConfirmDelete', { username: u.userName }))) return;
+    setConfirmingDelete(null);
     setBusy(true);
     try {
       await ndDeleteUser(serverUrl, token, u.id);
@@ -491,6 +578,7 @@ function UserManagementSection({
           {editing ? (
             <UserForm
               initial={editing === 'new' ? null : editing}
+              libraries={libraries}
               onSave={handleSave}
               onCancel={() => setEditing(null)}
               busy={busy}
@@ -511,64 +599,68 @@ function UserManagementSection({
               {t('settings.userMgmtEmpty')}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {users.map(u => {
                 const isSelf = u.userName === currentUsername;
+                const libNames = u.isAdmin
+                  ? null
+                  : u.libraryIds.length === 0
+                    ? t('settings.userMgmtNoLibraries')
+                    : libraries.filter(l => u.libraryIds.includes(l.id)).map(l => l.name).join(', ');
                 return (
-                  <div key={u.id} className="settings-card">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                      <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <User size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 600 }}>{u.userName}</span>
-                            {u.name && u.name !== u.userName && (
-                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {u.name}</span>
-                            )}
-                            {isSelf && (
-                              <span style={{ fontSize: 10, background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
-                                {t('settings.userMgmtYouBadge')}
-                              </span>
-                            )}
-                            {u.isAdmin && (
-                              <span
-                                style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)', color: 'var(--text-primary)' }}
-                                data-tooltip={t('settings.userMgmtRoleAdmin')}
-                              >
-                                <Shield size={10} />
-                                {t('settings.userMgmtAdminBadge')}
-                              </span>
-                            )}
-                          </div>
-                          {u.email && (
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {u.email}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button
-                          className="btn btn-surface"
-                          style={{ fontSize: 12, padding: '4px 10px' }}
-                          onClick={() => setEditing(u)}
-                          disabled={busy}
-                          data-tooltip={t('settings.userMgmtEdit')}
-                        >
-                          <Pencil size={13} />
-                          {t('settings.userMgmtEdit')}
-                        </button>
-                        <button
-                          className="btn btn-ghost"
-                          style={{ color: 'var(--danger)', padding: '4px 8px' }}
-                          onClick={() => handleDelete(u)}
-                          disabled={busy || isSelf}
-                          data-tooltip={t('settings.userMgmtDelete')}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
+                  <div
+                    key={u.id}
+                    className="settings-card user-row"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { if (!busy) setEditing(u); }}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && !busy) {
+                        e.preventDefault();
+                        setEditing(u);
+                      }
+                    }}
+                    style={{
+                      padding: '6px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      cursor: busy ? 'default' : 'pointer',
+                    }}
+                  >
+                    <User size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, fontSize: 13, flexShrink: 0 }}>{u.userName}</span>
+                    {u.name && u.name !== u.userName && (
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>· {u.name}</span>
+                    )}
+                    {isSelf && (
+                      <span style={{ fontSize: 10, background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '1px 6px', borderRadius: 10, fontWeight: 600, flexShrink: 0 }}>
+                        {t('settings.userMgmtYouBadge')}
+                      </span>
+                    )}
+                    {u.isAdmin && (
+                      <span
+                        style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)', color: 'var(--text-primary)', flexShrink: 0 }}
+                        data-tooltip={t('settings.userMgmtRoleAdmin')}
+                      >
+                        <Shield size={10} />
+                        {t('settings.userMgmtAdminBadge')}
+                      </span>
+                    )}
+                    {libNames && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>
+                        {libNames}
+                      </span>
+                    )}
+                    <button
+                      className="btn btn-ghost"
+                      style={{ color: 'var(--danger)', padding: '2px 6px', marginLeft: 'auto', flexShrink: 0 }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmingDelete(u); }}
+                      disabled={busy || isSelf}
+                      data-tooltip={t('settings.userMgmtDelete')}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 );
               })}
@@ -576,6 +668,18 @@ function UserManagementSection({
           )}
         </>
       )}
+      <ConfirmModal
+        open={!!confirmingDelete}
+        title={t('settings.userMgmtDelete')}
+        message={confirmingDelete
+          ? t('settings.userMgmtConfirmDelete', { username: confirmingDelete.userName })
+          : ''}
+        confirmLabel={t('settings.userMgmtDelete')}
+        cancelLabel={t('settings.userMgmtCancel')}
+        danger
+        onConfirm={() => { if (confirmingDelete) void performDelete(confirmingDelete); }}
+        onCancel={() => setConfirmingDelete(null)}
+      />
     </section>
   );
 }

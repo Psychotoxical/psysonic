@@ -2454,6 +2454,19 @@
   padding: var(--space-5);
 }
 
+.settings-card.user-row {
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.settings-card.user-row:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-subtle));
+}
+.settings-card.user-row:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
 .settings-hint {
   font-size: 0.8rem;
   padding: 0.5rem 0.75rem;
