@@ -709,38 +709,13 @@ impl Read for RangedHttpSource {
         let target_end = self.pos + max_read as u64;
 
         let deadline = Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS);
-        #[cfg(debug_assertions)]
-        let block_started = Instant::now();
-        #[cfg(debug_assertions)]
-        let mut blocked = false;
         loop {
             if self.gen_arc.load(Ordering::SeqCst) != self.gen {
                 return Ok(0);
             }
             let dl = self.downloaded_to.load(Ordering::SeqCst) as u64;
             if dl >= target_end {
-                #[cfg(debug_assertions)]
-                if blocked {
-                    eprintln!(
-                        "[stream] read unblocked after {:.2}s — pos={} target_end={} dl={}",
-                        block_started.elapsed().as_secs_f64(),
-                        self.pos,
-                        target_end,
-                        dl
-                    );
-                }
                 break;
-            }
-            #[cfg(debug_assertions)]
-            if !blocked {
-                blocked = true;
-                eprintln!(
-                    "[stream] read blocking — pos={} need={} dl_to={} (waiting for {} more bytes)",
-                    self.pos,
-                    target_end,
-                    dl,
-                    target_end - dl
-                );
             }
             // Download finished but our cursor is past downloaded_to (e.g. seek
             // beyond a partial download that aborted). Return what we have.
@@ -2032,7 +2007,7 @@ pub struct AudioEngine {
     pub(crate) current_is_seekable: Arc<AtomicBool>,
     pub crossfade_enabled: Arc<AtomicBool>,
     pub crossfade_secs: Arc<AtomicU32>,
-    pub fading_out_sink: Arc<Mutex<Option<Sink>>>,
+    pub fading_out_sink: Arc<Mutex<Option<Arc<Sink>>>>,
     /// When true, audio_play chains sources to the existing Sink instead of
     /// creating a new one, achieving sample-accurate gapless transitions.
     pub gapless_enabled: Arc<AtomicBool>,
@@ -2055,7 +2030,7 @@ pub struct AudioEngine {
 }
 
 pub struct AudioCurrent {
-    pub sink: Option<Sink>,
+    pub sink: Option<Arc<Sink>>,
     pub duration_secs: f64,
     pub seek_offset: f64,
     pub play_started: Option<Instant>,
@@ -2885,7 +2860,7 @@ pub async fn audio_play(
         }
     }
 
-    let sink = Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?;
+    let sink = Arc::new(Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?);
     sink.set_volume(effective_volume);
 
     // ── Sink pre-fill for hi-res tracks ──────────────────────────────────────
@@ -3471,17 +3446,17 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
     let seek_seconds = seconds.max(0.0);
     let seek_duration = Duration::from_secs_f64(seek_seconds);
     let seek_generation = state.generation.load(Ordering::SeqCst);
-    let current_arc = state.current.clone();
+    let sink = {
+        let cur = lock_current_with_timeout(AUDIO_SEEK_LOCK_TIMEOUT_MS)?;
+        match cur.sink.as_ref() {
+            Some(sink) => Arc::clone(sink),
+            None => return Ok(()),
+        }
+    };
 
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
     std::thread::spawn(move || {
-        let result = {
-            let cur = current_arc.lock().unwrap();
-            match cur.sink.as_ref() {
-                Some(sink) => sink.try_seek(seek_duration).map_err(|e| e.to_string()),
-                None => Ok(()),
-            }
-        };
+        let result = sink.try_seek(seek_duration).map_err(|e| e.to_string());
         let _ = tx.send(result);
     });
 
@@ -3753,7 +3728,7 @@ pub async fn audio_play_radio(
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
-    let sink = Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?;
+    let sink = Arc::new(Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?);
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(counting);
 

@@ -221,12 +221,17 @@ let seekDebounce: ReturnType<typeof setTimeout> | null = null;
 // engine has actually caught up to the new position.
 let seekTarget: number | null = null;
 let seekTargetSetAt = 0;
-const SEEK_TARGET_GUARD_TIMEOUT_MS = 1200;
+const SEEK_TARGET_GUARD_TIMEOUT_MS = 5000;
 // Streaming fallback seek guard: coalesce repeated "not seekable" recoveries.
 let seekFallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let seekFallbackRetryStartedAt = 0;
+let seekFallbackRetryTarget: { trackId: string; seconds: number } | null = null;
 let seekFallbackTrackId: string | null = null;
 let seekFallbackRestartAt = 0;
-let seekFallbackVisualTarget: { trackId: string; seconds: number } | null = null;
+let seekFallbackVisualTarget: { trackId: string; seconds: number; setAtMs: number } | null = null;
+const SEEK_FALLBACK_VISUAL_GUARD_MS = 1600;
+const SEEK_FALLBACK_RETRY_INTERVAL_MS = 180;
+const SEEK_FALLBACK_RETRY_MAX_MS = 6000;
 
 function setSeekTarget(seconds: number) {
   seekTarget = seconds;
@@ -236,6 +241,66 @@ function setSeekTarget(seconds: number) {
 function clearSeekTarget() {
   seekTarget = null;
   seekTargetSetAt = 0;
+}
+
+function clearSeekFallbackRetry() {
+  if (seekFallbackRetryTimer) {
+    clearTimeout(seekFallbackRetryTimer);
+    seekFallbackRetryTimer = null;
+  }
+  seekFallbackRetryStartedAt = 0;
+  seekFallbackRetryTarget = null;
+}
+
+function isRecoverableSeekError(msg: string): boolean {
+  return msg.includes('not seekable')
+    || msg.includes('audio sink not ready')
+    || msg.includes('audio seek busy')
+    || msg.includes('audio seek timeout');
+}
+
+function scheduleSeekFallbackRetry(trackId: string, seconds: number) {
+  const now = Date.now();
+  if (
+    !seekFallbackRetryTarget
+    || seekFallbackRetryTarget.trackId !== trackId
+    || Math.abs(seekFallbackRetryTarget.seconds - seconds) > 0.25
+  ) {
+    clearSeekFallbackRetry();
+    seekFallbackRetryStartedAt = now;
+    seekFallbackRetryTarget = { trackId, seconds };
+  } else if (seekFallbackRetryStartedAt === 0) {
+    seekFallbackRetryStartedAt = now;
+  }
+  if (seekFallbackRetryTimer) clearTimeout(seekFallbackRetryTimer);
+  seekFallbackRetryTimer = setTimeout(() => {
+    seekFallbackRetryTimer = null;
+    const target = seekFallbackRetryTarget;
+    const s = usePlayerStore.getState();
+    if (!target || !s.currentTrack || s.currentTrack.id !== target.trackId) {
+      clearSeekFallbackRetry();
+      return;
+    }
+    if (Date.now() - seekFallbackRetryStartedAt > SEEK_FALLBACK_RETRY_MAX_MS) {
+      clearSeekFallbackRetry();
+      seekFallbackVisualTarget = null;
+      return;
+    }
+    invoke('audio_seek', { seconds: target.seconds }).then(() => {
+      setSeekTarget(target.seconds);
+      seekFallbackVisualTarget = null;
+      clearSeekFallbackRetry();
+    }).catch((err: unknown) => {
+      const msg = String(err ?? '');
+      if (!isRecoverableSeekError(msg)) {
+        console.error(err);
+        seekFallbackVisualTarget = null;
+        clearSeekFallbackRetry();
+        return;
+      }
+      scheduleSeekFallbackRetry(target.trackId, target.seconds);
+    });
+  }, SEEK_FALLBACK_RETRY_INTERVAL_MS);
 }
 
 // Guard against rapid double-click play/pause sending two state transitions
@@ -416,17 +481,25 @@ function handleAudioProgress(current_time: number, duration: number) {
   if (seekFallbackVisualTarget && seekFallbackVisualTarget.trackId !== track.id) {
     seekFallbackVisualTarget = null;
   }
+  let displayTime = current_time;
   if (
     seekFallbackVisualTarget
     && seekFallbackVisualTarget.trackId === track.id
-    && Math.abs(current_time - seekFallbackVisualTarget.seconds) <= 2.0
   ) {
-    seekFallbackVisualTarget = null;
+    const nearTarget = Math.abs(current_time - seekFallbackVisualTarget.seconds) <= 2.0;
+    if (nearTarget) {
+      seekFallbackVisualTarget = null;
+    } else if (Date.now() - seekFallbackVisualTarget.setAtMs <= SEEK_FALLBACK_VISUAL_GUARD_MS) {
+      // Keep UI at the requested position while backend catches up.
+      displayTime = seekFallbackVisualTarget.seconds;
+    } else {
+      seekFallbackVisualTarget = null;
+    }
   }
   const dur = duration > 0 ? duration : track.duration;
   if (dur <= 0) return;
-  const progress = current_time / dur;
-  usePlayerStore.setState({ currentTime: current_time, progress, buffered: 0 });
+  const progress = displayTime / dur;
+  usePlayerStore.setState({ currentTime: displayTime, progress, buffered: 0 });
 
   // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
   if (progress >= 0.5 && !store.scrobbled) {
@@ -994,6 +1067,7 @@ export const usePlayerStore = create<PlayerState>()(
           invoke('audio_stop').catch(console.error);
         }
         isAudioPaused = false;
+        clearSeekFallbackRetry();
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         set({
           isPlaying: false,
@@ -1014,6 +1088,7 @@ export const usePlayerStore = create<PlayerState>()(
         clearRadioReconnectTimer();
         radioReconnectCount = 0;
         gaplessPreloadingId = null; bytePreloadingId = null;
+        clearSeekFallbackRetry();
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         // Stop Rust engine in case a regular track was playing.
         invoke('audio_stop').catch(() => {});
@@ -1057,7 +1132,7 @@ export const usePlayerStore = create<PlayerState>()(
         isAudioPaused = false;
         gaplessPreloadingId = null; bytePreloadingId = null; // new track — allow fresh preload for next
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
-        if (seekFallbackRetryTimer) { clearTimeout(seekFallbackRetryTimer); seekFallbackRetryTimer = null; }
+        clearSeekFallbackRetry();
         seekFallbackRestartAt = 0;
 
         // If a radio stream is active, stop it before the new track starts so
@@ -1468,17 +1543,20 @@ export const usePlayerStore = create<PlayerState>()(
             // Arm stale-progress guard only after backend acknowledged seek.
             setSeekTarget(time);
             seekFallbackVisualTarget = null;
+            clearSeekFallbackRetry();
           }).catch((err: unknown) => {
             // Release the progress-tick guard so the UI doesn't freeze
             // waiting for a target the engine will never reach.
             clearSeekTarget();
             const msg = String(err ?? '');
-            if (!msg.includes('not seekable')) {
+            if (!isRecoverableSeekError(msg)) {
               console.error(err);
+              seekFallbackVisualTarget = null;
+              clearSeekFallbackRetry();
               return;
             }
-            // Streaming-start path can be non-seekable until the download finishes.
-            // Fallback: at most one restart burst per track, then keep only the latest retry seek.
+            // Streaming-start path can be temporarily non-seekable or busy.
+            // Keep UI at target and retry seek for a short bounded window.
             const s = get();
             if (!s.currentTrack) return;
             const now = Date.now();
@@ -1488,21 +1566,18 @@ export const usePlayerStore = create<PlayerState>()(
             seekFallbackVisualTarget = {
               trackId: s.currentTrack.id,
               seconds: time,
+              setAtMs: Date.now(),
             };
-            if (!sameBurst) {
+            // Keep stale progress ticks from snapping UI back to start while
+            // recoverable seek retries are still in flight.
+            setSeekTarget(time);
+            if (msg.includes('not seekable') && !sameBurst) {
               seekFallbackTrackId = s.currentTrack.id;
               seekFallbackRestartAt = now;
               // Keep manual semantics (no crossfade) for seek recovery restarts.
               s.playTrack(s.currentTrack, s.queue, true);
             }
-            if (seekFallbackRetryTimer) clearTimeout(seekFallbackRetryTimer);
-            seekFallbackRetryTimer = setTimeout(() => {
-              seekFallbackRetryTimer = null;
-              invoke('audio_seek', { seconds: time }).then(() => {
-                setSeekTarget(time);
-                seekFallbackVisualTarget = null;
-              }).catch(() => {});
-            }, 220);
+            scheduleSeekFallbackRetry(s.currentTrack.id, time);
           });
         }, 100);
       },
@@ -1582,6 +1657,7 @@ export const usePlayerStore = create<PlayerState>()(
       clearQueue: () => {
         invoke('audio_stop').catch(console.error);
         isAudioPaused = false;
+        clearSeekFallbackRetry();
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         set({ queue: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
         syncQueueToServer([], null, 0);

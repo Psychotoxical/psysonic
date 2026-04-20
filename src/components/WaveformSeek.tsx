@@ -802,6 +802,7 @@ interface Props {
 
 export default function WaveformSeek({ trackId }: Props) {
   const SEEK_COMMIT_GUARD_MS = 900;
+  const SEEK_COMMIT_MIN_HOLD_MS = 320;
   const SEEK_COMMIT_PROGRESS_EPS = 0.02;
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const heightsRef   = useRef<Float32Array | null>(null);
@@ -839,8 +840,10 @@ export default function WaveformSeek({ trackId }: Props) {
       if (isDragging.current) return;
       const pendingCommit = pendingCommittedSeekRef.current;
       if (pendingCommit) {
+        const ageMs = Date.now() - pendingCommit.setAtMs;
+        if (ageMs < SEEK_COMMIT_MIN_HOLD_MS) return;
         const matched = Math.abs(state.progress - pendingCommit.fraction) <= SEEK_COMMIT_PROGRESS_EPS;
-        const expired = Date.now() - pendingCommit.setAtMs > SEEK_COMMIT_GUARD_MS;
+        const expired = ageMs > SEEK_COMMIT_GUARD_MS;
         if (!matched && !expired) return;
         pendingCommittedSeekRef.current = null;
       }
