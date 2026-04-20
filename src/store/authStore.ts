@@ -19,6 +19,7 @@ export interface ServerProfile {
 }
 
 export type SeekbarStyle = 'waveform' | 'linedot' | 'bar' | 'thick' | 'segmented' | 'neon' | 'pulsewave' | 'particletrail' | 'liquidfill' | 'retrotape';
+export type LoggingMode = 'off' | 'normal' | 'debug';
 
 export type LyricsSourceId = 'server' | 'lrclib' | 'netease';
 export interface LyricsSourceConfig { id: LyricsSourceId; enabled: boolean; }
@@ -71,6 +72,8 @@ interface AuthState {
   preloadMiniPlayer: boolean;
   /** Linux WebKitGTK: smooth wheel on when true; off only after explicit opt-out in Settings. */
   linuxWebkitKineticScroll: boolean;
+  /** Runtime backend logging level. */
+  loggingMode: LoggingMode;
   nowPlayingEnabled: boolean;
   lyricsServerFirst: boolean;
   enableNeteaselyrics: boolean;
@@ -217,6 +220,7 @@ interface AuthState {
   setUseCustomTitlebar: (v: boolean) => void;
   setPreloadMiniPlayer: (v: boolean) => void;
   setLinuxWebkitKineticScroll: (v: boolean) => void;
+  setLoggingMode: (v: LoggingMode) => void;
   setNowPlayingEnabled: (v: boolean) => void;
   setLyricsServerFirst: (v: boolean) => void;
   setEnableNeteaselyrics: (v: boolean) => void;
@@ -324,6 +328,7 @@ export const useAuthStore = create<AuthState>()(
       useCustomTitlebar: false,
       preloadMiniPlayer: false,
       linuxWebkitKineticScroll: true,
+      loggingMode: 'normal',
       nowPlayingEnabled: false,
       lyricsServerFirst: true,
       enableNeteaselyrics: false,
@@ -455,6 +460,7 @@ export const useAuthStore = create<AuthState>()(
       setUseCustomTitlebar: (v) => set({ useCustomTitlebar: v }),
       setPreloadMiniPlayer: (v) => set({ preloadMiniPlayer: v }),
       setLinuxWebkitKineticScroll: (v) => set({ linuxWebkitKineticScroll: v }),
+      setLoggingMode: (v) => set({ loggingMode: v }),
       setNowPlayingEnabled: (v) => set({ nowPlayingEnabled: v }),
       setLyricsServerFirst: (v: boolean) => set({ lyricsServerFirst: v }),
       setEnableNeteaselyrics: (v: boolean) => set({ enableNeteaselyrics: v }),

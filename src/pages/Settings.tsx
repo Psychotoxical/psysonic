@@ -22,7 +22,7 @@ import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useShallow } from 'zustand/react/shallow';
-import { useAuthStore, ServerProfile, MIX_MIN_RATING_FILTER_MAX_STARS, type SeekbarStyle, type LyricsSourceId, type LyricsSourceConfig } from '../store/authStore';
+import { useAuthStore, ServerProfile, MIX_MIN_RATING_FILTER_MAX_STARS, type SeekbarStyle, type LyricsSourceId, type LyricsSourceConfig, type LoggingMode } from '../store/authStore';
 import { SeekbarPreview } from '../components/WaveformSeek';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
 import { useThemeStore } from '../store/themeStore';
@@ -40,7 +40,7 @@ import {
   type NdUser, type NdLibrary,
 } from '../api/navidromeAdmin';
 import { switchActiveServer } from '../utils/switchActiveServer';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import ConfirmModal from '../components/ConfirmModal';
 import { Trans, useTranslation } from 'react-i18next';
 import Equalizer from '../components/Equalizer';
@@ -1154,6 +1154,23 @@ export default function Settings() {
     const selected = await openDialog({ directory: true, multiple: false, title: t('settings.pickFolderTitle') });
     if (selected && typeof selected === 'string') {
       auth.setDownloadFolder(selected);
+    }
+  };
+
+  const exportRuntimeLogs = async () => {
+    const suggestedName = `psysonic-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+    const selected = await saveDialog({
+      defaultPath: suggestedName,
+      filters: [{ name: 'Log files', extensions: ['log', 'txt'] }],
+      title: t('settings.loggingExport'),
+    });
+    if (!selected || Array.isArray(selected)) return;
+    try {
+      const lines = await invoke<number>('export_runtime_logs', { path: selected });
+      showToast(t('settings.loggingExportSuccess', { count: lines }), 3500, 'info');
+    } catch (e) {
+      console.error(e);
+      showToast(t('settings.loggingExportError'), 4500, 'error');
     }
   };
 
@@ -2927,7 +2944,35 @@ export default function Settings() {
 
       {activeTab === 'system' && (
         <>
-        <BackupSection />
+          <BackupSection />
+          <section className="settings-section">
+            <div className="settings-section-header">
+              <Sliders size={18} />
+              <h2>{t('settings.loggingTitle')}</h2>
+            </div>
+            <div className="settings-card">
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                {t('settings.loggingModeDesc')}
+              </div>
+              <CustomSelect
+                value={auth.loggingMode}
+                onChange={(v) => auth.setLoggingMode(v as LoggingMode)}
+                options={[
+                  { value: 'off', label: t('settings.loggingModeOff') },
+                  { value: 'normal', label: t('settings.loggingModeNormal') },
+                  { value: 'debug', label: t('settings.loggingModeDebug') },
+                ]}
+              />
+              {auth.loggingMode === 'debug' && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <button className="btn btn-surface" onClick={exportRuntimeLogs}>
+                    <Download size={14} />
+                    {t('settings.loggingExport')}
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
           <section className="settings-section">
             <div className="settings-section-header">
               <Info size={18} />

@@ -169,14 +169,14 @@ pub fn try_completions_dispatch(args: &[String]) -> Option<i32> {
             Some(0)
         }
         Some(x) => {
-            eprintln!("NOT OK: unknown completions subcommand {x:?} (expected: bash, zsh, help)");
+            crate::app_eprintln!("NOT OK: unknown completions subcommand {x:?} (expected: bash, zsh, help)");
             Some(2)
         }
     }
 }
 
 fn print_completions_install_help(program: &str) {
-    eprintln!(
+    crate::app_eprintln!(
         "Psysonic embeds bash/zsh completion scripts in this binary.\n\
          \n\
          Bash — try once in this shell:\n\
@@ -213,58 +213,58 @@ pub fn write_cli_snapshot(payload: &Value) -> Result<(), String> {
 
 pub fn print_help(program: &str) {
     let version = env!("CARGO_PKG_VERSION");
-    eprintln!("Psysonic {version}\n");
-    eprintln!("── Start ──");
-    eprintln!("  {program}");
-    eprintln!("  {program} --version | -V     Print version and exit.");
-    eprintln!("  {program} --help | -h        Show this help.\n");
-    eprintln!("── Shell completion (scripts are embedded in the binary) ──");
-    eprintln!("  {program} completions          How to enable tab completion in bash / zsh.");
-    eprintln!("  {program} completions bash   Print bash completion script (stdout).");
-    eprintln!("  {program} completions zsh    Print zsh _psysonic script (stdout).\n");
-    eprintln!("── Snapshot (saved play state / queue) ──");
-    eprintln!("  Reads a JSON file written by the running app. Open the main window at least once.");
-    eprintln!("  {program} --info             Human-readable summary.");
-    eprintln!("  {program} --info --json      One JSON object on stdout.");
-    eprintln!("  Linux: exits with an error if the primary instance is not on the session D-Bus.");
-    eprintln!("  Windows / macOS: no D-Bus check; an empty or missing file means the UI has not");
-    eprintln!("  published a snapshot yet.\n");
-    eprintln!("── Remote commands (--player …) ──");
-    eprintln!("  Require the main Psysonic process. Same flags on Linux, Windows, and macOS.");
-    eprintln!("  Linux: a second CLI process can forward over D-Bus without opening another window.");
-    eprintln!("  Windows / macOS: handled via single-instance (a helper process may run briefly).\n");
-    eprintln!("  Global flags (place before --player when needed):");
-    eprintln!("    --quiet | -q     Suppress \"OK: …\" lines (stderr errors are always shown).");
-    eprintln!("    --json           With `audio-device list`, `library list`, `server list`, or `search`: JSON on stdout.");
-    eprintln!("    Use  {program} -q --player seek -5  so the seek delta is not parsed as a flag.\n");
-    eprintln!("  Playback");
-    eprintln!("    {program} [--quiet|-q] --player next | prev | play | pause | stop");
-    eprintln!("    {program} [--quiet|-q] --player play <id>   Track, album, or artist id (artist → shuffled library).");
-    eprintln!("    {program} [--quiet|-q] --player seek <seconds>      Integer delta, e.g. 15 or -10");
-    eprintln!("    {program} [--quiet|-q] --player volume <0-100>     Absolute volume percent.");
-    eprintln!("    {program} [--quiet|-q] --player shuffle         Shuffle the current queue.");
-    eprintln!("    {program} [--quiet|-q] --player repeat off|all|one");
-    eprintln!("    {program} [--quiet|-q] --player mute | unmute");
-    eprintln!("    {program} [--quiet|-q] --player star | unstar     Current track (Subsonic star).");
-    eprintln!("    {program} [--quiet|-q] --player rating <0-5>     Set song rating (0 clears).");
-    eprintln!("    {program} [--quiet|-q] --player reload          Restart audio for the current track or reload server queue.\n");
-    eprintln!("  Audio output");
-    eprintln!("    {program} [--json] --player audio-device list");
-    eprintln!("    {program} --player audio-device set <device-id|default>\n");
-    eprintln!("  Music library (Subsonic music folders for the active server)");
-    eprintln!("    {program} [--json] --player library list");
-    eprintln!("    {program} --player library set all | <folder-id>\n");
-    eprintln!("  Servers (saved profiles — same as the in-app server switcher)");
-    eprintln!("    {program} [--json] --player server list");
-    eprintln!("    {program} --player server set <server-id>\n");
-    eprintln!("  Search (active server; respects library folder filter)");
-    eprintln!("    {program} [--json] --player search track <query…>");
-    eprintln!("    {program} [--json] --player search album <query…>");
-    eprintln!("    {program} [--json] --player search artist <query…>\n");
-    eprintln!("  Instant mix (from the track that is currently loaded)");
-    eprintln!("    {program} --player mix append");
-    eprintln!("    {program} --player mix new\n");
-    eprintln!("Exit: 0 on success. Errors print \"NOT OK: …\" on stderr with a non-zero status.");
+    crate::app_eprintln!("Psysonic {version}\n");
+    crate::app_eprintln!("── Start ──");
+    crate::app_eprintln!("  {program}");
+    crate::app_eprintln!("  {program} --version | -V     Print version and exit.");
+    crate::app_eprintln!("  {program} --help | -h        Show this help.\n");
+    crate::app_eprintln!("── Shell completion (scripts are embedded in the binary) ──");
+    crate::app_eprintln!("  {program} completions          How to enable tab completion in bash / zsh.");
+    crate::app_eprintln!("  {program} completions bash   Print bash completion script (stdout).");
+    crate::app_eprintln!("  {program} completions zsh    Print zsh _psysonic script (stdout).\n");
+    crate::app_eprintln!("── Snapshot (saved play state / queue) ──");
+    crate::app_eprintln!("  Reads a JSON file written by the running app. Open the main window at least once.");
+    crate::app_eprintln!("  {program} --info             Human-readable summary.");
+    crate::app_eprintln!("  {program} --info --json      One JSON object on stdout.");
+    crate::app_eprintln!("  Linux: exits with an error if the primary instance is not on the session D-Bus.");
+    crate::app_eprintln!("  Windows / macOS: no D-Bus check; an empty or missing file means the UI has not");
+    crate::app_eprintln!("  published a snapshot yet.\n");
+    crate::app_eprintln!("── Remote commands (--player …) ──");
+    crate::app_eprintln!("  Require the main Psysonic process. Same flags on Linux, Windows, and macOS.");
+    crate::app_eprintln!("  Linux: a second CLI process can forward over D-Bus without opening another window.");
+    crate::app_eprintln!("  Windows / macOS: handled via single-instance (a helper process may run briefly).\n");
+    crate::app_eprintln!("  Global flags (place before --player when needed):");
+    crate::app_eprintln!("    --quiet | -q     Suppress \"OK: …\" lines (stderr errors are always shown).");
+    crate::app_eprintln!("    --json           With `audio-device list`, `library list`, `server list`, or `search`: JSON on stdout.");
+    crate::app_eprintln!("    Use  {program} -q --player seek -5  so the seek delta is not parsed as a flag.\n");
+    crate::app_eprintln!("  Playback");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player next | prev | play | pause | stop");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player play <id>   Track, album, or artist id (artist → shuffled library).");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player seek <seconds>      Integer delta, e.g. 15 or -10");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player volume <0-100>     Absolute volume percent.");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player shuffle         Shuffle the current queue.");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player repeat off|all|one");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player mute | unmute");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player star | unstar     Current track (Subsonic star).");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player rating <0-5>     Set song rating (0 clears).");
+    crate::app_eprintln!("    {program} [--quiet|-q] --player reload          Restart audio for the current track or reload server queue.\n");
+    crate::app_eprintln!("  Audio output");
+    crate::app_eprintln!("    {program} [--json] --player audio-device list");
+    crate::app_eprintln!("    {program} --player audio-device set <device-id|default>\n");
+    crate::app_eprintln!("  Music library (Subsonic music folders for the active server)");
+    crate::app_eprintln!("    {program} [--json] --player library list");
+    crate::app_eprintln!("    {program} --player library set all | <folder-id>\n");
+    crate::app_eprintln!("  Servers (saved profiles — same as the in-app server switcher)");
+    crate::app_eprintln!("    {program} [--json] --player server list");
+    crate::app_eprintln!("    {program} --player server set <server-id>\n");
+    crate::app_eprintln!("  Search (active server; respects library folder filter)");
+    crate::app_eprintln!("    {program} [--json] --player search track <query…>");
+    crate::app_eprintln!("    {program} [--json] --player search album <query…>");
+    crate::app_eprintln!("    {program} [--json] --player search artist <query…>\n");
+    crate::app_eprintln!("  Instant mix (from the track that is currently loaded)");
+    crate::app_eprintln!("    {program} --player mix append");
+    crate::app_eprintln!("    {program} --player mix new\n");
+    crate::app_eprintln!("Exit: 0 on success. Errors print \"NOT OK: …\" on stderr with a non-zero status.");
 }
 
 /// Wait for the webview to write `psysonic-cli-library.json` after `cli:library-list`.
@@ -585,11 +585,11 @@ pub fn run_info_and_exit(args: &[String]) -> ! {
         match linux_is_primary_instance_running() {
             Ok(true) => {}
             Ok(false) => {
-                eprintln!("NOT OK: Psysonic is not running");
+                crate::app_eprintln!("NOT OK: Psysonic is not running");
                 std::process::exit(2);
             }
             Err(e) => {
-                eprintln!("NOT OK: {e}");
+                crate::app_eprintln!("NOT OK: {e}");
                 std::process::exit(1);
             }
         }
@@ -600,7 +600,7 @@ pub fn run_info_and_exit(args: &[String]) -> ! {
     let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
     let empty = v.is_null() || v.as_object().map(|m| m.is_empty()).unwrap_or(true);
     if empty {
-        eprintln!("NOT OK: no CLI snapshot yet — wait until the main window has loaded.");
+        crate::app_eprintln!("NOT OK: no CLI snapshot yet — wait until the main window has loaded.");
         std::process::exit(3);
     }
 
@@ -608,7 +608,7 @@ pub fn run_info_and_exit(args: &[String]) -> ! {
         match serde_json::to_string(&v) {
             Ok(line) => println!("{line}"),
             Err(e) => {
-                eprintln!("NOT OK: {e}");
+                crate::app_eprintln!("NOT OK: {e}");
                 std::process::exit(1);
             }
         }

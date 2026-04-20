@@ -203,11 +203,11 @@ pub fn init(app: &AppHandle, hwnd_raw: isize) {
             &TaskbarList, None, CLSCTX_INPROC_SERVER,
         ) {
             Ok(t)  => t,
-            Err(e) => { eprintln!("[psysonic] taskbar: CoCreateInstance failed: {e}"); return; }
+            Err(e) => { crate::app_eprintln!("[psysonic] taskbar: CoCreateInstance failed: {e}"); return; }
         };
 
         if let Err(e) = taskbar.HrInit() {
-            eprintln!("[psysonic] taskbar: HrInit failed: {e}");
+            crate::app_eprintln!("[psysonic] taskbar: HrInit failed: {e}");
             return;
         }
 
@@ -224,7 +224,7 @@ pub fn init(app: &AppHandle, hwnd_raw: isize) {
 
         let mut buttons = make_buttons(h_prev, h_play, h_next);
         if let Err(e) = taskbar.ThumbBarAddButtons(hwnd, &mut buttons) {
-            eprintln!("[psysonic] taskbar: ThumbBarAddButtons failed: {e}");
+            crate::app_eprintln!("[psysonic] taskbar: ThumbBarAddButtons failed: {e}");
             return;
         }
 
@@ -234,7 +234,7 @@ pub fn init(app: &AppHandle, hwnd_raw: isize) {
 
         let data = Box::into_raw(Box::new(SubclassData { app: app.clone() }));
         if !SetWindowSubclass(hwnd, Some(subclass_proc), SUBCLASS_ID, data as usize).as_bool() {
-            eprintln!("[psysonic] taskbar: SetWindowSubclass failed");
+            crate::app_eprintln!("[psysonic] taskbar: SetWindowSubclass failed");
             drop(Box::from_raw(data));
         }
     }
@@ -268,8 +268,7 @@ pub fn update_taskbar_icon(is_playing: bool) {
 
         let mut btns = [btn];
         if let Err(e) = taskbar.ThumbBarUpdateButtons(hwnd, &mut btns) {
-            #[cfg(debug_assertions)]
-            eprintln!("[psysonic] taskbar: ThumbBarUpdateButtons failed: {e}");
+            crate::app_deprintln!("[psysonic] taskbar: ThumbBarUpdateButtons failed: {e}");
             let _ = e;
         }
     }
