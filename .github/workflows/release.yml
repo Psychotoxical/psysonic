@@ -240,6 +240,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -291,7 +292,9 @@ jobs:
           # cachix dedupes against anything already in the cache.
           nix path-info --recursive .#psysonic | cachix push psysonic
 
-      - name: commit + push refreshed lock and hash (if changed)
+      - name: open + auto-merge PR with refreshed lock and hash (if changed)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -302,5 +305,13 @@ jobs:
             exit 0
           fi
           VERSION="${{ needs.create-release.outputs.package_version }}"
+          BRANCH="chore/nix-lock-refresh-v${VERSION}"
+          git checkout -b "$BRANCH"
           git commit -m "chore(nix): refresh lock + npmDepsHash for v${VERSION}"
-          git push origin HEAD:main
+          git push origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(nix): refresh lock + npmDepsHash for v${VERSION}" \
+            --body "Auto-generated after the v${VERSION} release: refreshes \`flake.lock\` and \`nix/upstream-sources.json\` so the Cachix substituter resolves the latest pin."
+          gh pr merge "$BRANCH" --squash --auto --delete-branch
