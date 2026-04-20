@@ -20,6 +20,9 @@ All requests go to the [Last.fm API](https://www.last.fm/api). Your Last.fm cred
 ### LRCLIB (Lyrics)
 When lyrics are fetched from LRCLIB, Psysonic sends the track title, artist, album, and duration to [lrclib.net](https://lrclib.net) as a search query. No account is required. This feature can be disabled in Settings → Lyrics.
 
+### YouLyPlus (Lyrics)
+If YouLyPlus mode is selected in Settings → Lyrics, Psysonic sends the track title, artist, album, duration, and ISRC (when available) to a community-operated [lyricsplus](https://lyricsplus.prjktla.my.id) backend to fetch word-synced karaoke lyrics. No account is required. Requests are routed through a list of public mirrors; the data they receive is limited to the search query above. This feature is disabled by default.
+
 ### NetEase Cloud Music (Lyrics)
 If NetEase is enabled as a lyrics source in Settings → Lyrics, Psysonic sends the track artist and title to the NetEase Cloud Music API (via a Rust-side proxy request) to search for synced lyrics. No account is required. This feature is disabled by default.
 
