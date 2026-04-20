@@ -30,6 +30,7 @@ export const nbTranslation = {
     allLibraries: 'Alle biblioteker',
     expandPlaylists: 'Utvid spillelister',
     collapsePlaylists: 'Skjul spillelister',
+    more: 'Mer',
   },
   home: {
     hero: 'Utvalgt',

@@ -31,6 +31,7 @@ export const ruTranslation = {
     allLibraries: 'Все библиотеки',
     expandPlaylists: 'Развернуть плейлисты',
     collapsePlaylists: 'Свернуть плейлисты',
+    more: 'Ещё',
   },
   home: {
     hero: 'Подборка',

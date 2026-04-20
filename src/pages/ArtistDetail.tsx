@@ -4,7 +4,8 @@ import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, sear
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';
-import { ArrowLeft, Users, ExternalLink, Heart, Play, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, ExternalLink, Heart, Play, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
@@ -15,6 +16,7 @@ import { lastfmGetSimilarArtists, lastfmIsConfigured } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
 import { invalidateCoverArt } from '../utils/imageCache';
 import { showToast } from '../utils/toast';
+import { extractCoverColors } from '../utils/dynamicColors';
 import StarRating from '../components/StarRating';
 
 function formatDuration(seconds: number): string {
@@ -62,7 +64,10 @@ export default function ArtistDetail() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [similarCollapsed, setSimilarCollapsed] = useState(true);
+  const isMobile = useIsMobile();
   const [coverRevision, setCoverRevision] = useState(0);
+  const [avatarGlow, setAvatarGlow] = useState('');
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const playTrack = usePlayerStore(state => state.playTrack);
@@ -91,6 +96,7 @@ export default function ArtistDetail() {
     setInfo(null);
     setTopSongs([]);
     setFeaturedAlbums([]);
+    setAvatarGlow('');
     getArtist(id).then(artistData => {
       if (cancelled) return;
       setArtist(artistData.artist);
@@ -449,7 +455,14 @@ export default function ArtistDetail() {
       )}
 
       <div className="artist-detail-header">
-        <div className="artist-detail-avatar" style={{ position: 'relative' }}>
+        <div
+          className="artist-detail-avatar"
+          style={{
+            position: 'relative',
+            boxShadow: avatarGlow ? `0 0 36px 8px ${avatarGlow.replace('rgb(', 'rgba(').replace(')', ', 0.55)')}` : undefined,
+            transition: 'box-shadow 0.6s ease',
+          }}
+        >
           {coverId ? (
             <button
               className="artist-detail-avatar-btn"
@@ -462,6 +475,7 @@ export default function ArtistDetail() {
                 cacheKey={coverArtCacheKey(coverId, 300)}
                 alt={artist.name}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onLoad={e => extractCoverColors(e.currentTarget.src).then(({ accent }) => { if (accent) setAvatarGlow(accent); })}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
             </button>
@@ -538,15 +552,25 @@ export default function ArtistDetail() {
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Play size={16} />}
                   {t('artistDetail.playAll')}
                 </button>
-                <button className="btn btn-surface" onClick={handleShuffle} disabled={playAllLoading}>
+                <button
+                  className="btn btn-surface"
+                  onClick={handleShuffle}
+                  disabled={playAllLoading}
+                  data-tooltip={isMobile ? t('artistDetail.shuffle') : undefined}
+                >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Shuffle size={16} />}
-                  {t('artistDetail.shuffle')}
+                  {!isMobile && t('artistDetail.shuffle')}
                 </button>
               </>
             )}
-            <button className="btn btn-surface" onClick={handleStartRadio} disabled={radioLoading}>
+            <button
+              className="btn btn-surface"
+              onClick={handleStartRadio}
+              disabled={radioLoading}
+              data-tooltip={isMobile ? t('artistDetail.radio') : undefined}
+            >
               {radioLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Radio size={16} />}
-              {radioLoading ? t('artistDetail.loading') : t('artistDetail.radio')}
+              {!isMobile && (radioLoading ? t('artistDetail.loading') : t('artistDetail.radio'))}
             </button>
             {albums.length > 0 && (() => {
               const progress = id ? bulkProgress[id] : undefined;
@@ -564,9 +588,9 @@ export default function ArtistDetail() {
                   {isDownloading
                     ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
                     : isDone ? <Check size={16} /> : <HardDriveDownload size={16} />}
-                  {isDownloading
+                  {!isMobile && (isDownloading
                     ? t('artistDetail.offlineDownloading', { done: progress.done, total: progress.total })
-                    : isDone ? t('artistDetail.offlineCached') : t('artistDetail.cacheOffline')}
+                    : isDone ? t('artistDetail.offlineCached') : t('artistDetail.cacheOffline'))}
                 </button>
               );
             })()}
@@ -665,9 +689,20 @@ export default function ArtistDetail() {
 
       {showSimilarSection && (
         <>
-          <h2 className="section-title" style={{ marginTop: '2rem', marginBottom: '1rem' }}>
-            {t('artistDetail.similarArtists')}
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2rem', marginBottom: '1rem' }}>
+            <h2 className="section-title" style={{ margin: 0 }}>
+              {t('artistDetail.similarArtists')}
+            </h2>
+            {isMobile && (() => {
+              const list = showAudiomuseSimilar ? serverSimilarArtists : similarArtists;
+              return list.length > 5 ? (
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setSimilarCollapsed(v => !v)}>
+                  {similarCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                  {similarCollapsed ? t('nowPlaying.readMore') : t('nowPlaying.showLess')}
+                </button>
+              ) : null;
+            })()}
+          </div>
           {showLastfmSimilar && similarLoading ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
@@ -675,15 +710,17 @@ export default function ArtistDetail() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {(showAudiomuseSimilar ? serverSimilarArtists : similarArtists).map(a => (
-                <button
-                  key={a.id}
-                  className="artist-ext-link"
-                  onClick={() => navigate(`/artist/${a.id}`)}
-                >
-                  {a.name}
-                </button>
-              ))}
+              {(showAudiomuseSimilar ? serverSimilarArtists : similarArtists)
+                .slice(0, isMobile && similarCollapsed ? 5 : undefined)
+                .map(a => (
+                  <button
+                    key={a.id}
+                    className="artist-ext-link"
+                    onClick={() => navigate(`/artist/${a.id}`)}
+                  >
+                    {a.name}
+                  </button>
+                ))}
             </div>
           )}
         </>
@@ -695,7 +732,7 @@ export default function ArtistDetail() {
       </h2>
 
       {albums.length > 0 ? (
-        <div className="album-grid-wrap">
+        <div className="album-grid-wrap album-grid-wrap--artist">
           {albums.map(a => <AlbumCard key={a.id} album={a} />)}
         </div>
       ) : (
@@ -715,7 +752,7 @@ export default function ArtistDetail() {
               ))}
             </div>
           ) : (
-            <div className="album-grid-wrap" style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className="album-grid-wrap album-grid-wrap--artist" style={{ animation: 'fadeIn 0.3s ease' }}>
               {featuredAlbums.map(a => <AlbumCard key={a.id} album={a} />)}
             </div>
           )}
