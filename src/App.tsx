@@ -147,6 +147,7 @@ function AppShell() {
   const setMusicFolders = useAuthStore(s => s.setMusicFolders);
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const linuxWebkitKineticScroll = useAuthStore(s => s.linuxWebkitKineticScroll);
+  const loggingMode = useAuthStore(s => s.loggingMode);
   const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
@@ -175,6 +176,10 @@ function AppShell() {
     if (!IS_LINUX) return;
     invoke('set_linux_webkit_smooth_scrolling', { enabled: linuxWebkitKineticScroll }).catch(() => {});
   }, [linuxWebkitKineticScroll]);
+
+  useEffect(() => {
+    invoke('set_logging_mode', { mode: loggingMode }).catch(() => {});
+  }, [loggingMode]);
 
   useEffect(() => {
     if (!isLoggedIn || !activeServerId) return;

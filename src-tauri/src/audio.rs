@@ -636,7 +636,7 @@ impl Read for AudioStreamReader {
                 return Ok(0);
             }
             if std::time::Instant::now() >= self.deadline {
-                eprintln!(
+                crate::app_eprintln!(
                     "[{}] AudioStreamReader: {}s without data → EOF",
                     self.source_tag,
                     RADIO_READ_TIMEOUT_SECS
@@ -892,7 +892,7 @@ async fn radio_download_task(
             Some(r) => r,
             None => {
                 if reconnect_count >= MAX_CONSECUTIVE_FAILURES {
-                    eprintln!("[radio] {MAX_CONSECUTIVE_FAILURES} consecutive failures — giving up");
+                    crate::app_eprintln!("[radio] {MAX_CONSECUTIVE_FAILURES} consecutive failures — giving up");
                     break 'outer;
                 }
                 tokio::time::sleep(Duration::from_millis(500)).await;
@@ -904,15 +904,15 @@ async fn radio_download_task(
                     .await
                 {
                     Ok(r) if r.status().is_success() => {
-                        eprintln!("[radio] reconnected ({bytes_total} B so far)");
+                        crate::app_eprintln!("[radio] reconnected ({bytes_total} B so far)");
                         r
                     }
                     Ok(r) => {
-                        eprintln!("[radio] reconnect: HTTP {} — giving up", r.status());
+                        crate::app_eprintln!("[radio] reconnect: HTTP {} — giving up", r.status());
                         break 'outer;
                     }
                     Err(e) => {
-                        eprintln!("[radio] reconnect error: {e} — giving up");
+                        crate::app_eprintln!("[radio] reconnect error: {e} — giving up");
                         break 'outer;
                     }
                 }
@@ -942,7 +942,7 @@ async fn radio_download_task(
                         let fill_pct = ((1.0
                             - prod.free_len() as f32 / RADIO_BUF_CAPACITY as f32)
                             * 100.0) as u32;
-                        eprintln!(
+                        crate::app_eprintln!(
                             "[radio] hard pause: {fill_pct}% full, \
                              paused >{RADIO_HARD_PAUSE_SECS}s → disconnecting"
                         );
@@ -968,7 +968,7 @@ async fn radio_download_task(
                     if let Some(ref mut interceptor) = icy {
                         if let Some(meta) = interceptor.process(&chunk, &mut audio_scratch) {
                             let label = if meta.is_ad { "[Ad]" } else { "" };
-                            eprintln!("[radio] ICY StreamTitle: {}{}", label, meta.title);
+                            crate::app_eprintln!("[radio] ICY StreamTitle: {}{}", label, meta.title);
                             let _ = app.emit("radio:metadata", &meta);
                         }
                     } else {
@@ -989,12 +989,12 @@ async fn radio_download_task(
                 }
                 Some(Err(e)) => {
                     reconnect_count += 1;
-                    eprintln!("[radio] stream error: {e} → reconnecting (consecutive #{reconnect_count})");
+                    crate::app_eprintln!("[radio] stream error: {e} → reconnecting (consecutive #{reconnect_count})");
                     break 'inner;
                 }
                 None => {
                     reconnect_count += 1;
-                    eprintln!("[radio] stream ended cleanly → reconnecting (consecutive #{reconnect_count})");
+                    crate::app_eprintln!("[radio] stream ended cleanly → reconnecting (consecutive #{reconnect_count})");
                     break 'inner;
                 }
             }
@@ -1007,7 +1007,7 @@ async fn radio_download_task(
         // within a few seconds rather than minutes.
     } // 'outer
 
-    eprintln!("[radio] download task done ({bytes_total} B total)");
+    crate::app_eprintln!("[radio] download task done ({bytes_total} B total)");
 }
 
 /// One-shot HTTP downloader for track streaming starts.
@@ -1044,7 +1044,7 @@ async fn track_download_task(
                 Ok(r) => r,
                 Err(err) => {
                     if reconnects >= TRACK_STREAM_MAX_RECONNECTS {
-                        eprintln!(
+                        crate::app_eprintln!(
                             "[audio] streaming reconnect failed after {} attempts: {}",
                             reconnects, err
                         );
@@ -1058,7 +1058,7 @@ async fn track_download_task(
             }
         };
         if downloaded > 0 && response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
-            eprintln!(
+            crate::app_eprintln!(
                 "[audio] streaming reconnect returned {}, expected 206 for range resume",
                 response.status()
             );
@@ -1066,7 +1066,7 @@ async fn track_download_task(
             return;
         }
         if downloaded == 0 && !response.status().is_success() {
-            eprintln!("[audio] streaming HTTP {}", response.status());
+            crate::app_eprintln!("[audio] streaming HTTP {}", response.status());
             done.store(true, Ordering::SeqCst);
             return;
         }
@@ -1081,7 +1081,7 @@ async fn track_download_task(
                 Ok(c) => c,
                 Err(e) => {
                     if reconnects >= TRACK_STREAM_MAX_RECONNECTS {
-                        eprintln!(
+                        crate::app_eprintln!(
                             "[audio] streaming download error after {} reconnects: {}",
                             reconnects, e
                         );
@@ -1089,7 +1089,7 @@ async fn track_download_task(
                         return;
                     }
                     reconnects += 1;
-                    eprintln!(
+                    crate::app_eprintln!(
                         "[audio] streaming download error (attempt {}/{}): {} — reconnecting",
                         reconnects,
                         TRACK_STREAM_MAX_RECONNECTS,
@@ -1155,9 +1155,7 @@ async fn ranged_download_task(
     let mut downloaded: usize = 0;
     let mut reconnects: u32 = 0;
     let mut next_response: Option<reqwest::Response> = Some(initial_response);
-    #[cfg(debug_assertions)]
     let dl_started = Instant::now();
-    #[cfg(debug_assertions)]
     let mut next_progress_mb: usize = 1;
 
     'outer: loop {
@@ -1172,7 +1170,7 @@ async fn ranged_download_task(
                 Ok(r) => r,
                 Err(err) => {
                     if reconnects >= TRACK_STREAM_MAX_RECONNECTS {
-                        eprintln!(
+                        crate::app_eprintln!(
                             "[audio] ranged reconnect failed after {} attempts: {}",
                             reconnects, err
                         );
@@ -1185,14 +1183,14 @@ async fn ranged_download_task(
             }
         };
         if downloaded > 0 && response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
-            eprintln!(
+            crate::app_eprintln!(
                 "[audio] ranged reconnect returned {}, expected 206",
                 response.status()
             );
             break 'outer;
         }
         if downloaded == 0 && !response.status().is_success() {
-            eprintln!("[audio] ranged HTTP {}", response.status());
+            crate::app_eprintln!("[audio] ranged HTTP {}", response.status());
             break 'outer;
         }
 
@@ -1206,14 +1204,14 @@ async fn ranged_download_task(
                 Ok(c) => c,
                 Err(e) => {
                     if reconnects >= TRACK_STREAM_MAX_RECONNECTS {
-                        eprintln!(
+                        crate::app_eprintln!(
                             "[audio] ranged dl error after {} reconnects: {}",
                             reconnects, e
                         );
                         break 'outer;
                     }
                     reconnects += 1;
-                    eprintln!(
+                    crate::app_eprintln!(
                         "[audio] ranged dl error (attempt {}/{}): {} — reconnecting",
                         reconnects, TRACK_STREAM_MAX_RECONNECTS, e
                     );
@@ -1233,19 +1231,16 @@ async fn ranged_download_task(
             }
             downloaded += n;
             downloaded_to.store(downloaded, Ordering::SeqCst);
-            #[cfg(debug_assertions)]
-            {
-                let mb = downloaded / (1024 * 1024);
-                if mb >= next_progress_mb {
-                    let pct = (downloaded as f64 / total_size as f64 * 100.0) as u32;
-                    eprintln!(
-                        "[stream] dl progress: {} MB / {} MB ({}%)",
-                        mb,
-                        total_size / (1024 * 1024),
-                        pct
-                    );
-                    next_progress_mb = mb + 1;
-                }
+            let mb = downloaded / (1024 * 1024);
+            if mb >= next_progress_mb {
+                let pct = (downloaded as f64 / total_size as f64 * 100.0) as u32;
+                crate::app_deprintln!(
+                    "[stream] dl progress: {} MB / {} MB ({}%)",
+                    mb,
+                    total_size / (1024 * 1024),
+                    pct
+                );
+                next_progress_mb = mb + 1;
             }
             if downloaded >= total_size {
                 break;
@@ -1257,8 +1252,7 @@ async fn ranged_download_task(
 
     done.store(true, Ordering::SeqCst);
 
-    #[cfg(debug_assertions)]
-    eprintln!(
+    crate::app_deprintln!(
         "[stream] dl done: {} / {} bytes in {:.2}s ({} reconnects)",
         downloaded,
         total_size,
@@ -1269,8 +1263,7 @@ async fn ranged_download_task(
     if downloaded == total_size && total_size > 0 && total_size <= TRACK_STREAM_PROMOTE_MAX_BYTES {
         let data = buf.lock().unwrap().clone();
         *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack { url, data });
-        #[cfg(debug_assertions)]
-        eprintln!("[stream] promoted to stream_completed_cache for replay");
+        crate::app_deprintln!("[stream] promoted to stream_completed_cache for replay");
     }
 }
 
@@ -1326,9 +1319,8 @@ impl MediaSource for SizedCursorSource {
 // Implements Iterator<Item = i16> + Source — identical interface to
 // rodio::Decoder, so the rest of the source chain is unchanged.
 
-/// Dev-build only: format codec parameters into a human-readable line for
-/// the terminal so you can verify whether playback is genuinely lossless.
-#[cfg(debug_assertions)]
+/// Debug logging: codec parameters in human-readable form to verify whether
+/// playback is genuinely lossless.
 fn log_codec_resolution(
     tag: &str,
     params: &symphonia::core::codecs::CodecParameters,
@@ -1352,7 +1344,7 @@ fn log_codec_resolution(
             "flac" | "alac" | "wavpack" | "monkeys-audio" | "tta" | "shorten"
         );
     let kind = if lossless { "LOSSLESS" } else { "lossy" };
-    eprintln!(
+    crate::app_deprintln!(
         "[stream] {tag}: codec={codec_name} ({kind}) {bits} {rate} {ch} container={}",
         container_hint.unwrap_or("?")
     );
@@ -1418,7 +1410,7 @@ impl SizedDecoder {
             .map_err(|e| {
                 let hint_str = format_hint.unwrap_or("unknown");
                 // Always print the raw Symphonia error to the terminal for diagnosis.
-                eprintln!("[psysonic] probe failed (hint={hint_str}): {e}");
+                crate::app_eprintln!("[psysonic] probe failed (hint={hint_str}): {e}");
                 if e.to_string().to_lowercase().contains("unsupported") {
                     format!("unsupported format: .{hint_str} files cannot be played (no demuxer)")
                 } else {
@@ -1437,7 +1429,7 @@ impl SizedDecoder {
                     && t.codec_params.sample_rate.is_some()
             })
             .ok_or_else(|| {
-                eprintln!("[psysonic] no audio track found among {} tracks", probed.format.tracks().len());
+                crate::app_eprintln!("[psysonic] no audio track found among {} tracks", probed.format.tracks().len());
                 "no playable audio track found in file".to_string()
             })?;
 
@@ -1446,13 +1438,12 @@ impl SizedDecoder {
             .zip(track.codec_params.n_frames)
             .map(|(base, frames)| base.calc_time(frames));
 
-        #[cfg(debug_assertions)]
         log_codec_resolution("bytes", &track.codec_params, format_hint);
 
         let mut decoder = psysonic_codec_registry()
             .make(&track.codec_params, &DecoderOptions::default())
             .map_err(|e| {
-                eprintln!("[psysonic] codec init failed: {e}");
+                crate::app_eprintln!("[psysonic] codec init failed: {e}");
                 if e.to_string().to_lowercase().contains("unsupported") {
                     "unsupported codec: no decoder available for this audio format".to_string()
                 } else {
@@ -1473,25 +1464,25 @@ impl SizedDecoder {
                     break decoder.last_decoded();
                 }
                 Err(e) => {
-                    eprintln!("[psysonic] next_packet error: {e}");
+                    crate::app_eprintln!("[psysonic] next_packet error: {e}");
                     return Err(format!("could not read audio data: {e}"));
                 }
             };
             if packet.track_id() != track_id {
-                eprintln!("[psysonic] skipping packet for track {} (want {})", packet.track_id(), track_id);
+                crate::app_eprintln!("[psysonic] skipping packet for track {} (want {})", packet.track_id(), track_id);
                 continue;
             }
             match decoder.decode(&packet) {
                 Ok(decoded) => break decoded,
                 Err(symphonia::core::errors::Error::DecodeError(ref msg)) => {
                     decode_errors += 1;
-                    eprintln!("[psysonic] init: dropped corrupt frame #{decode_errors}: {msg}");
+                    crate::app_eprintln!("[psysonic] init: dropped corrupt frame #{decode_errors}: {msg}");
                     if decode_errors >= MAX_CONSECUTIVE_DECODE_ERRORS {
                         return Err("too many consecutive decode errors during init — file may be corrupt".into());
                     }
                 }
                 Err(e) => {
-                    eprintln!("[psysonic] fatal decode error: {e}");
+                    crate::app_eprintln!("[psysonic] fatal decode error: {e}");
                     return Err(format!("audio decode error: {e}"));
                 }
             }
@@ -1533,7 +1524,6 @@ impl SizedDecoder {
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
             .ok_or_else(|| format!("{source_tag}: no audio track found"))?;
         let track_id = track.id;
-        #[cfg(debug_assertions)]
         log_codec_resolution(source_tag, &track.codec_params, format_hint);
         // Live streams have no known total frame count → total_duration = None.
         let total_duration = None;
@@ -1552,7 +1542,7 @@ impl SizedDecoder {
                 Ok(d) => break d,
                 Err(symphonia::core::errors::Error::DecodeError(ref msg)) => {
                     errors += 1;
-                    eprintln!("[psysonic] {source_tag} init: dropped corrupt frame #{errors}: {msg}");
+                    crate::app_eprintln!("[psysonic] {source_tag} init: dropped corrupt frame #{errors}: {msg}");
                     if errors >= MAX_CONSECUTIVE_DECODE_ERRORS {
                         return Err(format!("{source_tag}: too many consecutive decode errors"));
                     }
@@ -1631,18 +1621,16 @@ impl Iterator for SizedDecoder {
                         let _ = msg;
                         self.consecutive_decode_errors += 1;
                         // Log sparingly: first drop, then every 10th to avoid spam.
-                        #[cfg(debug_assertions)]
                         if self.consecutive_decode_errors == 1
                             || self.consecutive_decode_errors % 10 == 0
                         {
-                            eprintln!(
+                            crate::app_deprintln!(
                                 "[psysonic] dropped corrupt frame #{}: {msg}",
                                 self.consecutive_decode_errors
                             );
                         }
                         if self.consecutive_decode_errors >= MAX_CONSECUTIVE_DECODE_ERRORS {
-                            #[cfg(debug_assertions)]
-                            eprintln!(
+                            crate::app_deprintln!(
                                 "[psysonic] {MAX_CONSECUTIVE_DECODE_ERRORS} consecutive decode \
                                  failures — stream appears unrecoverable, stopping"
                             );
@@ -2112,7 +2100,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                     if let Ok((stream, handle)) =
                         rodio::OutputStream::try_from_device_config(&device, config)
                     {
-                        eprintln!("[psysonic] audio stream opened at {} Hz (exact)", desired_rate);
+                        crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (exact)", desired_rate);
                         return (stream, handle, desired_rate);
                     }
                 }
@@ -2128,7 +2116,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                     if let Ok((stream, handle)) =
                         rodio::OutputStream::try_from_device_config(&device, config)
                     {
-                        eprintln!(
+                        crate::app_eprintln!(
                             "[psysonic] audio stream opened at {} Hz (highest, wanted {})",
                             rate, desired_rate
                         );
@@ -2144,13 +2132,13 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                 .default_output_config()
                 .map(|c| c.sample_rate().0)
                 .unwrap_or(44100);
-            eprintln!("[psysonic] audio stream opened at {} Hz (device default)", rate);
+            crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (device default)", rate);
             return (stream, handle, rate);
         }
     }
 
     // 4. Last resort: system default.
-    eprintln!("[psysonic] audio stream falling back to system default");
+    crate::app_eprintln!("[psysonic] audio stream falling back to system default");
     let (stream, handle) = rodio::OutputStream::try_default()
         .expect("cannot open any audio output device");
     let rate = rodio::cpal::default_host()
@@ -2368,24 +2356,21 @@ async fn fetch_data(
     }
 
     let response = state.http_client.get(url).send().await.map_err(|e| e.to_string())?;
-    #[cfg(debug_assertions)]
-    {
-        let status = response.status();
-        let ct = response.headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("-");
-        let server_hdr = response.headers()
-            .get("server")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("-");
-        // Strip auth params from URL before logging.
-        let safe_url = url.split('?').next().unwrap_or(url);
-        eprintln!(
-            "[audio] fetch {} → {} | content-type: {} | server: {}",
-            safe_url, status, ct, server_hdr
-        );
-    }
+    let status = response.status();
+    let ct = response.headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+    let server_hdr = response.headers()
+        .get("server")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("-");
+    // Strip auth params from URL before logging.
+    let safe_url = url.split('?').next().unwrap_or(url);
+    crate::app_deprintln!(
+        "[audio] fetch {} → {} | content-type: {} | server: {}",
+        safe_url, status, ct, server_hdr
+    );
     if !response.status().is_success() {
         if state.generation.load(Ordering::SeqCst) != gen {
             return Ok(None); // superseded
@@ -2584,8 +2569,7 @@ pub async fn audio_play(
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(|s| s.to_lowercase());
-            #[cfg(debug_assertions)]
-            eprintln!(
+            crate::app_deprintln!(
                 "[stream] LocalFileSource selected — size={} KB, hint={:?}",
                 len / 1024,
                 local_hint
@@ -2624,8 +2608,7 @@ pub async fn audio_play(
 
             if let (true, Some(total)) = (supports_range, total_size) {
                 let total_usize = total as usize;
-                #[cfg(debug_assertions)]
-                eprintln!(
+                crate::app_deprintln!(
                     "[stream] RangedHttpSource selected — total={} KB, hint={:?}",
                     total_usize / 1024,
                     stream_hint
@@ -2659,8 +2642,7 @@ pub async fn audio_play(
                     tag: "ranged-stream",
                 }
             } else {
-                #[cfg(debug_assertions)]
-                eprintln!(
+                crate::app_deprintln!(
                     "[stream] legacy AudioStreamReader (non-seekable) — accept-ranges={}, content-length={:?}",
                     supports_range, total_size
                 );
@@ -2848,7 +2830,7 @@ pub async fn audio_play(
                         }
                     }
                     Err(_) => {
-                        eprintln!("[psysonic] stream rate switch timed out, keeping {current_stream_rate} Hz");
+                        crate::app_eprintln!("[psysonic] stream rate switch timed out, keeping {current_stream_rate} Hz");
                     }
                 }
             }
@@ -3100,7 +3082,7 @@ pub async fn audio_chain_preload(
     let next_rate = if hi_res_enabled { built.output_rate } else { 44_100 };
     let stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
     if hi_res_enabled && stream_rate > 0 && next_rate != stream_rate {
-        eprintln!(
+        crate::app_eprintln!(
             "[psysonic] gapless chain skipped: next track rate {} Hz ≠ stream {} Hz",
             next_rate, stream_rate
         );
@@ -3187,7 +3169,7 @@ fn spawn_progress_task(
                 // Radio (dur == 0): stream exhausted / connection dropped → stop.
                 let cur_dur = current_arc.lock().unwrap().duration_secs;
                 if cur_dur <= 0.0 {
-                    eprintln!("[radio] current_done fired → emitting audio:ended (dur=0)");
+                    crate::app_eprintln!("[radio] current_done fired → emitting audio:ended (dur=0)");
                     gen_counter.fetch_add(1, Ordering::SeqCst);
                     app.emit("audio:ended", ()).ok();
                     break;
@@ -3349,7 +3331,7 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
                 rs.flags.is_paused.store(false, Ordering::Release);
             }
         } else {
-            eprintln!("[radio] resume: AudioStreamReader gone — skipping reconnect");
+            crate::app_eprintln!("[radio] resume: AudioStreamReader gone — skipping reconnect");
         }
     }
 
@@ -3409,12 +3391,10 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
     // restart-fallback engages instead of rolling the dice on the format reader
     // (which can consume the ring buffer to EOF for forward seeks → next song).
     if !state.current_is_seekable.load(Ordering::SeqCst) {
-        #[cfg(debug_assertions)]
-        eprintln!("[seek] rejected → not-seekable source (legacy stream)");
+        crate::app_deprintln!("[seek] rejected → not-seekable source (legacy stream)");
         return Err("source is not seekable".into());
     }
-    #[cfg(debug_assertions)]
-    eprintln!("[seek] target={:.2}s", seconds);
+    crate::app_deprintln!("[seek] target={:.2}s", seconds);
 
     let lock_current_with_timeout = |timeout_ms: u64| {
         let deadline = Instant::now() + Duration::from_millis(timeout_ms);
@@ -4033,7 +4013,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     if pinned_miss_count < 3 {
                         continue;
                     }
-                    eprintln!("[psysonic] device-watcher: pinned device '{dev_name}' disconnected, falling back to system default");
+                    crate::app_eprintln!("[psysonic] device-watcher: pinned device '{dev_name}' disconnected, falling back to system default");
                     pinned_miss_count = 0;
                     *selected_device.lock().unwrap() = None;
 
@@ -4088,7 +4068,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
             }).await.unwrap_or(None);
 
             let Some(handle) = new_handle else {
-                eprintln!("[psysonic] device-watcher: stream reopen timed out");
+                crate::app_eprintln!("[psysonic] device-watcher: stream reopen timed out");
                 continue;
             };
 

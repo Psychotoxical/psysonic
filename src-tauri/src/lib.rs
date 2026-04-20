@@ -4,6 +4,7 @@
 mod audio;
 pub mod cli;
 mod discord;
+pub(crate) mod logging;
 #[cfg(target_os = "windows")]
 mod taskbar_win;
 
@@ -121,6 +122,16 @@ fn set_linux_webkit_smooth_scrolling(enabled: bool, app_handle: tauri::AppHandle
         let _ = (enabled, app_handle);
     }
     Ok(())
+}
+
+#[tauri::command]
+fn set_logging_mode(mode: String) -> Result<(), String> {
+    crate::logging::set_logging_mode_from_str(&mode)
+}
+
+#[tauri::command]
+fn export_runtime_logs(path: String) -> Result<usize, String> {
+    crate::logging::export_logs_to_file(&path)
 }
 
 
@@ -2667,11 +2678,11 @@ fn try_build_tray_icon(app: &tauri::AppHandle) -> Option<TrayIcon> {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| build_tray_icon(&app))) {
         Ok(Ok(tray)) => Some(tray),
         Ok(Err(e)) => {
-            eprintln!("[Psysonic] System tray unavailable: {e}");
+            crate::app_eprintln!("[Psysonic] System tray unavailable: {e}");
             None
         }
         Err(_) => {
-            eprintln!(
+            crate::app_eprintln!(
                 "[Psysonic] System tray unavailable — missing libayatana-appindicator3 or libappindicator3 \
                  (install the distro package or set LD_LIBRARY_PATH)"
             );
@@ -3106,7 +3117,7 @@ pub fn run() {
                 Ok(crate::cli::LinuxPlayerForwardResult::Forwarded) => std::process::exit(0),
                 Ok(crate::cli::LinuxPlayerForwardResult::ContinueStartup) => {}
                 Err(msg) => {
-                    eprintln!("NOT OK: {msg}");
+                    crate::app_eprintln!("NOT OK: {msg}");
                     std::process::exit(1);
                 }
             }
@@ -3180,7 +3191,7 @@ pub fn run() {
                             .map(|v| !v.is_empty())
                             .unwrap_or(false);
                         if !dbus_ok {
-                            eprintln!("[Psysonic] No D-Bus session — MPRIS media controls disabled");
+                            crate::app_eprintln!("[Psysonic] No D-Bus session — MPRIS media controls disabled");
                             return None;
                         }
                     }
@@ -3196,7 +3207,7 @@ pub fn run() {
                             .and_then(|w| w.hwnd().ok())
                             .map(|h| h.0 as *mut std::ffi::c_void);
                         if h.is_none() {
-                            eprintln!("[Psysonic] Could not get HWND — Windows media controls disabled");
+                            crate::app_eprintln!("[Psysonic] Could not get HWND — Windows media controls disabled");
                             return None;
                         }
                         h
@@ -3241,12 +3252,12 @@ pub fn run() {
                                     _ => {}
                                 }
                             }) {
-                                eprintln!("[Psysonic] Failed to attach media controls: {e:?}");
+                                crate::app_eprintln!("[Psysonic] Failed to attach media controls: {e:?}");
                             }
                             Some(controls)
                         }
                         Err(e) => {
-                            eprintln!("[Psysonic] Could not create media controls: {e:?}");
+                            crate::app_eprintln!("[Psysonic] Could not create media controls: {e:?}");
                             None
                         }
                     }
@@ -3284,7 +3295,7 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             {
                 if let Err(e) = build_mini_player_window(app.handle(), false) {
-                    eprintln!("[psysonic] Failed to pre-create mini window: {e}");
+                    crate::app_eprintln!("[psysonic] Failed to pre-create mini window: {e}");
                 }
             }
 
@@ -3342,6 +3353,8 @@ pub fn run() {
             cli_publish_search_results,
             set_window_decorations,
             set_linux_webkit_smooth_scrolling,
+            set_logging_mode,
+            export_runtime_logs,
             no_compositing_mode,
             is_tiling_wm_cmd,
             open_mini_player,
