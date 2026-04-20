@@ -801,6 +801,8 @@ interface Props {
 }
 
 export default function WaveformSeek({ trackId }: Props) {
+  const SEEK_COMMIT_GUARD_MS = 900;
+  const SEEK_COMMIT_PROGRESS_EPS = 0.02;
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const heightsRef   = useRef<Float32Array | null>(null);
   const progressRef  = useRef(usePlayerStore.getState().progress);
@@ -835,6 +837,13 @@ export default function WaveformSeek({ trackId }: Props) {
       // While user drags, keep the local preview stable. External progress ticks
       // during streaming/recovery would otherwise fight the cursor and flicker.
       if (isDragging.current) return;
+      const pendingCommit = pendingCommittedSeekRef.current;
+      if (pendingCommit) {
+        const matched = Math.abs(state.progress - pendingCommit.fraction) <= SEEK_COMMIT_PROGRESS_EPS;
+        const expired = Date.now() - pendingCommit.setAtMs > SEEK_COMMIT_GUARD_MS;
+        if (!matched && !expired) return;
+        pendingCommittedSeekRef.current = null;
+      }
       progressRef.current = state.progress;
       bufferedRef.current = state.buffered;
       if (!ANIMATED_STYLES.has(styleRef.current)) {
@@ -894,6 +903,7 @@ export default function WaveformSeek({ trackId }: Props) {
   const seekRef = useRef(seek);
   seekRef.current = seek;
   const pendingSeekRef = useRef<number | null>(null);
+  const pendingCommittedSeekRef = useRef<{ fraction: number; setAtMs: number } | null>(null);
 
   // Preview a 0–1 fraction while dragging: draw immediately for 1:1
   // responsiveness; the actual seek is committed on mouseup.
@@ -910,6 +920,7 @@ export default function WaveformSeek({ trackId }: Props) {
     const fraction = pendingSeekRef.current;
     if (fraction === null) return;
     pendingSeekRef.current = null;
+    pendingCommittedSeekRef.current = { fraction, setAtMs: Date.now() };
     seekRef.current(fraction);
   };
 

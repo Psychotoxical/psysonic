@@ -1,5 +1,5 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 #[cfg(unix)]
@@ -3415,6 +3415,7 @@ pub fn audio_stop(state: State<'_, AudioEngine>) {
 #[tauri::command]
 pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), String> {
     const AUDIO_SEEK_TIMEOUT_MS: u64 = 700;
+    const AUDIO_SEEK_LOCK_TIMEOUT_MS: u64 = 40;
     // Ghost-command guard: reject seeks within 500 ms of a gapless auto-advance.
     {
         let switch_ms = state.gapless_switch_at.load(Ordering::SeqCst);
@@ -3440,9 +3441,27 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
     #[cfg(debug_assertions)]
     eprintln!("[seek] target={:.2}s", seconds);
 
+    let lock_current_with_timeout = |timeout_ms: u64| {
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        loop {
+            match state.current.try_lock() {
+                Ok(guard) => break Ok(guard),
+                Err(TryLockError::WouldBlock) => {
+                    if Instant::now() >= deadline {
+                        break Err("audio seek busy".to_string());
+                    }
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Err(TryLockError::Poisoned(_)) => {
+                    break Err("audio state lock poisoned".to_string());
+                }
+            }
+        }
+    };
+
     // Seeking back invalidates any pending gapless chain.
     let cur_pos = {
-        let cur = state.current.lock().unwrap();
+        let cur = lock_current_with_timeout(AUDIO_SEEK_LOCK_TIMEOUT_MS)?;
         cur.position()
     };
     if seconds < cur_pos - 1.0 {
@@ -3482,7 +3501,7 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
         return Ok(());
     }
 
-    let mut cur = state.current.lock().unwrap();
+    let mut cur = lock_current_with_timeout(AUDIO_SEEK_LOCK_TIMEOUT_MS)?;
     if cur.sink.is_none() { return Ok(()); }
 
     if cur.paused_at.is_some() {
