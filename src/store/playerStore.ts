@@ -220,10 +220,23 @@ let seekDebounce: ReturnType<typeof setTimeout> | null = null;
 // Target time of the last seek — blocks stale Rust progress ticks until the
 // engine has actually caught up to the new position.
 let seekTarget: number | null = null;
+let seekTargetSetAt = 0;
+const SEEK_TARGET_GUARD_TIMEOUT_MS = 1200;
 // Streaming fallback seek guard: coalesce repeated "not seekable" recoveries.
 let seekFallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let seekFallbackTrackId: string | null = null;
 let seekFallbackRestartAt = 0;
+let seekFallbackVisualTarget: { trackId: string; seconds: number } | null = null;
+
+function setSeekTarget(seconds: number) {
+  seekTarget = seconds;
+  seekTargetSetAt = Date.now();
+}
+
+function clearSeekTarget() {
+  seekTarget = null;
+  seekTargetSetAt = 0;
+}
 
 // Guard against rapid double-click play/pause sending two state transitions
 // to the Rust backend before it has finished the previous one.
@@ -388,13 +401,28 @@ function handleAudioProgress(current_time: number, duration: number) {
   // position before the seek takes effect.  Block until current_time is
   // within 2 s of the requested target, then clear the guard.
   if (seekTarget !== null) {
-    if (Math.abs(current_time - seekTarget) > 2.0) return;
-    seekTarget = null;
+    if (Math.abs(current_time - seekTarget) > 2.0) {
+      // If a seek command hangs while streaming is stalled, do not freeze UI.
+      if (Date.now() - seekTargetSetAt <= SEEK_TARGET_GUARD_TIMEOUT_MS) return;
+      clearSeekTarget();
+    } else {
+      clearSeekTarget();
+    }
   }
 
   const store = usePlayerStore.getState();
   const track = store.currentTrack;
   if (!track) return;
+  if (seekFallbackVisualTarget && seekFallbackVisualTarget.trackId !== track.id) {
+    seekFallbackVisualTarget = null;
+  }
+  if (
+    seekFallbackVisualTarget
+    && seekFallbackVisualTarget.trackId === track.id
+    && Math.abs(current_time - seekFallbackVisualTarget.seconds) <= 2.0
+  ) {
+    seekFallbackVisualTarget = null;
+  }
   const dur = duration > 0 ? duration : track.duration;
   if (dur <= 0) return;
   const progress = current_time / dur;
@@ -966,7 +994,7 @@ export const usePlayerStore = create<PlayerState>()(
           invoke('audio_stop').catch(console.error);
         }
         isAudioPaused = false;
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
+        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         set({
           isPlaying: false,
           progress: 0,
@@ -986,7 +1014,7 @@ export const usePlayerStore = create<PlayerState>()(
         clearRadioReconnectTimer();
         radioReconnectCount = 0;
         gaplessPreloadingId = null; bytePreloadingId = null;
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
+        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         // Stop Rust engine in case a regular track was playing.
         invoke('audio_stop').catch(() => {});
         // Resolve PLS/M3U playlist URLs to the actual stream URL before handing
@@ -1028,9 +1056,8 @@ export const usePlayerStore = create<PlayerState>()(
         const gen = ++playGeneration;
         isAudioPaused = false;
         gaplessPreloadingId = null; bytePreloadingId = null; // new track — allow fresh preload for next
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
+        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         if (seekFallbackRetryTimer) { clearTimeout(seekFallbackRetryTimer); seekFallbackRetryTimer = null; }
-        seekFallbackTrackId = null;
         seekFallbackRestartAt = 0;
 
         // If a radio stream is active, stop it before the new track starts so
@@ -1044,8 +1071,20 @@ export const usePlayerStore = create<PlayerState>()(
 
         const state = get();
         const prevTrack = state.currentTrack;
+        seekFallbackTrackId = prevTrack?.id === track.id ? seekFallbackTrackId : null;
+        if (seekFallbackVisualTarget?.trackId !== track.id) {
+          seekFallbackVisualTarget = null;
+        }
         const newQueue = queue ?? state.queue;
         const idx = newQueue.findIndex(t => t.id === track.id);
+        const pendingVisualTarget = seekFallbackVisualTarget?.trackId === track.id
+          ? seekFallbackVisualTarget.seconds
+          : null;
+        const initialTime = pendingVisualTarget !== null
+          ? Math.max(0, Math.min(pendingVisualTarget, track.duration || pendingVisualTarget))
+          : 0;
+        const initialProgress =
+          track.duration && track.duration > 0 ? Math.max(0, Math.min(1, initialTime / track.duration)) : 0;
 
         const authState = useAuthStore.getState();
         const url = resolvePlaybackUrl(track.id, authState.activeServerId ?? '');
@@ -1073,9 +1112,9 @@ export const usePlayerStore = create<PlayerState>()(
           currentRadio: null,
           queue: newQueue,
           queueIndex: idx >= 0 ? idx : 0,
-          progress: 0,
+          progress: initialProgress,
           buffered: 0,
-          currentTime: 0,
+          currentTime: initialTime,
           scrobbled: false,
           lastfmLoved: false,
           isPlaying: true, // optimistic — reverted on error
@@ -1141,7 +1180,7 @@ export const usePlayerStore = create<PlayerState>()(
             }));
           });
         }
-        syncQueueToServer(newQueue, track, 0);
+        syncQueueToServer(newQueue, track, initialTime);
         touchHotCacheOnPlayback(track.id, authState.activeServerId ?? '');
       },
 
@@ -1425,11 +1464,14 @@ export const usePlayerStore = create<PlayerState>()(
         if (seekDebounce) clearTimeout(seekDebounce);
         seekDebounce = setTimeout(() => {
           seekDebounce = null;
-          seekTarget = time;
-          invoke('audio_seek', { seconds: time }).catch((err: unknown) => {
+          invoke('audio_seek', { seconds: time }).then(() => {
+            // Arm stale-progress guard only after backend acknowledged seek.
+            setSeekTarget(time);
+            seekFallbackVisualTarget = null;
+          }).catch((err: unknown) => {
             // Release the progress-tick guard so the UI doesn't freeze
             // waiting for a target the engine will never reach.
-            seekTarget = null;
+            clearSeekTarget();
             const msg = String(err ?? '');
             if (!msg.includes('not seekable')) {
               console.error(err);
@@ -1443,6 +1485,10 @@ export const usePlayerStore = create<PlayerState>()(
             const sameBurst =
               seekFallbackTrackId === s.currentTrack.id
               && now - seekFallbackRestartAt < 600;
+            seekFallbackVisualTarget = {
+              trackId: s.currentTrack.id,
+              seconds: time,
+            };
             if (!sameBurst) {
               seekFallbackTrackId = s.currentTrack.id;
               seekFallbackRestartAt = now;
@@ -1452,7 +1498,10 @@ export const usePlayerStore = create<PlayerState>()(
             if (seekFallbackRetryTimer) clearTimeout(seekFallbackRetryTimer);
             seekFallbackRetryTimer = setTimeout(() => {
               seekFallbackRetryTimer = null;
-              invoke('audio_seek', { seconds: time }).catch(() => {});
+              invoke('audio_seek', { seconds: time }).then(() => {
+                setSeekTarget(time);
+                seekFallbackVisualTarget = null;
+              }).catch(() => {});
             }, 220);
           });
         }, 100);
@@ -1533,7 +1582,7 @@ export const usePlayerStore = create<PlayerState>()(
       clearQueue: () => {
         invoke('audio_stop').catch(console.error);
         isAudioPaused = false;
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } seekTarget = null;
+        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         set({ queue: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
         syncQueueToServer([], null, 0);
       },

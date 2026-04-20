@@ -204,14 +204,21 @@ export default function MobilePlayerView() {
   // Scrubber touch/mouse drag
   const scrubberRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+  const pendingSeekRef = useRef<number | null>(null);
+  const [previewProgress, setPreviewProgress] = useState<number | null>(null);
+
+  const setPreviewSeek = useCallback((pct: number) => {
+    pendingSeekRef.current = pct;
+    setPreviewProgress(pct);
+  }, []);
 
   const seekFromX = useCallback((clientX: number) => {
     const el = scrubberRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    seek(pct);
-  }, [seek]);
+    setPreviewSeek(pct);
+  }, [setPreviewSeek]);
 
   const onScrubStart = useCallback((clientX: number) => {
     isDragging.current = true;
@@ -224,7 +231,14 @@ export default function MobilePlayerView() {
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       seekFromX(clientX);
     };
-    const onEnd = () => { isDragging.current = false; };
+    const onEnd = () => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      const pending = pendingSeekRef.current;
+      pendingSeekRef.current = null;
+      setPreviewProgress(null);
+      if (pending !== null) seek(pending);
+    };
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onEnd);
@@ -237,6 +251,11 @@ export default function MobilePlayerView() {
       window.removeEventListener('touchend', onEnd);
     };
   }, [seekFromX]);
+
+  useEffect(() => {
+    pendingSeekRef.current = null;
+    setPreviewProgress(null);
+  }, [currentTrack?.id]);
 
   // Drawers
   const [showQueue, setShowQueue] = useState(false);
@@ -264,6 +283,11 @@ export default function MobilePlayerView() {
   const bgStyle: CSSProperties = {
     background: `radial-gradient(ellipse 160% 55% at 50% 20%, rgba(${accentColor}, 0.38) 0%, var(--bg-app) 65%)`,
   };
+  const effectiveProgress = previewProgress ?? progress;
+  const effectiveTime =
+    previewProgress !== null && duration > 0
+      ? previewProgress * duration
+      : currentTime;
 
   return (
     <div className="mp-view" style={bgStyle}>
@@ -328,12 +352,12 @@ export default function MobilePlayerView() {
           onTouchStart={e => onScrubStart(e.touches[0].clientX)}
         >
           <div className="mp-scrubber-bg" />
-          <div className="mp-scrubber-fill" style={{ width: `${progress * 100}%` }} />
-          <div className="mp-scrubber-thumb" style={{ left: `${progress * 100}%` }} />
+          <div className="mp-scrubber-fill" style={{ width: `${effectiveProgress * 100}%` }} />
+          <div className="mp-scrubber-thumb" style={{ left: `${effectiveProgress * 100}%` }} />
         </div>
         <div className="mp-scrubber-times">
-          <span>{formatTime(currentTime)}</span>
-          <span>-{formatTime(Math.max(0, duration - currentTime))}</span>
+          <span>{formatTime(effectiveTime)}</span>
+          <span>-{formatTime(Math.max(0, duration - effectiveTime))}</span>
         </div>
       </div>
 

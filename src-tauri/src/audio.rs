@@ -3414,6 +3414,7 @@ pub fn audio_stop(state: State<'_, AudioEngine>) {
 
 #[tauri::command]
 pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), String> {
+    const AUDIO_SEEK_TIMEOUT_MS: u64 = 700;
     // Ghost-command guard: reject seeks within 500 ms of a gapless auto-advance.
     {
         let switch_ms = state.gapless_switch_at.load(Ordering::SeqCst);
@@ -3448,17 +3449,46 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
         *state.chained_info.lock().unwrap() = None;
     }
 
+    let seek_seconds = seconds.max(0.0);
+    let seek_duration = Duration::from_secs_f64(seek_seconds);
+    let seek_generation = state.generation.load(Ordering::SeqCst);
+    let current_arc = state.current.clone();
+
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    std::thread::spawn(move || {
+        let result = {
+            let cur = current_arc.lock().unwrap();
+            match cur.sink.as_ref() {
+                Some(sink) => sink.try_seek(seek_duration).map_err(|e| e.to_string()),
+                None => Ok(()),
+            }
+        };
+        let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(Duration::from_millis(AUDIO_SEEK_TIMEOUT_MS)) {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => return Err(e),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            return Err("audio seek timeout".into());
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            return Err("audio seek worker disconnected".into());
+        }
+    }
+
+    // If playback switched while seek was in flight, skip timestamp updates.
+    if state.generation.load(Ordering::SeqCst) != seek_generation {
+        return Ok(());
+    }
+
     let mut cur = state.current.lock().unwrap();
     if cur.sink.is_none() { return Ok(()); }
 
-    cur.sink.as_ref().unwrap()
-        .try_seek(Duration::from_secs_f64(seconds.max(0.0)))
-        .map_err(|e| e.to_string())?;
-
     if cur.paused_at.is_some() {
-        cur.paused_at = Some(seconds);
+        cur.paused_at = Some(seek_seconds);
     } else {
-        cur.seek_offset = seconds;
+        cur.seek_offset = seek_seconds;
         cur.play_started = Some(Instant::now());
     }
     Ok(())

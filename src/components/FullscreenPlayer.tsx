@@ -428,6 +428,28 @@ const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: number }) {
   const playedRef   = useRef<HTMLDivElement>(null);
   const bufRef      = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
+  const isDraggingRef = useRef(false);
+  const pendingSeekRef = useRef<number | null>(null);
+
+  const previewSeek = useCallback((progress: number) => {
+    const s = usePlayerStore.getState();
+    const p = Math.max(0, Math.min(1, progress));
+    pendingSeekRef.current = p;
+    if (timeRef.current) {
+      const previewTime = duration > 0 ? p * duration : s.currentTime;
+      timeRef.current.textContent = formatTime(previewTime);
+    }
+    if (playedRef.current) playedRef.current.style.width = `${p * 100}%`;
+    if (bufRef.current) bufRef.current.style.width = `${Math.max(p * 100, s.buffered * 100)}%`;
+    if (inputRef.current) inputRef.current.value = String(p);
+  }, [duration]);
+
+  const commitSeek = useCallback(() => {
+    const pending = pendingSeekRef.current;
+    if (pending === null) return;
+    pendingSeekRef.current = null;
+    seek(pending);
+  }, [seek]);
 
   useEffect(() => {
     const s = usePlayerStore.getState();
@@ -438,6 +460,7 @@ const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: number }) {
     if (inputRef.current)  inputRef.current.value        = String(s.progress);
 
     return usePlayerStore.subscribe(state => {
+      if (isDraggingRef.current) return;
       const p = state.progress * 100;
       if (timeRef.current)   timeRef.current.textContent  = formatTime(state.currentTime);
       if (playedRef.current) playedRef.current.style.width = `${p}%`;
@@ -447,8 +470,10 @@ const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: number }) {
   }, []);
 
   const handleSeek = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => seek(parseFloat(e.target.value)),
-    [seek]
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      previewSeek(parseFloat(e.target.value));
+    },
+    [previewSeek]
   );
 
   return (
@@ -466,6 +491,14 @@ const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: number }) {
           type="range" min={0} max={1} step={0.001}
           defaultValue={0}
           onChange={handleSeek}
+          onMouseDown={() => { isDraggingRef.current = true; }}
+          onMouseUp={() => { isDraggingRef.current = false; commitSeek(); }}
+          onTouchStart={() => { isDraggingRef.current = true; }}
+          onTouchEnd={() => { isDraggingRef.current = false; commitSeek(); }}
+          onPointerDown={() => { isDraggingRef.current = true; }}
+          onPointerUp={() => { isDraggingRef.current = false; commitSeek(); }}
+          onKeyUp={commitSeek}
+          onBlur={() => { isDraggingRef.current = false; commitSeek(); }}
           aria-label="seek"
         />
       </div>
