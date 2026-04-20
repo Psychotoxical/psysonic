@@ -314,4 +314,4 @@ jobs:
             --head "$BRANCH" \
             --title "chore(nix): refresh lock + npmDepsHash for v${VERSION}" \
             --body "Auto-generated after the v${VERSION} release: refreshes \`flake.lock\` and \`nix/upstream-sources.json\` so the Cachix substituter resolves the latest pin."
-          gh pr merge "$BRANCH" --squash --auto --delete-branch
+          gh pr merge "$BRANCH" --squash --delete-branch
