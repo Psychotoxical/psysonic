@@ -3190,13 +3190,16 @@
   height: 130%;
   left: -35%;
   bottom: -35%;
+  /* opacity on the element avoids color-mix(…, transparent) WebKit artifacts —
+     interpolating to the CSS keyword 'transparent' (rgba(0,0,0,0)) produces a
+     visible halo ring at the gradient boundary on WebKitGTK. */
   background: radial-gradient(ellipse,
-    color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 86%) 0%,
-    color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 96%) 45%,
+    var(--dynamic-fs-accent, var(--accent)) 0%,
     transparent 70%);
+  opacity: 0.14;
   animation: mesh-aura-a 26s ease-in-out infinite;
   animation-delay: 350ms;
-  transition: background 400ms ease-in-out;
+  transition: opacity 400ms ease-in-out;
 }
 
 .fs-mesh-blob-b {
@@ -3205,12 +3208,12 @@
   right: -25%;
   top: -25%;
   background: radial-gradient(ellipse,
-    color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 92%) 0%,
-    color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 98%) 45%,
+    var(--dynamic-fs-accent, var(--accent)) 0%,
     transparent 70%);
+  opacity: 0.08;
   animation: mesh-aura-b 20s ease-in-out infinite;
   animation-delay: 350ms;
-  transition: background 400ms ease-in-out;
+  transition: opacity 400ms ease-in-out;
 }
 
 /* ── Artist portrait — right half, object-fit: contain ── */
