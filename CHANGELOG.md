@@ -13,6 +13,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 > **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few weeks of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
 
+## [1.43.0] - 2026-04-20
+
+### Added
+
+- **User Management — admin-gated tab in Settings** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: When the active server is Navidrome and the logged-in user is an admin, Settings gets a new "Users" tab. Lists every user with username, display name, email, last-access timestamp and assigned libraries. Add / edit / delete via Navidrome's native REST API (`/api/user`) using a Bearer token obtained from `/auth/login` — the Subsonic API doesn't expose this, so non-Navidrome servers don't get the tab.
+
+- **User Management — per-user library assignment** *(by [@Psychotoxical](https://github.com/Psychotoxical), PR [#222](https://github.com/Psychotoxical/psysonic/pull/222))*: Mirrors the Navidrome web client. Non-admin users get a checkbox picker showing every library on the server; the picker is hidden for admins (Navidrome auto-grants them access to all libraries). Inline validation prevents saving a non-admin with zero libraries.
+
+- **User Management — last-access timestamp per user** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Each row shows when the user was last active, formatted as a localised relative time (`vor 5 Min.`, `2h ago`, etc.) using `Intl.RelativeTimeFormat`. Tooltip carries the absolute timestamp. Users who have never logged in show "Never".
+
+- **Seekable streaming + instant local playback — first cut** *(by [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh))*: New `RangedHttpSource` + `LocalFileSource` audio backends. Seek operations on remote tracks now issue HTTP `Range` requests instead of restarting the stream from byte 0, and locally cached files start playing instantly without going through the HTTP path at all. WaveformSeek commits the seek on mouseup (not during drag), and progress ticks during a drag are ignored so the playhead doesn't jitter back and forth. **Note:** the underlying seek/buffer behaviour is not fully sorted yet — expect follow-up changes in the next releases as edge cases (slow proxies, partial-content retries, codec-specific quirks) get ironed out.
+
+- **Mini player — queue-style meta block, action toolbar, vertical volume slider** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The mini's right column gets a richer track-info block matching the queue panel's styling. A dedicated action toolbar (love / queue / context menu) sits below the transport. The horizontal volume slider is replaced by a tall vertical one on the right edge for a more compact footprint.
+
+- **Settings — compact spacing pass + row hover affordance** *(by [@Psychotoxical](https://github.com/Psychotoxical), PR [#223](https://github.com/Psychotoxical/psysonic/pull/223))*: Section margins, card padding and divider spacing all tightened — every Settings tab fits more content per viewport. Each toggle row gains a subtle accent-tinted hover background that bleeds to the card edges so the active row is visually obvious.
+
+- **Floating player bar — toggleable variant** *(by [@kveld9](https://github.com/kveld9), PR [#216](https://github.com/Psychotoxical/psysonic/pull/216))*: Settings → Appearance → "Floating player bar" turns the player bar into a floating, rounded panel that sits above the page content with a margin around all four edges. Off by default. Solid background, works with every theme.
+
+- **Floating player bar — liquid-glass look on macOS and Windows** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: When the floating bar is enabled, macOS and Windows users get a gentler glass-effect background (subtle blur + tint) on top of @kveld9's solid variant. Linux keeps the solid look — WebKitGTK's `backdrop-filter` cost is too high for an always-visible panel. A new `data-platform` attribute on `<html>` is the generic platform-gate that other CSS can hook into.
+
+- **NVIDIA proprietary driver — DMA-BUF auto-disabled on Linux** *(by [@kveld9](https://github.com/kveld9), PR [#217](https://github.com/Psychotoxical/psysonic/pull/217), refactored by [@Psychotoxical](https://github.com/Psychotoxical))*: Detects the NVIDIA proprietary driver at startup and sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` for the WebKitGTK process, avoiding rendering glitches that show up specifically on that combo. Confirmed via blind A/B testing — only the proprietary driver is targeted; Nouveau / AMD / Intel are not touched.
+
+- **Lyrics — cubic ease-out scroll animator** *(by [@kilyabin](https://github.com/kilyabin), PRs [#214](https://github.com/Psychotoxical/psysonic/pull/214) / [#215](https://github.com/Psychotoxical/psysonic/pull/215))*: The lyrics auto-scroll animation is replaced by a smoother cubic ease-out curve (renamed internally from `springScroll` to `easeScroll`). Active line transitions are noticeably less jerky on long line-spacing changes.
+
+- **Fullscreen lyrics — fade bottom edge of plain lyrics scroll viewport** *(by [@kilyabin](https://github.com/kilyabin))*: Plain (unsynced) lyrics in the fullscreen player now fade out at the bottom of the scroll viewport via a `mask-image` gradient, matching the existing fade on the synced-lyrics overlay.
+
+### Fixed
+
+- **Mini player — main window minimises on open + width cap on non-tiling WMs** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Opening the mini now reliably minimises the main window (previously hit-or-miss on some WMs), and the mini's width is capped on non-tiling Linux WMs so it doesn't open larger than its intended footprint when the user's WM hands it the full screen.
+
+- **Artist page — Top Songs continues playback past the last track** *(by [@kveld9](https://github.com/kveld9), PR [#220](https://github.com/Psychotoxical/psysonic/pull/220))*: Playing a song from the Artist page's Top Songs row no longer stops after the row's last track — the queue continues into the surrounding context as intended.
+
+- **Padding fixes across several pages** *(by [@kveld9](https://github.com/kveld9), PR [#221](https://github.com/Psychotoxical/psysonic/pull/221))*: Layout polish, mostly aligning content to the page-level container padding instead of the inner card padding.
+
+- **Jayfin theme — WCAG AA contrast fixes for nav + primary buttons** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Hover and active states on the Jayfin theme's sidebar nav items and primary buttons now pass WCAG AA contrast against the underlying background.
+
+- **Lyrics — sidebar lyrics with YouLy+ source render as a single line** *(by [@kilyabin](https://github.com/kilyabin))*: Lines from the YouLyrics+ source were being split across multiple visual lines in the QueuePanel lyrics pane. Now collapse onto one line as intended.
+
+- **Settings → Lyrics Sources — drag-and-drop survives mode toggle** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Reordering lyrics sources via drag-and-drop no longer resets when toggling the synced-vs-plain mode.
+
+- **Folder browser — auto-contrast text on selected row** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: Selected rows in the folder browser now compute text colour from the row's background luminance, so light themes don't paint white-on-white text.
+
+- **Titlebar — theme-independent traffic-lights + song pill** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The macOS-style traffic-lights and the now-playing pill in the titlebar use fixed colours instead of theme tokens, so they stay legible on every theme without needing per-theme overrides.
+
+### Reverted
+
+- **Reverted: fs-player WebKitGTK CPU-cut patch** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: An earlier perf patch in the Fullscreen Player that disabled compositing under WebKitGTK turned out to cause animation regressions in real-world use. Reverted; the original code path is back.
+
+### Changed
+
+- **AudioMuse toggle — Alpha badge dropped** *(by [@Psychotoxical](https://github.com/Psychotoxical))*: The AudioMuse-AI integration has been stable for several releases; the "Alpha" tag in Settings → Server is removed.
+
 ## [1.42.1] - 2026-04-19
 
 > **🚨 Critical bug fix for Windows users.** On 1.42.0, opening the mini player on Windows could stall Tauri's event loop: the mini would appear as a blank white window, neither the main window nor the mini could be closed, and the only way out was killing the process via Task Manager. **Please update immediately if you're on Windows 1.42.0.** macOS and Linux were not affected.
