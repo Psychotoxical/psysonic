@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { Play, RefreshCw, ChevronDown, ChevronUp, Heart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import {
   fetchRandomMixSongsUntilFull,
   getMixMinRatingsConfigFromAuth,
@@ -38,6 +39,7 @@ export default function RandomMix() {
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
   const psyDrag = useDragDrop();
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const {
@@ -67,6 +69,10 @@ export default function RandomMix() {
   // Blacklist panel state
   const [blacklistOpen, setBlacklistOpen] = useState(false);
   const [newGenre, setNewGenre] = useState('');
+
+  // Mobile collapsible panels
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [genreMixExpanded, setGenreMixExpanded] = useState(false);
 
   // Genre Mix state
   const [serverGenres, setServerGenres] = useState<SubsonicGenre[]>([]);
@@ -217,7 +223,7 @@ export default function RandomMix() {
       {/* ── Filter + Genre Mix panel ─────────────────────────────── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
         gap: '1px',
         background: 'var(--border)',
         border: '1px solid var(--border)',
@@ -227,134 +233,164 @@ export default function RandomMix() {
       }}>
         {/* Left: Blacklist */}
         <div style={{ background: 'var(--bg-card)', padding: '1rem 1.25rem' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-            {t('randomMix.filterPanelTitle')}
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
-            {t('randomMix.filterPanelDesc')}
-          </p>
-
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: 13, marginBottom: '0.75rem' }}>
-            <input
-              type="checkbox"
-              checked={excludeAudiobooks}
-              onChange={e => setExcludeAudiobooks(e.target.checked)}
-              style={{ marginTop: 2 }}
-            />
-            <div>
-              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{t('randomMix.excludeAudiobooks')}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('randomMix.excludeAudiobooksDesc')}</div>
+          {isMobile ? (
+            <button
+              className="btn btn-ghost"
+              style={{ width: '100%', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', padding: '0' }}
+              onClick={() => setFiltersExpanded(v => !v)}
+            >
+              {t('randomMix.filterPanelTitle')}
+              {filtersExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          ) : (
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+              {t('randomMix.filterPanelTitle')}
             </div>
-          </label>
+          )}
+          {(!isMobile || filtersExpanded) && (
+            <div style={{ marginTop: isMobile ? '0.75rem' : 0 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+                {t('randomMix.filterPanelDesc')}
+              </p>
 
-          <button
-            className="btn btn-ghost"
-            style={{ fontSize: 12, padding: '3px 8px', marginBottom: blacklistOpen ? '0.5rem' : 0 }}
-            onClick={() => setBlacklistOpen(v => !v)}
-          >
-            {blacklistOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            {t('randomMix.blacklistToggle')} ({customGenreBlacklist.length})
-          </button>
-
-          {blacklistOpen && (
-            <div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.5rem', minHeight: 24 }}>
-                {customGenreBlacklist.length === 0 ? (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.randomMixBlacklistEmpty')}</span>
-                ) : (
-                  customGenreBlacklist.map(genre => (
-                    <span key={genre} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 3,
-                      background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                      color: 'var(--accent)', borderRadius: 'var(--radius-sm)',
-                      padding: '1px 7px', fontSize: 11, fontWeight: 500,
-                    }}>
-                      {genre}
-                      <button
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1, fontSize: 13 }}
-                        onClick={() => setCustomGenreBlacklist(customGenreBlacklist.filter(g => g !== genre))}
-                      >×</button>
-                    </span>
-                  ))
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: 13, marginBottom: '0.75rem' }}>
                 <input
-                  className="input"
-                  type="text"
-                  value={newGenre}
-                  onChange={e => setNewGenre(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newGenre.trim()) {
-                      const trimmed = newGenre.trim();
-                      if (!customGenreBlacklist.includes(trimmed)) setCustomGenreBlacklist([...customGenreBlacklist, trimmed]);
-                      setNewGenre('');
-                    }
-                  }}
-                  placeholder={t('settings.randomMixBlacklistPlaceholder')}
-                  style={{ fontSize: 12 }}
+                  type="checkbox"
+                  checked={excludeAudiobooks}
+                  onChange={e => setExcludeAudiobooks(e.target.checked)}
+                  style={{ marginTop: 2 }}
                 />
-                <button
-                  className="btn btn-ghost"
-                  style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
-                  onClick={() => {
-                    const trimmed = newGenre.trim();
-                    if (trimmed && !customGenreBlacklist.includes(trimmed)) setCustomGenreBlacklist([...customGenreBlacklist, trimmed]);
-                    setNewGenre('');
-                  }}
-                  disabled={!newGenre.trim()}
-                >{t('settings.randomMixBlacklistAdd')}</button>
-              </div>
+                <div>
+                  <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{t('randomMix.excludeAudiobooks')}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('randomMix.excludeAudiobooksDesc')}</div>
+                </div>
+              </label>
+
+              <button
+                className="btn btn-ghost"
+                style={{ fontSize: 12, padding: '3px 8px', marginBottom: blacklistOpen ? '0.5rem' : 0 }}
+                onClick={() => setBlacklistOpen(v => !v)}
+              >
+                {blacklistOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {t('randomMix.blacklistToggle')} ({customGenreBlacklist.length})
+              </button>
+
+              {blacklistOpen && (
+                <div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.5rem', minHeight: 24 }}>
+                    {customGenreBlacklist.length === 0 ? (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.randomMixBlacklistEmpty')}</span>
+                    ) : (
+                      customGenreBlacklist.map(genre => (
+                        <span key={genre} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
+                          background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                          color: 'var(--accent)', borderRadius: 'var(--radius-sm)',
+                          padding: '1px 7px', fontSize: 11, fontWeight: 500,
+                        }}>
+                          {genre}
+                          <button
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1, fontSize: 13 }}
+                            onClick={() => setCustomGenreBlacklist(customGenreBlacklist.filter(g => g !== genre))}
+                          >×</button>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <input
+                      className="input"
+                      type="text"
+                      value={newGenre}
+                      onChange={e => setNewGenre(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newGenre.trim()) {
+                          const trimmed = newGenre.trim();
+                          if (!customGenreBlacklist.includes(trimmed)) setCustomGenreBlacklist([...customGenreBlacklist, trimmed]);
+                          setNewGenre('');
+                        }
+                      }}
+                      placeholder={t('settings.randomMixBlacklistPlaceholder')}
+                      style={{ fontSize: 12 }}
+                    />
+                    <button
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
+                      onClick={() => {
+                        const trimmed = newGenre.trim();
+                        if (trimmed && !customGenreBlacklist.includes(trimmed)) setCustomGenreBlacklist([...customGenreBlacklist, trimmed]);
+                        setNewGenre('');
+                      }}
+                      disabled={!newGenre.trim()}
+                    >{t('settings.randomMixBlacklistAdd')}</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Right: Genre Mix */}
         <div style={{ background: 'var(--bg-card)', padding: '1rem 1.25rem' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-            {t('randomMix.genreMixTitle')}
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>{t('randomMix.genreMixDesc')}</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
-            {serverGenres.length === 0 ? (
-              <div className="spinner" style={{ width: 14, height: 14 }} />
-            ) : displayedGenres.length === 0 ? (
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('randomMix.genreMixNoGenres')}</span>
-            ) : (
-              <>
-                <button
-                  className={`btn ${selectedGenre === null ? 'btn-primary' : 'btn-surface'}`}
-                  style={{ fontSize: 12, padding: '4px 12px' }}
-                  onClick={() => { setSelectedGenre(null); setGenreMixSongs([]); setGenreMixComplete(false); fetchSongs(); }}
-                  disabled={genreMixLoading}
-                >
-                  {t('randomMix.genreMixAll')}
-                </button>
-                {displayedGenres.map(genre => (
-                  <button
-                    key={genre}
-                    className={`btn ${selectedGenre === genre ? 'btn-primary' : 'btn-surface'}`}
-                    style={{ fontSize: 12, padding: '4px 12px' }}
-                    onClick={() => { setSelectedGenre(genre); loadGenreMix(genre); }}
-                    disabled={genreMixLoading}
-                  >
-                    {genre}
-                  </button>
-                ))}
-                {allAvailableGenres.length > 20 && (
-                  <button
-                    className="btn btn-ghost"
-                    style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
-                    onClick={shuffleDisplayedGenres}
-                    disabled={genreMixLoading}
-                    data-tooltip={t('randomMix.shuffleGenres')}
-                  >
-                    <RefreshCw size={12} />
-                  </button>
+          {isMobile ? (
+            <button
+              className="btn btn-ghost"
+              style={{ width: '100%', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', padding: '0' }}
+              onClick={() => setGenreMixExpanded(v => !v)}
+            >
+              {t('randomMix.genreMixTitle')}
+              {genreMixExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          ) : (
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              {t('randomMix.genreMixTitle')}
+            </div>
+          )}
+          {(!isMobile || genreMixExpanded) && (
+            <div style={{ marginTop: isMobile ? '0.75rem' : 0 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>{t('randomMix.genreMixDesc')}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                {serverGenres.length === 0 ? (
+                  <div className="spinner" style={{ width: 14, height: 14 }} />
+                ) : displayedGenres.length === 0 ? (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('randomMix.genreMixNoGenres')}</span>
+                ) : (
+                  <>
+                    <button
+                      className={`btn ${selectedGenre === null ? 'btn-primary' : 'btn-surface'}`}
+                      style={{ fontSize: 12, padding: '4px 12px' }}
+                      onClick={() => { setSelectedGenre(null); setGenreMixSongs([]); setGenreMixComplete(false); fetchSongs(); }}
+                      disabled={genreMixLoading}
+                    >
+                      {t('randomMix.genreMixAll')}
+                    </button>
+                    {displayedGenres.map(genre => (
+                      <button
+                        key={genre}
+                        className={`btn ${selectedGenre === genre ? 'btn-primary' : 'btn-surface'}`}
+                        style={{ fontSize: 12, padding: '4px 12px' }}
+                        onClick={() => { setSelectedGenre(genre); loadGenreMix(genre); }}
+                        disabled={genreMixLoading}
+                      >
+                        {genre}
+                      </button>
+                    ))}
+                    {allAvailableGenres.length > 20 && (
+                      <button
+                        className="btn btn-ghost"
+                        style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
+                        onClick={shuffleDisplayedGenres}
+                        disabled={genreMixLoading}
+                        data-tooltip={t('randomMix.shuffleGenres')}
+                      >
+                        <RefreshCw size={12} />
+                      </button>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

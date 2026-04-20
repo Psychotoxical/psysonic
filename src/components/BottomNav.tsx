@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Disc3, Search, Music4, AudioLines } from 'lucide-react';
+import { Disc3, Search, Music4, AudioLines, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import MobileSearchOverlay from './MobileSearchOverlay';
+import MobileMoreOverlay from './MobileMoreOverlay';
 
 const NAV_ITEMS = [
   { to: '/',            end: true,  icon: Disc3,      labelKey: 'sidebar.mainstage' },
@@ -16,6 +17,7 @@ export default function BottomNav() {
   const isPlaying    = usePlayerStore(s => s.isPlaying);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   return (
     <>
@@ -47,9 +49,21 @@ export default function BottomNav() {
           </span>
           <span className="bottom-nav-label">{t('search.title')}</span>
         </button>
+
+        <button
+          className={`bottom-nav-item${moreOpen ? ' active' : ''}`}
+          onClick={() => setMoreOpen(v => !v)}
+          aria-label={t('sidebar.more')}
+        >
+          <span className="bottom-nav-icon-wrap">
+            <MoreHorizontal size={22} />
+          </span>
+          <span className="bottom-nav-label">{t('sidebar.more')}</span>
+        </button>
       </nav>
 
       {searchOpen && <MobileSearchOverlay onClose={() => setSearchOpen(false)} />}
+      {moreOpen && <MobileMoreOverlay onClose={() => setMoreOpen(false)} />}
     </>
   );
 }

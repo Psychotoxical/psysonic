@@ -30,6 +30,7 @@ export const zhTranslation = {
     allLibraries: '所有资料库',
     expandPlaylists: '展开播放列表',
     collapsePlaylists: '收起播放列表',
+    more: '更多',
   },
   home: {
     hero: '精选',

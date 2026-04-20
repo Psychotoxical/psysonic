@@ -31,6 +31,7 @@ export const esTranslation = {
     allLibraries: 'Todas las bibliotecas',
     expandPlaylists: 'Expandir listas',
     collapsePlaylists: 'Colapsar listas',
+    more: 'Más',
   },
   home: {
     hero: 'Destacado',

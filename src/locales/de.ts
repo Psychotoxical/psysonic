@@ -30,6 +30,7 @@ export const deTranslation = {
     allLibraries: 'Alle Bibliotheken',
     expandPlaylists: 'Playlists ausklappen',
     collapsePlaylists: 'Playlists einklappen',
+    more: 'Mehr',
   },
   home: {
     hero: 'Featured',

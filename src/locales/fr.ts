@@ -30,6 +30,7 @@ export const frTranslation = {
     allLibraries: 'Toutes les bibliothèques',
     expandPlaylists: 'Développer les playlists',
     collapsePlaylists: 'Réduire les playlists',
+    more: 'Plus',
   },
   home: {
     hero: 'En vedette',

@@ -1317,29 +1317,29 @@ export default function Settings() {
               )}
               {auth.replayGainEnabled && (
                 <div style={{ paddingLeft: '1rem', marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 160 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 100 }}>
                       {t('settings.replayGainPreGain')}
                     </span>
                     <input
                       type="range" min={0} max={6} step={0.5}
                       value={auth.replayGainPreGainDb}
                       onChange={e => auth.setReplayGainPreGainDb(Number(e.target.value))}
-                      style={{ flex: 1, maxWidth: 160 }}
+                      style={{ flex: 1, minWidth: 80, maxWidth: 160 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 40, textAlign: 'right' }}>
                       {auth.replayGainPreGainDb > 0 ? `+${auth.replayGainPreGainDb}` : auth.replayGainPreGainDb} dB
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 160 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 100 }}>
                       {t('settings.replayGainFallback')}
                     </span>
                     <input
                       type="range" min={-6} max={0} step={0.5}
                       value={auth.replayGainFallbackDb}
                       onChange={e => auth.setReplayGainFallbackDb(Number(e.target.value))}
-                      style={{ flex: 1, maxWidth: 160 }}
+                      style={{ flex: 1, minWidth: 80, maxWidth: 160 }}
                     />
                     <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 40, textAlign: 'right' }}>
                       {auth.replayGainFallbackDb > 0 ? `+${auth.replayGainFallbackDb}` : auth.replayGainFallbackDb} dB
@@ -1367,7 +1367,7 @@ export default function Settings() {
                 </label>
               </div>
               {auth.crossfadeEnabled && !auth.gaplessEnabled && (
-                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <input
                     type="range"
                     min={0.1}
@@ -1375,7 +1375,7 @@ export default function Settings() {
                     step={0.1}
                     value={auth.crossfadeSecs}
                     onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
-                    style={{ width: 120 }}
+                    style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
                     id="crossfade-secs-slider"
                   />
                   <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
@@ -1440,7 +1440,7 @@ export default function Settings() {
               </div>
               {auth.preloadMode !== 'off' && (
                 <>
-                  <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                     {(['balanced', 'early', 'custom'] as const).map(mode => (
                       <button
                         key={mode}
@@ -1453,13 +1453,13 @@ export default function Settings() {
                     ))}
                   </div>
                   {auth.preloadMode === 'custom' && (
-                    <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                       <input
                         type="range"
                         min={5} max={120} step={5}
                         value={auth.preloadCustomSeconds}
                         onChange={e => auth.setPreloadCustomSeconds(parseInt(e.target.value))}
-                        style={{ width: 120 }}
+                        style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
                       />
                       <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
                         {t('settings.preloadCustomSeconds', { n: auth.preloadCustomSeconds })}
@@ -1503,13 +1503,13 @@ export default function Settings() {
 
               {auth.hotCacheEnabled && (
                 <div style={{ marginTop: '1.25rem' }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
                       className="input"
                       type="text"
                       readOnly
                       value={auth.hotCacheDownloadDir || t('settings.hotCacheDirDefault')}
-                      style={{ flex: 1, fontSize: 13, color: auth.hotCacheDownloadDir ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'default' }}
+                      style={{ flex: 1, minWidth: 0, fontSize: 13, color: auth.hotCacheDownloadDir ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'default' }}
                     />
                     {auth.hotCacheDownloadDir && (
                       <button
@@ -1552,15 +1552,15 @@ export default function Settings() {
                   <div>
                     <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('settings.hotCacheMaxMb')}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <input type="range" min={32} max={20000} step={32} value={snapHotCacheMb(auth.hotCacheMaxMb)} onChange={e => auth.setHotCacheMaxMb(parseInt(e.target.value, 10))} style={{ width: 140 }} id="hot-cache-max-mb-slider" />
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 72 }}>{snapHotCacheMb(auth.hotCacheMaxMb)} MB</span>
+                      <input type="range" min={32} max={20000} step={32} value={snapHotCacheMb(auth.hotCacheMaxMb)} onChange={e => auth.setHotCacheMaxMb(parseInt(e.target.value, 10))} style={{ flex: 1, minWidth: 80, maxWidth: 200 }} id="hot-cache-max-mb-slider" />
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 60 }}>{snapHotCacheMb(auth.hotCacheMaxMb)} MB</span>
                     </div>
                   </div>
                   <div style={{ marginTop: '0.75rem' }}>
                     <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('settings.hotCacheDebounce')}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <input type="range" min={0} max={600} step={1} value={Math.min(600, Math.max(0, auth.hotCacheDebounceSec))} onChange={e => auth.setHotCacheDebounceSec(parseInt(e.target.value, 10))} style={{ width: 140 }} id="hot-cache-debounce-slider" />
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 100 }}>
+                      <input type="range" min={0} max={600} step={1} value={Math.min(600, Math.max(0, auth.hotCacheDebounceSec))} onChange={e => auth.setHotCacheDebounceSec(parseInt(e.target.value, 10))} style={{ flex: 1, minWidth: 80, maxWidth: 200 }} id="hot-cache-debounce-slider" />
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 80 }}>
                         {Math.min(600, Math.max(0, auth.hotCacheDebounceSec)) === 0
                           ? t('settings.hotCacheDebounceImmediate')
                           : t('settings.hotCacheDebounceSeconds', { n: Math.min(600, Math.max(0, auth.hotCacheDebounceSec)) })}
@@ -1945,7 +1945,7 @@ export default function Settings() {
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
                       gap: '1rem 0.75rem',
                       alignItems: 'start',
                     }}
@@ -2199,7 +2199,7 @@ export default function Settings() {
                 const nightH = theme.timeNightStart.split(':')[0];
                 const nightM = theme.timeNightStart.split(':')[1];
                 return (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                     <div className="form-group">
                       <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerDayTheme')}</label>
                       <CustomSelect value={theme.themeDay} onChange={theme.setThemeDay} options={themeOptions} />

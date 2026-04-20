@@ -30,6 +30,7 @@ export const nlTranslation = {
     allLibraries: 'Alle bibliotheken',
     expandPlaylists: 'Afspeellijsten uitklappen',
     collapsePlaylists: 'Afspeellijsten inklappen',
+    more: 'Meer',
   },
   home: {
     hero: 'Uitgelicht',

@@ -31,6 +31,7 @@ export const enTranslation = {
     allLibraries: 'All libraries',
     expandPlaylists: 'Expand playlists',
     collapsePlaylists: 'Collapse playlists',
+    more: 'More',
   },
   home: {
     hero: 'Featured',
