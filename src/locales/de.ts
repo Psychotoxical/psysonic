@@ -138,7 +138,9 @@ export const deTranslation = {
     openedArtist: 'Geteilter Künstler wird geöffnet.',
     openedQueue_one: '{{count}} Titel aus Freigabe-Link wird abgespielt.',
     openedQueue_other: '{{count}} Titel aus Freigabe-Link werden abgespielt.',
-    queueTracksMissing: 'Einige Titel aus diesem Link wurden auf dem Server nicht gefunden.',
+    openedQueuePartial:
+      '{{played}} von {{total}} Titeln aus dem Link werden abgespielt ({{skipped}} auf diesem Server nicht gefunden).',
+    queueAllUnavailable: 'Keiner der Titel aus diesem Link wurde auf dem Server gefunden.',
     genericError: 'Freigabe-Link konnte nicht geöffnet werden.',
   },
   albumDetail: {

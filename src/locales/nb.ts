@@ -138,7 +138,9 @@ export const nbTranslation = {
     openedArtist: 'Åpner delt artist.',
     openedQueue_one: 'Spiller {{count}} spor fra delingslenken.',
     openedQueue_other: 'Spiller {{count}} spor fra delingslenken.',
-    queueTracksMissing: 'Noen spor fra denne lenken ble ikke funnet på serveren.',
+    openedQueuePartial:
+      'Spiller {{played}} av {{total}} spor fra lenken ({{skipped}} ble ikke funnet på denne serveren).',
+    queueAllUnavailable: 'Ingen av sporene fra denne lenken ble funnet på serveren.',
     genericError: 'Klarte ikke å åpne delingslenken.',
   },
   albumDetail: {

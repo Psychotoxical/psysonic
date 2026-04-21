@@ -137,7 +137,9 @@ export const nlTranslation = {
     openedArtist: 'Gedeelde artiest wordt geopend.',
     openedQueue_one: '{{count}} nummer van deellink wordt afgespeeld.',
     openedQueue_other: '{{count}} nummers van deellink worden afgespeeld.',
-    queueTracksMissing: 'Sommige nummers uit deze link zijn niet op de server gevonden.',
+    openedQueuePartial:
+      '{{played}} van {{total}} nummers uit de link worden afgespeeld ({{skipped}} niet gevonden op deze server).',
+    queueAllUnavailable: 'Geen enkel nummer uit deze link is op de server gevonden.',
     genericError: 'De deellink kon niet worden geopend.',
   },
   albumDetail: {

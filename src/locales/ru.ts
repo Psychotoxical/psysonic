@@ -143,7 +143,9 @@ export const ruTranslation = {
     openedQueue_few: 'Воспроизводится присланная очередь: {{count}} трека.',
     openedQueue_many: 'Воспроизводится присланная очередь: {{count}} треков.',
     openedQueue_other: 'Воспроизводится присланная очередь: {{count}} треков.',
-    queueTracksMissing: 'Часть треков из ссылки не найдена на сервере.',
+    openedQueuePartial:
+      'Воспроизводится {{played}} из {{total}} треков по ссылке ({{skipped}} на этом сервере не найдены).',
+    queueAllUnavailable: 'Ни один из треков по ссылке не найден на сервере.',
     genericError: 'Не удалось открыть ссылку для обмена.',
   },
   albumDetail: {

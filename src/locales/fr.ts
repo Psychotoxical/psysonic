@@ -138,7 +138,9 @@ export const frTranslation = {
     openedArtist: 'Ouverture de l’artiste partagé.',
     openedQueue_one: 'Lecture de {{count}} morceau depuis le lien de partage.',
     openedQueue_other: 'Lecture de {{count}} morceaux depuis le lien de partage.',
-    queueTracksMissing: 'Certains morceaux de ce lien sont introuvables sur le serveur.',
+    openedQueuePartial:
+      '{{played}} sur {{total}} morceaux du lien : {{skipped}} introuvable(s) sur ce serveur.',
+    queueAllUnavailable: 'Aucun morceau de ce lien n’a été trouvé sur le serveur.',
     genericError: 'Impossible d’ouvrir le lien de partage.',
   },
   albumDetail: {

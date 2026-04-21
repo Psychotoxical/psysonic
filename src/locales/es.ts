@@ -139,7 +139,9 @@ export const esTranslation = {
     openedArtist: 'Abriendo el artista compartido.',
     openedQueue_one: 'Reproduciendo {{count}} pista del enlace para compartir.',
     openedQueue_other: 'Reproduciendo {{count}} pistas del enlace para compartir.',
-    queueTracksMissing: 'Algunas pistas de este enlace no se encontraron en el servidor.',
+    openedQueuePartial:
+      'Reproduciendo {{played}} de {{total}} pistas del enlace ({{skipped}} no encontradas en este servidor).',
+    queueAllUnavailable: 'Ninguna pista de este enlace se encontró en el servidor.',
     genericError: 'No se pudo abrir el enlace para compartir.',
   },
   albumDetail: {
