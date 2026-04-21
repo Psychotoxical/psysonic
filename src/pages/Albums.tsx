@@ -186,7 +186,9 @@ export default function Albums() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => { if (entries[0].isIntersecting) loadMore(); },
-      { rootMargin: '200px' }
+      // Prefetch ~1.5 screens ahead so the user never visibly waits at the
+      // bottom of the grid. 200px caught the user at the very edge.
+      { rootMargin: '1500px' }
     );
     if (observerTarget.current) observer.observe(observerTarget.current);
     return () => observer.disconnect();
