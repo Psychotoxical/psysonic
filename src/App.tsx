@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, lazy, Suspense } from 'react';
 import { showToast } from './utils/toast';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { listen } from '@tauri-apps/api/event';
@@ -14,6 +14,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import LiveSearch from './components/LiveSearch';
 import NowPlayingDropdown from './components/NowPlayingDropdown';
 import QueuePanel from './components/QueuePanel';
+// Eager — main browsing flow, loaded on first paint
 import Home from './pages/Home';
 import Albums from './pages/Albums';
 import Artists from './pages/Artists';
@@ -22,23 +23,27 @@ import NewReleases from './pages/NewReleases';
 import Favorites from './pages/Favorites';
 import RandomMix from './pages/RandomMix';
 import RandomLanding from './pages/RandomLanding';
-import Settings from './pages/Settings';
 import Login from './pages/Login';
 import AlbumDetail from './pages/AlbumDetail';
-import LabelAlbums from './pages/LabelAlbums';
-import Statistics from './pages/Statistics';
 import MostPlayed from './pages/MostPlayed';
-import Help from './pages/Help';
 import RandomAlbums from './pages/RandomAlbums';
 import SearchResults from './pages/SearchResults';
-import AdvancedSearch from './pages/AdvancedSearch';
 import Playlists from './pages/Playlists';
 import PlaylistDetail from './pages/PlaylistDetail';
-import InternetRadio from './pages/InternetRadio';
-import FolderBrowser from './pages/FolderBrowser';
-import DeviceSync from './pages/DeviceSync';
 import NowPlayingPage from './pages/NowPlaying';
-import WhatsNew from './pages/WhatsNew';
+
+// Lazy — visited rarely or on-demand. Each becomes its own chunk so the
+// initial bundle stays smaller and these pages don't block first paint.
+const Settings       = lazy(() => import('./pages/Settings'));
+const Statistics     = lazy(() => import('./pages/Statistics'));
+const Help           = lazy(() => import('./pages/Help'));
+const WhatsNew       = lazy(() => import('./pages/WhatsNew'));
+const DeviceSync     = lazy(() => import('./pages/DeviceSync'));
+const OfflineLibrary = lazy(() => import('./pages/OfflineLibrary'));
+const LabelAlbums    = lazy(() => import('./pages/LabelAlbums'));
+const AdvancedSearch = lazy(() => import('./pages/AdvancedSearch'));
+const FolderBrowser  = lazy(() => import('./pages/FolderBrowser'));
+const InternetRadio  = lazy(() => import('./pages/InternetRadio'));
 import MiniPlayer from './components/MiniPlayer';
 import { initMiniPlayerBridgeOnMain } from './utils/miniPlayerBridge';
 import FullscreenPlayer from './components/FullscreenPlayer';
@@ -50,7 +55,6 @@ import TooltipPortal from './components/TooltipPortal';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import LastfmIndicator from './components/LastfmIndicator';
 import OfflineBanner from './components/OfflineBanner';
-import OfflineLibrary from './pages/OfflineLibrary';
 import Genres from './pages/Genres';
 import GenreDetail from './pages/GenreDetail';
 import ExportPickerModal from './components/ExportPickerModal';
@@ -401,35 +405,37 @@ function AppShell() {
           <OfflineBanner onRetry={connRetry} isChecking={connRetrying} showSettingsLink={!hasOfflineContent} serverName={serverName} />
         )}
         <div className="content-body" style={{ padding: 0, position: 'relative' }}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/albums" element={<Albums />} />
-            <Route path="/random" element={<RandomLanding />} />
-            <Route path="/random/albums" element={<RandomAlbums />} />
-            <Route path="/album/:id" element={<AlbumDetail />} />
-            <Route path="/artists" element={<Artists />} />
-            <Route path="/artist/:id" element={<ArtistDetail />} />
-            <Route path="/new-releases" element={<NewReleases />} />
-            <Route path="/favorites" element={<Favorites />} />
-            <Route path="/random/mix" element={<RandomMix />} />
-            <Route path="/label/:name" element={<LabelAlbums />} />
-            <Route path="/search" element={<SearchResults />} />
-            <Route path="/search/advanced" element={<AdvancedSearch />} />
-            <Route path="/statistics" element={<Statistics />} />
-            <Route path="/most-played" element={<MostPlayed />} />
-            <Route path="/now-playing" element={isMobile ? <MobilePlayerView /> : <NowPlayingPage />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/whats-new" element={<WhatsNew />} />
-            <Route path="/help" element={<Help />} />
-            <Route path="/offline" element={<OfflineLibrary />} />
-            <Route path="/genres" element={<Genres />} />
-            <Route path="/genres/:name" element={<GenreDetail />} />
-            <Route path="/playlists" element={<Playlists />} />
-            <Route path="/playlists/:id" element={<PlaylistDetail />} />
-            <Route path="/radio" element={<InternetRadio />} />
-            <Route path="/folders" element={<FolderBrowser />} />
-            <Route path="/device-sync" element={<DeviceSync />} />
-          </Routes>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/albums" element={<Albums />} />
+              <Route path="/random" element={<RandomLanding />} />
+              <Route path="/random/albums" element={<RandomAlbums />} />
+              <Route path="/album/:id" element={<AlbumDetail />} />
+              <Route path="/artists" element={<Artists />} />
+              <Route path="/artist/:id" element={<ArtistDetail />} />
+              <Route path="/new-releases" element={<NewReleases />} />
+              <Route path="/favorites" element={<Favorites />} />
+              <Route path="/random/mix" element={<RandomMix />} />
+              <Route path="/label/:name" element={<LabelAlbums />} />
+              <Route path="/search" element={<SearchResults />} />
+              <Route path="/search/advanced" element={<AdvancedSearch />} />
+              <Route path="/statistics" element={<Statistics />} />
+              <Route path="/most-played" element={<MostPlayed />} />
+              <Route path="/now-playing" element={isMobile ? <MobilePlayerView /> : <NowPlayingPage />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/whats-new" element={<WhatsNew />} />
+              <Route path="/help" element={<Help />} />
+              <Route path="/offline" element={<OfflineLibrary />} />
+              <Route path="/genres" element={<Genres />} />
+              <Route path="/genres/:name" element={<GenreDetail />} />
+              <Route path="/playlists" element={<Playlists />} />
+              <Route path="/playlists/:id" element={<PlaylistDetail />} />
+              <Route path="/radio" element={<InternetRadio />} />
+              <Route path="/folders" element={<FolderBrowser />} />
+              <Route path="/device-sync" element={<DeviceSync />} />
+            </Routes>
+          </Suspense>
         </div>
         </div>
       </main>

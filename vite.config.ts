@@ -27,5 +27,25 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    rollupOptions: {
+      output: {
+        // Vendor chunks isolate dependencies that change rarely from app code,
+        // so a normal app update doesn't invalidate the cached vendor bundles
+        // (helps especially with the Tauri updater pulling deltas).
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          tauri: [
+            "@tauri-apps/api",
+            "@tauri-apps/plugin-shell",
+            "@tauri-apps/plugin-dialog",
+            "@tauri-apps/plugin-fs",
+            "@tauri-apps/plugin-process",
+            "@tauri-apps/plugin-store",
+            "@tauri-apps/plugin-updater",
+          ],
+          i18n: ["i18next", "react-i18next"],
+        },
+      },
+    },
   },
 });
