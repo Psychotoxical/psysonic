@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getArtists, SubsonicArtist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { LayoutGrid, List, Images, CheckSquare2, ListMusic, Check } from 'lucide-react';
@@ -131,23 +131,27 @@ export default function Artists() {
     setVisibleCount(PAGE_SIZE);
   }, [filter, letterFilter, viewMode, PAGE_SIZE]);
 
-  // Filter pipeline
-  let filtered = artists;
+  // Filter pipeline — memoised so unrelated state changes (selection mode,
+  // viewMode, etc.) don't re-iterate the full artists array. With 5000+
+  // artists each re-render walked the list twice without this.
+  const filtered = useMemo(() => {
+    let out = artists;
+    if (letterFilter !== ALL_SENTINEL) {
+      out = out.filter(a => {
+        const first = a.name[0]?.toUpperCase() ?? '#';
+        const isAlpha = /^[A-Z]$/.test(first);
+        if (letterFilter === '#') return !isAlpha;
+        return first === letterFilter;
+      });
+    }
+    if (filter) {
+      const needle = filter.toLowerCase();
+      out = out.filter(a => a.name.toLowerCase().includes(needle));
+    }
+    return out;
+  }, [artists, letterFilter, filter]);
 
-  if (letterFilter !== ALL_SENTINEL) {
-    filtered = filtered.filter(a => {
-      const first = a.name[0]?.toUpperCase() ?? '#';
-      const isAlpha = /^[A-Z]$/.test(first);
-      if (letterFilter === '#') return !isAlpha;
-      return first === letterFilter;
-    });
-  }
-
-  if (filter) {
-    filtered = filtered.filter(a => a.name.toLowerCase().includes(filter.toLowerCase()));
-  }
-
-  const visible = filtered.slice(0, visibleCount);
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
 
   // Intersection Observer for infinite scroll (after hasMore declaration)
@@ -160,15 +164,19 @@ export default function Artists() {
     return () => observer.disconnect();
   }, [loadMore, hasMore]);
 
-  // Group by first letter (for list view)
-  const groups: Record<string, SubsonicArtist[]> = {};
-  visible.forEach(a => {
-    const letter = a.name[0]?.toUpperCase() ?? '#';
-    const key = /^[A-Z]$/.test(letter) ? letter : '#';
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(a);
-  });
-  const letters = Object.keys(groups).sort();
+  // Group by first letter (for list view) — only recompute when the visible
+  // slice or the view mode actually changes. Skipped entirely in grid view.
+  const { groups, letters } = useMemo(() => {
+    if (viewMode !== 'list') return { groups: {} as Record<string, SubsonicArtist[]>, letters: [] as string[] };
+    const g: Record<string, SubsonicArtist[]> = {};
+    for (const a of visible) {
+      const letter = a.name[0]?.toUpperCase() ?? '#';
+      const key = /^[A-Z]$/.test(letter) ? letter : '#';
+      if (!g[key]) g[key] = [];
+      g[key].push(a);
+    }
+    return { groups: g, letters: Object.keys(g).sort() };
+  }, [visible, viewMode]);
 
   return (
     <div className="content-body animate-fade-in">
