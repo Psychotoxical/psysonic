@@ -8,6 +8,7 @@ import { fetchLyricsPlus, hasWordSync } from '../api/lyricsplus';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useHotCacheStore } from '../store/hotCacheStore';
+import { getCachedLyrics, putCachedLyrics, lyricsCacheKey } from '../utils/lyricsPersistentCache';
 import type { Track } from '../store/playerStore';
 
 export type LyricsSource = 'server' | 'lrclib' | 'netease' | 'embedded' | 'lyricsplus';
@@ -38,7 +39,9 @@ export interface CachedLyrics {
   notFound: boolean;
 }
 
-// Session-level cache — survives tab switches and component unmount/remount.
+// L1 cache: RAM, survives tab switches and component remount within a session.
+// L2 (IndexedDB) lives in `utils/lyricsPersistentCache.ts` — only touched on
+// L1 miss so the common case (jumping back to a recent track) stays fully sync.
 export const lyricsCache = new Map<string, CachedLyrics>();
 
 /** Convert structured Subsonic lyrics (ms timestamps) into LrcLine[] or plain text. */
@@ -103,7 +106,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
     setNotFound(false);
     setLoading(true);
 
-    const store = (entry: CachedLyrics) => {
+    const applyEntry = (entry: CachedLyrics) => {
       if (cancelled) return;
       lyricsCache.set(currentTrack.id, entry);
       setSyncedLines(entry.syncedLines);
@@ -112,6 +115,14 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
       setSource(entry.source);
       setNotFound(entry.notFound);
       setLoading(false);
+    };
+
+    const store = (entry: CachedLyrics) => {
+      if (cancelled) return;
+      applyEntry(entry);
+      // Persist for the next session (fire-and-forget — failures are silent).
+      const serverId = useAuthStore.getState().activeServerId ?? '';
+      putCachedLyrics(lyricsCacheKey(serverId, currentTrack.id), entry);
     };
 
     // For offline / hot-cached tracks we have the file locally — read SYLT /
@@ -242,6 +253,22 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
       // Embedded lyrics from local file always win (most accurate SYLT data).
       if (cancelled) return;
       if (await fetchEmbedded()) return;
+
+      // L2: IndexedDB — re-hydrates RAM cache without a network roundtrip.
+      // Skip for 'lyricsplus' mode since the persisted entry might be from
+      // the standard pipeline (no word-level sync) and the user explicitly
+      // wants a fresh lyricsplus attempt.
+      if (lyricsMode !== 'lyricsplus') {
+        const serverId = useAuthStore.getState().activeServerId ?? '';
+        const persisted = await getCachedLyrics(lyricsCacheKey(serverId, currentTrack.id));
+        if (cancelled) return;
+        if (persisted) {
+          // Don't re-write to L2 (it's already there); just hydrate RAM + UI.
+          lyricsCache.set(currentTrack.id, persisted);
+          applyEntry(persisted);
+          return;
+        }
+      }
 
       // YouLyPlus mode: try lyricsplus first, silent fallback to standard.
       if (lyricsMode === 'lyricsplus') {
