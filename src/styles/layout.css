@@ -149,6 +149,13 @@
   width: 9px;
   height: 9px;
   stroke-width: 2.5;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.titlebar-controls:hover .titlebar-btn svg,
+.titlebar-btn:focus-visible svg {
+  opacity: 1;
 }
 
 .titlebar-btn-close {
