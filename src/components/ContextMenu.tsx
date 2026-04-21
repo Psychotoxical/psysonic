@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Play, ListPlus, Radio, Heart, Download, ChevronRight, User, Disc3, ListMusic, Plus, Info, Sparkles, Star, Trash2, HeartCrack } from 'lucide-react';
+import { Play, ListPlus, Radio, Heart, Download, ChevronRight, User, Disc3, ListMusic, Plus, Info, Sparkles, Star, Trash2, HeartCrack, Share2 } from 'lucide-react';
 import LastfmIcon from './LastfmIcon';
 import StarRating from './StarRating';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../api/lastfm';
@@ -16,6 +16,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
+import type { EntityShareKind } from '../utils/shareLink';
+import { copyEntityShareLink } from '../utils/copyEntityShareLink';
 
 function sanitizeFilename(name: string): string {
   return name
@@ -1265,6 +1267,12 @@ export default function ContextMenu() {
     await action();
   };
 
+  const copyShareLink = useCallback(async (kind: EntityShareKind, id: string) => {
+    const ok = await copyEntityShareLink(kind, id);
+    if (ok) showToast(t('contextMenu.shareCopied'));
+    else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+  }, [t]);
+
   const startRadio = async (artistId: string, artistName: string, seedTrack?: Track) => {
     if (seedTrack) {
       // Start playback immediately based on current state
@@ -1515,6 +1523,9 @@ export default function ContextMenu() {
                 />
               </div>
               <div className="context-menu-divider" />
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id))}>
+                <Share2 size={14} /> {t('contextMenu.shareLink')}
+              </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
                 <Info size={14} /> {t('contextMenu.songInfo')}
               </div>
@@ -1627,6 +1638,9 @@ export default function ContextMenu() {
                 />
               </div>
               <div className="context-menu-divider" />
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id))}>
+                <Share2 size={14} /> {t('contextMenu.shareLink')}
+              </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
                 <Info size={14} /> {t('contextMenu.songInfo')}
               </div>
@@ -1685,6 +1699,9 @@ export default function ContextMenu() {
                 />
               </div>
               <div className="context-menu-divider" />
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('album', album.id))}>
+                <Share2 size={14} /> {t('contextMenu.shareLink')}
+              </div>
               <div className="context-menu-item" onClick={() => handleAction(() => downloadAlbum(album.name, album.id))}>
                 <Download size={14} /> {t('contextMenu.download')}
               </div>
@@ -1800,6 +1817,9 @@ export default function ContextMenu() {
                 {playlistSubmenuOpen && playlistSongIds[0] === `artist:${artist.id}` && (
                   <ArtistToPlaylistSubmenu artistId={artist.id} triggerId={`artist:${artist.id}`} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
+              </div>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('artist', artist.id))}>
+                <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               <div className="context-menu-divider" />
               <div className="context-menu-item" onClick={() => handleAction(() => {
@@ -1989,6 +2009,9 @@ export default function ContextMenu() {
                 />
               </div>
               <div className="context-menu-divider" />
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id))}>
+                <Share2 size={14} /> {t('contextMenu.shareLink')}
+              </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
                 <Info size={14} /> {t('contextMenu.songInfo')}
               </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Loader2, Highlighter, Shuffle } from 'lucide-react';
+import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Loader2, Highlighter, Shuffle, Share2 } from 'lucide-react';
 import { SubsonicSong, buildCoverArtUrl } from '../api/subsonic';
 import CachedImage from './CachedImage';
 import CoverLightbox from './CoverLightbox';
@@ -9,6 +9,8 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { useThemeStore } from '../store/themeStore';
 import StarRating from './StarRating';
 import type { EntityRatingSupportLevel } from '../api/subsonic';
+import { copyEntityShareLink } from '../utils/copyEntityShareLink';
+import { showToast } from '../utils/toast';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -130,6 +132,16 @@ export default function AlbumHeader({
   const totalSize = songs.reduce((acc, s) => acc + (s.size ?? 0), 0);
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
 
+  const handleShareAlbum = async () => {
+    try {
+      const ok = await copyEntityShareLink('album', info.id);
+      if (ok) showToast(t('contextMenu.shareCopied'));
+      else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+    } catch {
+      showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+    }
+  };
+
   return (
     <>
       {bioOpen && bio && <BioModal bio={bio} onClose={onCloseBio} />}
@@ -244,6 +256,16 @@ export default function AlbumHeader({
 
                     <button
                       className="album-icon-btn album-icon-btn--sm"
+                      type="button"
+                      onClick={handleShareAlbum}
+                      aria-label={t('albumDetail.shareAlbum')}
+                      data-tooltip={t('albumDetail.shareAlbum')}
+                    >
+                      <Share2 size={16} />
+                    </button>
+
+                    <button
+                      className="album-icon-btn album-icon-btn--sm"
                       onClick={onBio}
                       aria-label={t('albumDetail.artistBio')}
                       data-tooltip={t('albumDetail.artistBio')}
@@ -320,6 +342,15 @@ export default function AlbumHeader({
                       data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
                     >
                       <Heart size={16} fill={isStarred ? 'currentColor' : 'none'} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={handleShareAlbum}
+                      aria-label={t('albumDetail.shareAlbum')}
+                      data-tooltip={t('albumDetail.shareAlbum')}
+                    >
+                      <Share2 size={16} />
                     </button>
                   </div>
 

@@ -4,7 +4,7 @@ import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, sear
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';
-import { ArrowLeft, Users, ExternalLink, Heart, Play, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Users, ExternalLink, Heart, Play, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
@@ -16,6 +16,7 @@ import { lastfmGetSimilarArtists, lastfmIsConfigured } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
 import { invalidateCoverArt } from '../utils/imageCache';
 import { showToast } from '../utils/toast';
+import { copyEntityShareLink } from '../utils/copyEntityShareLink';
 import { extractCoverColors } from '../utils/dynamicColors';
 import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
@@ -354,6 +355,17 @@ export default function ArtistDetail() {
     }
   };
 
+  const handleShareArtist = async () => {
+    if (!id || !artist) return;
+    try {
+      const ok = await copyEntityShareLink('artist', artist.id);
+      if (ok) showToast(t('contextMenu.shareCopied'));
+      else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+    } catch {
+      showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+    }
+  };
+
   const playTopSongWithContinuation = async (startIndex: number) => {
     if (!artist || albums.length === 0) return;
     setPlayAllLoading(true);
@@ -596,6 +608,17 @@ export default function ArtistDetail() {
               {radioLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Radio size={16} />}
               {!isMobile && (radioLoading ? t('artistDetail.loading') : t('artistDetail.radio'))}
             </button>
+            {id && artist && (
+              <button
+                type="button"
+                className="btn btn-surface"
+                onClick={handleShareArtist}
+                aria-label={t('artistDetail.shareArtist')}
+                data-tooltip={t('artistDetail.shareArtist')}
+              >
+                <Share2 size={16} />
+              </button>
+            )}
             {albums.length > 0 && (() => {
               const progress = id ? bulkProgress[id] : undefined;
               const isDone = progress && progress.done === progress.total;

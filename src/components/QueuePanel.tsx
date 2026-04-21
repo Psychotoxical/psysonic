@@ -1,12 +1,15 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
-import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, ArrowUpToLine, Radio, HardDrive, ChevronDown, Info } from 'lucide-react';
+import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, ArrowUpToLine, Radio, HardDrive, ChevronDown, Info, Share2 } from 'lucide-react';
 import { buildCoverArtUrl, coverArtCacheKey, getAlbum, getPlaylists, getPlaylist, updatePlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { encodeSharePayload } from '../utils/shareLink';
+import { copyTextToClipboard } from '../utils/serverMagicString';
+import { showToast } from '../utils/toast';
 import { useThemeStore } from '../store/themeStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { useDragDrop } from '../contexts/DragDropContext';
@@ -404,6 +407,18 @@ export default function QueuePanel() {
     setActivePlaylist(null);
   };
 
+  const handleCopyQueueShare = async () => {
+    if (queue.length === 0) {
+      showToast(t('queue.shareQueueEmpty'), 3000, 'info');
+      return;
+    }
+    const srv = useAuthStore.getState().getBaseUrl();
+    if (!srv) return;
+    const ids = queue.map(t => t.id);
+    const ok = await copyTextToClipboard(encodeSharePayload({ srv, k: 'queue', ids }));
+    if (ok) showToast(t('contextMenu.shareCopied'));
+    else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+  };
 
   return (
     <aside
@@ -552,6 +567,14 @@ export default function QueuePanel() {
         </button>
         <button className="queue-round-btn" onClick={handleLoad} data-tooltip={t('queue.loadPlaylist')} aria-label={t('queue.loadPlaylist')}>
           <FolderOpen size={13} />
+        </button>
+        <button
+          className="queue-round-btn"
+          onClick={() => void handleCopyQueueShare()}
+          data-tooltip={t('queue.shareQueue')}
+          aria-label={t('queue.shareQueue')}
+        >
+          <Share2 size={13} />
         </button>
         <button className="queue-round-btn" onClick={handleClear} data-tooltip={t('queue.clear')} aria-label={t('queue.clear')}>
           <Trash2 size={13} />
