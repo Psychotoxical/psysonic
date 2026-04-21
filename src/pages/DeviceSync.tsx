@@ -63,9 +63,13 @@ async function fetchTracksForSource(source: DeviceSyncSource): Promise<SubsonicS
   if (source.type === 'playlist') { const { songs } = await getPlaylist(source.id); return songs; }
   if (source.type === 'album')    { const { songs } = await getAlbum(source.id);    return songs; }
   const { albums } = await getArtist(source.id);
-  const all: SubsonicSong[] = [];
-  for (const album of albums) { const { songs } = await getAlbum(album.id); all.push(...songs); }
-  return all;
+  // Parallel album fetches — Navidrome handles getAlbum requests in flight
+  // without serialising. Sequential awaits here multiplied a 50-album artist
+  // sync into 50 round-trips (~7 s blocking) before any device write started.
+  const results = await Promise.all(
+    albums.map(a => getAlbum(a.id).then(r => r.songs).catch(() => [] as SubsonicSong[])),
+  );
+  return results.flat();
 }
 
 /** Tracks that came from `calculate_sync_payload` may carry embedded playlist
