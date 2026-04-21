@@ -718,6 +718,8 @@ export const enTranslation = {
     replayGain: 'Replay Gain',
     replayGainDesc: 'Normalize track volume using ReplayGain metadata',
     replayGainMode: 'Mode',
+    replayGainAuto: 'Auto',
+    replayGainAutoDesc: 'Picks album gain when neighbouring queue tracks are from the same album, otherwise track gain.',
     replayGainTrack: 'Track',
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (tagged files)',

@@ -704,6 +704,8 @@ export const frTranslation = {
     replayGain: 'Replay Gain',
     replayGainDesc: 'Normaliser le volume des pistes avec les métadonnées ReplayGain',
     replayGainMode: 'Mode',
+    replayGainAuto: 'Auto',
+    replayGainAutoDesc: 'Utilise le gain d\'album quand les pistes voisines de la file proviennent du même album, sinon le gain de piste.',
     replayGainTrack: 'Piste',
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pré-Gain (fichiers taggés)',

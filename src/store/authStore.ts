@@ -49,7 +49,7 @@ interface AuthState {
   excludeAudiobooks: boolean;
   customGenreBlacklist: string[];
   replayGainEnabled: boolean;
-  replayGainMode: 'track' | 'album';
+  replayGainMode: 'track' | 'album' | 'auto';
   replayGainPreGainDb: number;   // added to RG gain for tagged files (0…+6 dB)
   replayGainFallbackDb: number;  // gain for untagged files / radio (-6…0 dB)
   crossfadeEnabled: boolean;
@@ -200,7 +200,7 @@ interface AuthState {
   setExcludeAudiobooks: (v: boolean) => void;
   setCustomGenreBlacklist: (v: string[]) => void;
   setReplayGainEnabled: (v: boolean) => void;
-  setReplayGainMode: (v: 'track' | 'album') => void;
+  setReplayGainMode: (v: 'track' | 'album' | 'auto') => void;
   setReplayGainPreGainDb: (v: number) => void;
   setReplayGainFallbackDb: (v: number) => void;
   setCrossfadeEnabled: (v: boolean) => void;
@@ -308,7 +308,7 @@ export const useAuthStore = create<AuthState>()(
       excludeAudiobooks: false,
       customGenreBlacklist: [],
       replayGainEnabled: false,
-      replayGainMode: 'track',
+      replayGainMode: 'auto',
       replayGainPreGainDb: 0,
       replayGainFallbackDb: 0,
       crossfadeEnabled: false,

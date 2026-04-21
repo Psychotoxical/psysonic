@@ -703,6 +703,8 @@ export const nlTranslation = {
     replayGain: 'Replay Gain',
     replayGainDesc: 'Nummervolume normaliseren met ReplayGain-metadata',
     replayGainMode: 'Modus',
+    replayGainAuto: 'Auto',
+    replayGainAutoDesc: 'Kiest album-gain wanneer aangrenzende nummers in de wachtrij van hetzelfde album zijn, anders nummer-gain.',
     replayGainTrack: 'Nummer',
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (getagde bestanden)',

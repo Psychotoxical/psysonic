@@ -699,6 +699,8 @@ export const zhTranslation = {
     replayGain: '回放增益',
     replayGainDesc: '使用 ReplayGain 元数据标准化曲目音量',
     replayGainMode: '模式',
+    replayGainAuto: '自动',
+    replayGainAutoDesc: '当队列中相邻曲目来自同一专辑时使用专辑增益，否则使用曲目增益。',
     replayGainTrack: '曲目',
     replayGainAlbum: '专辑',
     replayGainPreGain: '预增益（有标签文件）',

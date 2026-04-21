@@ -709,6 +709,8 @@ export const esTranslation = {
     replayGain: 'Replay Gain',
     replayGainDesc: 'Normalizar volumen de pistas usando metadatos ReplayGain',
     replayGainMode: 'Modo',
+    replayGainAuto: 'Auto',
+    replayGainAutoDesc: 'Usa la ganancia del álbum cuando las pistas adyacentes en la cola son del mismo álbum, si no la ganancia de pista.',
     replayGainTrack: 'Pista',
     replayGainAlbum: 'Álbum',
     replayGainPreGain: 'Pre-Ganancia (archivos etiquetados)',

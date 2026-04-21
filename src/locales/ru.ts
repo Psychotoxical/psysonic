@@ -733,6 +733,8 @@ export const ruTranslation = {
     replayGain: 'Replay Gain',
     replayGainDesc: 'Выравнивание громкости по метаданным ReplayGain',
     replayGainMode: 'Режим',
+    replayGainAuto: 'Авто',
+    replayGainAutoDesc: 'Использует громкость альбома, когда соседние треки в очереди из того же альбома, иначе громкость трека.',
     replayGainTrack: 'По треку',
     replayGainAlbum: 'По альбому',
     replayGainPreGain: 'Предусиление (файлы с тегами)',

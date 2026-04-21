@@ -1314,22 +1314,36 @@ export default function Settings() {
                 </label>
               </div>
               {auth.replayGainEnabled && (
-                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.replayGainMode')}:</span>
-                  <button
-                    className={`btn ${auth.replayGainMode === 'track' ? 'btn-primary' : 'btn-ghost'}`}
-                    style={{ fontSize: 12, padding: '3px 12px' }}
-                    onClick={() => auth.setReplayGainMode('track')}
-                  >
-                    {t('settings.replayGainTrack')}
-                  </button>
-                  <button
-                    className={`btn ${auth.replayGainMode === 'album' ? 'btn-primary' : 'btn-ghost'}`}
-                    style={{ fontSize: 12, padding: '3px 12px' }}
-                    onClick={() => auth.setReplayGainMode('album')}
-                  >
-                    {t('settings.replayGainAlbum')}
-                  </button>
+                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.replayGainMode')}:</span>
+                    <button
+                      className={`btn ${auth.replayGainMode === 'auto' ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ fontSize: 12, padding: '3px 12px' }}
+                      onClick={() => auth.setReplayGainMode('auto')}
+                    >
+                      {t('settings.replayGainAuto')}
+                    </button>
+                    <button
+                      className={`btn ${auth.replayGainMode === 'track' ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ fontSize: 12, padding: '3px 12px' }}
+                      onClick={() => auth.setReplayGainMode('track')}
+                    >
+                      {t('settings.replayGainTrack')}
+                    </button>
+                    <button
+                      className={`btn ${auth.replayGainMode === 'album' ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ fontSize: 12, padding: '3px 12px' }}
+                      onClick={() => auth.setReplayGainMode('album')}
+                    >
+                      {t('settings.replayGainAlbum')}
+                    </button>
+                  </div>
+                  {auth.replayGainMode === 'auto' && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {t('settings.replayGainAutoDesc')}
+                    </div>
+                  )}
                 </div>
               )}
               {auth.replayGainEnabled && (

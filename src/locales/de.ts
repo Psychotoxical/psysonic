@@ -716,6 +716,8 @@ export const deTranslation = {
     replayGain: 'Replay Gain',
     replayGainDesc: 'Lautstärke mit ReplayGain-Metadaten normalisieren',
     replayGainMode: 'Modus',
+    replayGainAuto: 'Auto',
+    replayGainAutoDesc: 'Wählt Album-Gain, wenn benachbarte Tracks in der Warteschlange vom selben Album sind, sonst Track-Gain.',
     replayGainTrack: 'Track',
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (getaggte Dateien)',

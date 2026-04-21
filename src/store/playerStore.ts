@@ -64,6 +64,37 @@ export function songToTrack(song: SubsonicSong): Track {
   };
 }
 
+/**
+ * Resolve the ReplayGain dB value for a track based on the configured mode.
+ * In 'auto' mode, picks album-gain when an adjacent queue neighbour shares the
+ * same albumId (i.e. the track is being played as part of an album), otherwise
+ * track-gain. Falls back to track-gain when album-gain is missing.
+ */
+export function resolveReplayGainDb(
+  track: Track,
+  prevTrack: Track | null | undefined,
+  nextTrack: Track | null | undefined,
+  enabled: boolean,
+  mode: 'track' | 'album' | 'auto',
+): number | null {
+  if (!enabled) return null;
+  let useAlbum: boolean;
+  if (mode === 'album') {
+    useAlbum = true;
+  } else if (mode === 'track') {
+    useAlbum = false;
+  } else {
+    const albumId = track.albumId;
+    useAlbum = !!albumId && (
+      prevTrack?.albumId === albumId || nextTrack?.albumId === albumId
+    );
+  }
+  const value = useAlbum
+    ? (track.replayGainAlbumDb ?? track.replayGainTrackDb)
+    : track.replayGainTrackDb;
+  return value ?? null;
+}
+
 export function shuffleArray<T>(items: T[]): T[] {
   const arr = [...items];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -590,11 +621,15 @@ function handleAudioProgress(current_time: number, duration: number) {
     if (shouldChainGapless && nextTrack.id !== gaplessPreloadingId) {
       gaplessPreloadingId = nextTrack.id;
       const authState = useAuthStore.getState();
-      const replayGainDb = authState.replayGainEnabled
-        ? (authState.replayGainMode === 'album'
-            ? (nextTrack.replayGainAlbumDb ?? nextTrack.replayGainTrackDb)
-            : nextTrack.replayGainTrackDb) ?? null
-        : null;
+      // Auto-mode neighbours for the *next* track: current track on its left,
+      // queue[nextIdx+1] on its right.
+      const nextNeighbour = nextIdx + 1 < queue.length
+        ? queue[nextIdx + 1]
+        : (repeatMode === 'all' && queue.length > 0 ? queue[0] : null);
+      const replayGainDb = resolveReplayGainDb(
+        nextTrack, track, nextNeighbour,
+        authState.replayGainEnabled, authState.replayGainMode,
+      );
       const replayGainPeak = authState.replayGainEnabled
         ? (nextTrack.replayGainPeak ?? null)
         : null;
@@ -1210,9 +1245,12 @@ export const usePlayerStore = create<PlayerState>()(
           );
         }
         setDeferHotCachePrefetch(true);
-        const replayGainDb = authState.replayGainEnabled
-          ? (authState.replayGainMode === 'album' ? (track.replayGainAlbumDb ?? track.replayGainTrackDb) : track.replayGainTrackDb) ?? null
-          : null;
+        const playIdx = idx >= 0 ? idx : 0;
+        const nextNeighbour = playIdx + 1 < newQueue.length ? newQueue[playIdx + 1] : null;
+        const replayGainDb = resolveReplayGainDb(
+          track, prevTrack, nextNeighbour,
+          authState.replayGainEnabled, authState.replayGainMode,
+        );
         const replayGainPeak = authState.replayGainEnabled ? (track.replayGainPeak ?? null) : null;
         invoke('audio_play', {
           url,
@@ -1296,8 +1334,10 @@ export const usePlayerStore = create<PlayerState>()(
           set({ isPlaying: true });
           return;
         }
-        const { currentTrack, queue, currentTime } = get();
+        const { currentTrack, queue, queueIndex, currentTime } = get();
         if (!currentTrack) return;
+        const coldPrev = queueIndex > 0 ? queue[queueIndex - 1] : null;
+        const coldNext = queueIndex + 1 < queue.length ? queue[queueIndex + 1] : null;
 
         if (isAudioPaused) {
           // Rust engine has audio loaded but paused — just resume it.
@@ -1317,9 +1357,10 @@ export const usePlayerStore = create<PlayerState>()(
             // Update store with fresh track data if available
             if (freshSong) set({ currentTrack: trackToPlay });
             const authStateCold = useAuthStore.getState();
-            const replayGainDbCold = authStateCold.replayGainEnabled
-              ? (authStateCold.replayGainMode === 'album' ? (trackToPlay.replayGainAlbumDb ?? trackToPlay.replayGainTrackDb) : trackToPlay.replayGainTrackDb) ?? null
-              : null;
+            const replayGainDbCold = resolveReplayGainDb(
+              trackToPlay, coldPrev, coldNext,
+              authStateCold.replayGainEnabled, authStateCold.replayGainMode,
+            );
             const replayGainPeakCold = authStateCold.replayGainEnabled ? (trackToPlay.replayGainPeak ?? null) : null;
             const coldServerId = useAuthStore.getState().activeServerId ?? '';
             setDeferHotCachePrefetch(true);
@@ -1350,9 +1391,10 @@ export const usePlayerStore = create<PlayerState>()(
              if (playGeneration !== gen) return;
              // Fallback to currentTrack if fetch fails
              const authStateCold = useAuthStore.getState();
-             const replayGainDbCold = authStateCold.replayGainEnabled
-               ? (authStateCold.replayGainMode === 'album' ? currentTrack.replayGainAlbumDb : currentTrack.replayGainTrackDb) ?? null
-               : null;
+             const replayGainDbCold = resolveReplayGainDb(
+               currentTrack, coldPrev, coldNext,
+               authStateCold.replayGainEnabled, authStateCold.replayGainMode,
+             );
              const replayGainPeakCold = authStateCold.replayGainEnabled ? (currentTrack.replayGainPeak ?? null) : null;
              const coldServerId = useAuthStore.getState().activeServerId ?? '';
              setDeferHotCachePrefetch(true);
@@ -1732,16 +1774,17 @@ export const usePlayerStore = create<PlayerState>()(
        },
 
        updateReplayGainForCurrentTrack: () => {
-         const { currentTrack, volume } = get();
+         const { currentTrack, queue, queueIndex, volume } = get();
          if (!currentTrack || !currentTrack.id) return;
          const authState = useAuthStore.getState();
-         const replayGainDb = authState.replayGainEnabled
-           ? (authState.replayGainMode === 'album'
-               ? (currentTrack.replayGainAlbumDb ?? currentTrack.replayGainTrackDb)
-               : currentTrack.replayGainTrackDb) ?? null
-           : null;
-         const replayGainPeak = authState.replayGainEnabled 
-           ? (currentTrack.replayGainPeak ?? null) 
+         const prev = queueIndex > 0 ? queue[queueIndex - 1] : null;
+         const next = queueIndex + 1 < queue.length ? queue[queueIndex + 1] : null;
+         const replayGainDb = resolveReplayGainDb(
+           currentTrack, prev, next,
+           authState.replayGainEnabled, authState.replayGainMode,
+         );
+         const replayGainPeak = authState.replayGainEnabled
+           ? (currentTrack.replayGainPeak ?? null)
            : null;
          
          invoke('audio_update_replay_gain', {

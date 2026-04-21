@@ -703,6 +703,8 @@ export const nbTranslation = {
     replayGain: 'Replay Gain',
     replayGainDesc: 'Normaliser sporvolumet ved hjelp av ReplayGain-metadata',
     replayGainMode: 'Modus',
+    replayGainAuto: 'Auto',
+    replayGainAutoDesc: 'Bruker albumforsterkning når nabospor i køen er fra samme album, ellers sporforsterkning.',
     replayGainTrack: 'Spor',
     replayGainAlbum: 'Album',
     replayGainPreGain: 'Pre-Gain (taggede filer)',
