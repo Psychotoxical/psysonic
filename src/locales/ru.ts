@@ -526,6 +526,7 @@ export const ruTranslation = {
     userMgmtDeleted: 'Пользователь удалён.',
     userMgmtValidationMissing: 'Требуются имя пользователя, отображаемое имя и пароль.',
     userMgmtMagicStringGenerate: 'Сгенерировать magic string',
+    userMgmtSaveAndMagicString: 'Сохранить и получить magic string',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome сохранит этот пароль для пользователя. Если он не совпадает с текущим, на сервере будет установлен новый пароль входа.',
     userMgmtMagicStringPlaintextWarning:

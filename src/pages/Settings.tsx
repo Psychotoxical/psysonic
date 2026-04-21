@@ -364,6 +364,7 @@ function UserForm({
   ndToken,
   onUsersDirty,
   onSave,
+  onSaveAndGetMagic,
   onCancel,
   busy,
 }: {
@@ -373,6 +374,8 @@ function UserForm({
   ndToken: string;
   onUsersDirty?: () => void | Promise<void>;
   onSave: (form: UserFormState) => void;
+  /** New user only: create on Navidrome then copy magic string to clipboard. */
+  onSaveAndGetMagic?: (form: UserFormState) => void | Promise<void>;
   onCancel: () => void;
   busy: boolean;
 }) {
@@ -430,6 +433,16 @@ function UserForm({
       ok ? 'info' : 'error',
     );
     if (ok) void onUsersDirty?.();
+  };
+
+  const runSaveAndGetMagic = async () => {
+    if (!onSaveAndGetMagic || !canSave) return;
+    setMagicGenBusy(true);
+    try {
+      await onSaveAndGetMagic(form);
+    } finally {
+      setMagicGenBusy(false);
+    }
   };
 
   return (
@@ -553,6 +566,35 @@ function UserForm({
           </>
         )}
       </div>
+      {!form.isAdmin && !isEdit && onSaveAndGetMagic && shareServerUrl.trim() && ndToken.trim() && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div
+            role="note"
+            style={{
+              fontSize: 11,
+              lineHeight: 1.45,
+              marginBottom: 10,
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 35%, transparent)',
+              background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            {t('settings.userMgmtMagicStringPlaintextWarning')}
+          </div>
+          <button
+            type="button"
+            className="btn btn-surface"
+            onClick={() => void runSaveAndGetMagic()}
+            disabled={busy || magicGenBusy || !canSave}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+          >
+            <Wand2 size={16} />
+            {t('settings.userMgmtSaveAndMagicString')}
+          </button>
+        </div>
+      )}
       {!form.isAdmin && isEdit && shareServerUrl.trim() && form.password.trim().length > 0 && ndToken.trim() && (
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.45 }}>
@@ -711,6 +753,57 @@ function UserManagementSection({
     }
   };
 
+  const handleSaveAndGetMagic = async (form: UserFormState) => {
+    if (editing !== 'new' || form.isAdmin) return;
+    const userName = form.userName.trim();
+    const name = form.name.trim();
+    const email = form.email.trim();
+    if (!userName || !name || !form.password) {
+      showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
+      return;
+    }
+    if (!form.isAdmin && form.libraryIds.length === 0 && libraries.length > 0) {
+      showToast(t('settings.userMgmtLibrariesValidation'), 4000, 'error');
+      return;
+    }
+    if (!token) return;
+    setBusy(true);
+    try {
+      const created = await ndCreateUser(serverUrl, token, {
+        userName, name, email, password: form.password, isAdmin: form.isAdmin,
+      });
+      const targetId = created.id;
+      showToast(t('settings.userMgmtCreated'), 3000, 'info');
+      if (!form.isAdmin && form.libraryIds.length > 0) {
+        try {
+          await ndSetUserLibraries(serverUrl, token, targetId, form.libraryIds);
+        } catch (e) {
+          const msg = (e instanceof Error && e.message) ? e.message : String(e);
+          showToast(`${t('settings.userMgmtLibrariesUpdateError')}: ${msg}`, 5000, 'error');
+        }
+      }
+      const str = encodeServerMagicString({
+        url: serverUrl.trim(),
+        username: userName,
+        password: form.password,
+        name: shortHostFromServerUrl(serverUrl),
+      });
+      const ok = await copyTextToClipboard(str);
+      showToast(
+        ok ? t('settings.userMgmtMagicStringCopied') : t('settings.userMgmtMagicStringCopyFailed'),
+        ok ? 3000 : 5000,
+        ok ? 'info' : 'error',
+      );
+      setEditing(null);
+      await load();
+    } catch (e) {
+      const msg = (e instanceof Error && e.message) ? e.message : (typeof e === 'string' ? e : null);
+      showToast(msg ?? t('settings.userMgmtCreateError'), 5000, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const performDelete = async (u: NdUser) => {
     if (!token) return;
     setConfirmingDelete(null);
@@ -760,6 +853,7 @@ function UserManagementSection({
               ndToken={token}
               onUsersDirty={load}
               onSave={handleSave}
+              onSaveAndGetMagic={editing === 'new' ? handleSaveAndGetMagic : undefined}
               onCancel={() => setEditing(null)}
               busy={busy}
             />

@@ -498,6 +498,7 @@ export const zhTranslation = {
     userMgmtDeleted: '用户已删除。',
     userMgmtValidationMissing: '用户名、显示名称和密码均为必填项。',
     userMgmtMagicStringGenerate: '生成魔法字符串',
+    userMgmtSaveAndMagicString: '保存并获取魔法字符串',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome 会保存此密码。若与当前密码不同，服务器上的登录密码将被更新。',
     userMgmtMagicStringPlaintextWarning:

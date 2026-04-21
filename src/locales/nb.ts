@@ -503,6 +503,7 @@ export const nbTranslation = {
     userMgmtDeleted: 'Bruker slettet.',
     userMgmtValidationMissing: 'Brukernavn, visningsnavn og passord er påkrevd.',
     userMgmtMagicStringGenerate: 'Generer magic string',
+    userMgmtSaveAndMagicString: 'Lagre og hent magic string',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome lagrer dette passordet for brukeren. Hvis det avviker fra det nåværende, oppdateres innloggingspassordet på serveren.',
     userMgmtMagicStringPlaintextWarning:

@@ -513,6 +513,7 @@ export const deTranslation = {
     userMgmtDeleted: 'Benutzer gelöscht.',
     userMgmtValidationMissing: 'Benutzername, Anzeigename und Passwort sind erforderlich.',
     userMgmtMagicStringGenerate: 'Magic-String erzeugen',
+    userMgmtSaveAndMagicString: 'Speichern und Magic-String kopieren',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome speichert dieses Passwort für den Benutzer. Weicht es vom aktuellen ab, wird das Anmeldepasswort auf dem Server aktualisiert.',
     userMgmtMagicStringPlaintextWarning:

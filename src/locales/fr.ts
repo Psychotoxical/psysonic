@@ -503,6 +503,7 @@ export const frTranslation = {
     userMgmtDeleted: 'Utilisateur supprimé.',
     userMgmtValidationMissing: 'Nom d’utilisateur, nom affiché et mot de passe sont requis.',
     userMgmtMagicStringGenerate: 'Générer la chaîne magique',
+    userMgmtSaveAndMagicString: 'Enregistrer et obtenir la chaîne magique',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome enregistrera ce mot de passe pour l’utilisateur. S’il diffère de l’actuel, le mot de passe de connexion sur le serveur sera mis à jour.',
     userMgmtMagicStringPlaintextWarning:

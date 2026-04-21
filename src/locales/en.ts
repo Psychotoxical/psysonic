@@ -515,6 +515,7 @@ export const enTranslation = {
     userMgmtDeleted: 'User deleted.',
     userMgmtValidationMissing: 'Username, display name and password are required.',
     userMgmtMagicStringGenerate: 'Generate magic string',
+    userMgmtSaveAndMagicString: 'Save and get magic string',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome will save this password for the user. If it differs from the current one, the server will update the login password.',
     userMgmtMagicStringPlaintextWarning:

@@ -502,6 +502,7 @@ export const nlTranslation = {
     userMgmtDeleted: 'Gebruiker verwijderd.',
     userMgmtValidationMissing: 'Gebruikersnaam, weergavenaam en wachtwoord zijn vereist.',
     userMgmtMagicStringGenerate: 'Magic string genereren',
+    userMgmtSaveAndMagicString: 'Opslaan en magic string kopiëren',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome slaat dit wachtwoord voor de gebruiker op. Als het afwijkt van het huidige wachtwoord, wordt het inlogwachtwoord op de server bijgewerkt.',
     userMgmtMagicStringPlaintextWarning:
