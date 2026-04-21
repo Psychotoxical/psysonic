@@ -7,7 +7,7 @@ import {
   Tags, type LucideIcon,
 } from 'lucide-react';
 import { getGenres, SubsonicGenre } from '../api/subsonic';
-import { useAuthStore } from '../store/authStore';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 
 function getGenreIcon(name: string): LucideIcon {
   const n = name.toLowerCase();
@@ -59,7 +59,6 @@ export default function Genres() {
     const saved = sessionStorage.getItem(VISIBLE_KEY);
     return saved ? Math.max(PAGE_SIZE, parseInt(saved, 10)) : PAGE_SIZE;
   });
-  const containerRef = useRef<HTMLDivElement>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,9 +82,13 @@ export default function Genres() {
   // paint of the page.
   useEffect(() => {
     if (!hasMore) return;
+    const root = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
     const observer = new IntersectionObserver(
       entries => { if (entries[0].isIntersecting) setVisibleCount(c => c + PAGE_SIZE); },
-      { rootMargin: '1500px' },
+      {
+        root: root instanceof HTMLElement ? root : null,
+        rootMargin: '1500px',
+      },
     );
     if (observerTarget.current) observer.observe(observerTarget.current);
     return () => observer.disconnect();
@@ -100,20 +103,22 @@ export default function Genres() {
     sessionStorage.removeItem(SCROLL_KEY);
     sessionStorage.removeItem(VISIBLE_KEY);
     requestAnimationFrame(() => {
-      if (containerRef.current) containerRef.current.scrollTop = pos;
+      const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+      if (el) el.scrollTop = pos;
     });
   }, [loading, genres.length]);
 
   const handleGenreClick = (genreValue: string) => {
-    if (containerRef.current) {
-      sessionStorage.setItem(SCROLL_KEY, String(containerRef.current.scrollTop));
+    const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    if (el) {
+      sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop));
       sessionStorage.setItem(VISIBLE_KEY, String(visibleCount));
     }
     navigate(`/genres/${encodeURIComponent(genreValue)}`);
   };
 
   return (
-    <div ref={containerRef} className="content-body animate-fade-in">
+    <div className="content-body animate-fade-in">
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>{t('genres.title')}</h1>
         {!loading && genres.length > 0 && (

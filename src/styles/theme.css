@@ -3706,6 +3706,13 @@ body.is-dragging * {
   cursor: col-resize !important;
 }
 
+/* Overlay scrollbar thumb drag — override queue resizer cursor (z-index). */
+body.is-overlay-scrollbar-thumb-drag,
+body.is-overlay-scrollbar-thumb-drag * {
+  user-select: none !important;
+  cursor: grabbing !important;
+}
+
 /* ─── Mouse-event DnD cursor (psy-dragging) ──────────────────────
    Applied by DragDropProvider while a mouse-based drag is active.
    Overrides cursor globally to "grabbing" and prevents text-

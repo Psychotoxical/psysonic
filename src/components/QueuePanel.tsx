@@ -1,10 +1,9 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
 import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, ArrowUpToLine, Radio, HardDrive, ChevronDown, Info } from 'lucide-react';
 import { buildCoverArtUrl, coverArtCacheKey, getAlbum, getPlaylists, getPlaylist, updatePlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCachedUrl } from './CachedImage';
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -14,6 +13,7 @@ import { useDragDrop } from '../contexts/DragDropContext';
 import LyricsPane from './LyricsPane';
 import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
+import OverlayScrollArea from './OverlayScrollArea';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -291,6 +291,7 @@ export default function QueuePanel() {
   const psyDragFromIdxRef = useRef<number | null>(null);
 
   const queueListRef = useRef<HTMLDivElement>(null);
+
   const asideRef = useRef<HTMLElement>(null);
 
   const { isDragging: isPsyDragging, startDrag, payload: psyPayload } = useDragDrop();
@@ -367,7 +368,10 @@ export default function QueuePanel() {
     const nextSong = songs[queueIndex + 1];
     if (!nextSong) return;
     nextSong.scrollIntoView({ block: "start", behavior: "instant" });
-  }, [currentTrack, activeTab]);       
+    requestAnimationFrame(() => {
+      queueListRef.current?.dispatchEvent(new Event('scroll', { bubbles: false }));
+    });
+  }, [currentTrack, activeTab]);
 
   const [activePlaylist, setActivePlaylist] = useState<{ id: string; name: string } | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -616,8 +620,15 @@ export default function QueuePanel() {
       </div>
 
       {currentTrack && queue.length > 0 && <div className="queue-divider"><span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.nextTracks')}</span></div>}
-      
-      <div className="queue-list" ref={queueListRef}>
+
+      <OverlayScrollArea
+        viewportRef={queueListRef}
+        className="queue-list-wrap"
+        viewportClassName="queue-list"
+        measureDeps={[activeTab, queue.length]}
+        railInset="panel"
+        viewportScrollBehaviorAuto={isQueueDrag}
+      >
         {queue.length === 0 ? (
           <div className="queue-empty">
             {t('queue.emptyQueue')}
@@ -696,7 +707,7 @@ export default function QueuePanel() {
             );
           })
         )}
-      </div>
+      </OverlayScrollArea>
       </>) : activeTab === 'lyrics' ? (
         <LyricsPane currentTrack={currentTrack} />
       ) : (

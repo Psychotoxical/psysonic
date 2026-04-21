@@ -197,6 +197,13 @@
 
 .resizer-queue { right: calc(var(--queue-width) - 3px); }
 
+/* While dragging an overlay scrollbar thumb, hide queue resizer so the
+   pointer does not pick up col-resize / queue resize (thumb sits under the
+   resizer hit box near the main/queue edge). */
+body.is-overlay-scrollbar-thumb-drag .resizer {
+  pointer-events: none !important;
+}
+
 /* In native fullscreen the resizer sits flush against the screen edge and
    would interfere with OS edge-swipe gestures — hide it entirely. */
 .app-shell[data-fullscreen] .resizer { display: none; }
@@ -242,11 +249,22 @@
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-nav-scroll.overlay-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar-nav-scroll .overlay-scroll__viewport.sidebar-nav-viewport {
   padding: var(--space-1) var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  overflow-y: auto;
 }
 
 /* Library scope: Navidrome-style dropdown trigger + fixed panel (portal) */
@@ -1086,6 +1104,28 @@
   overflow: visible;
 }
 
+/* Main route stack: scroll + overlay thumb live in the inner viewport, not the
+   outer .content-body, so sticky headers still anchor to the scrolling element. */
+.content-body.app-shell-route-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: relative;
+  contain: none;
+}
+
+.app-shell-route-scroll.overlay-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell-route-scroll .app-shell-route-scroll__viewport {
+  contain: paint;
+}
+
 /* Sticky page header: keeps page title + filter/search bar visible while the
    body scrolls. Negative horizontal margins (+ matching padding) make the
    background flush with the scroll container edges so the sticky block looks
@@ -1907,9 +1947,101 @@ html[data-platform="windows"] .player-bar.floating {
   flex-shrink: 0;
 }
 
-.queue-list {
-  flex: 1;
+/* ─── OverlayScrollArea (shared: queue, mini, sidebar, menus) ─────────────── */
+.overlay-scroll {
+  --overlay-rail-top: 0px;
+  --overlay-rail-bottom: 0px;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-scroll--rail-inset-none {
+  --overlay-rail-top: 0px;
+  --overlay-rail-bottom: 0px;
+}
+
+.overlay-scroll--rail-inset-mini {
+  --overlay-rail-top: 4px;
+  --overlay-rail-bottom: 4px;
+}
+
+.overlay-scroll--rail-inset-panel {
+  --overlay-rail-top: var(--space-2);
+  --overlay-rail-bottom: var(--space-2);
+}
+
+.overlay-scroll--viewport-scroll-auto .overlay-scroll__viewport {
+  scroll-behavior: auto;
+}
+
+.overlay-scroll__viewport {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+
+.overlay-scroll__viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.overlay-scroll__rail {
+  position: absolute;
+  top: var(--overlay-rail-top);
+  right: 0;
+  bottom: var(--overlay-rail-bottom);
+  width: 14px;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.overlay-scroll__thumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--text-muted);
+  opacity: 0;
+  transition:
+    opacity 0.18s ease,
+    width 0.2s ease,
+    border-radius 0.2s ease;
+  pointer-events: none;
+  will-change: transform;
+  cursor: grab;
+  touch-action: none;
+}
+
+.overlay-scroll__viewport.is-scrolling ~ .overlay-scroll__rail .overlay-scroll__thumb,
+.overlay-scroll:hover .overlay-scroll__rail .overlay-scroll__thumb {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+
+.overlay-scroll__rail:hover .overlay-scroll__thumb,
+.overlay-scroll__rail:has(.overlay-scroll__thumb.is-thumb-dragging) .overlay-scroll__thumb {
+  width: 9px;
+  border-radius: 4px;
+}
+
+.overlay-scroll__rail .overlay-scroll__thumb.is-thumb-dragging {
+  opacity: 0.9;
+  pointer-events: auto;
+  cursor: grabbing;
+  transition: opacity 0.18s ease;
+}
+
+.queue-list-wrap.overlay-scroll {
+  flex: 1 1 auto;
+}
+
+.queue-list.overlay-scroll__viewport {
   padding: var(--space-2);
 }
 

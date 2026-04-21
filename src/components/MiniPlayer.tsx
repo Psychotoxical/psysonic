@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
@@ -6,10 +6,12 @@ import { Play, Pause, SkipBack, SkipForward, Pin, PinOff, Maximize2, X, ListMusi
 import CachedImage from './CachedImage';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { IS_LINUX } from '../utils/platform';
 import MiniContextMenu from './MiniContextMenu';
+import OverlayScrollArea from './OverlayScrollArea';
 import type { MiniSyncPayload, MiniControlAction, MiniTrackInfo } from '../utils/miniPlayerBridge';
 
 const COLLAPSED_SIZE = { w: 340, h: 260 };
@@ -107,7 +109,6 @@ export default function MiniPlayer() {
   });
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [queueOpen, setQueueOpen] = useState(readQueueOpen);
-  const [scrollMeta, setScrollMeta] = useState({ thumbH: 0, thumbT: 0, visible: false });
   const [volume, setVolumeState] = useState(() => initialSnapshot().volume);
   const [volumeOpen, setVolumeOpen] = useState(false);
   const ticker = useRef<number | null>(null);
@@ -137,25 +138,6 @@ export default function MiniPlayer() {
   // ── Context menu state ──
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; track: MiniTrackInfo; index: number } | null>(null);
 
-  // Compute overlay-scrollbar thumb height + offset from the queue's scroll
-  // metrics. Native scrollbar is hidden via CSS; this thumb floats over the
-  // items so the queue keeps its full width.
-  const recomputeScroll = useCallback(() => {
-    const el = queueScrollRef.current;
-    if (!el) return;
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    if (scrollHeight <= clientHeight + 1) {
-      setScrollMeta(prev => (prev.visible ? { thumbH: 0, thumbT: 0, visible: false } : prev));
-      return;
-    }
-    const ratio = clientHeight / scrollHeight;
-    const thumbH = Math.max(24, Math.round(ratio * clientHeight));
-    const range = clientHeight - thumbH;
-    const scrollRange = scrollHeight - clientHeight;
-    const thumbT = scrollRange > 0 ? Math.round((scrollTop / scrollRange) * range) : 0;
-    setScrollMeta({ thumbH, thumbT, visible: true });
-  }, []);
-
   // Announce to main window that we're mounted; it replies with a snapshot.
   // Also re-announce on window focus: on Windows the mini is pre-created at
   // app startup so the mount-time emit can race past main's bridge before
@@ -167,6 +149,21 @@ export default function MiniPlayer() {
     const onFocus = () => { emit('mini:ready', {}).catch(() => {}); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
+  }, []);
+
+  // Mini is a separate WebKitGTK webview: Rust applies smooth-wheel per window.
+  // Re-send after auth persist hydrates so preloaded/hidden mini matches Settings.
+  useEffect(() => {
+    if (!IS_LINUX) return;
+    const apply = () => {
+      invoke('set_linux_webkit_smooth_scrolling', {
+        enabled: useAuthStore.getState().linuxWebkitKineticScroll,
+      }).catch(() => {});
+    };
+    apply();
+    return useAuthStore.persist.onFinishHydration(() => {
+      apply();
+    });
   }, []);
 
   // Restore the expanded window size on initial mount when the queue was
@@ -360,16 +357,10 @@ export default function MiniPlayer() {
     if (!queueOpen) return;
     const el = queueScrollRef.current?.querySelector<HTMLElement>('.mini-queue__item--current');
     el?.scrollIntoView({ block: 'nearest' });
+    requestAnimationFrame(() => {
+      queueScrollRef.current?.dispatchEvent(new Event('scroll', { bubbles: false }));
+    });
   }, [queueOpen, state.queueIndex]);
-
-  // Recompute overlay-thumb on open, queue mutations, and window resize.
-  useEffect(() => {
-    if (!queueOpen) return;
-    recomputeScroll();
-    const onResize = () => recomputeScroll();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [queueOpen, state.queue.length, recomputeScroll]);
 
   const { track, isPlaying } = state;
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
@@ -571,8 +562,13 @@ export default function MiniPlayer() {
         </div>
 
         {queueOpen && (
-        <div
-          className={`mini-queue-wrap${isReorderDrag ? ' mini-queue-wrap--drop-active' : ''}`}
+        <OverlayScrollArea
+          viewportRef={queueScrollRef}
+          className="mini-queue-wrap"
+          viewportClassName="mini-queue"
+          measureDeps={[queueOpen, state.queue.length]}
+          railInset="mini"
+          viewportScrollBehaviorAuto={isReorderDrag}
           onMouseMove={(e) => {
             if (!isReorderDrag || !queueScrollRef.current) return;
             const items = queueScrollRef.current.querySelectorAll<HTMLElement>('[data-mq-idx]');
@@ -591,7 +587,6 @@ export default function MiniPlayer() {
             setDropTarget(null);
           }}
         >
-          <div className="mini-queue" ref={queueScrollRef} onScroll={recomputeScroll}>
             {state.queue.length === 0 ? (
               <div className="mini-queue__empty">{t('miniPlayer.emptyQueue')}</div>
             ) : (
@@ -651,17 +646,7 @@ export default function MiniPlayer() {
                 );
               })
             )}
-          </div>
-          {scrollMeta.visible && (
-            <div
-              className="mini-queue__thumb"
-              style={{
-                height: `${scrollMeta.thumbH}px`,
-                transform: `translateY(${scrollMeta.thumbT}px)`,
-              }}
-            />
-          )}
-        </div>
+        </OverlayScrollArea>
       )}
 
         <div className="mini-player__bottom" data-tauri-drag-region="false">

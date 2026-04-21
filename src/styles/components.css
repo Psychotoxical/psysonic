@@ -9416,47 +9416,19 @@ html.no-compositing .fs-seekbar-played {
 }
 
 
-.mini-queue-wrap {
+.mini-queue-wrap.overlay-scroll {
   flex: 1 1 auto;
-  position: relative;
   background: var(--bg-card);
   border-radius: 8px;
-  overflow: hidden;
-  min-height: 0;
   margin-top: 10px;
 }
 
-.mini-queue {
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+.mini-queue.overlay-scroll__viewport {
   padding: 4px;
   display: flex;
   flex-direction: column;
   gap: 1px;
   box-sizing: border-box;
-  /* Hide native scrollbar — we render an overlay thumb beside it. */
-  scrollbar-width: none;
-}
-.mini-queue::-webkit-scrollbar {
-  display: none;
-}
-
-.mini-queue__thumb {
-  position: absolute;
-  top: 4px;
-  right: 3px;
-  width: 4px;
-  border-radius: 2px;
-  background: var(--text-muted);
-  opacity: 0;
-  transition: opacity 0.18s ease;
-  pointer-events: none;
-  will-change: transform;
-}
-.mini-queue-wrap:hover .mini-queue__thumb,
-.mini-queue.is-scrolling ~ .mini-queue__thumb {
-  opacity: 0.55;
 }
 
 .mini-queue__empty {
@@ -9486,10 +9458,6 @@ html.no-compositing .fs-seekbar-played {
 
 .mini-queue__item--ctx {
   background: var(--bg-hover);
-}
-
-.mini-queue-wrap--drop-active .mini-queue {
-  scroll-behavior: auto;
 }
 
 .mini-queue__item--current {

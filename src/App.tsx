@@ -52,6 +52,8 @@ import SongInfoModal from './components/SongInfoModal';
 import DownloadFolderModal from './components/DownloadFolderModal';
 import { DragDropProvider } from './contexts/DragDropContext';
 import TooltipPortal from './components/TooltipPortal';
+import OverlayScrollArea from './components/OverlayScrollArea';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from './constants/appScroll';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import LastfmIndicator from './components/LastfmIndicator';
 import OfflineBanner from './components/OfflineBanner';
@@ -96,6 +98,28 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, servers, activeServerId } = useAuthStore();
   if (!isLoggedIn || !activeServerId || servers.length === 0) return <Navigate to="/login" replace />;
   return <>{children}</>;
+}
+
+/**
+ * Avoid grabbing the queue resizer when aiming at the main overlay scrollbar.
+ * Uses the real main viewport edge (not innerWidth − queueWidth — sidebar/zoom skew that).
+ * Only the main-route thumb counts (not queue/mini thumbs, which share the same class).
+ */
+function shouldSuppressQueueResizerMouseDown(clientX: number, clientY: number, queueWidth: number): boolean {
+  const vp = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as HTMLElement | null;
+  const mainRight = vp ? vp.getBoundingClientRect().right : window.innerWidth - queueWidth;
+  if (clientX <= mainRight) return true;
+
+  const thumbs = document.querySelectorAll<HTMLElement>('.app-shell-route-scroll .overlay-scroll__thumb');
+  const xSlop = 22;
+  const vPad = 40;
+  for (let i = 0; i < thumbs.length; i++) {
+    const r = thumbs[i].getBoundingClientRect();
+    if (r.height < 4 || r.width < 1) continue;
+    if (clientY < r.top - vPad || clientY > r.bottom + vPad) continue;
+    if (clientX >= r.left - 6 && clientX <= r.right + xSlop) return true;
+  }
+  return false;
 }
 
 function AppShell() {
@@ -209,9 +233,9 @@ function AppShell() {
     };
   }, [isLoggedIn, activeServerId, setMusicFolders, setEntityRatingSupport]);
 
-  // Reset scroll position on route change
+  // Reset scroll position on route change (main viewport is overlay scroll)
   useEffect(() => {
-    document.querySelector('.content-body')?.scrollTo({ top: 0 });
+    document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTo({ top: 0 });
   }, [location.pathname]);
 
   // Auto-navigate to offline library when no connection but cached content exists
@@ -404,38 +428,46 @@ function AppShell() {
         {connStatus === 'disconnected' && (
           <OfflineBanner onRetry={connRetry} isChecking={connRetrying} showSettingsLink={!hasOfflineContent} serverName={serverName} />
         )}
-        <div className="content-body" style={{ padding: 0, position: 'relative' }}>
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/albums" element={<Albums />} />
-              <Route path="/random" element={<RandomLanding />} />
-              <Route path="/random/albums" element={<RandomAlbums />} />
-              <Route path="/album/:id" element={<AlbumDetail />} />
-              <Route path="/artists" element={<Artists />} />
-              <Route path="/artist/:id" element={<ArtistDetail />} />
-              <Route path="/new-releases" element={<NewReleases />} />
-              <Route path="/favorites" element={<Favorites />} />
-              <Route path="/random/mix" element={<RandomMix />} />
-              <Route path="/label/:name" element={<LabelAlbums />} />
-              <Route path="/search" element={<SearchResults />} />
-              <Route path="/search/advanced" element={<AdvancedSearch />} />
-              <Route path="/statistics" element={<Statistics />} />
-              <Route path="/most-played" element={<MostPlayed />} />
-              <Route path="/now-playing" element={isMobile ? <MobilePlayerView /> : <NowPlayingPage />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/whats-new" element={<WhatsNew />} />
-              <Route path="/help" element={<Help />} />
-              <Route path="/offline" element={<OfflineLibrary />} />
-              <Route path="/genres" element={<Genres />} />
-              <Route path="/genres/:name" element={<GenreDetail />} />
-              <Route path="/playlists" element={<Playlists />} />
-              <Route path="/playlists/:id" element={<PlaylistDetail />} />
-              <Route path="/radio" element={<InternetRadio />} />
-              <Route path="/folders" element={<FolderBrowser />} />
-              <Route path="/device-sync" element={<DeviceSync />} />
-            </Routes>
-          </Suspense>
+        <div className="content-body app-shell-route-host">
+          <OverlayScrollArea
+            className="app-shell-route-scroll"
+            viewportClassName="app-shell-route-scroll__viewport"
+            viewportId={APP_MAIN_SCROLL_VIEWPORT_ID}
+            measureDeps={[location.pathname, isQueueVisible, queueWidth, floatingPlayerBar]}
+            railInset="panel"
+          >
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/albums" element={<Albums />} />
+                <Route path="/random" element={<RandomLanding />} />
+                <Route path="/random/albums" element={<RandomAlbums />} />
+                <Route path="/album/:id" element={<AlbumDetail />} />
+                <Route path="/artists" element={<Artists />} />
+                <Route path="/artist/:id" element={<ArtistDetail />} />
+                <Route path="/new-releases" element={<NewReleases />} />
+                <Route path="/favorites" element={<Favorites />} />
+                <Route path="/random/mix" element={<RandomMix />} />
+                <Route path="/label/:name" element={<LabelAlbums />} />
+                <Route path="/search" element={<SearchResults />} />
+                <Route path="/search/advanced" element={<AdvancedSearch />} />
+                <Route path="/statistics" element={<Statistics />} />
+                <Route path="/most-played" element={<MostPlayed />} />
+                <Route path="/now-playing" element={isMobile ? <MobilePlayerView /> : <NowPlayingPage />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/whats-new" element={<WhatsNew />} />
+                <Route path="/help" element={<Help />} />
+                <Route path="/offline" element={<OfflineLibrary />} />
+                <Route path="/genres" element={<Genres />} />
+                <Route path="/genres/:name" element={<GenreDetail />} />
+                <Route path="/playlists" element={<Playlists />} />
+                <Route path="/playlists/:id" element={<PlaylistDetail />} />
+                <Route path="/radio" element={<InternetRadio />} />
+                <Route path="/folders" element={<FolderBrowser />} />
+                <Route path="/device-sync" element={<DeviceSync />} />
+              </Routes>
+            </Suspense>
+          </OverlayScrollArea>
         </div>
         </div>
       </main>
@@ -444,6 +476,8 @@ function AppShell() {
           className="resizer resizer-queue" 
           onMouseDown={(e) => {
             e.preventDefault();
+            if (document.body.classList.contains('is-overlay-scrollbar-thumb-drag')) return;
+            if (shouldSuppressQueueResizerMouseDown(e.clientX, e.clientY, queueWidth)) return;
             setIsDraggingQueue(true);
           }}
           style={{ display: isQueueVisible ? 'block' : 'none' }}

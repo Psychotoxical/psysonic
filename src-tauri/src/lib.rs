@@ -132,8 +132,12 @@ fn set_linux_webkit_smooth_scrolling(enabled: bool, app_handle: tauri::AppHandle
     #[cfg(target_os = "linux")]
     {
         use tauri::Manager;
-        if let Some(win) = app_handle.get_webview_window("main") {
-            linux_webkit_apply_smooth_scrolling(&win, enabled)?;
+        // Each WebviewWindow has its own WebKitGTK Settings — main-only left the
+        // mini player on the default (inertial) wheel until the user toggled again.
+        for label in ["main", "mini"] {
+            if let Some(win) = app_handle.get_webview_window(label) {
+                linux_webkit_apply_smooth_scrolling(&win, enabled)?;
+            }
         }
     }
     #[cfg(not(target_os = "linux"))]

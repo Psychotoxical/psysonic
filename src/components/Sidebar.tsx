@@ -19,6 +19,7 @@ import WhatsNewBanner from './WhatsNewBanner';
 import { getPlaylists } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
+import OverlayScrollArea from './OverlayScrollArea';
 
 
 export default function Sidebar({
@@ -155,6 +156,24 @@ export default function Sidebar({
       </button>
 
       <nav className="sidebar-nav" aria-label="Main navigation">
+        <OverlayScrollArea
+          className="sidebar-nav-scroll"
+          viewportClassName="sidebar-nav-viewport"
+          railInset="panel"
+          measureDeps={[
+            isCollapsed,
+            playlistsExpanded,
+            playlists.length,
+            isLoggedIn,
+            randomNavMode,
+            filterId,
+            hasOfflineContent,
+            activeJobs.length,
+            isSyncing,
+            syncJobTotal,
+            sidebarItems.length,
+          ]}
+        >
         {!isCollapsed && (showLibraryPicker ? (
           <>
             <button
@@ -384,6 +403,7 @@ export default function Sidebar({
             )}
           </div>
         )}
+        </OverlayScrollArea>
       </nav>
     </aside>
   );
