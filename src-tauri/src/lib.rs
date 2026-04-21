@@ -9,7 +9,7 @@ pub(crate) mod logging;
 mod taskbar_win;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{
@@ -29,6 +29,25 @@ type ShortcutMap = Mutex<HashMap<String, String>>;
 /// Maximum number of offline track downloads that can run concurrently.
 /// The frontend queues more tasks than this; Rust is the real throttle.
 const MAX_DL_CONCURRENCY: usize = 4;
+
+fn default_subsonic_wire_user_agent() -> String {
+    format!("psysonic/{}", env!("CARGO_PKG_VERSION"))
+}
+
+fn runtime_subsonic_wire_user_agent() -> &'static RwLock<String> {
+    static UA: OnceLock<RwLock<String>> = OnceLock::new();
+    UA.get_or_init(|| RwLock::new(default_subsonic_wire_user_agent()))
+}
+
+/// Unified outbound User-Agent for all Rust-side HTTP requests.
+/// It is initialized with `psysonic/<version>` and then overridden from
+/// the main WebView `navigator.userAgent` at app startup.
+pub(crate) fn subsonic_wire_user_agent() -> String {
+    runtime_subsonic_wire_user_agent()
+        .read()
+        .map(|ua| ua.clone())
+        .unwrap_or_else(|_| default_subsonic_wire_user_agent())
+}
 
 /// Shared semaphore that caps simultaneous `download_track_offline` executions.
 type DownloadSemaphore = Arc<tokio::sync::Semaphore>;
@@ -132,6 +151,30 @@ fn set_logging_mode(mode: String) -> Result<(), String> {
 #[tauri::command]
 fn export_runtime_logs(path: String) -> Result<usize, String> {
     crate::logging::export_logs_to_file(&path)
+}
+
+#[tauri::command]
+fn set_subsonic_wire_user_agent(
+    user_agent: String,
+    window_label: String,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    if window_label != "main" {
+        return Ok(());
+    }
+    let ua = user_agent.trim();
+    if ua.is_empty() {
+        return Err("user agent is empty".to_string());
+    }
+    let mut guard = runtime_subsonic_wire_user_agent()
+        .write()
+        .map_err(|_| "user agent state poisoned".to_string())?;
+    guard.clear();
+    guard.push_str(ua);
+    drop(guard);
+
+    crate::audio::refresh_http_user_agent(&app_handle.state::<crate::audio::AudioEngine>(), ua);
+    Ok(())
 }
 
 
@@ -449,7 +492,7 @@ async fn search_radio_browser(query: String, offset: u32) -> Result<Vec<serde_js
     let offset_s = offset.to_string();
     let resp = client
         .get("https://de1.api.radio-browser.info/json/stations/search")
-        .header("User-Agent", "psysonic/1.0")
+        .header("User-Agent", subsonic_wire_user_agent())
         .query(&[
             ("name", query.as_str()),
             ("hidebroken", "true"),
@@ -472,7 +515,7 @@ async fn get_top_radio_stations(offset: u32) -> Result<Vec<serde_json::Value>, S
     let offset_s = offset.to_string();
     let resp = client
         .get("https://de1.api.radio-browser.info/json/stations/topvote")
-        .header("User-Agent", "psysonic/1.0")
+        .header("User-Agent", subsonic_wire_user_agent())
         .query(&[("limit", limit_s.as_str()), ("offset", offset_s.as_str())])
         .send()
         .await
@@ -487,12 +530,12 @@ async fn get_top_radio_stations(offset: u32) -> Result<Vec<serde_json::Value>, S
 #[tauri::command]
 async fn fetch_url_bytes(url: String) -> Result<(Vec<u8>, String), String> {
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client
         .get(&url)
-        .header("User-Agent", "psysonic/1.0")
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -517,12 +560,12 @@ async fn fetch_url_bytes(url: String) -> Result<(Vec<u8>, String), String> {
 #[tauri::command]
 async fn fetch_json_url(url: String) -> Result<String, String> {
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client
         .get(&url)
-        .header("User-Agent", "psysonic/1.0")
         .header("Accept", "application/json")
         .send()
         .await
@@ -581,7 +624,6 @@ async fn resolve_playlist_url(client: &reqwest::Client, url: &str) -> Option<Str
 
     let resp = client
         .get(url)
-        .header("User-Agent", "psysonic/1.0")
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
@@ -617,6 +659,7 @@ async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
     use futures_util::StreamExt;
 
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())?;
@@ -627,7 +670,6 @@ async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
     let resp = client
         .get(&url)
         .header("Icy-MetaData", "1")
-        .header("User-Agent", "psysonic/1.0")
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -762,14 +804,14 @@ async fn lastfm_request(
         client
             .get("https://ws.audioscrobbler.com/2.0/")
             .query(&map)
-            .header("User-Agent", "psysonic/1.13.0")
+            .header("User-Agent", subsonic_wire_user_agent())
             .send()
             .await
     } else {
         client
             .post("https://ws.audioscrobbler.com/2.0/")
             .form(&map)
-            .header("User-Agent", "psysonic/1.13.0")
+            .header("User-Agent", subsonic_wire_user_agent())
             .send()
             .await
     }.map_err(|e| e.to_string())?;
@@ -957,6 +999,7 @@ async fn download_track_offline(
     let _permit = dl_sem.acquire().await.map_err(|e| e.to_string())?;
 
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| e.to_string())?;
@@ -1136,6 +1179,7 @@ async fn download_update(url: String, filename: String, app: tauri::AppHandle) -
     let part_path = dest_dir.join(format!("{}.part", filename));
 
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(3600))
         .build()
@@ -1198,6 +1242,7 @@ async fn download_update(url: String, filename: String, app: tauri::AppHandle) -
 #[tauri::command]
 async fn fetch_netease_lyrics(artist: String, title: String) -> Result<Option<String>, String> {
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(8))
         .build()
         .map_err(|e| e.to_string())?;
@@ -1206,7 +1251,6 @@ async fn fetch_netease_lyrics(artist: String, title: String) -> Result<Option<St
     let params = [("s", query.as_str()), ("type", "1"), ("limit", "5")];
     let search: serde_json::Value = client
         .post("https://music.163.com/api/search/get")
-        .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
         .header("Referer", "https://music.163.com")
         .form(&params)
         .send()
@@ -1226,7 +1270,6 @@ async fn fetch_netease_lyrics(artist: String, title: String) -> Result<Option<St
             "https://music.163.com/api/song/lyric?id={}&lv=1&kv=1&tv=-1",
             song_id
         ))
-        .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
         .header("Referer", "https://music.163.com")
         .send()
         .await
@@ -1401,6 +1444,7 @@ async fn download_zip(
     const EMIT_INTERVAL: Duration = Duration::from_millis(500);
 
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .connect_timeout(Duration::from_secs(30))
         .timeout(Duration::from_secs(7200)) // up to 2 h for large on-the-fly ZIPs
         .build()
@@ -1503,6 +1547,7 @@ async fn download_track_hot_cache(
     }
 
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| e.to_string())?;
@@ -2007,6 +2052,7 @@ async fn sync_track_to_device(
     }
 
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| e.to_string())?;
@@ -2192,6 +2238,7 @@ async fn calculate_sync_payload(
     target_dir: String,
 ) -> Result<SyncDeltaResult, String> {
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
@@ -2419,6 +2466,7 @@ async fn sync_batch_to_device(
 
     // Shared reqwest client — reused across all downloads.
     let client = reqwest::Client::builder()
+        .user_agent(subsonic_wire_user_agent())
         .timeout(Duration::from_secs(300))
         .build()
         .map_err(|e| e.to_string())?;
@@ -3355,6 +3403,7 @@ pub fn run() {
             set_linux_webkit_smooth_scrolling,
             set_logging_mode,
             export_runtime_logs,
+            set_subsonic_wire_user_agent,
             no_compositing_mode,
             is_tiling_wm_cmd,
             open_mini_player,

@@ -9,6 +9,8 @@ import {
   type SubsonicServerIdentity,
 } from '../utils/subsonicServerIdentity';
 
+const SUBSONIC_CLIENT = `psysonic/${version}`;
+
 // ─── Secure random salt ────────────────────────────────────────
 function secureRandomSalt(): string {
   const buf = new Uint8Array(8);
@@ -20,7 +22,7 @@ function secureRandomSalt(): string {
 function getAuthParams(username: string, password: string) {
   const salt = secureRandomSalt();
   const token = md5(password + salt);
-  return { u: username, t: token, s: salt, v: '1.16.1', c: `psysonic/${version}`, f: 'json' };
+  return { u: username, t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json' };
 }
 
 export function getClient() {
@@ -287,7 +289,7 @@ export async function pingWithCredentials(
     const salt = secureRandomSalt();
     const token = md5(password + salt);
     const resp = await axios.get(`${base}/rest/ping.view`, {
-      params: { u: username, t: token, s: salt, v: '1.16.1', c: 'psysonic', f: 'json' },
+      params: { u: username, t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json' },
       paramsSerializer: { indexes: null },
       timeout: 15000,
     });
@@ -944,7 +946,7 @@ export function buildStreamUrl(id: string): string {
   const p = new URLSearchParams({
     id,
     u: server?.username ?? '',
-    t: token, s: salt, v: '1.16.1', c: 'psysonic', f: 'json',
+    t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json',
   });
   return `${baseUrl}/rest/stream.view?${p.toString()}`;
 }
@@ -964,7 +966,7 @@ export function buildCoverArtUrl(id: string, size = 256): string {
   const p = new URLSearchParams({
     id, size: String(size),
     u: server?.username ?? '',
-    t: token, s: salt, v: '1.16.1', c: 'psysonic', f: 'json',
+    t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json',
   });
   return `${baseUrl}/rest/getCoverArt.view?${p.toString()}`;
 }
@@ -978,7 +980,7 @@ export function buildDownloadUrl(id: string): string {
   const p = new URLSearchParams({
     id,
     u: server?.username ?? '',
-    t: token, s: salt, v: '1.16.1', c: 'psysonic', f: 'json',
+    t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json',
   });
   return `${baseUrl}/rest/download.view?${p.toString()}`;
 }

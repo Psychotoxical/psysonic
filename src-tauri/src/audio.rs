@@ -1,5 +1,5 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use std::sync::{Arc, Mutex, OnceLock, TryLockError};
+use std::sync::{Arc, Mutex, OnceLock, RwLock, TryLockError};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 #[cfg(unix)]
@@ -1980,7 +1980,7 @@ pub struct AudioEngine {
     pub current: Arc<Mutex<AudioCurrent>>,
     /// Monotonically incremented on each audio_play (non-chain) / audio_stop call.
     pub generation: Arc<AtomicU64>,
-    pub http_client: reqwest::Client,
+    pub http_client: Arc<RwLock<reqwest::Client>>,
     pub eq_gains: Arc<[AtomicU32; 10]>,
     pub eq_enabled: Arc<AtomicBool>,
     pub eq_pre_gain: Arc<AtomicU32>,
@@ -2240,12 +2240,14 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             fadeout_samples: None,
         })),
         generation: Arc::new(AtomicU64::new(0)),
-        http_client: reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .use_rustls_tls()
-            .user_agent(format!("psysonic/{}", env!("CARGO_PKG_VERSION")))
-            .build()
-            .unwrap_or_default(),
+        http_client: Arc::new(RwLock::new(
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .use_rustls_tls()
+                .user_agent(crate::subsonic_wire_user_agent())
+                .build()
+                .unwrap_or_default(),
+        )),
         eq_gains: Arc::new(std::array::from_fn(|_| AtomicU32::new(0f32.to_bits()))),
         eq_enabled: Arc::new(AtomicBool::new(false)),
         eq_pre_gain: Arc::new(AtomicU32::new(0f32.to_bits())),
@@ -2265,6 +2267,26 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
     };
 
     (engine, thread)
+}
+
+fn audio_http_client(state: &AudioEngine) -> reqwest::Client {
+    state
+        .http_client
+        .read()
+        .map(|c| c.clone())
+        .unwrap_or_default()
+}
+
+pub fn refresh_http_user_agent(state: &AudioEngine, ua: &str) {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .use_rustls_tls()
+        .user_agent(ua)
+        .build()
+        .unwrap_or_default();
+    if let Ok(mut slot) = state.http_client.write() {
+        *slot = client;
+    }
 }
 
 // ─── Event payloads ───────────────────────────────────────────────────────────
@@ -2355,7 +2377,7 @@ async fn fetch_data(
         return Ok(Some(data));
     }
 
-    let response = state.http_client.get(url).send().await.map_err(|e| e.to_string())?;
+    let response = audio_http_client(&state).get(url).send().await.map_err(|e| e.to_string())?;
     let status = response.status();
     let ct = response.headers()
         .get(reqwest::header::CONTENT_TYPE)
@@ -2581,7 +2603,7 @@ pub async fn audio_play(
                 tag: "local-file",
             }
         } else if manual && !stream_cache_hit && !preloaded_hit && !is_local {
-            let response = state.http_client.get(&url).send().await.map_err(|e| e.to_string())?;
+            let response = audio_http_client(&state).get(&url).send().await.map_err(|e| e.to_string())?;
             if !response.status().is_success() {
                 if state.generation.load(Ordering::SeqCst) != gen {
                     return Ok(()); // superseded
@@ -2619,7 +2641,7 @@ pub async fn audio_play(
                 tokio::spawn(ranged_download_task(
                     gen,
                     state.generation.clone(),
-                    state.http_client.clone(),
+                    audio_http_client(&state),
                     url.clone(),
                     response,
                     buf.clone(),
@@ -2656,7 +2678,7 @@ pub async fn audio_play(
                 tokio::spawn(track_download_task(
                     gen,
                     state.generation.clone(),
-                    state.http_client.clone(),
+                    audio_http_client(&state),
                     url.clone(),
                     response,
                     prod,
@@ -3016,7 +3038,7 @@ pub async fn audio_chain_preload(
             if let Some(path) = url.strip_prefix("psysonic-local://") {
                 tokio::fs::read(path).await.map_err(|e| e.to_string())?
             } else {
-                let resp = state.http_client.get(&url).send().await
+                let resp = audio_http_client(&state).get(&url).send().await
                     .map_err(|e| e.to_string())?;
                 if !resp.status().is_success() {
                     return Ok(()); // silently fail — audio_play will retry
@@ -3318,7 +3340,7 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
                 gen,
                 state.generation.clone(),
                 None, // task performs its own fresh GET
-                state.http_client.clone(),
+                audio_http_client(&state),
                 url,
                 new_prod,
                 flags.clone(),
@@ -3498,7 +3520,7 @@ pub fn audio_update_replay_gain(
 /// Proxy: fetches https://autoeq.app/entries via Rust to bypass WebView CORS restrictions.
 #[tauri::command]
 pub async fn autoeq_entries(state: State<'_, AudioEngine>) -> Result<String, String> {
-    state.http_client
+    audio_http_client(&state)
         .get("https://autoeq.app/entries")
         .send().await.map_err(|e| e.to_string())?
         .text().await.map_err(|e| e.to_string())
@@ -3532,7 +3554,7 @@ pub async fn autoeq_fetch_profile(
     };
 
     for url in &candidates {
-        let resp = state.http_client.get(url).send().await.map_err(|e| e.to_string())?;
+        let resp = audio_http_client(&state).get(url).send().await.map_err(|e| e.to_string())?;
         if resp.status().is_success() {
             return resp.text().await.map_err(|e| e.to_string());
         }
@@ -3575,7 +3597,7 @@ pub async fn audio_preload(
     let data: Vec<u8> = if let Some(path) = url.strip_prefix("psysonic-local://") {
         tokio::fs::read(path).await.map_err(|e| e.to_string())?
     } else {
-        let response = state.http_client.get(&url).send().await.map_err(|e| e.to_string())?;
+        let response = audio_http_client(&state).get(&url).send().await.map_err(|e| e.to_string())?;
         if !response.status().is_success() {
             return Ok(());
         }
@@ -3613,7 +3635,7 @@ pub async fn audio_play_radio(
     if let Some(old) = state.fading_out_sink.lock().unwrap().take() { old.stop(); }
 
     // ── Open initial HTTP connection ──────────────────────────────────────────
-    let response = state.http_client
+    let response = audio_http_client(&state)
         .get(&url)
         .header("Icy-MetaData", "1")
         .send()
@@ -3653,7 +3675,7 @@ pub async fn audio_play_radio(
         gen,
         state.generation.clone(),
         Some(response),
-        state.http_client.clone(),
+        audio_http_client(&state),
         url.clone(),
         prod,
         flags.clone(),
