@@ -23,7 +23,7 @@ export default function OfflineBanner({ onRetry, isChecking, showSettingsLink, s
       {showSettingsLink && (
         <button
           className="offline-banner-retry"
-          onClick={() => navigate('/settings', { state: { tab: 'server' } })}
+          onClick={() => navigate('/settings', { state: { tab: 'servers' } })}
         >
           <Settings size={12} />
           {t('connection.serverSettings')}

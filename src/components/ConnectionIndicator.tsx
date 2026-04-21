@@ -44,7 +44,7 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
 
   const goServerSettings = () => {
     setMenuOpen(false);
-    navigate('/settings', { state: { tab: 'server' } });
+    navigate('/settings', { state: { tab: 'servers' } });
   };
 
   const onTriggerClick = () => {

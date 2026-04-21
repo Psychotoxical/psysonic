@@ -18,7 +18,7 @@ export default function LastfmIndicator() {
     <div
       className="connection-indicator"
       style={{ cursor: 'pointer' }}
-      onClick={() => navigate('/settings', { state: { tab: 'server' } })}
+      onClick={() => navigate('/settings', { state: { tab: 'integrations' } })}
       data-tooltip={tooltip}
       data-tooltip-pos="bottom"
     >
