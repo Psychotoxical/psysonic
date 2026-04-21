@@ -4,6 +4,7 @@ import GenreFilterBar from '../components/GenreFilterBar';
 import YearFilterButton from '../components/YearFilterButton';
 import SortDropdown from '../components/SortDropdown';
 import { getAlbumList, getAlbumsByGenre, getAlbum, SubsonicAlbum, buildDownloadUrl } from '../api/subsonic';
+import { songToTrack } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
@@ -13,7 +14,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
 import { showToast } from '../utils/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
-import { CheckSquare2, Download, HardDriveDownload, ListMusic, Disc3 } from 'lucide-react';
+import { CheckSquare2, Download, HardDriveDownload, ListMusic, Disc3, ListPlus } from 'lucide-react';
 
 type SortType = 'alphabeticalByName' | 'alphabeticalByArtist';
 type CompFilter = 'all' | 'only' | 'hide';
@@ -79,6 +80,22 @@ export default function Albums() {
 
   const selectedAlbums = visibleAlbums.filter(a => selectedIds.has(a.id));
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
+  const enqueue = usePlayerStore(state => state.enqueue);
+
+  const handleEnqueueSelected = async () => {
+    if (selectedAlbums.length === 0) return;
+    try {
+      // Parallel — Navidrome handles concurrent getAlbum requests fine.
+      const results = await Promise.all(selectedAlbums.map(a => getAlbum(a.id).catch(() => null)));
+      const tracks = results.flatMap(r => r ? r.songs.map(songToTrack) : []);
+      if (tracks.length > 0) {
+        enqueue(tracks);
+        showToast(t('albums.enqueueQueued', { count: selectedAlbums.length }), 2500, 'info');
+      }
+    } finally {
+      clearSelection();
+    }
+  };
 
   const cycleCompFilter = () => {
     setCompFilter(v => v === 'all' ? 'only' : v === 'only' ? 'hide' : 'all');
@@ -210,6 +227,10 @@ export default function Albums() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           {selectionMode && selectedIds.size > 0 ? (
             <>
+              <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
+                <ListPlus size={15} />
+                {t('albums.enqueueSelected', { count: selectedIds.size })}
+              </button>
               <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
                 <HardDriveDownload size={15} />
                 {t('albums.addOffline')}

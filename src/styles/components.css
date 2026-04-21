@@ -459,6 +459,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   opacity: 0;
   transition: opacity var(--transition-base);
 }
@@ -487,6 +488,7 @@
   transform: scale(1.05);
   background: var(--accent);
 }
+
 
 /* ── Album card selection ── */
 .album-card--selectable {

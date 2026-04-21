@@ -1,8 +1,9 @@
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, HardDriveDownload, Check } from 'lucide-react';
-import { SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
-import { usePlayerStore } from '../store/playerStore';
+import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey, getAlbum } from '../api/subsonic';
+import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import CachedImage from './CachedImage';
@@ -19,8 +20,10 @@ interface AlbumCardProps {
 }
 
 function AlbumCard({ album, selected, selectionMode, onToggleSelect, showRating = false, selectedAlbums = [] }: AlbumCardProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
+  const enqueue = usePlayerStore(s => s.enqueue);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const isOffline = useOfflineStore(s => {
     const meta = s.albums[`${serverId}:${album.id}`];
@@ -94,8 +97,27 @@ function AlbumCard({ album, selected, selectionMode, onToggleSelect, showRating 
               className="album-card-details-btn"
               onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
               aria-label={`${album.name} abspielen`}
+              data-tooltip={t('hero.playAlbum')}
+              data-tooltip-pos="top"
             >
               <Play size={15} fill="currentColor" />
+            </button>
+            <button
+              className="album-card-details-btn"
+              onClick={async e => {
+                e.stopPropagation();
+                try {
+                  const data = await getAlbum(album.id);
+                  enqueue(data.songs.map(songToTrack));
+                } catch {
+                  // Network failure — silent (toast would be too noisy for a hover action)
+                }
+              }}
+              aria-label={t('contextMenu.enqueueAlbum')}
+              data-tooltip={t('contextMenu.enqueueAlbum')}
+              data-tooltip-pos="top"
+            >
+              <ListPlus size={15} />
             </button>
           </div>
         )}

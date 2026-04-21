@@ -1649,6 +1649,12 @@ export default function ContextMenu() {
               <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/album/${album.id}`))}>
                 <Play size={14} /> {t('contextMenu.openAlbum')}
               </div>
+              <div className="context-menu-item" onClick={() => handleAction(async () => {
+                const albumData = await getAlbum(album.id);
+                enqueue(albumData.songs.map(songToTrack));
+              })}>
+                <ListPlus size={14} /> {t('contextMenu.enqueueAlbum')}
+              </div>
               <div className="context-menu-divider" />
               <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/artist/${album.artistId}`))}>
                 <User size={14} /> {t('contextMenu.goToArtist')}
@@ -1751,6 +1757,14 @@ export default function ContextMenu() {
                 {t('contextMenu.selectedAlbums', { count: albums.length })}
               </div>
               <div className="context-menu-divider" />
+              <div className="context-menu-item" onClick={() => handleAction(async () => {
+                // Parallel — Navidrome handles concurrent getAlbum requests fine.
+                const results = await Promise.all(albums.map(a => getAlbum(a.id)));
+                const allTracks = results.flatMap(r => r.songs.map(songToTrack));
+                enqueue(allTracks);
+              })}>
+                <ListPlus size={14} /> {t('contextMenu.enqueueAlbums', { count: albums.length })}
+              </div>
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === `multi-album:${albumIds.join(',')}` ? 'active' : ''}`}
                 data-playlist-trigger-id={`multi-album:${albumIds.join(',')}`}
