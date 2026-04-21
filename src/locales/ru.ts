@@ -370,6 +370,9 @@ export const ruTranslation = {
     urlRequired: 'Укажите адрес сервера.',
     savedServers: 'Сохранённые серверы',
     addNew: 'Или добавить новый сервер',
+    orMagicString: 'Или magic string',
+    magicStringPlaceholder: 'Вставьте строку приглашения (psysonic1-…)',
+    magicStringInvalid: 'Неверная или нечитаемая magic string.',
   },
   connection: {
     connected: 'Подключено',
@@ -522,6 +525,15 @@ export const ruTranslation = {
     userMgmtUpdated: 'Пользователь обновлён.',
     userMgmtDeleted: 'Пользователь удалён.',
     userMgmtValidationMissing: 'Требуются имя пользователя, отображаемое имя и пароль.',
+    userMgmtMagicStringGenerate: 'Сгенерировать magic string',
+    userMgmtMagicStringPasswordNavHint:
+      'Navidrome сохранит этот пароль для пользователя. Если он не совпадает с текущим, на сервере будет установлен новый пароль входа.',
+    userMgmtMagicStringCopied: 'Magic string скопирован в буфер обмена.',
+    userMgmtMagicStringCopyFailed: 'Не удалось скопировать в буфер обмена.',
+    userMgmtMagicStringLoginFailed: 'Пароль не подошёл — не удалось проверить учётные данные.',
+    userMgmtMagicStringModalTitle: 'Сгенерировать magic string',
+    userMgmtMagicStringModalDesc: 'Введите пароль Subsonic для «{{username}}» — он попадёт в копируемую magic string.',
+    userMgmtMagicStringModalConfirm: 'Скопировать строку',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
       'Включите, если на этом сервере настроен <pluginLink>плагин AudioMuse-AI для Navidrome</pluginLink>. Появится Instant Mix для треков, а на странице исполнителя похожие будут браться с сервера вместо Last.fm.',

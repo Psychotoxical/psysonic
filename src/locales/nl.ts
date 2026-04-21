@@ -350,6 +350,9 @@ export const nlTranslation = {
     urlRequired: 'Voer een server-URL in.',
     savedServers: 'Opgeslagen servers',
     addNew: 'Of een nieuwe server toevoegen',
+    orMagicString: 'Of magic string',
+    magicStringPlaceholder: 'Plak een deelstring (psysonic1-…)',
+    magicStringInvalid: 'Ongeldige of onleesbare magic string.',
   },
   connection: {
     connected: 'Verbonden',
@@ -498,6 +501,15 @@ export const nlTranslation = {
     userMgmtUpdated: 'Gebruiker bijgewerkt.',
     userMgmtDeleted: 'Gebruiker verwijderd.',
     userMgmtValidationMissing: 'Gebruikersnaam, weergavenaam en wachtwoord zijn vereist.',
+    userMgmtMagicStringGenerate: 'Magic string genereren',
+    userMgmtMagicStringPasswordNavHint:
+      'Navidrome slaat dit wachtwoord voor de gebruiker op. Als het afwijkt van het huidige wachtwoord, wordt het inlogwachtwoord op de server bijgewerkt.',
+    userMgmtMagicStringCopied: 'Magic string naar het klembord gekopieerd.',
+    userMgmtMagicStringCopyFailed: 'Kopiëren naar het klembord is mislukt.',
+    userMgmtMagicStringLoginFailed: 'Wachtwoordcontrole mislukt — aanmeldgegevens konden niet worden geverifieerd.',
+    userMgmtMagicStringModalTitle: 'Magic string genereren',
+    userMgmtMagicStringModalDesc: 'Voer het Subsonic-wachtwoord voor „{{username}}" in. Het wordt opgenomen in de gekopieerde magic string.',
+    userMgmtMagicStringModalConfirm: 'String kopiëren',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
       'Zet aan als deze server de <pluginLink>AudioMuse-AI Navidrome-plugin</pluginLink> gebruikt. Schakelt Instant Mix per nummer in en toont vergelijkbare artiesten van de server i.p.v. Last.fm op artiestpagina’s.',

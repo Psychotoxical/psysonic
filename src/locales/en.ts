@@ -352,6 +352,9 @@ export const enTranslation = {
     urlRequired: 'Please enter a server URL.',
     savedServers: 'Saved Servers',
     addNew: 'Or add a new server',
+    orMagicString: 'Or magic string',
+    magicStringPlaceholder: 'Paste a share string (psysonic1-…)',
+    magicStringInvalid: 'Invalid or unreadable magic string.',
   },
   connection: {
     connected: 'Connected',
@@ -511,6 +514,15 @@ export const enTranslation = {
     userMgmtUpdated: 'User updated.',
     userMgmtDeleted: 'User deleted.',
     userMgmtValidationMissing: 'Username, display name and password are required.',
+    userMgmtMagicStringGenerate: 'Generate magic string',
+    userMgmtMagicStringPasswordNavHint:
+      'Navidrome will save this password for the user. If it differs from the current one, the server will update the login password.',
+    userMgmtMagicStringCopied: 'Magic string copied to clipboard.',
+    userMgmtMagicStringCopyFailed: 'Could not copy to clipboard.',
+    userMgmtMagicStringLoginFailed: 'Password check failed — credentials could not be verified.',
+    userMgmtMagicStringModalTitle: 'Generate magic string',
+    userMgmtMagicStringModalDesc: 'Enter the Subsonic password for "{{username}}". It is included in the copied magic string.',
+    userMgmtMagicStringModalConfirm: 'Copy string',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
       'Turn on if this server has the <pluginLink>AudioMuse-AI Navidrome plugin</pluginLink> configured. Enables Instant Mix from tracks and uses server-side similar artists instead of Last.fm on artist pages.',

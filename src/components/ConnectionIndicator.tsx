@@ -6,6 +6,7 @@ import { ConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore, type ServerProfile } from '../store/authStore';
 import { switchActiveServer } from '../utils/switchActiveServer';
 import { showToast } from '../utils/toast';
+import { serverListDisplayLabel } from '../utils/serverDisplayName';
 
 interface Props {
   status: ConnectionStatus;
@@ -123,7 +124,7 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
           {servers.map(srv => {
             const active = srv.id === activeServerId;
             const busy = switchingId !== null;
-            const labelText = (srv.name || srv.url).trim() || srv.url;
+            const labelText = serverListDisplayLabel(srv, servers);
             return (
               <button
                 key={srv.id}

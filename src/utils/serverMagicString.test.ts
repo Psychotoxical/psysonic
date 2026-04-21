@@ -1,0 +1,36 @@
+import { describe, expect, it } from 'vitest';
+import {
+  SERVER_MAGIC_STRING_PREFIX,
+  decodeServerMagicString,
+  encodeServerMagicString,
+} from './serverMagicString';
+
+describe('serverMagicString', () => {
+  it('round-trips url, username, password', () => {
+    const original = {
+      url: 'https://music.example.com',
+      username: 'alice',
+      password: 's3cret!',
+    };
+    const encoded = encodeServerMagicString(original);
+    expect(encoded.startsWith(SERVER_MAGIC_STRING_PREFIX)).toBe(true);
+    expect(decodeServerMagicString(encoded)).toEqual(original);
+  });
+
+  it('round-trips optional name', () => {
+    const original = {
+      url: 'http://127.0.0.1:4533',
+      username: 'bob',
+      password: 'x',
+      name: 'Home',
+    };
+    const encoded = encodeServerMagicString(original);
+    expect(decodeServerMagicString(encoded)).toEqual(original);
+  });
+
+  it('rejects invalid input', () => {
+    expect(decodeServerMagicString('')).toBeNull();
+    expect(decodeServerMagicString('nope')).toBeNull();
+    expect(decodeServerMagicString(`${SERVER_MAGIC_STRING_PREFIX}%%%`)).toBeNull();
+  });
+});

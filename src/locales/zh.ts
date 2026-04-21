@@ -350,6 +350,9 @@ export const zhTranslation = {
     urlRequired: '请输入服务器地址。',
     savedServers: '已保存的服务器',
     addNew: '或添加新服务器',
+    orMagicString: '或使用魔法字符串',
+    magicStringPlaceholder: '粘贴分享字符串（psysonic1-…）',
+    magicStringInvalid: '魔法字符串无效或无法解析。',
   },
   connection: {
     connected: '已连接',
@@ -494,6 +497,15 @@ export const zhTranslation = {
     userMgmtUpdated: '用户已更新。',
     userMgmtDeleted: '用户已删除。',
     userMgmtValidationMissing: '用户名、显示名称和密码均为必填项。',
+    userMgmtMagicStringGenerate: '生成魔法字符串',
+    userMgmtMagicStringPasswordNavHint:
+      'Navidrome 会保存此密码。若与当前密码不同，服务器上的登录密码将被更新。',
+    userMgmtMagicStringCopied: '魔法字符串已复制到剪贴板。',
+    userMgmtMagicStringCopyFailed: '无法复制到剪贴板。',
+    userMgmtMagicStringLoginFailed: '密码验证失败，无法确认凭据。',
+    userMgmtMagicStringModalTitle: '生成魔法字符串',
+    userMgmtMagicStringModalDesc: '请输入用户「{{username}}」的 Subsonic 密码，它会包含在复制的魔法字符串中。',
+    userMgmtMagicStringModalConfirm: '复制字符串',
     audiomuseTitle: 'AudioMuse-AI（Navidrome）',
     audiomuseDesc:
       '若此服务器已配置 <pluginLink>AudioMuse-AI Navidrome 插件</pluginLink>请开启。可从曲目启动即时混音，并在艺人页使用服务器返回的相似艺人，而非 Last.fm。',

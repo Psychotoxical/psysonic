@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
+import { serverListDisplayLabel } from '../utils/serverDisplayName';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
 
@@ -77,12 +78,17 @@ export function useConnectionStatus() {
   }, [check]);
 
   const server = useAuthStore(s => s.getActiveServer());
+  const servers = useAuthStore(s => s.servers);
+  const serverName = useMemo(
+    () => (server ? serverListDisplayLabel(server, servers) : ''),
+    [server, servers],
+  );
 
   return {
     status,
     isRetrying,
     retry,
     isLan: server ? isLanUrl(server.url) : false,
-    serverName: server?.name ?? '',
+    serverName,
   };
 }

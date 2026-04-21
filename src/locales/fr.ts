@@ -351,6 +351,9 @@ export const frTranslation = {
     urlRequired: 'Veuillez saisir une URL de serveur.',
     savedServers: 'Serveurs enregistrés',
     addNew: 'Ou ajouter un nouveau serveur',
+    orMagicString: 'Ou chaîne magique',
+    magicStringPlaceholder: 'Collez une chaîne de partage (psysonic1-…)',
+    magicStringInvalid: 'Chaîne magique invalide ou illisible.',
   },
   connection: {
     connected: 'Connecté',
@@ -499,6 +502,15 @@ export const frTranslation = {
     userMgmtUpdated: 'Utilisateur mis à jour.',
     userMgmtDeleted: 'Utilisateur supprimé.',
     userMgmtValidationMissing: 'Nom d’utilisateur, nom affiché et mot de passe sont requis.',
+    userMgmtMagicStringGenerate: 'Générer la chaîne magique',
+    userMgmtMagicStringPasswordNavHint:
+      'Navidrome enregistrera ce mot de passe pour l’utilisateur. S’il diffère de l’actuel, le mot de passe de connexion sur le serveur sera mis à jour.',
+    userMgmtMagicStringCopied: 'Chaîne magique copiée dans le presse-papiers.',
+    userMgmtMagicStringCopyFailed: 'Impossible de copier dans le presse-papiers.',
+    userMgmtMagicStringLoginFailed: 'Échec de la vérification du mot de passe — identifiants non confirmés.',
+    userMgmtMagicStringModalTitle: 'Générer la chaîne magique',
+    userMgmtMagicStringModalDesc: 'Saisissez le mot de passe Subsonic de « {{username}} ». Il est inclus dans la chaîne magique copiée.',
+    userMgmtMagicStringModalConfirm: 'Copier la chaîne',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
       'Activez si ce serveur utilise le <pluginLink>plugin Navidrome AudioMuse-AI</pluginLink>. Active le mix instantané depuis un morceau et affiche les artistes similaires côté serveur au lieu de Last.fm sur les pages artiste.',

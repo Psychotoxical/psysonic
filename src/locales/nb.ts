@@ -351,6 +351,9 @@ export const nbTranslation = {
     urlRequired: 'Vennligst skriv inn en tjeneer-URL.',
     savedServers: 'Lagrede servere',
     addNew: 'Eller legg til en ny tjener',
+    orMagicString: 'Eller magic string',
+    magicStringPlaceholder: 'Lim inn en delingsstreng (psysonic1-…)',
+    magicStringInvalid: 'Ugyldig eller uleselig magic string.',
   },
   connection: {
     connected: 'Tilkoblet',
@@ -499,6 +502,15 @@ export const nbTranslation = {
     userMgmtUpdated: 'Bruker oppdatert.',
     userMgmtDeleted: 'Bruker slettet.',
     userMgmtValidationMissing: 'Brukernavn, visningsnavn og passord er påkrevd.',
+    userMgmtMagicStringGenerate: 'Generer magic string',
+    userMgmtMagicStringPasswordNavHint:
+      'Navidrome lagrer dette passordet for brukeren. Hvis det avviker fra det nåværende, oppdateres innloggingspassordet på serveren.',
+    userMgmtMagicStringCopied: 'Magic string er kopiert til utklippstavlen.',
+    userMgmtMagicStringCopyFailed: 'Klarte ikke å kopiere til utklippstavlen.',
+    userMgmtMagicStringLoginFailed: 'Passordsjekk mislyktes — påloggingsdetaljene kunne ikke verifiseres.',
+    userMgmtMagicStringModalTitle: 'Generer magic string',
+    userMgmtMagicStringModalDesc: 'Skriv inn Subsonic-passordet for «{{username}}». Det tas med i den kopierte magic string-en.',
+    userMgmtMagicStringModalConfirm: 'Kopier streng',
     audiomuseTitle: 'AudioMuse-AI (Navidrome)',
     audiomuseDesc:
       'Slå på hvis denne serveren bruker <pluginLink>AudioMuse-AI Navidrome-plugin</pluginLink>. Aktiverer Instant Mix fra spor og henter lignende artister fra serveren i stedet for Last.fm på artistsider.',

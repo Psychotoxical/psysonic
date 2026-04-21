@@ -4,6 +4,8 @@ import { Wifi, WifiOff, Eye, EyeOff, Server } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
+import { decodeServerMagicString } from '../utils/serverMagicString';
+import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/serverDisplayName';
 
 const PsysonicLogo = () => (
   <img src="/logo-psysonic.png" width="64" height="64" alt="Psysonic" style={{ borderRadius: 18 }} />
@@ -15,12 +17,31 @@ export default function Login() {
   const { addServer, updateServer, setActiveServer, setLoggedIn, setConnecting, setConnectionError, servers } = useAuthStore();
 
   const [form, setForm] = useState({ serverName: '', url: '', username: '', password: '' });
+  const [magicString, setMagicString] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [status, setStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
 
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleMagicStringChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setMagicString(v);
+    const decoded = decodeServerMagicString(v.trim());
+    if (decoded) {
+      setForm({
+        serverName: (decoded.name && decoded.name.trim()) || shortHostFromServerUrl(decoded.url),
+        url: decoded.url,
+        username: decoded.username,
+        password: decoded.password,
+      });
+      if (status === 'error') {
+        setStatus('idle');
+        setTestMessage('');
+      }
+    }
+  };
 
   const attemptConnect = async (profile: { name: string; url: string; username: string; password: string }) => {
     if (!profile.url.trim()) {
@@ -90,6 +111,22 @@ export default function Login() {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const ms = magicString.trim();
+    if (ms) {
+      const decoded = decodeServerMagicString(ms);
+      if (!decoded) {
+        setStatus('error');
+        setTestMessage(t('login.magicStringInvalid'));
+        return;
+      }
+      await attemptConnect({
+        name: form.serverName.trim() || (decoded.name && decoded.name.trim()) || shortHostFromServerUrl(decoded.url),
+        url: decoded.url,
+        username: decoded.username,
+        password: decoded.password,
+      });
+      return;
+    }
     await attemptConnect({ name: form.serverName, url: form.url, username: form.username, password: form.password });
   };
 
@@ -121,7 +158,7 @@ export default function Login() {
               >
                 <Server size={14} style={{ flexShrink: 0 }} />
                 <div style={{ textAlign: 'left', minWidth: 0 }}>
-                  <div style={{ fontWeight: 600 }} className="truncate">{srv.name || srv.url}</div>
+                  <div style={{ fontWeight: 600 }} className="truncate">{serverListDisplayLabel(srv, servers)}</div>
                   <div style={{ fontSize: 11, opacity: 0.7 }} className="truncate">{srv.username}@{srv.url}</div>
                 </div>
               </button>
@@ -193,6 +230,19 @@ export default function Login() {
                 </button>
               </div>
             </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="login-magic-string">{t('login.orMagicString')}</label>
+            <input
+              id="login-magic-string"
+              className="input"
+              type="text"
+              placeholder={t('login.magicStringPlaceholder')}
+              value={magicString}
+              onChange={handleMagicStringChange}
+              autoComplete="off"
+            />
           </div>
 
           {testMessage && (
