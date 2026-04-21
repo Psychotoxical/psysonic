@@ -515,6 +515,8 @@ export const deTranslation = {
     userMgmtMagicStringGenerate: 'Magic-String erzeugen',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome speichert dieses Passwort für den Benutzer. Weicht es vom aktuellen ab, wird das Anmeldepasswort auf dem Server aktualisiert.',
+    userMgmtMagicStringPlaintextWarning:
+      'Teilen Sie den Magic-String vorsichtig: Er enthält das Passwort im Klartext (Kodierung ist keine Verschlüsselung). Wer die vollständige Zeichenkette hat, kann sich als dieser Benutzer anmelden.',
     userMgmtMagicStringCopied: 'Magic-String in die Zwischenablage kopiert.',
     userMgmtMagicStringCopyFailed: 'Kopieren in die Zwischenablage fehlgeschlagen.',
     userMgmtMagicStringLoginFailed: 'Passwortprüfung fehlgeschlagen — Anmeldedaten konnten nicht verifiziert werden.',

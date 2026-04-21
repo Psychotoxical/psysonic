@@ -500,6 +500,8 @@ export const zhTranslation = {
     userMgmtMagicStringGenerate: '生成魔法字符串',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome 会保存此密码。若与当前密码不同，服务器上的登录密码将被更新。',
+    userMgmtMagicStringPlaintextWarning:
+      '请谨慎分享魔法字符串：其中包含未加密的密码（编码不等于加密）。掌握完整字符串的人可以以该用户身份登录。',
     userMgmtMagicStringCopied: '魔法字符串已复制到剪贴板。',
     userMgmtMagicStringCopyFailed: '无法复制到剪贴板。',
     userMgmtMagicStringLoginFailed: '密码验证失败，无法确认凭据。',

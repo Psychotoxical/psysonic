@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   SERVER_MAGIC_STRING_PREFIX,
+  DECODED_PASSWORD_VISUAL_MASK,
   decodeServerMagicString,
   encodeServerMagicString,
 } from './serverMagicString';
+
+describe('DECODED_PASSWORD_VISUAL_MASK', () => {
+  it('has fixed length independent of real passwords', () => {
+    expect(DECODED_PASSWORD_VISUAL_MASK.length).toBe(10);
+  });
+});
 
 describe('serverMagicString', () => {
   it('round-trips url, username, password', () => {

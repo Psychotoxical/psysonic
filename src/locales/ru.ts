@@ -528,6 +528,8 @@ export const ruTranslation = {
     userMgmtMagicStringGenerate: 'Сгенерировать magic string',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome сохранит этот пароль для пользователя. Если он не совпадает с текущим, на сервере будет установлен новый пароль входа.',
+    userMgmtMagicStringPlaintextWarning:
+      'Передавайте magic string осторожно: в ней пароль в открытом виде (кодирование — не шифрование). У кого есть полная строка, тот может войти под этим пользователем.',
     userMgmtMagicStringCopied: 'Magic string скопирован в буфер обмена.',
     userMgmtMagicStringCopyFailed: 'Не удалось скопировать в буфер обмена.',
     userMgmtMagicStringLoginFailed: 'Пароль не подошёл — не удалось проверить учётные данные.',

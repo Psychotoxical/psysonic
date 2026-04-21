@@ -504,6 +504,8 @@ export const nlTranslation = {
     userMgmtMagicStringGenerate: 'Magic string genereren',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome slaat dit wachtwoord voor de gebruiker op. Als het afwijkt van het huidige wachtwoord, wordt het inlogwachtwoord op de server bijgewerkt.',
+    userMgmtMagicStringPlaintextWarning:
+      'Wees voorzichtig met delen: de magic string bevat een onversleuteld wachtwoord (codering is geen encryptie). Wie de volledige string heeft, kan als deze gebruiker inloggen.',
     userMgmtMagicStringCopied: 'Magic string naar het klembord gekopieerd.',
     userMgmtMagicStringCopyFailed: 'Kopiëren naar het klembord is mislukt.',
     userMgmtMagicStringLoginFailed: 'Wachtwoordcontrole mislukt — aanmeldgegevens konden niet worden geverifieerd.',

@@ -505,6 +505,8 @@ export const nbTranslation = {
     userMgmtMagicStringGenerate: 'Generer magic string',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome lagrer dette passordet for brukeren. Hvis det avviker fra det nåværende, oppdateres innloggingspassordet på serveren.',
+    userMgmtMagicStringPlaintextWarning:
+      'Del magic string med varsomhet: den inneholder passordet i klartekst (koding er ikke kryptering). Den som har hele strengen, kan logge inn som denne brukeren.',
     userMgmtMagicStringCopied: 'Magic string er kopiert til utklippstavlen.',
     userMgmtMagicStringCopyFailed: 'Klarte ikke å kopiere til utklippstavlen.',
     userMgmtMagicStringLoginFailed: 'Passordsjekk mislyktes — påloggingsdetaljene kunne ikke verifiseres.',

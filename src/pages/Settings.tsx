@@ -52,6 +52,7 @@ import {
   decodeServerMagicString,
   encodeServerMagicString,
   copyTextToClipboard,
+  DECODED_PASSWORD_VISUAL_MASK,
 } from '../utils/serverMagicString';
 import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/serverDisplayName';
 
@@ -206,6 +207,7 @@ function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile
   const [form, setForm] = useState({ name: '', url: '', username: '', password: '' });
   const [magicString, setMagicString] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [blockPasswordReveal, setBlockPasswordReveal] = useState(false);
 
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
@@ -213,8 +215,11 @@ function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile
   const handleMagicStringChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     setMagicString(v);
-    const decoded = decodeServerMagicString(v.trim());
+    const trimmed = v.trim();
+    const decoded = decodeServerMagicString(trimmed);
     if (decoded) {
+      setShowPass(false);
+      setBlockPasswordReveal(true);
       setForm({
         name: (decoded.name && decoded.name.trim()) || shortHostFromServerUrl(decoded.url),
         url: decoded.url,
@@ -263,27 +268,48 @@ function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile
       <div className="form-row" style={{ marginBottom: '0.75rem' }}>
         <div className="form-group">
           <label style={{ fontSize: 13 }}>{t('settings.serverUsername')}</label>
-          <input className="input" type="text" value={form.username} onChange={update('username')} placeholder="admin" autoComplete="off" />
+          <input
+            className="input"
+            type="text"
+            value={form.username}
+            onChange={update('username')}
+            placeholder="admin"
+            autoComplete="off"
+            readOnly={blockPasswordReveal}
+            style={blockPasswordReveal ? { cursor: 'default' } : undefined}
+          />
         </div>
         <div className="form-group">
           <label style={{ fontSize: 13 }}>{t('settings.serverPassword')}</label>
-          <div style={{ position: 'relative' }}>
+          {blockPasswordReveal ? (
             <input
               className="input"
-              type={showPass ? 'text' : 'password'}
-              value={form.password}
-              onChange={update('password')}
-              placeholder="••••••••"
-              style={{ paddingRight: '2.5rem' }}
+              type="text"
+              readOnly
+              value={DECODED_PASSWORD_VISUAL_MASK}
+              autoComplete="off"
+              aria-label={t('settings.serverPassword')}
+              style={{ letterSpacing: '0.12em', cursor: 'default' }}
             />
-            <button
-              type="button"
-              style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
-              onClick={() => setShowPass(v => !v)}
-            >
-              {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
-          </div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <input
+                className="input"
+                type={showPass ? 'text' : 'password'}
+                value={form.password}
+                onChange={update('password')}
+                placeholder="••••••••"
+                style={{ paddingRight: '2.5rem' }}
+              />
+              <button
+                type="button"
+                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
+                onClick={() => setShowPass(v => !v)}
+              >
+                {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div className="form-group" style={{ marginBottom: '0.75rem' }}>
@@ -531,6 +557,21 @@ function UserForm({
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.45 }}>
             {t('settings.userMgmtMagicStringPasswordNavHint')}
+          </div>
+          <div
+            role="note"
+            style={{
+              fontSize: 11,
+              lineHeight: 1.45,
+              marginBottom: 10,
+              padding: '8px 10px',
+              borderRadius: 6,
+              border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 35%, transparent)',
+              background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            {t('settings.userMgmtMagicStringPlaintextWarning')}
           </div>
           <button
             type="button"
@@ -872,9 +913,24 @@ function UserManagementSection({
             <p style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.5, fontSize: 13 }}>
               {t('settings.userMgmtMagicStringModalDesc', { username: magicRowUser.userName })}
             </p>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.45, fontSize: 12 }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.45, fontSize: 12 }}>
               {t('settings.userMgmtMagicStringPasswordNavHint')}
             </p>
+            <div
+              role="note"
+              style={{
+                fontSize: 11,
+                lineHeight: 1.45,
+                marginBottom: '1rem',
+                padding: '8px 10px',
+                borderRadius: 6,
+                border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 35%, transparent)',
+                background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {t('settings.userMgmtMagicStringPlaintextWarning')}
+            </div>
             <div className="form-group" style={{ marginBottom: '1.25rem' }}>
               <label style={{ fontSize: 13 }}>{t('settings.userMgmtPassword')}</label>
               <input

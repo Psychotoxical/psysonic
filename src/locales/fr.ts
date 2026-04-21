@@ -505,6 +505,8 @@ export const frTranslation = {
     userMgmtMagicStringGenerate: 'Générer la chaîne magique',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome enregistrera ce mot de passe pour l’utilisateur. S’il diffère de l’actuel, le mot de passe de connexion sur le serveur sera mis à jour.',
+    userMgmtMagicStringPlaintextWarning:
+      'Partagez la chaîne magique avec prudence : elle contient un mot de passe non chiffré (l’encodage n’est pas du chiffrement). Quiconque possède la chaîne complète peut se connecter en tant que cet utilisateur.',
     userMgmtMagicStringCopied: 'Chaîne magique copiée dans le presse-papiers.',
     userMgmtMagicStringCopyFailed: 'Impossible de copier dans le presse-papiers.',
     userMgmtMagicStringLoginFailed: 'Échec de la vérification du mot de passe — identifiants non confirmés.',

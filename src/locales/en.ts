@@ -517,6 +517,8 @@ export const enTranslation = {
     userMgmtMagicStringGenerate: 'Generate magic string',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome will save this password for the user. If it differs from the current one, the server will update the login password.',
+    userMgmtMagicStringPlaintextWarning:
+      'Share the magic string carefully: it contains an unencrypted password (encoding is not encryption). Anyone with the full string can sign in as this user.',
     userMgmtMagicStringCopied: 'Magic string copied to clipboard.',
     userMgmtMagicStringCopyFailed: 'Could not copy to clipboard.',
     userMgmtMagicStringLoginFailed: 'Password check failed — credentials could not be verified.',

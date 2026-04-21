@@ -508,6 +508,8 @@ export const esTranslation = {
     userMgmtMagicStringGenerate: 'Generar cadena mágica',
     userMgmtMagicStringPasswordNavHint:
       'Navidrome guardará esta contraseña para el usuario. Si difiere de la actual, se actualizará la contraseña de acceso en el servidor.',
+    userMgmtMagicStringPlaintextWarning:
+      'Comparte la cadena mágica con cuidado: contiene la contraseña sin cifrar (la codificación no es cifrado). Quien tenga la cadena completa puede iniciar sesión como este usuario.',
     userMgmtMagicStringCopied: 'Cadena mágica copiada al portapapeles.',
     userMgmtMagicStringCopyFailed: 'No se pudo copiar al portapapeles.',
     userMgmtMagicStringLoginFailed: 'Falló la comprobación de la contraseña; no se pudieron verificar las credenciales.',
