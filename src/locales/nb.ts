@@ -502,6 +502,7 @@ export const nbTranslation = {
     userMgmtUpdated: 'Bruker oppdatert.',
     userMgmtDeleted: 'Bruker slettet.',
     userMgmtValidationMissing: 'Brukernavn, visningsnavn og passord er påkrevd.',
+    userMgmtValidationMissingIdentity: 'Brukernavn og visningsnavn er påkrevd.',
     userMgmtMagicStringGenerate: 'Generer magic string',
     userMgmtSaveAndMagicString: 'Lagre og hent magic string',
     userMgmtMagicStringPasswordNavHint:

@@ -505,6 +505,7 @@ export const esTranslation = {
     userMgmtUpdated: 'Usuario actualizado.',
     userMgmtDeleted: 'Usuario eliminado.',
     userMgmtValidationMissing: 'Se requieren nombre de usuario, nombre visible y contraseña.',
+    userMgmtValidationMissingIdentity: 'Se requieren nombre de usuario y nombre visible.',
     userMgmtMagicStringGenerate: 'Generar cadena mágica',
     userMgmtSaveAndMagicString: 'Guardar y obtener cadena mágica',
     userMgmtMagicStringPasswordNavHint:

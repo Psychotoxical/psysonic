@@ -501,6 +501,7 @@ export const nlTranslation = {
     userMgmtUpdated: 'Gebruiker bijgewerkt.',
     userMgmtDeleted: 'Gebruiker verwijderd.',
     userMgmtValidationMissing: 'Gebruikersnaam, weergavenaam en wachtwoord zijn vereist.',
+    userMgmtValidationMissingIdentity: 'Gebruikersnaam en weergavenaam zijn vereist.',
     userMgmtMagicStringGenerate: 'Magic string genereren',
     userMgmtSaveAndMagicString: 'Opslaan en magic string kopiëren',
     userMgmtMagicStringPasswordNavHint:

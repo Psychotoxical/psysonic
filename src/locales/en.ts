@@ -514,6 +514,7 @@ export const enTranslation = {
     userMgmtUpdated: 'User updated.',
     userMgmtDeleted: 'User deleted.',
     userMgmtValidationMissing: 'Username, display name and password are required.',
+    userMgmtValidationMissingIdentity: 'Username and display name are required.',
     userMgmtMagicStringGenerate: 'Generate magic string',
     userMgmtSaveAndMagicString: 'Save and get magic string',
     userMgmtMagicStringPasswordNavHint:

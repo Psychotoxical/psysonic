@@ -497,6 +497,7 @@ export const zhTranslation = {
     userMgmtUpdated: '用户已更新。',
     userMgmtDeleted: '用户已删除。',
     userMgmtValidationMissing: '用户名、显示名称和密码均为必填项。',
+    userMgmtValidationMissingIdentity: '用户名和显示名称为必填项。',
     userMgmtMagicStringGenerate: '生成魔法字符串',
     userMgmtSaveAndMagicString: '保存并获取魔法字符串',
     userMgmtMagicStringPasswordNavHint:

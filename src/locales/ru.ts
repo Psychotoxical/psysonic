@@ -525,6 +525,7 @@ export const ruTranslation = {
     userMgmtUpdated: 'Пользователь обновлён.',
     userMgmtDeleted: 'Пользователь удалён.',
     userMgmtValidationMissing: 'Требуются имя пользователя, отображаемое имя и пароль.',
+    userMgmtValidationMissingIdentity: 'Укажите имя пользователя и отображаемое имя.',
     userMgmtMagicStringGenerate: 'Сгенерировать magic string',
     userMgmtSaveAndMagicString: 'Сохранить и получить magic string',
     userMgmtMagicStringPasswordNavHint:

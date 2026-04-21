@@ -512,6 +512,7 @@ export const deTranslation = {
     userMgmtUpdated: 'Benutzer aktualisiert.',
     userMgmtDeleted: 'Benutzer gelöscht.',
     userMgmtValidationMissing: 'Benutzername, Anzeigename und Passwort sind erforderlich.',
+    userMgmtValidationMissingIdentity: 'Benutzername und Anzeigename sind erforderlich.',
     userMgmtMagicStringGenerate: 'Magic-String erzeugen',
     userMgmtSaveAndMagicString: 'Speichern und Magic-String kopieren',
     userMgmtMagicStringPasswordNavHint:

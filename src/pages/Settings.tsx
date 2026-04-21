@@ -383,7 +383,18 @@ function UserForm({
   const [form, setForm] = useState<UserFormState>(() => initialUserFormState(initial ?? undefined, libraries));
   const [showPass, setShowPass] = useState(false);
   const [magicGenBusy, setMagicGenBusy] = useState(false);
+  const [showNewUserRequiredErrors, setShowNewUserRequiredErrors] = useState(false);
   const isEdit = !!initial;
+
+  useEffect(() => {
+    setShowNewUserRequiredErrors(false);
+  }, [initial?.id]);
+
+  useEffect(() => {
+    if (!isEdit && form.userName.trim() && form.name.trim() && form.password.trim()) {
+      setShowNewUserRequiredErrors(false);
+    }
+  }, [isEdit, form.userName, form.name, form.password]);
 
   const set = <K extends keyof UserFormState>(k: K, v: UserFormState[K]) =>
     setForm(f => ({ ...f, [k]: v }));
@@ -396,10 +407,11 @@ function UserForm({
         : [...f.libraryIds, id],
     }));
 
+  const newUserPasswordOk = form.password.trim().length > 0;
   const canSave =
     form.userName.trim().length > 0 &&
     form.name.trim().length > 0 &&
-    form.password.length > 0 &&
+    (isEdit || newUserPasswordOk) &&
     (form.isAdmin || form.libraryIds.length > 0);
 
   const generateMagicString = async () => {
@@ -436,7 +448,16 @@ function UserForm({
   };
 
   const runSaveAndGetMagic = async () => {
-    if (!onSaveAndGetMagic || !canSave) return;
+    if (!onSaveAndGetMagic) return;
+    if (!form.userName.trim() || !form.name.trim() || !form.password.trim()) {
+      setShowNewUserRequiredErrors(true);
+      showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
+      return;
+    }
+    if (!form.isAdmin && form.libraryIds.length === 0 && libraries.length > 0) {
+      showToast(t('settings.userMgmtLibrariesValidation'), 4000, 'error');
+      return;
+    }
     setMagicGenBusy(true);
     try {
       await onSaveAndGetMagic(form);
@@ -445,6 +466,20 @@ function UserForm({
     }
   };
 
+  const invalidNewUserCore =
+    !isEdit && (!form.userName.trim() || !form.name.trim() || !form.password.trim());
+
+  const trySave = () => {
+    if (invalidNewUserCore) {
+      setShowNewUserRequiredErrors(true);
+      showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
+      return;
+    }
+    onSave(form);
+  };
+
+  const markInvalid = showNewUserRequiredErrors && !isEdit;
+
   return (
     <div className="settings-card" style={{ marginBottom: '1.25rem' }}>
       <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '14px' }}>
@@ -452,7 +487,10 @@ function UserForm({
       </h3>
       <div className="form-row" style={{ marginBottom: '0.75rem' }}>
         <div className="form-group">
-          <label style={{ fontSize: 13 }}>{t('settings.userMgmtUsername')}</label>
+          <label style={{ fontSize: 13 }}>
+            {t('settings.userMgmtUsername')}
+            {!isEdit && <span style={{ color: 'var(--text-muted)' }}> *</span>}
+          </label>
           <input
             className="input"
             type="text"
@@ -460,16 +498,23 @@ function UserForm({
             onChange={e => set('userName', e.target.value)}
             disabled={isEdit}
             autoComplete="off"
+            aria-invalid={markInvalid && !form.userName.trim()}
+            style={markInvalid && !form.userName.trim() ? { borderColor: 'var(--danger)' } : undefined}
           />
         </div>
         <div className="form-group">
-          <label style={{ fontSize: 13 }}>{t('settings.userMgmtName')}</label>
+          <label style={{ fontSize: 13 }}>
+            {t('settings.userMgmtName')}
+            {!isEdit && <span style={{ color: 'var(--text-muted)' }}> *</span>}
+          </label>
           <input
             className="input"
             type="text"
             value={form.name}
             onChange={e => set('name', e.target.value)}
             autoComplete="off"
+            aria-invalid={markInvalid && !form.name.trim()}
+            style={markInvalid && !form.name.trim() ? { borderColor: 'var(--danger)' } : undefined}
           />
         </div>
       </div>
@@ -484,7 +529,10 @@ function UserForm({
         />
       </div>
       <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-        <label style={{ fontSize: 13 }}>{t('settings.userMgmtPassword')}</label>
+        <label style={{ fontSize: 13 }}>
+          {t('settings.userMgmtPassword')}
+          {!isEdit && <span style={{ color: 'var(--text-muted)' }}> *</span>}
+        </label>
         <div style={{ position: 'relative' }}>
           <input
             className="input"
@@ -493,7 +541,11 @@ function UserForm({
             onChange={e => set('password', e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
-            style={{ paddingRight: '2.5rem' }}
+            aria-invalid={markInvalid && !form.password.trim()}
+            style={{
+              paddingRight: '2.5rem',
+              ...(markInvalid && !form.password.trim() ? { borderColor: 'var(--danger)' } : {}),
+            }}
           />
           <button
             type="button"
@@ -587,7 +639,7 @@ function UserForm({
             type="button"
             className="btn btn-surface"
             onClick={() => void runSaveAndGetMagic()}
-            disabled={busy || magicGenBusy || !canSave}
+            disabled={busy || magicGenBusy}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
           >
             <Wand2 size={16} />
@@ -633,8 +685,8 @@ function UserForm({
         </button>
         <button
           className="btn btn-primary"
-          onClick={() => onSave(form)}
-          disabled={busy || !canSave}
+          onClick={() => trySave()}
+          disabled={busy || (isEdit && !canSave)}
         >
           {t('settings.userMgmtSave')}
         </button>
@@ -705,9 +757,16 @@ function UserManagementSection({
     const userName = form.userName.trim();
     const name = form.name.trim();
     const email = form.email.trim();
-    if (!userName || !name || !form.password) {
-      showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
-      return;
+    if (editing === 'new') {
+      if (!userName || !name || !form.password.trim()) {
+        showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
+        return;
+      }
+    } else if (editing) {
+      if (!userName || !name) {
+        showToast(t('settings.userMgmtValidationMissingIdentity'), 4000, 'error');
+        return;
+      }
     }
     if (!form.isAdmin && form.libraryIds.length === 0 && libraries.length > 0) {
       showToast(t('settings.userMgmtLibrariesValidation'), 4000, 'error');
@@ -758,7 +817,7 @@ function UserManagementSection({
     const userName = form.userName.trim();
     const name = form.name.trim();
     const email = form.email.trim();
-    if (!userName || !name || !form.password) {
+    if (!userName || !name || !form.password.trim()) {
       showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
       return;
     }
