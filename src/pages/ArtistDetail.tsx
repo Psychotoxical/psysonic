@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, search, setRating, SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo, buildCoverArtUrl, coverArtCacheKey, star, unstar, uploadArtistImage } from '../api/subsonic';
 import AlbumCard from '../components/AlbumCard';
@@ -18,6 +18,7 @@ import { invalidateCoverArt } from '../utils/imageCache';
 import { showToast } from '../utils/toast';
 import { extractCoverColors } from '../utils/dynamicColors';
 import StarRating from '../components/StarRating';
+import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -83,6 +84,9 @@ export default function ArtistDetail() {
     s => !!(s.activeServerId && s.audiomuseNavidromeByServer[s.activeServerId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  // MUST stay above the loading / !artist early returns or React's hook
+  // call order will mismatch between renders.
+  const sectionConfig = useArtistLayoutStore(s => s.sections);
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
@@ -436,6 +440,26 @@ export default function ArtistDetail() {
     (similarLoading || similarArtists.length > 0);
   const showSimilarSection = showAudiomuseSimilar || showLastfmSimilar;
 
+  // ── User-customisable section order + visibility ────────────────────────────
+  // (`sectionConfig` is read at the top of the component — see comment there)
+  const sectionHasData = (id: ArtistSectionId): boolean => {
+    switch (id) {
+      case 'bio':       return !!info?.biography;
+      case 'topTracks': return topSongs.length > 0;
+      case 'similar':   return showSimilarSection;
+      case 'albums':    return true; // always renders (empty state included)
+      case 'featured':  return featuredLoading || featuredAlbums.length > 0;
+    }
+  };
+  // The order the user actually sees: hidden-via-toggle and empty sections
+  // are filtered out, so the "first rendered section gets marginTop: 0" rule
+  // works regardless of the configured order.
+  const renderableSectionIds = sectionConfig
+    .filter(s => s.visible)
+    .map(s => s.id)
+    .filter(sectionHasData);
+  const sectionMt = (id: ArtistSectionId) => renderableSectionIds[0] === id ? '0' : '2rem';
+
   return (
     <div className="content-body animate-fade-in">
       <button
@@ -598,40 +622,47 @@ export default function ArtistDetail() {
         </div>
       </div>
 
-      {/* Biography — sanitized HTML from server */}
-      {info?.biography && (
-        <div className="np-info-card artist-bio-card">
-          <div className="np-card-header">
-            <h3 className="np-card-title">{t('nowPlaying.aboutArtist')}</h3>
-          </div>
-          <div className="np-artist-bio-row">
-            {(info.largeImageUrl || coverId) && (
-              <img
-                src={info.largeImageUrl || buildCoverArtUrl(coverId, 80)}
-                alt={artist.name}
-                className="np-artist-thumb"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            )}
-            <div className="np-bio-wrap">
-              <div
-                className={`np-bio-text${bioExpanded ? ' expanded' : ''}`}
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(info.biography) }}
-              />
-              <button className="np-bio-toggle" onClick={() => setBioExpanded(v => !v)}>
-                {bioExpanded ? t('nowPlaying.showLess') : t('nowPlaying.readMore')}
-              </button>
+      {/* User-reorderable sections — order + visibility configured in Settings.
+       * Each case renders the same JSX it did pre-refactor; only `marginTop`
+       * (now derived from the actual render order) and the outer wrapper changed. */}
+      {renderableSectionIds.map(sectionId => {
+        switch (sectionId) {
+          case 'bio': return (
+            <div
+              key="bio"
+              className="np-info-card artist-bio-card"
+              style={{ marginTop: sectionMt('bio') }}
+            >
+              <div className="np-card-header">
+                <h3 className="np-card-title">{t('nowPlaying.aboutArtist')}</h3>
+              </div>
+              <div className="np-artist-bio-row">
+                {(info?.largeImageUrl || coverId) && (
+                  <img
+                    src={info?.largeImageUrl || buildCoverArtUrl(coverId, 80)}
+                    alt={artist.name}
+                    className="np-artist-thumb"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                )}
+                <div className="np-bio-wrap">
+                  <div
+                    className={`np-bio-text${bioExpanded ? ' expanded' : ''}`}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(info!.biography!) }}
+                  />
+                  <button className="np-bio-toggle" onClick={() => setBioExpanded(v => !v)}>
+                    {bioExpanded ? t('nowPlaying.showLess') : t('nowPlaying.readMore')}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
 
-      {/* Top Songs */}
-      {topSongs.length > 0 && (
-        <>
-          <h2 className="section-title" style={{ marginTop: info?.biography ? '2rem' : '0', marginBottom: '1rem' }}>
-            {t('artistDetail.topTracks')}
-          </h2>
+          case 'topTracks': return (
+            <Fragment key="topTracks">
+              <h2 className="section-title" style={{ marginTop: sectionMt('topTracks'), marginBottom: '1rem' }}>
+                {t('artistDetail.topTracks')}
+              </h2>
           <div className="tracklist" style={{ padding: 0, marginBottom: '2rem' }}>
             <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(100px, 1fr) 65px' }}>
               <div style={{ textAlign: 'center' }}>#</div>
@@ -684,80 +715,85 @@ export default function ArtistDetail() {
                );
              })}
            </div>
-         </>
-       )}
+            </Fragment>
+          );
 
-      {showSimilarSection && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2rem', marginBottom: '1rem' }}>
-            <h2 className="section-title" style={{ margin: 0 }}>
-              {t('artistDetail.similarArtists')}
-            </h2>
-            {isMobile && (() => {
-              const list = showAudiomuseSimilar ? serverSimilarArtists : similarArtists;
-              return list.length > 5 ? (
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setSimilarCollapsed(v => !v)}>
-                  {similarCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                  {similarCollapsed ? t('nowPlaying.readMore') : t('nowPlaying.showLess')}
-                </button>
-              ) : null;
-            })()}
-          </div>
-          {showLastfmSimilar && similarLoading ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
-              {t('artistDetail.loading')}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {(showAudiomuseSimilar ? serverSimilarArtists : similarArtists)
-                .slice(0, isMobile && similarCollapsed ? 5 : undefined)
-                .map(a => (
-                  <button
-                    key={a.id}
-                    className="artist-ext-link"
-                    onClick={() => navigate(`/artist/${a.id}`)}
-                  >
-                    {a.name}
-                  </button>
-                ))}
-            </div>
-          )}
-        </>
-      )}
+          case 'similar': return (
+            <Fragment key="similar">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: sectionMt('similar'), marginBottom: '1rem' }}>
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  {t('artistDetail.similarArtists')}
+                </h2>
+                {isMobile && (() => {
+                  const list = showAudiomuseSimilar ? serverSimilarArtists : similarArtists;
+                  return list.length > 5 ? (
+                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setSimilarCollapsed(v => !v)}>
+                      {similarCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      {similarCollapsed ? t('nowPlaying.readMore') : t('nowPlaying.showLess')}
+                    </button>
+                  ) : null;
+                })()}
+              </div>
+              {showLastfmSimilar && similarLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
+                  {t('artistDetail.loading')}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {(showAudiomuseSimilar ? serverSimilarArtists : similarArtists)
+                    .slice(0, isMobile && similarCollapsed ? 5 : undefined)
+                    .map(a => (
+                      <button
+                        key={a.id}
+                        className="artist-ext-link"
+                        onClick={() => navigate(`/artist/${a.id}`)}
+                      >
+                        {a.name}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </Fragment>
+          );
 
-      {/* Albums */}
-      <h2 className="section-title" style={{ marginTop: (info?.biography || topSongs.length > 0 || showSimilarSection) ? '2rem' : '0', marginBottom: '1rem' }}>
-        {t('artistDetail.albumsBy', { name: artist.name })}
-      </h2>
+          case 'albums': return (
+            <Fragment key="albums">
+              <h2 className="section-title" style={{ marginTop: sectionMt('albums'), marginBottom: '1rem' }}>
+                {t('artistDetail.albumsBy', { name: artist.name })}
+              </h2>
+              {albums.length > 0 ? (
+                <div className="album-grid-wrap album-grid-wrap--artist">
+                  {albums.map(a => <AlbumCard key={a.id} album={a} />)}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)' }}>{t('artistDetail.noAlbums')}</p>
+              )}
+            </Fragment>
+          );
 
-      {albums.length > 0 ? (
-        <div className="album-grid-wrap album-grid-wrap--artist">
-          {albums.map(a => <AlbumCard key={a.id} album={a} />)}
-        </div>
-      ) : (
-        <p style={{ color: 'var(--text-muted)' }}>{t('artistDetail.noAlbums')}</p>
-      )}
+          case 'featured': return (
+            <Fragment key="featured">
+              <h2 className="section-title" style={{ marginTop: sectionMt('featured'), marginBottom: '1rem' }}>
+                {t('artistDetail.featuredOn')}
+              </h2>
+              {featuredLoading ? (
+                <div className="album-grid-wrap">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} style={{ flex: '0 0 clamp(140px, 15vw, 180px)', borderRadius: '8px', background: 'var(--bg-card)', aspectRatio: '1', opacity: 0.5 }} />
+                  ))}
+                </div>
+              ) : (
+                <div className="album-grid-wrap album-grid-wrap--artist" style={{ animation: 'fadeIn 0.3s ease' }}>
+                  {featuredAlbums.map(a => <AlbumCard key={a.id} album={a} />)}
+                </div>
+              )}
+            </Fragment>
+          );
 
-      {/* Also Featured On */}
-      {(featuredLoading || featuredAlbums.length > 0) && (
-        <>
-          <h2 className="section-title" style={{ marginTop: '2rem', marginBottom: '1rem' }}>
-            {t('artistDetail.featuredOn')}
-          </h2>
-          {featuredLoading ? (
-            <div className="album-grid-wrap">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} style={{ flex: '0 0 clamp(140px, 15vw, 180px)', borderRadius: '8px', background: 'var(--bg-card)', aspectRatio: '1', opacity: 0.5 }} />
-              ))}
-            </div>
-          ) : (
-            <div className="album-grid-wrap album-grid-wrap--artist" style={{ animation: 'fadeIn 0.3s ease' }}>
-              {featuredAlbums.map(a => <AlbumCard key={a.id} album={a} />)}
-            </div>
-          )}
-        </>
-      )}
+          default: return null;
+        }
+      })}
     </div>
   );
 }
