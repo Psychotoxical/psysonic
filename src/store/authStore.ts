@@ -63,6 +63,8 @@ interface AuthState {
   minimizeToTray: boolean;
   discordRichPresence: boolean;
   enableAppleMusicCoversDiscord: boolean;
+  /** Opt-in: fetch upcoming tour dates from Bandsintown for the Now-Playing info panel. */
+  enableBandsintown: boolean;
   discordTemplateDetails: string;
   discordTemplateState: string;
   discordTemplateLargeText: string;
@@ -214,6 +216,7 @@ interface AuthState {
   setMinimizeToTray: (v: boolean) => void;
   setDiscordRichPresence: (v: boolean) => void;
   setEnableAppleMusicCoversDiscord: (v: boolean) => void;
+  setEnableBandsintown: (v: boolean) => void;
   setDiscordTemplateDetails: (v: string) => void;
   setDiscordTemplateState: (v: string) => void;
   setDiscordTemplateLargeText: (v: string) => void;
@@ -322,6 +325,7 @@ export const useAuthStore = create<AuthState>()(
       minimizeToTray: false,
       discordRichPresence: false,
       enableAppleMusicCoversDiscord: false,
+      enableBandsintown: false,
       discordTemplateDetails: '{artist} - {title}',
       discordTemplateState: '{album}',
       discordTemplateLargeText: '{album}',
@@ -454,6 +458,7 @@ export const useAuthStore = create<AuthState>()(
       setMinimizeToTray: (v) => set({ minimizeToTray: v }),
       setDiscordRichPresence: (v) => set({ discordRichPresence: v }),
       setEnableAppleMusicCoversDiscord: (v) => set({ enableAppleMusicCoversDiscord: v }),
+      setEnableBandsintown: (v) => set({ enableBandsintown: v }),
       setDiscordTemplateDetails: (v) => set({ discordTemplateDetails: v }),
       setDiscordTemplateState: (v) => set({ discordTemplateState: v }),
       setDiscordTemplateLargeText: (v) => set({ discordTemplateLargeText: v }),

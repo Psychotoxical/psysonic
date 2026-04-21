@@ -1803,6 +1803,34 @@ export default function Settings() {
                   <span className="toggle-track" />
                 </label>
               </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>{t('settings.enableBandsintown')}</span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        color: 'var(--text-muted)',
+                        cursor: 'help',
+                      }}
+                      data-tooltip={t('nowPlayingInfo.enableBandsintownPrivacy')}
+                      data-tooltip-pos="bottom"
+                      data-tooltip-wrap="true"
+                      aria-label={t('nowPlayingInfo.enableBandsintownPrivacy')}
+                      tabIndex={0}
+                    >
+                      <Info size={13} />
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.enableBandsintownDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.enableBandsintown')}>
+                  <input type="checkbox" checked={auth.enableBandsintown} onChange={e => auth.setEnableBandsintown(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
             </div>
           </section>
 

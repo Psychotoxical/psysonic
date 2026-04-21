@@ -120,6 +120,14 @@ export interface SubsonicSong {
     trackPeak?: number;
     albumPeak?: number;
   };
+  /** OpenSubsonic: structured composer credit (string for back-compat). */
+  displayComposer?: string;
+  /** OpenSubsonic: structured contributors list — Navidrome ≥ 0.55. */
+  contributors?: Array<{
+    role: string;
+    subRole?: string;
+    artist: { id?: string; name: string };
+  }>;
 }
 
 export interface InternetRadioStation {

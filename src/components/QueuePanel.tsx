@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
-import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, ArrowUpToLine, Radio, HardDrive, ChevronDown } from 'lucide-react';
+import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, ArrowUpToLine, Radio, HardDrive, ChevronDown, Info } from 'lucide-react';
 import { buildCoverArtUrl, coverArtCacheKey, getAlbum, getPlaylists, getPlaylist, updatePlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCachedUrl } from './CachedImage';
@@ -12,6 +12,7 @@ import { useThemeStore } from '../store/themeStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { useDragDrop } from '../contexts/DragDropContext';
 import LyricsPane from './LyricsPane';
+import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
 
 function formatTime(seconds: number): string {
@@ -696,8 +697,10 @@ export default function QueuePanel() {
           })
         )}
       </div>
-      </>) : (
+      </>) : activeTab === 'lyrics' ? (
         <LyricsPane currentTrack={currentTrack} />
+      ) : (
+        <NowPlayingInfo />
       )}
 
       <div className="queue-tab-bar">
@@ -716,6 +719,14 @@ export default function QueuePanel() {
         >
           <MicVocal size={14} />
           {t('player.lyrics')}
+        </button>
+        <button
+          className={`queue-tab-btn${activeTab === 'info' ? ' active' : ''}`}
+          onClick={() => setTab('info')}
+          aria-label={t('nowPlayingInfo.tab')}
+        >
+          <Info size={14} />
+          {t('nowPlayingInfo.tab')}
         </button>
       </div>
 
