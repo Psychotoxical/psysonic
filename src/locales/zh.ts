@@ -461,7 +461,7 @@ export const zhTranslation = {
     serverFailed: '连接失败。',
     testBtn: '测试连接',
     testingBtn: '正在测试…',
-    serverCompatible: '兼容：Navidrome · Gonic · Airsonic · Subsonic',
+    serverCompatible: '专为 Navidrome 构建。其他兼容 Subsonic 的服务器（Gonic、Airsonic 等）可能功能受限，因为 Psysonic 使用了许多 Navidrome 特有的 API 端点。',
     userMgmtTitle: '用户管理',
     userMgmtDesc: '管理此服务器上的用户。需要管理员权限。',
     userMgmtNoAdmin: '需要管理员权限才能管理此服务器上的用户。',

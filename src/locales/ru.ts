@@ -489,7 +489,7 @@ export const ruTranslation = {
     serverFailed: 'Ошибка подключения.',
     testBtn: 'Проверить',
     testingBtn: 'Проверка…',
-    serverCompatible: 'Совместимость: Navidrome · Gonic · Airsonic · Subsonic',
+    serverCompatible: 'Разработано для Navidrome. Другие Subsonic-совместимые серверы (Gonic, Airsonic, …) могут работать с ограничениями, так как Psysonic использует много специфичных для Navidrome API-эндпоинтов.',
     userMgmtTitle: 'Управление пользователями',
     userMgmtDesc: 'Управляйте пользователями этого сервера. Требуются права администратора.',
     userMgmtNoAdmin: 'Для управления пользователями на этом сервере нужны права администратора.',

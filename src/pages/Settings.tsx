@@ -1,13 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { version as appVersion } from '../../package.json';
-import changelogRaw from '../../CHANGELOG.md?raw';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
   GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
-  Users, UserPlus, Shield, Wand2
+  Users, UserPlus, Shield, Wand2, Search
 } from 'lucide-react';
 import i18n from '../i18n';
 import { exportBackup, importBackup } from '../utils/backup';
@@ -194,11 +193,9 @@ const CONTRIBUTORS = [
   },
 ] as const;
 
-const SPECIAL_THANKS = [
-  {
-    github: 'netherguy4',
-    reason: 'Countless constructive feature ideas and thoughtful feedback',
-  },
+const MAINTAINERS = [
+  { github: 'Psychotoxical' },
+  { github: 'cucadmuh' },
 ] as const;
 
 type Tab =
@@ -1346,6 +1343,10 @@ export default function Settings() {
   const { t, i18n } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<Tab>(resolveTab((routeState as { tab?: string } | null)?.tab));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  // -1 bedeutet: keine aktive Suche; >= 0 ist die Trefferzahl im aktuellen Tab.
+  const [searchHits, setSearchHits] = useState<number>(-1);
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newGenre, setNewGenre] = useState('');
@@ -1362,10 +1363,34 @@ export default function Settings() {
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [contributorsOpen, setContributorsOpen] = useState(false);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
   const [ndAdminAuth, setNdAdminAuth] = useState<{ token: string; serverUrl: string; username: string } | null>(null);
   const [ndAuthChecked, setNdAuthChecked] = useState(false);
+
+  // In-Page-Suche: filtert Sub-Sections des aktiven Tabs per data-settings-search
+  // Attribut. DOM-basiert, damit wir nicht den Query durch jede Komponente
+  // propagieren muessen. Laeuft nach jedem Render, also auch wenn der Tab
+  // wechselt und neue Sub-Sections im Baum erscheinen.
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const subs = document.querySelectorAll<HTMLElement>('[data-settings-search]');
+    if (!q) {
+      subs.forEach(el => el.classList.remove('settings-sub-section--hidden'));
+      setSearchHits(-1);
+      return;
+    }
+    let hits = 0;
+    subs.forEach(el => {
+      const text = (el.getAttribute('data-settings-search') || '').toLowerCase();
+      if (text.includes(q)) {
+        el.classList.remove('settings-sub-section--hidden');
+        hits++;
+      } else {
+        el.classList.add('settings-sub-section--hidden');
+      }
+    });
+    setSearchHits(hits);
+  });
 
   useEffect(() => {
     const server = auth.getActiveServer();
@@ -1664,7 +1689,50 @@ export default function Settings() {
 
   return (
     <div className="content-body animate-fade-in">
-      <h1 className="page-title" style={{ marginBottom: '1.5rem' }}>{t('settings.title')}</h1>
+      <div className="settings-header">
+        <h1 className="page-title">{t('settings.title')}</h1>
+        <div className="settings-search">
+          {!searchOpen ? (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setSearchOpen(true)}
+              aria-label={t('settings.searchPlaceholder')}
+              data-tooltip={t('settings.searchPlaceholder')}
+              data-tooltip-pos="left"
+            >
+              <Search size={16} />
+            </button>
+          ) : (
+            <div className="settings-search-wrap">
+              <Search size={14} className="settings-search-icon" aria-hidden="true" />
+              <input
+                type="search"
+                className="input settings-search-input"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={t('settings.searchPlaceholder')}
+                aria-label={t('settings.searchPlaceholder')}
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    setSearchQuery('');
+                    setSearchOpen(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="settings-search-clear"
+                onClick={() => { setSearchQuery(''); setSearchOpen(false); }}
+                aria-label={t('common.clear')}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Tab navigation */}
       <nav className="settings-tabs" aria-label="Settings navigation">
@@ -1679,6 +1747,12 @@ export default function Settings() {
           </button>
         ))}
       </nav>
+
+      {searchQuery && searchHits === 0 && (
+        <div className="settings-search-empty" role="status">
+          {t('settings.searchNoResults')}
+        </div>
+      )}
 
       {/* ── Audio ────────────────────────────────────────────────────────────── */}
       {activeTab === 'audio' && (
@@ -2595,11 +2669,11 @@ export default function Settings() {
       {activeTab === 'storage' && (
         <>
           {/* Offline Library (In-App) — includes cache settings */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Download size={18} />
-              <h2>{t('settings.offlineDirTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.offlineDirTitle')}
+            icon={<Download size={16} />}
+            defaultOpen
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
                 {t('settings.offlineDirDesc')}
@@ -2688,14 +2762,13 @@ export default function Settings() {
                 </button>
               )}
             </div>
-          </section>
+          </SettingsSubSection>
 
           {/* ZIP Export & Archiving */}
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <FolderOpen size={18} />
-              <h2>{t('settings.downloadsTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.downloadsTitle')}
+            icon={<FolderOpen size={16} />}
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
                 {t('settings.downloadsFolderDesc')}
@@ -2724,7 +2797,7 @@ export default function Settings() {
                 </button>
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
         </>
       )}
 
@@ -3092,20 +3165,23 @@ export default function Settings() {
       {/* ── Input ────────────────────────────────────────────────────────────── */}
       {activeTab === 'input' && (
         <>
-        <section className="settings-section">
-          <div className="settings-section-header">
-            <Keyboard size={18} />
-            <h2>{t('settings.tabInput')}</h2>
-          </div>
-          <div style={{ position: 'relative' }}>
+        <SettingsSubSection
+          title={t('settings.inputKeybindingsTitle')}
+          icon={<Keyboard size={16} />}
+          defaultOpen
+          action={
             <button
+              type="button"
               className="btn btn-ghost"
-              style={{ position: 'absolute', top: -22, right: 0, fontSize: 12, color: 'var(--text-muted)', padding: '2px 4px' }}
+              style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
               onClick={() => { kb.resetToDefaults(); setListeningFor(null); }}
               data-tooltip={t('settings.shortcutsReset')}
+              aria-label={t('settings.shortcutsReset')}
             >
               <RotateCcw size={14} />
             </button>
+          }
+        >
           <div className="settings-card">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {([
@@ -3183,26 +3259,25 @@ export default function Settings() {
               })}
             </div>
           </div>
-          </div>
-        </section>
+        </SettingsSubSection>
 
-        <section className="settings-section">
-          <div className="settings-section-header">
-            <Keyboard size={18} />
-            <h2>{t('settings.globalShortcutsTitle')}</h2>
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
-            {t('settings.globalShortcutsNote')}
-          </p>
-          <div style={{ position: 'relative' }}>
+        <SettingsSubSection
+          title={t('settings.globalShortcutsTitle')}
+          icon={<Keyboard size={16} />}
+          description={t('settings.globalShortcutsNote')}
+          action={
             <button
+              type="button"
               className="btn btn-ghost"
-              style={{ position: 'absolute', top: -22, right: 0, fontSize: 12, color: 'var(--text-muted)', padding: '2px 4px' }}
+              style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
               onClick={() => { gs.resetAll(); setListeningForGlobal(null); }}
               data-tooltip={t('settings.shortcutsReset')}
+              aria-label={t('settings.shortcutsReset')}
             >
               <RotateCcw size={14} />
             </button>
+          }
+        >
           <div className="settings-card">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {([
@@ -3271,8 +3346,7 @@ export default function Settings() {
               })}
             </div>
           </div>
-          </div>
-        </section>
+        </SettingsSubSection>
         </>
       )}
 
@@ -3446,6 +3520,7 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.language')}
             icon={<Globe size={16} />}
+            defaultOpen
           >
             <div className="settings-card">
               <div className="form-group" style={{ maxWidth: '300px' }}>
@@ -3471,7 +3546,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.behavior')}
             icon={<AppWindow size={16} />}
-            defaultOpen
           >
             <div className="settings-card">
               <div className="settings-toggle-row">
@@ -3517,12 +3591,17 @@ export default function Settings() {
             </div>
           </SettingsSubSection>
 
-          <BackupSection />
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Sliders size={18} />
-              <h2>{t('settings.loggingTitle')}</h2>
-            </div>
+          <SettingsSubSection
+            title={t('settings.backupTitle')}
+            icon={<HardDrive size={16} />}
+          >
+            <BackupSection />
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('settings.loggingTitle')}
+            icon={<Sliders size={16} />}
+          >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                 {t('settings.loggingModeDesc')}
@@ -3545,12 +3624,12 @@ export default function Settings() {
                 </div>
               )}
             </div>
-          </section>
-          <section className="settings-section">
-            <div className="settings-section-header">
-              <Info size={18} />
-              <h2>{t('settings.aboutTitle')}</h2>
-            </div>
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('settings.aboutTitle')}
+            icon={<Info size={16} />}
+          >
             <div className="settings-card settings-about">
               <div className="settings-about-header">
                 <img src="/logo-psysonic.png" width={52} height={52} alt="Psysonic" style={{ borderRadius: 14 }} />
@@ -3579,9 +3658,26 @@ export default function Settings() {
                   <span style={{ color: 'var(--text-muted)', minWidth: 56 }}>Stack</span>
                   <span style={{ color: 'var(--text-secondary)' }}>{t('settings.aboutBuiltWith')}</span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <span style={{ color: 'var(--text-muted)', minWidth: 56 }}>AI</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{t('settings.aboutAiCredit')}</span>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0 }}>{t('settings.aboutMaintainersLabel')}</span>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {MAINTAINERS.map(m => (
+                      <div key={m.github} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <img
+                          src={`https://github.com/${m.github}.png?size=32`}
+                          width={20} height={20}
+                          style={{ borderRadius: '50%', flexShrink: 0 }}
+                          alt={m.github}
+                        />
+                        <button
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}
+                          onClick={() => openUrl(`https://github.com/${m.github}`)}
+                        >
+                          @{m.github}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <span style={{ color: 'var(--text-muted)', minWidth: 56 }}>{t('settings.aboutReleaseNotesLabel')}</span>
@@ -3595,74 +3691,22 @@ export default function Settings() {
                     {t('settings.aboutReleaseNotesLink')}
                   </button>
                 </div>
-                <div>
-                  <button
-                    style={{ display: 'flex', width: '100%', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
-                    onClick={() => setContributorsOpen(o => !o)}
-                  >
-                    <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0 }}>{t('settings.aboutContributorsLabel')}</span>
-                    <span style={{ color: 'var(--text-secondary)', flex: 1 }}>{CONTRIBUTORS.length}</span>
-                    <ChevronDown size={13} style={{ color: 'var(--text-muted)', transform: contributorsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                  </button>
+              </div>
 
-                  {contributorsOpen && (
-                    <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {CONTRIBUTORS.map(c => (
-                        <div key={c.github} style={{
-                          display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
-                          background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)',
-                          padding: '0.65rem 0.75rem',
-                          boxShadow: 'inset 0 0 0 1px var(--border-subtle)',
-                        }}>
-                          <img
-                            src={`https://github.com/${c.github}.png?size=48`}
-                            width={36} height={36}
-                            style={{ borderRadius: '50%', flexShrink: 0, marginTop: 2 }}
-                            alt={c.github}
-                          />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                              <button
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}
-                                onClick={() => openUrl(`https://github.com/${c.github}`)}
-                              >
-                                @{c.github}
-                              </button>
-                              <span style={{ fontSize: 10, background: 'var(--accent-dim)', color: 'var(--accent)', padding: '1px 6px', borderRadius: 99, fontWeight: 600 }}>
-                                v{c.since}
-                              </span>
-                            </div>
-                            <ul style={{ margin: 0, padding: '0 0 0 1rem', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                              {c.contributions.map(item => <li key={item}>{item}</li>)}
-                            </ul>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div className="settings-section-divider" style={{ marginTop: '1.25rem' }} />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.showChangelogOnUpdate')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showChangelogOnUpdateDesc')}</div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                  <span style={{ color: 'var(--text-muted)', minWidth: 56, flexShrink: 0, paddingTop: 2, fontSize: 13 }}>{t('settings.aboutSpecialThanksLabel')}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
-                    {SPECIAL_THANKS.map(s => (
-                      <div key={s.github} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <img
-                          src={`https://github.com/${s.github}.png?size=32`}
-                          width={22} height={22}
-                          style={{ borderRadius: '50%', flexShrink: 0 }}
-                          alt={s.github}
-                        />
-                        <button
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--accent)', fontWeight: 600, fontSize: 13 }}
-                          onClick={() => openUrl(`https://github.com/${s.github}`)}
-                        >
-                          @{s.github}
-                        </button>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>— {s.reason}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <label className="toggle-switch" aria-label={t('settings.showChangelogOnUpdate')}>
+                  <input
+                    type="checkbox"
+                    checked={auth.showChangelogOnUpdate}
+                    onChange={e => auth.setShowChangelogOnUpdate(e.target.checked)}
+                  />
+                  <span className="toggle-track" />
+                </label>
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
@@ -3676,29 +3720,59 @@ export default function Settings() {
                 </button>
               </div>
             </div>
-          </section>
+          </SettingsSubSection>
 
-          <ChangelogSection />
+          <SettingsSubSection
+            title={t('settings.aboutContributorsLabel')}
+            icon={<Users size={16} />}
+          >
+            <div className="contributors-grid">
+              {[...CONTRIBUTORS].sort((a, b) => b.contributions.length - a.contributions.length).map(c => (
+                <details key={c.github} className="contributor-card">
+                  <summary className="contributor-card-summary">
+                    <img
+                      src={`https://github.com/${c.github}.png?size=48`}
+                      width={32}
+                      height={32}
+                      className="contributor-card-avatar"
+                      alt={c.github}
+                    />
+                    <div className="contributor-card-meta">
+                      <span
+                        className="contributor-card-name"
+                        role="button"
+                        tabIndex={0}
+                        onClick={e => { e.stopPropagation(); openUrl(`https://github.com/${c.github}`); }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            openUrl(`https://github.com/${c.github}`);
+                          }
+                        }}
+                      >
+                        @{c.github}
+                      </span>
+                      <span className="contributor-card-sub">
+                        <span className="contributor-card-since">v{c.since}</span>
+                        <span>·</span>
+                        <span>{t('settings.aboutContributorsCount', { count: c.contributions.length })}</span>
+                      </span>
+                    </div>
+                    <ChevronDown size={14} className="contributor-card-chevron" aria-hidden />
+                  </summary>
+                  <ul className="contributor-card-list">
+                    {c.contributions.map(item => <li key={item}>{item}</li>)}
+                  </ul>
+                </details>
+              ))}
+            </div>
+          </SettingsSubSection>
+
         </>
       )}
     </div>
   );
-}
-
-// ─── Changelog renderer ───────────────────────────────────────────────────────
-
-function renderInline(text: string): React.ReactNode[] {
-  // Splits on **bold**, *italic*, `code` and renders each part.
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**'))
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith('*') && part.endsWith('*'))
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    if (part.startsWith('`') && part.endsWith('`'))
-      return <code key={i} className="changelog-code">{part.slice(1, -1)}</code>;
-    return part;
-  });
 }
 
 function HomeCustomizer() {
@@ -4300,68 +4374,3 @@ function BackupSection() {
   );
 }
 
-function ChangelogSection() {
-  const { t } = useTranslation();
-  const showChangelogOnUpdate = useAuthStore(s => s.showChangelogOnUpdate);
-  const setShowChangelogOnUpdate = useAuthStore(s => s.setShowChangelogOnUpdate);
-
-  const versions = useMemo(() => {
-    const blocks = changelogRaw.split(/\n(?=## \[)/).filter(b => b.startsWith('## ['));
-    return blocks.map(block => {
-      const lines = block.split('\n');
-      const headerLine = lines[0]; // e.g. "## [1.5.0] - 2026-03-18"
-      const versionMatch = headerLine.match(/## \[([^\]]+)\]/);
-      const dateMatch = headerLine.match(/- (\d{4}-\d{2}-\d{2})/);
-      const version = versionMatch?.[1] ?? '';
-      const date = dateMatch?.[1] ?? '';
-
-      // Parse the rest into rendered lines
-      const body = lines.slice(1).join('\n').trim();
-      return { version, date, body };
-    });
-  }, []);
-
-  return (
-    <section className="settings-section">
-      <div className="settings-section-header">
-        <Info size={18} />
-        <h2>{t('settings.changelog')}</h2>
-      </div>
-      <div className="settings-toggle-row" style={{ marginBottom: '1rem' }}>
-        <div>
-          <div style={{ fontWeight: 500 }}>{t('settings.showChangelogOnUpdate')}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showChangelogOnUpdateDesc')}</div>
-        </div>
-        <label className="toggle-switch" aria-label={t('settings.showChangelogOnUpdate')}>
-          <input type="checkbox" checked={showChangelogOnUpdate} onChange={e => setShowChangelogOnUpdate(e.target.checked)} />
-          <span className="toggle-track" />
-        </label>
-      </div>
-      <div className="changelog-list">
-        {versions.slice(0, 3).map(({ version, date, body }) => (
-          <details key={version} className="changelog-entry" open={version === appVersion}>
-            <summary className="changelog-summary">
-              <span className="changelog-version">v{version}</span>
-              <span className="changelog-date">{date}</span>
-            </summary>
-            <div className="changelog-body">
-              {body.split('\n').map((line, i) => {
-                if (line.startsWith('### ')) {
-                  return <div key={i} className="changelog-h3">{renderInline(line.slice(4))}</div>;
-                }
-                if (line.startsWith('#### ')) {
-                  return <div key={i} className="changelog-h4">{renderInline(line.slice(5))}</div>;
-                }
-                if (line.startsWith('- ')) {
-                  return <div key={i} className="changelog-item">{renderInline(line.slice(2))}</div>;
-                }
-                if (line.trim() === '') return null;
-                return <div key={i} className="changelog-text">{renderInline(line)}</div>;
-              })}
-            </div>
-          </details>
-        ))}
-      </div>
-    </section>
-  );
-}

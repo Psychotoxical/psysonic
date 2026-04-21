@@ -466,7 +466,7 @@ export const frTranslation = {
     serverFailed: 'Connexion échouée.',
     testBtn: 'Tester la connexion',
     testingBtn: 'Test en cours…',
-    serverCompatible: 'Compatible avec : Navidrome · Gonic · Airsonic · Subsonic',
+    serverCompatible: 'Conçu pour Navidrome. Les autres serveurs compatibles Subsonic (Gonic, Airsonic, …) peuvent fonctionner avec des fonctionnalités réduites, car Psysonic utilise de nombreux endpoints d’API spécifiques à Navidrome.',
     userMgmtTitle: 'Gestion des utilisateurs',
     userMgmtDesc: 'Gérer les utilisateurs sur ce serveur. Nécessite des privilèges administrateur.',
     userMgmtNoAdmin: 'Vous devez être administrateur pour gérer les utilisateurs sur ce serveur.',

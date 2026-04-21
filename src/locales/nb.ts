@@ -466,7 +466,7 @@ export const nbTranslation = {
     serverFailed: 'Tilkobling mislyktes.',
     testBtn: 'Test tilkobling',
     testingBtn: 'Tester…',
-    serverCompatible: 'Kompatibel med: Navidrome · Gonic · Airsonic · Subsonic',
+    serverCompatible: 'Laget for Navidrome. Andre Subsonic-kompatible servere (Gonic, Airsonic, …) kan fungere med begrenset funksjonalitet, fordi Psysonic bruker mange Navidrome-spesifikke API-endepunkter.',
     userMgmtTitle: 'Brukeradministrasjon',
     userMgmtDesc: 'Administrer brukere på denne serveren. Krever admin-rettigheter.',
     userMgmtNoAdmin: 'Du trenger admin-rettigheter for å administrere brukere på denne serveren.',

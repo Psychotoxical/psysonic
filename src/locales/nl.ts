@@ -465,7 +465,7 @@ export const nlTranslation = {
     serverFailed: 'Verbinding mislukt.',
     testBtn: 'Verbinding testen',
     testingBtn: 'Testen…',
-    serverCompatible: 'Compatibel met: Navidrome · Gonic · Airsonic · Subsonic',
+    serverCompatible: 'Gemaakt voor Navidrome. Andere Subsonic-compatibele servers (Gonic, Airsonic, …) kunnen met beperkte functionaliteit werken, omdat Psysonic veel Navidrome-specifieke API-endpoints gebruikt.',
     userMgmtTitle: 'Gebruikersbeheer',
     userMgmtDesc: 'Beheer gebruikers op deze server. Vereist admin-rechten.',
     userMgmtNoAdmin: 'Je hebt admin-rechten nodig om gebruikers op deze server te beheren.',
