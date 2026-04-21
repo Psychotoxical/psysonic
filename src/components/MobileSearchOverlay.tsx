@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight } from 'lucide-react';
-import { search, SearchResults, buildCoverArtUrl } from '../api/subsonic';
+import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
+import CachedImage from './CachedImage';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
 const MAX_RECENT = 6;
@@ -203,7 +204,12 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                 {results!.albums.map(a => (
                   <button key={a.id} className="mobile-search-item" onClick={() => goTo(`/album/${a.id}`)}>
                     {a.coverArt ? (
-                      <img className="mobile-search-thumb" src={buildCoverArtUrl(a.coverArt, 80)} alt="" loading="lazy" />
+                      <CachedImage
+                        className="mobile-search-thumb"
+                        src={buildCoverArtUrl(a.coverArt, 80)}
+                        cacheKey={coverArtCacheKey(a.coverArt, 80)}
+                        alt=""
+                      />
                     ) : (
                       <div className="mobile-search-avatar">
                         <Disc3 size={20} />
@@ -225,7 +231,12 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                 {results!.songs.map(s => (
                   <button key={s.id} className="mobile-search-item" onClick={() => playSong(s)}>
                     {s.coverArt ? (
-                      <img className="mobile-search-thumb" src={buildCoverArtUrl(s.coverArt, 80)} alt="" loading="lazy" />
+                      <CachedImage
+                        className="mobile-search-thumb"
+                        src={buildCoverArtUrl(s.coverArt, 80)}
+                        cacheKey={coverArtCacheKey(s.coverArt, 80)}
+                        alt=""
+                      />
                     ) : (
                       <div className="mobile-search-avatar">
                         <Music size={20} />

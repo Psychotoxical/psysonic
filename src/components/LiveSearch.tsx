@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Disc3, Users, Music, SlidersVertical, TextSearch } from 'lucide-react';
-import { search, SearchResults, buildCoverArtUrl } from '../api/subsonic';
+import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
+import CachedImage from './CachedImage';
 
 function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
   let timer: ReturnType<typeof setTimeout>;
@@ -166,7 +167,12 @@ export default function LiveSearch() {
                         onClick={() => { navigate(`/album/${a.id}`); setOpen(false); setQuery(''); }}
                         role="option" aria-selected={activeIndex === i}>
                         {a.coverArt ? (
-                          <img className="search-result-thumb" src={buildCoverArtUrl(a.coverArt, 40)} alt="" loading="lazy" />
+                          <CachedImage
+                            className="search-result-thumb"
+                            src={buildCoverArtUrl(a.coverArt, 40)}
+                            cacheKey={coverArtCacheKey(a.coverArt, 40)}
+                            alt=""
+                          />
                         ) : (
                           <div className="search-result-icon"><Disc3 size={14} /></div>
                         )}
