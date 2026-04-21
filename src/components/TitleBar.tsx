@@ -1,6 +1,5 @@
 import React from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { X, Minus, Square } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 
 export default function TitleBar() {
@@ -27,25 +26,22 @@ export default function TitleBar() {
           onClick={() => win.minimize()}
           data-tooltip="Minimize"
           data-tooltip-pos="bottom"
-        >
-          <Minus size={10} />
-        </button>
+          aria-label="Minimize"
+        />
         <button
           className="titlebar-btn titlebar-btn-maximize"
           onClick={() => win.toggleMaximize()}
           data-tooltip="Maximize"
           data-tooltip-pos="bottom"
-        >
-          <Square size={9} />
-        </button>
+          aria-label="Maximize"
+        />
         <button
           className="titlebar-btn titlebar-btn-close"
           onClick={() => win.close()}
           data-tooltip="Close"
           data-tooltip-pos="bottom"
-        >
-          <X size={12} />
-        </button>
+          aria-label="Close"
+        />
       </div>
     </div>
   );

@@ -142,43 +142,36 @@
   border-radius: 50%;
   cursor: pointer;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
-  transition: filter var(--transition-fast);
-}
-
-.titlebar-btn svg {
-  width: 9px;
-  height: 9px;
-  stroke-width: 2.5;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.titlebar-controls:hover .titlebar-btn svg,
-.titlebar-btn:focus-visible svg {
-  opacity: 1;
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .titlebar-btn-close {
   background: #ff5f57;
-  color: #4d0000;
 }
 
 .titlebar-btn-minimize {
   background: #febc2e;
-  color: #7a4a00;
 }
 
 .titlebar-btn-maximize {
   background: #28c840;
-  color: #004d00;
 }
 
 .titlebar-btn:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.1);
 }
+
+.titlebar-btn-close:hover    { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(255, 95, 87, 0.75); }
+.titlebar-btn-minimize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(254, 188, 46, 0.75); }
+.titlebar-btn-maximize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(40, 200, 64, 0.75); }
 
 .titlebar-btn:active {
   filter: brightness(0.92);
+}
+
+.titlebar-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 0 2px rgba(255, 255, 255, 0.5);
 }
 
 /* Resizer handles must start below the titlebar */
