@@ -300,3 +300,79 @@ export async function lastfmScrobble(
     // best effort
   }
 }
+
+export interface LastfmTrackInfo {
+  listeners: number;
+  playcount: number;
+  userPlaycount: number | null;
+  userLoved: boolean;
+  tags: string[];
+  url: string | null;
+}
+
+export async function lastfmGetTrackInfo(
+  artist: string,
+  track: string,
+  username?: string,
+): Promise<LastfmTrackInfo | null> {
+  try {
+    const params: Record<string, string> = { method: 'track.getInfo', artist, track };
+    if (username) params.username = username;
+    const data = await call(params, false, true);
+    const t = data?.track;
+    if (!t) return null;
+    const rawTags = t.toptags?.tag;
+    const tags = rawTags
+      ? (Array.isArray(rawTags) ? rawTags : [rawTags]).map((tg: any) => String(tg.name)).slice(0, 5)
+      : [];
+    const userPc = t.userplaycount != null ? Number(t.userplaycount) : null;
+    return {
+      listeners: Number(t.listeners) || 0,
+      playcount: Number(t.playcount) || 0,
+      userPlaycount: Number.isFinite(userPc) ? userPc : null,
+      userLoved: t.userloved === '1' || t.userloved === 1,
+      tags,
+      url: t.url ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface LastfmArtistStats {
+  listeners: number;
+  playcount: number;
+  userPlaycount: number | null;
+  tags: string[];
+  url: string | null;
+  bio: string | null;
+}
+
+export async function lastfmGetArtistStats(
+  artist: string,
+  username?: string,
+): Promise<LastfmArtistStats | null> {
+  try {
+    const params: Record<string, string> = { method: 'artist.getInfo', artist };
+    if (username) params.username = username;
+    const data = await call(params, false, true);
+    const a = data?.artist;
+    if (!a) return null;
+    const rawTags = a.tags?.tag;
+    const tags = rawTags
+      ? (Array.isArray(rawTags) ? rawTags : [rawTags]).map((tg: any) => String(tg.name)).slice(0, 5)
+      : [];
+    const userPc = a.stats?.userplaycount != null ? Number(a.stats.userplaycount) : null;
+    const bioRaw = (a.bio?.content || a.bio?.summary || '').trim();
+    return {
+      listeners: Number(a.stats?.listeners) || 0,
+      playcount: Number(a.stats?.playcount) || 0,
+      userPlaycount: Number.isFinite(userPc) ? userPc : null,
+      tags,
+      url: a.url ?? null,
+      bio: bioRaw || null,
+    };
+  } catch {
+    return null;
+  }
+}

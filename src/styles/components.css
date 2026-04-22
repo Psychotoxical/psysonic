@@ -10187,3 +10187,486 @@ html[data-app-hidden="true"] *::after {
   transition: filter 0.12s;
 }
 .np-info-bandsintown-prompt-btn:hover { filter: brightness(1.08); }
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Now Playing Dashboard (full-page redesign)                                  */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+.np-dash {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.np-dash-hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 28px;
+  padding: 28px;
+  background: rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+}
+
+.np-dash-hero-cover {
+  width: 260px;
+  height: 260px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.np-dash-hero-cover .np-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.np-dash-hero-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.np-dash-hero-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.np-dash-hero-sub {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.78);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.np-dash-hero-sub .np-link { color: inherit; }
+.np-dash-hero-sub .np-link:hover { color: var(--accent); }
+
+.np-dash-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.np-badge-hires {
+  background: color-mix(in srgb, var(--ctp-yellow) 30%, transparent);
+  color: var(--ctp-yellow);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.np-dash-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.np-dash-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+.np-dash-icon-btn:hover {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+.np-dash-lfm-btn.is-loved {
+  color: var(--accent);
+}
+
+.np-stars-inline {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.np-dash-hero-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+/* Last.fm stats pulled up into the hero */
+.np-dash-hero-lfm {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--accent);
+}
+.np-dash-hero-lfm-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.np-dash-hero-lfm-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.np-dash-hero-lfm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+}
+.np-dash-hero-lfm-scope {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+.np-dash-hero-lfm-sep {
+  color: rgba(255, 255, 255, 0.35);
+  padding: 0 2px;
+}
+.np-dash-hero-lfm-dot {
+  color: rgba(255, 255, 255, 0.30);
+  padding: 0 3px;
+}
+.np-dash-hero-lfm-you {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Two flex columns — left stack, right stack */
+.np-dash-grid {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.np-dash-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.np-dash-card {
+  min-width: 0;
+}
+
+/* Expanded bio grows the card naturally instead of turning into a scroll box */
+.np-dash-artist-text .np-bio-text.expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Artist card */
+.np-dash-artist-body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.np-dash-artist-image {
+  width: 92px;
+  height: 92px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.np-dash-artist-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.np-dash-artist-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.np-dash-similar {
+  margin-top: 4px;
+}
+
+.np-dash-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.np-chip {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.np-chip:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: white;
+}
+
+/* Album card meta line */
+.np-dash-album-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.70);
+}
+.np-dash-album-name {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+}
+.np-dash-album-stats {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+/* Top songs card */
+.np-dash-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.np-dash-top-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.np-dash-top-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.np-dash-top-row.active {
+  background: rgba(255, 255, 255, 0.10);
+}
+.np-dash-top-rank {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.np-dash-top-row.active .np-dash-top-rank {
+  color: var(--accent);
+}
+.np-dash-top-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.np-dash-top-title {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+}
+.np-dash-top-row.active .np-dash-top-title {
+  color: var(--accent);
+  font-weight: 600;
+}
+.np-dash-top-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.50);
+}
+.np-dash-top-dur {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.60);
+}
+.np-dash-top-play {
+  color: rgba(255, 255, 255, 0.35);
+  transition: color 0.15s;
+}
+.np-dash-top-row:hover .np-dash-top-play {
+  color: var(--accent);
+}
+.np-dash-top-credit {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.40);
+  margin-top: 2px;
+}
+
+/* Info-only tracklist inside the dashboard: no cursor, no hover background */
+.np-dash-card .np-album-track { cursor: default; }
+.np-dash-card .np-album-track:hover:not(.active) { background: transparent; }
+
+/* Tracklist expand toggle */
+.np-dash-tracklist-more {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 6px 8px;
+  align-self: flex-start;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.np-dash-tracklist-more:hover { opacity: 1; }
+
+/* Hero age + ReplayGain badge */
+.np-dash-hero-age {
+  font-style: italic;
+  opacity: 0.65;
+}
+
+/* Discography grid — compact contact-sheet of covers, title/year shown on hover via tooltip */
+.np-dash-disc-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 6px;
+}
+.np-dash-disc-tile {
+  cursor: pointer;
+  min-width: 0;
+  transition: transform 0.15s;
+}
+.np-dash-disc-tile:hover { transform: translateY(-2px); }
+.np-dash-disc-cover {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+.np-dash-disc-tile.active .np-dash-disc-cover {
+  box-shadow: 0 0 0 2px var(--accent), 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+.np-dash-disc-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.np-dash-disc-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.30);
+}
+
+/* Last.fm stats */
+.np-dash-stats-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.np-dash-stats-row + .np-dash-stats-row {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.np-dash-stats-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+.np-dash-stats-values {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.np-dash-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 60px;
+}
+.np-dash-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.np-dash-stat-you .np-dash-stat-value {
+  color: var(--accent);
+}
+.np-dash-stat-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.50);
+  text-transform: lowercase;
+}
+.np-dash-stats-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+/* Responsive: single column on narrow viewports */
+@media (max-width: 900px) {
+  .np-dash-grid { flex-direction: column; }
+  .np-dash-hero { grid-template-columns: 1fr; }
+  .np-dash-hero-cover { width: 180px; height: 180px; margin: 0 auto; }
+  .np-dash-hero-title { font-size: 24px; }
+}
+
+.app-shell[data-mobile] .np-dash-grid { flex-direction: column; }
+.app-shell[data-mobile] .np-dash-hero { grid-template-columns: 1fr; }
+.app-shell[data-mobile] .np-dash-hero-cover { width: 160px; height: 160px; margin: 0 auto; }
+.app-shell[data-mobile] .np-dash-hero-title { font-size: 22px; }
+.app-shell[data-mobile] .np-dash-artist-body { flex-direction: column; }
+.app-shell[data-mobile] .np-dash-artist-image { width: 72px; height: 72px; }
+.app-shell[data-mobile] .np-dash-disc-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+@media (max-width: 1100px) {
+  .np-dash-disc-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .np-dash-disc-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .np-dash-stats-values { gap: 16px; }
+  .np-dash-stat-value { font-size: 18px; }
+}
