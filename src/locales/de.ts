@@ -663,7 +663,6 @@ export const deTranslation = {
     aboutReleaseNotesLabel: 'Release Notes',
     aboutReleaseNotesLink: 'Neuigkeiten dieser Version öffnen',
     aboutContributorsLabel: 'Mitwirkende',
-    changelog: 'Changelog',
     showChangelogOnUpdate: "'Was ist neu' bei Update anzeigen",
     showChangelogOnUpdateDesc: 'Blendet nach einem Update einen dezenten Changelog-Banner über Now Playing ein. Klick öffnet die Release Notes, X blendet ihn aus.',
     randomMixTitle: 'Zufallsmix',
@@ -704,7 +703,6 @@ export const deTranslation = {
     randomNavSplitTitle: 'Mix-Navigation aufteilen',
     randomNavSplitDesc: '"Zufallsmix" und "Zufallsalben" als separate Sidebar-Einträge statt als "Mix erstellen"-Hub anzeigen.',
     tabInput: 'Eingabe',
-    tabServer: 'Server',
     tabUsers: 'Benutzer',
     shortcutsReset: 'Auf Standard zurücksetzen',
     shortcutListening: 'Taste drücken…',
@@ -733,7 +731,6 @@ export const deTranslation = {
     loggingExport: 'Protokolle exportieren',
     loggingExportSuccess: 'Protokolle exportiert ({{count}} Zeilen).',
     loggingExportError: 'Protokolle konnten nicht exportiert werden.',
-    tabGeneral: 'Allgemein',
     ratingsSectionTitle: 'Bewertungen',
     ratingsSkipStarTitle: 'Skip → 1 Stern',
     ratingsSkipStarDesc:

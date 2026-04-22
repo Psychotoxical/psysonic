@@ -665,7 +665,6 @@ export const enTranslation = {
     aboutReleaseNotesLabel: 'Release notes',
     aboutReleaseNotesLink: "Open this version's what's-new",
     aboutContributorsLabel: 'Contributors',
-    changelog: 'Changelog',
     showChangelogOnUpdate: "Show 'What's New' on update",
     showChangelogOnUpdateDesc: "Show a discreet changelog banner above Now Playing after an update. Click opens the release notes; X dismisses it.",
     randomMixTitle: 'Random Mix',
@@ -706,7 +705,6 @@ export const enTranslation = {
     randomNavSplitTitle: 'Split Mix navigation',
     randomNavSplitDesc: 'Show "Random Mix" and "Random Albums" as separate sidebar entries instead of the "Build a Mix" hub.',
     tabInput: 'Input',
-    tabServer: 'Server',
     tabUsers: 'Users',
     tabSystem: 'System',
     loggingTitle: 'Logging',
@@ -717,7 +715,6 @@ export const enTranslation = {
     loggingExport: 'Export logs',
     loggingExportSuccess: 'Logs exported ({{count}} lines).',
     loggingExportError: 'Could not export logs.',
-    tabGeneral: 'General',
     ratingsSectionTitle: 'Ratings',
     ratingsSkipStarTitle: 'Skip for 1 star',
     ratingsSkipStarDesc:
