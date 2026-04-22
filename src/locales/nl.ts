@@ -470,6 +470,8 @@ export const nlTranslation = {
     userMgmtDesc: 'Beheer gebruikers op deze server. Vereist admin-rechten.',
     userMgmtNoAdmin: 'Je hebt admin-rechten nodig om gebruikers op deze server te beheren.',
     userMgmtLoadError: 'Kon gebruikers niet laden.',
+    userMgmtLoadFriendly: 'Server antwoordde niet — meestal eenmalig.',
+    userMgmtRetry: 'Opnieuw proberen',
     userMgmtEmpty: 'Geen gebruikers gevonden.',
     userMgmtYouBadge: 'Jij',
     userMgmtAdminBadge: 'Admin',

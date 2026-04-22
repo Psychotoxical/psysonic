@@ -481,6 +481,8 @@ export const deTranslation = {
     userMgmtDesc: 'Benutzer auf diesem Server verwalten. Erfordert Admin-Rechte.',
     userMgmtNoAdmin: 'Du brauchst Admin-Rechte, um Benutzer auf diesem Server zu verwalten.',
     userMgmtLoadError: 'Benutzer konnten nicht geladen werden.',
+    userMgmtLoadFriendly: 'Server hat nicht geantwortet — meistens ein Einzelfall.',
+    userMgmtRetry: 'Erneut versuchen',
     userMgmtEmpty: 'Keine Benutzer gefunden.',
     userMgmtYouBadge: 'Du',
     userMgmtAdminBadge: 'Admin',

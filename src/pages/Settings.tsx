@@ -762,15 +762,25 @@ function UserManagementSection({
     setLoading(true);
     setLoadError(null);
     try {
-      const [list, libs] = await Promise.all([
-        ndListUsers(serverUrl, token),
-        ndListLibraries(serverUrl, token).catch(() => [] as NdLibrary[]),
-      ]);
+      // Sequential, not parallel: nginx setups with churning upstream
+      // keep-alive drop one of the two parallel TLS connections. Doing
+      // users first then libraries keeps us on one connection at a time
+      // and pairs cleanly with the nd_retry backoff on the Rust side.
+      const list = await ndListUsers(serverUrl, token);
+      const libs = await ndListLibraries(serverUrl, token).catch(() => [] as NdLibrary[]);
       setUsers([...list].sort((a, b) => a.userName.localeCompare(b.userName)));
       setLibraries([...libs].sort((a, b) => a.name.localeCompare(b.name)));
     } catch (e) {
-      const msg = (e instanceof Error && e.message) ? e.message : t('settings.userMgmtLoadError');
-      setLoadError(msg);
+      // Tauri invoke rejects with a plain string (our Rust returns Err(String)),
+      // not an Error instance. Normalise so the surfaced message is the real
+      // cause (e.g. "tls handshake eof") rather than the generic i18n fallback.
+      const raw = typeof e === 'string'
+        ? e
+        : (e instanceof Error && e.message)
+          ? e.message
+          : '';
+      const prefix = t('settings.userMgmtLoadError');
+      setLoadError(raw ? `${prefix} ${raw}` : prefix);
     } finally {
       setLoading(false);
     }
@@ -922,8 +932,30 @@ function UserManagementSection({
       )}
 
       {!loading && loadError && (
-        <div className="settings-card" style={{ color: 'var(--danger)', fontSize: 13 }}>
-          {loadError}
+        <div
+          className="settings-card"
+          style={{
+            color: 'var(--danger)',
+            fontSize: 13,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('settings.userMgmtLoadFriendly')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-word' }}>{loadError}</div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void load()}
+            style={{ flexShrink: 0 }}
+          >
+            <RotateCcw size={14} /> {t('settings.userMgmtRetry')}
+          </button>
         </div>
       )}
 
@@ -1009,16 +1041,14 @@ function UserManagementSection({
                         {t('settings.userMgmtAdminBadge')}
                       </span>
                     )}
-                    {libNames && (
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>
-                        {libNames}
-                      </span>
-                    )}
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>
+                      {libNames || ''}
+                    </span>
                     {!u.isAdmin && (
                       <button
                         type="button"
                         className="btn btn-ghost"
-                        style={{ padding: '2px 6px', flexShrink: 0, marginLeft: libNames ? 0 : 'auto' }}
+                        style={{ padding: '2px 6px', flexShrink: 0 }}
                         onClick={(e) => {
                           e.stopPropagation();
                           setMagicRowUser(u);
@@ -1031,7 +1061,7 @@ function UserManagementSection({
                       </button>
                     )}
                     <span
-                      style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: libNames ? 0 : 'auto' }}
+                      style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}
                       data-tooltip={lastSeenAbsolute || undefined}
                     >
                       {lastSeen}
@@ -1347,6 +1377,14 @@ export default function Settings() {
   const [searchOpen, setSearchOpen] = useState(false);
   // -1 bedeutet: keine aktive Suche; >= 0 ist die Trefferzahl im aktuellen Tab.
   const [searchHits, setSearchHits] = useState<number>(-1);
+
+  // Server-Liste DnD
+  const psyDragState = useDragDrop();
+  const [serverContainerEl, setServerContainerEl] = useState<HTMLDivElement | null>(null);
+  const [serverDropTarget, setServerDropTarget] = useState<ServerDropTarget>(null);
+  const serverDropTargetRef = useRef<ServerDropTarget>(null);
+  const serversRef = useRef(auth.servers);
+  serversRef.current = auth.servers;
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newGenre, setNewGenre] = useState('');
@@ -1585,12 +1623,62 @@ export default function Settings() {
     }
   };
 
+  // Clear drop target when drag ends
+  useEffect(() => {
+    if (!psyDragState.isDragging) {
+      serverDropTargetRef.current = null;
+      setServerDropTarget(null);
+    }
+  }, [psyDragState.isDragging]);
+
+  // psy-drop listener for server reorder
+  useEffect(() => {
+    if (!serverContainerEl) return;
+    const onPsyDrop = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.data) return;
+      let parsed: { type?: string; index?: number };
+      try { parsed = JSON.parse(detail.data as string); } catch { return; }
+      if (parsed.type !== 'server_reorder' || parsed.index == null) return;
+
+      const fromIdx = parsed.index;
+      const target = serverDropTargetRef.current;
+      serverDropTargetRef.current = null; setServerDropTarget(null);
+      if (!target) return;
+
+      const insertBefore = target.before ? target.idx : target.idx + 1;
+      if (insertBefore === fromIdx || insertBefore === fromIdx + 1) return;
+
+      const next = [...serversRef.current];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(insertBefore > fromIdx ? insertBefore - 1 : insertBefore, 0, moved);
+      auth.setServers(next);
+    };
+    serverContainerEl.addEventListener('psy-drop', onPsyDrop);
+    return () => serverContainerEl.removeEventListener('psy-drop', onPsyDrop);
+  }, [serverContainerEl, auth]);
+
+  const handleServerDragMove = (e: React.MouseEvent) => {
+    if (!psyDragState.isDragging || !serverContainerEl) return;
+    const rows = serverContainerEl.querySelectorAll<HTMLElement>('[data-server-idx]');
+    let target: ServerDropTarget = null;
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      const idx = Number(row.dataset.serverIdx);
+      if (e.clientY < rect.top + rect.height / 2) { target = { idx, before: true }; break; }
+      target = { idx, before: false };
+    }
+    serverDropTargetRef.current = target;
+    setServerDropTarget(target);
+  };
+
   const switchToServer = async (server: ServerProfile) => {
     setConnStatus(s => ({ ...s, [server.id]: 'testing' }));
     const ok = await switchActiveServer(server);
     if (ok) {
       setConnStatus(s => ({ ...s, [server.id]: 'ok' }));
-      navigate('/');
+      // Auf der Servers-Seite bleiben, damit der User seinen Switch hier
+      // sofort visuell bestaetigt sieht (gruener Check, aktiv-Badge).
     } else {
       setConnStatus(s => ({ ...s, [server.id]: 'error' }));
     }
@@ -3367,13 +3455,31 @@ export default function Settings() {
                 {t('settings.noServers')}
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {auth.servers.map(srv => {
+              <div
+                ref={setServerContainerEl}
+                onMouseMove={handleServerDragMove}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+              >
+                {auth.servers.map((srv, srvIdx) => {
                   const isActive = srv.id === auth.activeServerId;
                   const status = connStatus[srv.id];
+                  const isBefore = psyDragState.isDragging && serverDropTarget?.idx === srvIdx && serverDropTarget.before;
+                  const isAfter  = psyDragState.isDragging && serverDropTarget?.idx === srvIdx && !serverDropTarget.before;
                   return (
-                    <div key={srv.id} className="settings-card" style={{ border: isActive ? '1px solid var(--accent)' : undefined }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                    <div
+                      key={srv.id}
+                      data-server-idx={srvIdx}
+                      className="settings-card"
+                      style={{
+                        border: isActive ? '1px solid var(--accent)' : undefined,
+                        background: isActive ? 'color-mix(in srgb, var(--accent) 10%, var(--bg-card))' : undefined,
+                        borderTop:    isBefore ? '2px solid var(--accent)' : undefined,
+                        borderBottom: isAfter  ? '2px solid var(--accent)' : undefined,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.75rem' }}>
+                        <ServerGripHandle idx={srvIdx} label={serverListDisplayLabel(srv, auth.servers)} />
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2px' }}>
                             <span style={{ fontWeight: 600 }}>{serverListDisplayLabel(srv, auth.servers)}</span>
@@ -3430,6 +3536,7 @@ export default function Settings() {
                             <Trash2 size={14} />
                           </button>
                         </div>
+                      </div>
                       </div>
                       {showAudiomuseNavidromeServerSetting(
                         auth.subsonicServerIdentityByServer[srv.id],
@@ -3831,6 +3938,27 @@ const LYRICS_SOURCE_LABEL_KEYS: Record<LyricsSourceId, string> = {
 };
 
 type LyricsDropTarget = { idx: number; before: boolean } | null;
+
+type ServerDropTarget = { idx: number; before: boolean } | null;
+
+function ServerGripHandle({ idx, label }: { idx: number; label: string }) {
+  const { t } = useTranslation();
+  const { onMouseDown } = useDragSource(() => ({
+    data: JSON.stringify({ type: 'server_reorder', index: idx }),
+    label,
+  }));
+  return (
+    <span
+      className="sidebar-customizer-grip"
+      data-tooltip={t('settings.sidebarDrag')}
+      data-tooltip-pos="right"
+      onMouseDown={onMouseDown}
+      onClick={e => e.stopPropagation()}
+    >
+      <GripVertical size={16} />
+    </span>
+  );
+}
 
 function LyricsSourceGripHandle({ idx, label }: { idx: number; label: string }) {
   const { t } = useTranslation();

@@ -471,6 +471,8 @@ export const nbTranslation = {
     userMgmtDesc: 'Administrer brukere på denne serveren. Krever admin-rettigheter.',
     userMgmtNoAdmin: 'Du trenger admin-rettigheter for å administrere brukere på denne serveren.',
     userMgmtLoadError: 'Kunne ikke laste brukere.',
+    userMgmtLoadFriendly: 'Serveren svarte ikke — som regel en engangsfeil.',
+    userMgmtRetry: 'Prøv igjen',
     userMgmtEmpty: 'Ingen brukere funnet.',
     userMgmtYouBadge: 'Deg',
     userMgmtAdminBadge: 'Admin',

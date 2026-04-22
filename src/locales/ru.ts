@@ -494,6 +494,8 @@ export const ruTranslation = {
     userMgmtDesc: 'Управляйте пользователями этого сервера. Требуются права администратора.',
     userMgmtNoAdmin: 'Для управления пользователями на этом сервере нужны права администратора.',
     userMgmtLoadError: 'Не удалось загрузить пользователей.',
+    userMgmtLoadFriendly: 'Сервер не ответил — обычно разовая ошибка.',
+    userMgmtRetry: 'Повторить',
     userMgmtEmpty: 'Пользователи не найдены.',
     userMgmtYouBadge: 'Вы',
     userMgmtAdminBadge: 'Админ',

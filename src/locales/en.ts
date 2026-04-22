@@ -483,6 +483,8 @@ export const enTranslation = {
     userMgmtDesc: 'Manage users on this server. Requires admin privileges.',
     userMgmtNoAdmin: 'You need admin privileges to manage users on this server.',
     userMgmtLoadError: 'Failed to load users.',
+    userMgmtLoadFriendly: 'Server didn\'t answer — this is usually a one-off.',
+    userMgmtRetry: 'Retry',
     userMgmtEmpty: 'No users found.',
     userMgmtYouBadge: 'You',
     userMgmtAdminBadge: 'Admin',

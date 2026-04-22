@@ -471,6 +471,8 @@ export const frTranslation = {
     userMgmtDesc: 'Gérer les utilisateurs sur ce serveur. Nécessite des privilèges administrateur.',
     userMgmtNoAdmin: 'Vous devez être administrateur pour gérer les utilisateurs sur ce serveur.',
     userMgmtLoadError: 'Impossible de charger les utilisateurs.',
+    userMgmtLoadFriendly: 'Le serveur n\'a pas répondu — généralement ponctuel.',
+    userMgmtRetry: 'Réessayer',
     userMgmtEmpty: 'Aucun utilisateur trouvé.',
     userMgmtYouBadge: 'Vous',
     userMgmtAdminBadge: 'Admin',

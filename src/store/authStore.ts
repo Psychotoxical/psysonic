@@ -187,6 +187,7 @@ interface AuthState {
   addServer: (profile: Omit<ServerProfile, 'id'>) => string;
   updateServer: (id: string, data: Partial<Omit<ServerProfile, 'id'>>) => void;
   removeServer: (id: string) => void;
+  setServers: (servers: ServerProfile[]) => void;
   setActiveServer: (id: string) => void;
   setLoggedIn: (v: boolean) => void;
   setConnecting: (v: boolean) => void;
@@ -407,6 +408,8 @@ export const useAuthStore = create<AuthState>()(
           };
         });
       },
+
+      setServers: (servers) => set({ servers }),
 
       setActiveServer: (id) => set({ activeServerId: id, musicFolders: [] }),
 

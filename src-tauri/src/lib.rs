@@ -325,6 +325,38 @@ fn nd_err(e: reqwest::Error) -> String {
     msg
 }
 
+/// Retry a request-building closure on transient transport errors
+/// (connect/timeout — includes ECONNRESET, TLS handshake EOF, DNS flakes).
+/// Three attempts with calm backoff: 0 → 300ms → 700ms (total worst case
+/// ~1s). Retrying too aggressively (5+ attempts, short backoff) can drive
+/// an already-stressed nginx upstream-probe into "offline" mode, which
+/// turns a transient glitch into a visible outage. Status-level failures
+/// (401/403/400 with body) return immediately — we don't retry logic
+/// errors.
+async fn nd_retry<F, Fut>(mut build_and_send: F) -> Result<reqwest::Response, String>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<reqwest::Response, reqwest::Error>>,
+{
+    const BACKOFFS_MS: [u64; 1] = [500];
+    let mut last: Option<reqwest::Error> = None;
+    for attempt in 0..=BACKOFFS_MS.len() {
+        if attempt > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(BACKOFFS_MS[attempt - 1])).await;
+        }
+        match build_and_send().await {
+            Ok(resp) => return Ok(resp),
+            Err(e) => {
+                if !e.is_connect() && !e.is_timeout() {
+                    return Err(nd_err(e));
+                }
+                last = Some(e);
+            }
+        }
+    }
+    Err(nd_err(last.expect("loop ran at least once")))
+}
+
 /// Build a reqwest client for Navidrome's native REST endpoints. Plain
 /// `reqwest::Client::new()` defaults to HTTP/2 over ALPN with no User-Agent,
 /// which some reverse-proxies (strict nginx rules, Cloudflare Tunnel, CDN
@@ -337,10 +369,16 @@ fn nd_err(e: reqwest::Error) -> String {
 /// eof" errors on the second call to an admin endpoint when a server or
 /// proxy had already closed the TCP connection between calls.
 fn nd_http_client() -> reqwest::Client {
+    // TLS 1.2 only: rustls + nginx with TLS-1.3 session resumption caches
+    // produces intermittent ECONNRESET mid-handshake when the upstream
+    // starts churning keep-alive connections. Pinning TLS 1.2 matches what
+    // the WebKit-side Subsonic calls end up negotiating most of the time
+    // on these setups.
     reqwest::Client::builder()
         .user_agent(format!("Psysonic/{} (Tauri)", env!("CARGO_PKG_VERSION")))
         .http1_only()
         .pool_max_idle_per_host(0)
+        .max_tls_version(reqwest::tls::Version::TLS_1_2)
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
@@ -352,12 +390,13 @@ async fn navidrome_login(
     username: String,
     password: String,
 ) -> Result<NdLoginResult, String> {
-    let resp = nd_http_client()
-        .post(format!("{}/auth/login", server_url))
-        .json(&serde_json::json!({ "username": username, "password": password }))
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let body = serde_json::json!({ "username": username, "password": password });
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .post(format!("{}/auth/login", server_url))
+            .json(&body)
+            .send()
+    }).await?;
     if !resp.status().is_success() {
         return Err(format!("Navidrome login failed: HTTP {}", resp.status()));
     }
@@ -374,12 +413,12 @@ async fn nd_list_users(
     server_url: String,
     token: String,
 ) -> Result<serde_json::Value, String> {
-    let resp = nd_http_client()
-        .get(format!("{}/api/user", server_url))
-        .header("X-ND-Authorization", format!("Bearer {}", token))
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .get(format!("{}/api/user", server_url))
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .send()
+    }).await?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -404,13 +443,13 @@ async fn nd_create_user(
         "password": password,
         "isAdmin": is_admin,
     });
-    let resp = nd_http_client()
-        .post(format!("{}/api/user", server_url))
-        .header("X-ND-Authorization", format!("Bearer {}", token))
-        .json(&body)
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .post(format!("{}/api/user", server_url))
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .json(&body)
+            .send()
+    }).await?;
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -441,13 +480,13 @@ async fn nd_update_user(
     if !password.is_empty() {
         body["password"] = serde_json::Value::String(password);
     }
-    let resp = nd_http_client()
-        .put(format!("{}/api/user/{}", server_url, id))
-        .header("X-ND-Authorization", format!("Bearer {}", token))
-        .json(&body)
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .put(format!("{}/api/user/{}", server_url, id))
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .json(&body)
+            .send()
+    }).await?;
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -463,12 +502,12 @@ async fn nd_delete_user(
     token: String,
     id: String,
 ) -> Result<(), String> {
-    let resp = nd_http_client()
-        .delete(format!("{}/api/user/{}", server_url, id))
-        .header("X-ND-Authorization", format!("Bearer {}", token))
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .delete(format!("{}/api/user/{}", server_url, id))
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .send()
+    }).await?;
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
@@ -483,12 +522,12 @@ async fn nd_list_libraries(
     server_url: String,
     token: String,
 ) -> Result<serde_json::Value, String> {
-    let resp = nd_http_client()
-        .get(format!("{}/api/library", server_url))
-        .header("X-ND-Authorization", format!("Bearer {}", token))
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .get(format!("{}/api/library", server_url))
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .send()
+    }).await?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -505,13 +544,13 @@ async fn nd_set_user_libraries(
     library_ids: Vec<i64>,
 ) -> Result<(), String> {
     let body = serde_json::json!({ "libraryIds": library_ids });
-    let resp = nd_http_client()
-        .put(format!("{}/api/user/{}/library", server_url, id))
-        .header("X-ND-Authorization", format!("Bearer {}", token))
-        .json(&body)
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .put(format!("{}/api/user/{}/library", server_url, id))
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .json(&body)
+            .send()
+    }).await?;
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();

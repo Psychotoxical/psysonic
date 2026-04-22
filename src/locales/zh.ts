@@ -466,6 +466,8 @@ export const zhTranslation = {
     userMgmtDesc: '管理此服务器上的用户。需要管理员权限。',
     userMgmtNoAdmin: '需要管理员权限才能管理此服务器上的用户。',
     userMgmtLoadError: '加载用户失败。',
+    userMgmtLoadFriendly: '服务器未响应 — 通常是偶发问题。',
+    userMgmtRetry: '重试',
     userMgmtEmpty: '未找到用户。',
     userMgmtYouBadge: '您',
     userMgmtAdminBadge: '管理员',
