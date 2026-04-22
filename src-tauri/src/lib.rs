@@ -310,6 +310,41 @@ struct NdLoginResult {
     is_admin: bool,
 }
 
+/// Flatten an error and its `source` chain into a single readable string so
+/// frontend toasts can show the actual transport cause (connection refused,
+/// tls handshake fail, cert expired, etc.) instead of reqwest's opaque
+/// "error sending request for url (…)" wrapper.
+fn nd_err(e: reqwest::Error) -> String {
+    let mut msg = e.to_string();
+    let mut src: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(&e);
+    while let Some(s) = src {
+        msg.push_str(" | ");
+        msg.push_str(&s.to_string());
+        src = s.source();
+    }
+    msg
+}
+
+/// Build a reqwest client for Navidrome's native REST endpoints. Plain
+/// `reqwest::Client::new()` defaults to HTTP/2 over ALPN with no User-Agent,
+/// which some reverse-proxies (strict nginx rules, Cloudflare Tunnel, CDN
+/// WAFs) abort mid-TLS-handshake. Pinning HTTP/1.1 and advertising a real
+/// User-Agent makes the handshake match what browsers do for the Subsonic
+/// endpoints, so `/auth/*` + `/api/*` go through the same path as `/rest/*`.
+///
+/// `pool_max_idle_per_host(0)` disables connection pooling. Keeping stale
+/// keep-alive connections in the pool caused intermittent "tls handshake
+/// eof" errors on the second call to an admin endpoint when a server or
+/// proxy had already closed the TCP connection between calls.
+fn nd_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .user_agent(format!("Psysonic/{} (Tauri)", env!("CARGO_PKG_VERSION")))
+        .http1_only()
+        .pool_max_idle_per_host(0)
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
 /// Log in to Navidrome's native REST API. Returns a Bearer token and whether the user is admin.
 #[tauri::command]
 async fn navidrome_login(
@@ -317,17 +352,16 @@ async fn navidrome_login(
     username: String,
     password: String,
 ) -> Result<NdLoginResult, String> {
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = nd_http_client()
         .post(format!("{}/auth/login", server_url))
         .json(&serde_json::json!({ "username": username, "password": password }))
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(nd_err)?;
     if !resp.status().is_success() {
         return Err(format!("Navidrome login failed: HTTP {}", resp.status()));
     }
-    let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let data: serde_json::Value = resp.json().await.map_err(nd_err)?;
     let token = data["token"].as_str().ok_or("no token in response")?.to_string();
     let user_id = data["id"].as_str().unwrap_or("").to_string();
     let is_admin = data["isAdmin"].as_bool().unwrap_or(false);
@@ -340,16 +374,16 @@ async fn nd_list_users(
     server_url: String,
     token: String,
 ) -> Result<serde_json::Value, String> {
-    let resp = reqwest::Client::new()
+    let resp = nd_http_client()
         .get(format!("{}/api/user", server_url))
         .header("X-ND-Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(nd_err)?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
-    resp.json::<serde_json::Value>().await.map_err(|e| e.to_string())
+    resp.json::<serde_json::Value>().await.map_err(nd_err)
 }
 
 /// POST `/api/user` — create a user.
@@ -370,13 +404,13 @@ async fn nd_create_user(
         "password": password,
         "isAdmin": is_admin,
     });
-    let resp = reqwest::Client::new()
+    let resp = nd_http_client()
         .post(format!("{}/api/user", server_url))
         .header("X-ND-Authorization", format!("Bearer {}", token))
         .json(&body)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(nd_err)?;
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -407,13 +441,13 @@ async fn nd_update_user(
     if !password.is_empty() {
         body["password"] = serde_json::Value::String(password);
     }
-    let resp = reqwest::Client::new()
+    let resp = nd_http_client()
         .put(format!("{}/api/user/{}", server_url, id))
         .header("X-ND-Authorization", format!("Bearer {}", token))
         .json(&body)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(nd_err)?;
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -429,12 +463,12 @@ async fn nd_delete_user(
     token: String,
     id: String,
 ) -> Result<(), String> {
-    let resp = reqwest::Client::new()
+    let resp = nd_http_client()
         .delete(format!("{}/api/user/{}", server_url, id))
         .header("X-ND-Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(nd_err)?;
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
@@ -449,16 +483,16 @@ async fn nd_list_libraries(
     server_url: String,
     token: String,
 ) -> Result<serde_json::Value, String> {
-    let resp = reqwest::Client::new()
+    let resp = nd_http_client()
         .get(format!("{}/api/library", server_url))
         .header("X-ND-Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(nd_err)?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
-    resp.json::<serde_json::Value>().await.map_err(|e| e.to_string())
+    resp.json::<serde_json::Value>().await.map_err(nd_err)
 }
 
 /// PUT `/api/user/{id}/library` — assign libraries to a non-admin user.
@@ -471,13 +505,13 @@ async fn nd_set_user_libraries(
     library_ids: Vec<i64>,
 ) -> Result<(), String> {
     let body = serde_json::json!({ "libraryIds": library_ids });
-    let resp = reqwest::Client::new()
+    let resp = nd_http_client()
         .put(format!("{}/api/user/{}/library", server_url, id))
         .header("X-ND-Authorization", format!("Bearer {}", token))
         .json(&body)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(nd_err)?;
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
