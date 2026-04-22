@@ -2460,6 +2460,15 @@
   overflow: hidden;
 }
 
+@keyframes settings-sub-section-flash {
+  0%   { border-color: var(--border-subtle); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  20%  { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
+  100% { border-color: var(--border-subtle); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+.settings-sub-section--flash {
+  animation: settings-sub-section-flash 1.4s ease-out;
+}
+
 .settings-sub-section-summary {
   display: flex;
   align-items: center;
@@ -2591,10 +2600,6 @@
   color: var(--text-primary);
 }
 
-.settings-sub-section--hidden {
-  display: none;
-}
-
 .settings-search-empty {
   padding: var(--space-3) var(--space-4);
   font-size: 13px;
@@ -2605,31 +2610,18 @@
   text-align: center;
 }
 
-.settings-search-other-tabs {
-  margin-top: var(--space-4);
-  margin-bottom: var(--space-6);
+.settings-search-results {
+  list-style: none;
+  margin: var(--space-4) 0 var(--space-6);
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-}
-.settings-search-other-tabs-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin-bottom: var(--space-2);
-}
-.settings-search-other-tabs-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.settings-search-other-tab-item {
+.settings-search-result-item {
   width: 100%;
   display: flex;
   align-items: center;
@@ -2644,11 +2636,16 @@
   font-size: 13px;
   transition: background 0.12s, border-color 0.12s;
 }
-.settings-search-other-tab-item:hover {
+.settings-search-result-item:hover,
+.settings-search-result-item[data-selected="true"] {
   background: var(--bg-hover);
   border-color: var(--border);
 }
-.settings-search-other-tab-badge {
+.settings-search-result-item[data-selected="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-hover));
+}
+.settings-search-result-badge {
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 500;
@@ -2657,7 +2654,7 @@
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
 }
-.settings-search-other-tab-title {
+.settings-search-result-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;

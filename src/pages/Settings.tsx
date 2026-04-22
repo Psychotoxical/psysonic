@@ -1454,10 +1454,11 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<Tab>(resolveTab((routeState as { tab?: string } | null)?.tab));
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  // -1 bedeutet: keine aktive Suche; >= 0 ist die Trefferzahl im aktuellen Tab.
-  const [searchHits, setSearchHits] = useState<number>(-1);
-  const [otherTabHits, setOtherTabHits] = useState<Array<{ tab: Tab; titleKey: string; title: string; score: number }>>([]);
+  const [searchResults, setSearchResults] = useState<Array<{ tab: Tab; titleKey: string; title: string; score: number }>>([]);
+  const [selectedResultIdx, setSelectedResultIdx] = useState(0);
   const [pendingFocusTitle, setPendingFocusTitle] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchResultsListRef = useRef<HTMLUListElement>(null);
 
   // Server-Liste DnD
   const psyDragState = useDragDrop();
@@ -1509,16 +1510,14 @@ export default function Settings() {
     if (st?.tab) setActiveTab(st.tab);
   }, [routeState, location.pathname, location.search, location.hash, navigate]);
 
-  // Settings-Suche: matcht SETTINGS_INDEX gegen den Query (Substring + Fuzzy-
-  // Fallback). Aktueller Tab wird per DOM gehideded; Treffer aus anderen Tabs
-  // landen in otherTabHits und werden als Liste unter dem Tab-Inhalt gerendert.
+  // Settings-Suche: matcht SETTINGS_INDEX gegen den Query (Substring + Fuzzy).
+  // Ergebnis ist eine flache Liste; aktueller Tab zuerst, dann nach Score. Wenn
+  // eine Query aktiv ist, wird der Tab-Content gerendert-nicht und stattdessen
+  // die Ergebnisliste angezeigt.
   useEffect(() => {
     const q = searchQuery.trim();
-    const subs = document.querySelectorAll<HTMLElement>('[data-settings-search]');
     if (!q) {
-      subs.forEach(el => el.classList.remove('settings-sub-section--hidden'));
-      setSearchHits(-1);
-      setOtherTabHits([]);
+      setSearchResults([]);
       return;
     }
     const scored = SETTINGS_INDEX.map(entry => {
@@ -1526,39 +1525,65 @@ export default function Settings() {
       const hay = entry.keywords ? `${title} ${entry.keywords}` : title;
       return { ...entry, title, score: matchScore(hay, q) };
     }).filter(e => e.score > 0);
-
-    const currentTitles = new Set(scored.filter(e => e.tab === activeTab).map(e => e.title));
-    let hits = 0;
-    subs.forEach(el => {
-      const title = el.getAttribute('data-settings-search') || '';
-      if (currentTitles.has(title)) {
-        el.classList.remove('settings-sub-section--hidden');
-        hits++;
-      } else {
-        el.classList.add('settings-sub-section--hidden');
-      }
+    scored.sort((a, b) => {
+      const aCurrent = a.tab === activeTab ? 1 : 0;
+      const bCurrent = b.tab === activeTab ? 1 : 0;
+      if (aCurrent !== bCurrent) return bCurrent - aCurrent;
+      return b.score - a.score;
     });
-    setSearchHits(hits);
-    setOtherTabHits(
-      scored
-        .filter(e => e.tab !== activeTab)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 12),
-    );
-  });
+    setSearchResults(scored);
+    setSelectedResultIdx(0);
+  }, [searchQuery, activeTab, t]);
 
-  // Nach Tab-Wechsel aus der "Other tabs"-Ergebnisliste: Ziel-Sub-Section
-  // oeffnen und in den Viewport scrollen.
+  // Selektion ins Blickfeld scrollen (nur wenn das Item out-of-view ist).
+  useEffect(() => {
+    if (!searchQuery || searchResults.length === 0) return;
+    const list = searchResultsListRef.current;
+    if (!list) return;
+    const item = list.children[selectedResultIdx] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: 'nearest' });
+  }, [selectedResultIdx, searchQuery, searchResults.length]);
+
+  // Ctrl/Cmd+F oeffnet die Settings-Suche (nur auf der Settings-Seite — dieser
+  // Effect ist ja an Settings gebunden). Fokussiert das Feld auch wenn's schon
+  // offen ist. preventDefault blockt die native WebKit-Find-Bar.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'f' && e.key !== 'F') return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.altKey || e.shiftKey) return;
+      e.preventDefault();
+      setSearchOpen(true);
+      window.setTimeout(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }, 0);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Nach Klick auf ein Ergebnis: Ziel-Sub-Section oeffnen, scrollen und kurz
+  // highlighten, damit der User auf dem neuen Tab sofort weiss welcher Eintrag
+  // gemeint war.
   useEffect(() => {
     if (!pendingFocusTitle) return;
     const el = document.querySelector<HTMLElement>(
       `[data-settings-search="${CSS.escape(pendingFocusTitle)}"]`,
     );
-    if (el) {
-      if (el instanceof HTMLDetailsElement) el.open = true;
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setPendingFocusTitle(null);
-    }
+    if (!el) return;
+    if (el instanceof HTMLDetailsElement) el.open = true;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.remove('settings-sub-section--flash');
+    // reflow, damit die Animation bei wiederholtem Klick auf dasselbe Ziel
+    // erneut abspielt.
+    void el.offsetWidth;
+    el.classList.add('settings-sub-section--flash');
+    const timer = window.setTimeout(() => {
+      el.classList.remove('settings-sub-section--flash');
+    }, 1500);
+    setPendingFocusTitle(null);
+    return () => window.clearTimeout(timer);
   }, [pendingFocusTitle, activeTab]);
 
   useEffect(() => {
@@ -1932,17 +1957,35 @@ export default function Settings() {
             <div className="settings-search-wrap">
               <Search size={14} className="settings-search-icon" aria-hidden="true" />
               <input
+                ref={searchInputRef}
                 type="search"
                 className="input settings-search-input"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder={t('settings.searchPlaceholder')}
+                placeholder={`${t('settings.searchPlaceholder')} (${IS_MACOS ? '⌘F' : 'Ctrl+F'})`}
                 aria-label={t('settings.searchPlaceholder')}
                 autoFocus
                 onKeyDown={e => {
                   if (e.key === 'Escape') {
                     setSearchQuery('');
                     setSearchOpen(false);
+                    return;
+                  }
+                  if (searchResults.length === 0) return;
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedResultIdx(i => Math.min(i + 1, searchResults.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedResultIdx(i => Math.max(i - 1, 0));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const hit = searchResults[selectedResultIdx];
+                    if (!hit) return;
+                    setSearchQuery('');
+                    setSearchOpen(false);
+                    setPendingFocusTitle(hit.title);
+                    setActiveTab(hit.tab);
                   }
                 }}
               />
@@ -1973,40 +2016,41 @@ export default function Settings() {
         ))}
       </nav>
 
-      {searchQuery && searchHits === 0 && otherTabHits.length === 0 && (
+      {searchQuery && searchResults.length === 0 && (
         <div className="settings-search-empty" role="status">
           {t('settings.searchNoResults')}
         </div>
       )}
 
-      {searchQuery && otherTabHits.length > 0 && (
-        <div className="settings-search-other-tabs" role="region" aria-label={t('settings.searchOtherTabs')}>
-          <div className="settings-search-other-tabs-title">{t('settings.searchOtherTabs')}</div>
-          <ul className="settings-search-other-tabs-list">
-            {otherTabHits.map(hit => {
-              const tabLabelKey = TAB_LABEL_KEY[hit.tab];
-              return (
-                <li key={`${hit.tab}:${hit.titleKey}`}>
-                  <button
-                    type="button"
-                    className="settings-search-other-tab-item"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSearchOpen(false);
-                      setPendingFocusTitle(hit.title);
-                      setActiveTab(hit.tab);
-                    }}
-                  >
-                    <span className="settings-search-other-tab-badge">{t(tabLabelKey as any)}</span>
-                    <span className="settings-search-other-tab-title">{hit.title}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+      {searchQuery && searchResults.length > 0 && (
+        <ul ref={searchResultsListRef} className="settings-search-results">
+          {searchResults.map((hit, idx) => {
+            const tabLabelKey = TAB_LABEL_KEY[hit.tab];
+            const selected = idx === selectedResultIdx;
+            return (
+              <li key={`${hit.tab}:${hit.titleKey}`}>
+                <button
+                  type="button"
+                  className="settings-search-result-item"
+                  data-selected={selected ? 'true' : undefined}
+                  onMouseEnter={() => setSelectedResultIdx(idx)}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchOpen(false);
+                    setPendingFocusTitle(hit.title);
+                    setActiveTab(hit.tab);
+                  }}
+                >
+                  <span className="settings-search-result-badge">{t(tabLabelKey as any)}</span>
+                  <span className="settings-search-result-title">{hit.title}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
+      {!searchQuery && <>
       {/* ── Audio ────────────────────────────────────────────────────────────── */}
       {activeTab === 'audio' && (
         <>
@@ -2834,7 +2878,7 @@ export default function Settings() {
             </div>
           </SettingsSubSection>
 
-          {/* Next Track Buffering */}
+          {/* Buffering */}
           <SettingsSubSection
             title={t('settings.nextTrackBufferingTitle')}
             icon={<Download size={16} />}
@@ -4059,6 +4103,7 @@ export default function Settings() {
 
         </>
       )}
+      </>}
     </div>
   );
 }
