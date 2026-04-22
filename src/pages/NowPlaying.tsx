@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Music, Star, ExternalLink, MicVocal, Heart, Cast, Users, Radio, Clock, SkipForward, Info, Headphones, Calendar, Disc3, TrendingUp, Play } from 'lucide-react';
+import { Music, Star, ExternalLink, MicVocal, Heart, Cast, Users, Radio, Clock, SkipForward, Info, Headphones, Calendar, Disc3, TrendingUp, Play, EyeOff, LayoutGrid, RotateCcw, Eye } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -23,6 +23,11 @@ import { useCachedUrl } from '../components/CachedImage';
 import CachedImage from '../components/CachedImage';
 import LastfmIcon from '../components/LastfmIcon';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
+import { useDragSource, useDragDrop } from '../contexts/DragDropContext';
+import {
+  useNpLayoutStore, NP_CARD_IDS,
+  type NpCardId, type NpColumn,
+} from '../store/nowPlayingLayoutStore';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -717,6 +722,84 @@ const DiscographyCard = memo(function DiscographyCard({ artistId, albums, curren
   );
 });
 
+// ─── Widget wrapper (drag source via psyDnD) ─────────────────────────────────
+
+interface NpCardWrapProps {
+  id: NpCardId;
+  label: string;
+  isDraggingThis: boolean;
+  children: React.ReactNode;
+}
+
+function NpCardWrap({ id, label, isDraggingThis, children }: NpCardWrapProps) {
+  const dragProps = useDragSource(() => ({
+    data: JSON.stringify({ kind: 'np-card', id }),
+    label,
+  }));
+  return (
+    <div
+      data-np-wrapper
+      data-np-card-id={id}
+      className={`np-dash-card-wrap${isDraggingThis ? ' is-dragging' : ''}`}
+      {...dragProps}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Column (drop target via psy-drop + global mousemove) ────────────────────
+
+interface NpColumnProps {
+  col: NpColumn;
+  children: React.ReactNode;
+  empty: boolean;
+  emptyLabel: string;
+  isDndActive: boolean;
+  draggingCardId: NpCardId | null;
+  onHover: (col: NpColumn, idx: number) => void;
+  isOverHere: boolean;
+}
+
+function NpColumnEl({ col, children, empty, emptyLabel, isDndActive, draggingCardId, onHover, isOverHere }: NpColumnProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!draggingCardId) return;
+    const el = ref.current;
+    if (!el) return;
+
+    const onMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      // Use only the x-axis to decide "which column". This keeps the whole
+      // vertical strip above / below the last card part of the drop zone,
+      // so the user can drop "at the very bottom" of either column.
+      if (e.clientX < rect.left || e.clientX > rect.right) return;
+      const wrappers = Array.from(el.querySelectorAll<HTMLElement>('[data-np-wrapper]'))
+        .filter(w => w.getAttribute('data-np-card-id') !== draggingCardId);
+      let idx = wrappers.length;
+      for (let i = 0; i < wrappers.length; i++) {
+        const r = wrappers[i].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { idx = i; break; }
+      }
+      onHover(col, idx);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    return () => document.removeEventListener('mousemove', onMove);
+  }, [draggingCardId, col, onHover]);
+
+  return (
+    <div
+      ref={ref}
+      className={`np-dash-col${isOverHere ? ' is-drop-target' : ''}${isDndActive ? ' is-dnd-active' : ''}`}
+    >
+      {children}
+      {empty && <div className="np-dash-col-empty">{emptyLabel}</div>}
+    </div>
+  );
+}
+
 type NonNullStoreField<K extends keyof ReturnType<typeof usePlayerStore.getState>> =
   NonNullable<ReturnType<typeof usePlayerStore.getState>[K]>;
 
@@ -1007,6 +1090,74 @@ export default function NowPlaying() {
     if (hit) playTrackFn(hit, queue);
   }, [topSongs, playTrackFn]);
 
+  // ── Widget layout (drag-to-reorder, hide/show, reset) ────────────────────
+  const layoutCards   = useNpLayoutStore(s => s.cards);
+  const moveCard      = useNpLayoutStore(s => s.moveCard);
+  const setCardVisible = useNpLayoutStore(s => s.setVisible);
+  const resetLayout   = useNpLayoutStore(s => s.reset);
+  const { isDragging: dndActive, payload: dndPayload } = useDragDrop();
+
+  const [dragOver, setDragOver] = useState<{ col: NpColumn; idx: number } | null>(null);
+  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+
+  // Parse the current drag payload to know whether it's an np-card drag
+  const draggingCardId: NpCardId | null = useMemo(() => {
+    if (!dndActive || !dndPayload) return null;
+    try {
+      const parsed = JSON.parse(dndPayload.data);
+      if (parsed?.kind === 'np-card' && NP_CARD_IDS.includes(parsed.id)) return parsed.id as NpCardId;
+    } catch { /* not a card payload */ }
+    return null;
+  }, [dndActive, dndPayload]);
+
+  // Clear the drop indicator when the drag ends (no psy-drop on our target)
+  useEffect(() => { if (!draggingCardId) setDragOver(null); }, [draggingCardId]);
+
+  const toggleCardVisible = useCallback((id: NpCardId, next: boolean) => {
+    setCardVisible(id, next);
+  }, [setCardVisible]);
+
+  const onColumnHover = useCallback((col: NpColumn, idx: number) => {
+    setDragOver(prev => (prev && prev.col === col && prev.idx === idx) ? prev : { col, idx });
+  }, []);
+
+  // Ref mirror of dragOver so the document-level psy-drop handler always sees
+  // the latest hovered column/index regardless of closure timing.
+  const dragOverRef = useRef(dragOver);
+  dragOverRef.current = dragOver;
+
+  // Global psy-drop listener: catches drops anywhere on the page (even below a
+  // column when the cursor left the column bounds), then uses dragOverRef to
+  // decide which column/index the user actually meant.
+  useEffect(() => {
+    if (!draggingCardId) return;
+    const onPsyDrop = (evt: Event) => {
+      const ce = evt as CustomEvent<{ data: string }>;
+      try {
+        const parsed = JSON.parse(ce.detail?.data ?? '');
+        if (parsed?.kind !== 'np-card' || !NP_CARD_IDS.includes(parsed.id)) return;
+        const over = dragOverRef.current;
+        if (over) {
+          moveCard(parsed.id as NpCardId, over.col, over.idx);
+        }
+      } catch { /* ignore non-card drops */ }
+      setDragOver(null);
+    };
+    document.addEventListener('psy-drop', onPsyDrop as EventListener);
+    return () => document.removeEventListener('psy-drop', onPsyDrop as EventListener);
+  }, [draggingCardId, moveCard]);
+
+  // Close layout menu on outside click
+  useEffect(() => {
+    if (!layoutMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el?.closest('.np-dash-toolbar-menu-wrap')) setLayoutMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [layoutMenuOpen]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="np-page">
@@ -1047,49 +1198,165 @@ export default function NowPlaying() {
               onOpenLyrics={openLyrics}
             />
 
-            <div className="np-dash-grid">
-              <div className="np-dash-col">
-                <AlbumCard
-                  album={albumData?.album ?? null}
-                  songs={albumData?.songs ?? []}
-                  currentTrackId={currentTrack.id}
-                  albumName={currentTrack.album}
-                  albumId={albumId}
-                  albumYear={currentTrack.year}
-                  onNavigate={stableNavigate}
-                />
-                <TopSongsCard
-                  artistName={artistName}
-                  artistId={artistId}
-                  songs={topSongs}
-                  currentTrackId={currentTrack.id}
-                  onNavigate={stableNavigate}
-                  onPlay={handlePlayTopSong}
-                />
-                <CreditsCard rows={contributorRows} />
-              </div>
-              <div className="np-dash-col">
-                <ArtistCard
-                  artistName={artistName}
-                  artistId={artistId}
-                  artistInfo={effectiveArtistInfo}
-                  onNavigate={stableNavigate}
-                />
-                <DiscographyCard
-                  artistId={artistId}
-                  albums={discography}
-                  currentAlbumId={albumId}
-                  onNavigate={stableNavigate}
-                />
-                <TourCard
-                  artistName={artistName}
-                  enabled={enableBandsintown}
-                  loading={tourLoading}
-                  events={tourEvents}
-                  onEnable={handleEnableBandsintown}
-                />
-              </div>
-            </div>
+            {(() => {
+              const renderCard = (id: NpCardId): React.ReactNode => {
+                switch (id) {
+                  case 'album': return (
+                    <AlbumCard
+                      album={albumData?.album ?? null}
+                      songs={albumData?.songs ?? []}
+                      currentTrackId={currentTrack.id}
+                      albumName={currentTrack.album}
+                      albumId={albumId}
+                      albumYear={currentTrack.year}
+                      onNavigate={stableNavigate}
+                    />
+                  );
+                  case 'topSongs': return (
+                    <TopSongsCard
+                      artistName={artistName}
+                      artistId={artistId}
+                      songs={topSongs}
+                      currentTrackId={currentTrack.id}
+                      onNavigate={stableNavigate}
+                      onPlay={handlePlayTopSong}
+                    />
+                  );
+                  case 'credits': return <CreditsCard rows={contributorRows} />;
+                  case 'artist': return (
+                    <ArtistCard
+                      artistName={artistName}
+                      artistId={artistId}
+                      artistInfo={effectiveArtistInfo}
+                      onNavigate={stableNavigate}
+                    />
+                  );
+                  case 'discography': return (
+                    <DiscographyCard
+                      artistId={artistId}
+                      albums={discography}
+                      currentAlbumId={albumId}
+                      onNavigate={stableNavigate}
+                    />
+                  );
+                  case 'tour': return (
+                    <TourCard
+                      artistName={artistName}
+                      enabled={enableBandsintown}
+                      loading={tourLoading}
+                      events={tourEvents}
+                      onEnable={handleEnableBandsintown}
+                    />
+                  );
+                }
+              };
+              const cardLabel = (id: NpCardId): string => {
+                const k: Record<NpCardId, string> = {
+                  album: 'nowPlaying.fromAlbum',
+                  topSongs: 'nowPlaying.topSongs',
+                  credits: 'nowPlayingInfo.songInfo',
+                  artist: 'nowPlaying.aboutArtist',
+                  discography: 'nowPlaying.discography',
+                  tour: 'nowPlayingInfo.onTour',
+                };
+                return t(k[id]);
+              };
+              const visibleCards = layoutCards.filter(c => c.visible);
+              const hiddenCards  = layoutCards.filter(c => !c.visible);
+              const renderColumn = (col: NpColumn) => {
+                const cards = layoutCards.filter(c =>
+                  c.column === col && c.visible && c.id !== draggingCardId,
+                );
+                const isOver = dragOver?.col === col;
+                return (
+                  <NpColumnEl
+                    col={col}
+                    empty={cards.length === 0}
+                    emptyLabel={t('nowPlaying.emptyColumn', 'Drop cards here')}
+                    isDndActive={!!draggingCardId}
+                    draggingCardId={draggingCardId}
+                    onHover={onColumnHover}
+                    isOverHere={!!isOver}
+                  >
+                    {cards.map((c, idx) => (
+                      <React.Fragment key={c.id}>
+                        {isOver && dragOver.idx === idx && <div className="np-dash-drop-indicator" />}
+                        <NpCardWrap
+                          id={c.id}
+                          label={cardLabel(c.id)}
+                          isDraggingThis={draggingCardId === c.id}
+                        >
+                          {renderCard(c.id)}
+                        </NpCardWrap>
+                      </React.Fragment>
+                    ))}
+                    {isOver && dragOver.idx === cards.length && <div className="np-dash-drop-indicator" />}
+                  </NpColumnEl>
+                );
+              };
+              return (
+                <>
+                  <div className="np-dash-toolbar">
+                    <div className="np-dash-toolbar-menu-wrap">
+                      <button
+                        className="np-dash-toolbar-btn"
+                        onClick={() => setLayoutMenuOpen(v => !v)}
+                        data-tooltip={t('nowPlaying.layoutMenu', 'Layout')}
+                      >
+                        <LayoutGrid size={14} />
+                        <span>{t('nowPlaying.layoutMenu', 'Layout')}</span>
+                        {hiddenCards.length > 0 && (
+                          <span className="np-dash-toolbar-badge">{hiddenCards.length}</span>
+                        )}
+                      </button>
+                      {layoutMenuOpen && (
+                        <div className="np-dash-toolbar-menu" role="menu">
+                          <div className="np-dash-toolbar-section">
+                            {t('nowPlaying.visibleCards', 'Visible cards')}
+                          </div>
+                          {visibleCards.map(c => (
+                            <button
+                              key={c.id}
+                              className="np-dash-toolbar-item"
+                              onClick={() => toggleCardVisible(c.id, false)}
+                            >
+                              <Eye size={13} /> <span className="np-dash-toolbar-item-label">{cardLabel(c.id)}</span>
+                            </button>
+                          ))}
+                          {hiddenCards.length > 0 && (
+                            <>
+                              <div className="np-dash-toolbar-section">
+                                {t('nowPlaying.hiddenCards', 'Hidden cards')}
+                              </div>
+                              {hiddenCards.map(c => (
+                                <button
+                                  key={c.id}
+                                  className="np-dash-toolbar-item is-hidden"
+                                  onClick={() => toggleCardVisible(c.id, true)}
+                                >
+                                  <EyeOff size={13} /> <span className="np-dash-toolbar-item-label">{cardLabel(c.id)}</span>
+                                </button>
+                              ))}
+                            </>
+                          )}
+                          <div className="np-dash-toolbar-divider" />
+                          <button
+                            className="np-dash-toolbar-item"
+                            onClick={() => { resetLayout(); setLayoutMenuOpen(false); }}
+                          >
+                            <RotateCcw size={13} /> <span className="np-dash-toolbar-item-label">{t('nowPlaying.resetLayout', 'Reset layout')}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="np-dash-grid">
+                    {renderColumn('left')}
+                    {renderColumn('right')}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         ) : (
           <div className="np-empty-state">

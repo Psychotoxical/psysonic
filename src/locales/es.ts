@@ -118,6 +118,13 @@ export const esTranslation = {
     rgAutoTooltip: 'ReplayGain (auto)',
     showMoreTracks: 'Mostrar {{count}} más',
     showLessTracks: 'Mostrar menos',
+    hideCard: 'Ocultar tarjeta',
+    layoutMenu: 'Diseño',
+    visibleCards: 'Tarjetas visibles',
+    hiddenCards: 'Tarjetas ocultas',
+    noHiddenCards: 'No hay tarjetas ocultas',
+    resetLayout: 'Restablecer diseño',
+    emptyColumn: 'Suelta tarjetas aquí',
   },
   contextMenu: {
     playNow: 'Reproducir Ahora',

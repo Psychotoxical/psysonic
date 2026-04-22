@@ -117,6 +117,13 @@ export const frTranslation = {
     rgAutoTooltip: 'ReplayGain (auto)',
     showMoreTracks: 'Afficher {{count}} de plus',
     showLessTracks: 'Réduire',
+    hideCard: 'Masquer la carte',
+    layoutMenu: 'Disposition',
+    visibleCards: 'Cartes visibles',
+    hiddenCards: 'Cartes masquées',
+    noHiddenCards: 'Aucune carte masquée',
+    resetLayout: 'Réinitialiser la disposition',
+    emptyColumn: 'Déposez des cartes ici',
   },
   contextMenu: {
     playNow: 'Lire maintenant',

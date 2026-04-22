@@ -117,6 +117,13 @@ export const zhTranslation = {
     rgAutoTooltip: 'ReplayGain (自动)',
     showMoreTracks: '显示另外 {{count}} 首',
     showLessTracks: '收起',
+    hideCard: '隐藏卡片',
+    layoutMenu: '布局',
+    visibleCards: '可见卡片',
+    hiddenCards: '已隐藏的卡片',
+    noHiddenCards: '没有已隐藏的卡片',
+    resetLayout: '重置布局',
+    emptyColumn: '将卡片拖到此处',
   },
   contextMenu: {
     playNow: '立即播放',

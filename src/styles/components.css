@@ -10364,11 +10364,137 @@ html[data-app-hidden="true"] *::after {
   font-weight: 600;
 }
 
+/* Widget layout toolbar (layout / hidden-cards menu) */
+.np-dash-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -4px;
+}
+.np-dash-toolbar-menu-wrap {
+  position: relative;
+}
+.np-dash-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.np-dash-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--accent);
+}
+.np-dash-toolbar-badge {
+  background: var(--accent);
+  color: var(--ctp-base, #1e1e2e);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  min-width: 14px;
+  text-align: center;
+  line-height: 1.3;
+}
+.np-dash-toolbar-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  background: var(--ctp-base, #1e1e2e);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  z-index: 50;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.np-dash-toolbar-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 6px 8px 4px;
+}
+.np-dash-toolbar-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.50);
+  font-style: italic;
+}
+.np-dash-toolbar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12.5px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background 0.1s;
+}
+.np-dash-toolbar-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--accent);
+}
+.np-dash-toolbar-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Widget wrapper — makes each card a psyDnD drag source */
+.np-dash-card-wrap {
+  position: relative;
+  cursor: grab;
+}
+.np-dash-col.is-dnd-active .np-dash-card-wrap {
+  transition: transform 0.15s;
+}
+.np-dash-col.is-drop-target {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-lg);
+  outline: 1px dashed rgba(255, 255, 255, 0.10);
+  outline-offset: 4px;
+}
+
+.np-dash-toolbar-item-label { flex: 1; min-width: 0; }
+.np-dash-toolbar-item.is-hidden .np-dash-toolbar-item-label { opacity: 0.55; }
+
+/* Drop indicator — accent line between cards while dragging */
+.np-dash-drop-indicator {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+  margin: -8px 0;
+}
+
+/* Empty column placeholder */
+.np-dash-col-empty {
+  padding: 28px 18px;
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.40);
+  border: 1px dashed rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-lg);
+  font-style: italic;
+}
+
 /* Two flex columns — left stack, right stack */
 .np-dash-grid {
   display: flex;
   gap: 18px;
-  align-items: flex-start;
+  align-items: stretch; /* equal-height columns so drops below the last card still hit the column */
 }
 
 .np-dash-col {
@@ -10377,6 +10503,10 @@ html[data-app-hidden="true"] *::after {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  /* Ensures the area below the last card still belongs to this column — needed
+     so the user can drop a card "at the very bottom" even when the other
+     column is taller. */
+  min-height: 120px;
 }
 
 .np-dash-card {

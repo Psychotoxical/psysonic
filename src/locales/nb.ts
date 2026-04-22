@@ -117,6 +117,13 @@ export const nbTranslation = {
     rgAutoTooltip: 'ReplayGain (auto)',
     showMoreTracks: 'Vis {{count}} til',
     showLessTracks: 'Vis mindre',
+    hideCard: 'Skjul kort',
+    layoutMenu: 'Oppsett',
+    visibleCards: 'Synlige kort',
+    hiddenCards: 'Skjulte kort',
+    noHiddenCards: 'Ingen skjulte kort',
+    resetLayout: 'Tilbakestill oppsett',
+    emptyColumn: 'Slipp kort her',
   },
   contextMenu: {
     playNow: 'Spill nå',

@@ -117,6 +117,13 @@ export const nlTranslation = {
     rgAutoTooltip: 'ReplayGain (auto)',
     showMoreTracks: '{{count}} meer tonen',
     showLessTracks: 'Minder tonen',
+    hideCard: 'Kaart verbergen',
+    layoutMenu: 'Lay-out',
+    visibleCards: 'Zichtbare kaarten',
+    hiddenCards: 'Verborgen kaarten',
+    noHiddenCards: 'Geen verborgen kaarten',
+    resetLayout: 'Lay-out resetten',
+    emptyColumn: 'Sleep kaarten hier',
   },
   contextMenu: {
     playNow: 'Nu afspelen',

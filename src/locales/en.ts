@@ -118,6 +118,13 @@ export const enTranslation = {
     rgAutoTooltip: 'ReplayGain (auto)',
     showMoreTracks: 'Show {{count}} more',
     showLessTracks: 'Show less',
+    hideCard: 'Hide card',
+    layoutMenu: 'Layout',
+    visibleCards: 'Visible cards',
+    hiddenCards: 'Hidden cards',
+    noHiddenCards: 'No hidden cards',
+    resetLayout: 'Reset layout',
+    emptyColumn: 'Drop cards here',
   },
   contextMenu: {
     playNow: 'Play Now',

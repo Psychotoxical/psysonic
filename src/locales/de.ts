@@ -117,6 +117,13 @@ export const deTranslation = {
     rgAutoTooltip: 'ReplayGain (Auto)',
     showMoreTracks: '{{count}} weitere anzeigen',
     showLessTracks: 'Weniger anzeigen',
+    hideCard: 'Karte ausblenden',
+    layoutMenu: 'Layout',
+    visibleCards: 'Sichtbare Karten',
+    hiddenCards: 'Ausgeblendete Karten',
+    noHiddenCards: 'Keine ausgeblendeten Karten',
+    resetLayout: 'Layout zurücksetzen',
+    emptyColumn: 'Karten hier ablegen',
   },
   contextMenu: {
     playNow: 'Direkt abspielen',

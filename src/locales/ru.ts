@@ -122,6 +122,13 @@ export const ruTranslation = {
     rgAutoTooltip: 'ReplayGain (авто)',
     showMoreTracks: 'Показать ещё {{count}}',
     showLessTracks: 'Свернуть',
+    hideCard: 'Скрыть карточку',
+    layoutMenu: 'Макет',
+    visibleCards: 'Видимые карточки',
+    hiddenCards: 'Скрытые карточки',
+    noHiddenCards: 'Нет скрытых карточек',
+    resetLayout: 'Сбросить макет',
+    emptyColumn: 'Перетащите карточки сюда',
   },
   contextMenu: {
     playNow: 'Играть сейчас',
