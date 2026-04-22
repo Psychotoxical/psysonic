@@ -2605,6 +2605,66 @@
   text-align: center;
 }
 
+.settings-search-other-tabs {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-6);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+}
+.settings-search-other-tabs-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+.settings-search-other-tabs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-search-other-tab-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.settings-search-other-tab-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+.settings-search-other-tab-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+.settings-search-other-tab-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Mitwirkende: Card-Grid mit klappbaren Beitragslisten ────────────────── */
 .contributors-grid {
   display: grid;

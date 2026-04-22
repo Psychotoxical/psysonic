@@ -228,6 +228,62 @@ function resolveTab(input: string | undefined | null): Tab {
   return (known as string[]).includes(input) ? (input as Tab) : 'servers';
 }
 
+// Statischer Suchindex ueber alle Sub-Sections aller Tabs. Mitpflegen, wenn eine
+// neue SettingsSubSection hinzukommt — sonst taucht sie nicht in der Suche auf.
+type SearchIndexEntry = { tab: Tab; titleKey: string; keywords?: string };
+const SETTINGS_INDEX: SearchIndexEntry[] = [
+  { tab: 'audio',          titleKey: 'settings.audioOutputDevice',        keywords: 'output device speakers headphones alsa wasapi coreaudio' },
+  { tab: 'audio',          titleKey: 'settings.hiResTitle',               keywords: 'hi-res hires resampling bit depth sample rate dsd 24bit' },
+  { tab: 'audio',          titleKey: 'settings.eqTitle',                  keywords: 'equalizer eq bass treble autoeq filter pre-gain' },
+  { tab: 'audio',          titleKey: 'settings.playbackTitle',            keywords: 'playback crossfade gapless replaygain replay gain volume' },
+  { tab: 'lyrics',         titleKey: 'settings.lyricsSourcesTitle',       keywords: 'lyrics sources providers lrclib netease server youlyplus karaoke standard static' },
+  { tab: 'lyrics',         titleKey: 'settings.sidebarLyricsStyle',       keywords: 'lyrics scroll style classic apple music' },
+  { tab: 'integrations',   titleKey: 'settings.lfmTitle',                 keywords: 'last.fm lastfm scrobble' },
+  { tab: 'integrations',   titleKey: 'settings.discordRichPresence',      keywords: 'discord rich presence rpc' },
+  { tab: 'integrations',   titleKey: 'settings.enableBandsintown',        keywords: 'bandsintown concerts tours events' },
+  { tab: 'integrations',   titleKey: 'settings.nowPlayingEnabled',        keywords: 'now playing share dropdown presence' },
+  { tab: 'personalisation',titleKey: 'settings.sidebarTitle',             keywords: 'sidebar nav navigation items reorder customize' },
+  { tab: 'personalisation',titleKey: 'settings.artistLayoutTitle',        keywords: 'artist page layout sections order' },
+  { tab: 'personalisation',titleKey: 'settings.homeCustomizerTitle',      keywords: 'home page customize sections' },
+  { tab: 'library',        titleKey: 'settings.randomMixTitle',           keywords: 'random mix blacklist genre keywords filter audiobook' },
+  { tab: 'library',        titleKey: 'settings.ratingsSectionTitle',      keywords: 'ratings stars skip threshold manual' },
+  { tab: 'storage',        titleKey: 'settings.offlineDirTitle',          keywords: 'offline library download directory folder cache' },
+  { tab: 'storage',        titleKey: 'settings.nextTrackBufferingTitle',  keywords: 'next track buffering preload hot cache streaming' },
+  { tab: 'storage',        titleKey: 'settings.downloadsTitle',           keywords: 'downloads zip export archive folder' },
+  { tab: 'appearance',     titleKey: 'settings.theme',                    keywords: 'theme color palette dark light' },
+  { tab: 'appearance',     titleKey: 'settings.themeSchedulerTitle',      keywords: 'theme scheduler auto time dark mode sunset' },
+  { tab: 'appearance',     titleKey: 'settings.visualOptionsTitle',       keywords: 'visual options animations effects titlebar mini player' },
+  { tab: 'appearance',     titleKey: 'settings.uiScaleTitle',             keywords: 'ui scale zoom dpi size' },
+  { tab: 'appearance',     titleKey: 'settings.font',                     keywords: 'font typography typeface' },
+  { tab: 'appearance',     titleKey: 'settings.fsPlayerSection',          keywords: 'fullscreen player mesh blob' },
+  { tab: 'appearance',     titleKey: 'settings.seekbarStyle',             keywords: 'seekbar progress bar waveform' },
+  { tab: 'input',          titleKey: 'settings.inputKeybindingsTitle',    keywords: 'keybindings shortcuts hotkeys keyboard' },
+  { tab: 'input',          titleKey: 'settings.globalShortcutsTitle',     keywords: 'global shortcuts hotkeys system-wide media keys' },
+  { tab: 'system',         titleKey: 'settings.language',                 keywords: 'language locale translation i18n' },
+  { tab: 'system',         titleKey: 'settings.behavior',                 keywords: 'behavior tray minimize close start smooth scroll linux' },
+  { tab: 'system',         titleKey: 'settings.backupTitle',              keywords: 'backup export import settings restore' },
+  { tab: 'system',         titleKey: 'settings.loggingTitle',             keywords: 'log logs diagnostic debug verbose' },
+  { tab: 'system',         titleKey: 'settings.aboutTitle',               keywords: 'about version update changelog release notes' },
+  { tab: 'system',         titleKey: 'settings.aboutContributorsLabel',   keywords: 'contributors credits maintainers' },
+];
+
+// Substring-first, Fuzzy-Fallback (alle Query-Zeichen in Reihenfolge im
+// Haystack). Rueckgabe 0 = kein Match. Hoeher = besser.
+function matchScore(haystack: string, needle: string): number {
+  if (!needle) return 0;
+  const h = haystack.toLowerCase();
+  const n = needle.toLowerCase();
+  const idx = h.indexOf(n);
+  if (idx >= 0) return 1000 - Math.min(999, idx);
+  let hi = 0;
+  for (const ch of n) {
+    const j = h.indexOf(ch, hi);
+    if (j < 0) return 0;
+    hi = j + 1;
+  }
+  return Math.max(1, 100 - Math.min(99, hi - n.length));
+}
+
 function AddServerForm({
   onSave,
   onCancel,
@@ -1400,6 +1456,8 @@ export default function Settings() {
   const [searchOpen, setSearchOpen] = useState(false);
   // -1 bedeutet: keine aktive Suche; >= 0 ist die Trefferzahl im aktuellen Tab.
   const [searchHits, setSearchHits] = useState<number>(-1);
+  const [otherTabHits, setOtherTabHits] = useState<Array<{ tab: Tab; titleKey: string; title: string; score: number }>>([]);
+  const [pendingFocusTitle, setPendingFocusTitle] = useState<string | null>(null);
 
   // Server-Liste DnD
   const psyDragState = useDragDrop();
@@ -1451,22 +1509,29 @@ export default function Settings() {
     if (st?.tab) setActiveTab(st.tab);
   }, [routeState, location.pathname, location.search, location.hash, navigate]);
 
-  // In-Page-Suche: filtert Sub-Sections des aktiven Tabs per data-settings-search
-  // Attribut. DOM-basiert, damit wir nicht den Query durch jede Komponente
-  // propagieren muessen. Laeuft nach jedem Render, also auch wenn der Tab
-  // wechselt und neue Sub-Sections im Baum erscheinen.
+  // Settings-Suche: matcht SETTINGS_INDEX gegen den Query (Substring + Fuzzy-
+  // Fallback). Aktueller Tab wird per DOM gehideded; Treffer aus anderen Tabs
+  // landen in otherTabHits und werden als Liste unter dem Tab-Inhalt gerendert.
   useEffect(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = searchQuery.trim();
     const subs = document.querySelectorAll<HTMLElement>('[data-settings-search]');
     if (!q) {
       subs.forEach(el => el.classList.remove('settings-sub-section--hidden'));
       setSearchHits(-1);
+      setOtherTabHits([]);
       return;
     }
+    const scored = SETTINGS_INDEX.map(entry => {
+      const title = t(entry.titleKey as any);
+      const hay = entry.keywords ? `${title} ${entry.keywords}` : title;
+      return { ...entry, title, score: matchScore(hay, q) };
+    }).filter(e => e.score > 0);
+
+    const currentTitles = new Set(scored.filter(e => e.tab === activeTab).map(e => e.title));
     let hits = 0;
     subs.forEach(el => {
-      const text = (el.getAttribute('data-settings-search') || '').toLowerCase();
-      if (text.includes(q)) {
+      const title = el.getAttribute('data-settings-search') || '';
+      if (currentTitles.has(title)) {
         el.classList.remove('settings-sub-section--hidden');
         hits++;
       } else {
@@ -1474,7 +1539,27 @@ export default function Settings() {
       }
     });
     setSearchHits(hits);
+    setOtherTabHits(
+      scored
+        .filter(e => e.tab !== activeTab)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 12),
+    );
   });
+
+  // Nach Tab-Wechsel aus der "Other tabs"-Ergebnisliste: Ziel-Sub-Section
+  // oeffnen und in den Viewport scrollen.
+  useEffect(() => {
+    if (!pendingFocusTitle) return;
+    const el = document.querySelector<HTMLElement>(
+      `[data-settings-search="${CSS.escape(pendingFocusTitle)}"]`,
+    );
+    if (el) {
+      if (el instanceof HTMLDetailsElement) el.open = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPendingFocusTitle(null);
+    }
+  }, [pendingFocusTitle, activeTab]);
 
   useEffect(() => {
     const server = auth.getActiveServer();
@@ -1888,9 +1973,37 @@ export default function Settings() {
         ))}
       </nav>
 
-      {searchQuery && searchHits === 0 && (
+      {searchQuery && searchHits === 0 && otherTabHits.length === 0 && (
         <div className="settings-search-empty" role="status">
           {t('settings.searchNoResults')}
+        </div>
+      )}
+
+      {searchQuery && otherTabHits.length > 0 && (
+        <div className="settings-search-other-tabs" role="region" aria-label={t('settings.searchOtherTabs')}>
+          <div className="settings-search-other-tabs-title">{t('settings.searchOtherTabs')}</div>
+          <ul className="settings-search-other-tabs-list">
+            {otherTabHits.map(hit => {
+              const tabLabelKey = TAB_LABEL_KEY[hit.tab];
+              return (
+                <li key={`${hit.tab}:${hit.titleKey}`}>
+                  <button
+                    type="button"
+                    className="settings-search-other-tab-item"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchOpen(false);
+                      setPendingFocusTitle(hit.title);
+                      setActiveTab(hit.tab);
+                    }}
+                  >
+                    <span className="settings-search-other-tab-badge">{t(tabLabelKey as any)}</span>
+                    <span className="settings-search-other-tab-title">{hit.title}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
@@ -2124,187 +2237,6 @@ export default function Settings() {
             </div>
           </SettingsSubSection>
 
-          {/* Next Track Buffering */}
-          <SettingsSubSection
-            title={t('settings.nextTrackBufferingTitle')}
-            icon={<Download size={16} />}
-          >
-            <div className="settings-card">
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
-                {t('settings.preloadHotCacheMutualExclusive')}
-              </div>
-
-              {/* Preload mode */}
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.preloadMode')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadModeDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.preloadMode')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.preloadMode !== 'off'}
-                    onChange={e => {
-                      if (e.target.checked) {
-                        auth.setPreloadMode('balanced');
-                        if (auth.hotCacheEnabled) auth.setHotCacheEnabled(false);
-                      } else {
-                        auth.setPreloadMode('off');
-                      }
-                    }}
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              {auth.preloadMode !== 'off' && (
-                <>
-                  <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    {(['balanced', 'early', 'custom'] as const).map(mode => (
-                      <button
-                        key={mode}
-                        className={`btn ${auth.preloadMode === mode ? 'btn-primary' : 'btn-surface'}`}
-                        style={{ fontSize: 12, padding: '3px 12px' }}
-                        onClick={() => auth.setPreloadMode(mode)}
-                      >
-                        {t(`settings.preload${mode.charAt(0).toUpperCase() + mode.slice(1)}` as any)}
-                      </button>
-                    ))}
-                  </div>
-                  {auth.preloadMode === 'custom' && (
-                    <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                      <input
-                        type="range"
-                        min={5} max={120} step={5}
-                        value={auth.preloadCustomSeconds}
-                        onChange={e => auth.setPreloadCustomSeconds(parseInt(e.target.value))}
-                        style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
-                      />
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
-                        {t('settings.preloadCustomSeconds', { n: auth.preloadCustomSeconds })}
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="divider" />
-
-              {/* Hot Cache */}
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.hotCacheTitle')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.hotCacheDisclaimer')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.hotCacheEnabled')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.hotCacheEnabled}
-                    onChange={async e => {
-                      const enabled = e.target.checked;
-                      if (!enabled) {
-                        await clearHotCacheDisk(auth.hotCacheDownloadDir || null);
-                        setHotCacheBytes(0);
-                        auth.setHotCacheEnabled(false);
-                      } else {
-                        auth.setHotCacheEnabled(true);
-                        if (auth.preloadMode !== 'off') auth.setPreloadMode('off');
-                        invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null })
-                          .then(setHotCacheBytes)
-                          .catch(() => setHotCacheBytes(0));
-                      }
-                    }}
-                    id="hot-cache-enabled-toggle"
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-
-              {auth.hotCacheEnabled && (
-                <div style={{ marginTop: '1.25rem' }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input
-                      className="input"
-                      type="text"
-                      readOnly
-                      value={auth.hotCacheDownloadDir || t('settings.hotCacheDirDefault')}
-                      style={{ flex: 1, minWidth: 0, fontSize: 13, color: auth.hotCacheDownloadDir ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'default' }}
-                    />
-                    {auth.hotCacheDownloadDir && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        onClick={() => {
-                          auth.setHotCacheDownloadDir('');
-                          useHotCacheStore.setState({ entries: {} });
-                          invoke<number>('get_hot_cache_size', { customDir: null }).then(setHotCacheBytes).catch(() => setHotCacheBytes(0));
-                        }}
-                        data-tooltip={t('settings.hotCacheDirClear')}
-                        style={{ color: 'var(--text-muted)', flexShrink: 0 }}
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                    <button type="button" className="btn btn-surface" onClick={pickHotCacheDir} style={{ flexShrink: 0 }}>
-                      <FolderOpen size={16} /> {t('settings.hotCacheDirChange')}
-                    </button>
-                  </div>
-                  {auth.hotCacheDownloadDir && (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4 }}>
-                      {t('settings.hotCacheDirHint')}
-                    </div>
-                  )}
-
-                  <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0' }} />
-
-                  <div style={{ fontSize: 12, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <div style={{ color: 'var(--text-secondary)' }}>
-                      <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{t('settings.cacheUsedHot')}</span>
-                      {hotCacheBytes !== null ? formatBytes(hotCacheBytes) : '…'}
-                    </div>
-                    <div style={{ color: 'var(--text-secondary)' }}>
-                      <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{t('settings.hotCacheTrackCount')}</span>
-                      {hotCacheTrackCount}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('settings.hotCacheMaxMb')}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <input type="range" min={32} max={20000} step={32} value={snapHotCacheMb(auth.hotCacheMaxMb)} onChange={e => auth.setHotCacheMaxMb(parseInt(e.target.value, 10))} style={{ flex: 1, minWidth: 80, maxWidth: 200 }} id="hot-cache-max-mb-slider" />
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 60 }}>{snapHotCacheMb(auth.hotCacheMaxMb)} MB</span>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('settings.hotCacheDebounce')}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <input type="range" min={0} max={600} step={1} value={Math.min(600, Math.max(0, auth.hotCacheDebounceSec))} onChange={e => auth.setHotCacheDebounceSec(parseInt(e.target.value, 10))} style={{ flex: 1, minWidth: 80, maxWidth: 200 }} id="hot-cache-debounce-slider" />
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 80 }}>
-                        {Math.min(600, Math.max(0, auth.hotCacheDebounceSec)) === 0
-                          ? t('settings.hotCacheDebounceImmediate')
-                          : t('settings.hotCacheDebounceSeconds', { n: Math.min(600, Math.max(0, auth.hotCacheDebounceSec)) })}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0' }} />
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    style={{ fontSize: 13 }}
-                    onClick={async () => {
-                      await clearHotCacheDisk(auth.hotCacheDownloadDir || null);
-                      const b = await invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null }).catch(() => 0);
-                      setHotCacheBytes(b);
-                    }}
-                  >
-                    <Trash2 size={14} /> {t('settings.hotCacheClearBtn')}
-                  </button>
-                </div>
-              )}
-
-            </div>
-          </SettingsSubSection>
-
         </>
       )}
 
@@ -2323,32 +2255,29 @@ export default function Settings() {
             title={t('settings.sidebarLyricsStyle')}
             icon={<AudioLines size={16} />}
           >
-            <div className="settings-card">
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['classic', 'apple'] as const).map(style => {
-                  const key = style === 'classic' ? 'Classic' : 'Apple';
-                  return (
-                    <button
-                      key={style}
-                      onClick={() => auth.setSidebarLyricsStyle(style)}
-                      style={{
-                        flex: 1,
-                        padding: '10px 14px',
-                        borderRadius: 10,
-                        border: `2px solid ${auth.sidebarLyricsStyle === style ? 'var(--accent)' : 'var(--border)'}`,
-                        background: auth.sidebarLyricsStyle === style ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--bg-secondary)',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        color: 'var(--text-primary)',
-                        transition: 'border-color 0.15s, background 0.15s',
-                      }}
-                    >
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{t(`settings.sidebarLyricsStyle${key}` as any)}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t(`settings.sidebarLyricsStyle${key}Desc` as any)}</div>
-                    </button>
-                  );
-                })}
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {(['classic', 'apple'] as const).map(style => {
+                const key = style === 'classic' ? 'Classic' : 'Apple';
+                const other = style === 'classic' ? 'apple' : 'classic';
+                return (
+                  <div key={style} className="settings-card">
+                    <div className="settings-toggle-row">
+                      <div>
+                        <div style={{ fontWeight: 500 }}>{t(`settings.sidebarLyricsStyle${key}` as any)}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t(`settings.sidebarLyricsStyle${key}Desc` as any)}</div>
+                      </div>
+                      <label className="toggle-switch" aria-label={t(`settings.sidebarLyricsStyle${key}` as any)}>
+                        <input
+                          type="checkbox"
+                          checked={auth.sidebarLyricsStyle === style}
+                          onChange={e => auth.setSidebarLyricsStyle(e.target.checked ? style : other)}
+                        />
+                        <span className="toggle-track" />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </SettingsSubSection>
         </>
@@ -2615,10 +2544,11 @@ export default function Settings() {
       {/* ── Library (legacy 'general' + 'server') ────────────────────────────── */}
       {activeTab === 'library' && (
         <>
-          {/* Random Mix */}
+          {/* Random Mix Blacklist */}
           <SettingsSubSection
             title={t('settings.randomMixTitle')}
             icon={<Shuffle size={16} />}
+            defaultOpen
           >
             <div className="settings-card">
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
@@ -2805,7 +2735,7 @@ export default function Settings() {
         </>
       )}
 
-      {/* ── Storage & Downloads ───────────────────────────────────────────────── */}
+      {/* ── Offline & Cache ──────────────────────────────────────────────────── */}
       {activeTab === 'storage' && (
         <>
           {/* Offline Library (In-App) — includes cache settings */}
@@ -2901,6 +2831,187 @@ export default function Settings() {
                   <Trash2 size={14} /> {t('settings.cacheClearBtn')}
                 </button>
               )}
+            </div>
+          </SettingsSubSection>
+
+          {/* Next Track Buffering */}
+          <SettingsSubSection
+            title={t('settings.nextTrackBufferingTitle')}
+            icon={<Download size={16} />}
+          >
+            <div className="settings-card">
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
+                {t('settings.preloadHotCacheMutualExclusive')}
+              </div>
+
+              {/* Preload mode */}
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.preloadMode')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadModeDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.preloadMode')}>
+                  <input
+                    type="checkbox"
+                    checked={auth.preloadMode !== 'off'}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        auth.setPreloadMode('balanced');
+                        if (auth.hotCacheEnabled) auth.setHotCacheEnabled(false);
+                      } else {
+                        auth.setPreloadMode('off');
+                      }
+                    }}
+                  />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+              {auth.preloadMode !== 'off' && (
+                <>
+                  <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {(['balanced', 'early', 'custom'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        className={`btn ${auth.preloadMode === mode ? 'btn-primary' : 'btn-surface'}`}
+                        style={{ fontSize: 12, padding: '3px 12px' }}
+                        onClick={() => auth.setPreloadMode(mode)}
+                      >
+                        {t(`settings.preload${mode.charAt(0).toUpperCase() + mode.slice(1)}` as any)}
+                      </button>
+                    ))}
+                  </div>
+                  {auth.preloadMode === 'custom' && (
+                    <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <input
+                        type="range"
+                        min={5} max={120} step={5}
+                        value={auth.preloadCustomSeconds}
+                        onChange={e => auth.setPreloadCustomSeconds(parseInt(e.target.value))}
+                        style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
+                      />
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
+                        {t('settings.preloadCustomSeconds', { n: auth.preloadCustomSeconds })}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="divider" />
+
+              {/* Hot Cache */}
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.hotCacheTitle')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.hotCacheDisclaimer')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.hotCacheEnabled')}>
+                  <input
+                    type="checkbox"
+                    checked={auth.hotCacheEnabled}
+                    onChange={async e => {
+                      const enabled = e.target.checked;
+                      if (!enabled) {
+                        await clearHotCacheDisk(auth.hotCacheDownloadDir || null);
+                        setHotCacheBytes(0);
+                        auth.setHotCacheEnabled(false);
+                      } else {
+                        auth.setHotCacheEnabled(true);
+                        if (auth.preloadMode !== 'off') auth.setPreloadMode('off');
+                        invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null })
+                          .then(setHotCacheBytes)
+                          .catch(() => setHotCacheBytes(0));
+                      }
+                    }}
+                    id="hot-cache-enabled-toggle"
+                  />
+                  <span className="toggle-track" />
+                </label>
+              </div>
+
+              {auth.hotCacheEnabled && (
+                <div style={{ marginTop: '1.25rem' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      className="input"
+                      type="text"
+                      readOnly
+                      value={auth.hotCacheDownloadDir || t('settings.hotCacheDirDefault')}
+                      style={{ flex: 1, minWidth: 0, fontSize: 13, color: auth.hotCacheDownloadDir ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'default' }}
+                    />
+                    {auth.hotCacheDownloadDir && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          auth.setHotCacheDownloadDir('');
+                          useHotCacheStore.setState({ entries: {} });
+                          invoke<number>('get_hot_cache_size', { customDir: null }).then(setHotCacheBytes).catch(() => setHotCacheBytes(0));
+                        }}
+                        data-tooltip={t('settings.hotCacheDirClear')}
+                        style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-surface" onClick={pickHotCacheDir} style={{ flexShrink: 0 }}>
+                      <FolderOpen size={16} /> {t('settings.hotCacheDirChange')}
+                    </button>
+                  </div>
+                  {auth.hotCacheDownloadDir && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.4 }}>
+                      {t('settings.hotCacheDirHint')}
+                    </div>
+                  )}
+
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0' }} />
+
+                  <div style={{ fontSize: 12, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{t('settings.cacheUsedHot')}</span>
+                      {hotCacheBytes !== null ? formatBytes(hotCacheBytes) : '…'}
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{t('settings.hotCacheTrackCount')}</span>
+                      {hotCacheTrackCount}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('settings.hotCacheMaxMb')}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <input type="range" min={32} max={20000} step={32} value={snapHotCacheMb(auth.hotCacheMaxMb)} onChange={e => auth.setHotCacheMaxMb(parseInt(e.target.value, 10))} style={{ flex: 1, minWidth: 80, maxWidth: 200 }} id="hot-cache-max-mb-slider" />
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 60 }}>{snapHotCacheMb(auth.hotCacheMaxMb)} MB</span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('settings.hotCacheDebounce')}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <input type="range" min={0} max={600} step={1} value={Math.min(600, Math.max(0, auth.hotCacheDebounceSec))} onChange={e => auth.setHotCacheDebounceSec(parseInt(e.target.value, 10))} style={{ flex: 1, minWidth: 80, maxWidth: 200 }} id="hot-cache-debounce-slider" />
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 80 }}>
+                        {Math.min(600, Math.max(0, auth.hotCacheDebounceSec)) === 0
+                          ? t('settings.hotCacheDebounceImmediate')
+                          : t('settings.hotCacheDebounceSeconds', { n: Math.min(600, Math.max(0, auth.hotCacheDebounceSec)) })}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0' }} />
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ fontSize: 13 }}
+                    onClick={async () => {
+                      await clearHotCacheDisk(auth.hotCacheDownloadDir || null);
+                      const b = await invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null }).catch(() => 0);
+                      setHotCacheBytes(b);
+                    }}
+                  >
+                    <Trash2 size={14} /> {t('settings.hotCacheClearBtn')}
+                  </button>
+                </div>
+              )}
+
             </div>
           </SettingsSubSection>
 
@@ -3952,6 +4063,20 @@ export default function Settings() {
   );
 }
 
+const TAB_LABEL_KEY: Record<Tab, string> = {
+  library:         'settings.tabLibrary',
+  servers:         'settings.tabServers',
+  audio:           'settings.tabAudio',
+  lyrics:          'settings.tabLyrics',
+  appearance:      'settings.tabAppearance',
+  personalisation: 'settings.tabPersonalisation',
+  integrations:    'settings.tabIntegrations',
+  input:           'settings.tabInput',
+  storage:         'settings.tabStorage',
+  system:          'settings.tabSystem',
+  users:           'settings.tabUsers',
+};
+
 function HomeCustomizer() {
   const { t } = useTranslation();
   const { sections, toggleSection } = useHomeStore();
@@ -4125,73 +4250,46 @@ function LyricsSourcesCustomizer() {
 
       {/* Mode switch — standard three-provider pipeline vs. YouLyPlus karaoke.
           YouLyPlus misses silently fall back to the standard pipeline. */}
-      <div className="settings-card" style={{ marginBottom: '0.75rem', padding: '0.75rem 1rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'stretch', flexWrap: 'wrap' }}>
-          <label
-            style={{
-              flex: 1, minWidth: 220, cursor: 'pointer',
-              display: 'flex', gap: '0.6rem', alignItems: 'flex-start',
-              padding: '0.5rem', borderRadius: 6,
-              background: lyricsMode === 'standard' ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent',
-              border: `1px solid ${lyricsMode === 'standard' ? 'var(--accent)' : 'transparent'}`,
-            }}
-          >
-            <input
-              type="radio"
-              name="lyrics-mode"
-              checked={lyricsMode === 'standard'}
-              onChange={() => setLyricsMode('standard')}
-              style={{ marginTop: 3 }}
-            />
-            <span>
-              <div style={{ fontWeight: 500 }}>{t('settings.lyricsModeStandard')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                {t('settings.lyricsModeStandardDesc')}
-              </div>
-            </span>
-          </label>
-          <label
-            style={{
-              flex: 1, minWidth: 220, cursor: 'pointer',
-              display: 'flex', gap: '0.6rem', alignItems: 'flex-start',
-              padding: '0.5rem', borderRadius: 6,
-              background: lyricsMode === 'lyricsplus' ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent',
-              border: `1px solid ${lyricsMode === 'lyricsplus' ? 'var(--accent)' : 'transparent'}`,
-            }}
-          >
-            <input
-              type="radio"
-              name="lyrics-mode"
-              checked={lyricsMode === 'lyricsplus'}
-              onChange={() => setLyricsMode('lyricsplus')}
-              style={{ marginTop: 3 }}
-            />
-            <span>
-              <div style={{ fontWeight: 500 }}>{t('settings.lyricsModeLyricsplus')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                {t('settings.lyricsModeLyricsplusDesc')}
-              </div>
-            </span>
-          </label>
-        </div>
-      </div>
-
-      {/* Static-only toggle — suppresses line/word tracking in both modes. */}
       <div className="settings-card" style={{ marginBottom: '0.75rem' }}>
         <div className="settings-toggle-row">
           <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.lyricsStaticOnly')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsStaticOnlyDesc')}</div>
+            <div style={{ fontWeight: 500 }}>{t('settings.lyricsModeLyricsplus')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsModeLyricsplusDesc')}</div>
           </div>
-          <label className="toggle-switch" aria-label={t('settings.lyricsStaticOnly')}>
-            <input type="checkbox" checked={lyricsStaticOnly} onChange={e => setLyricsStaticOnly(e.target.checked)} />
+          <label className="toggle-switch" aria-label={t('settings.lyricsModeLyricsplus')}>
+            <input
+              type="checkbox"
+              checked={lyricsMode === 'lyricsplus'}
+              onChange={e => { if (e.target.checked) setLyricsMode('lyricsplus'); else setLyricsMode('standard'); }}
+            />
+            <span className="toggle-track" />
+          </label>
+        </div>
+      </div>
+      <div className="settings-card" style={{ marginBottom: '0.75rem' }}>
+        <div className="settings-toggle-row">
+          <div>
+            <div style={{ fontWeight: 500 }}>{t('settings.lyricsModeStandard')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsModeStandardDesc')}</div>
+          </div>
+          <label className="toggle-switch" aria-label={t('settings.lyricsModeStandard')}>
+            <input
+              type="checkbox"
+              checked={lyricsMode === 'standard'}
+              onChange={e => { if (e.target.checked) setLyricsMode('standard'); else setLyricsMode('lyricsplus'); }}
+            />
             <span className="toggle-track" />
           </label>
         </div>
       </div>
 
       {lyricsMode === 'standard' && (
-        <div className="settings-card" style={{ padding: '4px 0' }} ref={setContainerEl} onMouseMove={handleMouseMove}>
+        <div
+          className="settings-card"
+          style={{ padding: '4px 0', marginBottom: '0.75rem', marginLeft: '1rem' }}
+          ref={setContainerEl}
+          onMouseMove={handleMouseMove}
+        >
           {lyricsSources.map((src, i) => {
             const label = t(LYRICS_SOURCE_LABEL_KEYS[src.id]);
             const isBefore = isPsyDragging && dropTarget?.idx === i && dropTarget.before;
@@ -4217,6 +4315,20 @@ function LyricsSourcesCustomizer() {
           })}
         </div>
       )}
+
+      {/* Static-only toggle — suppresses line/word tracking in both modes. */}
+      <div className="settings-card" style={{ marginBottom: '0.75rem' }}>
+        <div className="settings-toggle-row">
+          <div>
+            <div style={{ fontWeight: 500 }}>{t('settings.lyricsStaticOnly')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsStaticOnlyDesc')}</div>
+          </div>
+          <label className="toggle-switch" aria-label={t('settings.lyricsStaticOnly')}>
+            <input type="checkbox" checked={lyricsStaticOnly} onChange={e => setLyricsStaticOnly(e.target.checked)} />
+            <span className="toggle-track" />
+          </label>
+        </div>
+      </div>
     </section>
   );
 }
