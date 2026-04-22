@@ -1441,10 +1441,10 @@ export default function Settings() {
     if (inv) {
       setPastedServerInvite(inv);
       setShowAddForm(true);
-      setActiveTab('server');
+      setActiveTab('servers');
       navigate(
         { pathname: location.pathname, search: location.search, hash: location.hash },
-        { replace: true, state: { tab: 'server' as Tab } },
+        { replace: true, state: { tab: 'servers' as Tab } },
       );
       return;
     }
