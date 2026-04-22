@@ -435,6 +435,53 @@ body.is-overlay-scrollbar-thumb-drag .resizer {
   padding: var(--space-4) var(--space-3) var(--space-2);
 }
 
+/* Long-press reorder targets (library / system blocks in Sidebar) */
+.sidebar-nav-dnd-row {
+  position: relative;
+  border-radius: var(--radius-md);
+}
+
+.sidebar-nav-dnd-row--dragging {
+  opacity: 0.45;
+}
+
+.sidebar-nav-dnd-row--drop-before::before,
+.sidebar-nav-dnd-row--drop-after::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.sidebar-nav-dnd-row--drop-before::before {
+  top: 0;
+}
+
+.sidebar-nav-dnd-row--drop-after::after {
+  bottom: 0;
+}
+
+/* Drag-out-of-sidebar: hide item — trash follows pointer */
+.sidebar-nav-dnd-trash-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 100002;
+  color: var(--danger, #e05555);
+  background: color-mix(in srgb, var(--danger, #e05555) 18%, var(--bg-card, #1e1e2e));
+  border: 1px solid color-mix(in srgb, var(--danger, #e05555) 45%, transparent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
 .nav-link {
   display: flex;
   align-items: center;

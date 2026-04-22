@@ -35,6 +35,7 @@ import { useArtistLayoutStore, type ArtistSectionId, type ArtistSectionConfig } 
 import { useHomeStore, HomeSectionId } from '../store/homeStore';
 import { useDragDrop, useDragSource } from '../contexts/DragDropContext';
 import { ALL_NAV_ITEMS } from '../config/navItems';
+import { applySidebarDropReorder } from '../utils/sidebarNavReorder';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
 import {
   ndLogin, ndListUsers, ndCreateUser, ndUpdateUser, ndDeleteUser,
@@ -4420,29 +4421,13 @@ function SidebarCustomizer() {
       const fromSection = parsed.section as 'library' | 'system';
       const target = dropTargetRef.current;
       dropTargetRef.current = null; setDropTarget(null);
-      if (!target || target.section !== fromSection) return;
 
-      const sectionItems = fromSection === 'library' ? [...libraryItems] : [...systemItems];
-      const insertBefore = target.before ? target.idx : target.idx + 1;
-      if (insertBefore === fromIdx || insertBefore === fromIdx + 1) return;
-
-      const [moved] = sectionItems.splice(fromIdx, 1);
-      sectionItems.splice(insertBefore > fromIdx ? insertBefore - 1 : insertBefore, 0, moved);
-
-      // Merge reordered section back into flat items array.
-      // Only update positions of the *visible* items (same filter as libraryItems/systemItems)
-      // so hidden entries like randomMix/randomAlbums are never overwritten with undefined.
-      const all = [...itemsRef.current];
-      const visibleIds = new Set(sectionItems.map(c => c.id));
-      const positions = all.map((cfg, i) => ({ cfg, i }))
-        .filter(({ cfg }) => visibleIds.has(cfg.id))
-        .map(({ i }) => i);
-      positions.forEach((pos, i) => { all[pos] = sectionItems[i]; });
-      setItems(all);
+      const next = applySidebarDropReorder(itemsRef.current, fromSection, fromIdx, target, randomNavMode);
+      if (next) setItems(next);
     };
     el.addEventListener('psy-drop', onPsyDrop);
     return () => el.removeEventListener('psy-drop', onPsyDrop);
-  }, [libraryItems, systemItems, setItems]);
+  }, [libraryItems, systemItems, setItems, randomNavMode]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isPsyDragging || !containerRef.current) return;
