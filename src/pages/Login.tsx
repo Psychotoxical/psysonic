@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Wifi, WifiOff, Eye, EyeOff, Server } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
-import { decodeServerMagicString, DECODED_PASSWORD_VISUAL_MASK } from '../utils/serverMagicString';
+import {
+  decodeServerMagicString,
+  DECODED_PASSWORD_VISUAL_MASK,
+  encodeServerMagicString,
+  type ServerMagicPayload,
+} from '../utils/serverMagicString';
 import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/serverDisplayName';
 
 const PsysonicLogo = () => (
@@ -13,6 +18,7 @@ const PsysonicLogo = () => (
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const { addServer, updateServer, setActiveServer, setLoggedIn, setConnecting, setConnectionError, servers } = useAuthStore();
 
@@ -23,6 +29,21 @@ export default function Login() {
   const [blockPasswordReveal, setBlockPasswordReveal] = useState(false);
   const [status, setStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
+
+  useEffect(() => {
+    const inv = (location.state as { openAddServerInvite?: ServerMagicPayload } | null)?.openAddServerInvite;
+    if (!inv) return;
+    setShowPass(false);
+    setBlockPasswordReveal(true);
+    setForm({
+      serverName: (inv.name && inv.name.trim()) || shortHostFromServerUrl(inv.url),
+      url: inv.url,
+      username: inv.username,
+      password: inv.password,
+    });
+    setMagicString(encodeServerMagicString(inv));
+    navigate('/login', { replace: true, state: {} });
+  }, [location.state, navigate]);
 
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));

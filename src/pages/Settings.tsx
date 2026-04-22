@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { version as appVersion } from '../../package.json';
 import changelogRaw from '../../CHANGELOG.md?raw';
@@ -53,6 +53,7 @@ import {
   encodeServerMagicString,
   copyTextToClipboard,
   DECODED_PASSWORD_VISUAL_MASK,
+  type ServerMagicPayload,
 } from '../utils/serverMagicString';
 import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/serverDisplayName';
 
@@ -202,12 +203,33 @@ const SPECIAL_THANKS = [
 
 type Tab = 'general' | 'server' | 'users' | 'audio' | 'storage' | 'appearance' | 'input' | 'system';
 
-function AddServerForm({ onSave, onCancel }: { onSave: (data: Omit<ServerProfile, 'id'>) => void; onCancel: () => void }) {
+function AddServerForm({
+  onSave,
+  onCancel,
+  initialInvite = null,
+}: {
+  onSave: (data: Omit<ServerProfile, 'id'>) => void;
+  onCancel: () => void;
+  initialInvite?: ServerMagicPayload | null;
+}) {
   const { t } = useTranslation();
   const [form, setForm] = useState({ name: '', url: '', username: '', password: '' });
   const [magicString, setMagicString] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [blockPasswordReveal, setBlockPasswordReveal] = useState(false);
+
+  useEffect(() => {
+    if (!initialInvite) return;
+    setShowPass(false);
+    setBlockPasswordReveal(true);
+    setForm({
+      name: (initialInvite.name && initialInvite.name.trim()) || shortHostFromServerUrl(initialInvite.url),
+      url: initialInvite.url,
+      username: initialInvite.username,
+      password: initialInvite.password,
+    });
+    setMagicString(encodeServerMagicString(initialInvite));
+  }, [initialInvite]);
 
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
@@ -1314,12 +1336,14 @@ export default function Settings() {
   const [listeningFor, setListeningFor] = useState<KeyAction | null>(null);
   const [listeningForGlobal, setListeningForGlobal] = useState<GlobalAction | null>(null);
   const navigate = useNavigate();
-  const { state: routeState } = useLocation();
+  const location = useLocation();
+  const routeState = location.state;
   const { t, i18n } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<Tab>((routeState as { tab?: Tab } | null)?.tab ?? 'general');
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState(false);
+  const [pastedServerInvite, setPastedServerInvite] = useState<ServerMagicPayload | null>(null);
   const [newGenre, setNewGenre] = useState('');
   const [lfmState, setLfmState] = useState<'idle' | 'waiting' | 'error'>('idle');
   const [lfmPendingToken, setLfmPendingToken] = useState<string | null>(null);
@@ -1339,6 +1363,28 @@ export default function Settings() {
   const [discordOptionsOpen, setDiscordOptionsOpen] = useState(false);
   const [ndAdminAuth, setNdAdminAuth] = useState<{ token: string; serverUrl: string; username: string } | null>(null);
   const [ndAuthChecked, setNdAuthChecked] = useState(false);
+  const addServerInviteAnchorRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!showAddForm || !pastedServerInvite) return;
+    addServerInviteAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [showAddForm, pastedServerInvite]);
+
+  useEffect(() => {
+    const st = routeState as { openAddServerInvite?: ServerMagicPayload; tab?: Tab } | null;
+    const inv = st?.openAddServerInvite;
+    if (inv) {
+      setPastedServerInvite(inv);
+      setShowAddForm(true);
+      setActiveTab('server');
+      navigate(
+        { pathname: location.pathname, search: location.search, hash: location.hash },
+        { replace: true, state: { tab: 'server' as Tab } },
+      );
+      return;
+    }
+    if (st?.tab) setActiveTab(st.tab);
+  }, [routeState, location.pathname, location.search, location.hash, navigate]);
 
   useEffect(() => {
     const server = auth.getActiveServer();
@@ -1550,8 +1596,14 @@ export default function Settings() {
     }
   };
 
+  const closeAddServerForm = () => {
+    setShowAddForm(false);
+    setPastedServerInvite(null);
+  };
+
   const handleAddServer = async (data: Omit<ServerProfile, 'id'>) => {
     setShowAddForm(false);
+    setPastedServerInvite(null);
     const tempId = '_new';
     setConnStatus(s => ({ ...s, [tempId]: 'testing' }));
     try {
@@ -3337,13 +3389,31 @@ export default function Settings() {
               </div>
             )}
 
-            {showAddForm ? (
-              <AddServerForm onSave={handleAddServer} onCancel={() => setShowAddForm(false)} />
-            ) : (
-              <button className="btn btn-surface" style={{ marginTop: '0.75rem' }} onClick={() => setShowAddForm(true)} id="settings-add-server-btn">
-                <Plus size={16} /> {t('settings.addServer')}
-              </button>
-            )}
+            <div
+              ref={addServerInviteAnchorRef}
+              id="settings-add-server-anchor"
+              style={{ scrollMarginTop: '12px' }}
+            >
+              {showAddForm ? (
+                <AddServerForm
+                  initialInvite={pastedServerInvite}
+                  onSave={handleAddServer}
+                  onCancel={closeAddServerForm}
+                />
+              ) : (
+                <button
+                  className="btn btn-surface"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={() => {
+                    setPastedServerInvite(null);
+                    setShowAddForm(true);
+                  }}
+                  id="settings-add-server-btn"
+                >
+                  <Plus size={16} /> {t('settings.addServer')}
+                </button>
+              )}
+            </div>
           </section>
 
           {/* Last.fm */}

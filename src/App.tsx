@@ -90,8 +90,7 @@ import { useKeybindingsStore, matchInAppBinding, buildInAppBinding } from './sto
 import { useGlobalShortcutsStore } from './store/globalShortcutsStore';
 import { useZipDownloadStore } from './store/zipDownloadStore';
 import ZipDownloadOverlay from './components/ZipDownloadOverlay';
-import { applySharePastePayload } from './utils/applySharePaste';
-import { decodeSharePayloadFromText } from './utils/shareLink';
+import PasteClipboardHandler from './components/PasteClipboardHandler';
 
 /** Volume before last `psysonic --player mute` (CLI only; in-memory). */
 let cliPremuteVolume: number | null = null;
@@ -193,33 +192,6 @@ function AppShell() {
     window.addEventListener('psy:navigate', onPsyNavigate);
     return () => window.removeEventListener('psy:navigate', onPsyNavigate);
   }, [navigate]);
-
-  const sharePasteBusy = useRef(false);
-  useEffect(() => {
-    const onPaste = (e: ClipboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
-        return;
-      }
-      const text = e.clipboardData?.getData('text/plain') ?? '';
-      const payload = decodeSharePayloadFromText(text);
-      if (!payload) return;
-      if (sharePasteBusy.current) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      sharePasteBusy.current = true;
-      void applySharePastePayload(payload, navigate, t).finally(() => {
-        sharePasteBusy.current = false;
-      });
-    };
-    document.addEventListener('paste', onPaste, true);
-    return () => document.removeEventListener('paste', onPaste, true);
-  }, [navigate, t]);
 
   // Sync custom titlebar preference with native decorations on Linux
   // On tiling WMs decorations are always off (no native title bar to replace).
@@ -1159,6 +1131,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <PasteClipboardHandler />
       <TauriEventBridge />
       <Routes>
         <Route path="/login" element={<Login />} />

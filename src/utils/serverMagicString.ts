@@ -48,6 +48,19 @@ export function encodeServerMagicString(p: ServerMagicPayload): string {
  * Decode a magic string from {@link encodeServerMagicString}.
  * Accepts optional surrounding whitespace.
  */
+/**
+ * Finds a server invite (`psysonic1-` + base64url payload) inside arbitrary pasted
+ * text (e.g. a sentence with the token embedded).
+ */
+export function decodeServerMagicStringFromText(text: string): ServerMagicPayload | null {
+  const idx = text.indexOf(SERVER_MAGIC_STRING_PREFIX);
+  if (idx < 0) return null;
+  const afterPrefix = text.slice(idx + SERVER_MAGIC_STRING_PREFIX.length);
+  const token = afterPrefix.match(/^([A-Za-z0-9_-]+)/)?.[1];
+  if (!token) return null;
+  return decodeServerMagicString(SERVER_MAGIC_STRING_PREFIX + token);
+}
+
 export function decodeServerMagicString(raw: string): ServerMagicPayload | null {
   const s = raw.trim();
   if (!s.startsWith(SERVER_MAGIC_STRING_PREFIX)) return null;

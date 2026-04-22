@@ -3,6 +3,7 @@ import {
   SERVER_MAGIC_STRING_PREFIX,
   DECODED_PASSWORD_VISUAL_MASK,
   decodeServerMagicString,
+  decodeServerMagicStringFromText,
   encodeServerMagicString,
 } from './serverMagicString';
 
@@ -39,5 +40,16 @@ describe('serverMagicString', () => {
     expect(decodeServerMagicString('')).toBeNull();
     expect(decodeServerMagicString('nope')).toBeNull();
     expect(decodeServerMagicString(`${SERVER_MAGIC_STRING_PREFIX}%%%`)).toBeNull();
+  });
+
+  it('decodes invite embedded in surrounding text', () => {
+    const original = {
+      url: 'https://music.example.com',
+      username: 'alice',
+      password: 'pw',
+    };
+    const line = encodeServerMagicString(original);
+    expect(decodeServerMagicStringFromText(`Copy:\n${line}\nThanks`)).toEqual(original);
+    expect(decodeServerMagicStringFromText('no token')).toBeNull();
   });
 });
