@@ -175,6 +175,14 @@ interface PlayerState {
   resume: () => void;
   stop: () => void;
   togglePlay: () => void;
+  /** Wall-clock ms when auto-pause fires, or null. */
+  scheduledPauseAtMs: number | null;
+  /** Wall-clock ms when auto-resume fires, or null. */
+  scheduledResumeAtMs: number | null;
+  schedulePauseIn: (seconds: number) => void;
+  scheduleResumeIn: (seconds: number) => void;
+  clearScheduledPause: () => void;
+  clearScheduledResume: () => void;
   next: (manual?: boolean) => void;
   previous: () => void;
   seek: (progress: number) => void;
@@ -263,6 +271,29 @@ let seekFallbackVisualTarget: { trackId: string; seconds: number; setAtMs: numbe
 const SEEK_FALLBACK_VISUAL_GUARD_MS = 1600;
 const SEEK_FALLBACK_RETRY_INTERVAL_MS = 180;
 const SEEK_FALLBACK_RETRY_MAX_MS = 6000;
+
+/** Deferred pause / resume — cleared on stop, new track, manual pause/resume. */
+let scheduledPauseTimer: number | null = null;
+let scheduledResumeTimer: number | null = null;
+
+function clearScheduledPauseTimers() {
+  if (scheduledPauseTimer != null) {
+    window.clearTimeout(scheduledPauseTimer);
+    scheduledPauseTimer = null;
+  }
+}
+
+function clearScheduledResumeTimers() {
+  if (scheduledResumeTimer != null) {
+    window.clearTimeout(scheduledResumeTimer);
+    scheduledResumeTimer = null;
+  }
+}
+
+function clearAllPlaybackScheduleTimers() {
+  clearScheduledPauseTimers();
+  clearScheduledResumeTimers();
+}
 
 function setSeekTarget(seconds: number) {
   seekTarget = seconds;
@@ -1019,6 +1050,8 @@ export const usePlayerStore = create<PlayerState>()(
         }),
       isQueueVisible: true,
       isFullscreenOpen: false,
+      scheduledPauseAtMs: null,
+      scheduledResumeAtMs: null,
       repeatMode: 'off',
       contextMenu: { isOpen: false, x: 0, y: 0, item: null, type: null },
 
@@ -1093,6 +1126,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       // ── stop ────────────────────────────────────────────────────────────────
       stop: () => {
+        clearAllPlaybackScheduleTimers();
         if (get().currentRadio) {
           clearRadioReconnectTimer();
           radioStopping = true;
@@ -1112,6 +1146,8 @@ export const usePlayerStore = create<PlayerState>()(
           currentRadio: null,
           currentPlaybackSource: null,
           enginePreloadedTrackId: null,
+          scheduledPauseAtMs: null,
+          scheduledResumeAtMs: null,
         });
       },
 
@@ -1119,6 +1155,8 @@ export const usePlayerStore = create<PlayerState>()(
       playRadio: async (station) => {
         const { volume } = get();
         ++playGeneration;
+        clearAllPlaybackScheduleTimers();
+        set({ scheduledPauseAtMs: null, scheduledResumeAtMs: null });
         isAudioPaused = false;
         clearRadioReconnectTimer();
         radioReconnectCount = 0;
@@ -1162,6 +1200,9 @@ export const usePlayerStore = create<PlayerState>()(
         if (Date.now() - lastGaplessSwitchTime < 500) {
           return;
         }
+
+        clearAllPlaybackScheduleTimers();
+        set({ scheduledPauseAtMs: null, scheduledResumeAtMs: null });
 
         const gen = ++playGeneration;
         isAudioPaused = false;
@@ -1315,13 +1356,14 @@ export const usePlayerStore = create<PlayerState>()(
 
       // ── pause / resume / togglePlay ──────────────────────────────────────────
       pause: () => {
+        clearAllPlaybackScheduleTimers();
         if (get().currentRadio) {
           radioAudio.pause();
         } else {
           invoke('audio_pause').catch(console.error);
           isAudioPaused = true;
         }
-        set({ isPlaying: false });
+        set({ isPlaying: false, scheduledPauseAtMs: null, scheduledResumeAtMs: null });
       },
 
       resetAudioPause: () => {
@@ -1329,6 +1371,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       resume: () => {
+        clearAllPlaybackScheduleTimers();
+        set({ scheduledPauseAtMs: null, scheduledResumeAtMs: null });
         if (get().currentRadio) {
           radioAudio.play().catch(console.error);
           set({ isPlaying: true });
@@ -1419,6 +1463,45 @@ export const usePlayerStore = create<PlayerState>()(
              syncQueueToServer(queue, currentTrack, currentTime);
            });
         }
+      },
+
+      clearScheduledPause: () => {
+        clearScheduledPauseTimers();
+        set({ scheduledPauseAtMs: null });
+      },
+
+      clearScheduledResume: () => {
+        clearScheduledResumeTimers();
+        set({ scheduledResumeAtMs: null });
+      },
+
+      schedulePauseIn: (seconds) => {
+        const s = get();
+        if (!s.isPlaying) return;
+        clearScheduledPauseTimers();
+        const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
+        const at = Date.now() + delayMs;
+        set({ scheduledPauseAtMs: at });
+        scheduledPauseTimer = window.setTimeout(() => {
+          scheduledPauseTimer = null;
+          set({ scheduledPauseAtMs: null });
+          get().pause();
+        }, delayMs) as unknown as number;
+      },
+
+      scheduleResumeIn: (seconds) => {
+        const s = get();
+        if (s.isPlaying) return;
+        if (!s.currentTrack && !s.currentRadio) return;
+        clearScheduledResumeTimers();
+        const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
+        const at = Date.now() + delayMs;
+        set({ scheduledResumeAtMs: at });
+        scheduledResumeTimer = window.setTimeout(() => {
+          scheduledResumeTimer = null;
+          set({ scheduledResumeAtMs: null });
+          get().resume();
+        }, delayMs) as unknown as number;
       },
 
       togglePlay: () => {

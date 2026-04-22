@@ -21,6 +21,9 @@ import { useLyricsStore } from '../store/lyricsStore';
 import MarqueeText from './MarqueeText';
 import LastfmIcon from './LastfmIcon';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
+import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
+import PlaybackDelayModal from './PlaybackDelayModal';
+import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -136,6 +139,10 @@ export default function PlayerBar() {
     };
   }, [floatingPlayerBar]);
 
+  const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
+  const transportAnchorRef = useRef<HTMLDivElement>(null);
+  const playSlotRef = useRef<HTMLSpanElement>(null);
+
   const isRadio = !!currentRadio;
 
   // Radio metadata (ICY or AzuraCast) — only active while a radio station is playing.
@@ -185,6 +192,7 @@ export default function PlayerBar() {
   };
 
   const playerBarContent = (
+    <>
     <footer
       className={`player-bar ${floatingPlayerBar ? 'floating' : ''}`}
       style={floatingPlayerBar ? floatingStyle : undefined}
@@ -292,21 +300,26 @@ export default function PlayerBar() {
       </div>
 
       {/* Transport Controls */}
-      <div className="player-buttons">
+      <div className="player-buttons" ref={transportAnchorRef}>
         <button className="player-btn player-btn-sm" onClick={stop} aria-label={t('player.stop')} data-tooltip={t('player.stop')}>
           <Square size={14} fill="currentColor" />
         </button>
         <button className="player-btn" onClick={() => previous()} aria-label={t('player.prev')} data-tooltip={t('player.prev')} disabled={isRadio} style={isRadio ? { opacity: 0.3, pointerEvents: 'none' } : undefined}>
           <SkipBack size={19} />
         </button>
-        <button
-          className="player-btn player-btn-primary"
-          onClick={togglePlay}
-          aria-label={isPlaying ? t('player.pause') : t('player.play')}
-          data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
-        >
-          {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
-        </button>
+        <span className="playback-transport-play-wrap" ref={playSlotRef}>
+          <PlaybackScheduleBadge layoutAnchorRef={playSlotRef} />
+          <button
+            className="player-btn player-btn-primary"
+            type="button"
+            {...playPauseBind}
+            aria-label={isPlaying ? t('player.pause') : t('player.play')}
+            data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
+            title={isPlaying ? t('player.pause') : t('player.play')}
+          >
+            {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
+          </button>
+        </span>
         <button className="player-btn" onClick={() => next()} aria-label={t('player.next')} data-tooltip={t('player.next')} disabled={isRadio} style={isRadio ? { opacity: 0.3, pointerEvents: 'none' } : undefined}>
           <SkipForward size={19} />
         </button>
@@ -448,6 +461,8 @@ export default function PlayerBar() {
       )}
 
     </footer>
+    <PlaybackDelayModal open={delayModalOpen} onClose={() => setDelayModalOpen(false)} anchorRef={transportAnchorRef} />
+    </>
   );
 
   if (floatingPlayerBar) {

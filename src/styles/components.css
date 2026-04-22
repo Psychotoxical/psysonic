@@ -2048,6 +2048,213 @@
   font-family: var(--font-display);
 }
 
+/* ─ Playback delay (sleep / delayed start) modal ─ */
+.playback-delay-modal {
+  max-height: min(85vh, 560px);
+  padding: var(--space-6);
+}
+
+.playback-delay-modal__title {
+  margin: 0 0 var(--space-4);
+  padding-right: 2rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.playback-delay-modal-overlay--anchored {
+  padding: 0;
+}
+
+.playback-transport-play-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.playback-schedule-badge--floating {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: top right;
+  min-width: 1.55rem;
+  height: 1.45rem;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--ctp-surface0) 88%, var(--text-primary) 4%);
+  border: 1px solid var(--border-subtle, var(--border));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-primary) 8%, transparent);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.playback-schedule-badge--floating.playback-schedule-badge--fs {
+  font-size: 0.64rem;
+  min-width: 1.65rem;
+  height: 1.5rem;
+  padding: 0 6px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.playback-delay-section__head--tight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  min-height: 0;
+}
+
+.playback-delay-inline-cancel {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.playback-delay-chips--compact {
+  margin-bottom: var(--space-4);
+  gap: 5px;
+}
+
+.playback-delay-custom--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: 0;
+}
+
+.playback-delay-custom--inline .playback-delay-custom__input {
+  flex: 1 1 100px;
+  min-width: 0;
+}
+
+.playback-delay-idle {
+  margin-bottom: var(--space-2);
+}
+
+.playback-delay-idle .playback-delay-muted:first-child {
+  margin-top: 0;
+}
+
+.playback-delay-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--ctp-base) 40%, transparent);
+}
+
+.playback-delay-section--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.playback-delay-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.playback-delay-section__title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.playback-delay-section__countdown {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.playback-delay-muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.playback-delay-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+}
+
+.playback-delay-chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  background: var(--ctp-surface1);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.playback-delay-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--ctp-surface1));
+}
+
+.playback-delay-chip--on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--ctp-surface1));
+  color: var(--accent);
+}
+
+.playback-delay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.playback-delay-custom__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+.playback-delay-custom__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.playback-delay-custom__input {
+  flex: 1 1 120px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  background: var(--ctp-base);
+  color: var(--text-primary);
+}
+
+.playback-delay-custom__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
 /* ─ Playlist edit modal ─ */
 .playlist-edit-modal {
   max-width: 560px;

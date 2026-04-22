@@ -9,6 +9,9 @@ import { usePlayerStore, Track } from '../store/playerStore';
 import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
 import { useCachedUrl } from './CachedImage';
 import LyricsPane from './LyricsPane';
+import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
+import PlaybackDelayModal from './PlaybackDelayModal';
+import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 
 // ── Color extraction ──────────────────────────────────────────────────────────
 // Samples a 16×16 canvas to find the most vibrant (highest-saturation,
@@ -162,6 +165,9 @@ export default function MobilePlayerView() {
   const progress     = usePlayerStore(s => s.progress);
   const currentTime  = usePlayerStore(s => s.currentTime);
   const togglePlay   = usePlayerStore(s => s.togglePlay);
+  const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
+  const transportAnchorRef = useRef<HTMLDivElement>(null);
+  const playSlotRef = useRef<HTMLSpanElement>(null);
   const next         = usePlayerStore(s => s.next);
   const previous     = usePlayerStore(s => s.previous);
   const seek         = usePlayerStore(s => s.seek);
@@ -362,7 +368,7 @@ export default function MobilePlayerView() {
       </div>
 
       {/* Transport Controls */}
-      <div className="mp-controls">
+      <div className="mp-controls" ref={transportAnchorRef}>
         <button
           className="mp-ctrl-btn mp-ctrl-sm"
           onClick={() => shuffleQueue()}
@@ -373,9 +379,18 @@ export default function MobilePlayerView() {
         <button className="mp-ctrl-btn" onClick={() => previous()} aria-label={t('player.prev')}>
           <SkipBack size={28} />
         </button>
-        <button className="mp-ctrl-btn mp-ctrl-play" onClick={togglePlay} aria-label={isPlaying ? t('player.pause') : t('player.play')}>
-          {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" />}
-        </button>
+        <span className="playback-transport-play-wrap" ref={playSlotRef}>
+          <PlaybackScheduleBadge layoutAnchorRef={playSlotRef} />
+          <button
+            className="mp-ctrl-btn mp-ctrl-play"
+            type="button"
+            {...playPauseBind}
+            aria-label={isPlaying ? t('player.pause') : t('player.play')}
+            title={isPlaying ? t('player.pause') : t('player.play')}
+          >
+            {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" />}
+          </button>
+        </span>
         <button className="mp-ctrl-btn" onClick={() => next()} aria-label={t('player.next')}>
           <SkipForward size={28} />
         </button>
@@ -406,6 +421,8 @@ export default function MobilePlayerView() {
 
       {/* Lyrics Drawer */}
       {showLyrics && <LyricsDrawer onClose={() => setShowLyrics(false)} currentTrack={currentTrack} />}
+
+      <PlaybackDelayModal open={delayModalOpen} onClose={() => setDelayModalOpen(false)} anchorRef={transportAnchorRef} />
     </div>
   );
 }

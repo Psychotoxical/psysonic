@@ -14,6 +14,9 @@ import { useAuthStore } from '../store/authStore';
 import type { LrcLine } from '../api/lrclib';
 import type { Track } from '../store/playerStore';
 import { EaseScroller, targetForFraction } from '../utils/easeScroll';
+import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
+import PlaybackDelayModal from './PlaybackDelayModal';
+import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -582,14 +585,33 @@ const FsLyricsMenu = memo(function FsLyricsMenu({ open, onClose, accentColor, tr
 });
 
 // ─── Play/Pause button (isolated — subscribes to isPlaying only) ──────────────
-const FsPlayBtn = memo(function FsPlayBtn() {
+const FsPlayBtn = memo(function FsPlayBtn({
+  controlsAnchorRef,
+}: {
+  controlsAnchorRef: React.RefObject<HTMLDivElement | null>;
+}) {
   const { t } = useTranslation();
   const isPlaying  = usePlayerStore(s => s.isPlaying);
   const togglePlay = usePlayerStore(s => s.togglePlay);
+  const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
+  const playSlotRef = useRef<HTMLSpanElement>(null);
   return (
-    <button className="fs-btn fs-btn-play" onClick={togglePlay} aria-label={isPlaying ? t('player.pause') : t('player.play')}>
-      {isPlaying ? <Pause size={25} /> : <Play size={25} fill="currentColor" />}
-    </button>
+    <>
+      <span ref={playSlotRef} className="playback-transport-play-wrap">
+        <PlaybackScheduleBadge layoutAnchorRef={playSlotRef} className="playback-schedule-badge--fs" />
+        <button
+          type="button"
+          className="fs-btn fs-btn-play"
+          {...playPauseBind}
+          aria-label={isPlaying ? t('player.pause') : t('player.play')}
+          data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
+          title={isPlaying ? t('player.pause') : t('player.play')}
+        >
+          {isPlaying ? <Pause size={25} /> : <Play size={25} fill="currentColor" />}
+        </button>
+      </span>
+      <PlaybackDelayModal open={delayModalOpen} onClose={() => setDelayModalOpen(false)} anchorRef={controlsAnchorRef} />
+    </>
   );
 });
 
@@ -716,6 +738,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const [lyricsMenuOpen, setLyricsMenuOpen] = useState(false);
   const closeLyricsMenu = useCallback(() => setLyricsMenuOpen(false), []);
   const lyricsMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const fsControlsRef = useRef<HTMLDivElement>(null);
 
   // Idle-fade system — hides controls after 3 s of inactivity
   const [isIdle, setIsIdle] = useState(false);
@@ -822,14 +845,14 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
         )}
 
         {/* Controls */}
-        <div className="fs-controls">
+        <div className="fs-controls" ref={fsControlsRef}>
           <button className="fs-btn fs-btn-sm" onClick={stop} aria-label="Stop" data-tooltip={t('player.stop')}>
             <Square size={13} fill="currentColor" />
           </button>
           <button className="fs-btn" onClick={() => previous()} aria-label={t('player.prev')} data-tooltip={t('player.prev')}>
             <SkipBack size={19} />
           </button>
-          <FsPlayBtn />
+          <FsPlayBtn controlsAnchorRef={fsControlsRef} />
           <button className="fs-btn" onClick={() => next()} aria-label={t('player.next')} data-tooltip={t('player.next')}>
             <SkipForward size={19} />
           </button>
