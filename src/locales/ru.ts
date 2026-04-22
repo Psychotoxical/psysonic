@@ -1194,6 +1194,8 @@ export const ruTranslation = {
     delayModalTitle: 'Таймер',
     delayPauseSection: 'Пауза через',
     delayStartSection: 'Старт через',
+    delayPreviewPause: 'Пауза в',
+    delayPreviewStart: 'Старт в',
     delaySchedulePause: 'Запланировать паузу',
     delayScheduleStart: 'Запланировать старт',
     delayCancelPause: 'Отменить таймер паузы',

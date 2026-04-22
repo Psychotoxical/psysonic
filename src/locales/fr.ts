@@ -1117,6 +1117,8 @@ export const frTranslation = {
     delayModalTitle: 'Minuteur',
     delayPauseSection: 'Pause après',
     delayStartSection: 'Démarrage après',
+    delayPreviewPause: 'Pause à',
+    delayPreviewStart: 'Démarrage à',
     delaySchedulePause: 'Programmer la pause',
     delayScheduleStart: 'Programmer le démarrage',
     delayCancelPause: 'Annuler le minuteur de pause',

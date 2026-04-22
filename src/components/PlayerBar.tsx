@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music,
   Square, Repeat, Repeat1, Maximize2, SlidersVertical, X, Heart, Cast,
-  PictureInPicture2, ArrowLeftRight,
+  PictureInPicture2, ArrowLeftRight, Moon, Sunrise,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from '../store/playerStore';
@@ -24,6 +24,7 @@ import { useRadioMetadata } from '../hooks/useRadioMetadata';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
 import PlaybackScheduleBadge from './PlaybackScheduleBadge';
+import { usePlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -142,6 +143,7 @@ export default function PlayerBar() {
   const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
   const transportAnchorRef = useRef<HTMLDivElement>(null);
   const playSlotRef = useRef<HTMLSpanElement>(null);
+  const scheduleRemaining = usePlaybackScheduleRemaining();
 
   const isRadio = !!currentRadio;
 
@@ -315,9 +317,15 @@ export default function PlayerBar() {
             {...playPauseBind}
             aria-label={isPlaying ? t('player.pause') : t('player.play')}
             data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
-            title={isPlaying ? t('player.pause') : t('player.play')}
           >
-            {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
+            {scheduleRemaining != null ? (
+              <span className={`player-btn-schedule-stack player-btn-schedule-stack--${scheduleRemaining.mode}`}>
+                {scheduleRemaining.mode === 'pause'
+                  ? <Moon size={10} strokeWidth={2.5} />
+                  : <Sunrise size={10} strokeWidth={2.5} />}
+                <span className="player-btn-schedule-time">{scheduleRemaining.remaining}</span>
+              </span>
+            ) : isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
           </button>
         </span>
         <button className="player-btn" onClick={() => next()} aria-label={t('player.next')} data-tooltip={t('player.next')} disabled={isRadio} style={isRadio ? { opacity: 0.3, pointerEvents: 'none' } : undefined}>

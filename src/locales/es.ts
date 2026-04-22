@@ -1122,6 +1122,8 @@ export const esTranslation = {
     delayModalTitle: 'Temporizador',
     delayPauseSection: 'Pausar después de',
     delayStartSection: 'Iniciar después de',
+    delayPreviewPause: 'Pausa a las',
+    delayPreviewStart: 'Inicio a las',
     delaySchedulePause: 'Programar pausa',
     delayScheduleStart: 'Programar inicio',
     delayCancelPause: 'Cancelar temporizador de pausa',

@@ -1116,6 +1116,8 @@ export const nlTranslation = {
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pauzeren na',
     delayStartSection: 'Starten na',
+    delayPreviewPause: 'Pauze om',
+    delayPreviewStart: 'Start om',
     delaySchedulePause: 'Pauze plannen',
     delayScheduleStart: 'Start plannen',
     delayCancelPause: 'Pauze-timer annuleren',

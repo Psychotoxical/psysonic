@@ -1111,6 +1111,8 @@ export const zhTranslation = {
     delayModalTitle: '定时',
     delayPauseSection: '多久后暂停',
     delayStartSection: '多久后开始',
+    delayPreviewPause: '暂停于',
+    delayPreviewStart: '开始于',
     delaySchedulePause: '安排暂停',
     delayScheduleStart: '安排开始',
     delayCancelPause: '取消暂停定时',

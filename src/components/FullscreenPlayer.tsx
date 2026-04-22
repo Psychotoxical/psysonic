@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState, useRef, memo, useMemo } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
-  ChevronDown, Repeat, Repeat1, Square, Music, Heart, MicVocal
+  ChevronDown, Repeat, Repeat1, Square, Music, Heart, MicVocal,
+  Moon, Sunrise,
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { buildCoverArtUrl, coverArtCacheKey, getArtistInfo, star, unstar } from '../api/subsonic';
@@ -17,6 +18,7 @@ import { EaseScroller, targetForFraction } from '../utils/easeScroll';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
 import PlaybackScheduleBadge from './PlaybackScheduleBadge';
+import { usePlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -595,6 +597,7 @@ const FsPlayBtn = memo(function FsPlayBtn({
   const togglePlay = usePlayerStore(s => s.togglePlay);
   const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
   const playSlotRef = useRef<HTMLSpanElement>(null);
+  const scheduleRemaining = usePlaybackScheduleRemaining();
   return (
     <>
       <span ref={playSlotRef} className="playback-transport-play-wrap">
@@ -605,9 +608,15 @@ const FsPlayBtn = memo(function FsPlayBtn({
           {...playPauseBind}
           aria-label={isPlaying ? t('player.pause') : t('player.play')}
           data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
-          title={isPlaying ? t('player.pause') : t('player.play')}
         >
-          {isPlaying ? <Pause size={25} /> : <Play size={25} fill="currentColor" />}
+          {scheduleRemaining != null ? (
+            <span className={`player-btn-schedule-stack player-btn-schedule-stack--${scheduleRemaining.mode} player-btn-schedule-stack--fs`}>
+              {scheduleRemaining.mode === 'pause'
+                ? <Moon size={12} strokeWidth={2.5} />
+                : <Sunrise size={12} strokeWidth={2.5} />}
+              <span className="player-btn-schedule-time player-btn-schedule-time--fs">{scheduleRemaining.remaining}</span>
+            </span>
+          ) : isPlaying ? <Pause size={25} /> : <Play size={25} fill="currentColor" />}
         </button>
       </span>
       <PlaybackDelayModal open={delayModalOpen} onClose={() => setDelayModalOpen(false)} anchorRef={controlsAnchorRef} />

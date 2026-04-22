@@ -177,8 +177,12 @@ interface PlayerState {
   togglePlay: () => void;
   /** Wall-clock ms when auto-pause fires, or null. */
   scheduledPauseAtMs: number | null;
+  /** Wall-clock ms when the current auto-pause timer was armed (for progress-ring totals). */
+  scheduledPauseStartMs: number | null;
   /** Wall-clock ms when auto-resume fires, or null. */
   scheduledResumeAtMs: number | null;
+  /** Wall-clock ms when the current auto-resume timer was armed (for progress-ring totals). */
+  scheduledResumeStartMs: number | null;
   schedulePauseIn: (seconds: number) => void;
   scheduleResumeIn: (seconds: number) => void;
   clearScheduledPause: () => void;
@@ -1051,7 +1055,9 @@ export const usePlayerStore = create<PlayerState>()(
       isQueueVisible: true,
       isFullscreenOpen: false,
       scheduledPauseAtMs: null,
+      scheduledPauseStartMs: null,
       scheduledResumeAtMs: null,
+      scheduledResumeStartMs: null,
       repeatMode: 'off',
       contextMenu: { isOpen: false, x: 0, y: 0, item: null, type: null },
 
@@ -1147,7 +1153,9 @@ export const usePlayerStore = create<PlayerState>()(
           currentPlaybackSource: null,
           enginePreloadedTrackId: null,
           scheduledPauseAtMs: null,
+          scheduledPauseStartMs: null,
           scheduledResumeAtMs: null,
+          scheduledResumeStartMs: null,
         });
       },
 
@@ -1156,7 +1164,7 @@ export const usePlayerStore = create<PlayerState>()(
         const { volume } = get();
         ++playGeneration;
         clearAllPlaybackScheduleTimers();
-        set({ scheduledPauseAtMs: null, scheduledResumeAtMs: null });
+        set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
         isAudioPaused = false;
         clearRadioReconnectTimer();
         radioReconnectCount = 0;
@@ -1202,7 +1210,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         clearAllPlaybackScheduleTimers();
-        set({ scheduledPauseAtMs: null, scheduledResumeAtMs: null });
+        set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
 
         const gen = ++playGeneration;
         isAudioPaused = false;
@@ -1363,7 +1371,7 @@ export const usePlayerStore = create<PlayerState>()(
           invoke('audio_pause').catch(console.error);
           isAudioPaused = true;
         }
-        set({ isPlaying: false, scheduledPauseAtMs: null, scheduledResumeAtMs: null });
+        set({ isPlaying: false, scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
       },
 
       resetAudioPause: () => {
@@ -1372,7 +1380,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       resume: () => {
         clearAllPlaybackScheduleTimers();
-        set({ scheduledPauseAtMs: null, scheduledResumeAtMs: null });
+        set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
         if (get().currentRadio) {
           radioAudio.play().catch(console.error);
           set({ isPlaying: true });
@@ -1467,12 +1475,12 @@ export const usePlayerStore = create<PlayerState>()(
 
       clearScheduledPause: () => {
         clearScheduledPauseTimers();
-        set({ scheduledPauseAtMs: null });
+        set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null });
       },
 
       clearScheduledResume: () => {
         clearScheduledResumeTimers();
-        set({ scheduledResumeAtMs: null });
+        set({ scheduledResumeAtMs: null, scheduledResumeStartMs: null });
       },
 
       schedulePauseIn: (seconds) => {
@@ -1480,11 +1488,12 @@ export const usePlayerStore = create<PlayerState>()(
         if (!s.isPlaying) return;
         clearScheduledPauseTimers();
         const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
-        const at = Date.now() + delayMs;
-        set({ scheduledPauseAtMs: at });
+        const startedAt = Date.now();
+        const at = startedAt + delayMs;
+        set({ scheduledPauseAtMs: at, scheduledPauseStartMs: startedAt });
         scheduledPauseTimer = window.setTimeout(() => {
           scheduledPauseTimer = null;
-          set({ scheduledPauseAtMs: null });
+          set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null });
           get().pause();
         }, delayMs) as unknown as number;
       },
@@ -1495,11 +1504,12 @@ export const usePlayerStore = create<PlayerState>()(
         if (!s.currentTrack && !s.currentRadio) return;
         clearScheduledResumeTimers();
         const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
-        const at = Date.now() + delayMs;
-        set({ scheduledResumeAtMs: at });
+        const startedAt = Date.now();
+        const at = startedAt + delayMs;
+        set({ scheduledResumeAtMs: at, scheduledResumeStartMs: startedAt });
         scheduledResumeTimer = window.setTimeout(() => {
           scheduledResumeTimer = null;
-          set({ scheduledResumeAtMs: null });
+          set({ scheduledResumeAtMs: null, scheduledResumeStartMs: null });
           get().resume();
         }, delayMs) as unknown as number;
       },

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1, Heart, Music, MicVocal, ListMusic, X,
+  Moon, Sunrise,
 } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/playerStore';
 import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
@@ -12,6 +13,7 @@ import LyricsPane from './LyricsPane';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
 import PlaybackScheduleBadge from './PlaybackScheduleBadge';
+import { usePlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
 
 // ── Color extraction ──────────────────────────────────────────────────────────
 // Samples a 16×16 canvas to find the most vibrant (highest-saturation,
@@ -168,6 +170,7 @@ export default function MobilePlayerView() {
   const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
   const transportAnchorRef = useRef<HTMLDivElement>(null);
   const playSlotRef = useRef<HTMLSpanElement>(null);
+  const scheduleRemaining = usePlaybackScheduleRemaining();
   const next         = usePlayerStore(s => s.next);
   const previous     = usePlayerStore(s => s.previous);
   const seek         = usePlayerStore(s => s.seek);
@@ -386,9 +389,15 @@ export default function MobilePlayerView() {
             type="button"
             {...playPauseBind}
             aria-label={isPlaying ? t('player.pause') : t('player.play')}
-            title={isPlaying ? t('player.pause') : t('player.play')}
           >
-            {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" />}
+            {scheduleRemaining != null ? (
+              <span className={`player-btn-schedule-stack player-btn-schedule-stack--${scheduleRemaining.mode} player-btn-schedule-stack--mobile`}>
+                {scheduleRemaining.mode === 'pause'
+                  ? <Moon size={13} strokeWidth={2.5} />
+                  : <Sunrise size={13} strokeWidth={2.5} />}
+                <span className="player-btn-schedule-time player-btn-schedule-time--mobile">{scheduleRemaining.remaining}</span>
+              </span>
+            ) : isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" />}
           </button>
         </span>
         <button className="mp-ctrl-btn" onClick={() => next()} aria-label={t('player.next')}>

@@ -1116,6 +1116,8 @@ export const nbTranslation = {
     delayModalTitle: 'Tidsur',
     delayPauseSection: 'Pause etter',
     delayStartSection: 'Start etter',
+    delayPreviewPause: 'Pause kl.',
+    delayPreviewStart: 'Start kl.',
     delaySchedulePause: 'Planlegg pause',
     delayScheduleStart: 'Planlegg start',
     delayCancelPause: 'Avbryt pause-timer',

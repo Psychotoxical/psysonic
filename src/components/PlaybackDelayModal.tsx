@@ -1,12 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X, Moon, Sunrise } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 
 import type { TFunction } from 'i18next';
 import { formatPlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
+
+function formatClockTime(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
 
 /** One tap = schedule; custom minutes still covers any duration. */
 const PRESET_SECONDS = [30, 60, 120, 300, 600, 900, 1800, 3600] as const;
@@ -72,10 +77,22 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [posTick, setPosTick] = useState(0);
   const [customMinutes, setCustomMinutes] = useState('');
+  /** Preset-seconds the user is currently hovering — drives the live "Pauses at HH:MM" preview. */
+  const [hoverSeconds, setHoverSeconds] = useState<number | null>(null);
+  const customInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setCustomMinutes('');
+    setHoverSeconds(null);
+  }, [open]);
+
+  // While modal is open, refresh the "now" tick every second so the live
+  // preview clock stays accurate.
+  useEffect(() => {
+    if (!open) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(id);
   }, [open]);
 
   useEffect(() => {
@@ -133,10 +150,26 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
   const heading =
     canPauseLater ? t('player.delayPauseSection') : canStartLater ? t('player.delayStartSection') : t('player.delayModalTitle');
 
+  // Mode determines icon + colour accent ("mood") of the modal.
+  const mode: 'pause' | 'start' | 'idle' =
+    canPauseLater ? 'pause' : canStartLater ? 'start' : 'idle';
+  const HeadingIcon = mode === 'pause' ? Moon : mode === 'start' ? Sunrise : null;
+
+  // Live preview: seconds that would be applied right now if the user clicked.
+  // Priority: hovered chip → typed custom minutes → nothing.
+  const previewSeconds = hoverSeconds ?? customSeconds;
+  const previewAtMs = previewSeconds != null ? nowTick + previewSeconds * 1000 : null;
+  const previewClock = previewAtMs != null ? formatClockTime(previewAtMs) : null;
+
   if (!open) return null;
 
   const defaultPanelStyle: React.CSSProperties = { maxWidth: 360, width: 'min(360px, calc(100vw - 32px))' };
   const panelStyle = anchoredPanelStyle ? { ...defaultPanelStyle, ...anchoredPanelStyle } : defaultPanelStyle;
+
+  const scheduledAt = canPauseLater ? scheduledPauseAtMs : canStartLater ? scheduledResumeAtMs : null;
+  const clearScheduled = canPauseLater ? clearScheduledPause : canStartLater ? clearScheduledResume : null;
+  const cancelLabel = canPauseLater ? t('player.delayCancelPause') : t('player.delayCancelStart');
+  const apply = canPauseLater ? applyPause : applyStart;
 
   return createPortal(
     <div
@@ -152,67 +185,103 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
       }
     >
       <div
-        className="modal-content playback-delay-modal"
+        className={`modal-content playback-delay-modal playback-delay-modal--${mode}`}
+        data-pd-mode={mode}
         onClick={e => e.stopPropagation()}
         style={panelStyle}
       >
         <button type="button" className="modal-close" onClick={onClose} aria-label={t('player.closeDelayModal')}>
           <X size={18} />
         </button>
-        <h3 id="playback-delay-modal-title" className="playback-delay-modal__title">
-          {heading}
-        </h3>
 
-        {canPauseLater && (
+        <div className="playback-delay-modal__head">
+          {HeadingIcon && (
+            <span className="playback-delay-modal__icon" aria-hidden="true">
+              <HeadingIcon size={18} />
+            </span>
+          )}
+          <h3 id="playback-delay-modal-title" className="playback-delay-modal__title">
+            {heading}
+          </h3>
+        </div>
+
+        {(canPauseLater || canStartLater) && (
           <>
-            {scheduledPauseAtMs != null && (
+            {scheduledAt != null && (
               <div className="playback-delay-section__head playback-delay-section__head--tight">
                 <span className="playback-delay-section__countdown">
-                  {t('player.delayIn')} {formatPlaybackScheduleRemaining(scheduledPauseAtMs, nowTick)}
+                  {t('player.delayIn')} {formatPlaybackScheduleRemaining(scheduledAt, nowTick)}
                 </span>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm playback-delay-inline-cancel"
-                  aria-label={t('player.delayCancelPause')}
-                  onClick={() => clearScheduledPause()}
-                >
-                  {t('player.delayCancel')}
-                </button>
+                {clearScheduled && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm playback-delay-inline-cancel"
+                    aria-label={cancelLabel}
+                    onClick={() => clearScheduled()}
+                  >
+                    {t('player.delayCancel')}
+                  </button>
+                )}
               </div>
             )}
-            <div className="playback-delay-chips playback-delay-chips--compact">
+            <div
+              className="playback-delay-chips playback-delay-chips--compact"
+              onMouseLeave={() => setHoverSeconds(null)}
+            >
               {PRESET_SECONDS.map(sec => (
-                <button key={`p-${sec}`} type="button" className="playback-delay-chip" onClick={() => applyPause(sec)}>
+                <button
+                  key={`pr-${sec}`}
+                  type="button"
+                  className="playback-delay-chip"
+                  onMouseEnter={() => setHoverSeconds(sec)}
+                  onFocus={() => setHoverSeconds(sec)}
+                  onBlur={() => setHoverSeconds(null)}
+                  onClick={() => apply(sec)}
+                >
                   {formatPresetLabel(sec, t)}
                 </button>
               ))}
             </div>
-          </>
-        )}
 
-        {canStartLater && (
-          <>
-            {scheduledResumeAtMs != null && (
-              <div className="playback-delay-section__head playback-delay-section__head--tight">
-                <span className="playback-delay-section__countdown">
-                  {t('player.delayIn')} {formatPlaybackScheduleRemaining(scheduledResumeAtMs, nowTick)}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm playback-delay-inline-cancel"
-                  aria-label={t('player.delayCancelStart')}
-                  onClick={() => clearScheduledResume()}
-                >
-                  {t('player.delayCancel')}
-                </button>
+            <div className="playback-delay-custom playback-delay-custom--inline">
+              <div className="playback-delay-custom__field">
+                <input
+                  ref={customInputRef}
+                  id="playback-delay-custom-min"
+                  type="text"
+                  inputMode="decimal"
+                  className="playback-delay-custom__input"
+                  placeholder={t('player.delayCustomPlaceholder')}
+                  value={customMinutes}
+                  onChange={e => setCustomMinutes(e.target.value)}
+                  aria-label={t('player.delayCustomMinutes')}
+                />
+                <span className="playback-delay-custom__suffix" aria-hidden="true">min</span>
               </div>
-            )}
-            <div className="playback-delay-chips playback-delay-chips--compact">
-              {PRESET_SECONDS.map(sec => (
-                <button key={`s-${sec}`} type="button" className="playback-delay-chip" onClick={() => applyStart(sec)}>
-                  {formatPresetLabel(sec, t)}
-                </button>
-              ))}
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={customSeconds == null}
+                aria-label={canPauseLater ? t('player.delaySchedulePause') : t('player.delayScheduleStart')}
+                onClick={() => { if (customSeconds != null) apply(customSeconds); }}
+              >
+                {t('player.delayApply')}
+              </button>
+            </div>
+
+            <div
+              className="playback-delay-preview"
+              aria-live="polite"
+              data-empty={previewClock == null ? 'true' : 'false'}
+            >
+              {previewClock != null && (
+                <>
+                  <span className="playback-delay-preview__label">
+                    {canPauseLater ? t('player.delayPreviewPause') : t('player.delayPreviewStart')}
+                  </span>
+                  <span className="playback-delay-preview__time">{previewClock}</span>
+                </>
+              )}
             </div>
           </>
         )}
@@ -221,34 +290,6 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
           <div className="playback-delay-idle">
             <p className="playback-delay-muted">{t('player.delayInactivePause')}</p>
             <p className="playback-delay-muted">{t('player.delayInactiveStart')}</p>
-          </div>
-        )}
-
-        {(canPauseLater || canStartLater) && (
-          <div className="playback-delay-custom playback-delay-custom--inline">
-            <input
-              id="playback-delay-custom-min"
-              type="text"
-              inputMode="decimal"
-              className="playback-delay-custom__input"
-              placeholder={t('player.delayCustomPlaceholder')}
-              value={customMinutes}
-              onChange={e => setCustomMinutes(e.target.value)}
-              aria-label={t('player.delayCustomMinutes')}
-            />
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={customSeconds == null}
-              aria-label={canPauseLater ? t('player.delaySchedulePause') : t('player.delayScheduleStart')}
-              onClick={() => {
-                if (customSeconds == null) return;
-                if (canPauseLater) applyPause(customSeconds);
-                else applyStart(customSeconds);
-              }}
-            >
-              {t('player.delayApply')}
-            </button>
           </div>
         )}
       </div>

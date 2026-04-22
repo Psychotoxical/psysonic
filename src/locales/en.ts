@@ -1131,6 +1131,8 @@ export const enTranslation = {
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pause after',
     delayStartSection: 'Start after',
+    delayPreviewPause: 'Pauses at',
+    delayPreviewStart: 'Starts at',
     delaySchedulePause: 'Schedule pause',
     delayScheduleStart: 'Schedule start',
     delayCancelPause: 'Cancel pause timer',
