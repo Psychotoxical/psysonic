@@ -3232,6 +3232,7 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  -webkit-user-drag: none;
 }
 
 .sidebar-customizer-grip:active {

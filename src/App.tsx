@@ -324,13 +324,11 @@ function AppShell() {
     };
   }, [isDraggingQueue, handleMouseMove, handleMouseUp]);
 
-  // ── Global DnD fix for Linux/WebKitGTK ──────────────────────────
-  // WebKitGTK (used by Tauri on Linux) requires the document itself to
-  // accept drags via preventDefault() on dragover/dragenter.  Without
-  // this, the webview shows a "forbidden" cursor for all in-app HTML5
-  // drag-and-drop because it never sees a valid drop target at the
-  // document level.  This is harmless on Windows/macOS where DnD already
-  // works correctly.
+  // ── Global DnD fix for Linux/WebKitGTK / Wayland ─────────────────
+  // dragover/dragenter: WebKitGTK needs preventDefault so external drops are not
+  // a permanent "forbidden" cursor. dragstart (capture): cancel native drags from
+  // the page (e.g. SVG grips); Wayland can otherwise leave a stuck GTK drag-proxy.
+  // In-app moves use psy-drag (mouse events). Harmless on Windows/macOS.
   useEffect(() => {
     const allow = (e: DragEvent) => {
       e.preventDefault();
@@ -358,9 +356,14 @@ function AppShell() {
       e.preventDefault();
     };
 
+    const blockDragStart = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
     document.addEventListener('dragover', allow);
     document.addEventListener('dragenter', allow);
     document.addEventListener('drop', blockDrop);
+    document.addEventListener('dragstart', blockDragStart, true);
     document.addEventListener('keydown', blockSelectAll, true);
     document.addEventListener('selectstart', blockSelectStart);
 
@@ -368,6 +371,7 @@ function AppShell() {
       document.removeEventListener('dragover', allow);
       document.removeEventListener('dragenter', allow);
       document.removeEventListener('drop', blockDrop);
+      document.removeEventListener('dragstart', blockDragStart, true);
       document.removeEventListener('keydown', blockSelectAll, true);
       document.removeEventListener('selectstart', blockSelectStart);
     };

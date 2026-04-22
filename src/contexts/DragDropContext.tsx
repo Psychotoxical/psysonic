@@ -128,6 +128,8 @@ export function DragDropProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!state.payload) return;
 
+    let ended = false;
+
     const onMove = (e: MouseEvent) => {
       // preventDefault stops the browser from treating the mouse movement as
       // a text-selection drag, which causes element highlighting and
@@ -136,38 +138,63 @@ export function DragDropProvider({ children }: { children: React.ReactNode }) {
       setState((prev) => ({ ...prev, position: { x: e.clientX, y: e.clientY } }));
     };
 
-    const onUp = () => {
-      // Clear any residual selection (from the pre-threshold phase).
+    /** End drag; optionally fire `psy-drop` at the last known cursor position. */
+    const endDrag = (dispatchDrop: boolean) => {
+      if (ended || !stateRef.current.payload) return;
+      ended = true;
+
       window.getSelection()?.removeAllRanges();
 
-      // Dispatch a custom event so drop targets can react.
-      // The payload is in `detail`.
-      const evt = new CustomEvent('psy-drop', {
-        bubbles: true,
-        detail: stateRef.current.payload,
-      });
-      // Find element under cursor
-      const el = document.elementFromPoint(
-        stateRef.current.position.x,
-        stateRef.current.position.y,
-      );
-      if (el) el.dispatchEvent(evt);
+      if (dispatchDrop) {
+        const evt = new CustomEvent('psy-drop', {
+          bubbles: true,
+          detail: stateRef.current.payload,
+        });
+        const el = document.elementFromPoint(
+          stateRef.current.position.x,
+          stateRef.current.position.y,
+        );
+        if (el) el.dispatchEvent(evt);
+      }
 
       setState({ payload: null, position: { x: 0, y: 0 } });
     };
 
-    document.addEventListener('mousemove', onMove, { passive: false });
-    document.addEventListener('mouseup', onUp);
+    const onUp = () => endDrag(true);
+    /** Wayland: webview may not get `mouseup` when the pointer leaves the surface — clear the ghost without a drop. */
+    const onBlur = () => endDrag(false);
+    const onVisibility = () => {
+      if (document.hidden) endDrag(false);
+    };
+    const onPointerCancel = () => endDrag(false);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        endDrag(false);
+      }
+    };
 
-    // Add a class so CSS can show grab cursor and suppress selection
+    document.addEventListener('mousemove', onMove, { passive: false });
+    document.addEventListener('mouseup', onUp, true);
+    document.addEventListener('pointerup', onUp, true);
+    document.addEventListener('pointercancel', onPointerCancel, true);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('keydown', onKeyDown, true);
+
     document.body.classList.add('psy-dragging');
 
     return () => {
       document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('mouseup', onUp, true);
+      document.removeEventListener('pointerup', onUp, true);
+      document.removeEventListener('pointercancel', onPointerCancel, true);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('keydown', onKeyDown, true);
       document.body.classList.remove('psy-dragging');
     };
-  }, [state.payload !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.payload]);
 
   const ctxValue: DragDropContextValue = {
     startDrag,
