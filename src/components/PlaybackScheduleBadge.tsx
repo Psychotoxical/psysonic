@@ -52,7 +52,7 @@ export default function PlaybackScheduleBadge({ layoutAnchorRef, className }: Pl
   useEffect(() => {
     if (deadlineMs == null || windowHidden) return;
     const id = window.setInterval(() => {
-      if (document.hidden || (window as any).__psyHidden) return;
+      if (document.hidden || window.__psyHidden) return;
       setNowMs(Date.now());
     }, 500);
     return () => window.clearInterval(id);

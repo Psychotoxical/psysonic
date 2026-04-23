@@ -931,7 +931,7 @@ function TauriEventBridge() {
         unlisten.push(u);
       }
 
-     // window:close-requested is emitted by Rust (prevent_close + emit).
+      // window:close-requested is emitted by Rust (prevent_close + emit).
       // JS decides: minimize to tray or exit, based on user setting.
       const u = await listen('window:close-requested', async () => {
         if (useAuthStore.getState().minimizeToTray) {

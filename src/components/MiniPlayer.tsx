@@ -239,7 +239,7 @@ export default function MiniPlayer() {
       if (typeof e.payload.volume === 'number') setVolumeState(e.payload.volume);
     });
     const unProgress = listen<ProgressPayload>('audio:progress', (e) => {
-      if (hiddenRef.current || (window as any).__psyHidden) return;
+      if (hiddenRef.current || window.__psyHidden) return;
       setCurrentTime(e.payload.current_time);
       if (e.payload.duration > 0) setDuration(e.payload.duration);
     });

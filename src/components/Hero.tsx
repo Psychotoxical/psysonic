@@ -95,7 +95,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     timerRef.current = null;
     if (len <= 1 || windowHidden) return;
     timerRef.current = setInterval(() => {
-      if (document.hidden || (window as any).__psyHidden) return;
+      if (document.hidden || window.__psyHidden) return;
       setActiveIdx(prev => (prev + 1) % len);
     }, INTERVAL_MS);
   }, [windowHidden]);

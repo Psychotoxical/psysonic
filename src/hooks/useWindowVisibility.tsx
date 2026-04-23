@@ -14,25 +14,31 @@ const WindowVisibilityContext = createContext(false);
  *
  * On Windows WebView2, `visibilitychange` and `blur`/`focus` events do not
  * fire when `win.hide()` is called. We fall back to polling `document.hidden`
- * with an adaptive interval: fast checks while visible (to catch show quickly),
- * slow checks while hidden (to minimize CPU wakeups).
+ * OR-ed with `window.__psyHidden` (set from Rust before/after `win.hide()` /
+ * `show()`) — the latter is the reliable signal on WebView2 where
+ * `document.hidden` may stay false. Adaptive interval: slow while hidden
+ * (minimize wakeups), 500 ms while visible (catch show without burning CPU).
  */
+function isWindowHidden() {
+  return document.hidden || !!window.__psyHidden;
+}
+
 export function WindowVisibilityProvider({ children }: { children: ReactNode }) {
-  const [hidden, setHidden] = useState(document.hidden);
+  const [hidden, setHidden] = useState(isWindowHidden);
   const hiddenRef = useRef(hidden);
 
   useEffect(() => {
-    hiddenRef.current = document.hidden;
+    hiddenRef.current = isWindowHidden();
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const schedule = () => {
       if (cancelled) return;
-      const interval = hiddenRef.current ? 1000 : 200;
+      const interval = hiddenRef.current ? 1000 : 500;
       timeoutId = setTimeout(() => {
         timeoutId = null;
         if (cancelled) return;
-        const current = document.hidden;
+        const current = isWindowHidden();
         if (current !== hiddenRef.current) {
           hiddenRef.current = current;
           setHidden(current);
