@@ -3039,8 +3039,13 @@ fn default_mini_position(app: &tauri::AppHandle) -> Option<tauri::PhysicalPositi
 /// or every `requestAnimationFrame` loop — it sets a flag the app reads, zeros
 /// `--psy-anim-speed` (for CSS that opts into it), and pauses **@keyframes**
 /// animations via `animation-play-state` (not CSS transitions).
+///
+/// Also sets `data-psy-native-hidden` on `<html>` so global CSS can pause every
+/// animation including `::before`/`::after` and portal content under `<body>`
+/// when `document.hidden` stays false on some WebView2 builds after `win.hide()`.
 const PAUSE_RENDERING_JS: &str = r#"
 window.__psyHidden = true;
+document.documentElement.setAttribute('data-psy-native-hidden', 'true');
 document.documentElement.style.setProperty('--psy-anim-speed', '0');
 (function () {
   const root = document.getElementById('root');
@@ -3054,6 +3059,7 @@ document.documentElement.style.setProperty('--psy-anim-speed', '0');
 /// JS snippet to resume rendering when the window becomes visible again.
 const RESUME_RENDERING_JS: &str = r#"
 window.__psyHidden = false;
+document.documentElement.removeAttribute('data-psy-native-hidden');
 document.documentElement.style.removeProperty('--psy-anim-speed');
 (function () {
   const root = document.getElementById('root');

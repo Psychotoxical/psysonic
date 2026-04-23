@@ -7,6 +7,7 @@ import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { playAlbum } from '../utils/playAlbum';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useWindowVisibility } from '../hooks/useWindowVisibility';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mixRatingFilter';
@@ -65,6 +66,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const windowHidden = useWindowVisibility();
 
   useEffect(() => {
     if (albumsProp?.length) { setAlbums(albumsProp); return; }
@@ -87,18 +89,23 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     mixMinRatingArtist,
   ]);
 
-  // Start / restart auto-advance timer
+  // Start / restart auto-advance timer (paused while the Tauri window is hidden).
   const startTimer = useCallback((len: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (len <= 1) return;
+    timerRef.current = null;
+    if (len <= 1 || windowHidden) return;
     timerRef.current = setInterval(() => {
+      if (document.hidden || (window as any).__psyHidden) return;
       setActiveIdx(prev => (prev + 1) % len);
     }, INTERVAL_MS);
-  }, []);
+  }, [windowHidden]);
 
   useEffect(() => {
     startTimer(albums.length);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+    };
   }, [albums.length, startTimer]);
 
   const goTo = useCallback((idx: number) => {

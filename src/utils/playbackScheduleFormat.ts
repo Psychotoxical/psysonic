@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlayerStore } from '../store/playerStore';
+import { useWindowVisibility } from '../hooks/useWindowVisibility';
 
 /** Remaining time until wall-clock `deadlineMs` (m:ss or h:mm:ss). */
 export function formatPlaybackScheduleRemaining(deadlineMs: number | null, nowMs: number): string {
@@ -43,11 +44,15 @@ export function usePlaybackScheduleRemaining(): PlaybackScheduleInfo | null {
     : null;
   const deadlineMs = mode === 'pause' ? scheduledPauseAtMs : mode === 'start' ? scheduledResumeAtMs : null;
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const windowHidden = useWindowVisibility();
   useEffect(() => {
-    if (deadlineMs == null) return;
-    const id = window.setInterval(() => setNowMs(Date.now()), 500);
+    if (deadlineMs == null || windowHidden) return;
+    const id = window.setInterval(() => {
+      if (document.hidden || (window as any).__psyHidden) return;
+      setNowMs(Date.now());
+    }, 500);
     return () => window.clearInterval(id);
-  }, [deadlineMs]);
+  }, [deadlineMs, windowHidden]);
   if (mode == null || deadlineMs == null) return null;
   return { remaining: formatPlaybackScheduleRemaining(deadlineMs, nowMs), mode };
 }

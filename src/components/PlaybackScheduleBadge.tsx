@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { formatPlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
+import { useWindowVisibility } from '../hooks/useWindowVisibility';
 
 export interface PlaybackScheduleBadgeProps {
   /** Anchor element (usually the play/pause button wrapper) — the ring centres on it. */
@@ -46,15 +47,19 @@ export default function PlaybackScheduleBadge({ layoutAnchorRef, className }: Pl
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [anchorRect, setAnchorRect] = useState<{ left: number; top: number; size: number } | null>(null);
+  const windowHidden = useWindowVisibility();
 
   useEffect(() => {
-    if (deadlineMs == null) return;
-    const id = window.setInterval(() => setNowMs(Date.now()), 500);
+    if (deadlineMs == null || windowHidden) return;
+    const id = window.setInterval(() => {
+      if (document.hidden || (window as any).__psyHidden) return;
+      setNowMs(Date.now());
+    }, 500);
     return () => window.clearInterval(id);
-  }, [deadlineMs]);
+  }, [deadlineMs, windowHidden]);
 
   useLayoutEffect(() => {
-    if (deadlineMs == null) return;
+    if (deadlineMs == null || windowHidden) return;
     const el = layoutAnchorRef.current;
     if (!el) return;
     const sync = () => {
@@ -74,7 +79,7 @@ export default function PlaybackScheduleBadge({ layoutAnchorRef, className }: Pl
       window.removeEventListener('scroll', sync, true);
       window.clearInterval(iv);
     };
-  }, [deadlineMs, layoutAnchorRef]);
+  }, [deadlineMs, layoutAnchorRef, windowHidden]);
 
   if (deadlineMs == null || startMs == null || !anchorRect) return null;
 

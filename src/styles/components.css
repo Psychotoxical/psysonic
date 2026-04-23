@@ -9626,11 +9626,11 @@ html.no-compositing .fs-seekbar-played {
 .device-sync-row-meta { font-size: 0.75rem; color: var(--text-secondary); flex-shrink: 0; }
 
 /* ── Pause CSS animations when the window is hidden / minimized ────────────
-   Set via App.tsx on `visibilitychange`. WebView2 on Windows keeps compositing
-   infinite CSS animations (mesh-aura, portrait-drift, eq-bounce, track-pulse,
-   led-pulse, …) even when the app is minimized, causing constant GPU use.
-   Pausing them cuts that to near zero while hidden without touching the
-   running Rust/audio threads. */
+   - `data-app-hidden`: App.tsx `visibilitychange` → `document.hidden` (all platforms).
+   - `data-psy-native-hidden`: Rust inject on Tauri `win.hide()` / show (WebView2
+     often keeps `document.hidden === false` when the native window is hidden).
+   Either flag pauses infinite animations including portaled nodes and ::pseudo,
+   without touching Rust/audio threads. */
 /* ─ What's New — banner + page ────────────────────────────────────────────
    Fixed neutral palette so it reads identically on every theme (light and
    dark). The banner sits in the sidebar just above Now Playing; the page
@@ -10268,7 +10268,10 @@ html.no-compositing .fs-seekbar-played {
 
 html[data-app-hidden="true"] *,
 html[data-app-hidden="true"] *::before,
-html[data-app-hidden="true"] *::after {
+html[data-app-hidden="true"] *::after,
+html[data-psy-native-hidden="true"] *,
+html[data-psy-native-hidden="true"] *::before,
+html[data-psy-native-hidden="true"] *::after {
   animation-play-state: paused !important;
 }
 
