@@ -21,6 +21,7 @@ import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, Las
 import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
 import SettingsSubSection from '../components/SettingsSubSection';
+import { AboutPsysonicBrandHeader } from '../components/AboutPsysonicLol';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useShallow } from 'zustand/react/shallow';
@@ -3984,17 +3985,7 @@ export default function Settings() {
             icon={<Info size={16} />}
           >
             <div className="settings-card settings-about">
-              <div className="settings-about-header">
-                <img src="/logo-psysonic.png" width={52} height={52} alt="Psysonic" style={{ borderRadius: 14 }} />
-                <div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Psysonic
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {t('settings.aboutVersion')} {appVersion}
-                  </div>
-                </div>
-              </div>
+              <AboutPsysonicBrandHeader appVersion={appVersion} aboutVersionLabel={t('settings.aboutVersion')} />
 
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '1rem 0 0.5rem' }}>
                 {t('settings.aboutDesc')}

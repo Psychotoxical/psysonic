@@ -1088,7 +1088,7 @@ export default function App() {
     useGlobalShortcutsStore.getState().registerAll();
   }, []);
 
-  // ── Easter egg: Ctrl+Shift+Alt+N → export new albums image ──
+  // ── Lol: Ctrl+Shift+Alt+N → export new albums image ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.shiftKey || !e.altKey || e.code !== 'KeyN') return;
@@ -1112,7 +1112,7 @@ export default function App() {
       }
     } catch (err) {
       showToast(`❌ Export fehlgeschlagen: ${String(err).slice(0, 80)}`);
-      console.error('[easter egg] export failed:', err);
+      console.error('[lol] export failed:', err);
     }
   };
 
