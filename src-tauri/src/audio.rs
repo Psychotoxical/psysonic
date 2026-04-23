@@ -3064,7 +3064,12 @@ pub async fn audio_chain_preload(
 
     let raw_bytes = Arc::new(data);
 
-    let (gain_linear, effective_volume) = compute_gain(replay_gain_db, replay_gain_peak, pre_gain_db, fallback_db, volume);
+    // Only `gain_linear` is needed — `effective_volume` is intentionally NOT
+    // applied to the Sink here. `audio_chain_preload` runs ~30 s before the
+    // current track ends, and `Sink::set_volume` affects the WHOLE Sink (incl.
+    // the still-playing current source). Volume for the chained track is
+    // applied at the gapless transition in `spawn_progress_task`, not here.
+    let (gain_linear, _effective_volume) = compute_gain(replay_gain_db, replay_gain_peak, pre_gain_db, fallback_db, volume);
 
     let done_next = Arc::new(AtomicBool::new(false));
     // Use a dedicated counter for the chained source — it will be swapped into
@@ -3116,11 +3121,11 @@ pub async fn audio_chain_preload(
     }
 
     // Append to the existing Sink. The audio hardware stream never stalls.
+    // Note: `set_volume` is deliberately NOT called here (see comment above).
     {
         let cur = state.current.lock().unwrap();
         match &cur.sink {
             Some(sink) => {
-                sink.set_volume(effective_volume);
                 sink.append(source);
             }
             None => return Ok(()), // playback stopped — bail
@@ -3208,7 +3213,12 @@ fn spawn_progress_task(
                     // a one-time value copy would go stale immediately.
                     samples_played = info.sample_counter;
 
-                    // Update tracking state.
+                    // Update tracking state and apply the chained track's
+                    // effective volume. Deferred from `audio_chain_preload`
+                    // (which runs ~30 s before the current track ends) to
+                    // avoid changing loudness of the still-playing current
+                    // track. `Sink::set_volume` affects the whole Sink, so it
+                    // must only be called at the boundary, not at preload.
                     {
                         let mut cur = current_arc.lock().unwrap();
                         cur.replay_gain_linear = info.replay_gain_linear;
@@ -3216,6 +3226,10 @@ fn spawn_progress_task(
                         cur.duration_secs = info.duration_secs;
                         cur.seek_offset = 0.0;
                         cur.play_started = Some(Instant::now());
+                        if let Some(sink) = &cur.sink {
+                            let effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
+                            sink.set_volume(effective);
+                        }
                     }
 
                     // Record the gapless switch timestamp for ghost-command guard.
