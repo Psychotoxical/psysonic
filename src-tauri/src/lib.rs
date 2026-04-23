@@ -3012,6 +3012,27 @@ fn persist_mini_pos_throttled(app: &tauri::AppHandle, x: i32, y: i32) {
     write_mini_pos(app, MiniPlayerPosition { x, y });
 }
 
+/// Returns true when the saved top-left lands inside an available monitor
+/// with enough room (≥ 80 px in each axis) to leave a draggable corner of
+/// the window on-screen. Used to drop persisted positions that point at a
+/// monitor that is no longer enumerated (unplugged, hot-plug detection
+/// race during early boot, resolution change, monitor reorder).
+fn mini_position_visible(app: &tauri::AppHandle, x: i32, y: i32) -> bool {
+    const MIN_VISIBLE: i32 = 80;
+    let monitors = match app.available_monitors() {
+        Ok(m) if !m.is_empty() => m,
+        _ => return false,
+    };
+    monitors.iter().any(|m| {
+        let mp = m.position();
+        let ms = m.size();
+        x >= mp.x
+            && y >= mp.y
+            && x + MIN_VISIBLE <= mp.x + ms.width as i32
+            && y + MIN_VISIBLE <= mp.y + ms.height as i32
+    })
+}
+
 /// Default position when nothing is persisted: bottom-right of the monitor
 /// the main window sits on (falls back to primary). A 24 px logical margin
 /// keeps it off the screen edge; +56 px on the bottom margin avoids most
@@ -3103,7 +3124,11 @@ fn build_mini_player_window(
     // Resolve target position BEFORE building so the WM places the window
     // correctly from creation. Calling `set_position` after `build()` is
     // unreliable on several Linux WMs which re-centre hidden windows.
+    // Drop the persisted position if it would land on a monitor that is
+    // no longer enumerated (unplugged second monitor, hot-plug race during
+    // early boot, resolution change) — fall back to the default placement.
     let target_physical = read_mini_pos(app)
+        .filter(|p| mini_position_visible(app, p.x, p.y))
         .map(|p| tauri::PhysicalPosition::new(p.x, p.y))
         .or_else(|| default_mini_position(app));
     let scale = app
@@ -3207,12 +3232,17 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
         // again, ignoring any earlier set_position. Mark the move as
         // programmatic so the Moved-event handler doesn't echo the
         // intermediate centre coords back to disk.
-        let target = read_mini_pos(&app);
+        // Drop the persisted position if its monitor is gone and fall
+        // back to the default placement so we don't open off-screen.
+        let target = read_mini_pos(&app)
+            .filter(|p| mini_position_visible(&app, p.x, p.y))
+            .map(|p| tauri::PhysicalPosition::new(p.x, p.y))
+            .or_else(|| default_mini_position(&app));
         mark_mini_pos_programmatic();
         win.show().map_err(|e| e.to_string())?;
         let _ = win.set_focus();
         if let Some(p) = target {
-            let _ = win.set_position(tauri::PhysicalPosition::new(p.x, p.y));
+            let _ = win.set_position(p);
         }
         if let Some(main) = app.get_webview_window("main") {
             let _ = main.minimize();
