@@ -2,7 +2,6 @@ import {
   createContext,
   useContext,
   useState,
-  useCallback,
   useRef,
   useEffect,
   type ReactNode,
@@ -22,27 +21,32 @@ export function WindowVisibilityProvider({ children }: { children: ReactNode }) 
   const [hidden, setHidden] = useState(document.hidden);
   const hiddenRef = useRef(hidden);
 
-  const scheduleCheck = useCallback(() => {
-    const interval = hiddenRef.current ? 1000 : 200;
-    const id = setTimeout(() => {
-      const current = document.hidden;
-      if (current !== hiddenRef.current) {
-        hiddenRef.current = current;
-        setHidden(current);
-      }
-      scheduleCheck();
-    }, interval);
-    return id;
-  }, []);
-
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
-    timerRef.current = scheduleCheck();
-    return () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    hiddenRef.current = document.hidden;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = () => {
+      if (cancelled) return;
+      const interval = hiddenRef.current ? 1000 : 200;
+      timeoutId = setTimeout(() => {
+        timeoutId = null;
+        if (cancelled) return;
+        const current = document.hidden;
+        if (current !== hiddenRef.current) {
+          hiddenRef.current = current;
+          setHidden(current);
+        }
+        schedule();
+      }, interval);
     };
-  }, [scheduleCheck]);
+
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) clearTimeout(timeoutId);
+    };
+  }, []);
 
   return (
     <WindowVisibilityContext.Provider value={hidden}>

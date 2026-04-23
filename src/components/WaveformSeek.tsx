@@ -727,7 +727,6 @@ export function SeekbarPreview({
   onClick: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef    = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -738,9 +737,24 @@ export function SeekbarPreview({
     }
     const animState = makeAnimState();
     let t = 0;
+    let rafId: number | null = null;
+    let pollId: number | null = null;
+    const stop = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (pollId !== null) {
+        window.clearTimeout(pollId);
+        pollId = null;
+      }
+    };
     const tick = () => {
       if (document.hidden || (window as any).__psyHidden) {
-        rafRef.current = requestAnimationFrame(tick);
+        pollId = window.setTimeout(() => {
+          pollId = null;
+          tick();
+        }, 400);
         return;
       }
       t += 0.016;
@@ -748,10 +762,10 @@ export function SeekbarPreview({
       const progress = 0.15 + 0.65 * (0.5 + 0.5 * Math.sin(t));
       const buffered  = Math.min(1, progress + 0.18);
       drawSeekbar(canvas, style, heights, progress, buffered, animState);
-      rafRef.current = requestAnimationFrame(tick);
+      rafId = requestAnimationFrame(tick);
     };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+    tick();
+    return () => stop();
   }, [style]);
 
   return (
@@ -873,18 +887,32 @@ export default function WaveformSeek({ trackId }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     animStateRef.current = makeAnimState();
-    let rafId: number;
+    let rafId: number | null = null;
+    let pollId: number | null = null;
+    const stop = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (pollId !== null) {
+        window.clearTimeout(pollId);
+        pollId = null;
+      }
+    };
     const tick = () => {
       if (document.hidden || (window as any).__psyHidden) {
-        rafId = requestAnimationFrame(tick);
+        pollId = window.setTimeout(() => {
+          pollId = null;
+          tick();
+        }, 400);
         return;
       }
       animStateRef.current.time += 0.016;
       drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
       rafId = requestAnimationFrame(tick);
     };
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    tick();
+    return () => stop();
   }, [seekbarStyle]);
 
   // Resize observer.

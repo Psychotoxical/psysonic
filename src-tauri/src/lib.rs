@@ -2747,8 +2747,8 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
             "show_hide"  => {
                 if let Some(win) = app.get_webview_window("main") {
                     if win.is_visible().unwrap_or(false) {
-                        let _ = win.hide();
                         let _ = win.eval(PAUSE_RENDERING_JS);
+                        let _ = win.hide();
                     } else {
                         let _ = win.eval(RESUME_RENDERING_JS);
                         let _ = win.show();
@@ -2783,8 +2783,8 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
                 let app = tray.app_handle();
                 if let Some(win) = app.get_webview_window("main") {
                     if win.is_visible().unwrap_or(false) {
-                        let _ = win.hide();
                         let _ = win.eval(PAUSE_RENDERING_JS);
+                        let _ = win.hide();
                     } else {
                         let _ = win.eval(RESUME_RENDERING_JS);
                         let _ = win.show();
@@ -3031,26 +3031,37 @@ fn default_mini_position(app: &tauri::AppHandle) -> Option<tauri::PhysicalPositi
     ))
 }
 
-/// JS snippet to inject into a hidden webview to stop all rendering work.
-/// This is critical on Windows where WebView2 keeps the GPU context alive
-/// even when the window is hidden — without this the webview continues
-/// running rAF loops, CSS animations, and setInterval timers.
+/// JS snippet to inject into a hidden webview to reduce compositor work while
+/// the host window is invisible.
+///
+/// WebView2 on Windows can keep a GPU-backed compositor active even when the
+/// native window is hidden. This script does **not** stop arbitrary JS timers
+/// or every `requestAnimationFrame` loop — it sets a flag the app reads, zeros
+/// `--psy-anim-speed` (for CSS that opts into it), and pauses **@keyframes**
+/// animations via `animation-play-state` (not CSS transitions).
 const PAUSE_RENDERING_JS: &str = r#"
 window.__psyHidden = true;
 document.documentElement.style.setProperty('--psy-anim-speed', '0');
-// Pause all CSS animations
-document.querySelectorAll('*').forEach(el => {
-  el.style.animationPlayState = 'paused';
-});
+(function () {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.querySelectorAll('*').forEach(function (el) {
+    el.style.animationPlayState = 'paused';
+  });
+})();
 "#;
 
 /// JS snippet to resume rendering when the window becomes visible again.
 const RESUME_RENDERING_JS: &str = r#"
 window.__psyHidden = false;
 document.documentElement.style.removeProperty('--psy-anim-speed');
-document.querySelectorAll('*').forEach(el => {
-  el.style.animationPlayState = '';
-});
+(function () {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.querySelectorAll('*').forEach(function (el) {
+    el.style.animationPlayState = '';
+  });
+})();
 "#;
 
 /// Build the mini player webview window. Caller decides `visible` so the
@@ -3166,9 +3177,10 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 
     let visible = win.is_visible().unwrap_or(false);
     if visible {
-        win.hide().map_err(|e| e.to_string())?;
-        // Stop rendering work on the now-hidden mini window.
+        // Pause before hide so `__psyHidden` is set while the webview is still
+        // guaranteed schedulable (mirrors tray / main close ordering).
         let _ = win.eval(PAUSE_RENDERING_JS);
+        win.hide().map_err(|e| e.to_string())?;
         if let Some(main) = app.get_webview_window("main") {
             let _ = main.unminimize();
             let _ = main.show();
@@ -3202,8 +3214,8 @@ fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("mini") {
-        win.hide().map_err(|e| e.to_string())?;
         let _ = win.eval(PAUSE_RENDERING_JS);
+        win.hide().map_err(|e| e.to_string())?;
     }
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.unminimize();
@@ -3220,8 +3232,8 @@ fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(mini) = app.get_webview_window("mini") {
-        let _ = mini.hide();
         let _ = mini.eval(PAUSE_RENDERING_JS);
+        let _ = mini.hide();
     }
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.eval(RESUME_RENDERING_JS);
@@ -3232,9 +3244,7 @@ fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Pause all rendering work in the current webview. Called when the window
-/// is hidden on Windows to stop GPU usage — WebView2 keeps the compositor
-/// alive even with SetIsVisible(false), so we inject JS to halt animations.
+/// Inject the pause script into this webview (CSS @keyframes pause + `__psyHidden`).
 #[tauri::command]
 fn pause_rendering(window: tauri::WebviewWindow) -> Result<(), String> {
     window.eval(PAUSE_RENDERING_JS).map_err(|e| e.to_string())
@@ -3599,10 +3609,10 @@ pub fn run() {
                     // Native close on the mini: hide instead of destroying so
                     // state is preserved, and restore the main window.
                     api.prevent_close();
-                    let _ = window.hide();
                     if let Some(w) = window.app_handle().get_webview_window("mini") {
                         let _ = w.eval(PAUSE_RENDERING_JS);
                     }
+                    let _ = window.hide();
                     if let Some(main) = window.app_handle().get_webview_window("main") {
                         let _ = main.unminimize();
                         let _ = main.show();
