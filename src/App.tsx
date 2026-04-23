@@ -11,6 +11,7 @@ import PlayerBar from './components/PlayerBar';
 import BottomNav from './components/BottomNav';
 import MobilePlayerView from './components/MobilePlayerView';
 import { useIsMobile } from './hooks/useIsMobile';
+import { WindowVisibilityProvider } from './hooks/useWindowVisibility';
 import LiveSearch from './components/LiveSearch';
 import NowPlayingDropdown from './components/NowPlayingDropdown';
 import QueuePanel from './components/QueuePanel';
@@ -932,10 +933,11 @@ function TauriEventBridge() {
         unlisten.push(u);
       }
 
-      // window:close-requested is emitted by Rust (prevent_close + emit).
+     // window:close-requested is emitted by Rust (prevent_close + emit).
       // JS decides: minimize to tray or exit, based on user setting.
       const u = await listen('window:close-requested', async () => {
         if (useAuthStore.getState().minimizeToTray) {
+          await invoke('pause_rendering').catch(() => {});
           await getCurrentWindow().hide();
         } else {
           await invoke('exit_app');
@@ -1134,24 +1136,26 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <PasteClipboardHandler />
-      <TauriEventBridge />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/*"
-          element={
-            <RequireAuth>
-              <DragDropProvider>
-                <AppShell />
-              </DragDropProvider>
-            </RequireAuth>
-          }
-        />
-      </Routes>
-      {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
-      <ZipDownloadOverlay />
-    </BrowserRouter>
+    <WindowVisibilityProvider>
+      <BrowserRouter>
+        <PasteClipboardHandler />
+        <TauriEventBridge />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/*"
+            element={
+              <RequireAuth>
+                <DragDropProvider>
+                  <AppShell />
+                </DragDropProvider>
+              </RequireAuth>
+            }
+          />
+        </Routes>
+        {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
+        <ZipDownloadOverlay />
+      </BrowserRouter>
+    </WindowVisibilityProvider>
   );
 }

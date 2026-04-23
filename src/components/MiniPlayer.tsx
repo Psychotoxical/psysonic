@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';
 import { useDragDrop } from '../contexts/DragDropContext';
+import { useWindowVisibility } from '../hooks/useWindowVisibility';
 import { IS_LINUX } from '../utils/platform';
 import MiniContextMenu from './MiniContextMenu';
 import OverlayScrollArea from './OverlayScrollArea';
@@ -114,6 +115,9 @@ export default function MiniPlayer() {
   const ticker = useRef<number | null>(null);
   const queueScrollRef = useRef<HTMLDivElement>(null);
   const volumeWrapRef = useRef<HTMLDivElement>(null);
+  const hiddenRef = useRef(false);
+  const isHidden = useWindowVisibility();
+  useEffect(() => { hiddenRef.current = isHidden; }, [isHidden]);
 
   // ── PsyDnD reorder ──
   // Mirrors QueuePanel's pattern: mousedown threshold → startDrag, mousemove
@@ -235,6 +239,7 @@ export default function MiniPlayer() {
       if (typeof e.payload.volume === 'number') setVolumeState(e.payload.volume);
     });
     const unProgress = listen<ProgressPayload>('audio:progress', (e) => {
+      if (hiddenRef.current || (window as any).__psyHidden) return;
       setCurrentTime(e.payload.current_time);
       if (e.payload.duration > 0) setDuration(e.payload.duration);
     });

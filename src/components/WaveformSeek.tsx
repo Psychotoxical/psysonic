@@ -739,6 +739,10 @@ export function SeekbarPreview({
     const animState = makeAnimState();
     let t = 0;
     const tick = () => {
+      if (document.hidden || (window as any).__psyHidden) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
       t += 0.016;
       animState.time = t;
       const progress = 0.15 + 0.65 * (0.5 + 0.5 * Math.sin(t));
@@ -871,6 +875,10 @@ export default function WaveformSeek({ trackId }: Props) {
     animStateRef.current = makeAnimState();
     let rafId: number;
     const tick = () => {
+      if (document.hidden || (window as any).__psyHidden) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
       animStateRef.current.time += 0.016;
       drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
       rafId = requestAnimationFrame(tick);
