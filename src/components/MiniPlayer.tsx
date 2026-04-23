@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
@@ -114,7 +115,9 @@ export default function MiniPlayer() {
   const [volumeOpen, setVolumeOpen] = useState(false);
   const ticker = useRef<number | null>(null);
   const queueScrollRef = useRef<HTMLDivElement>(null);
-  const volumeWrapRef = useRef<HTMLDivElement>(null);
+  const volumeBtnRef = useRef<HTMLButtonElement>(null);
+  const volumePopRef = useRef<HTMLDivElement>(null);
+  const [volumePopStyle, setVolumePopStyle] = useState<React.CSSProperties>({});
   const hiddenRef = useRef(false);
   const isHidden = useWindowVisibility();
   useEffect(() => { hiddenRef.current = isHidden; }, [isHidden]);
@@ -264,13 +267,58 @@ export default function MiniPlayer() {
     handleVolumeChange(volume === 0 ? 1 : 0);
   };
 
-  // Close the volume popover on outside click / Escape.
+  // Position the portaled volume popover relative to its trigger button.
+  // Auto-flip above when there is not enough room below (mini window is short).
+  const updateVolumePopStyle = () => {
+    if (!volumeBtnRef.current) return;
+    const rect = volumeBtnRef.current.getBoundingClientRect();
+    const MARGIN = 6;
+    const POP_W = 40;
+    const POP_H = 150;
+    const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
+    const spaceAbove = rect.top - MARGIN;
+    const useAbove = spaceBelow < POP_H && spaceAbove > spaceBelow;
+    const left = Math.min(
+      Math.max(rect.left + rect.width / 2 - POP_W / 2, 6),
+      window.innerWidth - POP_W - 6,
+    );
+    setVolumePopStyle({
+      position: 'fixed',
+      left,
+      width: POP_W,
+      ...(useAbove
+        ? { bottom: window.innerHeight - rect.top + MARGIN }
+        : { top: rect.bottom + MARGIN }),
+      zIndex: 99998,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!volumeOpen) return;
+    updateVolumePopStyle();
+  }, [volumeOpen]);
+
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const onReposition = () => updateVolumePopStyle();
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [volumeOpen]);
+
+  // Close the volume popover on outside click / Escape. The popover is now
+  // portaled, so check both the trigger button and the popover ref.
   useEffect(() => {
     if (!volumeOpen) return;
     const onDown = (e: MouseEvent) => {
-      if (volumeWrapRef.current && !volumeWrapRef.current.contains(e.target as Node)) {
-        setVolumeOpen(false);
-      }
+      const target = e.target as Node;
+      if (
+        !volumeBtnRef.current?.contains(target) &&
+        !volumePopRef.current?.contains(target)
+      ) setVolumeOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setVolumeOpen(false);
@@ -453,8 +501,9 @@ export default function MiniPlayer() {
         </div>
 
         <div className="mini-player__toolbar" data-tauri-drag-region="false">
-          <div className="mini-player__volume-wrap" ref={volumeWrapRef}>
+          <div className="mini-player__volume-wrap">
             <button
+              ref={volumeBtnRef}
               type="button"
               className={`mini-player__tool${volumeOpen ? ' mini-player__tool--active' : ''}`}
               onClick={() => setVolumeOpen(v => !v)}
@@ -465,8 +514,13 @@ export default function MiniPlayer() {
             >
               {volume === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}
             </button>
-            {volumeOpen && (
-              <div className="mini-player__volume-popover" data-tauri-drag-region="false">
+            {volumeOpen && createPortal(
+              <div
+                ref={volumePopRef}
+                className="mini-player__volume-popover"
+                style={volumePopStyle}
+                data-tauri-drag-region="false"
+              >
                 <span className="mini-player__volume-pct">{Math.round(volume * 100)}%</span>
                 <div
                   className="mini-player__volume-bar"
@@ -501,7 +555,8 @@ export default function MiniPlayer() {
                     style={{ height: `${Math.round(volume * 100)}%` }}
                   />
                 </div>
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
 

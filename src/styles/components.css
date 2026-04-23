@@ -10137,11 +10137,11 @@ html.no-compositing .fs-seekbar-played {
 }
 
 .mini-player__volume-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
+  /* Positioned via inline `style` (createPortal'd to document.body, so
+     `position: fixed` + computed left/top from the trigger button's rect).
+     Falls back gracefully if inline style is missing. */
+  position: fixed;
+  z-index: 99998;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
