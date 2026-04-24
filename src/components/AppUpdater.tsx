@@ -94,9 +94,6 @@ function pickAsset(assets: GithubAsset[]): GithubAsset | undefined {
 type DlState = 'idle' | 'downloading' | 'done' | 'error';
 
 export default function AppUpdater() {
-  // Flathub manages updates for Flatpak installs — updater UI must not appear
-  if (import.meta.env.VITE_PSYSONIC_FLATPAK === '1') return null;
-
   const { t } = useTranslation();
   const [release, setRelease] = useState<ReleaseData | null>(null);
   const [dismissed, setDismissed] = useState(false);
