@@ -268,19 +268,16 @@ jobs:
             -o packages/flatpak/npm-sources.json
 
       - name: patch manifest for this release
+        # The `app-v*` tag only materialises when the Draft release is published,
+        # so it is not a real git ref during CI. Use the triggering `v*` tag
+        # and its commit sha directly — both exist when the workflow runs.
         env:
-          VERSION: ${{ needs.create-release.outputs.package_version }}
+          TRIGGER_TAG: ${{ github.ref_name }}
+          TRIGGER_SHA: ${{ github.sha }}
         run: |
-          git config --global --add safe.directory /__w/psysonic/psysonic
-          # Dereference the release tag to get the commit it points to.
-          # ^{} peels annotated tag objects; falls back for lightweight tags.
-          COMMIT=$(git ls-remote origin "refs/tags/app-v${VERSION}^{}" | awk '{print $1}')
-          if [ -z "$COMMIT" ]; then
-            COMMIT=$(git ls-remote origin "refs/tags/app-v${VERSION}" | awk '{print $1}')
-          fi
           sed -i \
-            -e "s|tag: app-v.*|tag: app-v${VERSION}|" \
-            -e "s|commit: PLACEHOLDER_COMMIT|commit: ${COMMIT}|" \
+            -e "s|tag: app-v.*|tag: ${TRIGGER_TAG}|" \
+            -e "s|commit: PLACEHOLDER_COMMIT|commit: ${TRIGGER_SHA}|" \
             -e "s|VITE_LASTFM_API_KEY=__LASTFM_KEY__|VITE_LASTFM_API_KEY=${{ secrets.VITE_LASTFM_API_KEY }}|" \
             -e "s|VITE_LASTFM_API_SECRET=__LASTFM_SECRET__|VITE_LASTFM_API_SECRET=${{ secrets.VITE_LASTFM_API_SECRET }}|" \
             packages/flatpak/dev.psysonic.Psysonic.yml
