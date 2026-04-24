@@ -3247,6 +3247,20 @@
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.7;
+  list-style: none;
+}
+.contributor-card-list li {
+  position: relative;
+  padding-left: 14px;
+}
+.contributor-card-list li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent);
+  font-weight: 700;
+  line-height: 1.7;
 }
 
 /* ── Datenschutz-Hinweis-Banner (z.B. oben im Integrations-Tab) ──────────── */
