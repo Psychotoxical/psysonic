@@ -16,6 +16,7 @@ const HOME_DISCOVER_SLICE = 20;
 
 export default function Home() {
   const homeSections = useHomeStore(s => s.sections);
+  const activeServerId = useAuthStore(s => s.activeServerId);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const mixMinRatingFilterEnabled = useAuthStore(s => s.mixMinRatingFilterEnabled);
   const mixMinRatingAlbum = useAuthStore(s => s.mixMinRatingAlbum);
@@ -70,6 +71,7 @@ export default function Home() {
     })();
     return () => { cancelled = true; };
   }, [
+    activeServerId,
     musicLibraryFilterVersion,
     homeSections,
     mixMinRatingFilterEnabled,
