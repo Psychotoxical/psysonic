@@ -242,6 +242,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Container runs as root but the checkout is owned by the runner user;
+      # without this, any later `git` (including gh release upload's internal
+      # git probe) aborts with "dubious ownership".
+      - name: mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: install source-generation tools
         run: |
           dnf install -y python3-pip python3-aiohttp
