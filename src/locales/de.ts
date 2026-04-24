@@ -1279,6 +1279,7 @@ export const deTranslation = {
     deleteSuccess: '{{count}} Playlists gelöscht',
     deleteFailed: 'Fehler beim Löschen von {{name}}',
     deleteSelected: 'Ausgewählte löschen',
+    deleteSelectedPartial: 'Nur {{n}} von {{total}} ausgewählten Playlists können gelöscht werden (die anderen gehören jemand anderem).',
     mergeSuccess: '{{count}} Songs in {{playlist}} zusammengeführt',
     mergeNoNewSongs: 'Keine neuen Songs zum Hinzufügen',
     mergeError: 'Fehler beim Zusammenführen von Playlists',

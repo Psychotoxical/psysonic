@@ -1261,6 +1261,7 @@ export const zhTranslation = {
     deleteSuccess: '{{count}} 个播放列表已删除',
     deleteFailed: '删除 {{name}} 时出错',
     deleteSelected: '删除所选',
+    deleteSelectedPartial: '所选 {{total}} 个播放列表中只有 {{n}} 个可删除（其余属于他人）。',
     mergeSuccess: '{{count}} 首歌曲已合并到 {{playlist}}',
     mergeNoNewSongs: '没有新歌曲可添加',
     mergeError: '合并播放列表时出错',

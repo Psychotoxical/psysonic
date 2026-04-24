@@ -734,6 +734,23 @@ export default function Playlists() {
               )}
             </>
           )}
+          {selectionMode && selectedIds.size > 0 && (() => {
+            const deletableCount = selectedPlaylists.filter(isPlaylistDeletable).length;
+            return (
+              <button
+                className="btn btn-danger"
+                onClick={handleDeleteSelected}
+                disabled={deletableCount === 0}
+                data-tooltip={deletableCount === selectedIds.size
+                  ? undefined
+                  : t('playlists.deleteSelectedPartial', { n: deletableCount, total: selectedIds.size })}
+                data-tooltip-pos="bottom"
+              >
+                <Trash2 size={15} />
+                {t('playlists.deleteSelected')}
+              </button>
+            );
+          })()}
           <button
             className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
             onClick={toggleSelectionMode}

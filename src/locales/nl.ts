@@ -1266,6 +1266,7 @@ export const nlTranslation = {
     deleteSuccess: '{{count}} playlists verwijderd',
     deleteFailed: 'Fout bij verwijderen van {{name}}',
     deleteSelected: 'Geselecteerde verwijderen',
+    deleteSelectedPartial: 'Slechts {{n}} van de {{total}} geselecteerde playlists kunnen worden verwijderd (de andere zijn van iemand anders).',
     mergeSuccess: '{{count}} nummers samengevoegd in {{playlist}}',
     mergeNoNewSongs: 'Geen nieuwe nummers om toe te voegen',
     mergeError: 'Fout bij samenvoegen van playlists',

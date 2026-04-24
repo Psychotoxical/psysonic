@@ -1272,6 +1272,7 @@ export const esTranslation = {
     deleteSuccess: '{{count}} listas eliminadas',
     deleteFailed: 'Error al eliminar {{name}}',
     deleteSelected: 'Eliminar seleccionadas',
+    deleteSelectedPartial: 'Solo {{n}} de {{total}} listas seleccionadas pueden eliminarse (las demás pertenecen a otro usuario).',
     mergeSuccess: '{{count}} canciones unificadas en {{playlist}}',
     mergeNoNewSongs: 'No hay canciones nuevas para agregar',
     mergeError: 'Error al unificar listas',

@@ -1267,6 +1267,7 @@ export const frTranslation = {
     deleteSuccess: '{{count}} playlists supprimées',
     deleteFailed: 'Erreur lors de la suppression de {{name}}',
     deleteSelected: 'Supprimer la sélection',
+    deleteSelectedPartial: 'Seulement {{n}} des {{total}} playlists sélectionnées peuvent être supprimées (les autres appartiennent à quelqu\'un d\'autre).',
     mergeSuccess: '{{count}} morceaux fusionnés dans {{playlist}}',
     mergeNoNewSongs: 'Aucun nouveau morceau à ajouter',
     mergeError: 'Erreur lors de la fusion des playlists',

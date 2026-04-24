@@ -1282,6 +1282,7 @@ export const enTranslation = {
     deleteSuccess: '{{count}} playlists deleted',
     deleteFailed: 'Error deleting {{name}}',
     deleteSelected: 'Delete selected',
+    deleteSelectedPartial: 'Only {{n}} of {{total}} selected playlists can be deleted (the others belong to someone else).',
     mergeSuccess: '{{count}} songs merged into {{playlist}}',
     mergeNoNewSongs: 'No new songs to add',
     mergeError: 'Error merging playlists',

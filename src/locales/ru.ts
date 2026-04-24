@@ -1346,6 +1346,7 @@ export const ruTranslation = {
     deleteSuccess: '{{count}} плейлистов удалено',
     deleteFailed: 'Ошибка при удалении {{name}}',
     deleteSelected: 'Удалить выбранные',
+    deleteSelectedPartial: 'Можно удалить только {{n}} из {{total}} выбранных плейлистов (остальные принадлежат другим пользователям).',
     mergeSuccess: '{{count}} треков объединено в {{playlist}}',
     mergeNoNewSongs: 'Нет новых треков для добавления',
     mergeError: 'Ошибка при объединении плейлистов',
