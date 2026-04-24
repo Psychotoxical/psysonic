@@ -73,6 +73,7 @@ jobs:
 
   build-macos-windows:
     needs: create-release
+    if: false # TEMP: flatpak-only test run
     permissions:
       contents: write
     strategy:
@@ -163,6 +164,7 @@ jobs:
 
   generate-manifest:
     needs: [create-release, build-macos-windows]
+    if: false # TEMP: flatpak-only test run
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -182,6 +184,7 @@ jobs:
 
   build-linux:
     needs: create-release
+    if: false # TEMP: flatpak-only test run
     permissions:
       contents: write
     runs-on: ubuntu-24.04
@@ -309,6 +312,7 @@ jobs:
   # The refreshed lock/hash files are committed back to `main` when they change.
   verify-nix:
     needs: create-release
+    if: false # TEMP: flatpak-only test run
     runs-on: ubuntu-24.04
     permissions:
       contents: write
