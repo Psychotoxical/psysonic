@@ -2076,10 +2076,28 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
 
     let host = rodio::cpal::default_host();
 
-    // Resolve the target device: named device first, fall back to system default.
-    let device = device_name.and_then(|name| {
+    // Resolve the target device: explicit name first, then (on Linux) prefer
+    // a "pipewire" or "pulse" ALSA alias before falling back to cpal's system
+    // default. On PipeWire-based distros the raw ALSA `default` alias can
+    // route to a null sink at app-start (issue #234 on Debian 13): the stream
+    // opens cleanly, progress ticks run, no audio reaches the user. The
+    // named-alias path goes through pipewire-alsa's real sink and just works.
+    // On systems where neither alias exists (pure ALSA, macOS, Windows),
+    // `find_by_name` returns None and we drop through to `default_output_device`
+    // unchanged — no regression.
+    let find_by_name = |name: &str| -> Option<_> {
         host.output_devices().ok()?.find(|d| d.name().ok().as_deref() == Some(name))
-    }).or_else(|| host.default_output_device());
+    };
+
+    let device = device_name
+        .and_then(find_by_name)
+        .or_else(|| {
+            #[cfg(target_os = "linux")]
+            { find_by_name("pipewire").or_else(|| find_by_name("pulse")) }
+            #[cfg(not(target_os = "linux"))]
+            { None }
+        })
+        .or_else(|| host.default_output_device());
 
     if let Some(device) = device {
         if desired_rate > 0 {
