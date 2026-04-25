@@ -42,6 +42,7 @@ export const esTranslation = {
     mostPlayed: 'Más Reproducidos',
     recentlyPlayed: 'Reproducidos Recientemente',
     discover: 'Descubrir',
+    discoverSongs: 'Descubrir canciones',
     loadMore: 'Cargar Más',
     discoverMore: 'Descubrir Más',
     discoverArtists: 'Descubrir Artistas',

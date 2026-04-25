@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Hero from '../components/Hero';
 import AlbumRow from '../components/AlbumRow';
-import { getAlbumList, getArtists, SubsonicAlbum, SubsonicArtist } from '../api/subsonic';
+import SongRail from '../components/SongRail';
+import { getAlbumList, getArtists, getRandomSongs, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
@@ -13,6 +14,7 @@ import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../uti
 const HOME_RANDOM_FETCH = 100;
 const HOME_HERO_COUNT = 8;
 const HOME_DISCOVER_SLICE = 20;
+const HOME_DISCOVER_SONGS_SIZE = 18;
 
 export default function Home() {
   const homeSections = useHomeStore(s => s.sections);
@@ -30,6 +32,7 @@ export default function Home() {
   const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>([]);
   const [recentlyPlayed, setRecentlyPlayed] = useState<SubsonicAlbum[]>([]);
   const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>([]);
+  const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,13 +44,16 @@ export default function Home() {
         const albumMix =
           mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
         const randomSize = albumMix ? HOME_RANDOM_FETCH : HOME_DISCOVER_SLICE;
-        const [s, n, rRaw, f, rp, artists] = await Promise.all([
+        const [s, n, rRaw, f, rp, artists, songs] = await Promise.all([
           getAlbumList('starred', 12).catch(() => []),
           getAlbumList('newest', 12).catch(() => []),
           getAlbumList('random', randomSize).catch(() => []),
           getAlbumList('frequent', 12).catch(() => []),
           getAlbumList('recent', 12).catch(() => []),
           isVisible('discoverArtists') ? getArtists().catch(() => []) : Promise.resolve<SubsonicArtist[]>([]),
+          isVisible('discoverSongs')
+            ? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[])
+            : Promise.resolve<SubsonicSong[]>([]),
         ]);
         if (cancelled) return;
         const r = await filterAlbumsByMixRatings(rRaw, mixCfg);
@@ -57,6 +63,7 @@ export default function Home() {
         setRandom(r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE));
         setMostPlayed(f);
         setRecentlyPlayed(rp);
+        setDiscoverSongs(songs);
         const shuffled = [...artists];
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -126,6 +133,12 @@ export default function Home() {
                 albums={random}
                 onLoadMore={() => loadMore('random', random, setRandom)}
                 moreText={t('home.discoverMore')}
+              />
+            )}
+            {isVisible('discoverSongs') && discoverSongs.length > 0 && (
+              <SongRail
+                title={t('home.discoverSongs')}
+                songs={discoverSongs}
               />
             )}
             {isVisible('discoverArtists') && randomArtists.length > 0 && (

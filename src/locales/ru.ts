@@ -43,6 +43,7 @@ export const ruTranslation = {
     mostPlayed: 'Популярное',
     recentlyPlayed: 'Недавно проиграно',
     discover: 'Обзор',
+    discoverSongs: 'Открыть треки',
     loadMore: 'Ещё',
     discoverMore: 'Смотреть ещё',
     discoverArtists: 'Исполнители',

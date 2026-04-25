@@ -41,6 +41,7 @@ export const frTranslation = {
     mostPlayed: 'Les plus écoutés',
     recentlyPlayed: 'Récemment écoutés',
     discover: 'Découvrir',
+    discoverSongs: 'Découvrir des titres',
     loadMore: 'Charger plus',
     discoverMore: 'Découvrir plus',
     discoverArtists: 'Découvrir des artistes',

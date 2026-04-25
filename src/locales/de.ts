@@ -41,6 +41,7 @@ export const deTranslation = {
     mostPlayed: 'Meistgehört',
     recentlyPlayed: 'Kürzlich gespielt',
     discover: 'Entdecken',
+    discoverSongs: 'Titel entdecken',
     loadMore: 'Mehr laden',
     discoverMore: 'Mehr entdecken',
     discoverArtists: 'Künstler entdecken',

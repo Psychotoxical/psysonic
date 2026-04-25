@@ -41,6 +41,7 @@ export const zhTranslation = {
     mostPlayed: '最常播放',
     recentlyPlayed: '最近播放',
     discover: '发现',
+    discoverSongs: '发现曲目',
     loadMore: '加载更多',
     discoverMore: '发现更多',
     discoverArtists: '发现艺术家',

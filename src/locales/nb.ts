@@ -41,6 +41,7 @@ export const nbTranslation = {
     mostPlayed: 'Mest spilt',
     recentlyPlayed: 'Nylig spilt',
     discover: 'Oppdag',
+    discoverSongs: 'Oppdag spor',
     loadMore: 'Last inn flere',
     discoverMore: 'Oppdag flere',
     discoverArtists: 'Oppdag artister',

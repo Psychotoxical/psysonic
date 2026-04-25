@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type HomeSectionId = 'hero' | 'recent' | 'discover' | 'discoverArtists' | 'recentlyPlayed' | 'starred' | 'mostPlayed';
+export type HomeSectionId = 'hero' | 'recent' | 'discover' | 'discoverSongs' | 'discoverArtists' | 'recentlyPlayed' | 'starred' | 'mostPlayed';
 
 export interface HomeSectionConfig {
   id: HomeSectionId;
@@ -12,6 +12,7 @@ export const DEFAULT_HOME_SECTIONS: HomeSectionConfig[] = [
   { id: 'hero',            visible: true },
   { id: 'recent',          visible: true },
   { id: 'discover',        visible: true },
+  { id: 'discoverSongs',   visible: true },
   { id: 'discoverArtists', visible: true },
   { id: 'recentlyPlayed',  visible: true },
   { id: 'starred',         visible: true },
@@ -33,6 +34,19 @@ export const useHomeStore = create<HomeStore>()(
       })),
       reset: () => set({ sections: DEFAULT_HOME_SECTIONS }),
     }),
-    { name: 'psysonic_home' }
+    {
+      name: 'psysonic_home',
+      onRehydrateStorage: () => (state) => {
+        // Append any sections introduced after the user first persisted their order,
+        // so new defaults show up without forcing a manual Reset.
+        if (!state) return;
+        const safe = (state.sections ?? []).filter(
+          (s): s is HomeSectionConfig => s != null && typeof s.id === 'string',
+        );
+        const known = new Set(safe.map(s => s.id));
+        const missing = DEFAULT_HOME_SECTIONS.filter(s => !known.has(s.id));
+        state.sections = missing.length > 0 ? [...safe, ...missing] : safe;
+      },
+    }
   )
 );

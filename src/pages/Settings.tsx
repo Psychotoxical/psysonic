@@ -4209,6 +4209,7 @@ function HomeCustomizer() {
     hero:            t('home.hero'),
     recent:          t('home.recent'),
     discover:        t('home.discover'),
+    discoverSongs:   t('home.discoverSongs'),
     discoverArtists: t('home.discoverArtists'),
     recentlyPlayed:  t('home.recentlyPlayed'),
     starred:         t('home.starred'),

@@ -41,6 +41,7 @@ export const nlTranslation = {
     mostPlayed: 'Meest gespeeld',
     recentlyPlayed: 'Recent afgespeeld',
     discover: 'Ontdekken',
+    discoverSongs: 'Nummers ontdekken',
     loadMore: 'Meer laden',
     discoverMore: 'Meer ontdekken',
     discoverArtists: 'Artiesten ontdekken',

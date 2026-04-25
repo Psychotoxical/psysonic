@@ -43,6 +43,7 @@ export const enTranslation = {
     mostPlayed: 'Most Played',
     recentlyPlayed: 'Recently Played',
     discover: 'Discover',
+    discoverSongs: 'Discover Songs',
     loadMore: 'Load More',
     discoverMore: 'Discover More',
     discoverArtists: 'Discover Artists',
