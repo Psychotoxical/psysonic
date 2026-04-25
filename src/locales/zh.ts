@@ -58,6 +58,7 @@ export const zhTranslation = {
     albums: '专辑',
     songs: '歌曲',
     clearLabel: '清除搜索',
+    addedToQueueToast: '已将"{{title}}"加入队列',
     title: '搜索',
     resultsFor: '"{{query}}" 的搜索结果',
     album: '专辑',

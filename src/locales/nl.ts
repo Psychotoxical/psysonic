@@ -58,6 +58,7 @@ export const nlTranslation = {
     albums: 'Albums',
     songs: 'Nummers',
     clearLabel: 'Zoekopdracht wissen',
+    addedToQueueToast: '"{{title}}" toegevoegd aan de wachtrij',
     title: 'Zoeken',
     resultsFor: 'Resultaten voor "{{query}}"',
     album: 'Album',

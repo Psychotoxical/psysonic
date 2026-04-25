@@ -60,6 +60,7 @@ export const enTranslation = {
     albums: 'Albums',
     songs: 'Songs',
     clearLabel: 'Clear search',
+    addedToQueueToast: 'Added "{{title}}" to queue',
     title: 'Search',
     resultsFor: 'Results for "{{query}}"',
     album: 'Album',

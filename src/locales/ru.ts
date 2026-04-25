@@ -60,6 +60,7 @@ export const ruTranslation = {
     albums: 'Альбомы',
     songs: 'Треки',
     clearLabel: 'Очистить поиск',
+    addedToQueueToast: '«{{title}}» добавлен в очередь',
     title: 'Поиск',
     resultsFor: 'Результаты по «{{query}}»',
     album: 'Альбом',

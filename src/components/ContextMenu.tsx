@@ -1081,6 +1081,22 @@ export default function ContextMenu() {
     });
   }, [contextMenu.isOpen]);
 
+  // Outside-click closes the menu without occluding the underlying UI. The
+  // previous implementation rendered a transparent fullscreen backdrop, which
+  // also blocked right-clicks from reaching elements *under* it — so users
+  // couldn't reposition the menu by right-clicking another row.
+  useEffect(() => {
+    if (!contextMenu.isOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (menuRef.current?.contains(target)) return;
+      closeContextMenu();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [contextMenu.isOpen, closeContextMenu]);
+
   useEffect(() => {
     if (!pendingSubmenuKeyboardFocus || !playlistSubmenuOpen) return;
     let cancelled = false;
@@ -1409,11 +1425,6 @@ export default function ContextMenu() {
 
   return (
     <>
-      {/* Transparent backdrop — catches all outside clicks cleanly, preventing freeze */}
-      <div
-        style={{ position: 'fixed', inset: 0, zIndex: 998 }}
-        onMouseDown={() => closeContextMenu()}
-      />
       <div
         ref={menuRef}
         className="context-menu animate-fade-in"

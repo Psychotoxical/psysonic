@@ -58,6 +58,7 @@ export const nbTranslation = {
     albums: 'Album',
     songs: 'Sanger',
     clearLabel: 'Fjern søk',
+    addedToQueueToast: '«{{title}}» lagt til i køen',
     title: 'Søk',
     resultsFor: 'Resultater for "{{query}}"',
     album: 'Album',

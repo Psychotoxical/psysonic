@@ -58,6 +58,7 @@ export const frTranslation = {
     albums: 'Albums',
     songs: 'Morceaux',
     clearLabel: 'Effacer la recherche',
+    addedToQueueToast: '« {{title}} » ajouté à la file',
     title: 'Recherche',
     resultsFor: 'Résultats pour « {{query}} »',
     album: 'Album',

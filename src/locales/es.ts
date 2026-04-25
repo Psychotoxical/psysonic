@@ -59,6 +59,7 @@ export const esTranslation = {
     albums: 'Álbumes',
     songs: 'Canciones',
     clearLabel: 'Limpiar búsqueda',
+    addedToQueueToast: '"{{title}}" añadido a la cola',
     title: 'Buscar',
     resultsFor: 'Resultados para "{{query}}"',
     album: 'Álbum',

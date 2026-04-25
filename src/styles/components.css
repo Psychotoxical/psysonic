@@ -742,7 +742,8 @@
 }
 
 .search-result-item:hover,
-.search-result-item.active {
+.search-result-item.active,
+.search-result-item.context-active {
   background: var(--bg-hover);
 }
 

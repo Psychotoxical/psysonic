@@ -7,6 +7,7 @@ import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import CachedImage from './CachedImage';
+import { showToast } from '../utils/toast';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
 const MAX_RECENT = 6;
@@ -29,7 +30,7 @@ function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
 export default function MobileSearchOverlay({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const playTrack = usePlayerStore(s => s.playTrack);
+  const enqueue = usePlayerStore(s => s.enqueue);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -64,9 +65,11 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
 
   const goTo = (path: string) => { commit(query); navigate(path); onClose(); };
   const goCategory = (path: string) => { navigate(path); onClose(); };
-  const playSong = (song: SearchResults['songs'][number]) => {
+  const enqueueSong = (song: SearchResults['songs'][number]) => {
     commit(query);
-    playTrack(songToTrack(song));
+    const track = songToTrack(song);
+    enqueue([track]);
+    showToast(t('search.addedToQueueToast', { title: track.title }), 2200, 'info');
     onClose();
   };
   const useRecent = (term: string) => {
@@ -229,7 +232,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
               <div className="mobile-search-section">
                 <div className="mobile-search-section-label">{t('search.songs')}</div>
                 {results!.songs.map(s => (
-                  <button key={s.id} className="mobile-search-item" onClick={() => playSong(s)}>
+                  <button key={s.id} className="mobile-search-item" onClick={() => enqueueSong(s)}>
                     {s.coverArt ? (
                       <CachedImage
                         className="mobile-search-thumb"

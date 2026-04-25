@@ -58,6 +58,7 @@ export const deTranslation = {
     albums: 'Alben',
     songs: 'Songs',
     clearLabel: 'Suche leeren',
+    addedToQueueToast: '„{{title}}" zur Warteschlange hinzugefügt',
     title: 'Suche',
     resultsFor: 'Ergebnisse für „{{query}}"',
     album: 'Album',

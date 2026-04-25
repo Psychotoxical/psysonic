@@ -6,6 +6,7 @@ import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import CachedImage from './CachedImage';
+import { showToast } from '../utils/toast';
 
 function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
   let timer: ReturnType<typeof setTimeout>;
@@ -23,7 +24,11 @@ export default function LiveSearch() {
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const navigate = useNavigate();
-  const playTrack = usePlayerStore(state => state.playTrack);
+  const enqueue = usePlayerStore(state => state.enqueue);
+  const openContextMenu = usePlayerStore(state => state.openContextMenu);
+  const ctxIsOpen = usePlayerStore(state => state.contextMenu.isOpen);
+  const ctxItemId = usePlayerStore(state => (state.contextMenu.item as { id?: string } | null)?.id);
+  const ctxType   = usePlayerStore(state => state.contextMenu.type);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
@@ -45,14 +50,19 @@ export default function LiveSearch() {
 
   useEffect(() => { doSearch(query); setActiveIndex(-1); }, [query, doSearch]);
 
-  // Close on click outside
+  // Close on click outside — but stay open while a song context menu is up.
+  // The CM renders a fullscreen transparent backdrop (z-index 998) above the
+  // dropdown, so any mousedown — including a second right-click on another
+  // row — would otherwise hit the backdrop and trip this handler, yanking the
+  // dropdown closed mid-interaction.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      if (ctxIsOpen) return;
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [ctxIsOpen]);
 
   const hasResults = results && (results.artists.length || results.albums.length || results.songs.length);
 
@@ -61,7 +71,9 @@ export default function LiveSearch() {
     ...(results.artists.map(a => ({ id: a.id, action: () => { navigate(`/artist/${a.id}`); setOpen(false); setQuery(''); } }))),
     ...(results.albums.map(a => ({ id: a.id, action: () => { navigate(`/album/${a.id}`); setOpen(false); setQuery(''); } }))),
    ...(results.songs.map(s => ({ id: s.id, action: () => {
-       playTrack(songToTrack(s));
+       const track = songToTrack(s);
+       enqueue([track]);
+       showToast(t('search.addedToQueueToast', { title: track.title }), 2200, 'info');
        setOpen(false); setQuery('');
      }}))),
   ] : [];
@@ -191,12 +203,21 @@ export default function LiveSearch() {
                   <div className="search-section-label"><Music size={12} /> {t('search.songs')}</div>
                   {results.songs.map(s => {
                     const i = idx++;
+                    const isCtxActive = ctxIsOpen && ctxType === 'song' && ctxItemId === s.id;
                     return (
-                      <button key={s.id} className={`search-result-item${activeIndex === i ? ' active' : ''}`}
-                     onClick={() => {
-                           playTrack(songToTrack(s));
-                           setOpen(false); setQuery('');
-                         }}
+                      <button key={s.id} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
+                        onClick={() => {
+                          const track = songToTrack(s);
+                          enqueue([track]);
+                          showToast(t('search.addedToQueueToast', { title: track.title }), 2200, 'info');
+                          setOpen(false); setQuery('');
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          // Keep the dropdown open — context menu portal renders above it,
+                          // and closing here would yank the list out from under the user.
+                          openContextMenu(e.clientX, e.clientY, songToTrack(s), 'song');
+                        }}
                         role="option" aria-selected={activeIndex === i}>
                         <div className="search-result-icon"><Music size={14} /></div>
                         <div>
