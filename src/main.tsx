@@ -7,6 +7,7 @@ import './i18n';
 import './styles/theme.css';
 import './styles/layout.css';
 import './styles/components.css';
+import './styles/tracks.css';
 
 // Expose the Tauri window label synchronously so App() can pick its root
 // component (main app vs mini player) on first render without flicker.

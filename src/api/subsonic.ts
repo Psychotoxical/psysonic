@@ -926,6 +926,23 @@ export async function search(query: string, options?: { albumCount?: number; art
   return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };
 }
 
+/**
+ * Song-only paginated search3. Tolerates empty query — Navidrome returns all songs
+ * ordered by title in that case; strict Subsonic implementations may return nothing.
+ * Caller handles empty results gracefully (Tracks page falls back to its random pool).
+ */
+export async function searchSongsPaged(query: string, songCount: number, songOffset: number): Promise<SubsonicSong[]> {
+  const data = await api<{ searchResult3: { song?: SubsonicSong[] } }>('search3.view', {
+    query,
+    artistCount: 0,
+    albumCount: 0,
+    songCount,
+    songOffset,
+    ...libraryFilterParams(),
+  });
+  return data.searchResult3?.song ?? [];
+}
+
 export async function setRating(id: string, rating: number): Promise<void> {
   await api('setRating.view', { id, rating });
 }

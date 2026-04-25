@@ -46,6 +46,7 @@ const LabelAlbums    = lazy(() => import('./pages/LabelAlbums'));
 const AdvancedSearch = lazy(() => import('./pages/AdvancedSearch'));
 const FolderBrowser  = lazy(() => import('./pages/FolderBrowser'));
 const InternetRadio  = lazy(() => import('./pages/InternetRadio'));
+const Tracks         = lazy(() => import('./pages/Tracks'));
 import MiniPlayer from './components/MiniPlayer';
 import { initMiniPlayerBridgeOnMain } from './utils/miniPlayerBridge';
 import FullscreenPlayer from './components/FullscreenPlayer';
@@ -445,6 +446,7 @@ function AppShell() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/albums" element={<Albums />} />
+                <Route path="/tracks" element={<Tracks />} />
                 <Route path="/random" element={<RandomLanding />} />
                 <Route path="/random/albums" element={<RandomAlbums />} />
                 <Route path="/album/:id" element={<AlbumDetail />} />

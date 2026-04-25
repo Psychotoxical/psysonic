@@ -12,6 +12,7 @@ export const DEFAULT_SIDEBAR_ITEMS: SidebarItemConfig[] = [
   { id: 'mainstage',     visible: true },
   { id: 'newReleases',   visible: true },
   { id: 'allAlbums',     visible: true },
+  { id: 'tracks',        visible: true },
   { id: 'randomPicker',  visible: true },
   { id: 'randomMix',     visible: true },
   { id: 'randomAlbums',  visible: true },

@@ -522,6 +522,33 @@ async fn nd_delete_user(
     Ok(())
 }
 
+/// GET `/api/song?_sort=...&_order=...&_start=...&_end=...` — paginated song list.
+/// Available to any authenticated user (no admin required). Returns raw JSON array.
+#[tauri::command]
+async fn nd_list_songs(
+    server_url: String,
+    token: String,
+    sort: String,
+    order: String,
+    start: u32,
+    end: u32,
+) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "{}/api/song?_sort={}&_order={}&_start={}&_end={}",
+        server_url, sort, order, start, end
+    );
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .get(&url)
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .send()
+    }).await?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>().await.map_err(nd_err)
+}
+
 /// GET `/api/library` — list all libraries (admin only). Returns the raw JSON array.
 #[tauri::command]
 async fn nd_list_libraries(
@@ -3838,6 +3865,7 @@ pub fn run() {
             nd_update_user,
             nd_delete_user,
             nd_list_libraries,
+            nd_list_songs,
             nd_set_user_libraries,
             nd_list_playlists,
             nd_create_playlist,
