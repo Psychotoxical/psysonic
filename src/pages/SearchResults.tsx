@@ -1,19 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Play, Search } from 'lucide-react';
-import { search, SearchResults as ISearchResults, SubsonicSong } from '../api/subsonic';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { Search } from 'lucide-react';
+import { search, searchSongsPaged, SearchResults as ISearchResults } from '../api/subsonic';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
+import SongRow, { SongListHeader } from '../components/SongRow';
 import { useTranslation } from 'react-i18next';
-import { useDragDrop } from '../contexts/DragDropContext';
 import { useAuthStore } from '../store/authStore';
-import { useThemeStore } from '../store/themeStore';
-import { useShallow } from 'zustand/react/shallow';
 
-function formatDuration(s: number) {
-  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-}
+const SONGS_INITIAL = 50;
+const SONGS_PAGE_SIZE = 50;
 
 export default function SearchResults() {
   const { t } = useTranslation();
@@ -21,39 +17,52 @@ export default function SearchResults() {
   const query = params.get('q') ?? '';
   const [results, setResults] = useState<ISearchResults | null>(null);
   const [loading, setLoading] = useState(false);
+  const [songsServerOffset, setSongsServerOffset] = useState(0);
+  const [songsHasMore, setSongsHasMore] = useState(false);
+  const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
+  const songsSentinelRef = useRef<HTMLDivElement>(null);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const showBitrate = useThemeStore(s => s.showBitrate);
-  const psyDrag = useDragDrop();
-
-  const { playTrack, enqueue, openContextMenu, currentTrack } = usePlayerStore(
-    useShallow(s => ({
-      playTrack: s.playTrack,
-      enqueue: s.enqueue,
-      openContextMenu: s.openContextMenu,
-      currentTrack: s.currentTrack,
-    }))
-  );
-
-  const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
-  const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
 
   useEffect(() => {
-    if (!contextMenuOpen) setContextMenuSongId(null);
-  }, [contextMenuOpen]);
-
-  useEffect(() => {
+    setSongsServerOffset(0);
+    setSongsHasMore(false);
     if (!query.trim()) { setResults(null); return; }
     setLoading(true);
-    search(query, { artistCount: 20, albumCount: 20, songCount: 50 })
-      .then(r => setResults(r))
+    search(query, { artistCount: 20, albumCount: 20, songCount: SONGS_INITIAL })
+      .then(r => {
+        setResults(r);
+        setSongsServerOffset(r.songs.length);
+        setSongsHasMore(r.songs.length === SONGS_INITIAL);
+      })
       .finally(() => setLoading(false));
   }, [query, musicLibraryFilterVersion]);
 
-  const hasResults = results && (results.artists.length || results.albums.length || results.songs.length);
+  const loadMoreSongs = useCallback(async () => {
+    if (loadingMoreSongs || !songsHasMore || !query.trim()) return;
+    setLoadingMoreSongs(true);
+    try {
+      const page = await searchSongsPaged(query.trim(), SONGS_PAGE_SIZE, songsServerOffset);
+      setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...page] } : prev);
+      setSongsServerOffset(o => o + page.length);
+      if (page.length < SONGS_PAGE_SIZE) setSongsHasMore(false);
+    } catch {
+      setSongsHasMore(false);
+    } finally {
+      setLoadingMoreSongs(false);
+    }
+  }, [loadingMoreSongs, songsHasMore, query, songsServerOffset]);
 
-  const playSong = (song: SubsonicSong, list: SubsonicSong[]) => {
-    playTrack(songToTrack(song), list.map(songToTrack));
-  };
+  useEffect(() => {
+    const el = songsSentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) loadMoreSongs();
+    }, { rootMargin: '600px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMoreSongs]);
+
+  const hasResults = results && (results.artists.length || results.albums.length || results.songs.length);
 
   return (
     <div className="content-body animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
@@ -83,69 +92,17 @@ export default function SearchResults() {
           )}
 
           {results.songs.length > 0 && (
-            <section className="album-row-section">
-              <div className="album-row-header" style={{ marginBottom: '1rem' }}>
-                <h2 className="section-title" style={{ marginBottom: 0 }}>{t('search.songs')}</h2>
-              </div>
-              <div className="tracklist" style={{ padding: 0 }}>
-                <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 100px 65px' }}>
-                  <div />
-                  <div>{t('albumDetail.trackTitle')}</div>
-                  <div>{t('albumDetail.trackArtist')}</div>
-                  <div>{t('search.album')}</div>
-                  <div>{t('albumDetail.trackFormat')}</div>
-                  <div style={{ textAlign: 'right' }}>{t('albumDetail.trackDuration')}</div>
+            <section>
+              <h2 className="section-title" style={{ marginBottom: '0.75rem' }}>{t('search.songs')}</h2>
+              <SongListHeader />
+              {results.songs.map(song => (
+                <SongRow key={song.id} song={song} />
+              ))}
+              {songsHasMore && (
+                <div ref={songsSentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
+                  {loadingMoreSongs && <div className="spinner" style={{ width: 20, height: 20 }} />}
                 </div>
-                {results.songs.map(song => (
-                  <div
-                    key={song.id}
-                    className={`track-row${currentTrack?.id === song.id ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                    style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 100px 65px' }}
-                    onDoubleClick={() => playSong(song, results.songs)}
-                    onContextMenu={e => {
-                      e.preventDefault();
-                      setContextMenuSongId(song.id);
-                      openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
-                    }}
-                    role="row"
-                    onMouseDown={e => {
-                      if (e.button !== 0) return;
-                      e.preventDefault();
-                      const sx = e.clientX, sy = e.clientY;
-                      const track = songToTrack(song);
-                      const onMove = (me: MouseEvent) => {
-                        if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-                          document.removeEventListener('mousemove', onMove);
-                          document.removeEventListener('mouseup', onUp);
-                          psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
-                        }
-                      };
-                      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                      document.addEventListener('mousemove', onMove);
-                      document.addEventListener('mouseup', onUp);
-                    }}
-                  >
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: 4 }}
-                      onClick={e => { e.stopPropagation(); playSong(song, results.songs); }}
-                    >
-                      <Play size={14} fill="currentColor" />
-                    </button>
-                    <div className="track-info">
-                      <span className="track-title" title={song.title}>{song.title}</span>
-                    </div>
-                    <div className="track-artist-cell"><span className="track-artist" title={song.artist}>{song.artist}</span></div>
-                    <div className="track-artist-cell"><span className="track-artist" title={song.album}>{song.album}</span></div>
-                    <span className="track-codec" style={{ alignSelf: 'center' }}>
-                      {[song.suffix?.toUpperCase(), showBitrate && song.bitRate ? `${song.bitRate} kbps` : ''].filter(Boolean).join(' · ')}
-                    </span>
-                    <span className="track-duration" style={{ textAlign: 'right' }}>
-                      {formatDuration(song.duration)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              )}
             </section>
           )}
         </>

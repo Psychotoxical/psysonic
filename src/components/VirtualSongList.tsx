@@ -1,12 +1,10 @@
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Play, Search as SearchIcon, X, ListPlus } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Search as SearchIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { SubsonicSong, searchSongsPaged } from '../api/subsonic';
 import { ndListSongs } from '../api/navidromeBrowse';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
-import { enqueueAndPlay } from '../utils/playSong';
+import SongRow, { SongListHeader } from './SongRow';
 
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -29,72 +27,6 @@ async function fetchSongPage(query: string, offset: number): Promise<SubsonicSon
   }
 }
 
-function fmtDuration(s: number): string {
-  if (!s || !isFinite(s)) return '–';
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, '0')}`;
-}
-
-interface RowProps {
-  song: SubsonicSong;
-  isCurrent: boolean;
-}
-
-const SongListRow = memo(function SongListRow({ song, isCurrent }: RowProps) {
-  const navigate = useNavigate();
-  const enqueue = usePlayerStore(s => s.enqueue);
-  const openContextMenu = usePlayerStore(s => s.openContextMenu);
-
-  return (
-    <div
-      className={`virtual-song-row${isCurrent ? ' is-current' : ''}`}
-      onDoubleClick={() => enqueueAndPlay(song)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        openContextMenu(e.clientX, e.clientY, song, 'song');
-      }}
-    >
-      <div className="virtual-song-cell virtual-song-cell-actions-left">
-        <button
-          className="virtual-song-action-btn virtual-song-action-btn--play"
-          onClick={(e) => { e.stopPropagation(); enqueueAndPlay(song); }}
-          aria-label="Play"
-        >
-          <Play size={14} fill="currentColor" />
-        </button>
-        <button
-          className="virtual-song-action-btn"
-          onClick={(e) => { e.stopPropagation(); enqueue([songToTrack(song)]); }}
-          aria-label="Enqueue"
-        >
-          <ListPlus size={14} />
-        </button>
-      </div>
-      <div className="virtual-song-cell virtual-song-cell-title">
-        <span className="virtual-song-title truncate">{song.title}</span>
-        <span
-          className={`virtual-song-artist truncate${song.artistId ? ' track-artist-link' : ''}`}
-          onClick={(e) => {
-            if (!song.artistId) return;
-            e.stopPropagation();
-            navigate(`/artist/${song.artistId}`);
-          }}
-        >{song.artist}</span>
-      </div>
-      <div className="virtual-song-cell virtual-song-cell-album truncate">
-        {song.albumId ? (
-          <span
-            className="track-artist-link"
-            onClick={(e) => { e.stopPropagation(); navigate(`/album/${song.albumId}`); }}
-          >{song.album}</span>
-        ) : <span>{song.album}</span>}
-      </div>
-      <div className="virtual-song-cell virtual-song-cell-duration">{fmtDuration(song.duration)}</div>
-    </div>
-  );
-});
-
 interface Props {
   title?: string;
   emptyBrowseText?: string;
@@ -109,8 +41,6 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [browseUnsupported, setBrowseUnsupported] = useState(false);
-
-  const currentTrackId = usePlayerStore(s => s.currentTrack?.id ?? null);
 
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const requestSeqRef = useRef(0);
@@ -250,8 +180,10 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
           {emptyBrowseText ?? t('tracks.browseUnsupported')}
         </div>
       ) : (
-        <div ref={scrollParentRef} className="virtual-song-list-scroll">
-          <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
+        <>
+          <SongListHeader />
+          <div ref={scrollParentRef} className="virtual-song-list-scroll">
+            <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
             {virtualizer.getVirtualItems().map(vi => {
               const song = songs[vi.index];
               if (!song) return null;
@@ -267,21 +199,21 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  <SongListRow
+                  <SongRow
                     song={song}
-                    isCurrent={currentTrackId === song.id}
                   />
                 </div>
               );
             })}
           </div>
-          {loading && (
-            <div className="virtual-song-list-loading">
-              <div className="spinner" style={{ width: 18, height: 18 }} />
-              <span>{t('common.loadingMore')}</span>
-            </div>
-          )}
-        </div>
+            {loading && (
+              <div className="virtual-song-list-loading">
+                <div className="spinner" style={{ width: 18, height: 18 }} />
+                <span>{t('common.loadingMore')}</span>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </section>
   );

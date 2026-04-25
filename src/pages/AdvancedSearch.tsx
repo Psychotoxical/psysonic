@@ -1,18 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Play, SlidersVertical } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { SlidersVertical } from 'lucide-react';
 import {
-  search, getGenres, getAlbumsByGenre, getAlbumList, getRandomSongs,
+  search, searchSongsPaged, getGenres, getAlbumsByGenre, getAlbumList, getRandomSongs,
   SubsonicGenre, SubsonicArtist, SubsonicAlbum, SubsonicSong,
 } from '../api/subsonic';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
+import SongRow, { SongListHeader } from '../components/SongRow';
 import CustomSelect from '../components/CustomSelect';
-import { useDragDrop } from '../contexts/DragDropContext';
 import { useAuthStore } from '../store/authStore';
-import { useShallow } from 'zustand/react/shallow';
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -34,23 +32,6 @@ export default function AdvancedSearch() {
   const { t } = useTranslation();
   const [params] = useSearchParams();
   const qFromUrl = params.get('q') ?? '';
-  const navigate = useNavigate();
-  const psyDrag = useDragDrop();
-
-  const { playTrack, openContextMenu } = usePlayerStore(
-    useShallow(s => ({
-      playTrack: s.playTrack,
-      openContextMenu: s.openContextMenu,
-    }))
-  );
-
-  const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
-  const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
-
-  useEffect(() => {
-    if (!contextMenuOpen) setContextMenuSongId(null);
-  }, [contextMenuOpen]);
-
   const [query, setQuery] = useState(params.get('q') ?? '');
   const [genre, setGenre] = useState('');
   const [yearFrom, setYearFrom] = useState('');
@@ -66,10 +47,35 @@ export default function AdvancedSearch() {
   const [genreNote, setGenreNote] = useState(false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
+  // Pagination — only the free-text-query branch uses search3 with offset
+  const SONGS_INITIAL = 100;
+  const SONGS_PAGE_SIZE = 50;
+  const [activeSearch, setActiveSearch] = useState<SearchOpts | null>(null);
+  const [songsServerOffset, setSongsServerOffset] = useState(0);
+  const [songsHasMore, setSongsHasMore] = useState(false);
+  const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
+  const songsSentinelRef = useRef<HTMLDivElement>(null);
+
+  const applySongFilters = (
+    list: SubsonicSong[],
+    g: string,
+    from: number | null,
+    to: number | null,
+  ): SubsonicSong[] => {
+    let r = list;
+    if (g) r = r.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
+    if (from !== null) r = r.filter(s => !s.year || s.year >= from);
+    if (to !== null) r = r.filter(s => !s.year || s.year <= to);
+    return r;
+  };
+
   const runSearch = async (opts: SearchOpts) => {
     setLoading(true);
     setHasSearched(true);
     setGenreNote(false);
+    setActiveSearch(opts);
+    setSongsServerOffset(0);
+    setSongsHasMore(false);
     const { query: q, genre: g, yearFrom: yf, yearTo: yt, resultType: rt } = opts;
     const from = yf ? parseInt(yf) : null;
     const to = yt ? parseInt(yt) : null;
@@ -80,23 +86,25 @@ export default function AdvancedSearch() {
 
     try {
       if (q.trim()) {
-        const r = await search(q.trim(), { artistCount: 30, albumCount: 50, songCount: 100 });
+        const r = await search(q.trim(), { artistCount: 30, albumCount: 50, songCount: SONGS_INITIAL });
         artists = r.artists;
         albums = r.albums;
-        songs = r.songs;
+        songs = applySongFilters(r.songs, g, from, to);
 
         if (g) {
           albums = albums.filter(a => a.genre?.toLowerCase() === g.toLowerCase());
-          songs = songs.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
         }
         if (from !== null) {
           albums = albums.filter(a => !a.year || a.year >= from);
-          songs = songs.filter(s => !s.year || s.year >= from);
         }
         if (to !== null) {
           albums = albums.filter(a => !a.year || a.year <= to);
-          songs = songs.filter(s => !s.year || s.year <= to);
         }
+
+        // Only the free-text branch supports server-side pagination via search3 offset.
+        // If the server returned a full page, more probably exist.
+        setSongsServerOffset(r.songs.length);
+        setSongsHasMore(r.songs.length === SONGS_INITIAL);
       } else if (g) {
         const [albumRes, songRes] = await Promise.all([
           rt === 'songs' || rt === 'artists' ? Promise.resolve([]) : getAlbumsByGenre(g, 50),
@@ -130,6 +138,39 @@ export default function AdvancedSearch() {
     ).catch(() => {});
     if (qFromUrl) runSearch({ query: qFromUrl, genre: '', yearFrom: '', yearTo: '', resultType: 'all' });
   }, [musicLibraryFilterVersion, qFromUrl]);
+
+  const loadMoreSongs = useCallback(async () => {
+    if (loadingMoreSongs || !songsHasMore) return;
+    if (!activeSearch || !activeSearch.query.trim()) return;
+    setLoadingMoreSongs(true);
+    try {
+      const q = activeSearch.query.trim();
+      const g = activeSearch.genre;
+      const from = activeSearch.yearFrom ? parseInt(activeSearch.yearFrom) : null;
+      const to = activeSearch.yearTo ? parseInt(activeSearch.yearTo) : null;
+      const page = await searchSongsPaged(q, SONGS_PAGE_SIZE, songsServerOffset);
+      const filtered = applySongFilters(page, g, from, to);
+      setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...filtered] } : prev);
+      setSongsServerOffset(o => o + page.length);
+      // No more pages when the server returned a non-full page (regardless of how many survived filtering).
+      if (page.length < SONGS_PAGE_SIZE) setSongsHasMore(false);
+    } catch {
+      setSongsHasMore(false);
+    } finally {
+      setLoadingMoreSongs(false);
+    }
+  }, [loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset]);
+
+  // IntersectionObserver on the bottom sentinel — fires loadMoreSongs as it nears the viewport.
+  useEffect(() => {
+    const el = songsSentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) loadMoreSongs();
+    }, { rootMargin: '600px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMoreSongs]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -279,90 +320,22 @@ export default function AdvancedSearch() {
           {results && results.songs.length > 0 && (
             <section>
               <h2 className="section-title" style={{ marginBottom: '0.75rem' }}>
-                {t('search.songs')} ({results.songs.length})
+                {t('search.songs')}
                 {genreNote && (
                   <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: '0.75rem' }}>
                     — {t('search.advancedGenreNote')}
                   </span>
                 )}
               </h2>
-              <div className="tracklist">
-                <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 90px 65px' }}>
-                  <span />
-                  <span>{t('randomMix.trackTitle')}</span>
-                  <span>{t('randomMix.trackArtist')}</span>
-                  <span>{t('randomMix.trackAlbum')}</span>
-                  <span>{t('randomMix.trackGenre')}</span>
-                  <span style={{ textAlign: 'right' }}>{t('randomMix.trackDuration')}</span>
+              <SongListHeader />
+              {results.songs.map(song => (
+                <SongRow key={song.id} song={song} />
+              ))}
+              {songsHasMore && (
+                <div ref={songsSentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
+                  {loadingMoreSongs && <div className="spinner" style={{ width: 20, height: 20 }} />}
                 </div>
-                {results.songs.map(song => {
-                  const track = songToTrack(song);
-                  return (
-                    <div
-                      key={song.id}
-                      className={`track-row${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                      style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 90px 65px' }}
-                      onDoubleClick={() => playTrack(track, results.songs.map(songToTrack))}
-                      role="row"
-                      onContextMenu={e => {
-                        e.preventDefault();
-                        setContextMenuSongId(song.id);
-                        openContextMenu(e.clientX, e.clientY, track, 'song');
-                      }}
-                      onMouseDown={e => {
-                        if (e.button !== 0) return;
-                        e.preventDefault();
-                        const sx = e.clientX, sy = e.clientY;
-                        const onMove = (me: MouseEvent) => {
-                          if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-                            document.removeEventListener('mousemove', onMove);
-                            document.removeEventListener('mouseup', onUp);
-                            psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
-                          }
-                        };
-                        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                        document.addEventListener('mousemove', onMove);
-                        document.addEventListener('mouseup', onUp);
-                      }}
-                    >
-                      <button
-                        className="btn btn-ghost"
-                        style={{ padding: 4 }}
-                        onClick={e => { e.stopPropagation(); playTrack(track, results.songs.map(songToTrack)); }}
-                      >
-                        <Play size={13} fill="currentColor" />
-                      </button>
-                      <div className="track-info">
-                        <span className="track-title">{song.title}</span>
-                      </div>
-                      <div className="track-artist-cell">
-                        <span
-                          className={`track-artist${song.artistId ? ' track-artist-link' : ''}`}
-                          style={{ cursor: song.artistId ? 'pointer' : 'default' }}
-                          onClick={() => song.artistId && navigate(`/artist/${song.artistId}`)}
-                        >
-                          {song.artist}
-                        </span>
-                      </div>
-                      <div className="track-info">
-                        <span
-                          className="track-title"
-                          style={{ fontSize: '0.85rem', color: 'var(--subtext0)', cursor: 'pointer' }}
-                          onClick={() => navigate(`/album/${song.albumId}`)}
-                        >
-                          {song.album}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {song.genre ?? '—'}
-                      </div>
-                      <span className="track-duration" style={{ textAlign: 'right' }}>
-                        {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              )}
             </section>
           )}
         </div>
