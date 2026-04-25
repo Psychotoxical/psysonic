@@ -157,9 +157,14 @@ export default function LiveSearch() {
                   <div className="search-section-label"><Users size={12} /> {t('search.artists')}</div>
                   {results.artists.map(a => {
                     const i = idx++;
+                    const isCtxActive = ctxIsOpen && ctxType === 'artist' && ctxItemId === a.id;
                     return (
-                      <button key={a.id} className={`search-result-item${activeIndex === i ? ' active' : ''}`}
+                      <button key={a.id} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
                         onClick={() => { navigate(`/artist/${a.id}`); setOpen(false); setQuery(''); }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          openContextMenu(e.clientX, e.clientY, a, 'artist');
+                        }}
                         role="option" aria-selected={activeIndex === i}>
                         <div className="search-result-icon"><Users size={14} /></div>
                         <span>{a.name}</span>
@@ -174,9 +179,14 @@ export default function LiveSearch() {
                   <div className="search-section-label"><Disc3 size={12} /> {t('search.albums')}</div>
                   {results.albums.map(a => {
                     const i = idx++;
+                    const isCtxActive = ctxIsOpen && ctxType === 'album' && ctxItemId === a.id;
                     return (
-                      <button key={a.id} className={`search-result-item${activeIndex === i ? ' active' : ''}`}
+                      <button key={a.id} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
                         onClick={() => { navigate(`/album/${a.id}`); setOpen(false); setQuery(''); }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          openContextMenu(e.clientX, e.clientY, a, 'album');
+                        }}
                         role="option" aria-selected={activeIndex === i}>
                         {a.coverArt ? (
                           <CachedImage
