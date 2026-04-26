@@ -109,6 +109,7 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn exit_app(app_handle: tauri::AppHandle) {
+    stop_audio_engine(&app_handle);
     app_handle.exit(0);
 }
 
@@ -3161,7 +3162,7 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
                     }
                 }
             }
-            "quit" => { stop_audio_engine(app); app.exit(0); }
+            "quit" => { let _ = app.emit("app:force-quit", ()); }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -4038,10 +4039,9 @@ pub fn run() {
                     #[cfg(target_os = "macos")]
                     {
                         // On macOS the red close button quits the app entirely.
-                        // Stop the audio engine first so sound cuts immediately.
-                        let app = window.app_handle();
-                        stop_audio_engine(app);
-                        app.exit(0);
+                        // Route through JS so playback position + Orbit state get
+                        // flushed; exit_app on the way back stops the audio engine.
+                        let _ = window.emit("app:force-quit", ());
                     }
 
                     #[cfg(not(target_os = "macos"))]

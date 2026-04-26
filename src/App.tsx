@@ -93,7 +93,7 @@ import { initHotCachePrefetch } from './hotCachePrefetch';
 import i18n from './i18n';
 import { playByOpaqueId } from './utils/playByOpaqueId';
 import { switchActiveServer } from './utils/switchActiveServer';
-import { usePlayerStore, initAudioListeners, songToTrack, shuffleArray } from './store/playerStore';
+import { usePlayerStore, initAudioListeners, songToTrack, shuffleArray, flushPlayQueuePosition } from './store/playerStore';
 import { useThemeStore } from './store/themeStore';
 import { useThemeScheduler } from './hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
@@ -961,31 +961,47 @@ function TauriEventBridge() {
         unlisten.push(u);
       }
 
-      // window:close-requested is emitted by Rust (prevent_close + emit).
-      // JS decides: minimize to tray or exit, based on user setting.
+      // Shared exit path: flush play-queue position so other devices can
+      // resume from where we left off, tear down any active Orbit session,
+      // then ask Rust to exit. Each step is capped at 1500 ms so a slow
+      // server can't keep the app hanging on quit; the playback heartbeat
+      // is the safety net for anything that didn't make it out in time.
+      const performExit = async () => {
+        await Promise.race([
+          flushPlayQueuePosition(),
+          new Promise(r => setTimeout(r, 1500)),
+        ]);
+        const role = useOrbitStore.getState().role;
+        if (role === 'host' || role === 'guest') {
+          const teardown = role === 'host' ? endOrbitSession() : leaveOrbitSession();
+          await Promise.race([
+            teardown.catch(() => {}),
+            new Promise(r => setTimeout(r, 1500)),
+          ]);
+        }
+        await invoke('exit_app');
+      };
+
+      // window:close-requested is emitted by Rust (prevent_close + emit) on
+      // the X-button. JS decides: minimize to tray or exit.
       const u = await listen('window:close-requested', async () => {
         if (useAuthStore.getState().minimizeToTray) {
           await invoke('pause_rendering').catch(() => {});
           await getCurrentWindow().hide();
         } else {
-          // Clean up an active Orbit session before we go down — leaving
-          // the session playlists behind would litter the server. Capped at
-          // 1500 ms so a slow server can't keep the app hanging on quit; the
-          // next launch's orphan sweep is the safety net for anything that
-          // didn't make it out in time.
-          const role = useOrbitStore.getState().role;
-          if (role === 'host' || role === 'guest') {
-            const teardown = role === 'host' ? endOrbitSession() : leaveOrbitSession();
-            await Promise.race([
-              teardown.catch(() => {}),
-              new Promise(r => setTimeout(r, 1500)),
-            ]);
-          }
-          await invoke('exit_app');
+          await performExit();
         }
       });
       if (cancelled) { u(); return; }
       unlisten.push(u);
+
+      // app:force-quit bypasses the minimize-to-tray decision — used by the
+      // tray "Exit" menu item and the macOS red close button.
+      const fq = await listen('app:force-quit', async () => {
+        await performExit();
+      });
+      if (cancelled) { fq(); return; }
+      unlisten.push(fq);
     };
 
     setup();
