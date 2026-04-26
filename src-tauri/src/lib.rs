@@ -1406,12 +1406,24 @@ fn enqueue_analysis_seed(app: &tauri::AppHandle, track_id: &str, bytes: &[u8]) -
         .try_state::<analysis_cache::AnalysisCache>()
         .and_then(|cache| cache.get_latest_loudness_for_track(track_id).ok().flatten())
         .is_some();
-    crate::app_deprintln!(
-        "[analysis] seed result track_id={} bytes={} has_loudness={}",
-        track_id,
-        bytes.len(),
-        has_loudness
-    );
+    // SkippedConcurrent gets logged with the actual outcome so the line doesn't
+    // read "seed result has_loudness=false" when in fact another path is mid-seed
+    // and will publish the row in seconds.
+    if outcome == analysis_cache::SeedFromBytesOutcome::SkippedConcurrent {
+        crate::app_deprintln!(
+            "[analysis] seed deferred to in-flight peer track_id={} bytes={} has_loudness_now={}",
+            track_id,
+            bytes.len(),
+            has_loudness
+        );
+    } else {
+        crate::app_deprintln!(
+            "[analysis] seed result track_id={} bytes={} has_loudness={}",
+            track_id,
+            bytes.len(),
+            has_loudness
+        );
+    }
     Ok(has_loudness)
 }
 
