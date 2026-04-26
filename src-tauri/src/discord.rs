@@ -210,9 +210,26 @@ fn cache_and_return(
 }
 
 /// Try to create and connect a fresh IPC client. Returns None silently on failure.
+///
+/// In debug builds (i.e. `npx tauri dev`) every step of the IPC handshake is
+/// logged so the renderer's terminal output shows exactly where the
+/// connection breaks. Release builds stay completely silent.
 fn try_connect() -> Option<DiscordIpcClient> {
-    let mut client = DiscordIpcClient::new(DISCORD_APP_ID).ok()?;
-    client.connect().ok()?;
+    let mut client = match DiscordIpcClient::new(DISCORD_APP_ID) {
+        Ok(c) => c,
+        Err(_e) => {
+            #[cfg(debug_assertions)]
+            crate::app_eprintln!("[discord] new() failed (app_id={}): {}", DISCORD_APP_ID, _e);
+            return None;
+        }
+    };
+    if let Err(_e) = client.connect() {
+        #[cfg(debug_assertions)]
+        crate::app_eprintln!("[discord] connect() failed: {} (Discord desktop running?)", _e);
+        return None;
+    }
+    #[cfg(debug_assertions)]
+    crate::app_eprintln!("[discord] IPC connected (app_id={})", DISCORD_APP_ID);
     Some(client)
 }
 
@@ -316,7 +333,9 @@ pub async fn discord_update_presence(
     // When paused: clear activity completely to avoid any timer issues
     // When playing: show full activity with timer
     if !is_playing {
-        if client.clear_activity().is_err() {
+        if let Err(_e) = client.clear_activity() {
+            #[cfg(debug_assertions)]
+            crate::app_eprintln!("[discord] clear_activity (pause) failed, dropping client: {}", _e);
             *guard = None;
         }
         return Ok(());
@@ -339,8 +358,17 @@ pub async fn discord_update_presence(
             Timestamps::new()
         });
 
-    if client.set_activity(activity).is_err() {
+    if let Err(_e) = client.set_activity(activity) {
+        #[cfg(debug_assertions)]
+        crate::app_eprintln!("[discord] set_activity failed, dropping client: {}", _e);
         *guard = None;
+    } else {
+        #[cfg(debug_assertions)]
+        crate::app_eprintln!(
+            "[discord] activity sent: \"{}\" / \"{}\"",
+            details_text,
+            state_text
+        );
     }
 
     Ok(())
@@ -351,8 +379,13 @@ pub async fn discord_update_presence(
 pub fn discord_clear_presence(state: tauri::State<DiscordState>) -> Result<(), String> {
     let mut guard = state.client.lock().unwrap();
     if let Some(client) = guard.as_mut() {
-        if client.clear_activity().is_err() {
+        if let Err(_e) = client.clear_activity() {
+            #[cfg(debug_assertions)]
+            crate::app_eprintln!("[discord] clear_activity failed, dropping client: {}", _e);
             *guard = None;
+        } else {
+            #[cfg(debug_assertions)]
+            crate::app_eprintln!("[discord] activity cleared");
         }
     }
     Ok(())
