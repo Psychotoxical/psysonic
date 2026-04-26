@@ -846,8 +846,8 @@ export const frTranslation = {
     loudnessTargetLufsDesc: 'Sonie de référence sur laquelle toutes les pistes sont calées. Valeur plus basse = sortie plus forte. Les services de streaming tournent autour de -14 LUFS.',
     loudnessPreAnalysisAttenuation: 'Atténuation avant mesure',
     loudnessPreAnalysisAttenuationDesc:
-      'Réduit le volume tant que la loudness du morceau n’est pas enregistrée. En streaming, des estimations grossières suivent, pas une mesure complète. 0 dB = rien ; plus négatif = plus discret. Curseur : valeur à la référence −14 LUFS ; à droite, dB effectif pour la cible actuelle.',
-    loudnessPreAnalysisAttenuationRef: 'Réglage {{ref}} dB (réf. −14 LUFS) → effectif {{eff}} dB avec cible {{tgt}} LUFS.',
+      'Réduit le volume tant que la loudness du morceau n’est pas enregistrée. En streaming, des estimations grossières suivent, pas une mesure complète. 0 dB = rien ; plus négatif = plus discret. À droite, le dB effectif pour la cible actuelle.',
+    loudnessPreAnalysisAttenuationRef: 'Effectif {{eff}} dB avec cible {{tgt}} LUFS.',
     loudnessPreAnalysisAttenuationReset: 'Valeur par défaut',
     loudnessFirstPlayNote:
       'À la première lecture d’un nouveau morceau, le volume peut brièvement varier pendant la mesure. La fois suivante, la mesure mise en cache prend le relais et tout reste stable. Les pistes à venir dans la file sont en général pré-analysées pendant la lecture précédente, ce cas est donc rare en pratique.',

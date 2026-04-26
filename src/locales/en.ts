@@ -864,8 +864,8 @@ export const enTranslation = {
     loudnessTargetLufsDesc: 'Reference loudness all tracks are matched to. Lower numbers = louder output. Streaming services typically sit around -14 LUFS.',
     loudnessPreAnalysisAttenuation: 'Pre-analysis attenuation',
     loudnessPreAnalysisAttenuationDesc:
-      'Extra quieting until loudness for this track is saved. Streaming then uses rough guesses, not a full measurement. 0 dB = off; lower = quieter. The slider is the setting at a −14 LUFS target; the number on the right is the effective dB for your current target.',
-    loudnessPreAnalysisAttenuationRef: 'Set at {{ref}} dB (reference −14 LUFS) → effective {{eff}} dB with target {{tgt}} LUFS.',
+      'Extra quieting until loudness for this track is saved. Streaming then uses rough guesses, not a full measurement. 0 dB = off; lower = quieter. The number on the right is the effective dB for your current target.',
+    loudnessPreAnalysisAttenuationRef: 'Effective {{eff}} dB with target {{tgt}} LUFS.',
     loudnessPreAnalysisAttenuationReset: 'Reset to default',
     loudnessFirstPlayNote:
       'First play of a brand-new track may briefly drift in volume while it is being measured. The next play uses the cached measurement and is rock-solid. Upcoming queue tracks are usually pre-analysed during the previous song, so this rarely happens in practice.',

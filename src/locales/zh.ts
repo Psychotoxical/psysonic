@@ -840,8 +840,8 @@ export const zhTranslation = {
     loudnessTargetLufsDesc: '所有曲目对齐的参考响度。数值越小，输出越响。流媒体服务通常在 -14 LUFS 左右。',
     loudnessPreAnalysisAttenuation: '测量前衰减',
     loudnessPreAnalysisAttenuationDesc:
-      '在曲目响度数据保存前的额外压低。流式阶段之后只是粗略估计，不是完整测量。0 dB 为不压低；更负则更安静。滑条为以 −14 LUFS 为参考的设定，右侧为当前目标下的等效 dB。',
-    loudnessPreAnalysisAttenuationRef: '滑条为 {{ref}} dB（参考 −14 LUFS）→ 目标 {{tgt}} LUFS 时等效 {{eff}} dB。',
+      '在曲目响度数据保存前的额外压低。流式阶段之后只是粗略估计，不是完整测量。0 dB 为不压低；更负则更安静。右侧显示当前目标下的等效 dB。',
+    loudnessPreAnalysisAttenuationRef: '目标 {{tgt}} LUFS 时等效 {{eff}} dB。',
     loudnessPreAnalysisAttenuationReset: '恢复默认',
     loudnessFirstPlayNote:
       '首次播放新曲目时，音量可能在测量过程中略有波动。下一次播放将使用缓存的测量结果，保持稳定。队列中即将播放的曲目通常在上一首播放期间已完成预分析，所以这种情况在实际使用中很少出现。',
