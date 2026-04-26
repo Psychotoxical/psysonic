@@ -25,6 +25,23 @@ import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
 import type { EntityShareKind } from '../utils/shareLink';
 import { copyEntityShareLink } from '../utils/copyEntityShareLink';
+import { useConfirmModalStore } from '../store/confirmModalStore';
+
+/** Ask user before re-adding songs to a playlist when *all* selected ids are
+ *  already present. Returns true → caller should append them as duplicates,
+ *  false → caller should keep today's silent-skip toast behavior. */
+async function confirmAddAllDuplicates(
+  playlistName: string,
+  count: number,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): Promise<boolean> {
+  return useConfirmModalStore.getState().request({
+    title: t('playlists.duplicateConfirmTitle'),
+    message: t('playlists.duplicateConfirmMessage', { count, playlist: playlistName }),
+    confirmLabel: t('playlists.duplicateConfirmAction'),
+    cancelLabel: t('common.cancel'),
+  });
+}
 
 function sanitizeFilename(name: string): string {
   return name
@@ -110,10 +127,17 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: {
       if (newIds.length > 0) {
         await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...newIds]);
         showToast(t('playlists.addSuccess', { count: newIds.length, playlist: pl.name }));
+        touchPlaylist(pl.id);
       } else {
-        showToast(t('playlists.addAllSkipped', { count: songIds.length, playlist: pl.name }), 3000, 'info');
+        const accepted = await confirmAddAllDuplicates(pl.name, songIds.length, t);
+        if (accepted) {
+          await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...songIds]);
+          showToast(t('playlists.addedAsDuplicates', { count: songIds.length, playlist: pl.name }), 3000, 'info');
+          touchPlaylist(pl.id);
+        } else {
+          showToast(t('playlists.addAllSkipped', { count: songIds.length, playlist: pl.name }), 3000, 'info');
+        }
       }
-      touchPlaylist(pl.id);
     } catch {
       showToast(t('playlists.addError'), 3000, 'error');
     }
@@ -273,34 +297,42 @@ function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId }: { albumIds
         }
       }
 
-      if (newIds.length > 0) {
-        await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...newIds]);
-        touchPlaylist(pl.id);
-      }
-
-      // Show detailed toast notification
-      const totalSongs = songIds.length;
       const addedCount = newIds.length;
       const duplicateCount = duplicateIds.length;
 
-      if (addedCount === 0 && duplicateCount > 0) {
-        showToast(
-          t('playlists.addAllSkipped', { count: duplicateCount, playlist: pl.name }),
-          4000,
-          'info'
-        );
+      if (addedCount > 0) {
+        await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...newIds]);
+        touchPlaylist(pl.id);
+        if (duplicateCount > 0) {
+          showToast(
+            t('playlists.addPartial', { added: addedCount, skipped: duplicateCount, playlist: pl.name }),
+            4000,
+            'info'
+          );
+        } else {
+          showToast(
+            t('playlists.addSuccess', { count: addedCount, playlist: pl.name }),
+            3000,
+            'info'
+          );
+        }
       } else if (duplicateCount > 0) {
-        showToast(
-          t('playlists.addPartial', { added: addedCount, skipped: duplicateCount, playlist: pl.name }),
-          4000,
-          'info'
-        );
-      } else {
-        showToast(
-          t('playlists.addSuccess', { count: addedCount, playlist: pl.name }),
-          3000,
-          'info'
-        );
+        const accepted = await confirmAddAllDuplicates(pl.name, duplicateCount, t);
+        if (accepted) {
+          await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...songIds]);
+          touchPlaylist(pl.id);
+          showToast(
+            t('playlists.addedAsDuplicates', { count: duplicateCount, playlist: pl.name }),
+            3000,
+            'info'
+          );
+        } else {
+          showToast(
+            t('playlists.addAllSkipped', { count: duplicateCount, playlist: pl.name }),
+            4000,
+            'info'
+          );
+        }
       }
     } catch (err) {
       showToast(t('playlists.addError'), 4000, 'error');
@@ -509,33 +541,42 @@ function MultiArtistToPlaylistSubmenu({ artistIds, onDone, triggerId }: { artist
         }
       }
 
-      if (newIds.length > 0) {
-        await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...newIds]);
-        touchPlaylist(pl.id);
-      }
-
-      // Show detailed toast notification
       const addedCount = newIds.length;
       const duplicateCount = duplicateIds.length;
 
-      if (addedCount === 0 && duplicateCount > 0) {
-        showToast(
-          t('playlists.addAllSkipped', { count: duplicateCount, playlist: pl.name }),
-          4000,
-          'info'
-        );
+      if (addedCount > 0) {
+        await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...newIds]);
+        touchPlaylist(pl.id);
+        if (duplicateCount > 0) {
+          showToast(
+            t('playlists.addPartial', { added: addedCount, skipped: duplicateCount, playlist: pl.name }),
+            4000,
+            'info'
+          );
+        } else {
+          showToast(
+            t('playlists.addSuccess', { count: addedCount, playlist: pl.name }),
+            3000,
+            'info'
+          );
+        }
       } else if (duplicateCount > 0) {
-        showToast(
-          t('playlists.addPartial', { added: addedCount, skipped: duplicateCount, playlist: pl.name }),
-          4000,
-          'info'
-        );
-      } else {
-        showToast(
-          t('playlists.addSuccess', { count: addedCount, playlist: pl.name }),
-          3000,
-          'info'
-        );
+        const accepted = await confirmAddAllDuplicates(pl.name, duplicateCount, t);
+        if (accepted) {
+          await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...songIds]);
+          touchPlaylist(pl.id);
+          showToast(
+            t('playlists.addedAsDuplicates', { count: duplicateCount, playlist: pl.name }),
+            3000,
+            'info'
+          );
+        } else {
+          showToast(
+            t('playlists.addAllSkipped', { count: duplicateCount, playlist: pl.name }),
+            4000,
+            'info'
+          );
+        }
       }
     } catch (err) {
       showToast(t('playlists.addError'), 4000, 'error');
