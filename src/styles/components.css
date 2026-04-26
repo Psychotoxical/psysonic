@@ -4134,6 +4134,33 @@
   margin-bottom: var(--space-5);
 }
 
+.login-lang-picker {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  z-index: 2;
+}
+
+.login-lang-picker > button {
+  font-size: 12px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  width: auto;
+  min-width: 110px;
+}
+
+.login-lang-picker > button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
 .login-title {
   text-align: center;
   font-family: var(--font-display);

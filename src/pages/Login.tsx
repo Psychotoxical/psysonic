@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Wifi, WifiOff, Eye, EyeOff, Server } from 'lucide-react';
+import { Wifi, WifiOff, Eye, EyeOff, Server, Globe } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
+import CustomSelect from '../components/CustomSelect';
 import {
   decodeServerMagicString,
   DECODED_PASSWORD_VISUAL_MASK,
@@ -168,6 +170,23 @@ export default function Login() {
     <div className="login-page">
       <div className="login-bg" aria-hidden="true" />
       <div className="login-card animate-fade-in">
+        <div className="login-lang-picker" aria-label={t('settings.language')}>
+          <Globe size={14} aria-hidden="true" />
+          <CustomSelect
+            value={i18n.language}
+            onChange={v => i18n.changeLanguage(v)}
+            options={[
+              { value: 'en', label: t('settings.languageEn') },
+              { value: 'de', label: t('settings.languageDe') },
+              { value: 'es', label: t('settings.languageEs') },
+              { value: 'fr', label: t('settings.languageFr') },
+              { value: 'nl', label: t('settings.languageNl') },
+              { value: 'nb', label: t('settings.languageNb') },
+              { value: 'ru', label: t('settings.languageRu') },
+              { value: 'zh', label: t('settings.languageZh') },
+            ]}
+          />
+        </div>
         <div className="login-logo">
           <PsysonicLogo />
         </div>
