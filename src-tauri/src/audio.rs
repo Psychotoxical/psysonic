@@ -46,6 +46,61 @@ struct NormalizationStatePayload {
     target_lufs: f32,
 }
 
+/// Last `audio:normalization-state` emit, kept so we can suppress duplicate
+/// payloads. The frontend already debounces this event, but on Windows
+/// (WebView2) the IPC pipe is the bottleneck — every echo we skip here is
+/// renderer-thread time we don't pay.
+static LAST_NORM_STATE_EMIT: OnceLock<Mutex<Option<NormalizationStatePayload>>> = OnceLock::new();
+
+fn norm_state_lock() -> &'static Mutex<Option<NormalizationStatePayload>> {
+    LAST_NORM_STATE_EMIT.get_or_init(|| Mutex::new(None))
+}
+
+fn norm_state_changed(prev: &NormalizationStatePayload, next: &NormalizationStatePayload) -> bool {
+    if prev.engine != next.engine { return true; }
+    if (prev.target_lufs - next.target_lufs).abs() >= 0.02 { return true; }
+    match (prev.current_gain_db, next.current_gain_db) {
+        (None, None) => false,
+        (Some(a), Some(b)) => (a - b).abs() >= 0.05,
+        _ => true, // None ↔ Some transition is significant
+    }
+}
+
+fn maybe_emit_normalization_state(app: &AppHandle, payload: NormalizationStatePayload) {
+    let mut guard = norm_state_lock().lock().unwrap();
+    let should_emit = match guard.as_ref() {
+        Some(prev) => norm_state_changed(prev, &payload),
+        None => true,
+    };
+    if !should_emit { return; }
+    *guard = Some(payload.clone());
+    drop(guard);
+    let _ = app.emit("audio:normalization-state", payload);
+}
+
+/// Last `analysis:loudness-partial` gain emitted per track-identity, used to
+/// suppress emits whose gain hasn't moved meaningfully (≥ 0.1 dB). The partial
+/// heuristic in `emit_partial_loudness_from_bytes` and the ranged-progress curve
+/// both produce values that drift by hundredths of a dB even on identical input,
+/// so the time-based throttle alone is not enough to keep the loop quiet.
+static LAST_PARTIAL_LOUDNESS_EMIT: OnceLock<Mutex<std::collections::HashMap<String, f32>>> = OnceLock::new();
+const PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB: f32 = 0.1;
+
+fn partial_loudness_should_emit(track_key: &str, gain_db: f32) -> bool {
+    let mut guard = LAST_PARTIAL_LOUDNESS_EMIT
+        .get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+        .lock()
+        .unwrap();
+    let prev = guard.get(track_key).copied();
+    if let Some(p) = prev {
+        if (p - gain_db).abs() < PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB {
+            return false;
+        }
+    }
+    guard.insert(track_key.to_string(), gain_db);
+    true
+}
+
 
 // ─── 10-Band Graphic Equalizer ────────────────────────────────────────────────
 
@@ -1313,15 +1368,18 @@ async fn ranged_download_task(
                     if let Some(provisional_db) =
                         provisional_loudness_gain_from_progress(downloaded, total_size, target_lufs, start_db)
                     {
-                        let _ = app.emit(
-                            "analysis:loudness-partial",
-                            PartialLoudnessPayload {
-                                track_id: playback_identity(&url),
-                                gain_db: provisional_db,
-                                target_lufs,
-                                is_partial: true,
-                            },
-                        );
+                        let track_key = playback_identity(&url).unwrap_or_else(|| url.clone());
+                        if partial_loudness_should_emit(&track_key, provisional_db) {
+                            let _ = app.emit(
+                                "analysis:loudness-partial",
+                                PartialLoudnessPayload {
+                                    track_id: playback_identity(&url),
+                                    gain_db: provisional_db,
+                                    target_lufs,
+                                    is_partial: true,
+                                },
+                            );
+                        }
                     }
                 }
             }
@@ -1420,6 +1478,16 @@ fn emit_partial_loudness_from_bytes(
         pre_floor.max(heuristic_floor)
     };
     let gain_db = (-(mb * 0.7)).max(floor_db).min(0.0);
+    let track_key = playback_identity(url).unwrap_or_else(|| url.to_string());
+    if !partial_loudness_should_emit(&track_key, gain_db as f32) {
+        crate::app_deprintln!(
+            "[normalization] partial-loudness skip reason=delta-below-threshold gain_db={:.2} threshold_db={:.2} track_id={:?}",
+            gain_db,
+            PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB,
+            playback_identity(url)
+        );
+        return;
+    }
     crate::app_deprintln!(
         "[normalization] partial-loudness emit bytes={} gain_db={:.2} target_lufs={:.2} track_id={:?}",
         bytes.len(),
@@ -3324,8 +3392,8 @@ pub async fn audio_play(
         volume,
         effective_volume
     );
-    let _ = app.emit(
-        "audio:normalization-state",
+    maybe_emit_normalization_state(
+        &app,
         NormalizationStatePayload {
             engine: normalization_engine_name(norm_mode).to_string(),
             current_gain_db,
@@ -3820,20 +3888,19 @@ fn spawn_progress_task(
     gapless_switch_at: Arc<AtomicU64>,
     current_playback_url: Arc<Mutex<Option<String>>>,
 ) {
+    // Keep progress aligned with audible output (ALSA/PipeWire/Pulse queue) on
+    // Linux; mirrors the quantum policy used for stream open/reopen plus a small
+    // scheduler/mixer cushion so the UI doesn't run ahead. Other platforms have
+    // their own latency reporting paths and don't need the compensation here.
+    #[cfg(target_os = "linux")]
     fn estimated_output_latency_secs(sample_rate_hz: f64) -> f64 {
-        #[cfg(target_os = "linux")]
-        {
-            // Keep progress aligned with audible output (ALSA/PipeWire/Pulse
-            // queue). We mirror the quantum policy used for stream open/reopen.
-            let rate = sample_rate_hz.max(1.0);
-            let frames = if rate > 48_000.0 { 8192.0 } else { 4096.0 };
-            // Add a small scheduler/mixer cushion so UI doesn't run ahead.
-            return (frames / rate) + 0.012;
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            0.0
-        }
+        let rate = sample_rate_hz.max(1.0);
+        let frames = if rate > 48_000.0 { 8192.0 } else { 4096.0 };
+        (frames / rate) + 0.012
+    }
+    #[cfg(not(target_os = "linux"))]
+    fn estimated_output_latency_secs(_sample_rate_hz: f64) -> f64 {
+        0.0
     }
 
     tokio::spawn(async move {
@@ -4273,8 +4340,9 @@ pub fn audio_update_replay_gain(
     if let Some(sink) = &cur.sink {
         ramp_sink_volume(Arc::clone(sink), prev_effective, effective);
     }
-    let _ = app.emit(
-        "audio:normalization-state",
+    drop(cur);
+    maybe_emit_normalization_state(
+        &app,
         NormalizationStatePayload {
             engine: normalization_engine_name(norm_mode).to_string(),
             current_gain_db,
@@ -4771,8 +4839,8 @@ pub fn audio_set_normalization(
         target,
         pre
     );
-    let _ = app.emit(
-        "audio:normalization-state",
+    maybe_emit_normalization_state(
+        &app,
         NormalizationStatePayload {
             engine: normalization_engine_name(mode).to_string(),
             // At mode-switch time the effective track gain may not be recalculated yet.

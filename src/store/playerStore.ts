@@ -611,6 +611,12 @@ function touchHotCacheOnPlayback(trackId: string, serverId: string) {
 /** Coalesce concurrent `analysis_get_waveform_for_track` for one id (StrictMode double mount, init + queue restore). */
 const waveformRefreshInflight = new Map<string, Promise<void>>();
 
+/** Coalesce concurrent `analysis_get_loudness_for_track` for one id+mode pair. The
+ *  analysis:waveform-updated listener fires refreshWaveform + refreshLoudness in
+ *  parallel for every full-track analysis completion; without coalescing, gapless
+ *  preload + current-track completion can stack two SQLite reads + two state writes. */
+const loudnessRefreshInflight = new Map<string, Promise<void>>();
+
 /** Skip redundant `audio_set_normalization` IPC when the same payload is sent twice within a short window (e.g. StrictMode). */
 let lastNormAudioInvokeKey = '';
 let lastNormAudioInvokeAtMs = 0;
@@ -628,6 +634,42 @@ function invokeAudioSetNormalizationDeduped(payload: {
   lastNormAudioInvokeKey = key;
   lastNormAudioInvokeAtMs = now;
   void invoke('audio_set_normalization', payload).catch(() => {});
+}
+
+/**
+ * Skip redundant `audio_update_replay_gain` IPC when the same payload was sent
+ * recently. updateReplayGainForCurrentTrack runs from the analysis:loudness-partial
+ * listener (~every 900 ms while LUFS is on); without dedupe each tick triggers a
+ * full IPC roundtrip + backend audio:normalization-state echo + frontend setState,
+ * which saturates the WebView2 renderer thread on Windows after a few minutes.
+ */
+let lastRgInvokeKey = '';
+let lastRgInvokeAtMs = 0;
+
+function invokeAudioUpdateReplayGainDeduped(payload: {
+  volume: number;
+  replayGainDb: number | null;
+  replayGainPeak: number | null;
+  loudnessGainDb: number | null;
+  preGainDb: number;
+  fallbackDb: number;
+}) {
+  const fmt = (v: number | null) => (v == null || !Number.isFinite(v) ? 'null' : v.toFixed(3));
+  const key = [
+    payload.volume.toFixed(4),
+    fmt(payload.replayGainDb),
+    fmt(payload.replayGainPeak),
+    fmt(payload.loudnessGainDb),
+    payload.preGainDb.toFixed(2),
+    payload.fallbackDb.toFixed(2),
+  ].join('|');
+  const now = Date.now();
+  if (key === lastRgInvokeKey && now - lastRgInvokeAtMs < 250) {
+    return;
+  }
+  lastRgInvokeKey = key;
+  lastRgInvokeAtMs = now;
+  invoke('audio_update_replay_gain', payload).catch(console.error);
 }
 
 function isReplayGainActive() {
@@ -731,9 +773,19 @@ async function refreshWaveformForTrack(trackId: string) {
 async function refreshLoudnessForTrack(
   trackId: string,
   opts?: { syncPlayingEngine?: boolean },
-) {
+): Promise<void> {
   if (!trackId) return;
   const syncEngine = opts?.syncPlayingEngine !== false;
+  const inflightKey = `${trackId}|${syncEngine ? 'sync' : 'no-sync'}`;
+  const existing = loudnessRefreshInflight.get(inflightKey);
+  if (existing) return existing;
+  const job = (async () => { await runRefreshLoudnessForTrack(trackId, syncEngine); })()
+    .finally(() => { loudnessRefreshInflight.delete(inflightKey); });
+  loudnessRefreshInflight.set(inflightKey, job);
+  return job;
+}
+
+async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean): Promise<void> {
   emitNormalizationDebug('refresh:start', { trackId });
   usePlayerStore.setState({ normalizationDbgSource: 'refresh:start', normalizationDbgTrackId: trackId });
   try {
@@ -1227,6 +1279,12 @@ export function initAudioListeners(): () => void {
       if (payloadTrackId && payloadTrackId !== current.id) return;
       if (!Number.isFinite(payload.gainDb)) return;
       if (stableLoudnessGainByTrackId[current.id]) return;
+      // Skip when the cached gain is already within ~0.05 dB of the new payload —
+      // float jitter from the partial-loudness heuristic would otherwise re-trigger
+      // updateReplayGainForCurrentTrack → audio_update_replay_gain → backend echo
+      // every PARTIAL_LOUDNESS_EMIT_INTERVAL_MS even when nothing audibly changed.
+      const existing = cachedLoudnessGainByTrackId[current.id];
+      if (Number.isFinite(existing) && Math.abs(existing - payload.gainDb) < 0.05) return;
       cachedLoudnessGainByTrackId[current.id] = payload.gainDb;
       emitNormalizationDebug('partial-loudness:apply', {
         trackId: current.id,
@@ -2620,14 +2678,14 @@ export const usePlayerStore = create<PlayerState>()(
           normalizationTargetLufs: normalization.normalizationTargetLufs,
           normalizationEngineLive: normalization.normalizationEngineLive,
         }));
-        invoke('audio_update_replay_gain', {
-           volume,
-           replayGainDb,
-           replayGainPeak,
-           loudnessGainDb: currentTrack ? (cachedLoudnessGainByTrackId[currentTrack.id] ?? null) : null,
-           preGainDb: authState.replayGainPreGainDb,
-           fallbackDb: authState.replayGainFallbackDb,
-         }).catch(console.error);
+        invokeAudioUpdateReplayGainDeduped({
+          volume,
+          replayGainDb,
+          replayGainPeak,
+          loudnessGainDb: currentTrack ? (cachedLoudnessGainByTrackId[currentTrack.id] ?? null) : null,
+          preGainDb: authState.replayGainPreGainDb,
+          fallbackDb: authState.replayGainFallbackDb,
+        });
        },
     }),
     {
