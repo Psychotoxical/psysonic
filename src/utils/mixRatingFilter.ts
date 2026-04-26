@@ -187,9 +187,6 @@ export async function filterAlbumsByMixRatings(
   );
 }
 
-/**
- * Merge `getArtist` / `getAlbum` ratings into songs before `passesMixMinRatings` when list payloads omit them.
- */
 /** Enrich when needed, then drop songs excluded by Settings → Ratings → filter-by-rating. */
 export async function filterSongsForLuckyMixRatings(
   songs: SubsonicSong[],
@@ -200,6 +197,10 @@ export async function filterSongsForLuckyMixRatings(
   return enriched.filter(s => passesMixMinRatings(s, c));
 }
 
+/**
+ * Merge `getArtist` / `getAlbum` ratings into songs when list payloads omit them,
+ * so `passesMixMinRatings` / Lucky Mix filtering see album and artist stars.
+ */
 export async function enrichSongsForMixRatingFilter(
   songs: SubsonicSong[],
   c: MixMinRatingsConfig,
