@@ -15,6 +15,11 @@ import { songToTrack, usePlayerStore, type Track } from '../store/playerStore';
 import { useLuckyMixStore } from '../store/luckyMixStore';
 import { isLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { showToast } from './toast';
+import {
+  filterSongsForLuckyMixRatings,
+  getMixMinRatingsConfigFromAuth,
+  type MixMinRatingsConfig,
+} from './mixRatingFilter';
 
 /**
  * Sentinel thrown inside the build loop when `useLuckyMixStore.cancelRequested`
@@ -92,30 +97,47 @@ async function fetchFrequentAlbumsPool(): Promise<SubsonicAlbum[]> {
   return out;
 }
 
-async function pickSongsForArtist(artist: TopArtist, need: number): Promise<SubsonicSong[]> {
+async function pickSongsForArtist(
+  artist: TopArtist,
+  need: number,
+  mixRatings: MixMinRatingsConfig,
+): Promise<SubsonicSong[]> {
   const primary = uniqueBySongId(await filterSongsToActiveLibrary(await getTopSongs(artist.name)));
-  if (primary.length >= need) return sampleRandom(primary, need);
-
-  const extra: SubsonicSong[] = [];
-  for (let i = 0; i < 8 && primary.length + extra.length < need; i++) {
-    const rnd = await filterSongsToActiveLibrary(await getRandomSongs(120));
-    for (const s of rnd) {
-      if (s.artistId === artist.id || s.artist === artist.name) {
-        extra.push(s);
+  let pool = primary;
+  if (primary.length < need) {
+    const extra: SubsonicSong[] = [];
+    for (let i = 0; i < 8 && primary.length + extra.length < need * 4; i++) {
+      const rnd = await filterSongsToActiveLibrary(await getRandomSongs(120));
+      for (const s of rnd) {
+        if (s.artistId === artist.id || s.artist === artist.name) {
+          extra.push(s);
+        }
       }
     }
+    pool = uniqueBySongId([...primary, ...extra]);
   }
-  return sampleRandom(uniqueBySongId([...primary, ...extra]), need);
+  const filtered = await filterSongsForLuckyMixRatings(pool, mixRatings);
+  return sampleRandom(filtered, Math.min(need, filtered.length));
 }
 
-async function pickSongsForAlbum(albumId: string, need: number): Promise<SubsonicSong[]> {
+async function pickSongsForAlbum(
+  albumId: string,
+  need: number,
+  mixRatings: MixMinRatingsConfig,
+): Promise<SubsonicSong[]> {
   const full = await getAlbum(albumId).catch(() => null);
   if (!full?.songs?.length) return [];
   const scopedSongs = await filterSongsToActiveLibrary(full.songs);
-  return sampleRandom(uniqueBySongId(scopedSongs), need);
+  const unique = uniqueBySongId(scopedSongs);
+  const filtered = await filterSongsForLuckyMixRatings(unique, mixRatings);
+  return sampleRandom(filtered, Math.min(need, filtered.length));
 }
 
-async function pickGoodRatedSongs(existingIds: Set<string>, need: number): Promise<SubsonicSong[]> {
+async function pickGoodRatedSongs(
+  existingIds: Set<string>,
+  need: number,
+  mixRatings: MixMinRatingsConfig,
+): Promise<SubsonicSong[]> {
   const out: SubsonicSong[] = [];
   const push = (s: SubsonicSong) => {
     const r = s.userRating ?? 0;
@@ -125,12 +147,13 @@ async function pickGoodRatedSongs(existingIds: Set<string>, need: number): Promi
     out.push(s);
   };
 
-  for (let i = 0; i < 14 && out.length < need; i++) {
+  for (let i = 0; i < 14 && out.length < need * 8; i++) {
     const rnd = await filterSongsToActiveLibrary(await getRandomSongs(120));
     rnd.forEach(push);
   }
 
-  return sampleRandom(out, need);
+  const filtered = await filterSongsForLuckyMixRatings(out, mixRatings);
+  return sampleRandom(filtered, Math.min(need, filtered.length));
 }
 
 export async function buildAndPlayLuckyMix(): Promise<void> {
@@ -159,11 +182,13 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     audiomuseByServer: auth.audiomuseNavidromeByServer,
     showLuckyMixMenu:  auth.showLuckyMixMenu,
   });
+  const mixRatingCfg = getMixMinRatingsConfigFromAuth();
   logStep('init', {
     activeServerId,
     available,
     showLuckyMixMenu: auth.showLuckyMixMenu,
     libraryFilter: activeServerId ? (auth.musicLibraryFilterByServer[activeServerId] ?? 'all') : 'all',
+    mixRatingFilter: mixRatingCfg,
   });
   if (!available) {
     logStep('abort_unavailable');
@@ -198,20 +223,19 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       if (useLuckyMixStore.getState().cancelRequested) throw new LuckyMixCancelled();
     };
     const reachedTarget = () => queuedIds.size >= MIX_TARGET_SIZE;
-    const isBlockedByRating = (song: SubsonicSong) => {
-      const rating = song.userRating ?? 0;
-      return rating === 1 || rating === 2;
-    };
 
-    const startImmediatePlayback = (song: SubsonicSong, source: string) => {
-      if (startedPlayback || !song?.id || isBlockedByRating(song)) return;
+    const startImmediatePlayback = async (song: SubsonicSong, source: string) => {
+      if (startedPlayback || !song?.id) return;
+      const allowed = await filterSongsForLuckyMixRatings([song], mixRatingCfg);
+      if (!allowed.length) return;
+      const play = allowed[0];
       startedPlayback = true;
-      queuedIds.add(song.id);
-      const track = songToTrack(song);
+      queuedIds.add(play.id);
+      const track = songToTrack(play);
       usePlayerStore.getState().playTrack(track, [track], true);
       logStep('start_immediate_playback', {
         source,
-        song: songDebug([song])[0],
+        song: songDebug([play])[0],
         queuedCount: queuedIds.size,
       });
 
@@ -231,17 +255,18 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       }
     };
 
-    const appendSongsToQueue = (songs: SubsonicSong[], reason: string): number => {
+    const appendSongsToQueue = async (songs: SubsonicSong[], reason: string): Promise<number> => {
       if (useLuckyMixStore.getState().cancelRequested) return 0;
       if (reachedTarget()) return 0;
       if (!songs.length) return 0;
-      const deduped = uniqueBySongId(songs).filter(s => !queuedIds.has(s.id) && !isBlockedByRating(s));
+      const unique = uniqueBySongId(songs).filter(s => !queuedIds.has(s.id));
+      const deduped = await filterSongsForLuckyMixRatings(unique, mixRatingCfg);
       if (!deduped.length) return 0;
 
       const candidates = [...deduped];
       if (!startedPlayback && candidates.length > 0) {
         const first = candidates.shift();
-        if (first) startImmediatePlayback(first, reason);
+        if (first) await startImmediatePlayback(first, reason);
       }
 
       if (!candidates.length) return 0;
@@ -276,10 +301,10 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
 
     for (const artist of pickedArtists) {
       bailIfCancelled();
-      const songs = await pickSongsForArtist(artist, 3);
+      const songs = await pickSongsForArtist(artist, 3, mixRatingCfg);
       allSeedSongs = uniqueAppend(allSeedSongs, songs);
-      const firstPlayable = songs.find(s => !isBlockedByRating(s));
-      if (firstPlayable) startImmediatePlayback(firstPlayable, `artist:${artist.name}`);
+      const firstPlayable = songs[0];
+      if (firstPlayable) await startImmediatePlayback(firstPlayable, `artist:${artist.name}`);
       logStep('pick_artist_songs', {
         artist,
         pickedCount: songs.length,
@@ -294,10 +319,10 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     });
     for (const album of pickedAlbums) {
       bailIfCancelled();
-      const songs = await pickSongsForAlbum(album.id, 3);
+      const songs = await pickSongsForAlbum(album.id, 3, mixRatingCfg);
       allSeedSongs = uniqueAppend(allSeedSongs, songs);
-      const firstPlayable = songs.find(s => !isBlockedByRating(s));
-      if (firstPlayable) startImmediatePlayback(firstPlayable, `album:${album.id}`);
+      const firstPlayable = songs[0];
+      if (firstPlayable) await startImmediatePlayback(firstPlayable, `album:${album.id}`);
       logStep('pick_album_songs', {
         albumId: album.id,
         pickedCount: songs.length,
@@ -306,13 +331,13 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     }
 
     bailIfCancelled();
-    const rated = await pickGoodRatedSongs(new Set(allSeedSongs.map(s => s.id)), 3);
+    const rated = await pickGoodRatedSongs(new Set(allSeedSongs.map(s => s.id)), 3, mixRatingCfg);
     logStep('pick_rated_songs_4plus_only', {
       ratedPickedCount: rated.length,
       ratedSongs: songDebug(rated),
     });
     allSeedSongs = uniqueAppend(allSeedSongs, rated);
-    let seeds = allSeedSongs.filter(s => !isBlockedByRating(s));
+    let seeds = await filterSongsForLuckyMixRatings(allSeedSongs, mixRatingCfg);
     logStep('seed_after_dedup', {
       seedCount: seeds.length,
       seeds: songDebug(seeds),
@@ -323,10 +348,10 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       for (let i = 0; i < 10 && seeds.length < SEED_TARGET_SIZE; i++) {
         bailIfCancelled();
         const rnd = await filterSongsToActiveLibrary(await getRandomSongs(80));
-        const allowedRnd = rnd.filter(s => !isBlockedByRating(s));
+        const allowedRnd = await filterSongsForLuckyMixRatings(rnd, mixRatingCfg);
         seeds = uniqueAppend(seeds, allowedRnd);
         const firstPlayable = allowedRnd[0];
-        if (firstPlayable) startImmediatePlayback(firstPlayable, `seed-fill-batch:${i + 1}`);
+        if (firstPlayable) await startImmediatePlayback(firstPlayable, `seed-fill-batch:${i + 1}`);
         logStep('seed_fill_batch', {
           batch: i + 1,
           fetched: rnd.length,
@@ -344,8 +369,8 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       throw new Error('no-seeds');
     }
     if (!startedPlayback) {
-      const firstPlayableSeed = seeds.find(s => !isBlockedByRating(s));
-      if (firstPlayableSeed) startImmediatePlayback(firstPlayableSeed, 'seed-fallback-first');
+      const firstPlayableSeed = seeds[0];
+      if (firstPlayableSeed) await startImmediatePlayback(firstPlayableSeed, 'seed-fallback-first');
     }
 
     let similarRaw: SubsonicSong[] = [];
@@ -357,12 +382,12 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       const oneScoped = await filterSongsToActiveLibrary(oneRaw);
       similarRaw = uniqueAppend(similarRaw, oneRaw);
       similar = uniqueAppend(similar, oneScoped);
-      appendSongsToQueue(oneScoped, `similar-seed-${i + 1}/${seeds.length}`);
+      await appendSongsToQueue(oneScoped, `similar-seed-${i + 1}/${seeds.length}`);
       if (reachedTarget()) break;
     }
     const seedForPool = seeds.filter(() => Math.random() < 0.5);
     let pool = uniqueBySongId([...seedForPool, ...similar]);
-    appendSongsToQueue(seedForPool, 'seed-50pct');
+    await appendSongsToQueue(seedForPool, 'seed-50pct');
     logStep('instant_mix', {
       seedUsedForInstantMixCount: seeds.length,
       seedIncludedInPoolCount: seedForPool.length,
@@ -376,7 +401,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       bailIfCancelled();
       const rnd = await filterSongsToActiveLibrary(await getRandomSongs(120));
       pool = uniqueAppend(pool, rnd);
-      appendSongsToQueue(rnd, `pool-fill-${i + 1}`);
+      await appendSongsToQueue(rnd, `pool-fill-${i + 1}`);
       logStep('pool_fill_batch', {
         batch: i + 1,
         fetched: rnd.length,
@@ -386,8 +411,9 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     }
 
     bailIfCancelled();
-    const finalSongs = sampleRandom(pool, MIX_TARGET_SIZE).filter(s => !queuedIds.has(s.id));
-    appendSongsToQueue(finalSongs, 'finalize-randomized');
+    const poolFiltered = await filterSongsForLuckyMixRatings(pool, mixRatingCfg);
+    const finalSongs = sampleRandom(poolFiltered, MIX_TARGET_SIZE).filter(s => !queuedIds.has(s.id));
+    await appendSongsToQueue(finalSongs, 'finalize-randomized');
     logStep('final_queue_state', {
       poolCount: pool.length,
       queuedCount: queuedIds.size,

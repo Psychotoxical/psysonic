@@ -82,6 +82,8 @@ export interface SubsonicOpenArtistRef {
   id?: string;
   name?: string;
   userRating?: number;
+  /** Navidrome / alternate OpenSubsonic payloads (same meaning as `userRating`). */
+  rating?: number;
 }
 
 export interface SubsonicSong {
@@ -561,6 +563,17 @@ function parseEntityUserRating(v: unknown): number | undefined {
   return n;
 }
 
+/** Navidrome and some JSON shapes use `rating` where Subsonic docs say `userRating`. */
+export function parseSubsonicEntityStarRating(entity: {
+  userRating?: unknown;
+  rating?: unknown;
+}): number | undefined {
+  return parseEntityUserRating(entity.userRating ?? entity.rating);
+}
+
+/** Bump when rating parse keys change so stale cache entries are not reused. */
+const ENTITY_RATING_CACHE_KEY_VER = 'v2';
+
 /** Parallel `getArtist` calls to fill mix/album filters when list endpoints omit ratings. */
 export async function prefetchArtistUserRatings(
   ids: string[],
@@ -571,7 +584,7 @@ export async function prefetchArtistUserRatings(
   if (!unique.length) return out;
   const uncached: string[] = [];
   for (const id of unique) {
-    const cached = getCachedRating(`artist:${id}`);
+    const cached = getCachedRating(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
     if (cached !== null) { if (cached !== undefined) out.set(id, cached); }
     else uncached.push(id);
   }
@@ -584,8 +597,8 @@ export async function prefetchArtistUserRatings(
       const id = uncached[i];
       try {
         const { artist } = await getArtist(id);
-        const r = parseEntityUserRating(artist.userRating);
-        setCachedRating(`artist:${id}`, r);
+        const r = parseSubsonicEntityStarRating(artist);
+        setCachedRating(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
         if (r !== undefined) out.set(id, r);
       } catch {
         /* ignore */
@@ -607,7 +620,7 @@ export async function prefetchAlbumUserRatings(
   if (!unique.length) return out;
   const uncached: string[] = [];
   for (const id of unique) {
-    const cached = getCachedRating(`album:${id}`);
+    const cached = getCachedRating(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
     if (cached !== null) { if (cached !== undefined) out.set(id, cached); }
     else uncached.push(id);
   }
@@ -620,8 +633,8 @@ export async function prefetchAlbumUserRatings(
       const id = uncached[i];
       try {
         const { album } = await getAlbum(id);
-        const r = parseEntityUserRating(album.userRating);
-        setCachedRating(`album:${id}`, r);
+        const r = parseSubsonicEntityStarRating(album);
+        setCachedRating(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
         if (r !== undefined) out.set(id, r);
       } catch {
         /* ignore */

@@ -1,5 +1,6 @@
 import {
   getRandomSongs,
+  parseSubsonicEntityStarRating,
   prefetchAlbumUserRatings,
   prefetchArtistUserRatings,
   type SubsonicAlbum,
@@ -39,19 +40,48 @@ function numRating(v: unknown): number | undefined {
   return n;
 }
 
+type OpenArtistRefLike = { id?: string; userRating?: unknown; rating?: unknown };
+
+function refStarRating(a: OpenArtistRefLike | undefined): number | undefined {
+  return numRating(a?.userRating ?? a?.rating);
+}
+
 function ratingFromArtistRefs(
-  list: Array<{ id?: string; userRating?: unknown }> | undefined,
+  list: OpenArtistRefLike[] | undefined,
   preferId?: string,
 ): number | undefined {
   if (!list?.length) return undefined;
   if (preferId) {
-    const m = list.find(a => a.id === preferId);
-    const r = numRating(m?.userRating);
+    const m = list.find(x => x.id === preferId);
+    const r = refStarRating(m);
     if (r !== undefined) return r;
   }
   for (const a of list) {
-    const r = numRating(a.userRating);
+    const r = refStarRating(a);
     if (r !== undefined) return r;
+  }
+  return undefined;
+}
+
+const CONTRIBUTOR_ROLES_FOR_ARTIST_ID =
+  /^(artist|album[\s_-]*artist|performer|track[\s_-]*artist|albumartist)$/i;
+
+/**
+ * Entity id for artist-level mix rating: canonical `artistId`, else OpenSubsonic `artists[].id`,
+ * else Navidrome `contributors[].artist.id` when list payloads omit the former.
+ */
+function artistEntityIdForMixRating(song: SubsonicSong): string | undefined {
+  if (song.artistId) return song.artistId;
+  const fromArtists = song.artists?.find(a => a.id)?.id;
+  if (fromArtists) return fromArtists;
+  const cList = song.contributors;
+  if (cList?.length) {
+    const byRole = cList.find(
+      c => c.artist?.id && CONTRIBUTOR_ROLES_FOR_ARTIST_ID.test((c.role || '').trim()),
+    );
+    if (byRole?.artist?.id) return byRole.artist.id;
+    const anyId = cList.find(c => c.artist?.id);
+    if (anyId?.artist?.id) return anyId.artist.id;
   }
   return undefined;
 }
@@ -60,14 +90,21 @@ function ratingFromArtistRefs(
 function effectiveArtistRatingForFilter(song: SubsonicSong): number | undefined {
   const d = numRating(song.artistUserRating);
   if (d !== undefined) return d;
-  const fromArtists = ratingFromArtistRefs(song.artists, song.artistId);
+  const prefer = artistEntityIdForMixRating(song);
+  const fromArtists = ratingFromArtistRefs(song.artists, prefer);
   if (fromArtists !== undefined) return fromArtists;
-  return ratingFromArtistRefs(song.albumArtists, song.artistId);
+  return ratingFromArtistRefs(song.albumArtists, prefer);
 }
 
 /** Song-level album (parent) rating when the server puts it on the child payload. */
 function effectiveAlbumRatingOnSong(song: SubsonicSong): number | undefined {
-  return numRating(song.albumUserRating);
+  const x = song as SubsonicSong & { albumRating?: unknown };
+  return numRating(song.albumUserRating ?? x.albumRating);
+}
+
+function songTrackStarRatingForMix(song: SubsonicSong): number | undefined {
+  const x = song as SubsonicSong & { rating?: unknown };
+  return numRating(song.userRating ?? x.rating);
 }
 
 /**
@@ -77,7 +114,7 @@ function effectiveAlbumRatingOnSong(song: SubsonicSong): number | undefined {
 export function passesMixMinRatings(song: SubsonicSong, c: MixMinRatingsConfig): boolean {
   if (!c.enabled) return true;
   if (c.minSong > 0) {
-    const r = numRating(song.userRating);
+    const r = songTrackStarRatingForMix(song);
     if (r !== undefined && r > 0 && r <= c.minSong) return false;
   }
   if (c.minAlbum > 0) {
@@ -109,7 +146,9 @@ export function passesMixMinRatingsForAlbum(
 ): boolean {
   if (!c.enabled) return true;
   if (c.minAlbum > 0) {
-    const r = numRating(album.userRating ?? extra?.albumUserRating);
+    const r =
+      parseSubsonicEntityStarRating(album as SubsonicAlbum & { rating?: unknown })
+      ?? numRating(extra?.albumUserRating);
     if (r !== undefined && r > 0 && r <= c.minAlbum) return false;
   }
   if (c.minArtist > 0) {
@@ -151,6 +190,16 @@ export async function filterAlbumsByMixRatings(
 /**
  * Merge `getArtist` / `getAlbum` ratings into songs before `passesMixMinRatings` when list payloads omit them.
  */
+/** Enrich when needed, then drop songs excluded by Settings → Ratings → filter-by-rating. */
+export async function filterSongsForLuckyMixRatings(
+  songs: SubsonicSong[],
+  c: MixMinRatingsConfig,
+): Promise<SubsonicSong[]> {
+  if (!c.enabled) return songs;
+  const enriched = await enrichSongsForMixRatingFilter(songs, c);
+  return enriched.filter(s => passesMixMinRatings(s, c));
+}
+
 export async function enrichSongsForMixRatingFilter(
   songs: SubsonicSong[],
   c: MixMinRatingsConfig,
@@ -158,7 +207,18 @@ export async function enrichSongsForMixRatingFilter(
   if (!c.enabled || (c.minArtist <= 0 && c.minAlbum <= 0)) return songs;
   const artistIds =
     c.minArtist > 0
-      ? [...new Set(songs.filter(s => s.artistUserRating === undefined && effectiveArtistRatingForFilter(s) === undefined && s.artistId).map(s => s.artistId!))]
+      ? [
+          ...new Set(
+            songs
+              .filter(
+                s =>
+                  s.artistUserRating === undefined
+                  && effectiveArtistRatingForFilter(s) === undefined
+                  && artistEntityIdForMixRating(s),
+              )
+              .map(s => artistEntityIdForMixRating(s)!),
+          ),
+        ]
       : [];
   const albumIds =
     c.minAlbum > 0
@@ -169,15 +229,18 @@ export async function enrichSongsForMixRatingFilter(
     albumIds.length ? prefetchAlbumUserRatings(albumIds) : Promise.resolve(new Map<string, number>()),
   ]);
   if (!byArtist.size && !byAlbum.size) return songs;
-  return songs.map(s => ({
-    ...s,
-    ...(s.artistUserRating === undefined &&
-    s.artistId &&
-    byArtist.has(s.artistId) && { artistUserRating: byArtist.get(s.artistId)! }),
-    ...(s.albumUserRating === undefined &&
-    s.albumId &&
-    byAlbum.has(s.albumId) && { albumUserRating: byAlbum.get(s.albumId)! }),
-  }));
+  return songs.map(s => {
+    const aid = artistEntityIdForMixRating(s);
+    const artistPatch =
+      s.artistUserRating === undefined && aid && byArtist.has(aid)
+        ? { artistUserRating: byArtist.get(aid)! }
+        : {};
+    const albumPatch =
+      s.albumUserRating === undefined && s.albumId && byAlbum.has(s.albumId)
+        ? { albumUserRating: byAlbum.get(s.albumId)! }
+        : {};
+    return { ...s, ...artistPatch, ...albumPatch };
+  });
 }
 
 /**
