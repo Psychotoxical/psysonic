@@ -1051,6 +1051,7 @@ async fn track_download_task(
     mut prod: HeapProducer<u8>,
     done: Arc<AtomicBool>,
     promote_cache_slot: Arc<Mutex<Option<PreloadedTrack>>>,
+    normalization_engine: Arc<AtomicU32>,
     normalization_target_lufs: Arc<AtomicU32>,
     loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
     cache_track_id: Option<String>,
@@ -1152,13 +1153,15 @@ async fn track_download_task(
                     if !capture_over_limit
                         && last_partial_loudness_emit.elapsed() >= Duration::from_millis(PARTIAL_LOUDNESS_EMIT_INTERVAL_MS)
                     {
-                        let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
-                        let pre_db = f32::from_bits(
-                            loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed),
-                        )
-                        .clamp(-24.0, 0.0);
-                        emit_partial_loudness_from_bytes(&app, &url, &capture, target_lufs, pre_db);
                         last_partial_loudness_emit = Instant::now();
+                        if normalization_engine.load(Ordering::Relaxed) == 2 {
+                            let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
+                            let pre_db = f32::from_bits(
+                                loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed),
+                            )
+                            .clamp(-24.0, 0.0);
+                            emit_partial_loudness_from_bytes(&app, &url, &capture, target_lufs, pre_db);
+                        }
                     }
                     offset += pushed;
                     downloaded += pushed as u64;
@@ -1167,6 +1170,11 @@ async fn track_download_task(
         }
         if !capture_over_limit && !capture.is_empty() {
             if let Some(track_id) = cache_track_id {
+                crate::app_deprintln!(
+                    "[stream] legacy stream: capture complete track_id={} capture_mib={:.2} — invoking full-track analysis (blocks until seed_from_bytes returns)",
+                    track_id,
+                    capture.len() as f64 / (1024.0 * 1024.0)
+                );
                 match crate::analysis_cache::seed_from_bytes(&app, &track_id, &capture) {
                     Err(e) => crate::app_eprintln!("[analysis] track seed failed for {}: {}", track_id, e),
                     Ok(crate::analysis_cache::SeedFromBytesOutcome::Upserted) => {
@@ -1207,6 +1215,7 @@ async fn ranged_download_task(
     downloaded_to: Arc<AtomicUsize>,
     done: Arc<AtomicBool>,
     promote_cache_slot: Arc<Mutex<Option<PreloadedTrack>>>,
+    normalization_engine: Arc<AtomicU32>,
     normalization_target_lufs: Arc<AtomicU32>,
     loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
     cache_track_id: Option<String>,
@@ -1296,23 +1305,25 @@ async fn ranged_download_task(
                 && total_size > 0
                 && last_partial_loudness_emit.elapsed() >= Duration::from_millis(PARTIAL_LOUDNESS_EMIT_INTERVAL_MS)
             {
-                let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
-                let start_db = f32::from_bits(loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed))
-                    .clamp(-24.0, 0.0);
-                if let Some(provisional_db) =
-                    provisional_loudness_gain_from_progress(downloaded, total_size, target_lufs, start_db)
-                {
-                    let _ = app.emit(
-                        "analysis:loudness-partial",
-                        PartialLoudnessPayload {
-                            track_id: playback_identity(&url),
-                            gain_db: provisional_db,
-                            target_lufs,
-                            is_partial: true,
-                        },
-                    );
-                }
                 last_partial_loudness_emit = Instant::now();
+                if normalization_engine.load(Ordering::Relaxed) == 2 {
+                    let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
+                    let start_db = f32::from_bits(loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed))
+                        .clamp(-24.0, 0.0);
+                    if let Some(provisional_db) =
+                        provisional_loudness_gain_from_progress(downloaded, total_size, target_lufs, start_db)
+                    {
+                        let _ = app.emit(
+                            "analysis:loudness-partial",
+                            PartialLoudnessPayload {
+                                track_id: playback_identity(&url),
+                                gain_db: provisional_db,
+                                target_lufs,
+                                is_partial: true,
+                            },
+                        );
+                    }
+                }
             }
             let mb = downloaded / (1024 * 1024);
             if mb >= next_progress_mb {
@@ -1344,7 +1355,22 @@ async fn ranged_download_task(
     );
 
     if downloaded == total_size && total_size > 0 && total_size <= TRACK_STREAM_PROMOTE_MAX_BYTES {
+        if let Some(ref tid) = cache_track_id {
+            crate::app_deprintln!(
+                "[stream] ranged: HTTP buffer full track_id={} size_mib={:.2} — cloning {} bytes then full-track analysis (blocks this download task until complete)",
+                tid,
+                total_size as f64 / (1024.0 * 1024.0),
+                total_size
+            );
+        }
+        let t_clone = Instant::now();
         let data = buf.lock().unwrap().clone();
+        if total_size > 32 * 1024 * 1024 {
+            crate::app_deprintln!(
+                "[stream] ranged: buffer cloned in_ms={}",
+                t_clone.elapsed().as_millis()
+            );
+        }
         if let Some(track_id) = cache_track_id {
             match crate::analysis_cache::seed_from_bytes(&app, &track_id, &data) {
                 Err(e) => crate::app_eprintln!("[analysis] ranged seed failed for {}: {}", track_id, e),
@@ -2735,6 +2761,56 @@ async fn fetch_data(
     Ok(Some(data))
 }
 
+/// When playback uses full track bytes already in RAM (gapless `reuse_chained_bytes`,
+/// `preloaded`, or `stream_completed_cache` via `fetch_data`), the `psysonic-local`
+/// disk-read seed path never runs. Spawn the same `seed_from_bytes` work so waveform /
+/// loudness SQLite can fill **offline** without `analysis_enqueue_seed_from_url` HTTP.
+fn spawn_analysis_seed_from_in_memory_bytes(
+    app: &AppHandle,
+    cache_track_id: Option<&str>,
+    gen: u64,
+    gen_arc: &Arc<AtomicU64>,
+    bytes: &[u8],
+) {
+    let Some(track_id) = cache_track_id.map(str::trim).filter(|s| !s.is_empty()) else {
+        return;
+    };
+    if bytes.is_empty() || bytes.len() > TRACK_STREAM_PROMOTE_MAX_BYTES {
+        return;
+    }
+    let track_id = track_id.to_string();
+    let bytes = bytes.to_vec();
+    let app = app.clone();
+    let gen_arc = gen_arc.clone();
+    crate::app_deprintln!(
+        "[stream] in-memory play path: scheduling full-track analysis track_id={} size_mib={:.2}",
+        track_id,
+        bytes.len() as f64 / (1024.0 * 1024.0)
+    );
+    tokio::spawn(async move {
+        if gen_arc.load(Ordering::SeqCst) != gen {
+            return;
+        }
+        match crate::analysis_cache::seed_from_bytes(&app, &track_id, &bytes) {
+            Err(e) => crate::app_eprintln!(
+                "[analysis] in-memory play path seed failed for {}: {}",
+                track_id,
+                e
+            ),
+            Ok(crate::analysis_cache::SeedFromBytesOutcome::Upserted) => {
+                let _ = app.emit(
+                    "analysis:waveform-updated",
+                    WaveformUpdatedPayload {
+                        track_id: track_id.clone(),
+                        is_partial: false,
+                    },
+                );
+            }
+            Ok(_) => {}
+        }
+    });
+}
+
 /// -1 dB headroom applied at full scale to prevent inter-sample clipping.
 /// Modern masters are often at 0 dBFS; the EQ biquad chain and resampler
 /// can produce inter-sample peaks slightly above ±1.0 → audible distortion.
@@ -2980,6 +3056,13 @@ pub async fn audio_play(
     //    b) Server does not → legacy non-seekable AudioStreamReader fallback
     // 4) Preloaded/streamed-cache hit → in-memory bytes via fetch_data
     let play_input = if let Some(d) = reuse_chained_bytes {
+        spawn_analysis_seed_from_in_memory_bytes(
+            &app,
+            cache_id_for_tasks.as_deref(),
+            gen,
+            &state.generation,
+            &d,
+        );
         PlayInput::Bytes(d)
     } else {
         let stream_cache_hit = {
@@ -3029,6 +3112,11 @@ pub async fn audio_play(
                     if data.is_empty() || data.len() > TRACK_STREAM_PROMOTE_MAX_BYTES {
                         return;
                     }
+                    crate::app_deprintln!(
+                        "[stream] psysonic-local: file read complete track_id={} size_mib={:.2} — invoking full-track analysis (async)",
+                        seed_id,
+                        data.len() as f64 / (1024.0 * 1024.0)
+                    );
                     match crate::analysis_cache::seed_from_bytes(&app_seed, &seed_id, &data) {
                         Err(e) => crate::app_eprintln!(
                             "[analysis] local-file seed failed for {}: {}",
@@ -3106,6 +3194,7 @@ pub async fn audio_play(
                     downloaded_to.clone(),
                     done.clone(),
                     state.stream_completed_cache.clone(),
+                    state.normalization_engine.clone(),
                     state.normalization_target_lufs.clone(),
                     state.loudness_pre_analysis_attenuation_db.clone(),
                     cache_id_for_tasks.clone(),
@@ -3146,6 +3235,7 @@ pub async fn audio_play(
                     prod,
                     done.clone(),
                     state.stream_completed_cache.clone(),
+                    state.normalization_engine.clone(),
                     state.normalization_target_lufs.clone(),
                     state.loudness_pre_analysis_attenuation_db.clone(),
                     cache_id_for_tasks.clone(),
@@ -3174,6 +3264,13 @@ pub async fn audio_play(
                 Some(d) => d,
                 None => return Ok(()), // superseded while downloading
             };
+            spawn_analysis_seed_from_in_memory_bytes(
+                &app,
+                cache_id_for_tasks.as_deref(),
+                gen,
+                &state.generation,
+                &data,
+            );
             PlayInput::Bytes(data)
         }
     };
@@ -4279,6 +4376,11 @@ pub async fn audio_preload(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
     if let Some(track_id) = analysis_cache_track_id(logical_trim.as_deref(), &url) {
+        crate::app_deprintln!(
+            "[stream] audio_preload: bytes ready track_id={} size_mib={:.2} — invoking full-track analysis",
+            track_id,
+            data.len() as f64 / (1024.0 * 1024.0)
+        );
         match crate::analysis_cache::seed_from_bytes(&app, &track_id, &data) {
             Err(e) => crate::app_eprintln!("[analysis] preload seed failed for {}: {}", track_id, e),
             Ok(crate::analysis_cache::SeedFromBytesOutcome::Upserted) => {

@@ -356,11 +356,15 @@ pub fn seed_from_bytes(
             return Ok(SeedFromBytesOutcome::SkippedWaveformCacheHit);
         }
     }
+    let mib = bytes.len() as f64 / (1024.0 * 1024.0);
     crate::app_deprintln!(
-        "[analysis][waveform] build start track_id={} bytes={} md5_16kb={}",
+        "[analysis] full-track analysis start track_id={} input_mib={:.2} md5_16kb={}",
         track_id,
-        bytes.len(),
+        mib,
         key.md5_16kb
+    );
+    crate::app_deprintln!(
+        "[analysis] full-track analysis work: Symphonia decodes the entire buffer twice (frame timeline, then PCM peak bins), then EBU R128 integrated loudness + true-peak when that succeeds — CPU-bound; large lossless files often take minutes"
     );
 
     let build = (|| -> Result<(bool, usize), String> {
@@ -406,20 +410,21 @@ pub fn seed_from_bytes(
     match &build {
         Ok((used_pcm_decode, bins_len)) => {
             crate::app_deprintln!(
-                "[analysis][waveform] build done track_id={} elapsed_ms={} path={} bins_len={}",
+                "[analysis] full-track analysis done track_id={} elapsed_ms={} decode_path={} bins_len={} ebu_loudness_cached={}",
                 track_id,
                 elapsed_ms,
                 if *used_pcm_decode {
                     "pcm_ebur128"
                 } else {
-                    "byte_envelope"
+                    "byte_envelope_no_ebu"
                 },
-                bins_len
+                bins_len,
+                *used_pcm_decode
             );
         }
         Err(e) => {
             crate::app_deprintln!(
-                "[analysis][waveform] build failed track_id={} elapsed_ms={} err={}",
+                "[analysis] full-track analysis failed track_id={} elapsed_ms={} err={}",
                 track_id,
                 elapsed_ms,
                 e

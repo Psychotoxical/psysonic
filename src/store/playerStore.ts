@@ -608,6 +608,28 @@ function touchHotCacheOnPlayback(trackId: string, serverId: string) {
   useHotCacheStore.getState().touchPlayed(trackId, serverId);
 }
 
+/** Coalesce concurrent `analysis_get_waveform_for_track` for one id (StrictMode double mount, init + queue restore). */
+const waveformRefreshInflight = new Map<string, Promise<void>>();
+
+/** Skip redundant `audio_set_normalization` IPC when the same payload is sent twice within a short window (e.g. StrictMode). */
+let lastNormAudioInvokeKey = '';
+let lastNormAudioInvokeAtMs = 0;
+
+function invokeAudioSetNormalizationDeduped(payload: {
+  engine: string;
+  targetLufs: number;
+  preAnalysisAttenuationDb: number;
+}) {
+  const key = `${payload.engine}|${payload.targetLufs}|${payload.preAnalysisAttenuationDb}`;
+  const now = Date.now();
+  if (key === lastNormAudioInvokeKey && now - lastNormAudioInvokeAtMs < 450) {
+    return;
+  }
+  lastNormAudioInvokeKey = key;
+  lastNormAudioInvokeAtMs = now;
+  void invoke('audio_set_normalization', payload).catch(() => {});
+}
+
 function isReplayGainActive() {
   const a = useAuthStore.getState();
   return a.normalizationEngine === 'replaygain' && a.replayGainEnabled;
@@ -676,23 +698,33 @@ async function reseedLoudnessForTrackId(trackId: string) {
 
 async function refreshWaveformForTrack(trackId: string) {
   if (!trackId) return;
-  try {
-    const row = await invoke<WaveformCachePayload | null>('analysis_get_waveform_for_track', { trackId });
-    // Never apply bins for a non-current track (e.g. gapless byte-preload fetches the neighbour).
-    if (usePlayerStore.getState().currentTrack?.id !== trackId) return;
-    const bins = row ? coerceWaveformBins(row.bins) : null;
-    if (!bins || bins.length === 0) {
-      usePlayerStore.setState({
-        waveformBins: null,
-      });
-      return;
-    }
-    usePlayerStore.setState({
-      waveformBins: bins,
+  let job = waveformRefreshInflight.get(trackId);
+  if (!job) {
+    const p = (async () => {
+      try {
+        const row = await invoke<WaveformCachePayload | null>('analysis_get_waveform_for_track', { trackId });
+        // Never apply bins for a non-current track (e.g. gapless byte-preload fetches the neighbour).
+        if (usePlayerStore.getState().currentTrack?.id !== trackId) return;
+        const bins = row ? coerceWaveformBins(row.bins) : null;
+        if (!bins || bins.length === 0) {
+          usePlayerStore.setState({
+            waveformBins: null,
+          });
+          return;
+        }
+        usePlayerStore.setState({
+          waveformBins: bins,
+        });
+      } catch {
+        // best-effort; seekbar falls back to placeholder waveform
+      }
+    })();
+    job = p.finally(() => {
+      waveformRefreshInflight.delete(trackId);
     });
-  } catch {
-    // best-effort; seekbar falls back to placeholder waveform
+    waveformRefreshInflight.set(trackId, job);
   }
+  await job;
 }
 
 /** When `syncPlayingEngine` is false, only update `cachedLoudnessGainByTrackId` (e.g. queue neighbour) — do not call `audio_update_replay_gain` for the already-playing track. */
@@ -1263,11 +1295,11 @@ export function initAudioListeners(): () => void {
     targetLufs: normCfg.loudnessTargetLufs,
     currentTrackId: usePlayerStore.getState().currentTrack?.id ?? null,
   });
-  invoke('audio_set_normalization', {
+  invokeAudioSetNormalizationDeduped({
     engine: normCfg.normalizationEngine,
     targetLufs: normCfg.loudnessTargetLufs,
     preAnalysisAttenuationDb: normCfg.loudnessPreAnalysisAttenuationDb,
-  }).catch(() => {});
+  });
   const bootTrackId = usePlayerStore.getState().currentTrack?.id;
   if (bootTrackId) {
     void refreshWaveformForTrack(bootTrackId);
@@ -1319,11 +1351,11 @@ export function initAudioListeners(): () => void {
       targetLufs: state.loudnessTargetLufs,
       currentTrackId: usePlayerStore.getState().currentTrack?.id ?? null,
     });
-    invoke('audio_set_normalization', {
+    invokeAudioSetNormalizationDeduped({
       engine: state.normalizationEngine,
       targetLufs: state.loudnessTargetLufs,
       preAnalysisAttenuationDb: state.loudnessPreAnalysisAttenuationDb,
-    }).catch(() => {});
+    });
     if (state.normalizationEngine === 'loudness') {
       const currentId = usePlayerStore.getState().currentTrack?.id;
       if (onlyPreAnalysisChanged) {
