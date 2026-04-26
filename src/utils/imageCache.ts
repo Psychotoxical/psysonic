@@ -8,9 +8,58 @@ const MAX_CONCURRENT_FETCHES = 5;
 
 // In-memory blob cache: cacheKey → Blob (insertion-order = LRU approximation).
 // Only the Map entry is dropped on overflow — the underlying Blob is freed by
-// the GC once no <img>/<canvas>/object URL still references it. Each consumer
-// is responsible for its own URL.createObjectURL lifecycle.
+// the GC once no <img>/<canvas>/object URL still references it.
 const blobCache = new Map<string, Blob>();
+
+// Refcounted object URLs shared across all consumers of the same cacheKey.
+// Chromium/WebView2 keys its decoded-image cache by URL, so handing every
+// <img> its own URL.createObjectURL forces a fresh decode for each instance —
+// catastrophic on Windows even for tiny cover thumbnails. Sharing a single
+// URL per cacheKey lets the renderer reuse the decoded bitmap.
+const URL_REVOKE_DELAY_MS = 500;
+type UrlEntry = { url: string; refs: number; revokeTimer: ReturnType<typeof setTimeout> | null };
+const urlEntries = new Map<string, UrlEntry>();
+
+function purgeUrlEntry(cacheKey: string): void {
+  const entry = urlEntries.get(cacheKey);
+  if (!entry) return;
+  if (entry.revokeTimer) clearTimeout(entry.revokeTimer);
+  URL.revokeObjectURL(entry.url);
+  urlEntries.delete(cacheKey);
+}
+
+/**
+ * Returns a shared object URL for the cached blob of `cacheKey`, or null if
+ * not currently in memory. Pair every successful call with releaseUrl().
+ * Subsequent acquires reuse the same URL and just bump the refcount.
+ */
+export function acquireUrl(cacheKey: string): string | null {
+  const blob = blobCache.get(cacheKey);
+  if (!blob) return null;
+  rememberBlob(cacheKey, blob); // refresh LRU position
+  let entry = urlEntries.get(cacheKey);
+  if (!entry) {
+    entry = { url: URL.createObjectURL(blob), refs: 0, revokeTimer: null };
+    urlEntries.set(cacheKey, entry);
+  } else if (entry.revokeTimer) {
+    clearTimeout(entry.revokeTimer);
+    entry.revokeTimer = null;
+  }
+  entry.refs++;
+  return entry.url;
+}
+
+/** Decrements the refcount; revokes (after grace delay) when it reaches zero. */
+export function releaseUrl(cacheKey: string): void {
+  const entry = urlEntries.get(cacheKey);
+  if (!entry) return;
+  entry.refs--;
+  if (entry.refs > 0) return;
+  entry.revokeTimer = setTimeout(() => {
+    URL.revokeObjectURL(entry.url);
+    urlEntries.delete(cacheKey);
+  }, URL_REVOKE_DELAY_MS);
+}
 
 let activeFetches = 0;
 const fetchQueue: Array<() => void> = [];
@@ -160,6 +209,7 @@ export async function getImageCacheSize(): Promise<number> {
 
 export async function invalidateCacheKey(cacheKey: string): Promise<void> {
   blobCache.delete(cacheKey);
+  purgeUrlEntry(cacheKey);
   try {
     const database = await openDB();
     await new Promise<void>(resolve => {
@@ -181,6 +231,7 @@ export async function invalidateCoverArt(entityId: string): Promise<void> {
 
 export async function clearImageCache(): Promise<void> {
   blobCache.clear();
+  for (const key of Array.from(urlEntries.keys())) purgeUrlEntry(key);
   try {
     const database = await openDB();
     await new Promise<void>(resolve => {
