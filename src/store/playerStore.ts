@@ -15,6 +15,8 @@ import { onAnalysisStorageChanged } from './analysisSync';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { useOrbitStore } from './orbitStore';
 import { estimateLivePosition } from '../api/orbit';
+import { loudnessGainPlaceholderUntilCacheDb } from '../utils/loudnessPlaceholder';
+import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
 
 export interface Track {
   id: string;
@@ -832,8 +834,24 @@ function invokeAudioUpdateReplayGainDeduped(payload: {
   preGainDb: number;
   fallbackDb: number;
 }) {
+  const auth = useAuthStore.getState();
+  /** Must vary when LUFS target / pre-trim changes: Rust recomputes in `audio_update_replay_gain` even if JS still sends the same cached dB. */
+  const preEff =
+    auth.normalizationEngine === 'loudness'
+      ? effectiveLoudnessPreAnalysisAttenuationDb(
+          auth.loudnessPreAnalysisAttenuationDb,
+          auth.loudnessTargetLufs,
+        )
+      : auth.loudnessPreAnalysisAttenuationDb;
+  const normDedupeKey =
+    auth.normalizationEngine === 'loudness'
+      ? `loudness|tgt=${auth.loudnessTargetLufs}|pre=${preEff.toFixed(2)}`
+      : auth.normalizationEngine === 'replaygain'
+        ? 'replaygain'
+        : 'off';
   const fmt = (v: number | null) => (v == null || !Number.isFinite(v) ? 'null' : v.toFixed(3));
   const key = [
+    normDedupeKey,
     payload.volume.toFixed(4),
     fmt(payload.replayGainDb),
     fmt(payload.replayGainPeak),
@@ -910,7 +928,11 @@ async function reseedLoudnessForTrackId(trackId: string) {
   usePlayerStore.getState().updateReplayGainForCurrentTrack();
   const url = buildStreamUrl(trackId);
   try {
-    await invoke('analysis_enqueue_seed_from_url', { trackId, url });
+    await invoke('analysis_enqueue_seed_from_url', {
+      trackId,
+      url,
+      force: true,
+    });
   } catch (e) {
     console.error('[psysonic] analysis_enqueue_seed_from_url (reseed) failed:', e);
   }
@@ -946,7 +968,8 @@ async function refreshLoudnessForTrack(
 ): Promise<void> {
   if (!trackId) return;
   const syncEngine = opts?.syncPlayingEngine !== false;
-  const inflightKey = `${trackId}|${syncEngine ? 'sync' : 'no-sync'}`;
+  const target = useAuthStore.getState().loudnessTargetLufs;
+  const inflightKey = `${trackId}|${syncEngine ? 'sync' : 'no-sync'}|${target}`;
   const existing = loudnessRefreshInflight.get(inflightKey);
   if (existing) return existing;
   const job = (async () => { await runRefreshLoudnessForTrack(trackId, syncEngine); })()
@@ -959,10 +982,16 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
   emitNormalizationDebug('refresh:start', { trackId });
   usePlayerStore.setState({ normalizationDbgSource: 'refresh:start', normalizationDbgTrackId: trackId });
   try {
+    const requestedTarget = useAuthStore.getState().loudnessTargetLufs;
     const row = await invoke<LoudnessCachePayload | null>('analysis_get_loudness_for_track', {
       trackId,
-      targetLufs: useAuthStore.getState().loudnessTargetLufs,
+      targetLufs: requestedTarget,
     });
+    if (useAuthStore.getState().loudnessTargetLufs !== requestedTarget) {
+      emitNormalizationDebug('refresh:stale-target', { trackId, requestedTarget });
+      void refreshLoudnessForTrack(trackId, { syncPlayingEngine: syncEngine });
+      return;
+    }
     if (!row || !Number.isFinite(row.recommendedGainDb)) {
       delete cachedLoudnessGainByTrackId[trackId];
       delete stableLoudnessGainByTrackId[trackId];
@@ -1568,7 +1597,10 @@ export function initAudioListeners(): () => void {
   invokeAudioSetNormalizationDeduped({
     engine: normCfg.normalizationEngine,
     targetLufs: normCfg.loudnessTargetLufs,
-    preAnalysisAttenuationDb: normCfg.loudnessPreAnalysisAttenuationDb,
+    preAnalysisAttenuationDb: effectiveLoudnessPreAnalysisAttenuationDb(
+      normCfg.loudnessPreAnalysisAttenuationDb,
+      normCfg.loudnessTargetLufs,
+    ),
   });
   const bootTrackId = usePlayerStore.getState().currentTrack?.id;
   if (bootTrackId) {
@@ -1605,6 +1637,9 @@ export function initAudioListeners(): () => void {
       state.normalizationEngine === prevNormEngine
       && state.loudnessTargetLufs === prevNormTarget
       && state.loudnessPreAnalysisAttenuationDb !== prevPreAnalysis;
+    const targetLufsChanged =
+      state.normalizationEngine === 'loudness'
+      && state.loudnessTargetLufs !== prevNormTarget;
     prevNormEngine = state.normalizationEngine;
     prevNormTarget = state.loudnessTargetLufs;
     prevPreAnalysis = state.loudnessPreAnalysisAttenuationDb;
@@ -1624,13 +1659,19 @@ export function initAudioListeners(): () => void {
     invokeAudioSetNormalizationDeduped({
       engine: state.normalizationEngine,
       targetLufs: state.loudnessTargetLufs,
-      preAnalysisAttenuationDb: state.loudnessPreAnalysisAttenuationDb,
+      preAnalysisAttenuationDb: effectiveLoudnessPreAnalysisAttenuationDb(
+        state.loudnessPreAnalysisAttenuationDb,
+        state.loudnessTargetLufs,
+      ),
     });
     if (state.normalizationEngine === 'loudness') {
       const currentId = usePlayerStore.getState().currentTrack?.id;
       if (onlyPreAnalysisChanged) {
         usePlayerStore.getState().updateReplayGainForCurrentTrack();
       } else if (currentId) {
+        if (targetLufsChanged) {
+          clearLoudnessCacheStateForTrackId(currentId);
+        }
         void refreshLoudnessForTrack(currentId).finally(() => {
           usePlayerStore.getState().updateReplayGainForCurrentTrack();
         });
@@ -3037,10 +3078,25 @@ export const usePlayerStore = create<PlayerState>()(
         const normalization = deriveNormalizationSnapshot(currentTrack, queue, queueIndex);
         const cachedLoud = cachedLoudnessGainByTrackId[currentTrack.id];
         const cachedLoudDb = Number.isFinite(cachedLoud) ? cachedLoud : null;
+        const haveStableLoud = !!stableLoudnessGainByTrackId[currentTrack.id];
+        const preEffForNorm = effectiveLoudnessPreAnalysisAttenuationDb(
+          authState.loudnessPreAnalysisAttenuationDb,
+          authState.loudnessTargetLufs,
+        );
+        const preAnalysisPlaceholderDb =
+          normalization.normalizationEngineLive === 'loudness'
+          && cachedLoudDb == null
+          && !haveStableLoud
+          && Number.isFinite(preEffForNorm)
+            ? loudnessGainPlaceholderUntilCacheDb(
+                authState.loudnessTargetLufs,
+                preEffForNorm,
+              )
+            : null;
         set(prevState => ({
           normalizationNowDb:
             normalization.normalizationEngineLive === 'loudness'
-              ? (prevState.normalizationNowDb ?? cachedLoudDb)
+              ? (cachedLoudDb ?? preAnalysisPlaceholderDb ?? prevState.normalizationNowDb)
               : normalization.normalizationNowDb,
           normalizationTargetLufs: normalization.normalizationTargetLufs,
           normalizationEngineLive: normalization.normalizationEngineLive,

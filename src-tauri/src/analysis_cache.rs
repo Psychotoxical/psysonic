@@ -238,6 +238,31 @@ impl AnalysisCache {
         Ok(row.filter(|e| waveform_cache_blob_len_ok(&e.bins, e.bin_count)))
     }
 
+    /// True when this exact `(track_id, md5_16kb)` has a loudness row for the current algo version.
+    /// Used after `delete_loudness_for_track_id`: waveform may still be cached, but EBU data was removed.
+    pub fn loudness_row_exists_for_key(&self, key: &TrackKey) -> Result<bool, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let exists: i64 = conn
+            .query_row(
+                r#"
+            SELECT EXISTS (
+              SELECT 1
+              FROM loudness_cache l
+              JOIN analysis_track a
+                ON a.track_id = l.track_id
+               AND a.md5_16kb = l.md5_16kb
+              WHERE l.track_id = ?1
+                AND l.md5_16kb = ?2
+                AND a.loudness_algo_version = ?3
+            )
+            "#,
+                params![key.track_id, key.md5_16kb, LOUDNESS_ALGO_VERSION],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(exists != 0)
+    }
+
     pub fn get_latest_waveform_for_track(&self, track_id: &str) -> Result<Option<WaveformEntry>, String> {
         let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
         const SQL: &str = r#"
@@ -361,14 +386,21 @@ pub fn seed_from_bytes_execute(
     };
     if let Some(existing) = cache.get_waveform(&key)? {
         if !existing.bins.is_empty() {
+            if cache.loudness_row_exists_for_key(&key)? {
+                crate::app_deprintln!(
+                    "[analysis][waveform] build skip track_id={} reason=waveform_cache_hit md5_16kb={} bins_len={} elapsed_ms={}",
+                    track_id,
+                    key.md5_16kb,
+                    existing.bins.len(),
+                    started.elapsed().as_millis()
+                );
+                return Ok(SeedFromBytesOutcome::SkippedWaveformCacheHit);
+            }
             crate::app_deprintln!(
-                "[analysis][waveform] build skip track_id={} reason=waveform_cache_hit md5_16kb={} bins_len={} elapsed_ms={}",
+                "[analysis][waveform] waveform cache hit but loudness missing — full re-analysis track_id={} md5_16kb={}",
                 track_id,
-                key.md5_16kb,
-                existing.bins.len(),
-                started.elapsed().as_millis()
+                key.md5_16kb
             );
-            return Ok(SeedFromBytesOutcome::SkippedWaveformCacheHit);
         }
     }
     let mib = bytes.len() as f64 / (1024.0 * 1024.0);

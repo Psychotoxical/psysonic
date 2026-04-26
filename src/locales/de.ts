@@ -858,7 +858,8 @@ export const deTranslation = {
     loudnessTargetLufsDesc: 'Referenz-Lautstärke, an die alle Titel angepasst werden. Niedrigere Werte = lautere Ausgabe. Streaming-Dienste liegen meist bei etwa -14 LUFS.',
     loudnessPreAnalysisAttenuation: 'Dämpfung vor Messung',
     loudnessPreAnalysisAttenuationDesc:
-      'Zusätzliche Dämpfung, bis die Loudness des Titels gespeichert ist. Beim Streamen folgen nur grobe Schätzungen, keine volle Messung. 0 dB = aus; negativer = leiser.',
+      'Zusätzliche Dämpfung, bis die Loudness des Titels gespeichert ist. Beim Streamen folgen nur grobe Schätzungen, keine volle Messung. 0 dB = aus; negativer = leiser. Regler: Wert bei Referenz −14 LUFS; rechts: wirksam für die gewählte Ziel-LUFS.',
+    loudnessPreAnalysisAttenuationRef: 'Eingestellt {{ref}} dB (Referenz −14 LUFS) → wirksam {{eff}} dB bei Ziel {{tgt}} LUFS.',
     loudnessPreAnalysisAttenuationReset: 'Standard',
     loudnessFirstPlayNote:
       'Beim ersten Abspielen eines neuen Titels kann die Lautstärke kurz schwanken, während gemessen wird. Beim nächsten Mal greift die gespeicherte Messung und alles bleibt stabil. Kommende Queue-Titel werden meist schon während des vorherigen Songs analysiert — in der Praxis tritt das daher selten auf.',

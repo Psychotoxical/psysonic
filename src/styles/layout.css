@@ -2007,6 +2007,17 @@ html[data-platform="windows"] .player-bar.floating {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
+.queue-current-tech-metric--lufs-reanalyze {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  max-width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .queue-divider {
   padding: var(--space-3) var(--space-4) 0;
   flex-shrink: 0;

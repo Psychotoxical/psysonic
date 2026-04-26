@@ -845,7 +845,8 @@ export const nlTranslation = {
     loudnessTargetLufsDesc: 'Referentie-luidheid waarop alle nummers worden afgestemd. Lagere waarde = luidere uitvoer. Streamingdiensten zitten meestal rond -14 LUFS.',
     loudnessPreAnalysisAttenuation: 'Demping vóór meting',
     loudnessPreAnalysisAttenuationDesc:
-      'Extra zachter tot de loudness van het nummer is opgeslagen. Streamen gebruikt daarna grove schattingen, geen volledige meting. 0 dB = uit; negatiever = zachter.',
+      'Extra zachter tot de loudness van het nummer is opgeslagen. Streamen gebruikt daarna grove schattingen, geen volledige meting. 0 dB = uit; negatiever = zachter. Schuif: waarde t.o.v. referentie −14 LUFS; rechts: effectieve dB voor het huidige doel.',
+    loudnessPreAnalysisAttenuationRef: 'Ingesteld op {{ref}} dB (referentie −14 LUFS) → effectief {{eff}} dB bij doel {{tgt}} LUFS.',
     loudnessPreAnalysisAttenuationReset: 'Standaard',
     loudnessFirstPlayNote:
       'Bij de eerste keer afspelen van een nieuw nummer kan het volume even fluctueren terwijl er gemeten wordt. De volgende keer gebruikt de speler de opgeslagen meting en blijft alles rotsvast. Komende nummers in de wachtrij worden meestal al tijdens het vorige nummer geanalyseerd, dus dit komt in de praktijk zelden voor.',

@@ -44,6 +44,9 @@ import { useFontStore, FontId } from '../store/fontStore';
 import { useKeybindingsStore, KeyAction, formatBinding, buildInAppBinding } from '../store/keybindingsStore';
 import { useGlobalShortcutsStore, GlobalAction, buildGlobalShortcut, formatGlobalShortcut } from '../store/globalShortcutsStore';
 import { useSidebarStore, DEFAULT_SIDEBAR_ITEMS, SidebarItemConfig } from '../store/sidebarStore';
+import {
+  effectiveLoudnessPreAnalysisAttenuationDb,
+} from '../utils/loudnessPreAnalysisSlider';
 import { useArtistLayoutStore, type ArtistSectionId, type ArtistSectionConfig } from '../store/artistLayoutStore';
 import { useHomeStore, HomeSectionId } from '../store/homeStore';
 import { useDragDrop, useDragSource } from '../contexts/DragDropContext';
@@ -1570,6 +1573,14 @@ export default function Settings() {
     const prefix = `${serverId}:`;
     return Object.keys(hotCacheEntries).filter(k => k.startsWith(prefix)).length;
   }, [hotCacheEntries, serverId]);
+
+  const preAnalysisEffectiveDb = useMemo(
+    () => effectiveLoudnessPreAnalysisAttenuationDb(
+      auth.loudnessPreAnalysisAttenuationDb,
+      auth.loudnessTargetLufs,
+    ),
+    [auth.loudnessPreAnalysisAttenuationDb, auth.loudnessTargetLufs],
+  );
   const [listeningFor, setListeningFor] = useState<KeyAction | null>(null);
   const [listeningForGlobal, setListeningForGlobal] = useState<GlobalAction | null>(null);
   const navigate = useNavigate();
@@ -2417,7 +2428,7 @@ export default function Settings() {
                         onChange={e => auth.setLoudnessPreAnalysisAttenuationDb(Number(e.target.value))}
                       />
                       <span className="settings-norm-value">
-                        {auth.loudnessPreAnalysisAttenuationDb} dB
+                        {preAnalysisEffectiveDb} dB
                       </span>
                       <button
                         type="button"
@@ -2433,7 +2444,14 @@ export default function Settings() {
                         <RotateCcw size={15} />
                       </button>
                     </div>
-                    <div className="settings-norm-help">{t('settings.loudnessPreAnalysisAttenuationDesc')}</div>
+                    <div className="settings-norm-help">
+                      {t('settings.loudnessPreAnalysisAttenuationDesc')}{' '}
+                      {t('settings.loudnessPreAnalysisAttenuationRef', {
+                        ref: auth.loudnessPreAnalysisAttenuationDb,
+                        eff: preAnalysisEffectiveDb,
+                        tgt: auth.loudnessTargetLufs,
+                      })}
+                    </div>
                   </div>
                   <div className="settings-norm-note">{t('settings.loudnessFirstPlayNote')}</div>
                 </div>

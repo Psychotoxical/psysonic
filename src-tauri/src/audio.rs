@@ -2801,25 +2801,43 @@ fn resolve_loudness_gain_from_cache_impl(
     }
 }
 
+/// Typical integrated LUFS (streaming pivot) when SQLite has no row yet — so target changes
+/// still move gain before real analysis completes.
+const LOUDNESS_PLACEHOLDER_INTEGRATED_LUFS: f64 = -14.0;
+
+#[inline]
+fn loudness_gain_placeholder_until_cache(target_lufs: f32, pre_analysis_attenuation_db: f32) -> f32 {
+    let pre = pre_analysis_attenuation_db.clamp(-24.0, 0.0).min(0.0);
+    // `true_peak = 0.0` skips the headroom cap until integrated measurement exists.
+    let pivot = crate::analysis_cache::recommended_gain_for_target(
+        LOUDNESS_PLACEHOLDER_INTEGRATED_LUFS,
+        0.0,
+        f64::from(target_lufs),
+    ) as f32;
+    (pivot + pre).clamp(-24.0, 24.0)
+}
+
 /// LUFS gain after a single `resolve_loudness_gain_from_cache` result (`None` = miss).
 /// Keeps `audio_update_replay_gain` / `audio_play` from resolving twice on the same URL.
+/// Until a cache row exists, follow current target (see [`loudness_gain_placeholder_until_cache`]).
 fn loudness_gain_db_after_resolve(
     resolved_from_cache: Option<f32>,
+    target_lufs: f32,
     pre_analysis_attenuation_db: f32,
     allow_js_when_uncached: bool,
     js_gain_db: Option<f32>,
 ) -> Option<f32> {
-    let pre = pre_analysis_attenuation_db.clamp(-24.0, 0.0).min(0.0);
+    let uncached = loudness_gain_placeholder_until_cache(target_lufs, pre_analysis_attenuation_db);
     match resolved_from_cache {
         Some(g) => Some(g),
         None => {
             if allow_js_when_uncached {
                 match js_gain_db {
                     Some(r) if r.is_finite() => Some(r),
-                    _ => Some(pre),
+                    _ => Some(uncached),
                 }
             } else {
-                Some(pre)
+                Some(uncached)
             }
         }
     }
@@ -2846,6 +2864,7 @@ fn loudness_gain_db_or_startup(
     );
     loudness_gain_db_after_resolve(
         resolved,
+        target_lufs,
         pre_analysis_attenuation_db,
         allow_js_when_uncached,
         js_gain_db,
@@ -3047,19 +3066,10 @@ fn gain_linear_to_db(gain_linear: f32) -> Option<f32> {
     }
 }
 
-/// `audio:normalization-state` “Now dB” for the UI: omit a number while loudness
-/// mode is still on the **startup safety trim** only (no cache row / no explicit
-/// requested gain from analysis), so users do not read `-6 dB` as measured LUFS.
-fn loudness_ui_current_gain_db(
-    norm_mode: u32,
-    resolved_loudness_gain_db: Option<f32>,
-    gain_linear: f32,
-) -> Option<f32> {
-    if norm_mode == 2 && resolved_loudness_gain_db.is_none() {
-        None
-    } else {
-        gain_linear_to_db(gain_linear)
-    }
+/// `audio:normalization-state` “Now dB” for the UI: effective applied gain, including
+/// loudness pre-analysis trim from settings when no cache row exists yet (matches audible level).
+fn loudness_ui_current_gain_db(gain_linear: f32) -> Option<f32> {
+    gain_linear_to_db(gain_linear)
 }
 
 fn ramp_sink_volume(sink: Arc<Sink>, from: f32, to: f32) {
@@ -3476,7 +3486,13 @@ pub async fn audio_play(
     let norm_mode = state.normalization_engine.load(Ordering::Relaxed);
     let pre_analysis_db = loudness_pre_analysis_db_for_engine(&state);
     let startup_loudness_gain_db = if norm_mode == 2 {
-        loudness_gain_db_after_resolve(cache_loudness, pre_analysis_db, false, loudness_gain_db)
+        loudness_gain_db_after_resolve(
+            cache_loudness,
+            target_lufs,
+            pre_analysis_db,
+            false,
+            loudness_gain_db,
+        )
     } else {
         cache_loudness
     };
@@ -3489,7 +3505,7 @@ pub async fn audio_play(
         fallback_db,
         volume,
     );
-    let current_gain_db = loudness_ui_current_gain_db(norm_mode, resolved_loudness_gain_db, gain_linear);
+    let current_gain_db = loudness_ui_current_gain_db(gain_linear);
     crate::app_deprintln!(
         "[normalization] audio_play track_id={:?} engine={} replay_gain_db={:?} replay_gain_peak={:?} loudness_gain_db={:?} gain_linear={:.4} current_gain_db={:?} target_lufs={:.2} volume={:.3} effective_volume={:.3}",
         playback_identity(&url),
@@ -4393,8 +4409,7 @@ pub fn audio_update_replay_gain(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
     // If `current_playback_url` is not pinned yet, still honour JS `loudness_gain_db`
-    // so `loudness_ui_current_gain_db` can show a number (otherwise `and_then`
-    // drops the requested gain entirely).
+    // for the uncached path (`effective_loudness_db` / UI gain follow from `compute_gain`).
     let cache_loudness = url_for_loudness.as_deref().and_then(|u| {
         resolve_loudness_gain_from_cache_impl(
             &app,
@@ -4412,11 +4427,17 @@ pub fn audio_update_replay_gain(
         match url_for_loudness.as_deref() {
             Some(_u) => loudness_gain_db_after_resolve(
                 cache_loudness,
+                target_lufs,
                 pre_analysis_db,
                 true,
                 loudness_gain_db,
             ),
-            None => loudness_gain_db.or(Some(pre_analysis_db)),
+            None => {
+                loudness_gain_db.or(Some(loudness_gain_placeholder_until_cache(
+                    target_lufs,
+                    pre_analysis_db,
+                )))
+            }
         }
     } else {
         loudness_gain_db
@@ -4430,7 +4451,7 @@ pub fn audio_update_replay_gain(
         fallback_db,
         volume,
     );
-    let current_gain_db = loudness_ui_current_gain_db(norm_mode, resolved_loudness_gain_db, gain_linear);
+    let current_gain_db = loudness_ui_current_gain_db(gain_linear);
     crate::app_deprintln!(
         "[normalization] audio_update_replay_gain engine={} replay_gain_db={:?} replay_gain_peak={:?} loudness_gain_db={:?} gain_linear={:.4} current_gain_db={:?} target_lufs={:.2} volume={:.3} effective={:.3}",
         normalization_engine_name(norm_mode),

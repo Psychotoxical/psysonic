@@ -1724,27 +1724,33 @@ fn analysis_delete_all_waveforms(
 fn analysis_enqueue_seed_from_url(
     track_id: String,
     url: String,
+    force: Option<bool>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
     if track_id.trim().is_empty() || url.trim().is_empty() {
         return Ok(());
     }
-    if let Some(engine) = app.try_state::<crate::audio::AudioEngine>() {
-        if crate::audio::ranged_loudness_backfill_should_defer(&engine, &track_id) {
-            crate::app_deprintln!(
-                "[analysis] backfill skip track_id={} reason=ranged_playback_will_seed",
-                track_id
-            );
-            return Ok(());
+    let force = force.unwrap_or(false);
+    if !force {
+        if let Some(engine) = app.try_state::<crate::audio::AudioEngine>() {
+            if crate::audio::ranged_loudness_backfill_should_defer(&engine, &track_id) {
+                crate::app_deprintln!(
+                    "[analysis] backfill skip track_id={} reason=ranged_playback_will_seed",
+                    track_id
+                );
+                return Ok(());
+            }
         }
     }
-    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
-        if cache.get_latest_loudness_for_track(&track_id)?.is_some() {
-            crate::app_deprintln!(
-                "[analysis] backfill skip (already cached): {}",
-                track_id
-            );
-            return Ok(());
+    if !force {
+        if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+            if cache.get_latest_loudness_for_track(&track_id)?.is_some() {
+                crate::app_deprintln!(
+                    "[analysis] backfill skip (already cached): {}",
+                    track_id
+                );
+                return Ok(());
+            }
         }
     }
     let tid_log = track_id.clone();

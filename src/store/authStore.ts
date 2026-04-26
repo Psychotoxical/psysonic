@@ -9,6 +9,10 @@ import {
 } from '../utils/subsonicServerIdentity';
 import { usePlayerStore } from './playerStore';
 import { IS_LINUX } from '../utils/platform';
+import {
+  LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS,
+  clampStoredLoudnessPreAnalysisAttenuationRefDb,
+} from '../utils/loudnessPreAnalysisSlider';
 
 export interface ServerProfile {
   id: string;
@@ -36,11 +40,10 @@ function sanitizeLoudnessLufsPreset(v: unknown, fallback: LoudnessLufsPreset): L
     : fallback;
 }
 
-function clampLoudnessPreAnalysisAttenuationDb(v: unknown): number {
+function sanitizeLoudnessPreAnalysisFromStorage(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v);
   if (!Number.isFinite(n)) return DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB;
-  const stepped = Math.round(n * 2) / 2;
-  return Math.max(-24, Math.min(0, stepped));
+  return clampStoredLoudnessPreAnalysisAttenuationRefDb(n);
 }
 
 export type LyricsSourceId = 'server' | 'lrclib' | 'netease';
@@ -73,8 +76,13 @@ interface AuthState {
   replayGainEnabled: boolean;
   normalizationEngine: NormalizationEngine;
   loudnessTargetLufs: LoudnessLufsPreset;
-  /** dB: extra quieting until loudness is saved; also seeds streaming rough-guess ramp. */
+  /**
+   * dB extra quieting until loudness is saved, **calibrated for −14 LUFS** target; engine applies
+   * `+ (loudnessTargetLufs - (−14))` for other targets. See `effectiveLoudnessPreAnalysisAttenuationDb`.
+   */
   loudnessPreAnalysisAttenuationDb: number;
+  /** Persisted: stored pre is ref @ −14 (v1+); legacy falsey entries migrate once in onRehydrate. */
+  loudnessPreIsRefV1?: boolean;
   replayGainMode: 'track' | 'album' | 'auto';
   replayGainPreGainDb: number;   // added to RG gain for tagged files (0…+6 dB)
   replayGainFallbackDb: number;  // gain for untagged files / radio (-6…0 dB)
@@ -352,6 +360,7 @@ export const useAuthStore = create<AuthState>()(
       normalizationEngine: 'off',
       loudnessTargetLufs: -12,
       loudnessPreAnalysisAttenuationDb: DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
+      loudnessPreIsRefV1: true,
       replayGainMode: 'auto',
       replayGainPreGainDb: 0,
       replayGainFallbackDb: 0,
@@ -489,7 +498,9 @@ export const useAuthStore = create<AuthState>()(
         usePlayerStore.getState().updateReplayGainForCurrentTrack();
       },
       setLoudnessPreAnalysisAttenuationDb: (v) => {
-        set({ loudnessPreAnalysisAttenuationDb: clampLoudnessPreAnalysisAttenuationDb(v) });
+        const n = typeof v === 'number' ? v : Number(v);
+        if (!Number.isFinite(n)) return;
+        set({ loudnessPreAnalysisAttenuationDb: clampStoredLoudnessPreAnalysisAttenuationRefDb(n) });
       },
       resetLoudnessPreAnalysisAttenuationDbDefault: () => {
         set({ loudnessPreAnalysisAttenuationDb: DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB });
@@ -736,9 +747,22 @@ export const useAuthStore = create<AuthState>()(
           ? { seekbarStyle: 'truewave' as SeekbarStyle }
           : {};
 
-        const st = state as { loudnessTargetLufs?: unknown; loudnessPreAnalysisAttenuationDb?: unknown };
+        const st = state as {
+          loudnessTargetLufs?: unknown;
+          loudnessPreAnalysisAttenuationDb?: unknown;
+          loudnessPreIsRefV1?: unknown;
+        };
         const targetSan = sanitizeLoudnessLufsPreset(st.loudnessTargetLufs, -12);
-        const preSan = clampLoudnessPreAnalysisAttenuationDb(st.loudnessPreAnalysisAttenuationDb);
+        const rawN = st.loudnessPreAnalysisAttenuationDb;
+        const n = typeof rawN === 'number' ? rawN : Number(rawN);
+        const preSan =
+          st.loudnessPreIsRefV1 === true
+            ? sanitizeLoudnessPreAnalysisFromStorage(rawN)
+            : (Number.isFinite(n)
+                ? clampStoredLoudnessPreAnalysisAttenuationRefDb(
+                    n - (targetSan - LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS),
+                  )
+                : DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB);
 
         useAuthStore.setState({
           mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
@@ -749,6 +773,7 @@ export const useAuthStore = create<AuthState>()(
           ),
           loudnessTargetLufs: targetSan,
           loudnessPreAnalysisAttenuationDb: preSan,
+          loudnessPreIsRefV1: true,
           ...conflictingLegacyState,
           ...lyricsSourcesMigrated,
           ...wheelSmoothOneTime,

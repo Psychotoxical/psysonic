@@ -29,6 +29,8 @@ import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
 import OverlayScrollArea from './OverlayScrollArea';
 import { useLuckyMixStore } from '../store/luckyMixStore';
+import { loudnessGainPlaceholderUntilCacheDb } from '../utils/loudnessPlaceholder';
+import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -343,6 +345,7 @@ function QueuePanelHostOrSolo() {
   const reanalyzeLoudnessForTrack = usePlayerStore(s => s.reanalyzeLoudnessForTrack);
   const authLoudnessTargetLufs = useAuthStore(s => s.loudnessTargetLufs);
   const setLoudnessTargetLufs = useAuthStore(s => s.setLoudnessTargetLufs);
+  const loudnessPreAnalysisAttenuationDb = useAuthStore(s => s.loudnessPreAnalysisAttenuationDb);
 
   useEffect(() => {
     if (!showCrossfadePopover) return;
@@ -627,9 +630,23 @@ function QueuePanelHostOrSolo() {
             const baseLine = baseParts.join(' · ');
             const rgLine = rgParts.join(' · ');
             const isLoudnessActive = normalizationEngine === 'loudness' || normalizationEngineLive === 'loudness';
-            const liveGainLabel = normalizationNowDb != null
-              ? `${normalizationNowDb >= 0 ? '+' : ''}${normalizationNowDb.toFixed(2)} dB`
-              : '—';
+            const liveGainLabel = (() => {
+              if (normalizationNowDb != null && Number.isFinite(normalizationNowDb)) {
+                return `${normalizationNowDb >= 0 ? '+' : ''}${normalizationNowDb.toFixed(2)} dB`;
+              }
+              if (isLoudnessActive && Number.isFinite(loudnessPreAnalysisAttenuationDb)) {
+                const preEff = effectiveLoudnessPreAnalysisAttenuationDb(
+                  loudnessPreAnalysisAttenuationDb,
+                  authLoudnessTargetLufs,
+                );
+                const ph = loudnessGainPlaceholderUntilCacheDb(
+                  authLoudnessTargetLufs,
+                  preEff,
+                );
+                return `${ph >= 0 ? '+' : ''}${ph.toFixed(2)} dB`;
+              }
+              return '—';
+            })();
             const tgtNum = normalizationTargetLufs ?? authLoudnessTargetLufs;
             const targetLabel = `${tgtNum} LUFS`;
             if (!baseLine && !rgLine && !playbackSource) return null;
@@ -696,13 +713,14 @@ function QueuePanelHostOrSolo() {
                       {' · '}
                       <button
                         type="button"
-                        className="queue-current-tech-metric"
+                        className="queue-current-tech-metric queue-current-tech-metric--lufs-reanalyze"
                         onClick={e => {
                           e.stopPropagation();
                           setLufsTgtOpen(false);
                           void reanalyzeLoudnessForTrack(currentTrack.id);
                         }}
                         data-tooltip="Clear cached loudness and re-analyze this track"
+                        aria-label="Clear cached loudness and re-analyze this track"
                       >
                         {liveGainLabel}
                       </button>
@@ -749,7 +767,6 @@ function QueuePanelHostOrSolo() {
                                   e.stopPropagation();
                                   if (v !== authLoudnessTargetLufs) {
                                     setLoudnessTargetLufs(v);
-                                    void reanalyzeLoudnessForTrack(currentTrack.id);
                                   }
                                   setLufsTgtOpen(false);
                                 }}
