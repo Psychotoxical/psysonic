@@ -1,0 +1,70 @@
+# Keeps `nix/upstream-sources.json` (`npmDepsHash`) in sync with `package-lock.json`.
+# Runs in CI with Nix — contributors do not need Nix locally.
+#
+# Skips fork PRs (cannot push to the contributor branch); after merge to main,
+# the push workflow updates the hash on main if needed.
+name: Sync Nix npmDepsHash
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - package-lock.json
+      - package.json
+      - nix/upstream-sources.json
+  pull_request:
+    paths:
+      - package-lock.json
+      - package.json
+      - nix/upstream-sources.json
+  workflow_dispatch:
+
+concurrency:
+  group: nix-npm-hash-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    # Fork PRs: token cannot push to the fork — merge to main will run the push workflow instead.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v15
+
+      - name: Recompute npmDepsHash from package-lock.json
+        run: |
+          set -euo pipefail
+          HASH="$(nix run nixpkgs/nixos-unstable#prefetch-npm-deps -- package-lock.json)"
+          echo "Computed npmDepsHash: $HASH"
+          TMP="$(mktemp)"
+          jq --arg h "$HASH" '.npmDepsHash = $h' nix/upstream-sources.json > "$TMP"
+          mv "$TMP" nix/upstream-sources.json
+
+      - name: Commit and push if changed
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add nix/upstream-sources.json
+          if git diff --cached --quiet; then
+            echo "npmDepsHash already matches package-lock.json — nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(nix): sync npmDepsHash with package-lock.json"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git push origin "HEAD:${PR_HEAD_REF}"
+          else
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
