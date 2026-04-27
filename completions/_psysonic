@@ -60,7 +60,7 @@ _psysonic_server_ids() {
 
 _psysonic_globals() {
   compadd -J options -X 'option' -- \
-    --help --version --info --json --quiet --player completions
+    --help --version --info --json --quiet --logs --player completions
 }
 
 integer i pidx=0
@@ -68,12 +68,25 @@ for (( i = 2; i < CURRENT; i++ )); do
   [[ ${words[i]} == --player ]] && pidx=i
 done
 
+if [[ ${words[CURRENT-1]} == --tail ]]; then
+  _message -e descriptions 'number of lines'
+  return
+fi
+
 if (( pidx == 0 )); then
+  local has_logs=0
+  for (( i = 2; i < CURRENT; i++ )); do
+    [[ ${words[i]} == --logs ]] && has_logs=1
+  done
   if (( CURRENT == 3 )) && [[ ${words[2]} == completions ]]; then
     compadd help bash zsh
     return
   fi
-  _psysonic_globals
+  if (( has_logs )); then
+    compadd -- --tail -f --follow
+  else
+    _psysonic_globals
+  fi
   return
 fi
 

@@ -85,6 +85,13 @@ fn main() {
     if psysonic_lib::cli::wants_info(&args) {
         psysonic_lib::cli::run_info_and_exit(&args);
     }
+    if psysonic_lib::cli::wants_logs(&args) {
+        psysonic_lib::cli::run_tail_and_exit(&args);
+    }
+    if psysonic_lib::cli::wants_tail(&args) {
+        eprintln!("NOT OK: --tail is only valid with --logs");
+        std::process::exit(2);
+    }
 
     psysonic_lib::run();
 }

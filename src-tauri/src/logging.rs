@@ -1,6 +1,7 @@
 #[cfg(unix)]
 use libc;
 use std::collections::VecDeque;
+use std::io::Write;
 use std::sync::{Mutex, OnceLock};
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -18,6 +19,16 @@ const LOG_BUFFER_MAX_LINES: usize = 20_000;
 fn log_buffer() -> &'static Mutex<VecDeque<String>> {
     static LOG_BUFFER: OnceLock<Mutex<VecDeque<String>>> = OnceLock::new();
     LOG_BUFFER.get_or_init(|| Mutex::new(VecDeque::with_capacity(LOG_BUFFER_MAX_LINES)))
+}
+
+/// Shared runtime file used by CLI `--tail` to read normal/debug log channel.
+pub fn cli_log_channel_path() -> std::path::PathBuf {
+    if let Ok(dir) = std::env::var("XDG_RUNTIME_DIR") {
+        if !dir.is_empty() {
+            return std::path::PathBuf::from(dir).join("psysonic-cli.log");
+        }
+    }
+    std::env::temp_dir().join("psysonic-cli.log")
 }
 
 fn parse_logging_mode(mode: &str) -> Option<LoggingMode> {
@@ -57,7 +68,15 @@ pub fn append_log_line(line: String) {
     if buf.len() >= LOG_BUFFER_MAX_LINES {
         buf.pop_front();
     }
-    buf.push_back(line);
+    buf.push_back(line.clone());
+    drop(buf);
+    let path = cli_log_channel_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(f, "{}", line);
+    }
 }
 
 pub fn export_logs_to_file(path: &str) -> Result<usize, String> {

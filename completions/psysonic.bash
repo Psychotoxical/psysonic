@@ -54,6 +54,14 @@ _psysonic_snapshot_json() {
 _psysonic_complete() {
   local cur
   cur="${COMP_WORDS[COMP_CWORD]}"
+  local prev=""
+  (( COMP_CWORD > 0 )) && prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  if [[ $prev == --tail ]]; then
+    _psysonic_compopt -o default
+    COMPREPLY=()
+    return
+  fi
 
   local i pidx=0
   for (( i = 1; i < COMP_CWORD; i++ )); do
@@ -61,11 +69,19 @@ _psysonic_complete() {
   done
 
   if (( pidx == 0 )); then
+    local has_logs=0
+    for (( i = 1; i < COMP_CWORD; i++ )); do
+      [[ ${COMP_WORDS[i]} == --logs ]] && has_logs=1
+    done
     if [[ ${COMP_WORDS[1]} == completions && COMP_CWORD -eq 2 ]]; then
       _psysonic_compreply_from_compgen 'help bash zsh' "$cur"
       return
     fi
-    _psysonic_compreply_from_compgen '--help --version --info --json --quiet --player completions' "$cur"
+    if (( has_logs )); then
+      _psysonic_compreply_from_compgen '--tail -f --follow' "$cur"
+    else
+      _psysonic_compreply_from_compgen '--help --version --info --json --quiet --logs --player completions' "$cur"
+    fi
     return
   fi
 
