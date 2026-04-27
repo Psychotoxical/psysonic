@@ -3121,6 +3121,7 @@ export const usePlayerStore = create<PlayerState>()(
         currentTrack: state.currentTrack,
         queue: state.queue,
         queueIndex: state.queueIndex,
+        isQueueVisible: state.isQueueVisible,
         // currentTime is intentionally NOT persisted here.
         // handleAudioProgress fires every 100ms and each setState with a
         // persisted field triggers a full JSON serialisation of the queue to
