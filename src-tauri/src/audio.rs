@@ -4422,7 +4422,6 @@ pub fn audio_update_replay_gain(
             },
         )
     });
-    let resolved_loudness_gain_db = cache_loudness.or(loudness_gain_db);
     let effective_loudness_db = if norm_mode == 2 {
         match url_for_loudness.as_deref() {
             Some(_u) => loudness_gain_db_after_resolve(
