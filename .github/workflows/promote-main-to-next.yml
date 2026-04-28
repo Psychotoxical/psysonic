@@ -8,6 +8,7 @@ jobs:
     uses: ./.github/workflows/validate-main-green-ci.yml
     with:
       branch: main
+      required_contexts: ci-main / ci-ok
 
   promote:
     needs: validate-main

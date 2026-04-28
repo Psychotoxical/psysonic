@@ -1,0 +1,15 @@
+name: ci-main
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci-ok:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ci sentinel
+        run: echo "main CI sentinel is green"

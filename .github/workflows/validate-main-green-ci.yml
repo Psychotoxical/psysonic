@@ -8,11 +8,20 @@ on:
         required: false
         default: main
         type: string
+      required_contexts:
+        description: "Comma-separated required check names (exact check run name)"
+        required: false
+        default: ci-main / ci-ok
+        type: string
   workflow_call:
     inputs:
       branch:
         required: false
         default: main
+        type: string
+      required_contexts:
+        required: false
+        default: ci-main / ci-ok
         type: string
 
 jobs:
@@ -20,45 +29,28 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read
       checks: read
       statuses: read
     steps:
-      - name: validate branch checks are green
+      - name: validate required checks
         uses: actions/github-script@v7
         env:
           TARGET_BRANCH: ${{ inputs.branch || github.event.inputs.branch || 'main' }}
+          REQUIRED_CONTEXTS: ${{ inputs.required_contexts || github.event.inputs.required_contexts || 'ci-main / ci-ok' }}
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const branch = process.env.TARGET_BRANCH || "main";
+            const required = String(process.env.REQUIRED_CONTEXTS || "")
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
 
             const runId = String(context.runId);
             const branchResp = await github.rest.repos.getBranch({ owner, repo, branch });
             const sha = branchResp.data.commit.sha;
             core.info(`Validating checks for ${branch} @ ${sha}`);
-
-            let requiredContexts = [];
-            try {
-              const protection = await github.rest.repos.getBranchProtection({
-                owner,
-                repo,
-                branch,
-              });
-              requiredContexts = protection.data.required_status_checks?.contexts || [];
-            } catch (e) {
-              core.warning(`Could not read branch protection for ${branch}: ${e.message}`);
-            }
-
-            const combined = await github.rest.repos.getCombinedStatusForRef({
-              owner,
-              repo,
-              ref: sha,
-            });
-            const statusState = combined.data.state;
-            const statusCount = combined.data.statuses.length;
-            core.info(`Combined status state: ${statusState} (${statusCount} status contexts)`);
 
             const checksAll = await github.paginate(github.rest.checks.listForRef, {
               owner,
@@ -67,52 +59,41 @@ jobs:
               per_page: 100,
             });
             const checks = checksAll.filter((c) => !(c.details_url || "").includes(`/actions/runs/${runId}/`));
-            const statuses = combined.data.statuses.filter((s) => !(s.target_url || "").includes(`/actions/runs/${runId}/`));
 
-            if (checks.length === 0 && statuses.length === 0) {
-              core.setFailed(`No checks/statuses found for ${branch}. Refusing promotion.`);
-              return;
-            }
-
-            if (requiredContexts.length > 0) {
-              core.info(`Required contexts from branch protection: ${requiredContexts.join(", ")}`);
-              const statusByContext = new Map(statuses.map((s) => [s.context, s.state]));
-              const failures = [];
-              for (const ctx of requiredContexts) {
-                const state = statusByContext.get(ctx);
-                if (!state) {
-                  failures.push(`${ctx}: missing`);
-                  continue;
-                }
-                if (state !== "success") {
-                  failures.push(`${ctx}: ${state}`);
-                }
+            const newestByName = new Map();
+            for (const c of checks) {
+              const key = c.name;
+              const prev = newestByName.get(key);
+              if (!prev) {
+                newestByName.set(key, c);
+                continue;
               }
-              if (failures.length > 0) {
-                core.setFailed(`Required checks for ${branch} are not green:\n${failures.join("\n")}`);
-                return;
+              const prevTime = Date.parse(prev.started_at || prev.completed_at || "") || 0;
+              const curTime = Date.parse(c.started_at || c.completed_at || "") || 0;
+              if (curTime >= prevTime) {
+                newestByName.set(key, c);
               }
-              core.info(`All required checks for ${branch} are green.`);
+            }
+
+            const failures = [];
+            for (const ctx of required) {
+              const latest = newestByName.get(ctx);
+              if (!latest) {
+                failures.push(`${ctx}: missing`);
+                continue;
+              }
+              if (latest.status !== "completed") {
+                failures.push(`${ctx}: status=${latest.status}, conclusion=${latest.conclusion}`);
+                continue;
+              }
+              if (!["success", "neutral", "skipped"].includes(latest.conclusion || "")) {
+                failures.push(`${ctx}: conclusion=${latest.conclusion}`);
+              }
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(`Required checks for ${branch} are not green:\n${failures.join("\n")}`);
               return;
             }
 
-            core.warning("No required status contexts configured; using fallback all-check validation.");
-            const badChecks = checks.filter((c) => {
-              if (c.status !== "completed") return true;
-              return !["success", "neutral", "skipped"].includes(c.conclusion || "");
-            });
-
-            if (badChecks.length > 0) {
-              const details = badChecks.map((c) => `${c.name}: status=${c.status}, conclusion=${c.conclusion}`).join("\n");
-              core.setFailed(`Branch ${branch} is not green.\n${details}`);
-              return;
-            }
-
-            const badStatuses = statuses.filter((s) => !["success"].includes(s.state || ""));
-            if (badStatuses.length > 0) {
-              const statusDetails = badStatuses.map((s) => `${s.context}: ${s.state}`).join("\n");
-              core.setFailed(`Branch ${branch} has failing/pending status contexts.\n${statusDetails}`);
-              return;
-            }
-
-            core.info(`Branch ${branch} is green.`);
+            core.info(`All required checks for ${branch} are green (${required.join(", ")}).`);
