@@ -103,6 +103,7 @@ If a bug is discovered during RC stabilization:
    - example: `fix/backport-rc-crash-login-main`
 4. Cherry-pick (or re-apply) same fix.
 5. Open PR: `fix/backport-rc-crash-login-main -> main`
+6. Merge this `main` backport PR before the next `Promote main to next` run.
 
 This is mandatory. RC-only fixes may not stay only in `next`.
 
@@ -232,3 +233,5 @@ Nix note:
 
 - `nix-npm-deps-hash-sync.yml` runs on pushes to `main`, `next`, and `release`.
 - `verify-nix` in channel publish still performs full lock/hash refresh verification for release artifacts.
+- Channel-local nix refresh PRs are advisory and can be overwritten by later reset-based promotions.
+- If a nix refresh must survive release cycles, ensure the same change is merged into `main`.
