@@ -9,9 +9,9 @@ on:
         default: main
         type: string
       required_contexts:
-        description: "Comma-separated required check names (exact check run name)"
+        description: "Comma-separated required checks; use | for alternatives (e.g. ci-ok|ci-main / ci-ok)"
         required: false
-        default: ci-main / ci-ok
+        default: ci-ok|ci-main / ci-ok
         type: string
   workflow_call:
     inputs:
@@ -21,7 +21,7 @@ on:
         type: string
       required_contexts:
         required: false
-        default: ci-main / ci-ok
+        default: ci-ok|ci-main / ci-ok
         type: string
 
 jobs:
@@ -30,22 +30,27 @@ jobs:
     permissions:
       contents: read
       checks: read
-      statuses: read
     steps:
       - name: validate required checks
         uses: actions/github-script@v7
         env:
           TARGET_BRANCH: ${{ inputs.branch || github.event.inputs.branch || 'main' }}
-          REQUIRED_CONTEXTS: ${{ inputs.required_contexts || github.event.inputs.required_contexts || 'ci-main / ci-ok' }}
+          REQUIRED_CONTEXTS: ${{ inputs.required_contexts || github.event.inputs.required_contexts || 'ci-ok|ci-main / ci-ok' }}
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const branch = process.env.TARGET_BRANCH || "main";
-            const required = String(process.env.REQUIRED_CONTEXTS || "")
+            const groups = String(process.env.REQUIRED_CONTEXTS || "")
               .split(",")
               .map((s) => s.trim())
-              .filter(Boolean);
+              .filter(Boolean)
+              .map((group) =>
+                group
+                  .split("|")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              );
 
             const runId = String(context.runId);
             const branchResp = await github.rest.repos.getBranch({ owner, repo, branch });
@@ -76,18 +81,27 @@ jobs:
             }
 
             const failures = [];
-            for (const ctx of required) {
-              const latest = newestByName.get(ctx);
-              if (!latest) {
-                failures.push(`${ctx}: missing`);
-                continue;
+            for (const alternatives of groups) {
+              let ok = false;
+              const altNotes = [];
+              for (const name of alternatives) {
+                const latest = newestByName.get(name);
+                if (!latest) {
+                  altNotes.push(`${name}: missing`);
+                  continue;
+                }
+                if (latest.status !== "completed") {
+                  altNotes.push(`${name}: status=${latest.status}, conclusion=${latest.conclusion}`);
+                  continue;
+                }
+                if (["success", "neutral", "skipped"].includes(latest.conclusion || "")) {
+                  ok = true;
+                  break;
+                }
+                altNotes.push(`${name}: conclusion=${latest.conclusion}`);
               }
-              if (latest.status !== "completed") {
-                failures.push(`${ctx}: status=${latest.status}, conclusion=${latest.conclusion}`);
-                continue;
-              }
-              if (!["success", "neutral", "skipped"].includes(latest.conclusion || "")) {
-                failures.push(`${ctx}: conclusion=${latest.conclusion}`);
+              if (!ok) {
+                failures.push(`(${alternatives.join(" | ")}): none green — ${altNotes.join("; ")}`);
               }
             }
 
@@ -96,4 +110,7 @@ jobs:
               return;
             }
 
-            core.info(`All required checks for ${branch} are green (${required.join(", ")}).`);
+            const summary = groups
+              .map((alts) => (alts.length > 1 ? `(${alts.join(" | ")})` : alts[0]))
+              .join(", ");
+            core.info(`All required checks for ${branch} are green (${summary}).`);

@@ -46,7 +46,7 @@ Rules:
 
 1. Run workflow: **Promote main to next**.
 2. Workflow behavior:
-   - validates required `main` checks before promotion (`ci-main / ci-ok`)
+   - validates required `main` checks before promotion (default: `ci-ok`, or UI-style `ci-main / ci-ok`; either satisfies the gate)
    - resets `next` to `main` snapshot
    - auto-bump package version in `next` to next `-rc.N`
    - commit and push version bump
