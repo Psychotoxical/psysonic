@@ -1,16 +1,21 @@
 name: Release Channel
 
+# Same GITHUB_TOKEN push limitation as Next Channel (see next.yml).
 on:
   push:
     branches: [release]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Promote next to release"]
+    types: [completed]
 
 jobs:
   publish-release:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     uses: ./.github/workflows/reusable-channel-publish.yml
     with:
       channel: release
-      source_ref: ${{ github.ref_name }}
+      source_ref: ${{ github.event_name == 'workflow_run' && 'release' || github.ref_name }}
       target_branch: release
       prerelease: false
       draft_release: true
