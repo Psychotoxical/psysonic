@@ -2207,10 +2207,12 @@
   align-items: baseline;
   gap: 6px;
   margin-top: var(--space-3);
-  min-height: 1.1rem;
+  min-height: 1.35rem;
+  line-height: 1.35rem;
   font-size: 0.82rem;
   color: var(--text-muted);
   transition: opacity 150ms ease;
+  white-space: nowrap;
 }
 
 .playback-delay-preview[data-empty="true"] { opacity: 0; }
