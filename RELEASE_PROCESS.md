@@ -46,6 +46,7 @@ Rules:
 
 1. Run workflow: **Promote main to next**.
 2. Workflow behavior:
+   - validates that `main` checks are green before promotion
    - fast-forward `next <- main`
    - auto-bump package version in `next` to next `-rc.N`
    - commit and push version bump

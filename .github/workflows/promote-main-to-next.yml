@@ -4,7 +4,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  validate-main:
+    uses: ./.github/workflows/validate-main-green-ci.yml
+    with:
+      branch: main
+
   promote:
+    needs: validate-main
     runs-on: ubuntu-latest
     permissions:
       contents: write

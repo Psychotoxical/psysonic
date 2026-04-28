@@ -1,0 +1,77 @@
+name: Validate Main Green CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to validate"
+        required: false
+        default: main
+        type: string
+  workflow_call:
+    inputs:
+      branch:
+        required: false
+        default: main
+        type: string
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+      statuses: read
+    steps:
+      - name: validate branch checks are green
+        uses: actions/github-script@v7
+        env:
+          TARGET_BRANCH: ${{ inputs.branch || github.event.inputs.branch || 'main' }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = process.env.TARGET_BRANCH || "main";
+
+            const branchResp = await github.rest.repos.getBranch({ owner, repo, branch });
+            const sha = branchResp.data.commit.sha;
+            core.info(`Validating checks for ${branch} @ ${sha}`);
+
+            const combined = await github.rest.repos.getCombinedStatusForRef({
+              owner,
+              repo,
+              ref: sha,
+            });
+            const statusState = combined.data.state;
+            const statusCount = combined.data.statuses.length;
+            core.info(`Combined status state: ${statusState} (${statusCount} status contexts)`);
+
+            const checks = await github.paginate(github.rest.checks.listForRef, {
+              owner,
+              repo,
+              ref: sha,
+              per_page: 100,
+            });
+
+            if (checks.length === 0 && statusCount === 0) {
+              core.setFailed(`No checks/statuses found for ${branch}. Refusing promotion.`);
+              return;
+            }
+
+            const badChecks = checks.filter((c) => {
+              if (c.status !== "completed") return true;
+              return !["success", "neutral", "skipped"].includes(c.conclusion || "");
+            });
+
+            if (badChecks.length > 0) {
+              const details = badChecks.map((c) => `${c.name}: status=${c.status}, conclusion=${c.conclusion}`).join("\n");
+              core.setFailed(`Branch ${branch} is not green.\n${details}`);
+              return;
+            }
+
+            if (!["success", "neutral"].includes(statusState)) {
+              core.setFailed(`Combined status is ${statusState} for ${branch}.`);
+              return;
+            }
+
+            core.info(`Branch ${branch} is green.`);
