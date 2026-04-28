@@ -51,7 +51,7 @@ jobs:
         id: get-version
         run: |
           set -euo pipefail
-          V="$(node -p 'require(\"./package.json\").version')"
+          V="$(node -p 'require("./package.json").version')"
           # Never publish with a missing/non-semver-ish version — empty becomes tag "app-v" on GitHub and breaks manifests.
           if [ -z "$V" ]; then
             echo "::error::package.json version is empty"
