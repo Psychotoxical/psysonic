@@ -34,6 +34,7 @@ jobs:
             const repo = context.repo.repo;
             const branch = process.env.TARGET_BRANCH || "main";
 
+            const runId = String(context.runId);
             const branchResp = await github.rest.repos.getBranch({ owner, repo, branch });
             const sha = branchResp.data.commit.sha;
             core.info(`Validating checks for ${branch} @ ${sha}`);
@@ -59,21 +60,23 @@ jobs:
             const statusCount = combined.data.statuses.length;
             core.info(`Combined status state: ${statusState} (${statusCount} status contexts)`);
 
-            const checks = await github.paginate(github.rest.checks.listForRef, {
+            const checksAll = await github.paginate(github.rest.checks.listForRef, {
               owner,
               repo,
               ref: sha,
               per_page: 100,
             });
+            const checks = checksAll.filter((c) => !(c.details_url || "").includes(`/actions/runs/${runId}/`));
+            const statuses = combined.data.statuses.filter((s) => !(s.target_url || "").includes(`/actions/runs/${runId}/`));
 
-            if (checks.length === 0 && statusCount === 0) {
+            if (checks.length === 0 && statuses.length === 0) {
               core.setFailed(`No checks/statuses found for ${branch}. Refusing promotion.`);
               return;
             }
 
             if (requiredContexts.length > 0) {
               core.info(`Required contexts from branch protection: ${requiredContexts.join(", ")}`);
-              const statusByContext = new Map(combined.data.statuses.map((s) => [s.context, s.state]));
+              const statusByContext = new Map(statuses.map((s) => [s.context, s.state]));
               const failures = [];
               for (const ctx of requiredContexts) {
                 const state = statusByContext.get(ctx);
@@ -105,8 +108,10 @@ jobs:
               return;
             }
 
-            if (!["success", "neutral"].includes(statusState)) {
-              core.setFailed(`Combined status is ${statusState} for ${branch}.`);
+            const badStatuses = statuses.filter((s) => !["success"].includes(s.state || ""));
+            if (badStatuses.length > 0) {
+              const statusDetails = badStatuses.map((s) => `${s.context}: ${s.state}`).join("\n");
+              core.setFailed(`Branch ${branch} has failing/pending status contexts.\n${statusDetails}`);
               return;
             }
 
