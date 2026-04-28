@@ -2,12 +2,12 @@
 # Runs in CI with Nix — contributors do not need Nix locally.
 #
 # Skips fork PRs (cannot push to the contributor branch); after merge to main,
-# the push workflow updates the hash on main if needed.
+# next, or release, the push workflow updates the hash on that branch if needed.
 name: Sync Nix npmDepsHash
 
 on:
   push:
-    branches: [main]
+    branches: [main, next, release]
     paths:
       - package-lock.json
       - package.json

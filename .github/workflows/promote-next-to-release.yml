@@ -21,7 +21,8 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin next release
-          git merge --ff-only origin/next
+          # Reset stable channel to next snapshot, then finalize version on top.
+          git reset --hard origin/next
       - name: finalize package version for release
         run: |
           set -euo pipefail
@@ -45,4 +46,4 @@ jobs:
           NEW_VERSION="$(node -p 'require("./package.json").version')"
           git commit -m "chore(release): finalize release version ${NEW_VERSION}"
       - name: push release
-        run: git push origin HEAD:release
+        run: git push --force-with-lease origin HEAD:release

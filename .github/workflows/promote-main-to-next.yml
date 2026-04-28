@@ -27,7 +27,8 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main next
-          git merge --ff-only origin/main
+          # Reset channel branch to main snapshot, then create a fresh RC bump commit.
+          git reset --hard origin/main
       - name: bump package version to next RC
         run: |
           set -euo pipefail
@@ -59,4 +60,4 @@ jobs:
           NEW_VERSION="$(node -p 'require("./package.json").version')"
           git commit -m "chore(release): bump next channel to ${NEW_VERSION}"
       - name: push next
-        run: git push origin HEAD:next
+        run: git push --force-with-lease origin HEAD:next

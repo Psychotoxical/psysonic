@@ -63,6 +63,12 @@ jobs:
         run: |
           VERSION="${{ steps.get-version.outputs.version }}"
           BODY=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          if [ -z "$BODY" ]; then
+            BASE_VERSION="$(node -e 'const v=process.argv[1]; const m=v.match(/^(\d+\.\d+\.\d+)/); if(m){process.stdout.write(m[1]);}' "$VERSION")"
+            if [ -n "$BASE_VERSION" ] && [ "$BASE_VERSION" != "$VERSION" ]; then
+              BODY=$(awk "/^## \[$BASE_VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+            fi
+          fi
           EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "body<<$EOF_MARKER" >> "$GITHUB_OUTPUT"
           echo "$BODY" >> "$GITHUB_OUTPUT"
@@ -325,7 +331,6 @@ jobs:
             --head "$BRANCH" \
             --title "chore(nix): refresh lock + npmDepsHash for v${VERSION}" \
             --body "Auto-generated for the \`${{ inputs.channel }}\` channel after v${VERSION}: refreshes \`flake.lock\` and \`nix/upstream-sources.json\`."
-          gh pr merge "$BRANCH" --squash --delete-branch
 
   bump-main-to-next-dev:
     if: ${{ inputs.channel == 'release' }}
@@ -356,8 +361,25 @@ jobs:
           set -euo pipefail
           TARGET_VERSION="${{ steps.next-dev.outputs.value }}"
           CURRENT_VERSION="$(node -p 'require("./package.json").version')"
-          if [[ "$CURRENT_VERSION" == "$TARGET_VERSION" ]]; then
-            echo "main already at ${TARGET_VERSION}"
+          SHOULD_BUMP="$(node -e '
+            const parse = (v) => {
+              const m = v.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+              if (!m) throw new Error(`Invalid semver: ${v}`);
+              const pre = m[4] ?? "";
+              const preRank = pre === "" ? 3 : pre.startsWith("rc.") ? 2 : pre === "dev" ? 1 : 0;
+              return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), preRank };
+            };
+            const a = parse(process.argv[1]); // current
+            const b = parse(process.argv[2]); // target
+            const keys = ["major", "minor", "patch", "preRank"];
+            for (const k of keys) {
+              if (b[k] > a[k]) { process.stdout.write("true"); process.exit(0); }
+              if (b[k] < a[k]) { process.stdout.write("false"); process.exit(0); }
+            }
+            process.stdout.write("false");
+          ' "$CURRENT_VERSION" "$TARGET_VERSION")"
+          if [[ "$SHOULD_BUMP" != "true" ]]; then
+            echo "main already at ${CURRENT_VERSION} (target ${TARGET_VERSION} is not newer)"
             exit 0
           fi
           npm version --no-git-tag-version "$TARGET_VERSION"

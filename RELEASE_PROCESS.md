@@ -47,7 +47,7 @@ Rules:
 1. Run workflow: **Promote main to next**.
 2. Workflow behavior:
    - validates that `main` checks are green before promotion
-   - fast-forward `next <- main`
+   - resets `next` to `main` snapshot
    - auto-bump package version in `next` to next `-rc.N`
    - commit and push version bump
 3. Push on `next` triggers **Next Channel** workflow:
@@ -64,7 +64,7 @@ Rules:
 
 1. Run workflow: **Promote next to release**.
 2. Workflow behavior:
-   - fast-forward `release <- next`
+   - resets `release` to `next` snapshot
    - finalize version from `-rc.N` to `X.Y.Z`
    - commit and push finalized version
 3. Push on `release` triggers **Release Channel** workflow:
@@ -76,6 +76,10 @@ Rules:
 
 1. Merge the auto-generated PR that bumps `main` to next minor dev version.
 2. Confirm `main` now uses `X.(Y+1).0-dev`.
+3. Update AUR package metadata for the same stable version:
+   - bump `pkgver` in `packages/aur/PKGBUILD`
+   - regenerate `packages/aur/.SRCINFO`
+   - publish/update in AUR remote
 
 ## 4) Freeze policy (RC stabilization window)
 
@@ -172,7 +176,7 @@ Rerun is allowed for recovery, but must be announced in release channel/chat.
 Do:
 
 - use PRs for all code changes
-- keep branch history linear for promotions (fast-forward only)
+- keep channel promotions deterministic and force-push only through approved promotion workflows
 - require green CI before promotions
 - document exceptions in PR description
 
@@ -182,6 +186,7 @@ Do not:
 - manually edit `package.json` version outside defined release flow
 - merge feature PRs into `next` during freeze
 - skip the `next/release -> main` backport for RC fixes or hotfixes
+- force-push `next` or `release` manually outside promotion workflows
 
 ## 9) Incident handling
 
@@ -199,17 +204,20 @@ Before `main -> next`:
 - [ ] `main` CI green
 - [ ] freeze status known
 - [ ] release manager approval
+- [ ] branch rules allow workflow `--force-with-lease` on `next`
 
 Before `next -> release`:
 
 - [ ] RC validation complete
 - [ ] all RC fixes merged to `next`
 - [ ] corresponding backports to `main` completed or queued with owners
+- [ ] branch rules allow workflow `--force-with-lease` on `release`
 
 After stable release:
 
 - [ ] verify stable artifacts exist
 - [ ] merge auto PR for next `-dev` bump in `main`
+- [ ] publish AUR update (`PKGBUILD` + `.SRCINFO`)
 - [ ] announce cycle close
 
 For post-release hotfix:
@@ -219,3 +227,8 @@ For post-release hotfix:
 - [ ] fix merged to release patch line
 - [ ] hotfix backport PR to `main` merged
 - [ ] `next` restored to normal next-minor line
+
+Nix note:
+
+- `nix-npm-deps-hash-sync.yml` runs on pushes to `main`, `next`, and `release`.
+- `verify-nix` in channel publish still performs full lock/hash refresh verification for release artifacts.
