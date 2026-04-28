@@ -8,6 +8,11 @@ name: Next Channel
 on:
   push:
     branches: [next]
+    # Merging auto PR "chore(nix): refresh lock …" only touches these paths — do not
+    # re-run the full channel (would loop: publish → verify-nix PR → merge → push → publish).
+    paths-ignore:
+      - "flake.lock"
+      - "nix/**"
   workflow_dispatch:
   workflow_run:
     workflows: ["Promote main to next"]

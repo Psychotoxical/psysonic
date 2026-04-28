@@ -6,6 +6,10 @@ name: Release Channel
 on:
   push:
     branches: [release]
+    # Same nix-refresh loop as next.yml — ignore lock-only merges from verify-nix PRs.
+    paths-ignore:
+      - "flake.lock"
+      - "nix/**"
   workflow_dispatch:
   workflow_run:
     workflows: ["Promote next to release"]
