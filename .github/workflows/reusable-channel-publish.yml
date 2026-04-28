@@ -1,0 +1,387 @@
+name: Reusable Channel Publish
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: "Delivery channel name (release/next)"
+        required: true
+        type: string
+      source_ref:
+        description: "Git ref to build from"
+        required: true
+        type: string
+      target_branch:
+        description: "Branch that receives nix refresh PRs"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark GitHub release as prerelease"
+        required: true
+        type: boolean
+      draft_release:
+        description: "Create release as draft"
+        required: true
+        type: boolean
+      verify_nix:
+        description: "Run verify-nix job"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+      package_version: ${{ steps.get-version.outputs.version }}
+      release_tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: "npm"
+      - name: get version
+        id: get-version
+        run: echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+      - name: compute release tag
+        id: tag
+        env:
+          VERSION: ${{ steps.get-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="app-v${VERSION}"
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+      - name: extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          BODY=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "body<<$EOF_MARKER" >> "$GITHUB_OUTPUT"
+          echo "$BODY" >> "$GITHUB_OUTPUT"
+          echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
+      - name: create or update release
+        id: create-release
+        uses: actions/github-script@v7
+        env:
+          PACKAGE_VERSION: ${{ steps.get-version.outputs.version }}
+          RELEASE_TAG: ${{ steps.tag.outputs.value }}
+          CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
+          IS_PRERELEASE: ${{ inputs.prerelease }}
+          IS_DRAFT: ${{ inputs.draft_release }}
+          CHANNEL: ${{ inputs.channel }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            const body = process.env.CHANGELOG_BODY || "See the assets to download this version and install.";
+            const prerelease = process.env.IS_PRERELEASE === "true";
+            const draft = process.env.IS_DRAFT === "true";
+            const version = process.env.PACKAGE_VERSION;
+            const channel = process.env.CHANNEL;
+            const titleSuffix = prerelease ? ` RC (${channel})` : "";
+            const name = `Psysonic v${version}${titleSuffix}`;
+            try {
+              const { data } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag,
+              });
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: data.id,
+                body,
+                name,
+                draft,
+                prerelease,
+              });
+              return data.id;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name,
+              body,
+              draft,
+              prerelease,
+            });
+            return data.id;
+
+  build-macos-windows:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "windows-latest"
+            args: "--bundles nsis"
+    runs-on: ${{ matrix.settings.platform }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: "npm"
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: install npm dependencies
+        run: npm install
+      - name: write Apple API key (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APPLE_API_KEY_B64 }}" | base64 --decode > ~/private_keys/AuthKey.p8
+          echo "APPLE_API_KEY_PATH=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
+          VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.settings.args }}
+      - name: re-sign updater bundle + upload .sig (macOS only)
+        if: runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -e
+          RELEASE_TAG="${{ needs.create-release.outputs.release_tag }}"
+          TARGET_ARG='${{ matrix.settings.args }}'
+          if echo "$TARGET_ARG" | grep -q 'aarch64'; then
+            TARGET="aarch64-apple-darwin"
+            ARCH="aarch64"
+          else
+            TARGET="x86_64-apple-darwin"
+            ARCH="x64"
+          fi
+          TARBALL="src-tauri/target/${TARGET}/release/bundle/macos/Psysonic.app.tar.gz"
+          if [ ! -f "$TARBALL" ]; then
+            echo "::error::Expected tarball missing: $TARBALL"
+            ls -la "$(dirname "$TARBALL")" || true
+            exit 1
+          fi
+          npx @tauri-apps/cli signer sign "$TARBALL"
+          cp "${TARBALL}.sig" "Psysonic_${ARCH}.app.tar.gz.sig"
+          gh release upload "$RELEASE_TAG" "Psysonic_${ARCH}.app.tar.gz.sig" --clobber
+
+  generate-manifest:
+    needs: [create-release, build-macos-windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: generate latest.json
+        env:
+          VERSION: ${{ needs.create-release.outputs.package_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/generate-update-manifest.js
+      - name: upload latest.json to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${{ needs.create-release.outputs.release_tag }}"
+          gh release upload "$RELEASE_TAG" latest.json --clobber
+
+  build-linux:
+    needs: create-release
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libasound2-dev squashfs-tools cmake
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: "npm"
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: install npm dependencies
+        run: npm install
+      - name: build
+        env:
+          VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
+          VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: npm run tauri:build -- --bundles deb,rpm,appimage
+      - name: upload Linux artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${{ needs.create-release.outputs.release_tag }}"
+          find src-tauri/target/release/bundle \
+            \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) \
+            | xargs gh release upload "$RELEASE_TAG" --clobber
+
+  verify-nix:
+    if: ${{ inputs.verify_nix }}
+    needs: create-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.target_branch }}
+      - name: install Nix
+        uses: DeterminateSystems/nix-installer-action@v15
+      - name: configure Cachix (managed signing)
+        uses: cachix/cachix-action@v15
+        with:
+          name: psysonic
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: compute npmDepsHash from package-lock.json
+        id: npm-hash
+        run: |
+          set -euo pipefail
+          HASH="$(nix run nixpkgs/nixos-unstable#prefetch-npm-deps -- package-lock.json)"
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "Computed npmDepsHash: $HASH"
+      - name: write npmDepsHash into nix/upstream-sources.json
+        run: |
+          set -euo pipefail
+          HASH='${{ steps.npm-hash.outputs.hash }}'
+          jq --arg h "$HASH" '.npmDepsHash = $h' nix/upstream-sources.json > nix/upstream-sources.json.new
+          mv nix/upstream-sources.json.new nix/upstream-sources.json
+      - name: refresh flake.lock (nixpkgs pin)
+        run: nix flake update --accept-flake-config
+      - name: verify nix build + push to Cachix
+        run: |
+          set -euo pipefail
+          nix build .#psysonic --accept-flake-config --no-link --print-build-logs
+          nix path-info --recursive .#psysonic | cachix push psysonic
+      - name: open + auto-merge PR with refreshed lock and hash (if changed)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flake.lock nix/upstream-sources.json
+          if git diff --cached --quiet; then
+            echo "flake.lock / nix/upstream-sources.json unchanged — nothing to commit."
+            exit 0
+          fi
+          VERSION="${{ needs.create-release.outputs.package_version }}"
+          BRANCH="chore/nix-lock-refresh-${{ inputs.target_branch }}-v${VERSION}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(nix): refresh lock + npmDepsHash for v${VERSION}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --base "${{ inputs.target_branch }}" \
+            --head "$BRANCH" \
+            --title "chore(nix): refresh lock + npmDepsHash for v${VERSION}" \
+            --body "Auto-generated for the \`${{ inputs.channel }}\` channel after v${VERSION}: refreshes \`flake.lock\` and \`nix/upstream-sources.json\`."
+          gh pr merge "$BRANCH" --squash --delete-branch
+
+  bump-main-to-next-dev:
+    if: ${{ inputs.channel == 'release' }}
+    needs: create-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: main
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: compute next dev version
+        id: next-dev
+        env:
+          RELEASE_VERSION: ${{ needs.create-release.outputs.package_version }}
+        run: |
+          set -euo pipefail
+          NEXT_DEV="$(node -e 'const v=process.env.RELEASE_VERSION; const m=v.match(/^(\d+)\.(\d+)\.(\d+)/); if(!m){throw new Error(`Invalid release version: ${v}`)}; const major=Number(m[1]); const minor=Number(m[2]) + 1; process.stdout.write(`${major}.${minor}.0-dev`)')"
+          echo "value=$NEXT_DEV" >> "$GITHUB_OUTPUT"
+      - name: bump package version in main
+        run: |
+          set -euo pipefail
+          TARGET_VERSION="${{ steps.next-dev.outputs.value }}"
+          CURRENT_VERSION="$(node -p 'require("./package.json").version')"
+          if [[ "$CURRENT_VERSION" == "$TARGET_VERSION" ]]; then
+            echo "main already at ${TARGET_VERSION}"
+            exit 0
+          fi
+          npm version --no-git-tag-version "$TARGET_VERSION"
+      - name: open PR with dev bump (if changed)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dev version bump required."
+            exit 0
+          fi
+          VERSION="${{ steps.next-dev.outputs.value }}"
+          SAFE_VERSION="${VERSION//./-}"
+          SAFE_VERSION="${SAFE_VERSION//\//-}"
+          BRANCH="chore/version-bump-main-${SAFE_VERSION}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(release): bump main to ${VERSION}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(release): bump main to ${VERSION}" \
+            --body "Auto-generated after stable release: updates \`package.json\` and \`package-lock.json\` to the next development version."

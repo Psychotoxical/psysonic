@@ -1,0 +1,48 @@
+name: Promote next to release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: release
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: fast-forward release to next
+        run: |
+          set -euo pipefail
+          git fetch origin next release
+          git merge --ff-only origin/next
+      - name: finalize package version for release
+        run: |
+          set -euo pipefail
+          CURRENT_VERSION="$(node -p 'require("./package.json").version')"
+          FINAL_VERSION="$(node -p 'const v=require("./package.json").version; const m=v.match(/^(\d+\.\d+\.\d+)/); if(!m){throw new Error("Invalid version: "+v)}; m[1]')"
+          if [[ "$CURRENT_VERSION" == "$FINAL_VERSION" ]]; then
+            echo "package.json is already final: $FINAL_VERSION"
+            exit 0
+          fi
+          npm version --no-git-tag-version "$FINAL_VERSION"
+      - name: commit final version bump
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No finalization changes to commit."
+            exit 0
+          fi
+          NEW_VERSION="$(node -p 'require("./package.json").version')"
+          git commit -m "chore(release): finalize release version ${NEW_VERSION}"
+      - name: push release
+        run: git push origin HEAD:release

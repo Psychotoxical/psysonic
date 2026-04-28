@@ -1,18 +1,18 @@
-name: Release Channel
+name: Next Channel
 
 on:
   push:
-    branches: [release]
+    branches: [next]
   workflow_dispatch:
 
 jobs:
-  publish-release:
+  publish-next:
     uses: ./.github/workflows/reusable-channel-publish.yml
     with:
-      channel: release
+      channel: next
       source_ref: ${{ github.ref_name }}
-      target_branch: release
-      prerelease: false
-      draft_release: true
+      target_branch: next
+      prerelease: true
+      draft_release: false
       verify_nix: true
     secrets: inherit

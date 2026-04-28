@@ -1,0 +1,56 @@
+name: Promote main to next
+
+on:
+  workflow_dispatch:
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: next
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: fast-forward next to main
+        run: |
+          set -euo pipefail
+          git fetch origin main next
+          git merge --ff-only origin/main
+      - name: bump package version to next RC
+        run: |
+          set -euo pipefail
+          git fetch --tags origin
+          CURRENT_VERSION="$(node -p 'require("./package.json").version')"
+          BASE_VERSION="$(node -p 'const v=require("./package.json").version; const m=v.match(/^(\d+\.\d+\.\d+)/); if(!m){throw new Error("Invalid version: "+v)}; m[1]')"
+          MAX_RC="$(git tag -l "app-v${BASE_VERSION}-rc.*" | sed -E 's/.*-rc\.([0-9]+)$/\1/' | sort -n | tail -n1)"
+          if [[ -z "$MAX_RC" ]]; then
+            NEXT_RC=1
+          else
+            NEXT_RC=$((MAX_RC + 1))
+          fi
+          TARGET_VERSION="${BASE_VERSION}-rc.${NEXT_RC}"
+          if [[ "$CURRENT_VERSION" == "$TARGET_VERSION" ]]; then
+            echo "package.json already uses $TARGET_VERSION"
+            exit 0
+          fi
+          npm version --no-git-tag-version "$TARGET_VERSION"
+      - name: commit RC version bump
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No version bump changes to commit."
+            exit 0
+          fi
+          NEW_VERSION="$(node -p 'require("./package.json").version')"
+          git commit -m "chore(release): bump next channel to ${NEW_VERSION}"
+      - name: push next
+        run: git push origin HEAD:next
