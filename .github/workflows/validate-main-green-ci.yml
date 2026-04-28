@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
       checks: read
       statuses: read
     steps:
@@ -36,6 +37,18 @@ jobs:
             const branchResp = await github.rest.repos.getBranch({ owner, repo, branch });
             const sha = branchResp.data.commit.sha;
             core.info(`Validating checks for ${branch} @ ${sha}`);
+
+            let requiredContexts = [];
+            try {
+              const protection = await github.rest.repos.getBranchProtection({
+                owner,
+                repo,
+                branch,
+              });
+              requiredContexts = protection.data.required_status_checks?.contexts || [];
+            } catch (e) {
+              core.warning(`Could not read branch protection for ${branch}: ${e.message}`);
+            }
 
             const combined = await github.rest.repos.getCombinedStatusForRef({
               owner,
@@ -58,6 +71,29 @@ jobs:
               return;
             }
 
+            if (requiredContexts.length > 0) {
+              core.info(`Required contexts from branch protection: ${requiredContexts.join(", ")}`);
+              const statusByContext = new Map(combined.data.statuses.map((s) => [s.context, s.state]));
+              const failures = [];
+              for (const ctx of requiredContexts) {
+                const state = statusByContext.get(ctx);
+                if (!state) {
+                  failures.push(`${ctx}: missing`);
+                  continue;
+                }
+                if (state !== "success") {
+                  failures.push(`${ctx}: ${state}`);
+                }
+              }
+              if (failures.length > 0) {
+                core.setFailed(`Required checks for ${branch} are not green:\n${failures.join("\n")}`);
+                return;
+              }
+              core.info(`All required checks for ${branch} are green.`);
+              return;
+            }
+
+            core.warning("No required status contexts configured; using fallback all-check validation.");
             const badChecks = checks.filter((c) => {
               if (c.status !== "completed") return true;
               return !["success", "neutral", "skipped"].includes(c.conclusion || "");
