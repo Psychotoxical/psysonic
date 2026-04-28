@@ -49,14 +49,39 @@ jobs:
           cache: "npm"
       - name: get version
         id: get-version
-        run: echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          V="$(node -p 'require(\"./package.json\").version')"
+          # Never publish with a missing/non-semver-ish version — empty becomes tag "app-v" on GitHub and breaks manifests.
+          if [ -z "$V" ]; then
+            echo "::error::package.json version is empty"
+            exit 1
+          fi
+          if ! printf '%s' "$V" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::package.json version must start with semver X.Y.Z... (got '$V')"
+            exit 1
+          fi
+          delim="PKGVER_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_$(openssl rand -hex 8)"
+          {
+            echo "version<<$delim"
+            printf '%s\n' "$V"
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
       - name: compute release tag
         id: tag
         env:
           VERSION: ${{ steps.get-version.outputs.version }}
         run: |
           set -euo pipefail
+          if [ -z "${VERSION:-}" ]; then
+            echo "::error::release tag would be 'app-v' (empty version output) — aborting"
+            exit 1
+          fi
           TAG="app-v${VERSION}"
+          if [ "$TAG" = "app-v" ]; then
+            echo "::error::refuse to create invalid tag 'app-v'"
+            exit 1
+          fi
           echo "value=$TAG" >> "$GITHUB_OUTPUT"
       - name: extract changelog
         id: changelog
