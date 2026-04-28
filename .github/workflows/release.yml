@@ -1,6 +1,8 @@
 name: Release Channel
 
 # Same GITHUB_TOKEN push limitation as Next Channel (see next.yml).
+#
+# workflow_dispatch: use workflow from `main` for latest publish logic; checkout ref is always `release`.
 on:
   push:
     branches: [release]
@@ -15,7 +17,7 @@ jobs:
     uses: ./.github/workflows/reusable-channel-publish.yml
     with:
       channel: release
-      source_ref: ${{ github.event_name == 'workflow_run' && 'release' || github.ref_name }}
+      source_ref: release
       target_branch: release
       prerelease: false
       draft_release: true
