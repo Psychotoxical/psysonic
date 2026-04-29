@@ -89,6 +89,12 @@ interface AuthState {
   crossfadeEnabled: boolean;
   crossfadeSecs: number;
   gaplessEnabled: boolean;
+  /** Show inline Play+Preview buttons in tracklists. Default on per Q3. */
+  trackPreviewsEnabled: boolean;
+  /** Mid-track start position as a 0…1 ratio. Default 0.33 = 33%. */
+  trackPreviewStartRatio: number;
+  /** Preview window length in seconds. Default 30 s. */
+  trackPreviewDurationSec: number;
   preloadMode: 'off' | 'balanced' | 'early' | 'custom';
   preloadCustomSeconds: number;
   infiniteQueueEnabled: boolean;
@@ -252,6 +258,9 @@ interface AuthState {
   setCrossfadeEnabled: (v: boolean) => void;
   setCrossfadeSecs: (v: number) => void;
   setGaplessEnabled: (v: boolean) => void;
+  setTrackPreviewsEnabled: (v: boolean) => void;
+  setTrackPreviewStartRatio: (v: number) => void;
+  setTrackPreviewDurationSec: (v: number) => void;
   setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => void;
   setPreloadCustomSeconds: (v: number) => void;
   setInfiniteQueueEnabled: (v: boolean) => void;
@@ -367,6 +376,9 @@ export const useAuthStore = create<AuthState>()(
       crossfadeEnabled: false,
       crossfadeSecs: 3,
       gaplessEnabled: false,
+      trackPreviewsEnabled: true,
+      trackPreviewStartRatio: 0.33,
+      trackPreviewDurationSec: 30,
       preloadMode: 'balanced',
       preloadCustomSeconds: 30,
       infiniteQueueEnabled: false,
@@ -521,6 +533,9 @@ export const useAuthStore = create<AuthState>()(
       setCrossfadeEnabled: (v) => set({ crossfadeEnabled: v }),
       setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
       setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
+      setTrackPreviewsEnabled: (v) => set({ trackPreviewsEnabled: !!v }),
+      setTrackPreviewStartRatio: (v) => set({ trackPreviewStartRatio: Math.max(0, Math.min(0.9, v)) }),
+      setTrackPreviewDurationSec: (v) => set({ trackPreviewDurationSec: Math.max(5, Math.min(120, Math.round(v))) }),
       setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => set({ preloadMode: v }),
       setPreloadCustomSeconds: (v: number) => set({ preloadCustomSeconds: v }),
       setInfiniteQueueEnabled: (v) => set({ infiniteQueueEnabled: v }),

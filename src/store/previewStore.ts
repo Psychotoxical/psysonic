@@ -23,26 +23,29 @@ interface PreviewState {
   _onEnd: (id: string) => void;
 }
 
-const PREVIEW_DURATION_SECS = 30;
-const PREVIEW_START_RATIO = 0.33;
 const PREVIEW_VOLUME_MATCH = true;
 
 export const usePreviewStore = create<PreviewState>((set, get) => ({
   previewingId: null,
   elapsed: 0,
-  duration: PREVIEW_DURATION_SECS,
+  duration: 30,
 
   startPreview: async (song) => {
+    const auth = useAuthStore.getState();
+    if (!auth.trackPreviewsEnabled) return;
+
     const current = get().previewingId;
     if (current === song.id) {
       await get().stopPreview();
       return;
     }
 
+    const previewDuration = auth.trackPreviewDurationSec;
+    const startRatio = auth.trackPreviewStartRatio;
     const url = buildStreamUrl(song.id);
     const trackDuration = Math.max(song.duration ?? 0, 0);
-    const startSec = trackDuration > PREVIEW_DURATION_SECS * 1.5
-      ? trackDuration * PREVIEW_START_RATIO
+    const startSec = trackDuration > previewDuration * 1.5
+      ? trackDuration * startRatio
       : 0;
 
     // Match the main player's effective volume so preview doesn't blast at
@@ -51,21 +54,20 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     // player volume + applying the same headroom multiplier conceptually.
     let volume = usePlayerStore.getState().volume;
     if (PREVIEW_VOLUME_MATCH) {
-      const auth = useAuthStore.getState();
       if (auth.normalizationEngine === 'loudness') {
         const preDbAtt = Math.min(0, auth.loudnessPreAnalysisAttenuationDb ?? -4.5);
         volume = volume * Math.pow(10, preDbAtt / 20);
       }
     }
 
-    set({ previewingId: song.id, elapsed: 0, duration: PREVIEW_DURATION_SECS });
+    set({ previewingId: song.id, elapsed: 0, duration: previewDuration });
 
     try {
       await invoke('audio_preview_play', {
         id: song.id,
         url,
         startSec,
-        durationSec: PREVIEW_DURATION_SECS,
+        durationSec: previewDuration,
         volume: Math.max(0, Math.min(1, volume)),
       });
     } catch (e) {

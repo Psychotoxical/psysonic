@@ -1152,6 +1152,26 @@ export default function App() {
     document.documentElement.setAttribute('data-font', font);
   }, [font]);
 
+  // Hide all inline track-preview buttons when the user opts out — single
+  // CSS hook (`html[data-track-previews="off"]`) instead of conditional
+  // rendering in every tracklist.
+  const trackPreviewsEnabled = useAuthStore(s => s.trackPreviewsEnabled);
+  const trackPreviewDurationSec = useAuthStore(s => s.trackPreviewDurationSec);
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      'data-track-previews',
+      trackPreviewsEnabled ? 'on' : 'off',
+    );
+  }, [trackPreviewsEnabled]);
+  // Drive the SVG progress-ring keyframe duration from the same setting that
+  // governs the engine's auto-stop timer so both finish in lockstep.
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--preview-duration',
+      `${trackPreviewDurationSec}s`,
+    );
+  }, [trackPreviewDurationSec]);
+
   // Main window only: push playback state to mini window + handle control events.
   useEffect(() => {
     if (isMiniWindow) return;

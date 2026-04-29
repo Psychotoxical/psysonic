@@ -1765,7 +1765,13 @@
 }
 
 .playlist-suggestion-preview-btn.is-previewing .playlist-suggestion-preview-ring-progress {
-  animation: playlist-preview-progress 30s linear forwards;
+  animation: playlist-preview-progress var(--preview-duration, 30s) linear forwards;
+}
+
+/* Settings opt-out: a single root attribute hides every inline preview button
+   without forcing every tracklist to plumb the flag through props. */
+html[data-track-previews="off"] .playlist-suggestion-preview-btn {
+  display: none;
 }
 
 @keyframes playlist-preview-progress {
