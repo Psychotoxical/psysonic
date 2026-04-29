@@ -28,6 +28,6 @@ jobs:
       source_ref: next
       target_branch: next
       prerelease: true
-      draft_release: false
+      draft_release: true
       verify_nix: true
     secrets: inherit
