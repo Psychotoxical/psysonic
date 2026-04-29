@@ -9,8 +9,9 @@ import {
   buildCoverArtUrl, coverArtCacheKey,
 } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePreviewStore } from '../store/previewStore';
 import StarRating from '../components/StarRating';
-import { Cast, ChevronDown, ChevronLeft, ChevronRight, Check, Heart, ListPlus, Play, Star, Users, X, SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { Cast, ChevronDown, ChevronLeft, ChevronRight, Check, Heart, ListPlus, Play, Square, Star, Users, X, SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { unstar } from '../api/subsonic';
@@ -85,6 +86,7 @@ export default function Favorites() {
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const currentRadio = usePlayerStore(s => s.currentRadio);
   const isPlaying = usePlayerStore(s => s.isPlaying);
+  const previewingId = usePreviewStore(s => s.previewingId);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
@@ -623,7 +625,7 @@ export default function Favorites() {
                   return (
                     <div
                       key={song.id}
-                      className={`track-row track-row-va${currentTrack?.id === song.id ? ' active' : ''}${isSelected ? ' bulk-selected' : ''}`}
+                      className={`track-row track-row-va track-row-with-actions${currentTrack?.id === song.id ? ' active' : ''}${isSelected ? ' bulk-selected' : ''}`}
                       style={gridStyle}
                       onClick={e => {
                         if ((e.target as HTMLElement).closest('button, a, input')) return;
@@ -669,14 +671,44 @@ export default function Favorites() {
                       {visibleCols.map(colDef => {
                         switch (colDef.key) {
                           case 'num': return (
-                            <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}${currentTrack?.id === song.id && !isPlaying ? ' track-num-paused' : ''}`} style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, visibleSongs.map(songToTrack)); }}>
+                            <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}>
                               <span className={`bulk-check${isSelected ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`} onClick={e => { e.stopPropagation(); toggleSelect(song.id, i, e.shiftKey); }} />
-                              {currentTrack?.id === song.id && isPlaying && <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>}
-                              <span className="track-num-play"><Play size={13} fill="currentColor" /></span>
-                              <span className="track-num-number">{i + 1}</span>
+                              {currentTrack?.id === song.id && isPlaying ? (
+                                <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                              ) : (
+                                <span className="track-num-number">{i + 1}</span>
+                              )}
                             </div>
                           );
-                          case 'title': return <div key="title" className="track-info"><span className="track-title">{song.title}</span></div>;
+                          case 'title': return (
+                            <div key="title" className="track-info track-info-suggestion">
+                              <button
+                                type="button"
+                                className="playlist-suggestion-play-btn"
+                                onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, visibleSongs.map(songToTrack)); }}
+                                data-tooltip={t('common.play')}
+                                aria-label={t('common.play')}
+                              >
+                                <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
+                              </button>
+                              <button
+                                type="button"
+                                className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                                onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                                data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                                aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                              >
+                                <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
+                                  <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
+                                  <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
+                                </svg>
+                                {previewingId === song.id
+                                  ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
+                                  : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
+                              </button>
+                              <span className="track-title">{song.title}</span>
+                            </div>
+                          );
                           case 'artist': return (
                             <div key="artist" className="track-artist-cell">
                               <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={() => song.artistId && navigate(`/artist/${song.artistId}`)}>{song.artist}</span>

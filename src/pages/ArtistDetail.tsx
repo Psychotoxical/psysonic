@@ -4,11 +4,12 @@ import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, sear
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';
-import { ArrowLeft, Users, ExternalLink, Heart, Play, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronUp, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2 } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePreviewStore } from '../store/previewStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
 import { useAuthStore } from '../store/authStore';
@@ -80,6 +81,7 @@ export default function ArtistDetail() {
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const currentTrack = usePlayerStore(state => state.currentTrack);
   const isPlaying = usePlayerStore(state => state.isPlaying);
+  const previewingId = usePreviewStore(s => s.previewingId);
   const downloadArtist = useOfflineStore(s => s.downloadArtist);
   const bulkProgress = useOfflineJobStore(s => s.bulkProgress);
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
@@ -700,7 +702,7 @@ export default function ArtistDetail() {
                    return (
                      <div
                        key={song.id}
-                       className="track-row"
+                       className="track-row track-row-with-actions"
                        style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(100px, 1fr) 65px' }}
                        onClick={e => {
                          if ((e.target as HTMLElement).closest('button, a, input')) return;
@@ -716,12 +718,38 @@ export default function ArtistDetail() {
                          openContextMenu(e.clientX, e.clientY, track, 'song');
                        }}
                      >
-                <div className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`} style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTopSongWithContinuation(idx); }}>
-                  {currentTrack?.id === song.id && isPlaying && <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>}
-                  <span className="track-num-play"><Play size={13} fill="currentColor" /></span>
-                  <span className="track-num-number">{idx + 1}</span>
+                <div className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}>
+                  {currentTrack?.id === song.id && isPlaying ? (
+                    <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                  ) : (
+                    <span className="track-num-number">{idx + 1}</span>
+                  )}
                 </div>
-                <div className="track-info" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div className="track-info track-info-suggestion" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className="playlist-suggestion-play-btn"
+                    onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTopSongWithContinuation(idx); }}
+                    data-tooltip={t('common.play')}
+                    aria-label={t('common.play')}
+                  >
+                    <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                    data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                    aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                  >
+                    <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
+                      <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
+                    </svg>
+                    {previewingId === song.id
+                      ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
+                      : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
+                  </button>
                   {song.coverArt && (
                     <CachedImage
                       src={buildCoverArtUrl(song.coverArt, 64)}

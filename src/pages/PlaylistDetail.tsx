@@ -1653,7 +1653,7 @@ export default function PlaylistDetail() {
             )}
             <div
               data-track-idx={realIdx}
-              className={`track-row track-row-va tracklist-playlist${currentTrack?.id === song.id ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}${selectedIds.has(song.id) ? ' bulk-selected' : ''}`}
+              className={`track-row track-row-va track-row-with-actions tracklist-playlist${currentTrack?.id === song.id ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}${selectedIds.has(song.id) ? ' bulk-selected' : ''}`}
               style={gridStyle}
               onMouseEnter={e => !isFiltered && handleRowMouseEnter(i, e)}
               onMouseDown={e => handleRowMouseDown(e, realIdx)}
@@ -1684,15 +1684,46 @@ export default function PlaylistDetail() {
                 const inSelectMode = selectedIds.size > 0;
                 switch (colDef.key) {
                   case 'num': return (
-                    <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}${currentTrack?.id === song.id && !isPlaying ? ' track-num-paused' : ''}`} style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(displayedTracks[i], displayedTracks); }}>
+                    <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}>
                       <span className={`bulk-check${selectedIds.has(song.id) ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`} onClick={e => { e.stopPropagation(); toggleSelect(song.id, i, e.shiftKey); }} />
-                      {currentTrack?.id === song.id && isPlaying && <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>}
-                      <span className="track-num-play"><Play size={13} fill="currentColor" /></span>
-                      <span className="track-num-number">{i + 1}</span>
+                      {currentTrack?.id === song.id && isPlaying ? (
+                        <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                      ) : (
+                        <span className="track-num-number">{i + 1}</span>
+                      )}
                     </div>
                   );
                   case 'title': return (
-                    <div key="title" className="track-info"><span className="track-title">{song.title}</span></div>
+                    <div key="title" className="track-info track-info-suggestion">
+                      <button
+                        type="button"
+                        className="playlist-suggestion-play-btn"
+                        onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(displayedTracks[i], displayedTracks); }}
+                        data-tooltip={t('common.play')}
+                        aria-label={t('common.play')}
+                      >
+                        <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                        onClick={e => {
+                          e.stopPropagation();
+                          usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration });
+                        }}
+                        data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                        aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                      >
+                        <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
+                          <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
+                        </svg>
+                        {previewingId === song.id
+                          ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
+                          : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
+                      </button>
+                      <span className="track-title">{song.title}</span>
+                    </div>
                   );
                   case 'artist': return (
                     <div key="artist" className="track-artist-cell">

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getGenres, SubsonicSong, SubsonicGenre, star, unstar } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';
-import { Play, RefreshCw, ChevronDown, ChevronUp, Heart } from 'lucide-react';
+import { Play, RefreshCw, ChevronDown, ChevronRight, ChevronUp, Heart, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -38,6 +39,7 @@ export default function RandomMix() {
   const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
+  const previewingId = usePreviewStore(s => s.previewingId);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
@@ -427,7 +429,7 @@ export default function RandomMix() {
                 return (
                   <div
                     key={song.id}
-                    className={`track-row${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
+                    className={`track-row track-row-with-actions${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
                     style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 70px 65px' }}
                     onClick={e => { if ((e.target as HTMLElement).closest('button, a, input')) return; if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
                     onDoubleClick={orbitActive ? e => { if ((e.target as HTMLElement).closest('button, a, input')) return; addTrackToOrbit(song.id); } : undefined}
@@ -449,12 +451,40 @@ export default function RandomMix() {
                       document.addEventListener('mouseup', onUp);
                     }}
                   >
-                    <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`} style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}>
-                      {isCurrentTrack && isPlaying && <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>}
-                      <span className="track-num-play"><Play size={13} fill="currentColor" /></span>
-                      <span className="track-num-number">{idx + 1}</span>
+                    <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`}>
+                      {isCurrentTrack && isPlaying ? (
+                        <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                      ) : (
+                        <span className="track-num-number">{idx + 1}</span>
+                      )}
                     </div>
-                    <div className="track-info"><span className="track-title">{song.title}</span></div>
+                    <div className="track-info track-info-suggestion">
+                      <button
+                        type="button"
+                        className="playlist-suggestion-play-btn"
+                        onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
+                        data-tooltip={t('common.play')}
+                        aria-label={t('common.play')}
+                      >
+                        <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                        onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                        data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                        aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                      >
+                        <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
+                          <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
+                        </svg>
+                        {previewingId === song.id
+                          ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
+                          : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
+                      </button>
+                      <span className="track-title">{song.title}</span>
+                    </div>
                     <div className="track-artist-cell">
                       {artist ? (
                         <button
@@ -527,7 +557,7 @@ export default function RandomMix() {
             return (
               <div
                 key={song.id}
-                className={`track-row${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
+                className={`track-row track-row-with-actions${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
                 style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 120px 70px 65px' }}
                 onClick={e => { if ((e.target as HTMLElement).closest('button, a, input')) return; if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
                 onDoubleClick={orbitActive ? e => { if ((e.target as HTMLElement).closest('button, a, input')) return; addTrackToOrbit(song.id); } : undefined}
@@ -553,13 +583,39 @@ export default function RandomMix() {
                   document.addEventListener('mouseup', onUp);
                 }}
               >
-                <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`} style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}>
-                  {isCurrentTrack && isPlaying && <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>}
-                  <span className="track-num-play"><Play size={13} fill="currentColor" /></span>
-                  <span className="track-num-number">{idx + 1}</span>
+                <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`}>
+                  {isCurrentTrack && isPlaying ? (
+                    <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                  ) : (
+                    <span className="track-num-number">{idx + 1}</span>
+                  )}
                 </div>
 
-                <div className="track-info">
+                <div className="track-info track-info-suggestion">
+                  <button
+                    type="button"
+                    className="playlist-suggestion-play-btn"
+                    onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
+                    data-tooltip={t('common.play')}
+                    aria-label={t('common.play')}
+                  >
+                    <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                    data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                    aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                  >
+                    <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
+                      <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
+                    </svg>
+                    {previewingId === song.id
+                      ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
+                      : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
+                  </button>
                   <span className="track-title">{song.title}</span>
                 </div>
 
