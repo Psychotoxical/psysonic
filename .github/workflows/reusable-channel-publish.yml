@@ -107,7 +107,6 @@ jobs:
           CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
           IS_PRERELEASE: ${{ inputs.prerelease }}
           IS_DRAFT: ${{ inputs.draft_release }}
-          CHANNEL: ${{ inputs.channel }}
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
@@ -115,9 +114,7 @@ jobs:
             const prerelease = process.env.IS_PRERELEASE === "true";
             const draft = process.env.IS_DRAFT === "true";
             const version = process.env.PACKAGE_VERSION;
-            const channel = process.env.CHANNEL;
-            const titleSuffix = prerelease ? ` RC (${channel})` : "";
-            const name = `Psysonic v${version}${titleSuffix}`;
+            const name = `Psysonic v${version}`;
             try {
               const { data } = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
