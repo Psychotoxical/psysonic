@@ -3163,6 +3163,10 @@ pub async fn audio_play(
         }
     }
 
+    // Cancel any active preview before starting fresh main playback so the
+    // two sinks don't end up mixed.
+    preview_clear_for_new_main_playback(&state, &app);
+
     // ── Gapless pre-chain hit ─────────────────────────────────────────────────
     // audio_chain_preload already appended this URL to the Sink 30 s in
     // advance. The source is live in the queue — just return and let the
@@ -4215,6 +4219,10 @@ pub fn audio_pause(state: State<'_, AudioEngine>) {
 /// swaps it in on the next `read()`), and a new download task is spawned.
 #[tauri::command]
 pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Result<(), String> {
+    // If a preview is running, cancel it first — otherwise sink.play() on the
+    // main sink would mix on top of the preview sink.
+    preview_clear_for_new_main_playback(&state, &app);
+
     // Detect radio hard-disconnect.
     let reconnect_info = {
         let guard = state.radio_state.lock().unwrap();
@@ -4273,7 +4281,8 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
 }
 
 #[tauri::command]
-pub fn audio_stop(state: State<'_, AudioEngine>) {
+pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
+    preview_clear_for_new_main_playback(&state, &app);
     state.generation.fetch_add(1, Ordering::SeqCst);
     *state.current_playback_url.lock().unwrap() = None;
     *state.current_analysis_track_id.lock().unwrap() = None;
@@ -4620,6 +4629,9 @@ pub async fn audio_play_radio(
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
     let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+
+    // Cancel any active preview so it doesn't keep playing alongside radio.
+    preview_clear_for_new_main_playback(&state, &app);
 
     // Abort any previous radio task before stopping the sink.
     drop(state.radio_state.lock().unwrap().take());
@@ -5178,6 +5190,28 @@ fn preview_pause_main(state: &AudioEngine) {
         }
     } else {
         state.preview_main_resume.store(false, Ordering::Release);
+    }
+}
+
+/// Cancel any active preview and clear the resume marker. Called from every
+/// command that brings the main sink back to life under its own steam
+/// (`audio_play`, `audio_play_radio`, `audio_resume`) — without this the
+/// preview would keep playing in parallel and the watchdog would later try
+/// to resume a main sink that's already running, double-mixing the audio.
+fn preview_clear_for_new_main_playback(state: &AudioEngine, app: &AppHandle) {
+    // Order matters: clear the resume marker BEFORE bumping the generation
+    // so the watchdog — if it wakes between our writes — sees no work to do
+    // and bails without resuming main behind our back.
+    state.preview_main_resume.store(false, Ordering::Release);
+    state.preview_gen.fetch_add(1, Ordering::SeqCst);
+    let sink = state.preview_sink.lock().unwrap().take();
+    let id = state.preview_song_id.lock().unwrap().take();
+    if let Some(s) = sink { s.stop(); }
+    if let Some(id) = id {
+        app.emit("audio:preview-end", PreviewEndPayload {
+            id,
+            reason: "interrupted",
+        }).ok();
     }
 }
 
