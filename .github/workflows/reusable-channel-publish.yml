@@ -405,6 +405,8 @@ jobs:
             exit 0
           fi
           npm version --no-git-tag-version "$TARGET_VERSION"
+      - name: sync Tauri version from package.json
+        run: node scripts/sync-tauri-version-from-package.js
       - name: open PR with dev bump (if changed)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -412,7 +414,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
+          git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
           if git diff --cached --quiet; then
             echo "No dev version bump required."
             exit 0
@@ -428,4 +430,4 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --title "chore(release): bump main to ${VERSION}" \
-            --body "Auto-generated after stable release: updates \`package.json\` and \`package-lock.json\` to the next development version."
+            --body "Auto-generated after stable release: updates \`package.json\`, \`package-lock.json\`, \`src-tauri/Cargo.toml\`, and \`src-tauri/tauri.conf.json\` to the next development version."
