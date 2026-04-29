@@ -33,12 +33,14 @@ jobs:
             exit 0
           fi
           npm version --no-git-tag-version "$FINAL_VERSION"
+      - name: sync Tauri version from package.json
+        run: node scripts/sync-tauri-version-from-package.js
       - name: commit final version bump
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
+          git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
           if git diff --cached --quiet; then
             echo "No finalization changes to commit."
             exit 0
