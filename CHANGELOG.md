@@ -15,9 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-## [1.44.0-rc.1] - 2026-04-27
-
-> **🧪 Release Candidate:** This is `1.44.0-rc1` — a release candidate for `1.44.0`. It is distributed as a draft release only and does not push via the auto-updater. Test feedback welcome before the final tag.
+## [1.44.0] - 2026-04-29
 
 ## Highlights
 
