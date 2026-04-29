@@ -1668,6 +1668,64 @@
   color: var(--accent);
 }
 
+/* Suggestion-row preview button — sits left of the track title */
+.track-info-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.playlist-suggestion-preview-btn {
+  position: relative;
+  flex: 0 0 auto;
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-overlay0);
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  overflow: hidden;
+  transition: opacity var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.playlist-suggestion-preview-btn:hover {
+  border-color: var(--accent);
+}
+
+.playlist-suggestions .track-row:hover .playlist-suggestion-preview-btn,
+.playlist-suggestion-preview-btn.is-previewing {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.playlist-suggestion-preview-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 0;
+  background: var(--accent);
+}
+
+.playlist-suggestion-preview-btn.is-previewing::after {
+  animation: playlist-preview-progress 30s linear forwards;
+}
+
+@keyframes playlist-preview-progress {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
 .track-row:hover,
 .track-row.context-active {
   background: var(--bg-hover);

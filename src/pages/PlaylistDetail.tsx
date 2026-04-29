@@ -7,7 +7,7 @@ import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import {
   getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt,
   search, setRating, star, unstar,
-  getRandomSongs, buildDownloadUrl, filterSongsToActiveLibrary, SubsonicPlaylist, SubsonicSong,
+  getRandomSongs, buildDownloadUrl, buildStreamUrl, filterSongsToActiveLibrary, SubsonicPlaylist, SubsonicSong,
 } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -292,6 +292,10 @@ export default function PlaylistDetail() {
   const [sortClickCount, setSortClickCount] = useState(0);
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const [hoveredSuggestionId, setHoveredSuggestionId] = useState<string | null>(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previewTimerRef = useRef<number | null>(null);
+  const previewResumeRef = useRef<boolean>(false);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
   const zipDownloads = useZipDownloadStore(s => s.downloads);
@@ -916,13 +920,88 @@ export default function PlaylistDetail() {
   // ── Add ───────────────────────────────────────────────────────
   const addSong = (song: SubsonicSong) => {
     if (songs.some(s => s.id === song.id)) return;
+    const scrollHost = document.querySelector('.main-content') as HTMLElement | null;
+    const savedScroll = scrollHost?.scrollTop ?? 0;
     const next = [...songs, song];
     setSongs(next);
     savePlaylist(next);
     setSuggestions(prev => prev.filter(s => s.id !== song.id));
     setSearchResults(prev => prev.filter(s => s.id !== song.id));
+    if (scrollHost) {
+      requestAnimationFrame(() => { scrollHost.scrollTop = savedScroll; });
+    }
     showToast(t('playlists.addSuccess', { count: 1, playlist: playlist?.name }));
   };
+
+  // ── Preview (30s mid-song sample via parallel HTML5 audio) ────
+  const stopPreview = useCallback(() => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.src = '';
+      previewAudioRef.current = null;
+    }
+    if (previewTimerRef.current !== null) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    if (previewResumeRef.current) {
+      previewResumeRef.current = false;
+      usePlayerStore.getState().resume();
+    }
+    setPreviewingId(null);
+  }, []);
+
+  const startPreview = useCallback((song: SubsonicSong) => {
+    if (previewingId === song.id) {
+      stopPreview();
+      return;
+    }
+    // Switching previews: tear down audio + timer but keep the resume flag
+    // so the main player only resumes after the *last* preview ends.
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.src = '';
+      previewAudioRef.current = null;
+    }
+    if (previewTimerRef.current !== null) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    if (!previewResumeRef.current && usePlayerStore.getState().isPlaying) {
+      usePlayerStore.getState().pause();
+      previewResumeRef.current = true;
+    }
+    const audio = new Audio();
+    audio.volume = usePlayerStore.getState().volume;
+    audio.preload = 'auto';
+    audio.addEventListener('loadedmetadata', () => {
+      const dur = audio.duration && Number.isFinite(audio.duration)
+        ? audio.duration
+        : (song.duration ?? 0);
+      audio.currentTime = Math.max(0, dur * 0.33);
+      audio.play().catch(() => stopPreview());
+    }, { once: true });
+    audio.addEventListener('error', () => stopPreview(), { once: true });
+    audio.src = buildStreamUrl(song.id);
+    previewAudioRef.current = audio;
+    setPreviewingId(song.id);
+    previewTimerRef.current = window.setTimeout(stopPreview, 30000);
+  }, [previewingId, stopPreview]);
+
+  useEffect(() => {
+    const unsub = usePlayerStore.subscribe((state, prev) => {
+      if (state.isPlaying && !prev.isPlaying && previewAudioRef.current) {
+        // Main playback resumed externally (spacebar, mediakey, suggestion-row click).
+        // Cancel the preview without resuming again.
+        previewResumeRef.current = false;
+        stopPreview();
+      }
+    });
+    return () => {
+      unsub();
+      stopPreview();
+    };
+  }, [stopPreview]);
 
   // ── Rating / Star ─────────────────────────────────────────────
   const handleRate = (songId: string, rating: number) => {
@@ -1753,11 +1832,24 @@ export default function PlaylistDetail() {
                 key={song.id}
                 className={`track-row track-row-va tracklist-playlist${contextMenuSongId === song.id ? ' context-active' : ''}`}
                 style={gridStyle}
+                data-tooltip={t('playlists.suggestionDoubleClickPlayNext')}
                 onMouseEnter={() => setHoveredSuggestionId(song.id)}
                 onMouseLeave={() => setHoveredSuggestionId(null)}
-                onClick={e => {
+                onDoubleClick={e => {
                   if ((e.target as HTMLElement).closest('button, a, input')) return;
-                  addSong(song);
+                  const { queue, queueIndex, currentTrack, playTrack } = usePlayerStore.getState();
+                  const track = songToTrack(song);
+                  if (!currentTrack || queue.length === 0) {
+                    playTrack(track, [track]);
+                    return;
+                  }
+                  const insertAt = Math.min(queueIndex + 1, queue.length);
+                  const newQueue = [
+                    ...queue.slice(0, insertAt),
+                    track,
+                    ...queue.slice(insertAt),
+                  ];
+                  playTrack(track, newQueue);
                 }}
                 onContextMenu={e => {
                   e.preventDefault();
@@ -1768,7 +1860,18 @@ export default function PlaylistDetail() {
                 {visibleCols.map(colDef => {
                   switch (colDef.key) {
                     case 'num': return <div key="num" className="track-num" style={{ color: 'var(--text-muted)' }}>{idx + 1}</div>;
-                    case 'title': return <div key="title" className="track-info"><span className="track-title">{song.title}</span></div>;
+                    case 'title': return (
+                      <div key="title" className="track-info track-info-suggestion">
+                        <button
+                          className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                          onClick={e => { e.stopPropagation(); startPreview(song); }}
+                          data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                        >
+                          {previewingId === song.id ? t('playlists.previewStopShort') : t('playlists.previewShort')}
+                        </button>
+                        <span className="track-title">{song.title}</span>
+                      </div>
+                    );
                     case 'artist': return (
                       <div key="artist" className="track-artist-cell">
                         <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}>{song.artist}</span>
