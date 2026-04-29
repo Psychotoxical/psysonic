@@ -13,6 +13,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 > **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few weeks of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
 
+
+## [1.44.0-rc.3] - 2026-04-29
+
+> **🧪 Release Candidate:** This is `1.44.0-rc1` — a release candidate for `1.44.0`. It is distributed as a draft release only and does not push via the auto-updater. Test feedback welcome before the final tag.
+>
+> 
+## Highlights
+
+* **Playlist Suggestion Preview** — audition playlist suggestions with 30-second previews, explicit play-next controls and deliberate add-to-playlist actions.
+
+---
+
+## Added / New Features
+
+### Playlists — Suggestion Preview UX
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#365](https://github.com/Psychotoxical/psysonic/pull/365)**
+
+Playlist suggestions introduce a dedicated preview workflow for auditioning recommended songs before adding them to a playlist or sending them to the queue.
+
+Each suggestion includes a 30-second preview action with an animated progress ring. Previews play through a separate HTML5 audio element: the main player pauses during the preview, resumes when the preview ends, and cancels cleanly when playback is controlled manually.
+
+An explicit Play Next button inserts the suggestion after the current queue item and starts playback there. Double-clicking a suggestion row adds it to the playlist, matching the existing plus button, while single-clicking the row intentionally does nothing to avoid accidental actions.
+
+Adding a suggestion preserves the playlist scroll position. The preview path is also built to behave reliably on WebKitGTK and applies LUFS pre-analysis attenuation when loudness normalization is enabled, so previews stay closer to normal playback volume.
+
+The feature includes updated i18n coverage across all supported locales.
+
+---
+
+## Changed / Improved
+
+*
+
+---
+
+## Fixed Since Preview / RC
+
+*
+
+
+
 ## [1.44.0-rc.1] - 2026-04-27
 
 > **🧪 Release Candidate:** This is `1.44.0-rc1` — a release candidate for `1.44.0`. It is distributed as a draft release only and does not push via the auto-updater. Test feedback welcome before the final tag.
