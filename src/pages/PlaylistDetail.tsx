@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles, Square } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import {
@@ -934,23 +934,18 @@ export default function PlaylistDetail() {
   };
 
   // ── Preview (30s mid-song sample via parallel HTML5 audio) ────
-  // Reuse a single <audio> element across previews. Creating a new
-  // element per click and tearing it down via `src=''` triggers
-  // GLib-GObject-CRITICAL NULL-instance crashes on WebKitGTK because
-  // the GStreamer playbin gets re-wired before the previous one is
-  // fully gone. Single element + load() resets the pipeline cleanly.
+  // Session counter invalidates `loadedmetadata`/`error` callbacks
+  // bound to a previous preview that the user has already switched
+  // away from — without it, a slow-to-load preview can `play()` on a
+  // discarded element while the new one is still loading.
   const previewSessionRef = useRef<number>(0);
-
-  const teardownPreviewSource = (audio: HTMLAudioElement) => {
-    audio.pause();
-    audio.removeAttribute('src');
-    audio.load();
-  };
 
   const stopPreview = useCallback(() => {
     previewSessionRef.current++;
     if (previewAudioRef.current) {
-      teardownPreviewSource(previewAudioRef.current);
+      previewAudioRef.current.pause();
+      previewAudioRef.current.src = '';
+      previewAudioRef.current = null;
     }
     if (previewTimerRef.current !== null) {
       clearTimeout(previewTimerRef.current);
@@ -968,13 +963,14 @@ export default function PlaylistDetail() {
       stopPreview();
       return;
     }
-    if (!previewAudioRef.current) {
-      const a = new Audio();
-      a.preload = 'auto';
-      previewAudioRef.current = a;
+    // Tear down audio + timer but keep the resume flag so the main
+    // player only resumes after the *last* preview ends.
+    previewSessionRef.current++;
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.src = '';
+      previewAudioRef.current = null;
     }
-    const audio = previewAudioRef.current;
-    teardownPreviewSource(audio);
     if (previewTimerRef.current !== null) {
       clearTimeout(previewTimerRef.current);
       previewTimerRef.current = null;
@@ -984,8 +980,10 @@ export default function PlaylistDetail() {
       previewResumeRef.current = true;
     }
     const session = ++previewSessionRef.current;
+    const audio = new Audio();
     audio.volume = usePlayerStore.getState().volume;
-    const onLoaded = () => {
+    audio.preload = 'auto';
+    audio.addEventListener('loadedmetadata', () => {
       if (previewSessionRef.current !== session) return;
       const dur = audio.duration && Number.isFinite(audio.duration)
         ? audio.duration
@@ -994,13 +992,12 @@ export default function PlaylistDetail() {
       audio.play().catch(() => {
         if (previewSessionRef.current === session) stopPreview();
       });
-    };
-    const onError = () => {
+    }, { once: true });
+    audio.addEventListener('error', () => {
       if (previewSessionRef.current === session) stopPreview();
-    };
-    audio.addEventListener('loadedmetadata', onLoaded, { once: true });
-    audio.addEventListener('error', onError, { once: true });
+    }, { once: true });
     audio.src = buildStreamUrl(song.id);
+    previewAudioRef.current = audio;
     setPreviewingId(song.id);
     previewTimerRef.current = window.setTimeout(stopPreview, 30000);
   }, [previewingId, stopPreview]);
@@ -1813,7 +1810,10 @@ export default function PlaylistDetail() {
       {/* ── Suggestions ── */}
       <div className="playlist-suggestions tracklist">
         <div className="playlist-suggestions-header">
-          <h2 className="section-title" style={{ marginBottom: 0 }}>{t('playlists.suggestions')}</h2>
+          <div className="playlist-suggestions-title">
+            <h2 className="section-title" style={{ marginBottom: 0 }}>{t('playlists.suggestions')}</h2>
+            <span className="playlist-suggestions-hint">{t('playlists.suggestionsHint')}</span>
+          </div>
           <button
             className="btn btn-surface"
             onClick={() => loadSuggestions(songs)}
@@ -1849,24 +1849,11 @@ export default function PlaylistDetail() {
                 key={song.id}
                 className={`track-row track-row-va tracklist-playlist${contextMenuSongId === song.id ? ' context-active' : ''}`}
                 style={gridStyle}
-                data-tooltip={t('playlists.suggestionDoubleClickPlayNext')}
                 onMouseEnter={() => setHoveredSuggestionId(song.id)}
                 onMouseLeave={() => setHoveredSuggestionId(null)}
                 onDoubleClick={e => {
                   if ((e.target as HTMLElement).closest('button, a, input')) return;
-                  const { queue, queueIndex, currentTrack, playTrack } = usePlayerStore.getState();
-                  const track = songToTrack(song);
-                  if (!currentTrack || queue.length === 0) {
-                    playTrack(track, [track]);
-                    return;
-                  }
-                  const insertAt = Math.min(queueIndex + 1, queue.length);
-                  const newQueue = [
-                    ...queue.slice(0, insertAt),
-                    track,
-                    ...queue.slice(insertAt),
-                  ];
-                  playTrack(track, newQueue);
+                  addSong(song);
                 }}
                 onContextMenu={e => {
                   e.preventDefault();
@@ -1880,11 +1867,41 @@ export default function PlaylistDetail() {
                     case 'title': return (
                       <div key="title" className="track-info track-info-suggestion">
                         <button
+                          className="playlist-suggestion-play-btn"
+                          onClick={e => {
+                            e.stopPropagation();
+                            const { queue, queueIndex, currentTrack, playTrack } = usePlayerStore.getState();
+                            const track = songToTrack(song);
+                            if (!currentTrack || queue.length === 0) {
+                              playTrack(track, [track]);
+                              return;
+                            }
+                            const insertAt = Math.min(queueIndex + 1, queue.length);
+                            const newQueue = [
+                              ...queue.slice(0, insertAt),
+                              track,
+                              ...queue.slice(insertAt),
+                            ];
+                            playTrack(track, newQueue);
+                          }}
+                          data-tooltip={t('playlists.playNextSuggestion')}
+                          aria-label={t('playlists.playNextSuggestion')}
+                        >
+                          <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
+                        </button>
+                        <button
                           className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
                           onClick={e => { e.stopPropagation(); startPreview(song); }}
                           data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
+                          aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                         >
-                          {previewingId === song.id ? t('playlists.previewStopShort') : t('playlists.previewShort')}
+                          <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
+                            <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
+                          </svg>
+                          {previewingId === song.id
+                            ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
+                            : <Play size={11} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
                         </button>
                         <span className="track-title">{song.title}</span>
                       </div>
