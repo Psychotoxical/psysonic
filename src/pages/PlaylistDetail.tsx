@@ -981,7 +981,15 @@ export default function PlaylistDetail() {
     }
     const session = ++previewSessionRef.current;
     const audio = new Audio();
-    audio.volume = usePlayerStore.getState().volume;
+    // Match the rough loudness compensation the main Rust player applies,
+    // otherwise unanalysed previews blast out at full natural level
+    // while the main player serves cache-corrected tracks.
+    const baseVolume = usePlayerStore.getState().volume;
+    const auth = useAuthStore.getState();
+    const attenuationDb = auth.normalizationEngine === 'loudness'
+      ? Math.min(0, auth.loudnessPreAnalysisAttenuationDb)
+      : 0;
+    audio.volume = Math.max(0, Math.min(1, baseVolume * Math.pow(10, attenuationDb / 20)));
     audio.preload = 'auto';
     audio.addEventListener('loadedmetadata', () => {
       if (previewSessionRef.current !== session) return;
