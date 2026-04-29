@@ -7,11 +7,12 @@ import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import {
   getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt,
   search, setRating, star, unstar,
-  getRandomSongs, buildDownloadUrl, buildStreamUrl, filterSongsToActiveLibrary, SubsonicPlaylist, SubsonicSong,
+  getRandomSongs, buildDownloadUrl, filterSongsToActiveLibrary, SubsonicPlaylist, SubsonicSong,
 } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';
+import { usePreviewStore } from '../store/previewStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
 import { useAuthStore } from '../store/authStore';
@@ -292,10 +293,7 @@ export default function PlaylistDetail() {
   const [sortClickCount, setSortClickCount] = useState(0);
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const [hoveredSuggestionId, setHoveredSuggestionId] = useState<string | null>(null);
-  const [previewingId, setPreviewingId] = useState<string | null>(null);
-  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
-  const previewTimerRef = useRef<number | null>(null);
-  const previewResumeRef = useRef<boolean>(false);
+  const previewingId = usePreviewStore(s => s.previewingId);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
   const zipDownloads = useZipDownloadStore(s => s.downloads);
@@ -933,97 +931,23 @@ export default function PlaylistDetail() {
     showToast(t('playlists.addSuccess', { count: 1, playlist: playlist?.name }));
   };
 
-  // ── Preview (30s mid-song sample via parallel HTML5 audio) ────
-  // Session counter invalidates `loadedmetadata`/`error` callbacks
-  // bound to a previous preview that the user has already switched
-  // away from — without it, a slow-to-load preview can `play()` on a
-  // discarded element while the new one is still loading.
-  const previewSessionRef = useRef<number>(0);
-
-  const stopPreview = useCallback(() => {
-    previewSessionRef.current++;
-    if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.src = '';
-      previewAudioRef.current = null;
-    }
-    if (previewTimerRef.current !== null) {
-      clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
-    }
-    if (previewResumeRef.current) {
-      previewResumeRef.current = false;
-      usePlayerStore.getState().resume();
-    }
-    setPreviewingId(null);
+  // ── Preview (30s mid-song sample via Rust audio engine) ────────
+  // Pause/resume of the main player + timer + cancel-on-supersede are all
+  // handled in `audio_preview_play` / `audio_preview_stop`. The store mirrors
+  // engine events so we just dispatch here and read `previewingId` for UI.
+  const startPreview = useCallback((song: SubsonicSong) => {
+    usePreviewStore.getState().startPreview({
+      id: song.id,
+      duration: song.duration,
+    }).catch(() => { /* engine errored — store already rolled back */ });
   }, []);
 
-  const startPreview = useCallback((song: SubsonicSong) => {
-    if (previewingId === song.id) {
-      stopPreview();
-      return;
+  // Cancel any in-flight preview when the user navigates away.
+  useEffect(() => () => {
+    if (usePreviewStore.getState().previewingId) {
+      usePreviewStore.getState().stopPreview();
     }
-    // Tear down audio + timer but keep the resume flag so the main
-    // player only resumes after the *last* preview ends.
-    previewSessionRef.current++;
-    if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.src = '';
-      previewAudioRef.current = null;
-    }
-    if (previewTimerRef.current !== null) {
-      clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
-    }
-    if (!previewResumeRef.current && usePlayerStore.getState().isPlaying) {
-      usePlayerStore.getState().pause();
-      previewResumeRef.current = true;
-    }
-    const session = ++previewSessionRef.current;
-    const audio = new Audio();
-    // Match the rough loudness compensation the main Rust player applies,
-    // otherwise unanalysed previews blast out at full natural level
-    // while the main player serves cache-corrected tracks.
-    const baseVolume = usePlayerStore.getState().volume;
-    const auth = useAuthStore.getState();
-    const attenuationDb = auth.normalizationEngine === 'loudness'
-      ? Math.min(0, auth.loudnessPreAnalysisAttenuationDb)
-      : 0;
-    audio.volume = Math.max(0, Math.min(1, baseVolume * Math.pow(10, attenuationDb / 20)));
-    audio.preload = 'auto';
-    audio.addEventListener('loadedmetadata', () => {
-      if (previewSessionRef.current !== session) return;
-      const dur = audio.duration && Number.isFinite(audio.duration)
-        ? audio.duration
-        : (song.duration ?? 0);
-      audio.currentTime = Math.max(0, dur * 0.33);
-      audio.play().catch(() => {
-        if (previewSessionRef.current === session) stopPreview();
-      });
-    }, { once: true });
-    audio.addEventListener('error', () => {
-      if (previewSessionRef.current === session) stopPreview();
-    }, { once: true });
-    audio.src = buildStreamUrl(song.id);
-    previewAudioRef.current = audio;
-    setPreviewingId(song.id);
-    previewTimerRef.current = window.setTimeout(stopPreview, 30000);
-  }, [previewingId, stopPreview]);
-
-  useEffect(() => {
-    const unsub = usePlayerStore.subscribe((state, prev) => {
-      if (state.isPlaying && !prev.isPlaying && previewAudioRef.current) {
-        // Main playback resumed externally (spacebar, mediakey, suggestion-row click).
-        // Cancel the preview without resuming again.
-        previewResumeRef.current = false;
-        stopPreview();
-      }
-    });
-    return () => {
-      unsub();
-      stopPreview();
-    };
-  }, [stopPreview]);
+  }, []);
 
   // ── Rating / Star ─────────────────────────────────────────────
   const handleRate = (songId: string, rating: number) => {

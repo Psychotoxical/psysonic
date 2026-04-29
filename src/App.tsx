@@ -107,6 +107,7 @@ import { useEqStore } from './store/eqStore';
 import { useKeybindingsStore, matchInAppBinding, buildInAppBinding } from './store/keybindingsStore';
 import { useGlobalShortcutsStore } from './store/globalShortcutsStore';
 import { useZipDownloadStore } from './store/zipDownloadStore';
+import { usePreviewStore } from './store/previewStore';
 import ZipDownloadOverlay from './components/ZipDownloadOverlay';
 import PasteClipboardHandler from './components/PasteClipboardHandler';
 
@@ -563,6 +564,22 @@ function TauriEventBridge() {
     return () => { unlisten?.(); };
   }, []);
 
+  // Track-preview lifecycle: Rust audio engine emits start/progress/end. The
+  // store mirrors them so any tracklist row can render its preview UI.
+  useEffect(() => {
+    const unlistenFns: Array<() => void> = [];
+    listen<string>('audio:preview-start', e => {
+      usePreviewStore.getState()._onStart(e.payload);
+    }).then(u => unlistenFns.push(u));
+    listen<{ id: string; elapsed: number; duration: number }>('audio:preview-progress', e => {
+      usePreviewStore.getState()._onProgress(e.payload.id, e.payload.elapsed, e.payload.duration);
+    }).then(u => unlistenFns.push(u));
+    listen<{ id: string; reason: string }>('audio:preview-end', e => {
+      usePreviewStore.getState()._onEnd(e.payload.id);
+    }).then(u => unlistenFns.push(u));
+    return () => { unlistenFns.forEach(fn => fn()); };
+  }, []);
+
   // Audio output device changed (Bluetooth headphones, USB DAC, etc.)
   // The Rust device-watcher has already reopened the stream on the new device
   // and dropped the old Sink, so we just need to restart playback.
@@ -884,10 +901,24 @@ function TauriEventBridge() {
       if (!action) return;
       e.preventDefault();
 
+      // While a track preview is running, Spacebar pauses the preview rather
+      // than the main player (which is already paused under it). Skip / prev
+      // also cancel the preview so the main player resumes cleanly.
+      const previewing = usePreviewStore.getState().previewingId !== null;
+
       switch (action) {
-        case 'play-pause':        togglePlay(); break;
-        case 'next':              next(); break;
-        case 'prev':              previous(); break;
+        case 'play-pause':
+          if (previewing) usePreviewStore.getState().stopPreview();
+          else togglePlay();
+          break;
+        case 'next':
+          if (previewing) usePreviewStore.getState().stopPreview();
+          next();
+          break;
+        case 'prev':
+          if (previewing) usePreviewStore.getState().stopPreview();
+          previous();
+          break;
         case 'volume-up':         setVolume(Math.min(1, usePlayerStore.getState().volume + 0.05)); break;
         case 'volume-down':       setVolume(Math.max(0, usePlayerStore.getState().volume - 0.05)); break;
         case 'seek-forward': {
@@ -928,16 +959,36 @@ function TauriEventBridge() {
     const unlisten: Array<() => void> = [];
 
     const setup = async () => {
+      // Hardware mediakeys are silently dropped while a preview is playing —
+      // matches the cucadmuh-flow expectation that headphone buttons don't
+      // accidentally interrupt or switch the previewed track.
+      const ifNoPreview = (fn: () => void) => () => {
+        if (usePreviewStore.getState().previewingId === null) fn();
+      };
       const handlers: Array<[string, () => void]> = [
-        ['media:play-pause',  () => togglePlay()],
-        ['media:play',        () => { const s = usePlayerStore.getState(); if (!s.isPlaying) s.resume(); }],
-        ['media:pause',       () => { const s = usePlayerStore.getState(); if (s.isPlaying) s.pause(); }],
-        ['media:next',        () => next()],
-        ['media:prev',        () => previous()],
-        ['tray:play-pause',   () => togglePlay()],
-        ['tray:next',         () => next()],
-        ['tray:previous',     () => previous()],
-        ['media:stop',        () => usePlayerStore.getState().stop()],
+        ['media:play-pause',  ifNoPreview(() => togglePlay())],
+        ['media:play',        ifNoPreview(() => { const s = usePlayerStore.getState(); if (!s.isPlaying) s.resume(); })],
+        ['media:pause',       ifNoPreview(() => { const s = usePlayerStore.getState(); if (s.isPlaying) s.pause(); })],
+        ['media:next',        ifNoPreview(() => next())],
+        ['media:prev',        ifNoPreview(() => previous())],
+        // Tray clicks are user-driven UI, so they fall through to the keyboard
+        // semantics: cancel the preview, then act.
+        ['tray:play-pause',   () => {
+          if (usePreviewStore.getState().previewingId !== null) {
+            usePreviewStore.getState().stopPreview();
+          } else {
+            togglePlay();
+          }
+        }],
+        ['tray:next',         () => {
+          if (usePreviewStore.getState().previewingId !== null) usePreviewStore.getState().stopPreview();
+          next();
+        }],
+        ['tray:previous',     () => {
+          if (usePreviewStore.getState().previewingId !== null) usePreviewStore.getState().stopPreview();
+          previous();
+        }],
+        ['media:stop',        ifNoPreview(() => usePlayerStore.getState().stop())],
         ['media:volume-up',   () => { const s = usePlayerStore.getState(); s.setVolume(Math.min(1, s.volume + 0.05)); }],
         ['media:volume-down', () => { const s = usePlayerStore.getState(); s.setVolume(Math.max(0, s.volume - 0.05)); }],
       ];
