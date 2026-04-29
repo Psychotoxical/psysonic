@@ -1865,6 +1865,25 @@
 .track-num.track-num-paused .track-num-play { display: flex; opacity: 0.5; }
 .track-row:hover .track-num.track-num-paused .track-num-play { opacity: 1; }
 
+/* ── Tracklists with inline action buttons (AlbumTrackList & co.) ──────────
+   Track number stays static instead of swapping to a play icon on hover.
+   The dedicated Play + Preview buttons in the title cell take over both
+   click-to-play and click-to-preview.  Active+playing rows still show the
+   eq-bars, active+paused rows fall back to the static number.
+   These rules MUST come after the legacy `.track-row:hover` swap rules so
+   the cascade overrides them. */
+.track-row-with-actions:hover .track-num-number { display: inline; }
+.track-row-with-actions .track-num { cursor: default; }
+.track-row-with-actions .track-num.track-num-active .track-num-number { display: inline; }
+.track-row-with-actions:hover .track-num.track-num-active .track-num-eq { display: flex; }
+
+/* Mirror the suggestion preview-button hover-highlight here so the icon
+   reaches full opacity / accent colour when the row is hovered. */
+.track-row-with-actions:hover .playlist-suggestion-preview-btn {
+  opacity: 1;
+  color: var(--accent);
+}
+
 /* Equalizer bars — shown for the currently playing track */
 .eq-bars {
   display: flex;
