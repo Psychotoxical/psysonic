@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { version } from '../../package.json';
 import changelogRaw from '../../CHANGELOG.md?raw';
 import { useAuthStore } from '../store/authStore';
+import { findChangelogReleaseEntry } from '../utils/changelogReleaseMatch';
 
 function renderInline(text: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
@@ -29,15 +30,7 @@ export default function ChangelogModal({ onClose }: Props) {
   const setShowChangelogOnUpdate = useAuthStore(s => s.setShowChangelogOnUpdate);
   const setLastSeenChangelogVersion = useAuthStore(s => s.setLastSeenChangelogVersion);
 
-  const currentVersionData = useMemo(() => {
-    const blocks = changelogRaw.split(/\n(?=## \[)/).filter((b: string) => b.startsWith('## ['));
-    const block = blocks.find((b: string) => b.startsWith(`## [${version}]`));
-    if (!block) return null;
-    const lines = block.split('\n');
-    const match = lines[0].match(/## \[([^\]]+)\](?:\s*-\s*(.+))?/);
-    const body = lines.slice(1).join('\n').trim();
-    return { version: match?.[1] ?? version, date: match?.[2] ?? '', body };
-  }, []);
+  const currentVersionData = useMemo(() => findChangelogReleaseEntry(changelogRaw, version), []);
 
   const handleClose = () => {
     if (dontShow) setShowChangelogOnUpdate(false);
