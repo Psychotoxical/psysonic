@@ -934,11 +934,23 @@ export default function PlaylistDetail() {
   };
 
   // ── Preview (30s mid-song sample via parallel HTML5 audio) ────
+  // Reuse a single <audio> element across previews. Creating a new
+  // element per click and tearing it down via `src=''` triggers
+  // GLib-GObject-CRITICAL NULL-instance crashes on WebKitGTK because
+  // the GStreamer playbin gets re-wired before the previous one is
+  // fully gone. Single element + load() resets the pipeline cleanly.
+  const previewSessionRef = useRef<number>(0);
+
+  const teardownPreviewSource = (audio: HTMLAudioElement) => {
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+  };
+
   const stopPreview = useCallback(() => {
+    previewSessionRef.current++;
     if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.src = '';
-      previewAudioRef.current = null;
+      teardownPreviewSource(previewAudioRef.current);
     }
     if (previewTimerRef.current !== null) {
       clearTimeout(previewTimerRef.current);
@@ -956,13 +968,13 @@ export default function PlaylistDetail() {
       stopPreview();
       return;
     }
-    // Switching previews: tear down audio + timer but keep the resume flag
-    // so the main player only resumes after the *last* preview ends.
-    if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.src = '';
-      previewAudioRef.current = null;
+    if (!previewAudioRef.current) {
+      const a = new Audio();
+      a.preload = 'auto';
+      previewAudioRef.current = a;
     }
+    const audio = previewAudioRef.current;
+    teardownPreviewSource(audio);
     if (previewTimerRef.current !== null) {
       clearTimeout(previewTimerRef.current);
       previewTimerRef.current = null;
@@ -971,19 +983,24 @@ export default function PlaylistDetail() {
       usePlayerStore.getState().pause();
       previewResumeRef.current = true;
     }
-    const audio = new Audio();
+    const session = ++previewSessionRef.current;
     audio.volume = usePlayerStore.getState().volume;
-    audio.preload = 'auto';
-    audio.addEventListener('loadedmetadata', () => {
+    const onLoaded = () => {
+      if (previewSessionRef.current !== session) return;
       const dur = audio.duration && Number.isFinite(audio.duration)
         ? audio.duration
         : (song.duration ?? 0);
       audio.currentTime = Math.max(0, dur * 0.33);
-      audio.play().catch(() => stopPreview());
-    }, { once: true });
-    audio.addEventListener('error', () => stopPreview(), { once: true });
+      audio.play().catch(() => {
+        if (previewSessionRef.current === session) stopPreview();
+      });
+    };
+    const onError = () => {
+      if (previewSessionRef.current === session) stopPreview();
+    };
+    audio.addEventListener('loadedmetadata', onLoaded, { once: true });
+    audio.addEventListener('error', onError, { once: true });
     audio.src = buildStreamUrl(song.id);
-    previewAudioRef.current = audio;
     setPreviewingId(song.id);
     previewTimerRef.current = window.setTimeout(stopPreview, 30000);
   }, [previewingId, stopPreview]);
