@@ -2,6 +2,8 @@
 
 This guide is for **NixOS** users who want **Psysonic from the upstream Git flake** (`github:Psychotoxical/psysonic`). Supported systems match the flake: **`x86_64-linux`** and **`aarch64-linux`**.
 
+**Stability:** The project is in **very active development**. For **production or everyday use**, prefer **released builds**: pin the flake input to a stable **`app-v*`** tag, or track the **`release`** branch (`?ref=release`). Following **`main`** or **`next`** is better suited to contributors and early testers.
+
 ## Prerequisites
 
 **Flakes** enabled (e.g. in `configuration.nix`):
@@ -86,10 +88,10 @@ environment.systemPackages = with pkgs; [
 ### Pinning a revision, branch, or tag
 
 - **`main`** (default in the examples above) follows upstream development.
-- **Channel branches** (`next`, `release`) exist for pre-release / release automation; advanced users may pin them if they intentionally track a channel:
+- **Channel branches** (`next`, `release`) exist for pre-release / release automation. For **operational installs**, prefer **`release`** (or an **`app-v*`** tag) over **`next`** or **`main`**; use **`?ref=next`** only if you want pre-release channel builds.
 
   ```nix
-  psysonic.url = "github:Psychotoxical/psysonic?ref=next";
+  psysonic.url = "github:Psychotoxical/psysonic?ref=release";
   ```
 
 - **Tags** (`app-v*`) match published GitHub releases and are the usual choice for a **reproducible** install aligned with a shipped version:
