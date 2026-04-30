@@ -38,16 +38,22 @@ function drawCurve(canvas: HTMLCanvasElement, gains: number[], accentColor: stri
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.offsetWidth;
   const H = canvas.offsetHeight;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  const ctx = canvas.getContext('2d')!;
-  ctx.scale(dpr, dpr);
 
   const fMin = 20, fMax = 20000;
   const dbMin = -13, dbMax = 13;
   const padL = 36, padR = 8, padT = 8, padB = 1;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
+
+  // Canvas hidden or not laid out yet (e.g. inside a collapsed <details> on macOS WebKit).
+  // Bail before allocating an invalid back-buffer; ResizeObserver redraws when the canvas
+  // gets real dimensions.
+  if (innerW <= 0 || innerH <= 0) return;
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(dpr, dpr);
 
   const freqToX = (f: number) =>
     padL + (Math.log10(f / fMin) / Math.log10(fMax / fMin)) * innerW;
