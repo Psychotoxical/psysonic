@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 
 interface ThemeDef {
@@ -7,6 +7,7 @@ interface ThemeDef {
   bg: string;
   card: string;
   accent: string;
+  family?: string;
 }
 
 export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
@@ -41,28 +42,45 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
   {
     group: 'Open Source Classics',
     themes: [
-      { id: 'nord-aurora',          label: 'Aurora',       bg: '#3b4252', card: '#434c5e', accent: '#b48ead' },
-      { id: 'carbonfox',            label: 'Carbonfox',    bg: '#161616', card: '#1c1c1c', accent: '#be95ff' },
-      { id: 'gruvbox-dark-hard',    label: 'Dark Hard',    bg: '#1d2021', card: '#3c3836', accent: '#fabd2f' },
-      { id: 'gruvbox-dark-medium',  label: 'Dark Medium',  bg: '#282828', card: '#3c3836', accent: '#fabd2f' },
-      { id: 'gruvbox-dark-soft',    label: 'Dark Soft',    bg: '#32302f', card: '#45403d', accent: '#fabd2f' },
-      { id: 'dracula',              label: 'Dracula',      bg: '#282a36', card: '#44475a', accent: '#bd93f9' },
-      { id: 'dawnfox',              label: 'Dawnfox',      bg: '#faf4ed', card: '#ebe0df', accent: '#907aa9' },
-      { id: 'dayfox',               label: 'Dayfox',       bg: '#f6f2ee', card: '#dbd1dd', accent: '#2848a9' },
-      { id: 'duskfox',              label: 'Duskfox',      bg: '#232136', card: '#2d2a45', accent: '#c4a7e7' },
-      { id: 'frappe',               label: 'Frappé',       bg: '#303446', card: '#414559', accent: '#ca9ee6' },
-      { id: 'nord-frost',           label: 'Frost',        bg: '#1e2d3d', card: '#243447', accent: '#88c0d0' },
-      { id: 'latte',                label: 'Latte',        bg: '#eff1f5', card: '#ccd0da', accent: '#8839ef' },
-      { id: 'gruvbox-light-hard',   label: 'Light Hard',   bg: '#f9f5d7', card: '#f2e5bc', accent: '#b57614' },
-      { id: 'gruvbox-light-medium', label: 'Light Medium', bg: '#fbf1c7', card: '#f2e5bc', accent: '#b57614' },
-      { id: 'gruvbox-light-soft',   label: 'Light Soft',   bg: '#f2e5bc', card: '#ebdbb2', accent: '#b57614' },
-      { id: 'macchiato',            label: 'Macchiato',    bg: '#24273a', card: '#363a4f', accent: '#c6a0f6' },
-      { id: 'mocha',                label: 'Mocha',        bg: '#1e1e2e', card: '#313244', accent: '#cba6f7' },
-      { id: 'nightfox',             label: 'Nightfox',     bg: '#192330', card: '#212e3f', accent: '#719cd6' },
-      { id: 'nordfox',              label: 'Nordfox',      bg: '#2e3440', card: '#39404f', accent: '#81a1c1' },
-      { id: 'nord',                 label: 'Polar Night',  bg: '#3b4252', card: '#434c5e', accent: '#88c0d0' },
-      { id: 'nord-snowstorm',       label: 'Snowstorm',    bg: '#e5e9f0', card: '#eceff4', accent: '#5e81ac' },
-      { id: 'terafox',              label: 'Terafox',      bg: '#152528', card: '#1d3337', accent: '#a1cdd8' },
+      // ── 1984 (juanmnl/vs-1984 — only variants with a distinct palette)
+      { id: 'vs-1984',              label: 'Default',      bg: '#0d0f31', card: '#161a4a', accent: '#46BDFF', family: '1984' },
+      { id: 'vs-1984-cyberpunk',    label: 'Cyberpunk',    bg: '#1C1E27', card: '#232631', accent: '#85EEA7', family: '1984' },
+      { id: 'vs-1984-light',        label: 'Light',        bg: '#e4e5f5', card: '#d4d6e7', accent: '#4d5eff', family: '1984' },
+      { id: 'vs-1984-orwell',       label: 'Orwell',       bg: '#2e2923', card: '#3a342c', accent: '#fcd395', family: '1984' },
+      // ── Atom One (Th3Whit3Wolf/one-nvim — Atom One Dark / Light derivative)
+      { id: 'one-dark',             label: 'Dark',         bg: '#282c34', card: '#2c323c', accent: '#61afef', family: 'Atom One' },
+      { id: 'one-light',            label: 'Light',        bg: '#fafafa', card: '#ececed', accent: '#4078f2', family: 'Atom One' },
+      // ── Catppuccin (dark → light)
+      { id: 'mocha',                label: 'Mocha',        bg: '#1e1e2e', card: '#313244', accent: '#cba6f7', family: 'Catppuccin' },
+      { id: 'macchiato',            label: 'Macchiato',    bg: '#24273a', card: '#363a4f', accent: '#c6a0f6', family: 'Catppuccin' },
+      { id: 'frappe',               label: 'Frappé',       bg: '#303446', card: '#414559', accent: '#ca9ee6', family: 'Catppuccin' },
+      { id: 'latte',                label: 'Latte',        bg: '#eff1f5', card: '#ccd0da', accent: '#8839ef', family: 'Catppuccin' },
+      // ── Dracula
+      { id: 'dracula',              label: 'Dracula',      bg: '#282a36', card: '#44475a', accent: '#bd93f9', family: 'Dracula' },
+      // ── Gruvbox (dark → light, hard → soft)
+      { id: 'gruvbox-dark-hard',    label: 'Dark Hard',    bg: '#1d2021', card: '#3c3836', accent: '#fabd2f', family: 'Gruvbox' },
+      { id: 'gruvbox-dark-medium',  label: 'Dark Medium',  bg: '#282828', card: '#3c3836', accent: '#fabd2f', family: 'Gruvbox' },
+      { id: 'gruvbox-dark-soft',    label: 'Dark Soft',    bg: '#32302f', card: '#45403d', accent: '#fabd2f', family: 'Gruvbox' },
+      { id: 'gruvbox-light-hard',   label: 'Light Hard',   bg: '#f9f5d7', card: '#f2e5bc', accent: '#b57614', family: 'Gruvbox' },
+      { id: 'gruvbox-light-medium', label: 'Light Medium', bg: '#fbf1c7', card: '#f2e5bc', accent: '#b57614', family: 'Gruvbox' },
+      { id: 'gruvbox-light-soft',   label: 'Light Soft',   bg: '#f2e5bc', card: '#ebdbb2', accent: '#b57614', family: 'Gruvbox' },
+      // ── Kanagawa (default → variants)
+      { id: 'kanagawa-wave',        label: 'Wave',         bg: '#1F1F28', card: '#2A2A37', accent: '#7E9CD8', family: 'Kanagawa' },
+      { id: 'kanagawa-dragon',      label: 'Dragon',       bg: '#181616', card: '#282727', accent: '#8ba4b0', family: 'Kanagawa' },
+      { id: 'kanagawa-lotus',       label: 'Lotus',        bg: '#f2ecbc', card: '#d5cea3', accent: '#4d699b', family: 'Kanagawa' },
+      // ── Nightfox (default → variants, alphabetical)
+      { id: 'nightfox',             label: 'Nightfox',     bg: '#192330', card: '#212e3f', accent: '#719cd6', family: 'Nightfox' },
+      { id: 'carbonfox',            label: 'Carbonfox',    bg: '#161616', card: '#1c1c1c', accent: '#be95ff', family: 'Nightfox' },
+      { id: 'dawnfox',              label: 'Dawnfox',      bg: '#faf4ed', card: '#ebe0df', accent: '#907aa9', family: 'Nightfox' },
+      { id: 'dayfox',               label: 'Dayfox',       bg: '#f6f2ee', card: '#dbd1dd', accent: '#2848a9', family: 'Nightfox' },
+      { id: 'duskfox',              label: 'Duskfox',      bg: '#232136', card: '#2d2a45', accent: '#c4a7e7', family: 'Nightfox' },
+      { id: 'nordfox',              label: 'Nordfox',      bg: '#2e3440', card: '#39404f', accent: '#81a1c1', family: 'Nightfox' },
+      { id: 'terafox',              label: 'Terafox',      bg: '#152528', card: '#1d3337', accent: '#a1cdd8', family: 'Nightfox' },
+      // ── Nord (Polar Night → Snowstorm → Frost → Aurora, official ordering)
+      { id: 'nord',                 label: 'Polar Night',  bg: '#3b4252', card: '#434c5e', accent: '#88c0d0', family: 'Nord' },
+      { id: 'nord-snowstorm',       label: 'Snowstorm',    bg: '#e5e9f0', card: '#eceff4', accent: '#5e81ac', family: 'Nord' },
+      { id: 'nord-frost',           label: 'Frost',        bg: '#1e2d3d', card: '#243447', accent: '#88c0d0', family: 'Nord' },
+      { id: 'nord-aurora',          label: 'Aurora',       bg: '#3b4252', card: '#434c5e', accent: '#b48ead', family: 'Nord' },
     ],
   },
   {
@@ -187,42 +205,56 @@ export default function ThemePicker({ value, onChange }: Props) {
                   gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))',
                   gap: '10px',
                 }}>
-                  {themes.map((t) => {
-                    const isActive = value === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        className="theme-card-btn"
-                        onClick={() => onChange(t.id)}
-                      >
-                        <div className={`theme-card-preview${isActive ? ' is-active' : ''}`}>
-                          <div style={{ background: t.bg, height: '55%' }} />
-                          <div style={{ background: t.card, height: '20%' }} />
-                          <div style={{ background: t.accent, height: '25%' }} />
-                          {isActive && (
-                            <div style={{
-                              position: 'absolute',
-                              top: '4px',
-                              right: '4px',
-                              width: '14px',
-                              height: '14px',
-                              borderRadius: '50%',
-                              background: t.accent,
-                              border: '1.5px solid rgba(255,255,255,0.7)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}>
-                              <Check size={8} strokeWidth={3} color="white" />
+                  {(() => {
+                    let lastFamily: string | undefined;
+                    return themes.map((t, i) => {
+                      const isActive = value === t.id;
+                      const showFamilyHeader = !!t.family && t.family !== lastFamily;
+                      lastFamily = t.family;
+                      return (
+                        <Fragment key={t.id}>
+                          {showFamilyHeader && (
+                            <div
+                              className="theme-family-header"
+                              style={{ gridColumn: '1 / -1', marginTop: i === 0 ? 0 : 10 }}
+                            >
+                              {t.family}
                             </div>
                           )}
-                        </div>
-                        <span className={`theme-card-label${isActive ? ' is-active' : ''}`}>
-                          {t.label}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          <button
+                            className="theme-card-btn"
+                            onClick={() => onChange(t.id)}
+                          >
+                            <div className={`theme-card-preview${isActive ? ' is-active' : ''}`}>
+                              <div style={{ background: t.bg, height: '55%' }} />
+                              <div style={{ background: t.card, height: '20%' }} />
+                              <div style={{ background: t.accent, height: '25%' }} />
+                              {isActive && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  right: '4px',
+                                  width: '14px',
+                                  height: '14px',
+                                  borderRadius: '50%',
+                                  background: t.accent,
+                                  border: '1.5px solid rgba(255,255,255,0.7)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}>
+                                  <Check size={8} strokeWidth={3} color="white" />
+                                </div>
+                              )}
+                            </div>
+                            <span className={`theme-card-label${isActive ? ' is-active' : ''}`}>
+                              {t.label}
+                            </span>
+                          </button>
+                        </Fragment>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}

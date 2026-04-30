@@ -14671,6 +14671,510 @@ input[type="range"]:hover::-webkit-slider-thumb {
   background: #8b95c0;
 }
 
+/* ─── Kanagawa Wave (rebelot/kanagawa.nvim — default dark) ─── */
+[data-theme='kanagawa-wave'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23DCD7BA%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #16161D;   /* sumiInk0 */
+  --ctp-mantle:   #181820;   /* sumiInk1 */
+  --ctp-base:     #1F1F28;   /* sumiInk3 — main bg */
+  --ctp-surface0: #2A2A37;   /* sumiInk4 */
+  --ctp-surface1: #363646;   /* sumiInk5 */
+  --ctp-surface2: #54546D;   /* sumiInk6 */
+  --ctp-overlay0: #727169;   /* fujiGray */
+  --ctp-overlay1: #938AA9;   /* springViolet1 */
+  --ctp-overlay2: #C8C093;   /* oldWhite */
+  --ctp-text:     #DCD7BA;   /* fujiWhite */
+  --ctp-subtext1: #C8C093;   /* oldWhite */
+  --ctp-subtext0: #9CABCA;   /* springViolet2 */
+  --ctp-mauve:    #957FB8;   /* oniViolet */
+  --ctp-lavender: #b8b4d0;   /* oniViolet2 */
+  --ctp-pink:     #D27E99;   /* sakuraPink */
+  --ctp-flamingo: #E46876;   /* waveRed */
+  --ctp-rosewater:#FFA066;   /* surimiOrange */
+  --ctp-blue:     #7E9CD8;   /* crystalBlue */
+  --ctp-sapphire: #7FB4CA;   /* springBlue */
+  --ctp-sky:      #A3D4D5;   /* lightBlue */
+  --ctp-teal:     #7AA89F;   /* waveAqua2 */
+  --ctp-green:    #98BB6C;   /* springGreen */
+  --ctp-yellow:   #E6C384;   /* carpYellow */
+  --ctp-peach:    #FFA066;   /* surimiOrange */
+  --ctp-maroon:   #FF5D62;   /* peachRed */
+  --ctp-red:      #E46876;   /* waveRed */
+
+  --bg-app:           #1F1F28;
+  --bg-sidebar:       #181820;
+  --bg-card:          #2A2A37;
+  --bg-hover:         #363646;
+  --bg-player:        #181820;
+  --bg-glass:         rgba(31, 31, 40, 0.78);
+  --accent:           #7E9CD8;       /* crystalBlue — signature Kanagawa accent */
+  --accent-dim:       rgba(126, 156, 216, 0.16);
+  --accent-glow:      rgba(126, 156, 216, 0.32);
+  --text-primary:     #DCD7BA;       /* fujiWhite */
+  --text-secondary:   #C8C093;       /* oldWhite */
+  --text-muted:       #727169;       /* fujiGray */
+  --border:           #363646;
+  --border-subtle:    #2A2A37;
+  --border-dropdown:  #54546D;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.6);
+  --positive:         #98BB6C;       /* springGreen */
+  --warning:          #E6C384;       /* carpYellow */
+  --danger:           #E46876;       /* waveRed */
+  --waveform-played:    #7E9CD8;
+  --waveform-buffered:  #54546D;
+  --waveform-unplayed:  #2A2A37;
+}
+
+/* ─── Kanagawa Dragon (rebelot/kanagawa.nvim — high-contrast dark) ─── */
+[data-theme='kanagawa-dragon'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c5c9c5%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #0d0c0c;   /* dragonBlack0 */
+  --ctp-mantle:   #12120f;   /* dragonBlack1 */
+  --ctp-base:     #181616;   /* dragonBlack3 — main bg */
+  --ctp-surface0: #282727;   /* dragonBlack4 */
+  --ctp-surface1: #393836;   /* dragonBlack5 */
+  --ctp-surface2: #625e5a;   /* dragonBlack6 */
+  --ctp-overlay0: #737c73;   /* dragonAsh */
+  --ctp-overlay1: #9e9b93;   /* dragonGray2 */
+  --ctp-overlay2: #a6a69c;   /* dragonGray */
+  --ctp-text:     #c5c9c5;   /* dragonWhite */
+  --ctp-subtext1: #C8C093;   /* oldWhite */
+  --ctp-subtext0: #a6a69c;
+  --ctp-mauve:    #8992a7;   /* dragonViolet */
+  --ctp-lavender: #949fb5;   /* dragonTeal */
+  --ctp-pink:     #a292a3;   /* dragonPink */
+  --ctp-flamingo: #c4746e;   /* dragonRed */
+  --ctp-rosewater:#b6927b;   /* dragonOrange */
+  --ctp-blue:     #8ba4b0;   /* dragonBlue2 */
+  --ctp-sapphire: #8ba4b0;
+  --ctp-sky:      #8ea4a2;   /* dragonAqua */
+  --ctp-teal:     #8ea4a2;
+  --ctp-green:    #8a9a7b;   /* dragonGreen2 */
+  --ctp-yellow:   #c4b28a;   /* dragonYellow */
+  --ctp-peach:    #b98d7b;   /* dragonOrange2 */
+  --ctp-maroon:   #c4746e;
+  --ctp-red:      #c4746e;
+
+  --bg-app:           #181616;
+  --bg-sidebar:       #12120f;
+  --bg-card:          #282727;
+  --bg-hover:         #393836;
+  --bg-player:        #12120f;
+  --bg-glass:         rgba(24, 22, 22, 0.82);
+  --accent:           #8ba4b0;       /* dragonBlue2 */
+  --accent-dim:       rgba(139, 164, 176, 0.16);
+  --accent-glow:      rgba(139, 164, 176, 0.32);
+  --text-primary:     #c5c9c5;       /* dragonWhite */
+  --text-secondary:   #a6a69c;       /* dragonGray */
+  --text-muted:       #737c73;       /* dragonAsh */
+  --border:           #393836;
+  --border-subtle:    #282727;
+  --border-dropdown:  #625e5a;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #8a9a7b;       /* dragonGreen2 */
+  --warning:          #c4b28a;       /* dragonYellow */
+  --danger:           #c4746e;       /* dragonRed */
+  --waveform-played:    #8ba4b0;
+  --waveform-buffered:  #625e5a;
+  --waveform-unplayed:  #282727;
+}
+
+/* ─── Kanagawa Lotus (rebelot/kanagawa.nvim — light) ─── */
+[data-theme='kanagawa-lotus'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23545464%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #d5cea3;   /* lotusWhite0 */
+  --ctp-mantle:   #dcd5ac;   /* lotusWhite1 */
+  --ctp-base:     #f2ecbc;   /* lotusWhite3 — main bg */
+  --ctp-surface0: #e5ddb0;   /* lotusWhite2 */
+  --ctp-surface1: #e7dba0;   /* lotusWhite4 */
+  --ctp-surface2: #e4d794;   /* lotusWhite5 */
+  --ctp-overlay0: #8a8980;   /* lotusGray3 */
+  --ctp-overlay1: #716e61;   /* lotusGray2 */
+  --ctp-overlay2: #545464;   /* lotusInk1 */
+  --ctp-text:     #545464;   /* lotusInk1 */
+  --ctp-subtext1: #43436c;   /* lotusInk2 */
+  --ctp-subtext0: #716e61;
+  --ctp-mauve:    #624c83;   /* lotusViolet4 */
+  --ctp-lavender: #766b90;   /* lotusViolet2 */
+  --ctp-pink:     #b35b79;   /* lotusPink */
+  --ctp-flamingo: #c84053;   /* lotusRed */
+  --ctp-rosewater:#cc6d00;   /* lotusOrange */
+  --ctp-blue:     #4d699b;   /* lotusBlue4 */
+  --ctp-sapphire: #4e8ca2;   /* lotusTeal1 */
+  --ctp-sky:      #6693bf;   /* lotusTeal2 */
+  --ctp-teal:     #597b75;   /* lotusAqua */
+  --ctp-green:    #6f894e;   /* lotusGreen */
+  --ctp-yellow:   #836f4a;   /* lotusYellow2 */
+  --ctp-peach:    #cc6d00;
+  --ctp-maroon:   #c84053;
+  --ctp-red:      #c84053;
+
+  --bg-app:           #f2ecbc;
+  --bg-sidebar:       #dcd5ac;
+  --bg-card:          #d5cea3;
+  --bg-hover:         #e7dba0;
+  --bg-player:        #dcd5ac;
+  --bg-glass:         rgba(242, 236, 188, 0.92);
+  --accent:           #4d699b;       /* lotusBlue4 */
+  --accent-dim:       rgba(77, 105, 155, 0.14);
+  --accent-glow:      rgba(77, 105, 155, 0.26);
+  --text-primary:     #545464;       /* lotusInk1 */
+  --text-secondary:   #43436c;       /* lotusInk2 */
+  --text-muted:       #8a8980;       /* lotusGray3 */
+  --border:           #e7dba0;
+  --border-subtle:    #d5cea3;
+  --border-dropdown:  #716e61;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.18);
+  --positive:         #6f894e;       /* lotusGreen */
+  --warning:          #cc6d00;       /* lotusOrange */
+  --danger:           #c84053;       /* lotusRed */
+  --waveform-played:    #4d699b;
+  --waveform-buffered:  #8a8980;
+  --waveform-unplayed:  #d5cea3;
+}
+
+/* ─── Atom One Dark (Th3Whit3Wolf/one-nvim — dark variant) ─── */
+[data-theme='one-dark'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23abb2bf%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #181a1f;   /* vertsplit */
+  --ctp-mantle:   #21252b;   /* sidebar tone (Atom IDE convention) */
+  --ctp-base:     #282c34;   /* syntax_bg */
+  --ctp-surface0: #2c323c;   /* syntax_cursor */
+  --ctp-surface1: #333841;   /* pmenu */
+  --ctp-surface2: #3e4452;   /* visual_grey */
+  --ctp-overlay0: #4b5263;   /* mono_4 */
+  --ctp-overlay1: #5c6370;   /* mono_3 */
+  --ctp-overlay2: #828997;   /* mono_2 */
+  --ctp-text:     #abb2bf;   /* mono_1 */
+  --ctp-subtext1: #828997;
+  --ctp-subtext0: #636d83;   /* syntax_gutter */
+  --ctp-mauve:    #c678dd;   /* hue_3 */
+  --ctp-lavender: #528bff;   /* syntax_accent */
+  --ctp-pink:     #d291e4;
+  --ctp-flamingo: #e06c75;   /* hue_5 */
+  --ctp-rosewater:#d19a66;   /* hue_6 */
+  --ctp-blue:     #61afef;   /* hue_2 */
+  --ctp-sapphire: #56b6c2;   /* hue_1 */
+  --ctp-sky:      #56b6c2;
+  --ctp-teal:     #56b6c2;
+  --ctp-green:    #98c379;   /* hue_4 */
+  --ctp-yellow:   #e5c07b;   /* hue_6_2 */
+  --ctp-peach:    #d19a66;
+  --ctp-maroon:   #be5046;   /* hue_5_2 */
+  --ctp-red:      #e06c75;
+
+  --bg-app:           #282c34;
+  --bg-sidebar:       #21252b;
+  --bg-card:          #2c323c;
+  --bg-hover:         #3e4452;
+  --bg-player:        #21252b;
+  --bg-glass:         rgba(40, 44, 52, 0.78);
+  --accent:           #61afef;       /* hue_2 — signature One Dark blue */
+  --accent-dim:       rgba(97, 175, 239, 0.16);
+  --accent-glow:      rgba(97, 175, 239, 0.32);
+  --text-primary:     #abb2bf;       /* mono_1 */
+  --text-secondary:   #828997;       /* mono_2 */
+  --text-muted:       #5c6370;       /* mono_3 */
+  --border:           #3e4452;
+  --border-subtle:    #2c323c;
+  --border-dropdown:  #4b5263;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.6);
+  --positive:         #98c379;       /* hue_4 */
+  --warning:          #e5c07b;       /* hue_6_2 */
+  --danger:           #e06c75;       /* hue_5 */
+  --waveform-played:    #61afef;
+  --waveform-buffered:  #4b5263;
+  --waveform-unplayed:  #2c323c;
+}
+
+/* ─── Atom One Light (Th3Whit3Wolf/one-nvim — light variant) ─── */
+[data-theme='one-light'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23383A42%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #e7e9e1;   /* vertsplit */
+  --ctp-mantle:   #eaeaeb;
+  --ctp-base:     #fafafa;   /* syntax_bg */
+  --ctp-surface0: #ececed;
+  --ctp-surface1: #dfdfdf;   /* pmenu */
+  --ctp-surface2: #d3d3d3;   /* special_grey */
+  --ctp-overlay0: #c2c2c3;   /* mono_4 */
+  --ctp-overlay1: #a0a1a7;   /* mono_3 */
+  --ctp-overlay2: #696c77;   /* mono_2 */
+  --ctp-text:     #383A42;   /* mono_1 */
+  --ctp-subtext1: #4f525e;   /* term_8 */
+  --ctp-subtext0: #696c77;
+  --ctp-mauve:    #a626a4;   /* hue_3 */
+  --ctp-lavender: #526fff;   /* syntax_accent */
+  --ctp-pink:     #d291e4;
+  --ctp-flamingo: #ca1243;   /* hue_5_2 */
+  --ctp-rosewater:#986801;   /* hue_6 */
+  --ctp-blue:     #4078f2;   /* hue_2 */
+  --ctp-sapphire: #0184bc;   /* hue_1 */
+  --ctp-sky:      #0184bc;
+  --ctp-teal:     #0184bc;
+  --ctp-green:    #50a14f;   /* hue_4 */
+  --ctp-yellow:   #c18401;   /* hue_6_2 */
+  --ctp-peach:    #986801;
+  --ctp-maroon:   #ca1243;
+  --ctp-red:      #e45649;   /* hue_5 */
+
+  --bg-app:           #fafafa;
+  --bg-sidebar:       #eaeaeb;
+  --bg-card:          #ececed;
+  --bg-hover:         #dfdfdf;
+  --bg-player:        #eaeaeb;
+  --bg-glass:         rgba(250, 250, 250, 0.92);
+  --accent:           #4078f2;       /* hue_2 — signature One Light blue */
+  --accent-dim:       rgba(64, 120, 242, 0.12);
+  --accent-glow:      rgba(64, 120, 242, 0.24);
+  --text-primary:     #383A42;       /* mono_1 */
+  --text-secondary:   #696c77;       /* mono_2 */
+  --text-muted:       #a0a1a7;       /* mono_3 */
+  --border:           #dfdfdf;
+  --border-subtle:    #ececed;
+  --border-dropdown:  #c2c2c3;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.16);
+  --positive:         #50a14f;       /* hue_4 */
+  --warning:          #c18401;       /* hue_6_2 */
+  --danger:           #e45649;       /* hue_5 */
+  --waveform-played:    #4078f2;
+  --waveform-buffered:  #a0a1a7;
+  --waveform-unplayed:  #dfdfdf;
+}
+
+/* ─── 1984 (juanmnl/vs-1984 — default dark, deep-blue cyberpunk) ─── */
+[data-theme='vs-1984'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f1f1f1%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #050620;
+  --ctp-mantle:   #070825;   /* sideBar.background */
+  --ctp-base:     #0d0f31;   /* editor.background */
+  --ctp-surface0: #161a4a;   /* card elevation */
+  --ctp-surface1: #1f2560;
+  --ctp-surface2: #2a3275;
+  --ctp-overlay0: #3B4D66;   /* lineNumber */
+  --ctp-overlay1: #525863;   /* comment */
+  --ctp-overlay2: #96A1FF;   /* variable */
+  --ctp-text:     #f1f1f1;
+  --ctp-subtext1: #d6d8ff;
+  --ctp-subtext0: #96A1FF;
+  --ctp-mauve:    #FF16B0;   /* keyword pink */
+  --ctp-lavender: #96A1FF;   /* variable */
+  --ctp-pink:     #FF16B0;
+  --ctp-flamingo: #DF81FC;   /* string */
+  --ctp-rosewater:#DF81FC;
+  --ctp-blue:     #46BDFF;   /* focusBorder / accent */
+  --ctp-sapphire: #46BDFF;
+  --ctp-sky:      #46BDFF;
+  --ctp-teal:     #46BDFF;
+  --ctp-green:    #B3F361;   /* cursor green */
+  --ctp-yellow:   #DF81FC;
+  --ctp-peach:    #FF16B0;
+  --ctp-maroon:   #FF16B0;
+  --ctp-red:      #FF16B0;
+
+  --bg-app:           #0d0f31;
+  --bg-sidebar:       #070825;
+  --bg-card:          #161a4a;
+  --bg-hover:         #1f2560;
+  --bg-player:        #070825;
+  --bg-glass:         rgba(13, 15, 49, 0.82);
+  --accent:           #46BDFF;       /* signature 1984 cyan-blue */
+  --accent-dim:       rgba(70, 189, 255, 0.16);
+  --accent-glow:      rgba(70, 189, 255, 0.32);
+  --text-primary:     #f1f1f1;
+  --text-secondary:   #96A1FF;
+  --text-muted:       #525863;       /* comment */
+  --border:           #1f2560;
+  --border-subtle:    #161a4a;
+  --border-dropdown:  #2a3275;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #B3F361;       /* cursor green */
+  --warning:          #DF81FC;       /* string magenta */
+  --danger:           #FF16B0;       /* keyword pink */
+  --waveform-played:    #46BDFF;
+  --waveform-buffered:  #3B4D66;
+  --waveform-unplayed:  #161a4a;
+}
+
+/* ─── 1984 Cyberpunk (juanmnl/vs-1984 — mint-green variant) ─── */
+[data-theme='vs-1984-cyberpunk'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f5f5f5%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #0e0f15;
+  --ctp-mantle:   #15171d;   /* sideBar.background */
+  --ctp-base:     #1C1E27;   /* editor.background */
+  --ctp-surface0: #232631;
+  --ctp-surface1: #2c2f3c;
+  --ctp-surface2: #383b4a;
+  --ctp-overlay0: #525863;
+  --ctp-overlay1: #78A8D6;   /* language variable */
+  --ctp-overlay2: #b8bfd1;
+  --ctp-text:     #f5f5f5;
+  --ctp-subtext1: #d4d8e3;
+  --ctp-subtext0: #78A8D6;
+  --ctp-mauve:    #85EEA7;
+  --ctp-lavender: #78A8D6;
+  --ctp-pink:     #FF16B0;
+  --ctp-flamingo: #7ADAD1;
+  --ctp-rosewater:#7ADAD1;
+  --ctp-blue:     #78A8D6;
+  --ctp-sapphire: #7ADAD1;
+  --ctp-sky:      #7ADAD1;
+  --ctp-teal:     #7ADAD1;
+  --ctp-green:    #85EEA7;
+  --ctp-yellow:   #7ADAD1;
+  --ctp-peach:    #85EEA7;
+  --ctp-maroon:   #FF16B0;
+  --ctp-red:      #FF16B0;
+
+  --bg-app:           #1C1E27;
+  --bg-sidebar:       #15171d;
+  --bg-card:          #232631;
+  --bg-hover:         #2c2f3c;
+  --bg-player:        #15171d;
+  --bg-glass:         rgba(28, 30, 39, 0.82);
+  --accent:           #85EEA7;       /* signature mint-green */
+  --accent-dim:       rgba(133, 238, 167, 0.16);
+  --accent-glow:      rgba(133, 238, 167, 0.32);
+  --text-primary:     #f5f5f5;
+  --text-secondary:   #78A8D6;
+  --text-muted:       #525863;
+  --border:           #2c2f3c;
+  --border-subtle:    #232631;
+  --border-dropdown:  #383b4a;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #85EEA7;
+  --warning:          #7ADAD1;
+  --danger:           #FF16B0;
+  --waveform-played:    #85EEA7;
+  --waveform-buffered:  #383b4a;
+  --waveform-unplayed:  #232631;
+}
+
+/* ─── 1984 Light (juanmnl/vs-1984 — bluish-white) ─── */
+[data-theme='vs-1984-light'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2319152c%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #d4d6e7;
+  --ctp-mantle:   #dfe0f0;   /* sideBar.background */
+  --ctp-base:     #e4e5f5;   /* editor.background */
+  --ctp-surface0: #d4d6e7;
+  --ctp-surface1: #cccdde;
+  --ctp-surface2: #b9bad0;
+  --ctp-overlay0: #9793b9;   /* comment */
+  --ctp-overlay1: #7f8a99;   /* lineNumber */
+  --ctp-overlay2: #585d74;
+  --ctp-text:     #19152c;
+  --ctp-subtext1: #3f374b;
+  --ctp-subtext0: #585d74;   /* sideBar.foreground */
+  --ctp-mauve:    #a626a4;
+  --ctp-lavender: #4d5eff;
+  --ctp-pink:     #FF16B0;
+  --ctp-flamingo: #c300ff;
+  --ctp-rosewater:#1930fd;
+  --ctp-blue:     #4d5eff;
+  --ctp-sapphire: #46BDFF;
+  --ctp-sky:      #46BDFF;
+  --ctp-teal:     #1930fd;
+  --ctp-green:    #1d7848;
+  --ctp-yellow:   #b88600;
+  --ctp-peach:    #FF16B0;
+  --ctp-maroon:   #FF16B0;
+  --ctp-red:      #FF16B0;
+
+  --bg-app:           #e4e5f5;
+  --bg-sidebar:       #dfe0f0;
+  --bg-card:          #d4d6e7;
+  --bg-hover:         #cccdde;
+  --bg-player:        #dfe0f0;
+  --bg-glass:         rgba(228, 229, 245, 0.92);
+  --accent:           #4d5eff;       /* variable blue — readable on bluish-white */
+  --accent-dim:       rgba(77, 94, 255, 0.12);
+  --accent-glow:      rgba(77, 94, 255, 0.24);
+  --text-primary:     #19152c;
+  --text-secondary:   #585d74;       /* sideBar.foreground */
+  --text-muted:       #9793b9;       /* comment */
+  --border:           #cccdde;
+  --border-subtle:    #d4d6e7;
+  --border-dropdown:  #b9bad0;
+  --shadow-dropdown:  rgba(25, 21, 44, 0.18);
+  --positive:         #1d7848;
+  --warning:          #b88600;
+  --danger:           #FF16B0;       /* signature 1984 hot-pink button */
+  --waveform-played:    #4d5eff;
+  --waveform-buffered:  #9793b9;
+  --waveform-unplayed:  #d4d6e7;
+}
+
+/* ─── 1984 Orwell (juanmnl/vs-1984 — sepia / dystopian variant) ─── */
+[data-theme='vs-1984-orwell'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f1f1f1%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #1f1c18;
+  --ctp-mantle:   #292521;   /* sideBar.background */
+  --ctp-base:     #2e2923;   /* editor.background */
+  --ctp-surface0: #3a342c;
+  --ctp-surface1: #463e34;
+  --ctp-surface2: #574d40;
+  --ctp-overlay0: #7a6a52;
+  --ctp-overlay1: #b39773;
+  --ctp-overlay2: #d8c39c;
+  --ctp-text:     #f1f1f1;
+  --ctp-subtext1: #fcd395;
+  --ctp-subtext0: #fcbe95;
+  --ctp-mauve:    #fcd395;
+  --ctp-lavender: #fcbe95;
+  --ctp-pink:     #e74946;
+  --ctp-flamingo: #e74946;
+  --ctp-rosewater:#fcbe95;
+  --ctp-blue:     #fcd395;
+  --ctp-sapphire: #fcbe95;
+  --ctp-sky:      #F7D88B;
+  --ctp-teal:     #fcd395;
+  --ctp-green:    #fcd395;
+  --ctp-yellow:   #F7D88B;
+  --ctp-peach:    #fcbe95;
+  --ctp-maroon:   #e74946;
+  --ctp-red:      #e74946;
+
+  --bg-app:           #2e2923;
+  --bg-sidebar:       #292521;
+  --bg-card:          #3a342c;
+  --bg-hover:         #463e34;
+  --bg-player:        #292521;
+  --bg-glass:         rgba(46, 41, 35, 0.82);
+  --accent:           #fcd395;       /* cream-gold */
+  --accent-dim:       rgba(252, 211, 149, 0.16);
+  --accent-glow:      rgba(252, 211, 149, 0.32);
+  --text-primary:     #f1f1f1;
+  --text-secondary:   #fcd395;
+  --text-muted:       #b39773;
+  --border:           #463e34;
+  --border-subtle:    #3a342c;
+  --border-dropdown:  #574d40;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #F7D88B;
+  --warning:          #fcbe95;
+  --danger:           #e74946;
+  --waveform-played:    #fcd395;
+  --waveform-buffered:  #7a6a52;
+  --waveform-unplayed:  #3a342c;
+}
+
 /* ─── Vision Dark — Purple & Gold, colorblind-safe (Deuteranopia / Protanopia / Tritanopia) ─── */
 /* Gold #FFD700 on #0D0B12 → contrast ~14.7:1 (WCAG AAA)                                        */
 [data-theme='vision-dark'] {

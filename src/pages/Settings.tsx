@@ -3402,7 +3402,11 @@ export default function Settings() {
               </div>
               {theme.enableThemeScheduler && (() => {
                 const themeOptions = THEME_GROUPS.flatMap(g =>
-                  g.themes.map(th => ({ value: th.id, label: th.label, group: g.group }))
+                  g.themes.map(th => ({
+                    value: th.id,
+                    label: th.family ? `${th.family} ${th.label}` : th.label,
+                    group: g.group,
+                  }))
                 );
                 const use12h = i18n.language === 'en';
                 const hourOptions = Array.from({ length: 24 }, (_, i) => {
