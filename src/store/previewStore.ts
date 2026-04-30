@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { buildStreamUrl } from '../api/subsonic';
 import { usePlayerStore } from './playerStore';
-import { useAuthStore } from './authStore';
+import { useAuthStore, type TrackPreviewLocation } from './authStore';
 
 interface PreviewState {
   /** Subsonic song id of the active preview, or null when nothing previews. */
@@ -12,7 +12,7 @@ interface PreviewState {
   /** Total preview window in seconds (echoes the duration_sec arg). */
   duration: number;
 
-  startPreview: (song: { id: string; duration?: number }) => Promise<void>;
+  startPreview: (song: { id: string; duration?: number }, location: TrackPreviewLocation) => Promise<void>;
   stopPreview: () => Promise<void>;
 
   /** Internal — called from the TauriEventBridge on `audio:preview-start`. */
@@ -30,9 +30,10 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   elapsed: 0,
   duration: 30,
 
-  startPreview: async (song) => {
+  startPreview: async (song, location) => {
     const auth = useAuthStore.getState();
     if (!auth.trackPreviewsEnabled) return;
+    if (!auth.trackPreviewLocations[location]) return;
 
     const current = get().previewingId;
     if (current === song.id) {

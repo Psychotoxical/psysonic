@@ -410,7 +410,7 @@ export default function RandomMix() {
           {genreMixLoading && genreMixSongs.length === 0 ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
           ) : (
-            <div className="tracklist">
+            <div className="tracklist" data-preview-loc="randomMix">
               <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 70px 65px' }}>
                 <div></div>
                 <div>{t('randomMix.trackTitle')}</div>
@@ -471,7 +471,7 @@ export default function RandomMix() {
                       <button
                         type="button"
                         className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
-                        onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                        onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'randomMix'); }}
                         data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                         aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                       >
@@ -528,7 +528,7 @@ export default function RandomMix() {
           <div className="spinner" />
         </div>
       ) : (
-        <div className="tracklist">
+        <div className="tracklist" data-preview-loc="randomMix">
           <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 120px 70px 65px' }}>
             <div></div>
             <div>{t('randomMix.trackTitle')}</div>
@@ -604,7 +604,7 @@ export default function RandomMix() {
                   <button
                     type="button"
                     className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
-                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'randomMix'); }}
                     data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                     aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                   >

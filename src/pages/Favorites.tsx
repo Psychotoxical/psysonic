@@ -474,7 +474,7 @@ export default function Favorites() {
                   </button>
                 )}
               </div>
-              <div className="tracklist" style={{ padding: 0 }} ref={tracklistRef} onClick={e => {
+              <div className="tracklist" data-preview-loc="favorites" style={{ padding: 0 }} ref={tracklistRef} onClick={e => {
                 if (inSelectMode && e.target === e.currentTarget) useSelectionStore.getState().clearAll();
               }}>
 
@@ -694,7 +694,7 @@ export default function Favorites() {
                               <button
                                 type="button"
                                 className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
-                                onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                                onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'favorites'); }}
                                 data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                                 aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                               >

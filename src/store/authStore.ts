@@ -49,6 +49,34 @@ function sanitizeLoudnessPreAnalysisFromStorage(v: unknown): number {
 export type LyricsSourceId = 'server' | 'lrclib' | 'netease';
 export interface LyricsSourceConfig { id: LyricsSourceId; enabled: boolean; }
 
+export type TrackPreviewLocation =
+  | 'suggestions'
+  | 'albums'
+  | 'playlists'
+  | 'favorites'
+  | 'artist'
+  | 'randomMix';
+
+export type TrackPreviewLocations = Record<TrackPreviewLocation, boolean>;
+
+export const TRACK_PREVIEW_LOCATIONS: readonly TrackPreviewLocation[] = [
+  'suggestions',
+  'albums',
+  'playlists',
+  'favorites',
+  'artist',
+  'randomMix',
+];
+
+const DEFAULT_TRACK_PREVIEW_LOCATIONS: TrackPreviewLocations = {
+  suggestions: true,
+  albums: true,
+  playlists: true,
+  favorites: true,
+  artist: true,
+  randomMix: true,
+};
+
 const DEFAULT_LYRICS_SOURCES: LyricsSourceConfig[] = [
   { id: 'server',  enabled: true  },
   { id: 'lrclib',  enabled: true  },
@@ -89,8 +117,10 @@ interface AuthState {
   crossfadeEnabled: boolean;
   crossfadeSecs: number;
   gaplessEnabled: boolean;
-  /** Show inline Play+Preview buttons in tracklists. Default on per Q3. */
+  /** Show inline Play+Preview buttons in tracklists. Default on per Q3. Master kill switch — when off, all locations are off. */
   trackPreviewsEnabled: boolean;
+  /** Per-location toggles. Only honoured when `trackPreviewsEnabled` is true. */
+  trackPreviewLocations: TrackPreviewLocations;
   /** Mid-track start position as a 0…1 ratio. Default 0.33 = 33%. */
   trackPreviewStartRatio: number;
   /** Preview window length in seconds. Default 30 s. */
@@ -259,6 +289,7 @@ interface AuthState {
   setCrossfadeSecs: (v: number) => void;
   setGaplessEnabled: (v: boolean) => void;
   setTrackPreviewsEnabled: (v: boolean) => void;
+  setTrackPreviewLocation: (location: TrackPreviewLocation, enabled: boolean) => void;
   setTrackPreviewStartRatio: (v: number) => void;
   setTrackPreviewDurationSec: (v: number) => void;
   setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => void;
@@ -377,6 +408,7 @@ export const useAuthStore = create<AuthState>()(
       crossfadeSecs: 3,
       gaplessEnabled: false,
       trackPreviewsEnabled: true,
+      trackPreviewLocations: { ...DEFAULT_TRACK_PREVIEW_LOCATIONS },
       trackPreviewStartRatio: 0.33,
       trackPreviewDurationSec: 30,
       preloadMode: 'balanced',
@@ -534,6 +566,9 @@ export const useAuthStore = create<AuthState>()(
       setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
       setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
       setTrackPreviewsEnabled: (v) => set({ trackPreviewsEnabled: !!v }),
+      setTrackPreviewLocation: (location, enabled) => set(state => ({
+        trackPreviewLocations: { ...state.trackPreviewLocations, [location]: !!enabled },
+      })),
       setTrackPreviewStartRatio: (v) => set({ trackPreviewStartRatio: Math.max(0, Math.min(0.9, v)) }),
       setTrackPreviewDurationSec: (v) => set({ trackPreviewDurationSec: Math.max(5, Math.min(120, Math.round(v))) }),
       setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => set({ preloadMode: v }),

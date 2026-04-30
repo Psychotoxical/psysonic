@@ -1154,8 +1154,10 @@ export default function App() {
 
   // Hide all inline track-preview buttons when the user opts out — single
   // CSS hook (`html[data-track-previews="off"]`) instead of conditional
-  // rendering in every tracklist.
+  // rendering in every tracklist. Per-location toggles use additional
+  // attributes `data-track-previews-{location}` consumed by scoped selectors.
   const trackPreviewsEnabled = useAuthStore(s => s.trackPreviewsEnabled);
+  const trackPreviewLocations = useAuthStore(s => s.trackPreviewLocations);
   const trackPreviewDurationSec = useAuthStore(s => s.trackPreviewDurationSec);
   useEffect(() => {
     document.documentElement.setAttribute(
@@ -1163,6 +1165,12 @@ export default function App() {
       trackPreviewsEnabled ? 'on' : 'off',
     );
   }, [trackPreviewsEnabled]);
+  useEffect(() => {
+    const root = document.documentElement;
+    (Object.keys(trackPreviewLocations) as Array<keyof typeof trackPreviewLocations>).forEach(loc => {
+      root.setAttribute(`data-track-previews-${loc.toLowerCase()}`, trackPreviewLocations[loc] ? 'on' : 'off');
+    });
+  }, [trackPreviewLocations]);
   // Drive the SVG progress-ring keyframe duration from the same setting that
   // governs the engine's auto-stop timer so both finish in lockstep.
   useEffect(() => {

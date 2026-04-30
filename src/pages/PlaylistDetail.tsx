@@ -939,7 +939,7 @@ export default function PlaylistDetail() {
     usePreviewStore.getState().startPreview({
       id: song.id,
       duration: song.duration,
-    }).catch(() => { /* engine errored — store already rolled back */ });
+    }, 'suggestions').catch(() => { /* engine errored — store already rolled back */ });
   }, []);
 
   // Cancel any in-flight preview when the user navigates away.
@@ -1442,7 +1442,7 @@ export default function PlaylistDetail() {
       )}
 
       {/* ── Tracklist ── */}
-      <div className="tracklist" ref={tracklistRef}>
+      <div className="tracklist" data-preview-loc="playlists" ref={tracklistRef}>
 
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (
@@ -1709,7 +1709,7 @@ export default function PlaylistDetail() {
                         className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
                         onClick={e => {
                           e.stopPropagation();
-                          usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration });
+                          usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'playlists');
                         }}
                         data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                         aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
@@ -1771,7 +1771,7 @@ export default function PlaylistDetail() {
       </div>
 
       {/* ── Suggestions ── */}
-      <div className="playlist-suggestions tracklist">
+      <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">
         <div className="playlist-suggestions-header">
           <div className="playlist-suggestions-title">
             <h2 className="section-title" style={{ marginBottom: 0 }}>{t('playlists.suggestions')}</h2>

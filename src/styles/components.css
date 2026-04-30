@@ -1769,8 +1769,23 @@
 }
 
 /* Settings opt-out: a single root attribute hides every inline preview button
-   without forcing every tracklist to plumb the flag through props. */
+   without forcing every tracklist to plumb the flag through props. Master
+   wins — when off, every preview button is hidden regardless of per-location
+   state. */
 html[data-track-previews="off"] .playlist-suggestion-preview-btn {
+  display: none;
+}
+
+/* Per-location hide: each tracklist container marks its scope via
+   `data-preview-loc="<id>"`. When the matching root attribute is "off", only
+   buttons inside that scope disappear. Attribute names are stored lowercase
+   by the DOM so `randomMix` becomes `randommix`. */
+html[data-track-previews-suggestions="off"] [data-preview-loc="suggestions"] .playlist-suggestion-preview-btn,
+html[data-track-previews-albums="off"]      [data-preview-loc="albums"]      .playlist-suggestion-preview-btn,
+html[data-track-previews-playlists="off"]   [data-preview-loc="playlists"]   .playlist-suggestion-preview-btn,
+html[data-track-previews-favorites="off"]   [data-preview-loc="favorites"]   .playlist-suggestion-preview-btn,
+html[data-track-previews-artist="off"]      [data-preview-loc="artist"]      .playlist-suggestion-preview-btn,
+html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .playlist-suggestion-preview-btn {
   display: none;
 }
 

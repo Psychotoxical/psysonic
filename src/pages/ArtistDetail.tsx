@@ -690,7 +690,7 @@ export default function ArtistDetail() {
               <h2 className="section-title" style={{ marginTop: sectionMt('topTracks'), marginBottom: '1rem' }}>
                 {t('artistDetail.topTracks')}
               </h2>
-          <div className="tracklist" style={{ padding: 0, marginBottom: '2rem' }}>
+          <div className="tracklist" data-preview-loc="artist" style={{ padding: 0, marginBottom: '2rem' }}>
             <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(100px, 1fr) 65px' }}>
               <div style={{ textAlign: 'center' }}>#</div>
               <div>{t('artistDetail.trackTitle')}</div>
@@ -738,7 +738,7 @@ export default function ArtistDetail() {
                   <button
                     type="button"
                     className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
-                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }); }}
+                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'artist'); }}
                     data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                     aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                   >

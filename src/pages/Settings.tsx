@@ -31,11 +31,13 @@ import {
   DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
   ServerProfile,
   MIX_MIN_RATING_FILTER_MAX_STARS,
+  TRACK_PREVIEW_LOCATIONS,
   type SeekbarStyle,
   type LyricsSourceId,
   type LyricsSourceConfig,
   type LoggingMode,
   type LoudnessLufsPreset,
+  type TrackPreviewLocation,
 } from '../store/authStore';
 import { SeekbarPreview } from '../components/WaveformSeek';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
@@ -2546,6 +2548,34 @@ export default function Settings() {
 
               {auth.trackPreviewsEnabled && (
                 <>
+                  <div className="divider" />
+                  <div>
+                    <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                      {t('settings.trackPreviewLocationsTitle')}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                      {t('settings.trackPreviewLocationsDesc')}
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 2,
+                    }}>
+                      {TRACK_PREVIEW_LOCATIONS.map((loc: TrackPreviewLocation) => (
+                        <div key={loc} className="settings-toggle-row" style={{ padding: '6px var(--space-3)' }}>
+                          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                            {t(`settings.trackPreviewLocation_${loc}`)}
+                          </div>
+                          <label className="toggle-switch" aria-label={t(`settings.trackPreviewLocation_${loc}`)}>
+                            <input type="checkbox" checked={auth.trackPreviewLocations[loc]}
+                              onChange={e => auth.setTrackPreviewLocation(loc, e.target.checked)} />
+                            <span className="toggle-track" />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="divider" />
                   <div>
                     <div style={{ fontWeight: 500, marginBottom: 4 }}>
