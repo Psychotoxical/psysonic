@@ -83,15 +83,43 @@ environment.systemPackages = with pkgs; [
 ];
 ```
 
-### Pinning a revision or tag
+### Pinning a revision, branch, or tag
 
-Follow **`main`** (above) to track the moving branch, or pin for reproducibility:
+- **`main`** (default in the examples above) follows upstream development.
+- **Channel branches** (`next`, `release`) exist for pre-release / release automation; advanced users may pin them if they intentionally track a channel:
 
-```nix
-psysonic.url = "github:Psychotoxical/psysonic?ref=app-v1.34.13";  # example: release tag
+  ```nix
+  psysonic.url = "github:Psychotoxical/psysonic?ref=next";
+  ```
+
+- **Tags** (`app-v*`) match published GitHub releases and are the usual choice for a **reproducible** install aligned with a shipped version:
+
+  ```nix
+  psysonic.url = "github:Psychotoxical/psysonic?ref=app-v1.44.0";  # example; pick a tag that exists on GitHub
+  ```
+
+Use a `ref` (branch, tag, or commit SHA) that exists on GitHub.
+
+### How `flake.lock` and `nix/upstream-sources.json` stay in sync
+
+CI runs a **verify-nix** job (Nix build, `npmDepsHash` refresh, `flake.lock` refresh, Cachix push) from **`.github/workflows/reusable-channel-publish.yml`**, invoked by:
+
+- **`.github/workflows/next.yml`** (Next channel, branch `next`)
+- **`.github/workflows/release.yml`** (Release channel, branch `release`)
+
+So the lock and **`nix/upstream-sources.json`** (`npmDepsHash`) are updated as part of channel publishing, not only from a single legacy “tag-only” path. On **`main`**, **`nix-npm-deps-hash-sync.yml`** can also open PRs when `package-lock.json` changes so the Nix npm hash does not drift.
+
+End users who pin **`main`** should run `nix flake update psysonic` (or equivalent) periodically if they want the latest lock inputs from upstream.
+
+### One-shot run (no system install)
+
+From any machine with flakes:
+
+```bash
+nix run github:Psychotoxical/psysonic
 ```
 
-Use a tag or commit SHA that exists on GitHub; the release workflow keeps **`flake.lock`** and **`nix/upstream-sources.json`** (`npmDepsHash`) in sync on tagged releases.
+Same package as `nix build` / `packages.<system>.default`; uses the flake `apps` output.
 
 ### Apply configuration
 
@@ -119,6 +147,17 @@ home.packages = [
 
 (Adjust how `inputs` / `pkgs` are passed into your Home Manager module.)
 
+## Development shell (contributors)
+
+From a **flake-enabled** clone of the repo:
+
+- **`nix develop`** — enters the upstream `devShell` (Rust, Node 22, WebKitGTK, GStreamer plugins for the webview, env hooks aligned with `package.json` / Tauri dev).
+- **`nix shell .#devShells.default`** — same packages and hooks without `nix develop`’s subshell semantics.
+
+The flake **`devShell`** uses the same **`nixpkgs`** input as **`packages.psysonic`** (see **`flake.nix`**).
+
+If you prefer **classic `nix-shell`** without evaluating the flake, the repo also provides **`shell.nix`**: it pulls **`nixos-unstable`** via `fetchTarball`, so the nixpkgs pin may **differ** from **`flake.lock`**; use it only when you understand that tradeoff (comments at the top of `shell.nix` describe local Tauri build commands).
+
 ## Desktop entry
 
 The flake package installs a **`.desktop`** file and icon via `copyDesktopItems`; after `nixos-rebuild switch` (or a Home Manager activation that includes the package), Psysonic should appear in your application launcher like any other desktop app.
@@ -129,6 +168,10 @@ Some GPU / compositor setups show a black window or broken scrolling under Wayla
 
 ## More detail in-repo
 
-- **`flake.nix`** — package outputs, `devShell`, supported systems (see comments there for `nix build` / `nix develop`).
-- **`nix/psysonic.nix`** — how the app is built from this source tree.
-- **`.github/workflows/release.yml`** — `verify-nix` job: refreshes lock/npm hash and pushes store paths to Cachix on release tags.
+- **`flake.nix`** — `packages`, `apps`, `devShells`, supported systems; inline comments for `nix build` / `nix develop` / `nix run`.
+- **`nix/psysonic.nix`** — how the app is built from this source tree (`npmDepsHash` from **`nix/upstream-sources.json`**).
+- **`.github/workflows/reusable-channel-publish.yml`** — **`verify-nix`** job (prefetch npm deps hash, `nix flake update`, `nix build .#psysonic`, Cachix push, optional lock refresh PR).
+- **`.github/workflows/next.yml`** / **`.github/workflows/release.yml`** — channel workflows that call the reusable publish workflow with **`verify_nix: true`**.
+- **`.github/workflows/nix-npm-deps-hash-sync.yml`** — keeps **`nix/upstream-sources.json`** aligned with **`package-lock.json`** on **`main`** via PRs.
+
+For the full promotion and release picture (branches, tags, automation), see **`RELEASE_PROCESS.md`**.
