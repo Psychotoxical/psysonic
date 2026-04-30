@@ -89,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: validate existing tag points to source ref
+      - name: align existing tag to source ref
         env:
           TAG: ${{ steps.tag.outputs.value }}
           EXPECTED_SHA: ${{ steps.source-sha.outputs.value }}
@@ -99,9 +99,10 @@ jobs:
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             TAG_SHA="$(git rev-list -n 1 "refs/tags/$TAG")"
             if [ "$TAG_SHA" != "$EXPECTED_SHA" ]; then
-              echo "::error::Tag '$TAG' points to $TAG_SHA, expected $EXPECTED_SHA from source_ref '${{ inputs.source_ref }}'"
-              echo "::error::Refusing to publish mixed release (binary artifacts from source_ref but Source code archive from another commit)."
-              exit 1
+              echo "::warning::Tag '$TAG' points to $TAG_SHA, expected $EXPECTED_SHA from source_ref '${{ inputs.source_ref }}'"
+              echo "::warning::Re-pointing tag '$TAG' to expected source commit to keep Source code archives aligned with built artifacts."
+              git tag -f "$TAG" "$EXPECTED_SHA"
+              git push --force origin "refs/tags/$TAG"
             fi
           fi
       - name: extract changelog
