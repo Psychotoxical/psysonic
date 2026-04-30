@@ -38,6 +38,7 @@ jobs:
       release_id: ${{ steps.create-release.outputs.result }}
       package_version: ${{ steps.get-version.outputs.version }}
       release_tag: ${{ steps.tag.outputs.value }}
+      source_commit_sha: ${{ steps.source-sha.outputs.value }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -83,6 +84,26 @@ jobs:
             exit 1
           fi
           echo "value=$TAG" >> "$GITHUB_OUTPUT"
+      - name: capture source commit sha
+        id: source-sha
+        run: |
+          set -euo pipefail
+          echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: validate existing tag points to source ref
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+          EXPECTED_SHA: ${{ steps.source-sha.outputs.value }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            TAG_SHA="$(git rev-list -n 1 "refs/tags/$TAG")"
+            if [ "$TAG_SHA" != "$EXPECTED_SHA" ]; then
+              echo "::error::Tag '$TAG' points to $TAG_SHA, expected $EXPECTED_SHA from source_ref '${{ inputs.source_ref }}'"
+              echo "::error::Refusing to publish mixed release (binary artifacts from source_ref but Source code archive from another commit)."
+              exit 1
+            fi
+          fi
       - name: extract changelog
         id: changelog
         run: |
@@ -104,6 +125,7 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.get-version.outputs.version }}
           RELEASE_TAG: ${{ steps.tag.outputs.value }}
+          RELEASE_COMMIT_SHA: ${{ steps.source-sha.outputs.value }}
           CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
           IS_PRERELEASE: ${{ inputs.prerelease }}
           IS_DRAFT: ${{ inputs.draft_release }}
@@ -114,6 +136,7 @@ jobs:
             const prerelease = process.env.IS_PRERELEASE === "true";
             const draft = process.env.IS_DRAFT === "true";
             const version = process.env.PACKAGE_VERSION;
+            const targetCommitish = process.env.RELEASE_COMMIT_SHA;
             const name = `Psysonic v${version}`;
             try {
               const { data } = await github.rest.repos.getReleaseByTag({
@@ -138,6 +161,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tag,
+              target_commitish: targetCommitish,
               name,
               body,
               draft,
