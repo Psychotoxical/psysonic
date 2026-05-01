@@ -23,6 +23,8 @@ export default function LiveSearch() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [isFocused, setIsFocused] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const navigate = useNavigate();
   const enqueue = usePlayerStore(state => state.enqueue);
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
@@ -31,6 +33,8 @@ export default function LiveSearch() {
   const ctxType   = usePlayerStore(state => state.contextMenu.type);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const collapsedRef = useRef(false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   const doSearch = useCallback(
@@ -49,6 +53,47 @@ export default function LiveSearch() {
   );
 
   useEffect(() => { doSearch(query); setActiveIndex(-1); }, [query, doSearch]);
+
+  const isSearchActive = isFocused || open || query.trim().length > 0;
+
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const header = root.closest('.content-header') as HTMLElement | null;
+    if (!header) return;
+    const spacer = header.querySelector('.spacer') as HTMLElement | null;
+    if (!spacer) return;
+
+    const MIN_EXPANDED_WIDTH = 260;
+    const SPACER_RESERVE = 24;
+    const HYSTERESIS_PX = 20;
+    const collapseThreshold = MIN_EXPANDED_WIDTH + SPACER_RESERVE;
+    const expandThreshold = collapseThreshold + HYSTERESIS_PX;
+
+    const updateCollapsed = () => {
+      const searchWidth = root.getBoundingClientRect().width;
+      const spacerWidth = spacer.getBoundingClientRect().width;
+      const budget = searchWidth + spacerWidth;
+      const nextCollapsed = collapsedRef.current
+        ? budget < expandThreshold
+        : budget < collapseThreshold;
+      if (nextCollapsed !== collapsedRef.current) {
+        collapsedRef.current = nextCollapsed;
+        setIsCollapsed(nextCollapsed);
+      }
+    };
+
+    updateCollapsed();
+    const ro = new ResizeObserver(updateCollapsed);
+    ro.observe(header);
+    ro.observe(spacer);
+    ro.observe(root);
+    window.addEventListener('resize', updateCollapsed);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateCollapsed);
+    };
+  }, []);
 
   // Close on click outside — but stay open while a song context menu is up.
   // The CM renders a fullscreen transparent backdrop (z-index 998) above the
@@ -103,8 +148,23 @@ export default function LiveSearch() {
   };
 
   return (
-    <div className="live-search" ref={ref} role="search">
-      <div className="live-search-input-wrap">
+    <div
+      className="live-search"
+      ref={ref}
+      role="search"
+      data-collapsed={isCollapsed || undefined}
+      data-active={isSearchActive || undefined}
+    >
+      <div
+        className="live-search-input-wrap"
+        onMouseDown={(e) => {
+          if (isSearchActive) return;
+          if (!isCollapsed) return;
+          e.preventDefault();
+          setIsFocused(true);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }}
+      >
         {loading ? (
           <span className="live-search-icon animate-spin" style={{ opacity: 0.6 }}>
             <div style={{ width: 16, height: 16, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%' }} />
@@ -113,13 +173,18 @@ export default function LiveSearch() {
           <Search size={16} className="live-search-icon" />
         )}
         <input
+          ref={inputRef}
           id="live-search-input"
           className="input live-search-field"
           type="search"
           placeholder={t('search.placeholder')}
           value={query}
           onChange={e => setQuery(e.target.value)}
-          onFocus={() => results && setOpen(true)}
+          onFocus={() => {
+            setIsFocused(true);
+            if (results) setOpen(true);
+          }}
+          onBlur={() => setIsFocused(false)}
           onKeyDown={handleKeyDown}
           aria-autocomplete="list"
           aria-controls="search-results"

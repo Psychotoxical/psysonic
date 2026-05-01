@@ -633,9 +633,73 @@
 /* ─ Live Search ─ */
 .live-search {
   position: relative;
-  min-width: 280px;
+  min-width: 240px;
   max-width: 420px;
-  flex: 1;
+  flex: 1 1 320px;
+  transition: max-width 0.18s ease, min-width 0.18s ease, flex-basis 0.18s ease;
+}
+
+/* JS-computed collapse mode (budget-based, with hysteresis) */
+.live-search[data-collapsed] {
+  min-width: 34px;
+  max-width: 34px;
+  flex: 0 0 34px;
+}
+
+.live-search[data-collapsed]:not([data-active]) .live-search-input-wrap {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-card) 84%, transparent);
+  cursor: text;
+}
+
+.live-search[data-collapsed]:not([data-active]) .live-search-icon {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.live-search[data-collapsed]:not([data-active]) .live-search-field {
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.live-search[data-collapsed][data-active] {
+  min-width: 34px;
+  max-width: 34px;
+  flex: 0 0 34px;
+}
+
+.live-search[data-collapsed][data-active] .live-search-input-wrap {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: min(420px, calc(100vw - 2 * var(--space-4)));
+  z-index: 25;
+}
+
+.live-search[data-collapsed][data-active] .live-search-field {
+  width: 100%;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.live-search[data-collapsed]:not([data-active]) .live-search-clear,
+.live-search[data-collapsed]:not([data-active]) .live-search-adv-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.live-search[data-collapsed][data-active] .live-search-dropdown {
+  left: 0;
+  right: auto;
+  width: min(420px, calc(100vw - 2 * var(--space-4)));
 }
 
 .live-search-input-wrap {
