@@ -1173,6 +1173,7 @@ export const zhTranslation = {
     play: '播放',
     pause: '暂停',
     previewActive: '正在试听',
+    previewLabel: '试听',
     delayModalTitle: '定时',
     delayPauseSection: '多久后暂停',
     delayStartSection: '多久后开始',

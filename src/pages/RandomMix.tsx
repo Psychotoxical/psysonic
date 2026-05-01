@@ -471,7 +471,7 @@ export default function RandomMix() {
                       <button
                         type="button"
                         className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
-                        onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'randomMix'); }}
+                        onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'randomMix'); }}
                         data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                         aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                       >
@@ -604,7 +604,7 @@ export default function RandomMix() {
                   <button
                     type="button"
                     className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
-                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'randomMix'); }}
+                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'randomMix'); }}
                     data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                     aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                   >

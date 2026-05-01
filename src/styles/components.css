@@ -2321,6 +2321,30 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   vertical-align: middle;
 }
 
+/* ── Preview-active state on the player bar ─────────────────────────
+   Combo of two cues so it's unmistakable that a preview is sounding:
+   1) accent top-border on the bar itself
+   2) tiny "Preview" pill above the title in the track-info cell */
+.player-bar.is-previewing {
+  box-shadow: inset 0 2px 0 0 var(--accent), 0 -1px 0 0 var(--bg-border);
+}
+
+.player-preview-label {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ctp-crust);
+  background: var(--accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-bottom: 3px;
+  line-height: 1.3;
+  user-select: none;
+}
+
 /* ── Preview-active state on the play button ────────────────────────
    While a track preview is sounding, the player-bar play button mirrors
    the inline preview button used in tracklists: hollow circle + chevron

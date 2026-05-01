@@ -1197,6 +1197,7 @@ export const enTranslation = {
     play: 'Play',
     pause: 'Pause',
     previewActive: 'Preview playing',
+    previewLabel: 'Preview',
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pause after',
     delayStartSection: 'Start after',

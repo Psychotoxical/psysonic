@@ -5412,12 +5412,30 @@ pub async fn audio_preview_play(
 
 #[tauri::command]
 pub fn audio_preview_stop(app: AppHandle, state: State<'_, AudioEngine>) {
+    preview_stop_inner(&app, &state, true);
+}
+
+/// Like `audio_preview_stop` but leaves the main sink paused even if it had
+/// been paused by `preview_pause_main`. Used by the player-bar Stop button so
+/// "stop everything" actually goes silent — without this the engine would
+/// auto-resume main playback the moment the preview ends and the user perceives
+/// the click as having no effect.
+#[tauri::command]
+pub fn audio_preview_stop_silent(app: AppHandle, state: State<'_, AudioEngine>) {
+    preview_stop_inner(&app, &state, false);
+}
+
+fn preview_stop_inner(app: &AppHandle, state: &AudioEngine, resume_main: bool) {
     state.preview_gen.fetch_add(1, Ordering::SeqCst);
     let sink = state.preview_sink.lock().unwrap().take();
     let id = state.preview_song_id.lock().unwrap().take();
     if let Some(s) = sink { s.stop(); }
 
-    preview_resume_main(&state);
+    if resume_main {
+        preview_resume_main(state);
+    } else {
+        state.preview_main_resume.store(false, Ordering::Release);
+    }
 
     if let Some(id) = id {
         app.emit("audio:preview-end", PreviewEndPayload {

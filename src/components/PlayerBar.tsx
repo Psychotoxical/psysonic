@@ -146,6 +146,7 @@ export default function PlayerBar() {
   const playSlotRef = useRef<HTMLSpanElement>(null);
   const scheduleRemaining = usePlaybackScheduleRemaining();
   const isPreviewing = usePreviewStore(s => s.previewingId !== null);
+  const previewingTrack = usePreviewStore(s => s.previewingTrack);
 
   const isRadio = !!currentRadio;
 
@@ -178,8 +179,15 @@ export default function PlayerBar() {
     [currentRadio?.coverArt, currentRadio?.id]
   );
   const radioCoverKey = currentRadio?.coverArt ? coverArtCacheKey(`ra-${currentRadio.id}`, 128) : '';
-  const coverSrc = useMemo(() => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 128) : '', [currentTrack?.coverArt]);
-  const coverKey = currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 128) : '';
+  // Preview takes visual priority over the queued track in the player-bar info
+  // cell, but only when not in radio mode (radio has its own meta layout).
+  const showPreviewMeta = isPreviewing && !isRadio && previewingTrack !== null;
+  const displayCoverArt = showPreviewMeta ? previewingTrack!.coverArt : currentTrack?.coverArt;
+  const displayTitle = showPreviewMeta ? previewingTrack!.title : (currentTrack?.title ?? t('player.noTitle'));
+  const displayArtist = showPreviewMeta ? previewingTrack!.artist : (currentTrack?.artist ?? '—');
+
+  const coverSrc = useMemo(() => displayCoverArt ? buildCoverArtUrl(displayCoverArt, 128) : '', [displayCoverArt]);
+  const coverKey = displayCoverArt ? coverArtCacheKey(displayCoverArt, 128) : '';
 
   const handleVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));
@@ -198,7 +206,7 @@ export default function PlayerBar() {
   const playerBarContent = (
     <>
     <footer
-      className={`player-bar ${floatingPlayerBar ? 'floating' : ''}`}
+      className={`player-bar ${floatingPlayerBar ? 'floating' : ''}${showPreviewMeta ? ' is-previewing' : ''}`}
       style={floatingPlayerBar ? floatingStyle : undefined}
       role="region"
       aria-label={t('player.regionLabel')}
@@ -207,9 +215,9 @@ export default function PlayerBar() {
       {/* Track Info */}
       <div className="player-track-info">
         <div
-          className={`player-album-art-wrap ${currentTrack && !isRadio ? 'clickable' : ''}`}
-          onClick={() => !isRadio && currentTrack && toggleFullscreen()}
-          data-tooltip={!isRadio && currentTrack ? t('player.openFullscreen') : undefined}
+          className={`player-album-art-wrap ${currentTrack && !isRadio && !showPreviewMeta ? 'clickable' : ''}`}
+          onClick={() => !isRadio && !showPreviewMeta && currentTrack && toggleFullscreen()}
+          data-tooltip={!isRadio && !showPreviewMeta && currentTrack ? t('player.openFullscreen') : undefined}
         >
           {isRadio ? (
             currentRadio?.coverArt ? (
@@ -224,25 +232,30 @@ export default function PlayerBar() {
                 <Cast size={20} />
               </div>
             )
-          ) : currentTrack?.coverArt ? (
+          ) : displayCoverArt ? (
             <CachedImage
               className="player-album-art"
               src={coverSrc}
               cacheKey={coverKey}
-              alt={`${currentTrack.album} Cover`}
+              alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
             />
           ) : (
             <div className="player-album-art-placeholder">
               <Music size={22} />
             </div>
           )}
-          {currentTrack && !isRadio && (
+          {currentTrack && !isRadio && !showPreviewMeta && (
             <div className="player-art-expand-hint" aria-hidden="true">
               <Maximize2 size={16} />
             </div>
           )}
         </div>
         <div className="player-track-meta">
+          {showPreviewMeta && (
+            <span className="player-preview-label" aria-label={t('player.previewActive')}>
+              {t('player.previewLabel')}
+            </span>
+          )}
           <MarqueeText
             text={isRadio
               ? (radioMeta.currentTitle
@@ -250,22 +263,22 @@ export default function PlayerBar() {
                       ? `${radioMeta.currentArtist} — ${radioMeta.currentTitle}`
                       : radioMeta.currentTitle)
                   : (currentRadio?.name ?? '—'))
-              : (currentTrack?.title ?? t('player.noTitle'))}
+              : displayTitle}
             className="player-track-name"
-            style={{ cursor: !isRadio && currentTrack?.albumId ? 'pointer' : 'default' }}
-            onClick={() => !isRadio && currentTrack?.albumId && navigate(`/album/${currentTrack.albumId}`)}
+            style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.albumId ? 'pointer' : 'default' }}
+            onClick={() => !isRadio && !showPreviewMeta && currentTrack?.albumId && navigate(`/album/${currentTrack.albumId}`)}
           />
           <MarqueeText
             text={isRadio
               ? (radioMeta.currentTitle && currentRadio?.name
                   ? currentRadio.name
                   : t('radio.liveStream'))
-              : (currentTrack?.artist ?? '—')}
+              : displayArtist}
             className="player-track-artist"
-            style={{ cursor: !isRadio && currentTrack?.artistId ? 'pointer' : 'default' }}
-            onClick={() => !isRadio && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
+            style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.artistId ? 'pointer' : 'default' }}
+            onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
           />
-          {currentTrack && !isRadio && (
+          {currentTrack && !isRadio && !showPreviewMeta && (
             <StarRating
               value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
               onChange={r => { setUserRatingOverride(currentTrack.id, r); setRating(currentTrack.id, r).catch(() => {}); }}
@@ -305,7 +318,19 @@ export default function PlayerBar() {
 
       {/* Transport Controls */}
       <div className="player-buttons" ref={transportAnchorRef}>
-        <button className="player-btn player-btn-sm" onClick={stop} aria-label={t('player.stop')} data-tooltip={t('player.stop')}>
+        <button
+          className="player-btn player-btn-sm"
+          onClick={() => {
+            if (isPreviewing) {
+              usePreviewStore.setState({ previewingId: null, previewingTrack: null, elapsed: 0 });
+              invoke('audio_preview_stop_silent').catch(() => {});
+            } else {
+              stop();
+            }
+          }}
+          aria-label={isPreviewing ? t('playlists.previewStop') : t('player.stop')}
+          data-tooltip={isPreviewing ? t('playlists.previewStop') : t('player.stop')}
+        >
           <Square size={14} fill="currentColor" />
         </button>
         <button className="player-btn" onClick={() => previous()} aria-label={t('player.prev')} data-tooltip={t('player.prev')} disabled={isRadio} style={isRadio ? { opacity: 0.3, pointerEvents: 'none' } : undefined}>
@@ -323,8 +348,17 @@ export default function PlayerBar() {
             className={`player-btn player-btn-primary${isPreviewing ? ' is-previewing' : ''}`}
             type="button"
             {...playPauseBind}
-            aria-label={isPreviewing ? t('player.previewActive') : isPlaying ? t('player.pause') : t('player.play')}
-            data-tooltip={isPreviewing ? t('player.previewActive') : isPlaying ? t('player.pause') : t('player.play')}
+            onClick={isPreviewing
+              ? (() => {
+                  // Visual is "stop preview"; semantics match the tracklist preview
+                  // button — preview ends, main playback auto-resumes if it was
+                  // playing before. Use regular audio_preview_stop (not _silent).
+                  usePreviewStore.setState({ previewingId: null, previewingTrack: null, elapsed: 0 });
+                  invoke('audio_preview_stop').catch(() => {});
+                })
+              : playPauseBind.onClick}
+            aria-label={isPreviewing ? t('playlists.previewStop') : isPlaying ? t('player.pause') : t('player.play')}
+            data-tooltip={isPreviewing ? t('playlists.previewStop') : isPlaying ? t('player.pause') : t('player.play')}
           >
             {scheduleRemaining != null ? (
               <span className={`player-btn-schedule-stack player-btn-schedule-stack--${scheduleRemaining.mode}`}>

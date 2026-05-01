@@ -1264,6 +1264,7 @@ export const ruTranslation = {
     play: 'Играть',
     pause: 'Пауза',
     previewActive: 'Превью воспроизводится',
+    previewLabel: 'Превью',
     delayModalTitle: 'Таймер',
     delayPauseSection: 'Пауза через',
     delayStartSection: 'Старт через',

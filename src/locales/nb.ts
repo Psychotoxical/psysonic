@@ -1178,6 +1178,7 @@ export const nbTranslation = {
     play: 'Spill av',
     pause: 'Pause',
     previewActive: 'Forhåndsvisning spilles av',
+    previewLabel: 'Forhåndsvisning',
     delayModalTitle: 'Tidsur',
     delayPauseSection: 'Pause etter',
     delayStartSection: 'Start etter',

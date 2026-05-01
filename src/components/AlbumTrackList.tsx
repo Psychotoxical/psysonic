@@ -160,7 +160,7 @@ const TrackRow = React.memo(function TrackRow({
               className={`playlist-suggestion-preview-btn${isPreviewing ? ' is-previewing' : ''}`}
               onClick={e => {
                 e.stopPropagation();
-                usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'albums');
+                usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'albums');
               }}
               data-tooltip={isPreviewing ? t('playlists.previewStop') : t('playlists.preview')}
               aria-label={isPreviewing ? t('playlists.previewStop') : t('playlists.preview')}

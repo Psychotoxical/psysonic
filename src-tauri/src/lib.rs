@@ -4599,6 +4599,7 @@ pub fn run() {
             audio::audio_play_radio,
             audio::audio_preview_play,
             audio::audio_preview_stop,
+            audio::audio_preview_stop_silent,
             audio::audio_set_crossfade,
             audio::audio_set_gapless,
             audio::audio_set_normalization,
