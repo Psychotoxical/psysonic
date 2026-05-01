@@ -40,7 +40,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     outputs:
-      release_id: ${{ steps.create_release.outputs.release_id }}
+      release_id: ${{ steps.create-release.outputs.result }}
       package_version: ${{ steps.get-version.outputs.version }}
       release_tag: ${{ steps.tag.outputs.value }}
       source_commit_sha: ${{ steps.source-sha.outputs.value }}
@@ -94,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: ensure tag points to source ref
+      - name: align existing tag to source ref
         env:
           TAG: ${{ steps.tag.outputs.value }}
           EXPECTED_SHA: ${{ steps.source-sha.outputs.value }}
@@ -108,11 +108,7 @@ jobs:
               echo "::warning::Re-pointing tag '$TAG' to expected source commit to keep Source code archives aligned with built artifacts."
               git tag -f "$TAG" "$EXPECTED_SHA"
               git push --force origin "refs/tags/$TAG"
-            else
-              echo "Tag '$TAG' already points to expected source commit $EXPECTED_SHA"
             fi
-          else
-            echo "Tag '$TAG' does not exist yet; it will be created by createRelease with target_commitish=$EXPECTED_SHA."
           fi
       - name: extract changelog
         id: changelog
@@ -130,8 +126,8 @@ jobs:
           echo "$BODY" >> "$GITHUB_OUTPUT"
           echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
       - name: create or update release
-        id: create_release
-        uses: actions/github-script@v9
+        id: create-release
+        uses: actions/github-script@v7
         env:
           PACKAGE_VERSION: ${{ steps.get-version.outputs.version }}
           RELEASE_TAG: ${{ steps.tag.outputs.value }}
@@ -142,158 +138,42 @@ jobs:
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
-            const targetCommitish = process.env.RELEASE_COMMIT_SHA;
-            const version = process.env.PACKAGE_VERSION;
             const body = process.env.CHANGELOG_BODY || "See the assets to download this version and install.";
             const prerelease = process.env.IS_PRERELEASE === "true";
             const draft = process.env.IS_DRAFT === "true";
+            const version = process.env.PACKAGE_VERSION;
+            const targetCommitish = process.env.RELEASE_COMMIT_SHA;
             const name = `Psysonic v${version}`;
-
-            if (!tag || !/^app-v\d+\.\d+\.\d+(?:[-+].+)?$/.test(tag)) {
-              throw new Error(`Invalid RELEASE_TAG '${tag ?? ""}'`);
-            }
-            if (!targetCommitish || !/^[0-9a-f]{40}$/i.test(targetCommitish)) {
-              throw new Error(`Invalid RELEASE_COMMIT_SHA '${targetCommitish ?? ""}'`);
-            }
-
-            let releaseId = null;
             try {
               const { data } = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 tag,
               });
-              const { data: updated } = await github.rest.repos.updateRelease({
+              await github.rest.repos.updateRelease({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 release_id: data.id,
-                tag_name: tag,
-                target_commitish: targetCommitish,
-                name,
                 body,
+                name,
                 draft,
                 prerelease,
               });
-              releaseId = updated.id;
-              core.info(`Updated existing release id=${releaseId} for tag ${tag}`);
+              return data.id;
             } catch (e) {
               if (e.status !== 404) throw e;
-              const { data } = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: tag,
-                target_commitish: targetCommitish,
-                name,
-                body,
-                draft,
-                prerelease,
-              });
-              releaseId = data.id;
-              core.info(`Created release id=${releaseId} for tag ${tag}`);
             }
-
-            if (!releaseId || !Number.isInteger(Number(releaseId))) {
-              throw new Error(`create/update release did not produce numeric id for tag '${tag}'`);
-            }
-
-            core.setOutput("release_id", String(releaseId));
-      - name: validate release id output
-        env:
-          RELEASE_ID: ${{ steps.create_release.outputs.release_id }}
-          TAG: ${{ steps.tag.outputs.value }}
-        run: |
-          set -euo pipefail
-          if [ -z "${RELEASE_ID:-}" ]; then
-            echo "::error::create_release did not produce release_id for tag '$TAG'"
-            exit 1
-          fi
-          if ! printf '%s' "$RELEASE_ID" | grep -qE '^[0-9]+$'; then
-            echo "::error::release_id is not numeric: '$RELEASE_ID'"
-            exit 1
-          fi
-      - name: verify release-tag binding
-        uses: actions/github-script@v9
-        env:
-          RELEASE_ID: ${{ steps.create_release.outputs.release_id }}
-          EXPECTED_TAG: ${{ steps.tag.outputs.value }}
-          EXPECTED_SHA: ${{ steps.source-sha.outputs.value }}
-        with:
-          script: |
-            const releaseId = Number(process.env.RELEASE_ID);
-            const expectedTag = process.env.EXPECTED_TAG;
-            const expectedSha = process.env.EXPECTED_SHA;
-
-            const { data: release } = await github.rest.repos.getRelease({
+            const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              release_id: releaseId,
+              tag_name: tag,
+              target_commitish: targetCommitish,
+              name,
+              body,
+              draft,
+              prerelease,
             });
-
-            if (!release.tag_name || release.tag_name.startsWith("untagged-")) {
-              core.setFailed(`release_id=${releaseId} is bound to untagged release '${release.tag_name ?? ""}'`);
-              return;
-            }
-            if (release.tag_name !== expectedTag) {
-              core.setFailed(`release_id=${releaseId} has tag '${release.tag_name}', expected '${expectedTag}'`);
-              return;
-            }
-
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-            let ref = null;
-            let lastRefError = null;
-            for (let attempt = 1; attempt <= 6; attempt++) {
-              try {
-                const resp = await github.rest.git.getRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: `tags/${expectedTag}`,
-                });
-                ref = resp.data;
-                break;
-              } catch (e) {
-                if (e.status !== 404) throw e;
-                lastRefError = e;
-                core.warning(`Tag ref '${expectedTag}' is not visible yet (attempt ${attempt}/6); retrying...`);
-                await sleep(1500 * attempt);
-              }
-            }
-            if (!ref) {
-              const targetCommitish = (release.target_commitish || "").trim();
-              const isSha = /^[0-9a-f]{40}$/i.test(targetCommitish);
-              if (isSha && targetCommitish.toLowerCase() !== expectedSha.toLowerCase()) {
-                core.setFailed(
-                  `release_id=${releaseId} has target_commitish='${targetCommitish}', expected '${expectedSha}', and tag ref is unavailable`
-                );
-                if (lastRefError) core.warning(`Last getRef error: ${lastRefError.message}`);
-                return;
-              }
-              core.warning(
-                `tag ref 'tags/${expectedTag}' not found after retries (release_id=${releaseId}); continuing because release metadata is already bound`
-              );
-              if (lastRefError) core.warning(`Last getRef error: ${lastRefError.message}`);
-              if (isSha) {
-                core.info(`Verified release_id=${releaseId} via target_commitish=${targetCommitish}`);
-              }
-              return;
-            }
-
-            let resolvedSha = ref.object.sha;
-            if (ref.object.type === "tag") {
-              const { data: tagObj } = await github.rest.git.getTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_sha: ref.object.sha,
-              });
-              resolvedSha = tagObj.object.sha;
-            }
-
-            if (resolvedSha !== expectedSha) {
-              core.setFailed(`tag '${expectedTag}' points to ${resolvedSha}, expected ${expectedSha}`);
-              return;
-            }
-
-            core.info(`Verified release_id=${releaseId}, tag=${expectedTag}, commit=${resolvedSha}`);
+            return data.id;
 
   build-macos-windows:
     if: ${{ inputs.build_platform_artifacts }}
@@ -336,8 +216,9 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_B64 }}" | base64 --decode > ~/private_keys/AuthKey.p8
           echo "APPLE_API_KEY_PATH=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
-      - name: build app bundles (no release side effects)
+      - uses: tauri-apps/tauri-action@v0
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
           VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -348,42 +229,9 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri:build -- ${{ matrix.settings.args }}
-      - name: upload macOS artifacts
-        if: runner.os == 'macOS'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          RELEASE_TAG="${{ needs.create-release.outputs.release_tag }}"
-          TARGET_ARG='${{ matrix.settings.args }}'
-          if echo "$TARGET_ARG" | grep -q 'aarch64'; then
-            TARGET="aarch64-apple-darwin"
-          else
-            TARGET="x86_64-apple-darwin"
-          fi
-          mapfile -t FILES < <(find "src-tauri/target/${TARGET}/release/bundle" -type f \
-            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.sig" \))
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "::error::No macOS artifacts found to upload."
-            exit 1
-          fi
-          gh release upload "$RELEASE_TAG" "${FILES[@]}" --clobber
-      - name: upload Windows artifacts
-        if: runner.os == 'Windows'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_TAG='${{ needs.create-release.outputs.release_tag }}'
-          $files = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -File `
-            | Where-Object { $_.Name -match '\.(exe|msi|msix|zip)$' }
-          if ($files.Count -eq 0) {
-            Write-Error "No Windows artifacts found to upload."
-            exit 1
-          }
-          foreach ($f in $files) {
-            gh release upload "$RELEASE_TAG" "$($f.FullName)" --clobber
-          }
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.settings.args }}
       - name: re-sign updater bundle + upload .sig (macOS only)
         if: runner.os == 'macOS'
         env:
