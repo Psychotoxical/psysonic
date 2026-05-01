@@ -174,6 +174,27 @@ jobs:
               throw new Error(`Invalid RELEASE_COMMIT_SHA '${targetCommitish ?? ""}'`);
             }
 
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let tagVisible = false;
+            for (let attempt = 1; attempt <= 10; attempt++) {
+              try {
+                await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${tag}`,
+                });
+                tagVisible = true;
+                break;
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                core.warning(`Tag ref '${tag}' not visible in REST API yet (attempt ${attempt}/10); retrying...`);
+                await sleep(1000 * attempt);
+              }
+            }
+            if (!tagVisible) {
+              throw new Error(`Tag ref 'tags/${tag}' is still not visible in REST API after retries`);
+            }
+
             try {
               const { data } = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
