@@ -77,9 +77,32 @@ Each theme defines the full token set, including background, accent, text, Catpp
 The theme picker now groups Open Source Classics by family with dedicated family headings. Theme scheduler dropdown labels are also family-prefixed, making it clearer which palette family a scheduled theme belongs to.
 
 
+### Sidebar Discovery Indicators
+
+**By [@cucadmuh](https://github.com/cucadmuh)**
+
+Sidebar navigation now includes a dedicated unread indicator for **New Releases**, with persistence per server/library scope and delayed mark-as-seen behavior after opening the New Releases page.
+
+Albums added within the last 48 hours now receive a localized **New** badge in both album cards and album detail header.
+
+### Adaptive Header Controls
+
+**By [@cucadmuh](https://github.com/cucadmuh)**
+
+The top header behavior was reworked for narrow widths: search, Live and Orbit controls now compress in a deterministic order with improved stability in edge-width ranges.
+
+### Waveform Wheel Seeking
+
+**By [@cucadmuh](https://github.com/cucadmuh)**
+
+Waveform mouse-wheel seeking now uses fixed step-based jumps with debounce smoothing for more predictable navigation and less jitter during rapid scrolling.
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
+
+- **Polish:** multiple branch-local interaction fixes around sidebar drag/drop behavior, Live dropdown layering, queue-resize handle behavior during scroll/overlay-scrollbar interaction, and now-playing narrow-layout stability.
 
 
 
