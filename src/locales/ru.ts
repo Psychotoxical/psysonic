@@ -1796,4 +1796,12 @@ export const ruTranslation = {
     exitEndedBody: '«{{name}}» завершена. Надеюсь, тебе понравилось.',
     exitOk: 'ОК',
   },
+  tray: {
+    playPause: 'Воспроизвести / Пауза',
+    nextTrack: 'Следующий трек',
+    previousTrack: 'Предыдущий трек',
+    showHide: 'Показать / Скрыть',
+    exitPsysonic: 'Закрыть Psysonic',
+    nothingPlaying: 'Ничего не воспроизводится',
+  },
 };

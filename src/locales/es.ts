@@ -1715,4 +1715,12 @@ export const esTranslation = {
     exitEndedBody: '"{{name}}" ha terminado. Espero que te hayas divertido.',
     exitOk: 'OK',
   },
+  tray: {
+    playPause: 'Reproducir / Pausa',
+    nextTrack: 'Pista siguiente',
+    previousTrack: 'Pista anterior',
+    showHide: 'Mostrar / Ocultar',
+    exitPsysonic: 'Salir de Psysonic',
+    nothingPlaying: 'Nada en reproducción',
+  },
 };

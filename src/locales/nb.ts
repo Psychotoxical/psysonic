@@ -1709,4 +1709,12 @@ export const nbTranslation = {
     exitEndedBody: '"{{name}}" er avsluttet. Håper du hadde det gøy.',
     exitOk: 'OK',
   },
+  tray: {
+    playPause: 'Spill / Pause',
+    nextTrack: 'Neste spor',
+    previousTrack: 'Forrige spor',
+    showHide: 'Vis / Skjul',
+    exitPsysonic: 'Avslutt Psysonic',
+    nothingPlaying: 'Ingenting spilles',
+  },
 };

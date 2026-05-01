@@ -490,11 +490,48 @@ type TrayState = Mutex<Option<TrayIcon>>;
 /// Empty string means "use the default `Psysonic` tooltip".
 type TrayTooltip = Mutex<String>;
 
-/// Handle to the "Now Playing" menu entry on Linux. AppIndicator does not expose
-/// a hover tooltip, so we surface the current track as a disabled menu item
-/// instead. Refreshed on every track change via `set_tray_tooltip`.
-/// Always `None` on Windows/macOS — the OS-native tooltip is used there.
-type TrayNowPlayingItem = Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>;
+/// Handles to all updatable tray menu items, kept around so `set_tray_menu_labels`
+/// (i18n refresh) and `set_tray_tooltip` (track change) can re-text them without
+/// rebuilding the whole tray icon. The `now_playing` slot is `Some` on Linux
+/// only — it surfaces the current track as a disabled menu entry because
+/// AppIndicator has no hover tooltip API.
+struct TrayMenuItems {
+    play_pause: tauri::menu::MenuItem<tauri::Wry>,
+    next: tauri::menu::MenuItem<tauri::Wry>,
+    previous: tauri::menu::MenuItem<tauri::Wry>,
+    show_hide: tauri::menu::MenuItem<tauri::Wry>,
+    quit: tauri::menu::MenuItem<tauri::Wry>,
+    now_playing: Option<tauri::menu::MenuItem<tauri::Wry>>,
+}
+
+type TrayMenuItemsState = Mutex<Option<TrayMenuItems>>;
+
+/// Cached translations for the tray menu. Defaults to English so the menu has
+/// readable labels before the frontend has had a chance to run `set_tray_menu_labels`.
+#[derive(Clone)]
+struct TrayMenuLabels {
+    play_pause: String,
+    next: String,
+    previous: String,
+    show_hide: String,
+    quit: String,
+    nothing_playing: String,
+}
+
+impl Default for TrayMenuLabels {
+    fn default() -> Self {
+        Self {
+            play_pause: "Play / Pause".into(),
+            next: "Next Track".into(),
+            previous: "Previous Track".into(),
+            show_hide: "Show / Hide".into(),
+            quit: "Exit Psysonic".into(),
+            nothing_playing: "Nothing playing".into(),
+        }
+    }
+}
+
+type TrayMenuLabelsState = Mutex<TrayMenuLabels>;
 
 /// Shared handle to OS media controls (MPRIS2 on Linux, Now Playing on macOS, SMTC on Windows).
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
@@ -3620,13 +3657,18 @@ async fn delete_device_files(paths: Vec<String>) -> Result<u32, String> {
 /// Builds and returns a new system-tray icon with all menu items and event handlers.
 /// Called from `setup()` (initial creation) and from `toggle_tray_icon` (re-creation).
 fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
-    let play_pause = MenuItemBuilder::with_id("play_pause", "Play / Pause").build(app)?;
-    let next       = MenuItemBuilder::with_id("next",       "Next Track").build(app)?;
-    let previous   = MenuItemBuilder::with_id("previous",   "Previous Track").build(app)?;
+    let labels = app
+        .try_state::<TrayMenuLabelsState>()
+        .map(|s| s.lock().unwrap().clone())
+        .unwrap_or_default();
+
+    let play_pause = MenuItemBuilder::with_id("play_pause", &labels.play_pause).build(app)?;
+    let next       = MenuItemBuilder::with_id("next",       &labels.next).build(app)?;
+    let previous   = MenuItemBuilder::with_id("previous",   &labels.previous).build(app)?;
     let sep1       = PredefinedMenuItem::separator(app)?;
-    let show_hide  = MenuItemBuilder::with_id("show_hide",  "Show / Hide").build(app)?;
+    let show_hide  = MenuItemBuilder::with_id("show_hide",  &labels.show_hide).build(app)?;
     let sep2       = PredefinedMenuItem::separator(app)?;
-    let quit       = MenuItemBuilder::with_id("quit",       "Exit Psysonic").build(app)?;
+    let quit       = MenuItemBuilder::with_id("quit",       &labels.quit).build(app)?;
 
     let cached_tooltip = app
         .try_state::<TrayTooltip>()
@@ -3641,13 +3683,14 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
     // `set_tray_tooltip` on every track change.
     #[cfg(target_os = "linux")]
     let (now_playing, sep_now_playing) = {
-        let label = if cached_tooltip == "Psysonic" { "Nothing playing" } else { cached_tooltip.as_str() };
+        let label = if cached_tooltip == "Psysonic" {
+            labels.nothing_playing.as_str()
+        } else {
+            cached_tooltip.as_str()
+        };
         let item = MenuItemBuilder::with_id("now_playing", label)
             .enabled(false)
             .build(app)?;
-        if let Some(state) = app.try_state::<TrayNowPlayingItem>() {
-            *state.lock().unwrap() = Some(item.clone());
-        }
         (item, PredefinedMenuItem::separator(app)?)
     };
 
@@ -3665,6 +3708,22 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
         .item(&sep2)
         .item(&quit)
         .build()?;
+
+    // Persist handles so set_tray_menu_labels and set_tray_tooltip can update
+    // them without rebuilding the whole tray icon.
+    if let Some(state) = app.try_state::<TrayMenuItemsState>() {
+        *state.lock().unwrap() = Some(TrayMenuItems {
+            play_pause: play_pause.clone(),
+            next: next.clone(),
+            previous: previous.clone(),
+            show_hide: show_hide.clone(),
+            quit: quit.clone(),
+            #[cfg(target_os = "linux")]
+            now_playing: Some(now_playing.clone()),
+            #[cfg(not(target_os = "linux"))]
+            now_playing: None,
+        });
+    }
 
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
@@ -3784,16 +3843,74 @@ fn set_tray_tooltip(
 
     #[cfg(target_os = "linux")]
     {
-        if let Some(state) = app.try_state::<TrayNowPlayingItem>() {
-            if let Some(item) = state.lock().unwrap().as_ref() {
-                let label = if has_track { effective.as_str() } else { "Nothing playing" };
-                let _ = item.set_text(label);
+        if let Some(state) = app.try_state::<TrayMenuItemsState>() {
+            if let Some(items) = state.lock().unwrap().as_ref() {
+                if let Some(np) = items.now_playing.as_ref() {
+                    let label = if has_track {
+                        effective.clone()
+                    } else {
+                        app.try_state::<TrayMenuLabelsState>()
+                            .map(|s| s.lock().unwrap().nothing_playing.clone())
+                            .unwrap_or_else(|| "Nothing playing".to_string())
+                    };
+                    let _ = np.set_text(&label);
+                }
             }
         }
     }
     #[cfg(not(target_os = "linux"))]
     let _ = &app;
 
+    Ok(())
+}
+
+/// Pushes localized labels into the tray menu. Called from the frontend on
+/// startup and whenever the i18n language changes. Updates are applied
+/// immediately to live menu items via `set_text` (no tray rebuild required)
+/// and cached so the labels survive a tray hide/show cycle.
+#[tauri::command]
+fn set_tray_menu_labels(
+    app: tauri::AppHandle,
+    labels_state: tauri::State<TrayMenuLabelsState>,
+    items_state: tauri::State<TrayMenuItemsState>,
+    tooltip_cache: tauri::State<TrayTooltip>,
+    play_pause: String,
+    next: String,
+    previous: String,
+    show_hide: String,
+    quit: String,
+    nothing_playing: String,
+) -> Result<(), String> {
+    let new_labels = TrayMenuLabels {
+        play_pause,
+        next,
+        previous,
+        show_hide,
+        quit,
+        nothing_playing,
+    };
+    *labels_state.lock().unwrap() = new_labels.clone();
+
+    if let Some(items) = items_state.lock().unwrap().as_ref() {
+        let _ = items.play_pause.set_text(&new_labels.play_pause);
+        let _ = items.next.set_text(&new_labels.next);
+        let _ = items.previous.set_text(&new_labels.previous);
+        let _ = items.show_hide.set_text(&new_labels.show_hide);
+        let _ = items.quit.set_text(&new_labels.quit);
+
+        // Linux now-playing item: only refresh the placeholder. The track
+        // text itself is owned by `set_tray_tooltip` and shouldn't be
+        // overwritten by an unrelated language change.
+        #[cfg(target_os = "linux")]
+        if let Some(np) = items.now_playing.as_ref() {
+            let has_track = !tooltip_cache.lock().unwrap().is_empty();
+            if !has_track {
+                let _ = np.set_text(&new_labels.nothing_playing);
+            }
+        }
+    }
+
+    let _ = (&app, &tooltip_cache);
     Ok(())
 }
 
@@ -4417,7 +4534,8 @@ pub fn run() {
         .manage(Arc::new(tokio::sync::Semaphore::new(MAX_DL_CONCURRENCY)) as DownloadSemaphore)
         .manage(TrayState::default())
         .manage(TrayTooltip::default())
-        .manage(TrayNowPlayingItem::default())
+        .manage(TrayMenuItemsState::default())
+        .manage(TrayMenuLabelsState::default())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
@@ -4749,6 +4867,7 @@ pub fn run() {
             rename_device_files,
             toggle_tray_icon,
             set_tray_tooltip,
+            set_tray_menu_labels,
             check_dir_accessible,
             download_zip,
             check_arch_linux,
