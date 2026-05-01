@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PlayCircle, User, Radio, RefreshCw } from 'lucide-react';
 import { getNowPlaying, SubsonicNowPlaying, buildCoverArtUrl } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
@@ -15,7 +16,21 @@ export default function NowPlayingDropdown() {
   const ownUsername = useAuthStore(s => s.getActiveServer()?.username ?? '');
   const [loading, setLoading] = useState(false);
   const [spinning, setSpinning] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerWrapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const PANEL_WIDTH = 340;
+
+  const updatePanelPos = useCallback(() => {
+    const el = triggerWrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 8;
+    const top = r.bottom + 10;
+    const maxLeft = window.innerWidth - PANEL_WIDTH - margin;
+    const left = Math.max(margin, Math.min(r.right - PANEL_WIDTH, maxLeft));
+    setPanelPos({ top, left });
+  }, []);
 
   const fetchNowPlaying = async () => {
     setLoading(true);
@@ -46,12 +61,25 @@ export default function NowPlayingDropdown() {
     return () => clearInterval(id);
   }, [isOpen]);
 
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updatePanelPos();
+    const onWin = () => updatePanelPos();
+    window.addEventListener('resize', onWin);
+    window.addEventListener('scroll', onWin, true);
+    return () => {
+      window.removeEventListener('resize', onWin);
+      window.removeEventListener('scroll', onWin, true);
+    };
+  }, [isOpen, updatePanelPos]);
+
   // Click outside to close
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = event.target as Node;
+      if (triggerWrapRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setIsOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -64,7 +92,7 @@ export default function NowPlayingDropdown() {
   );
 
   return (
-    <div className="now-playing-dropdown" ref={dropdownRef} style={{ position: 'relative' }}>
+    <div className="now-playing-dropdown" ref={triggerWrapRef} style={{ position: 'relative' }}>
       <button
         className="btn btn-surface"
         onClick={() => setIsOpen(!isOpen)}
@@ -88,20 +116,21 @@ export default function NowPlayingDropdown() {
         )}
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
+          ref={panelRef}
           className="glass animate-fade-in"
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 10px)',
-            right: 0,
-            width: '340px',
+            position: 'fixed',
+            top: panelPos.top,
+            left: panelPos.left,
+            width: `${PANEL_WIDTH}px`,
             maxHeight: '400px',
             overflowY: 'auto',
             borderRadius: '12px',
             boxShadow: 'var(--shadow-lg)',
             padding: '1rem',
-            zIndex: 1000,
+            zIndex: 10050,
             display: 'flex',
             flexDirection: 'column',
             gap: '1rem'
@@ -154,7 +183,8 @@ export default function NowPlayingDropdown() {
               ))}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
