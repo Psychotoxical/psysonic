@@ -311,9 +311,13 @@ function AppShell() {
           const title = `${state} ${currentTrack.artist} - ${currentTrack.title} | Psysonic`;
           document.title = title;
           await appWindow.setTitle(title);
+          await invoke('set_tray_tooltip', {
+            tooltip: `${currentTrack.artist} – ${currentTrack.title}`,
+          }).catch(() => {});
         } else {
           document.title = 'Psysonic';
           await appWindow.setTitle('Psysonic');
+          await invoke('set_tray_tooltip', { tooltip: '' }).catch(() => {});
         }
       } catch (err) {}
     };

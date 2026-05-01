@@ -485,6 +485,11 @@ pub(crate) async fn submit_analysis_cpu_seed(
 /// Dropping the inner `TrayIcon` fully removes it from the OS notification area on all platforms.
 type TrayState = Mutex<Option<TrayIcon>>;
 
+/// Cached tray tooltip text. Updated by `set_tray_tooltip` and re-applied when the
+/// icon is rebuilt (e.g. after the user toggles the tray off and on again).
+/// Empty string means "use the default `Psysonic` tooltip".
+type TrayTooltip = Mutex<String>;
+
 /// Shared handle to OS media controls (MPRIS2 on Linux, Now Playing on macOS, SMTC on Windows).
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
@@ -3627,10 +3632,18 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
         .item(&quit)
         .build()?;
 
+    let cached_tooltip = app
+        .try_state::<TrayTooltip>()
+        .and_then(|s| {
+            let g = s.lock().ok()?;
+            if g.is_empty() { None } else { Some(g.clone()) }
+        })
+        .unwrap_or_else(|| "Psysonic".to_string());
+
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
-        .tooltip("Psysonic")
+        .tooltip(&cached_tooltip)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "play_pause" => { let _ = app.emit("tray:play-pause", ()); }
             "next"       => { let _ = app.emit("tray:next", ()); }
@@ -3709,6 +3722,43 @@ fn try_build_tray_icon(app: &tauri::AppHandle) -> Option<TrayIcon> {
             None
         }
     }
+}
+
+/// Updates the system-tray icon tooltip with the currently playing track.
+///
+/// `tooltip` should be a compact "Artist – Title" form (no app suffix needed —
+/// the tray icon itself identifies the app). An empty string resets to the
+/// default `"Psysonic"` tooltip.
+///
+/// The text is truncated to 127 chars defensively to stay under the historical
+/// Windows `NOTIFYICONDATA.szTip` limit (128 bytes including the null terminator).
+/// On Linux the visibility depends on the desktop environment / panel —
+/// StatusNotifierItem-aware panels (KDE, Cinnamon, GNOME with AppIndicator
+/// extension) show it; pure-GNOME without the extension does not.
+#[tauri::command]
+fn set_tray_tooltip(
+    tray_state: tauri::State<TrayState>,
+    tooltip_cache: tauri::State<TrayTooltip>,
+    tooltip: String,
+) -> Result<(), String> {
+    let truncated = if tooltip.chars().count() > 127 {
+        tooltip.chars().take(124).collect::<String>() + "..."
+    } else {
+        tooltip
+    };
+
+    let effective = if truncated.is_empty() {
+        "Psysonic".to_string()
+    } else {
+        truncated.clone()
+    };
+
+    *tooltip_cache.lock().unwrap() = truncated;
+
+    if let Some(tray) = tray_state.lock().unwrap().as_ref() {
+        tray.set_tooltip(Some(&effective)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Show (`true`) or fully remove (`false`) the system-tray icon.
@@ -4330,6 +4380,7 @@ pub fn run() {
         .manage(discord::DiscordState::new())
         .manage(Arc::new(tokio::sync::Semaphore::new(MAX_DL_CONCURRENCY)) as DownloadSemaphore)
         .manage(TrayState::default())
+        .manage(TrayTooltip::default())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
@@ -4660,6 +4711,7 @@ pub fn run() {
             write_playlist_m3u8,
             rename_device_files,
             toggle_tray_icon,
+            set_tray_tooltip,
             check_dir_accessible,
             download_zip,
             check_arch_linux,
