@@ -61,14 +61,33 @@ export default function LiveSearch() {
     if (!root) return;
     const header = root.closest('.content-header') as HTMLElement | null;
     if (!header) return;
+    const overlayActive = isCollapsed && isSearchActive;
+    if (overlayActive) {
+      header.dataset.liveSearchOverlay = 'true';
+    } else {
+      delete header.dataset.liveSearchOverlay;
+    }
+    return () => {
+      delete header.dataset.liveSearchOverlay;
+    };
+  }, [isCollapsed, isSearchActive]);
+
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const header = root.closest('.content-header') as HTMLElement | null;
+    if (!header) return;
     const spacer = header.querySelector('.spacer') as HTMLElement | null;
     if (!spacer) return;
 
     const MIN_EXPANDED_WIDTH = 260;
     const SPACER_RESERVE = 24;
     const HYSTERESIS_PX = 20;
+    const SWITCH_COOLDOWN_MS = 180;
     const collapseThreshold = MIN_EXPANDED_WIDTH + SPACER_RESERVE;
     const expandThreshold = collapseThreshold + HYSTERESIS_PX;
+    let lastSwitchAt = 0;
+    let cooldownTimer: number | null = null;
 
     const updateCollapsed = () => {
       const searchWidth = root.getBoundingClientRect().width;
@@ -78,6 +97,18 @@ export default function LiveSearch() {
         ? budget < expandThreshold
         : budget < collapseThreshold;
       if (nextCollapsed !== collapsedRef.current) {
+        const now = performance.now();
+        const remaining = SWITCH_COOLDOWN_MS - (now - lastSwitchAt);
+        if (remaining > 0) {
+          if (cooldownTimer == null) {
+            cooldownTimer = window.setTimeout(() => {
+              cooldownTimer = null;
+              updateCollapsed();
+            }, remaining);
+          }
+          return;
+        }
+        lastSwitchAt = now;
         collapsedRef.current = nextCollapsed;
         setIsCollapsed(nextCollapsed);
       }
@@ -92,6 +123,9 @@ export default function LiveSearch() {
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', updateCollapsed);
+      if (cooldownTimer != null) {
+        window.clearTimeout(cooldownTimer);
+      }
     };
   }, []);
 

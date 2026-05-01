@@ -1150,6 +1150,16 @@ body.is-overlay-scrollbar-thumb-drag .resizer {
 
 .content-header .spacer { flex: 1; }
 
+.content-header > * {
+  transition: opacity 0.14s ease, visibility 0.14s ease;
+}
+
+.content-header[data-live-search-overlay] > :not(.live-search):not(.spacer) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .content-body {
   flex: 1;
   overflow-y: auto;
