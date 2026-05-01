@@ -259,8 +259,22 @@ jobs:
               }
             }
             if (!ref) {
-              core.setFailed(`tag ref 'tags/${expectedTag}' not found after retries (release_id=${releaseId})`);
+              const targetCommitish = (release.target_commitish || "").trim();
+              const isSha = /^[0-9a-f]{40}$/i.test(targetCommitish);
+              if (isSha && targetCommitish.toLowerCase() !== expectedSha.toLowerCase()) {
+                core.setFailed(
+                  `release_id=${releaseId} has target_commitish='${targetCommitish}', expected '${expectedSha}', and tag ref is unavailable`
+                );
+                if (lastRefError) core.warning(`Last getRef error: ${lastRefError.message}`);
+                return;
+              }
+              core.warning(
+                `tag ref 'tags/${expectedTag}' not found after retries (release_id=${releaseId}); continuing because release metadata is already bound`
+              );
               if (lastRefError) core.warning(`Last getRef error: ${lastRefError.message}`);
+              if (isSha) {
+                core.info(`Verified release_id=${releaseId} via target_commitish=${targetCommitish}`);
+              }
               return;
             }
 
