@@ -112,24 +112,7 @@ jobs:
               echo "Tag '$TAG' already points to expected source commit $EXPECTED_SHA"
             fi
           else
-            echo "::warning::Tag '$TAG' does not exist yet. Creating it at $EXPECTED_SHA."
-            git tag "$TAG" "$EXPECTED_SHA"
-            if ! git push origin "refs/tags/$TAG"; then
-              echo "::warning::Initial tag push failed (possible race). Re-checking remote tag..."
-              git fetch --force --tags origin
-              if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-                TAG_SHA="$(git rev-list -n 1 "refs/tags/$TAG")"
-                if [ "$TAG_SHA" = "$EXPECTED_SHA" ]; then
-                  echo "::warning::Tag '$TAG' appeared concurrently and already points to expected commit."
-                else
-                  echo "::error::Tag '$TAG' exists on remote at $TAG_SHA, expected $EXPECTED_SHA"
-                  exit 1
-                fi
-              else
-                echo "::error::Tag '$TAG' still missing after push attempt."
-                exit 1
-              fi
-            fi
+            echo "Tag '$TAG' does not exist yet; it will be created by createRelease with target_commitish=$EXPECTED_SHA."
           fi
       - name: extract changelog
         id: changelog
@@ -171,28 +154,6 @@ jobs:
             }
             if (!targetCommitish || !/^[0-9a-f]{40}$/i.test(targetCommitish)) {
               throw new Error(`Invalid RELEASE_COMMIT_SHA '${targetCommitish ?? ""}'`);
-            }
-
-            // Wait until the tags/<tag> ref is visible in REST API.
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            let tagVisible = false;
-            for (let attempt = 1; attempt <= 10; attempt++) {
-              try {
-                await github.rest.git.getRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: `tags/${tag}`,
-                });
-                tagVisible = true;
-                break;
-              } catch (e) {
-                if (e.status !== 404) throw e;
-                core.warning(`Tag ref '${tag}' not visible in REST API yet (attempt ${attempt}/10); retrying...`);
-                await sleep(1000 * attempt);
-              }
-            }
-            if (!tagVisible) {
-              throw new Error(`Tag ref 'tags/${tag}' is still not visible in REST API after retries`);
             }
 
             let releaseId = null;
