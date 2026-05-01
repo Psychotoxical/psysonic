@@ -3747,11 +3747,13 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 
 .lyrics-pane {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+}
+
+.lyrics-pane__viewport {
   overflow-x: hidden;
   /* scroll-behavior intentionally left to auto — JS drives smooth scroll imperatively */
   padding: 16px 16px 8px;
-  scrollbar-width: thin;
 }
 
 .lyrics-pane-empty {
@@ -6006,7 +6008,10 @@ html.no-compositing .fs-seekbar-played {
 /* Main scrollable content */
 .np-main {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+}
+
+.np-main__viewport {
   padding: 28px 28px 40px;
   display: flex;
   flex-direction: column;
@@ -10935,7 +10940,10 @@ html[data-psy-native-hidden="true"] *::after {
 /* ── Now Playing Info panel ──────────────────────────────────────────────── */
 .np-info {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+}
+
+.np-info__viewport {
   overflow-x: hidden;
   padding: 6px 16px 20px;
   display: block;
@@ -11069,8 +11077,9 @@ html[data-psy-native-hidden="true"] *::after {
 }
 .np-info-tour > .np-info-tour-item + .np-info-tour-item { margin-top: 6px; }
 .np-info-tour-item {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
   gap: 12px;
   padding: 10px 12px;
   background: var(--bg-elevated);
@@ -11081,6 +11090,7 @@ html[data-psy-native-hidden="true"] *::after {
   text-align: left;
   width: 100%;
   min-width: 0;        /* allow children to shrink past their min-content */
+  max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -11119,6 +11129,7 @@ html[data-psy-native-hidden="true"] *::after {
    * overflows the parent ul on WebKit. */
   flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -11135,9 +11146,10 @@ html[data-psy-native-hidden="true"] *::after {
 .np-info-tour-place {
   font-size: 11.5px;
   color: var(--text-muted);
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   text-align: left;
 }
 .np-info-tour-when { color: var(--text-secondary); }
@@ -11884,7 +11896,7 @@ html[data-psy-native-hidden="true"] *::after {
 }
 
 @container (max-width: 760px) {
-  .np-main {
+  .np-main__viewport {
     padding: 16px 14px 24px;
     gap: 12px;
   }

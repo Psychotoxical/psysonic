@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import { getArtistInfo, getSong, type SubsonicArtistInfo, type SubsonicSong } from '../api/subsonic';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import CachedImage from './CachedImage';
+import OverlayScrollArea from './OverlayScrollArea';
 
 const TOUR_LIMIT = 5;
 const BIO_CLAMP_LINES = 4;
@@ -161,7 +162,24 @@ export default function NowPlayingInfo() {
   const hiddenTourCount = Math.max(0, tourEvents.length - visibleTours.length);
 
   return (
-    <div className="np-info">
+    <OverlayScrollArea
+      className="np-info"
+      viewportClassName="np-info__viewport"
+      railInset="panel"
+      measureDeps={[
+        currentTrack?.id,
+        artistId,
+        songId,
+        enableBandsintown,
+        tourLoading,
+        tourEvents.length,
+        showAllTours,
+        bioExpanded,
+        bioOverflows,
+        bioClean.length,
+        contributorRows.length,
+      ]}
+    >
       {/* Artist card */}
       <section className="np-info-section np-info-artist">
         {heroImage && heroCacheKey && (
@@ -306,6 +324,6 @@ export default function NowPlayingInfo() {
           </div>
         </section>
       )}
-    </div>
+    </OverlayScrollArea>
   );
 }

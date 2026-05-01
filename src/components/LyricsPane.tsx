@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import type { Track } from '../store/playerStore';
 import { EaseScroller, targetForFraction } from '../utils/easeScroll';
+import OverlayScrollArea from './OverlayScrollArea';
 
 interface Props {
   currentTrack: Track | null;
@@ -153,11 +154,26 @@ export default function LyricsPane({ currentTrack }: Props) {
   );
 
   return (
-    <div
+    <OverlayScrollArea
       className="lyrics-pane"
-      ref={setContainerRef}
-      onWheel={handleUserScroll}
-      onTouchMove={handleUserScroll}
+      viewportClassName="lyrics-pane__viewport"
+      viewportRef={setContainerRef}
+      measureDeps={[
+        currentTrack?.id,
+        loading,
+        notFound,
+        source,
+        useWords,
+        hasSynced,
+        staticOnly,
+        sidebarLyricsStyle,
+        plainLyrics?.length ?? 0,
+        syncedLines?.length ?? 0,
+        wordLines?.length ?? 0,
+      ]}
+      railInset="panel"
+      viewportOnWheel={handleUserScroll}
+      viewportOnTouchMove={handleUserScroll}
     >
       {loading && <p className="lyrics-status">{t('player.lyricsLoading')}</p>}
       {notFound && !loading && <p className="lyrics-status">{t('player.lyricsNotFound')}</p>}
@@ -227,7 +243,7 @@ export default function LyricsPane({ currentTrack }: Props) {
       {sourceLabel && !loading && !notFound && (
         <p className="lyrics-source">{sourceLabel}</p>
       )}
-    </div>
+    </OverlayScrollArea>
   );
 }
 

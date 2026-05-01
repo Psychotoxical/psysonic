@@ -22,6 +22,10 @@ export type OverlayScrollAreaProps = {
   viewportRef?: React.Ref<HTMLDivElement>;
   /** Optional id on the viewport (e.g. main app scroll for route pages). */
   viewportId?: string;
+  /** Optional wheel handler on the scrollable viewport. */
+  viewportOnWheel?: React.WheelEventHandler<HTMLDivElement>;
+  /** Optional touch-move handler on the scrollable viewport. */
+  viewportOnTouchMove?: React.TouchEventHandler<HTMLDivElement>;
 };
 
 const RAIL_INSET_CLASS: Record<OverlayScrollRailInset, string> = {
@@ -46,6 +50,8 @@ export default function OverlayScrollArea({
   viewportScrollBehaviorAuto = false,
   viewportRef: viewportRefProp,
   viewportId,
+  viewportOnWheel,
+  viewportOnTouchMove,
 }: OverlayScrollAreaProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -121,6 +127,8 @@ export default function OverlayScrollArea({
         ref={setViewportNode}
         className={viewportClass}
         onScroll={recompute}
+        onWheel={viewportOnWheel}
+        onTouchMove={viewportOnTouchMove}
       >
         {children}
       </div>

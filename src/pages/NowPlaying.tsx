@@ -24,6 +24,7 @@ import CachedImage from '../components/CachedImage';
 import LastfmIcon from '../components/LastfmIcon';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
 import { useDragSource, useDragDrop } from '../contexts/DragDropContext';
+import OverlayScrollArea from '../components/OverlayScrollArea';
 import {
   useNpLayoutStore, NP_CARD_IDS,
   type NpCardId, type NpColumn,
@@ -1161,7 +1162,20 @@ export default function NowPlaying() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="np-page">
-      <div className="np-main">
+      <OverlayScrollArea
+        className="np-main"
+        viewportClassName="np-main__viewport"
+        railInset="panel"
+        measureDeps={[
+          !!currentTrack,
+          !!currentRadio,
+          layoutCards,
+          enableBandsintown,
+          tourEvents.length,
+          discography.length,
+          topSongs.length,
+        ]}
+      >
         {currentRadio && !currentTrack ? (
           <RadioView radioMeta={radioMeta} currentRadio={currentRadio} resolvedCover={resolvedRadioCover} />
         ) : currentTrack ? (
@@ -1364,7 +1378,7 @@ export default function NowPlaying() {
             <p>{t('nowPlaying.nothingPlaying')}</p>
           </div>
         )}
-      </div>
+      </OverlayScrollArea>
     </div>
   );
 }
