@@ -1,8 +1,5 @@
 name: Next Channel
 
-# Pushes made with the default GITHUB_TOKEN from another workflow (e.g. Promote main to next)
-# do not trigger push workflows — GitHub blocks recursive runs. Use workflow_run below.
-#
 # workflow_dispatch: set "Use workflow from branch" to `main` so reusable-channel-publish.yml
 # is the latest (tag guards, etc.). The tree built for artifacts is always ref `next` below.
 on:
@@ -14,13 +11,15 @@ on:
       - "flake.lock"
       - "nix/**"
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Promote main to next"]
-    types: [completed]
+    inputs:
+      source_only:
+        description: "Create/refresh tagged release only (skip platform builds and verify-nix)"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   publish-next:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     uses: ./.github/workflows/reusable-channel-publish.yml
     with:
       channel: next
@@ -29,5 +28,6 @@ jobs:
       target_branch: next
       prerelease: true
       draft_release: true
-      verify_nix: true
+      verify_nix: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.source_only == 'true') }}
+      build_platform_artifacts: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.source_only == 'true') }}
     secrets: inherit

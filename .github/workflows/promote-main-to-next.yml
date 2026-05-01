@@ -2,6 +2,12 @@ name: Promote main to next
 
 on:
   workflow_dispatch:
+    inputs:
+      source_only:
+        description: "Create/refresh tagged release only (skip platform builds and verify-nix)"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   validate-main:
@@ -15,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -64,3 +71,20 @@ jobs:
           git commit -m "chore(release): bump next channel to ${NEW_VERSION}"
       - name: push next
         run: git push --force-with-lease origin HEAD:next
+      - name: dispatch Next Channel workflow
+        uses: actions/github-script@v7
+        env:
+          SOURCE_ONLY: ${{ inputs.source_only && 'true' || 'false' }}
+        with:
+          script: |
+            const sourceOnly = process.env.SOURCE_ONLY === "true";
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "next.yml",
+              ref: "main",
+              inputs: {
+                source_only: sourceOnly ? "true" : "false",
+              },
+            });
+            core.info(`Dispatched next.yml with source_only=${sourceOnly}`);

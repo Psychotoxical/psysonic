@@ -28,6 +28,11 @@ on:
         required: false
         default: true
         type: boolean
+      build_platform_artifacts:
+        description: "Build and upload macOS/Windows/Linux artifacts + latest.json"
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   create-release:
@@ -187,8 +192,58 @@ jobs:
             echo "::error::release_id is not numeric: '$RELEASE_ID'"
             exit 1
           fi
+      - name: verify release-tag binding
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ steps.create_release.outputs.release_id }}
+          EXPECTED_TAG: ${{ steps.tag.outputs.value }}
+          EXPECTED_SHA: ${{ steps.source-sha.outputs.value }}
+        with:
+          script: |
+            const releaseId = Number(process.env.RELEASE_ID);
+            const expectedTag = process.env.EXPECTED_TAG;
+            const expectedSha = process.env.EXPECTED_SHA;
+
+            const { data: release } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+            });
+
+            if (!release.tag_name || release.tag_name.startsWith("untagged-")) {
+              core.setFailed(`release_id=${releaseId} is bound to untagged release '${release.tag_name ?? ""}'`);
+              return;
+            }
+            if (release.tag_name !== expectedTag) {
+              core.setFailed(`release_id=${releaseId} has tag '${release.tag_name}', expected '${expectedTag}'`);
+              return;
+            }
+
+            const { data: ref } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `tags/${expectedTag}`,
+            });
+
+            let resolvedSha = ref.object.sha;
+            if (ref.object.type === "tag") {
+              const { data: tagObj } = await github.rest.git.getTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_sha: ref.object.sha,
+              });
+              resolvedSha = tagObj.object.sha;
+            }
+
+            if (resolvedSha !== expectedSha) {
+              core.setFailed(`tag '${expectedTag}' points to ${resolvedSha}, expected ${expectedSha}`);
+              return;
+            }
+
+            core.info(`Verified release_id=${releaseId}, tag=${expectedTag}, commit=${resolvedSha}`);
 
   build-macos-windows:
+    if: ${{ inputs.build_platform_artifacts }}
     needs: create-release
     permissions:
       contents: write
@@ -272,6 +327,7 @@ jobs:
           gh release upload "$RELEASE_TAG" "Psysonic_${ARCH}.app.tar.gz.sig" --clobber
 
   generate-manifest:
+    if: ${{ inputs.build_platform_artifacts }}
     needs: [create-release, build-macos-windows]
     runs-on: ubuntu-24.04
     permissions:
@@ -293,6 +349,7 @@ jobs:
           gh release upload "$RELEASE_TAG" latest.json --clobber
 
   build-linux:
+    if: ${{ inputs.build_platform_artifacts }}
     needs: create-release
     permissions:
       contents: write

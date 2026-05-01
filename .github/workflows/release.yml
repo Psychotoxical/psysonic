@@ -1,7 +1,5 @@
 name: Release Channel
 
-# Same GITHUB_TOKEN push limitation as Next Channel (see next.yml).
-#
 # workflow_dispatch: use workflow from `main` for latest publish logic; checkout ref is always `release`.
 on:
   push:
@@ -11,13 +9,15 @@ on:
       - "flake.lock"
       - "nix/**"
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Promote next to release"]
-    types: [completed]
+    inputs:
+      source_only:
+        description: "Create/refresh tagged release only (skip platform builds and verify-nix)"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   publish-release:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     uses: ./.github/workflows/reusable-channel-publish.yml
     with:
       channel: release
@@ -25,5 +25,6 @@ jobs:
       target_branch: release
       prerelease: false
       draft_release: true
-      verify_nix: true
+      verify_nix: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.source_only == 'true') }}
+      build_platform_artifacts: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.source_only == 'true') }}
     secrets: inherit
