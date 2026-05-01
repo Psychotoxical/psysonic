@@ -148,111 +148,89 @@ jobs:
           echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
       - name: create or update release
         id: create_release
-        uses: actions/github-script@v9
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGE_VERSION: ${{ steps.get-version.outputs.version }}
           RELEASE_TAG: ${{ steps.tag.outputs.value }}
           RELEASE_COMMIT_SHA: ${{ steps.source-sha.outputs.value }}
           CHANGELOG_BODY: ${{ steps.changelog.outputs.body }}
           IS_PRERELEASE: ${{ inputs.prerelease }}
           IS_DRAFT: ${{ inputs.draft_release }}
-        with:
-          script: |
-            const tag = process.env.RELEASE_TAG;
-            const body = process.env.CHANGELOG_BODY || "See the assets to download this version and install.";
-            const prerelease = process.env.IS_PRERELEASE === "true";
-            const draft = process.env.IS_DRAFT === "true";
-            const version = process.env.PACKAGE_VERSION;
-            const targetCommitish = process.env.RELEASE_COMMIT_SHA;
-            const name = `Psysonic v${version}`;
-            let releaseId = null;
+        run: |
+          set -euo pipefail
 
-            if (!tag || !/^app-v\d+\.\d+\.\d+/.test(tag)) {
-              throw new Error(`Invalid RELEASE_TAG '${tag ?? ""}'`);
-            }
-            if (!targetCommitish || !/^[0-9a-f]{40}$/i.test(targetCommitish)) {
-              throw new Error(`Invalid RELEASE_COMMIT_SHA '${targetCommitish ?? ""}'`);
-            }
+          TAG="${RELEASE_TAG}"
+          TARGET_COMMITISH="${RELEASE_COMMIT_SHA}"
+          RELEASE_NAME="Psysonic v${PACKAGE_VERSION}"
+          BODY_FILE="$(mktemp)"
+          printf '%s' "${CHANGELOG_BODY}" > "$BODY_FILE"
 
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            let tagVisible = false;
-            for (let attempt = 1; attempt <= 10; attempt++) {
-              try {
-                await github.rest.git.getRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: `tags/${tag}`,
-                });
-                tagVisible = true;
-                break;
-              } catch (e) {
-                if (e.status !== 404) throw e;
-                core.warning(`Tag ref '${tag}' not visible in REST API yet (attempt ${attempt}/10); retrying...`);
-                await sleep(1000 * attempt);
-              }
-            }
-            if (!tagVisible) {
-              throw new Error(`Tag ref 'tags/${tag}' is still not visible in REST API after retries`);
-            }
+          if [[ -z "${TAG:-}" || ! "$TAG" =~ ^app-v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Invalid RELEASE_TAG '$TAG'"
+            exit 1
+          fi
+          if [[ -z "${TARGET_COMMITISH:-}" || ! "$TARGET_COMMITISH" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::Invalid RELEASE_COMMIT_SHA '$TARGET_COMMITISH'"
+            exit 1
+          fi
 
-            try {
-              const { data } = await github.rest.repos.getReleaseByTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag,
-              });
-              await github.rest.repos.updateRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: data.id,
-                body,
-                name,
-                draft,
-                prerelease,
-              });
-              releaseId = data.id;
-              core.info(`Updated existing release id=${releaseId} tag=${tag}`);
-            } catch (e) {
-              if (e.status !== 404) throw e;
-              const { data } = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: tag,
-                target_commitish: targetCommitish,
-                name,
-                body,
-                draft,
-                prerelease,
-              });
-              releaseId = data.id;
-              core.info(`Created release id=${releaseId} tag=${tag} target_commitish=${targetCommitish}`);
-            }
+          # Wait until GitHub REST sees the tag ref.
+          TAG_VISIBLE=0
+          for attempt in {1..10}; do
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+              TAG_VISIBLE=1
+              break
+            fi
+            echo "::warning::Tag ref '${TAG}' not visible in REST API yet (attempt ${attempt}/10); retrying..."
+            sleep "$attempt"
+          done
+          if [[ "$TAG_VISIBLE" -ne 1 ]]; then
+            echo "::error::Tag ref 'tags/${TAG}' is still not visible in REST API after retries"
+            exit 1
+          fi
 
-            // Self-heal: GitHub can occasionally produce a draft release with an untagged
-            // placeholder even when tag_name was requested. Force the expected tag binding.
-            const { data: createdOrUpdated } = await github.rest.repos.getRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: releaseId,
-            });
-            if ((createdOrUpdated.tag_name || "") !== tag) {
-              core.warning(
-                `Release id=${releaseId} has tag '${createdOrUpdated.tag_name ?? ""}', expected '${tag}'. Re-binding release tag.`
-              );
-              await github.rest.repos.updateRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId,
-                tag_name: tag,
-                target_commitish: targetCommitish,
-                name,
-                body,
-                draft,
-                prerelease,
-              });
-            }
+          EXTRA_FLAGS=()
+          if [[ "${IS_DRAFT}" == "true" ]]; then
+            EXTRA_FLAGS+=(--draft)
+          fi
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            EXTRA_FLAGS+=(--prerelease)
+          fi
 
-            core.setOutput("release_id", String(releaseId));
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title "$RELEASE_NAME" \
+              --notes-file "$BODY_FILE" \
+              "${EXTRA_FLAGS[@]}"
+            echo "Updated existing release for tag ${TAG}"
+          else
+            gh release create "$TAG" \
+              --target "$TARGET_COMMITISH" \
+              --title "$RELEASE_NAME" \
+              --notes-file "$BODY_FILE" \
+              "${EXTRA_FLAGS[@]}"
+            echo "Created release for tag ${TAG}"
+          fi
+
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.id')"
+          if [[ -z "${RELEASE_ID:-}" || ! "${RELEASE_ID}" =~ ^[0-9]+$ ]]; then
+            echo "::error::Failed to resolve numeric release id for tag '${TAG}'"
+            exit 1
+          fi
+
+          # Self-heal any unexpected tag binding on the resolved release id.
+          jq -n \
+            --arg tag "$TAG" \
+            --arg target_commitish "$TARGET_COMMITISH" \
+            --arg name "$RELEASE_NAME" \
+            --rawfile body "$BODY_FILE" \
+            --argjson draft "$([[ "${IS_DRAFT}" == "true" ]] && echo true || echo false)" \
+            --argjson prerelease "$([[ "${IS_PRERELEASE}" == "true" ]] && echo true || echo false)" \
+            '{tag_name:$tag,target_commitish:$target_commitish,name:$name,body:$body,draft:$draft,prerelease:$prerelease}' > /tmp/release-patch.json
+
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --input /tmp/release-patch.json >/dev/null
+
+          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
       - name: validate release id output
         env:
           RELEASE_ID: ${{ steps.create_release.outputs.release_id }}
