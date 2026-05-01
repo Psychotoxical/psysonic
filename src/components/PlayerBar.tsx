@@ -512,8 +512,8 @@ export default function PlayerBar() {
               setSuppressOverflowTooltip(false);
             }}
             onWheel={handleVolumeWheel}
-            aria-label={t('player.moreOptions', { defaultValue: 'More options' })}
-            data-tooltip={suppressOverflowTooltip ? undefined : t('player.moreOptions', { defaultValue: 'More options' })}
+            aria-label={t('player.moreOptions')}
+            data-tooltip={suppressOverflowTooltip ? undefined : t('player.moreOptions')}
           >
             <Ellipsis size={15} />
           </button>
@@ -524,8 +524,8 @@ export default function PlayerBar() {
           <button
             className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}
             onClick={() => setEqOpen(v => !v)}
-            aria-label="Equalizer"
-            data-tooltip="Equalizer"
+            aria-label={t('player.equalizer')}
+            data-tooltip={t('player.equalizer')}
           >
             <SlidersVertical size={15} />
           </button>
@@ -534,8 +534,8 @@ export default function PlayerBar() {
           <button
             className="player-btn player-btn-sm"
             onClick={() => invoke('open_mini_player').catch(() => {})}
-            aria-label="Mini Player"
-            data-tooltip="Mini Player"
+            aria-label={t('player.miniPlayer')}
+            data-tooltip={t('player.miniPlayer')}
           >
             <PictureInPicture2 size={15} />
           </button>
@@ -600,7 +600,7 @@ export default function PlayerBar() {
                 }}
               >
                 <SlidersVertical size={14} />
-                Equalizer
+                {t('player.equalizer')}
               </button>
               <button
                 className="player-overflow-menu-btn"
@@ -610,7 +610,7 @@ export default function PlayerBar() {
                 }}
               >
                 <PictureInPicture2 size={14} />
-                Mini Player
+                {t('player.miniPlayer')}
               </button>
             </div>
           )}
