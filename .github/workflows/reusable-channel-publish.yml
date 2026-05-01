@@ -148,7 +148,7 @@ jobs:
           echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
       - name: create or update release
         id: create_release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           PACKAGE_VERSION: ${{ steps.get-version.outputs.version }}
           RELEASE_TAG: ${{ steps.tag.outputs.value }}
@@ -214,7 +214,7 @@ jobs:
             exit 1
           fi
       - name: verify release-tag binding
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           RELEASE_ID: ${{ steps.create_release.outputs.release_id }}
           EXPECTED_TAG: ${{ steps.tag.outputs.value }}
@@ -324,7 +324,7 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_B64 }}" | base64 --decode > ~/private_keys/AuthKey.p8
           echo "APPLE_API_KEY_PATH=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}

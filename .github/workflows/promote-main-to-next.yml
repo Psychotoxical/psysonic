@@ -72,7 +72,7 @@ jobs:
       - name: push next
         run: git push --force-with-lease origin HEAD:next
       - name: dispatch Next Channel workflow
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           SOURCE_ONLY: ${{ inputs.source_only && 'true' || 'false' }}
         with:

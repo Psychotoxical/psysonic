@@ -32,7 +32,7 @@ jobs:
       checks: read
     steps:
       - name: validate required checks
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           TARGET_BRANCH: ${{ inputs.branch || github.event.inputs.branch || 'main' }}
           REQUIRED_CONTEXTS: ${{ inputs.required_contexts || github.event.inputs.required_contexts || 'ci-ok|ci-main / ci-ok' }}
