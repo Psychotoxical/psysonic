@@ -189,36 +189,6 @@ jobs:
             exit 1
           fi
 
-          EXTRA_FLAGS=()
-          if [[ "${IS_DRAFT}" == "true" ]]; then
-            EXTRA_FLAGS+=(--draft)
-          fi
-          if [[ "${IS_PRERELEASE}" == "true" ]]; then
-            EXTRA_FLAGS+=(--prerelease)
-          fi
-
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" \
-              --title "$RELEASE_NAME" \
-              --notes-file "$BODY_FILE" \
-              "${EXTRA_FLAGS[@]}"
-            echo "Updated existing release for tag ${TAG}"
-          else
-            gh release create "$TAG" \
-              --target "$TARGET_COMMITISH" \
-              --title "$RELEASE_NAME" \
-              --notes-file "$BODY_FILE" \
-              "${EXTRA_FLAGS[@]}"
-            echo "Created release for tag ${TAG}"
-          fi
-
-          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.id')"
-          if [[ -z "${RELEASE_ID:-}" || ! "${RELEASE_ID}" =~ ^[0-9]+$ ]]; then
-            echo "::error::Failed to resolve numeric release id for tag '${TAG}'"
-            exit 1
-          fi
-
-          # Self-heal any unexpected tag binding on the resolved release id.
           jq -n \
             --arg tag "$TAG" \
             --arg target_commitish "$TARGET_COMMITISH" \
@@ -226,9 +196,32 @@ jobs:
             --rawfile body "$BODY_FILE" \
             --argjson draft "$([[ "${IS_DRAFT}" == "true" ]] && echo true || echo false)" \
             --argjson prerelease "$([[ "${IS_PRERELEASE}" == "true" ]] && echo true || echo false)" \
-            '{tag_name:$tag,target_commitish:$target_commitish,name:$name,body:$body,draft:$draft,prerelease:$prerelease}' > /tmp/release-patch.json
+            '{tag_name:$tag,target_commitish:$target_commitish,name:$name,body:$body,draft:$draft,prerelease:$prerelease}' > /tmp/release-payload.json
 
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --input /tmp/release-patch.json >/dev/null
+          RELEASE_ID=""
+          # 1) Preferred lookup: by tag
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" >/tmp/release-by-tag.json 2>/dev/null; then
+            RELEASE_ID="$(jq -r '.id' /tmp/release-by-tag.json)"
+          else
+            # 2) Fallback lookup: by release name (handles transient tag lookup misses)
+            RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq ".[] | select(.name==\"${RELEASE_NAME}\") | .id" | head -n1 || true)"
+          fi
+
+          if [[ -n "${RELEASE_ID:-}" && "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --input /tmp/release-payload.json >/dev/null
+            echo "Updated existing release id=${RELEASE_ID} for tag ${TAG}"
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" --input /tmp/release-payload.json >/tmp/release-created.json
+            RELEASE_ID="$(jq -r '.id' /tmp/release-created.json)"
+            if [[ -z "${RELEASE_ID:-}" || ! "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
+              echo "::error::Release create response missing numeric id"
+              exit 1
+            fi
+            echo "Created release id=${RELEASE_ID} for tag ${TAG}"
+          fi
+
+          # Self-heal unexpected tag binding by id (e.g., untagged placeholder).
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --input /tmp/release-payload.json >/dev/null
 
           echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
       - name: validate release id output
