@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Play, ListPlus, Radio, Heart, Download, ChevronRight, User, Disc3, ListMusic, Plus, Info, Sparkles, Star, Trash2, HeartCrack, Share2, Orbit as OrbitIcon } from 'lucide-react';
+import { Play, ListPlus, Radio, Heart, Download, ChevronRight, ChevronsRight, User, Disc3, ListMusic, Plus, Info, Sparkles, Star, Trash2, HeartCrack, Share2, Orbit as OrbitIcon } from 'lucide-react';
 import { useOrbitStore } from '../store/orbitStore';
 import {
   suggestOrbitTrack,
@@ -1515,7 +1515,7 @@ export default function ContextMenu() {
                 newQueue.splice(currentIdx + 1, 0, song);
                 usePlayerStore.setState({ queue: newQueue });
               })}>
-                <ChevronRight size={14} /> {t('contextMenu.playNext')}
+                <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => enqueue([song]))}>
                 <ListPlus size={14} /> {t('contextMenu.addToQueue')}
@@ -1679,7 +1679,7 @@ export default function ContextMenu() {
                 newQueue.splice(currentIdx + 1, 0, song);
                 usePlayerStore.setState({ queue: newQueue });
               })}>
-                <ChevronRight size={14} /> {t('contextMenu.playNext')}
+                <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => enqueue([song]))}>
                 <ListPlus size={14} /> {t('contextMenu.addToQueue')}
@@ -1815,7 +1815,7 @@ export default function ContextMenu() {
                 const currentIdx = usePlayerStore.getState().queueIndex;
                 usePlayerStore.getState().enqueueAt(tracks, currentIdx + 1);
               })}>
-                <ChevronRight size={14} /> {t('contextMenu.playNext')}
+                <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(async () => {
                 const albumData = await getAlbum(album.id);
