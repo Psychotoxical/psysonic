@@ -68,7 +68,11 @@ jobs:
             exit 0
           fi
           NEW_VERSION="$(node -p 'require("./package.json").version')"
-          git commit -m "chore(release): bump next channel to ${NEW_VERSION}"
+          MSG="chore(release): bump next channel to ${NEW_VERSION}"
+          if [[ "${{ inputs.source_only }}" == "true" ]]; then
+            MSG="${MSG} [source-only]"
+          fi
+          git commit -m "$MSG"
       - name: push next
         run: git push --force-with-lease origin HEAD:next
       - name: dispatch Next Channel workflow
