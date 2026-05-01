@@ -1263,6 +1263,7 @@ export const ruTranslation = {
     prev: 'Предыдущий трек',
     play: 'Играть',
     pause: 'Пауза',
+    previewActive: 'Превью воспроизводится',
     delayModalTitle: 'Таймер',
     delayPauseSection: 'Пауза через',
     delayStartSection: 'Старт через',

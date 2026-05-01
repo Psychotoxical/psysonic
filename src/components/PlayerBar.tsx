@@ -25,6 +25,7 @@ import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
 import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 import { usePlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
+import { usePreviewStore } from '../store/previewStore';
 
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -144,6 +145,7 @@ export default function PlayerBar() {
   const transportAnchorRef = useRef<HTMLDivElement>(null);
   const playSlotRef = useRef<HTMLSpanElement>(null);
   const scheduleRemaining = usePlaybackScheduleRemaining();
+  const isPreviewing = usePreviewStore(s => s.previewingId !== null);
 
   const isRadio = !!currentRadio;
 
@@ -311,12 +313,18 @@ export default function PlayerBar() {
         </button>
         <span className="playback-transport-play-wrap" ref={playSlotRef}>
           <PlaybackScheduleBadge layoutAnchorRef={playSlotRef} />
+          {isPreviewing && (
+            <svg className="player-btn-preview-ring" viewBox="0 0 100 100" aria-hidden="true">
+              <circle cx="50" cy="50" r="47" pathLength="100" className="player-btn-preview-ring-track" />
+              <circle cx="50" cy="50" r="47" pathLength="100" className="player-btn-preview-ring-progress" />
+            </svg>
+          )}
           <button
-            className="player-btn player-btn-primary"
+            className={`player-btn player-btn-primary${isPreviewing ? ' is-previewing' : ''}`}
             type="button"
             {...playPauseBind}
-            aria-label={isPlaying ? t('player.pause') : t('player.play')}
-            data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
+            aria-label={isPreviewing ? t('player.previewActive') : isPlaying ? t('player.pause') : t('player.play')}
+            data-tooltip={isPreviewing ? t('player.previewActive') : isPlaying ? t('player.pause') : t('player.play')}
           >
             {scheduleRemaining != null ? (
               <span className={`player-btn-schedule-stack player-btn-schedule-stack--${scheduleRemaining.mode}`}>
@@ -325,6 +333,8 @@ export default function PlayerBar() {
                   : <Sunrise size={10} strokeWidth={2.5} />}
                 <span className="player-btn-schedule-time">{scheduleRemaining.remaining}</span>
               </span>
+            ) : isPreviewing ? (
+              <Square size={16} fill="currentColor" strokeWidth={0} />
             ) : isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
           </button>
         </span>

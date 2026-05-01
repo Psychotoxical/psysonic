@@ -1190,6 +1190,7 @@ export const deTranslation = {
     prev: 'Vorheriger Titel',
     play: 'Play',
     pause: 'Pause',
+    previewActive: 'Vorschau läuft',
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pause nach',
     delayStartSection: 'Start nach',

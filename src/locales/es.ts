@@ -1183,6 +1183,7 @@ export const esTranslation = {
     prev: 'Pista Anterior',
     play: 'Reproducir',
     pause: 'Pausa',
+    previewActive: 'Vista previa activa',
     delayModalTitle: 'Temporizador',
     delayPauseSection: 'Pausar después de',
     delayStartSection: 'Iniciar después de',

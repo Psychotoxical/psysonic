@@ -1196,6 +1196,7 @@ export const enTranslation = {
     prev: 'Previous Track',
     play: 'Play',
     pause: 'Pause',
+    previewActive: 'Preview playing',
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pause after',
     delayStartSection: 'Start after',
