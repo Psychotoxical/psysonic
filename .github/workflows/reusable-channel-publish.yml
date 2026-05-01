@@ -35,7 +35,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     outputs:
-      release_id: ${{ steps.create-release.outputs.result }}
+      release_id: ${{ steps.create_release.outputs.release_id }}
       package_version: ${{ steps.get-version.outputs.version }}
       release_tag: ${{ steps.tag.outputs.value }}
       source_commit_sha: ${{ steps.source-sha.outputs.value }}
@@ -121,7 +121,7 @@ jobs:
           echo "$BODY" >> "$GITHUB_OUTPUT"
           echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
       - name: create or update release
-        id: create-release
+        id: create_release
         uses: actions/github-script@v7
         env:
           PACKAGE_VERSION: ${{ steps.get-version.outputs.version }}
@@ -139,6 +139,7 @@ jobs:
             const version = process.env.PACKAGE_VERSION;
             const targetCommitish = process.env.RELEASE_COMMIT_SHA;
             const name = `Psysonic v${version}`;
+            let releaseId = null;
             try {
               const { data } = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
@@ -154,21 +155,38 @@ jobs:
                 draft,
                 prerelease,
               });
-              return data.id;
+              releaseId = data.id;
+              core.info(`Updated existing release id=${releaseId} tag=${tag}`);
             } catch (e) {
               if (e.status !== 404) throw e;
+              const { data } = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                target_commitish: targetCommitish,
+                name,
+                body,
+                draft,
+                prerelease,
+              });
+              releaseId = data.id;
+              core.info(`Created release id=${releaseId} tag=${tag} target_commitish=${targetCommitish}`);
             }
-            const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tag,
-              target_commitish: targetCommitish,
-              name,
-              body,
-              draft,
-              prerelease,
-            });
-            return data.id;
+            core.setOutput("release_id", String(releaseId));
+      - name: validate release id output
+        env:
+          RELEASE_ID: ${{ steps.create_release.outputs.release_id }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_ID:-}" ]; then
+            echo "::error::create_release did not produce release_id for tag '$TAG'"
+            exit 1
+          fi
+          if ! printf '%s' "$RELEASE_ID" | grep -qE '^[0-9]+$'; then
+            echo "::error::release_id is not numeric: '$RELEASE_ID'"
+            exit 1
+          fi
 
   build-macos-windows:
     needs: create-release
