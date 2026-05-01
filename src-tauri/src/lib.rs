@@ -3690,6 +3690,7 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
             if g.is_empty() { None } else { Some(g.clone()) }
         })
         .unwrap_or_else(|| "Psysonic".to_string());
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     let playback_state = app
         .try_state::<TrayPlaybackState>()
         .map(|s| s.0.lock().unwrap().clone())
