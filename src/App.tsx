@@ -113,6 +113,25 @@ import PasteClipboardHandler from './components/PasteClipboardHandler';
 
 /** Volume before last `psysonic --player mute` (CLI only; in-memory). */
 let cliPremuteVolume: number | null = null;
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'psysonic_sidebar_collapsed';
+
+function readInitialSidebarCollapsed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function persistSidebarCollapsed(collapsed: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
+  } catch {
+    // Ignore storage failures and keep in-memory UI state.
+  }
+}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, servers, activeServerId } = useAuthStore();
@@ -324,17 +343,16 @@ function AppShell() {
   // sidebar (WhatsNewBanner) that links to the /whats-new page — no auto
   // modal takeover on startup.
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    return localStorage.getItem('psysonic_sidebar_collapsed') === 'true';
-  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readInitialSidebarCollapsed);
   const [queueWidth, setQueueWidth] = useState(340);
   const [isDraggingQueue, setIsDraggingQueue] = useState(false);
   const [queueHandleTop, setQueueHandleTop] = useState<number | null>(null);
   const [isMainScrolling, setIsMainScrolling] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem('psysonic_sidebar_collapsed', isSidebarCollapsed.toString());
-  }, [isSidebarCollapsed]);
+  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
+    persistSidebarCollapsed(collapsed);
+    setIsSidebarCollapsed(collapsed);
+  }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (isDraggingQueue) {
@@ -543,7 +561,7 @@ function AppShell() {
       {!isMobile && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}
-          toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
         />
       )}
       <main className="main-content">

@@ -23,6 +23,29 @@ import {
   passesMixMinRatings,
 } from '../utils/mixRatingFilter';
 
+const QUEUE_VISIBILITY_STORAGE_KEY = 'psysonic_queue_visible';
+
+function readInitialQueueVisibility(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const raw = window.localStorage.getItem(QUEUE_VISIBILITY_STORAGE_KEY);
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+  } catch {
+    // ignore storage access failures and fall back to default
+  }
+  return true;
+}
+
+function persistQueueVisibility(visible: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(QUEUE_VISIBILITY_STORAGE_KEY, String(visible));
+  } catch {
+    // ignore storage access failures
+  }
+}
+
 export interface Track {
   id: string;
   title: string;
@@ -2081,7 +2104,7 @@ export const usePlayerStore = create<PlayerState>()(
               s.currentTrack?.id === id ? { ...s.currentTrack, userRating: rating } : s.currentTrack,
           };
         }),
-      isQueueVisible: true,
+      isQueueVisible: readInitialQueueVisibility(),
       isFullscreenOpen: false,
       scheduledPauseAtMs: null,
       scheduledPauseStartMs: null,
@@ -2101,8 +2124,16 @@ export const usePlayerStore = create<PlayerState>()(
       openSongInfo: (songId) => set({ songInfoModal: { isOpen: true, songId } }),
       closeSongInfo: () => set({ songInfoModal: { isOpen: false, songId: null } }),
 
-      toggleQueue: () => set(state => ({ isQueueVisible: !state.isQueueVisible })),
-      setQueueVisible: (v: boolean) => set({ isQueueVisible: v }),
+      toggleQueue: () =>
+        set(state => {
+          const next = !state.isQueueVisible;
+          persistQueueVisibility(next);
+          return { isQueueVisible: next };
+        }),
+      setQueueVisible: (v: boolean) => {
+        persistQueueVisibility(v);
+        set({ isQueueVisible: v });
+      },
       toggleFullscreen: () => set(state => ({ isFullscreenOpen: !state.isFullscreenOpen })),
 
       toggleLastfmLove: () => {
