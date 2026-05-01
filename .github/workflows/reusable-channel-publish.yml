@@ -127,7 +127,7 @@ jobs:
           echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
       - name: create or update release
         id: create-release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           PACKAGE_VERSION: ${{ steps.get-version.outputs.version }}
           RELEASE_TAG: ${{ steps.tag.outputs.value }}
