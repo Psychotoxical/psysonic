@@ -5996,6 +5996,7 @@ html.no-compositing .fs-seekbar-played {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
   background:
     radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--accent) 10%, var(--bg-main)) 0%, transparent 60%),
     radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--ctp-blue) 8%, var(--bg-main)) 0%, transparent 60%),
@@ -11821,6 +11822,112 @@ html[data-psy-native-hidden="true"] *::after {
   .np-dash-hero { grid-template-columns: 1fr; }
   .np-dash-hero-cover { width: 180px; height: 180px; margin: 0 auto; }
   .np-dash-hero-title { font-size: 24px; }
+}
+
+/* Prefer container-based adaptation (main-content width can be narrow on desktop). */
+@container (max-width: 900px) {
+  .np-dash-grid {
+    flex-direction: column;
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .np-dash-col {
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 0;
+    gap: 14px;
+  }
+
+  .np-dash-card-wrap {
+    display: block;
+    width: 100%;
+  }
+
+  .np-dash-card,
+  .np-info-card {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .np-dash-hero {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 20px;
+    align-items: stretch;
+  }
+
+  .np-dash-hero-cover {
+    width: 180px;
+    height: 180px;
+    margin: 0 auto;
+  }
+
+  .np-dash-hero-body {
+    gap: 10px;
+  }
+
+  .np-dash-hero-title {
+    font-size: 24px;
+    line-height: 1.2;
+    overflow-wrap: break-word;
+  }
+
+  .np-dash-hero-sub,
+  .np-dash-hero-lfm-row {
+    font-size: 13px;
+  }
+
+  .np-dash-hero-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@container (max-width: 760px) {
+  .np-main {
+    padding: 16px 14px 24px;
+    gap: 12px;
+  }
+
+  .np-dash {
+    gap: 12px;
+  }
+
+  .np-dash-hero {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .np-dash-hero-cover {
+    width: 150px;
+    height: 150px;
+  }
+
+  .np-dash-hero-title {
+    font-size: 21px;
+    overflow-wrap: anywhere;
+  }
+
+  .np-dash-hero-sub {
+    gap: 5px;
+  }
+
+  .np-dash-hero-lfm {
+    padding: 10px 11px;
+  }
+
+  .np-info-card {
+    padding: 14px 15px;
+  }
+
+  .np-card-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .np-dash-col {
+    gap: 12px;
+  }
 }
 
 .app-shell[data-mobile] .np-dash-grid { flex-direction: column; }
