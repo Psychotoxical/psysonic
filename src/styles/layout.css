@@ -196,6 +196,31 @@
 }
 
 .resizer-queue { right: calc(var(--queue-width) - 3px); }
+.resizer-queue { overflow: visible; }
+/* Queue handle has its own visual affordance; don't paint seam stripe on hover. */
+.resizer-queue:hover, .resizer-queue:active { background: transparent; }
+
+.resizer-queue-handle {
+  z-index: 101;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.resizer-queue-handle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+}
 
 /* While dragging an overlay scrollbar thumb, hide queue resizer so the
    pointer does not pick up col-resize / queue resize (thumb sits under the
@@ -2416,6 +2441,10 @@ html[data-platform="windows"] .player-bar.floating {
 
 /* Hide queue toggle on mobile */
 .app-shell[data-mobile] .queue-toggle-btn {
+  display: none;
+}
+
+.app-shell[data-mobile] .resizer-queue-handle {
   display: none;
 }
 
