@@ -198,7 +198,7 @@ interface QueueHeaderProps {
   t: TFunction;
 }
 function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed, setIsNowPlayingCollapsed, t }: QueueHeaderProps) {
-  const currentTime = usePlayerStore((s) => Math.floor(s.currentTime));
+  const currentTime = usePlayerStore((s) => Math.floor(s.currentTime / 30) * 30);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   if (queue.length === 0) return null;
