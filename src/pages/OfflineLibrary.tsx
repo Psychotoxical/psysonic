@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, HardDriveDownload, Trash2 } from 'lucide-react';
+import { Play, HardDriveDownload, Trash2, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
@@ -91,10 +91,13 @@ export default function OfflineLibrary() {
               onClick={() => handleEnqueue(album.id)}
               data-tooltip={t('queue.appendToQueue')}
               data-tooltip-pos="top"
+              aria-label={t('queue.appendToQueue')}
             >
-              + {t('queue.appendToQueue')}
+              <ListPlus size={12} />
             </button>
-            <span className="offline-library-tracks">{trackCount} tracks</span>
+            <span className="offline-library-tracks">
+              {t('albumDetail.tracksCount', { n: trackCount })}
+            </span>
             <button
               className="offline-library-delete"
               onClick={() => deleteAlbum(album.id, serverId)}

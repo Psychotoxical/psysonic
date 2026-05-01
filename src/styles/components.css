@@ -3557,6 +3557,17 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 }
 
 /* ─ Help Page ─ */
+.help-columns {
+  columns: 2;
+  column-gap: 1.25rem;
+}
+
+@media (max-width: 1200px) {
+  .help-columns {
+    columns: 1;
+  }
+}
+
 .help-list {
   display: flex;
   flex-direction: column;
@@ -5739,13 +5750,13 @@ html.no-compositing .fs-seekbar-played {
 
 .stats-overview {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: var(--space-4);
 }
 
 @media (max-width: 600px) {
   .stats-overview {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 }
 
@@ -5763,10 +5774,12 @@ html.no-compositing .fs-seekbar-played {
 
 .stats-card-value {
   font-family: var(--font-display);
-  font-size: 2rem;
+  font-size: clamp(1.45rem, 3.4vw, 2rem);
   font-weight: 800;
   color: var(--accent);
   line-height: 1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .stats-card-label {

@@ -6,7 +6,7 @@ import { useOfflineJobStore } from '../store/offlineJobStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
 import { useAuthStore } from '../store/authStore';
 import { useSidebarStore, type SidebarItemConfig } from '../store/sidebarStore';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Settings,
@@ -16,7 +16,7 @@ import {
 import PsysonicLogo from './PsysonicLogo';
 import PSmallLogo from './PSmallLogo';
 import WhatsNewBanner from './WhatsNewBanner';
-import { getPlaylists } from '../api/subsonic';
+import { getAlbumList, getPlaylists } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
 import OverlayScrollArea from './OverlayScrollArea';
@@ -32,6 +32,9 @@ import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 const SIDEBAR_NAV_LONG_PRESS_MS = 1000;
 const SIDEBAR_NAV_LONG_PRESS_MOVE_CANCEL_PX = 10;
 const SMART_PREFIX = 'psy-smart-';
+const NEW_RELEASES_UNREAD_STORAGE_PREFIX = 'psy_new_releases_unread_seen_v1';
+const NEW_RELEASES_UNREAD_SAMPLE_SIZE = 80;
+const NEW_RELEASES_UNREAD_POLL_MS = 2 * 60 * 1000;
 
 function isSmartPlaylistName(name: string): boolean {
   return (name ?? '').toLowerCase().startsWith(SMART_PREFIX);
@@ -59,6 +62,7 @@ export default function Sidebar({
   toggleCollapse?: () => void;
 }) {
   const { t } = useTranslation();
+  const location = useLocation();
   const isPlaying   = usePlayerStore(s => s.isPlaying);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const offlineJobs = useOfflineJobStore(s => s.jobs);
@@ -142,6 +146,61 @@ export default function Sidebar({
   const suppressNavClickRef = useRef(false);
   const lastPointerDuringNavDndRef = useRef({ x: 0, y: 0 });
   const [navDndTrashHint, setNavDndTrashHint] = useState<{ x: number; y: number } | null>(null);
+  const [newReleasesUnreadCount, setNewReleasesUnreadCount] = useState(0);
+
+  const newReleasesSeenStorageKey = useMemo(
+    () => `${NEW_RELEASES_UNREAD_STORAGE_PREFIX}:${serverId || 'no-server'}:${filterId || 'all'}`,
+    [serverId, filterId],
+  );
+
+  const readSeenNewReleaseIds = useCallback((): string[] => {
+    try {
+      const raw = localStorage.getItem(newReleasesSeenStorageKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((id): id is string => typeof id === 'string' && id.length > 0);
+    } catch {
+      return [];
+    }
+  }, [newReleasesSeenStorageKey]);
+
+  const writeSeenNewReleaseIds = useCallback((ids: string[]) => {
+    const normalized = Array.from(new Set(ids.filter(Boolean))).slice(0, 500);
+    localStorage.setItem(newReleasesSeenStorageKey, JSON.stringify(normalized));
+  }, [newReleasesSeenStorageKey]);
+
+  const refreshNewReleasesUnread = useCallback(async (markAsSeen = false) => {
+    if (!isLoggedIn || !serverId) {
+      setNewReleasesUnreadCount(0);
+      return;
+    }
+
+    try {
+      const newest = await getAlbumList('newest', NEW_RELEASES_UNREAD_SAMPLE_SIZE, 0);
+      const newestIds = newest.map(a => a.id).filter(Boolean);
+      const seenIds = readSeenNewReleaseIds();
+
+      if (seenIds.length === 0) {
+        // First bootstrap for this server/scope: baseline is "already seen".
+        writeSeenNewReleaseIds(newestIds);
+        setNewReleasesUnreadCount(0);
+        return;
+      }
+
+      if (markAsSeen) {
+        writeSeenNewReleaseIds([...seenIds, ...newestIds]);
+        setNewReleasesUnreadCount(0);
+        return;
+      }
+
+      const seenSet = new Set(seenIds);
+      const unread = newestIds.reduce((count, id) => count + (seenSet.has(id) ? 0 : 1), 0);
+      setNewReleasesUnreadCount(unread);
+    } catch {
+      // Keep previous value on transient network/API errors.
+    }
+  }, [isLoggedIn, readSeenNewReleaseIds, serverId, writeSeenNewReleaseIds]);
 
   useEffect(() => {
     if (!navDnd) return;
@@ -238,6 +297,8 @@ export default function Sidebar({
 
     const onUp = (e: PointerEvent) => {
       lastPointerDuringNavDndRef.current = { x: e.clientX, y: e.clientY };
+      // Prevent synthetic click/navigation right after finishing a drag gesture.
+      suppressNavClickRef.current = true;
       endDrag(true);
     };
 
@@ -420,6 +481,16 @@ export default function Sidebar({
       if (hideTimer != null) window.clearTimeout(hideTimer);
     };
   }, [sidebarViewportEl]);
+
+  useEffect(() => {
+    const onNewReleasesPage = location.pathname.startsWith('/new-releases');
+    if (onNewReleasesPage) setNewReleasesUnreadCount(0);
+    void refreshNewReleasesUnread(onNewReleasesPage);
+    const timer = window.setInterval(() => {
+      void refreshNewReleasesUnread(location.pathname.startsWith('/new-releases'));
+    }, NEW_RELEASES_UNREAD_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [location.pathname, refreshNewReleasesUnread]);
 
   return (
     <>
@@ -628,6 +699,11 @@ export default function Sidebar({
               data-tooltip-pos="bottom"
             >
               <item.icon size={isCollapsed ? 22 : 18} />
+              {item.to === '/new-releases' && newReleasesUnreadCount > 0 && (
+                <span className="sidebar-nav-unread-badge" aria-hidden>
+                  {newReleasesUnreadCount > 99 ? '99+' : newReleasesUnreadCount}
+                </span>
+              )}
               {!isCollapsed && <span>{t(item.labelKey)}</span>}
             </NavLink>
           ) : (
@@ -646,6 +722,11 @@ export default function Sidebar({
               >
                 <item.icon size={isCollapsed ? 22 : 18} />
                 {!isCollapsed && <span>{t(item.labelKey)}</span>}
+                {item.to === '/new-releases' && newReleasesUnreadCount > 0 && (
+                  <span className="sidebar-nav-unread-badge" aria-hidden>
+                    {newReleasesUnreadCount > 99 ? '99+' : newReleasesUnreadCount}
+                  </span>
+                )}
               </NavLink>
             </div>
           );

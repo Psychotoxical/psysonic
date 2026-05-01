@@ -593,6 +593,21 @@ body.is-overlay-scrollbar-thumb-drag .resizer {
   50%       { opacity: 0.4; transform: scale(0.7); }
 }
 
+.sidebar-nav-unread-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ctp-crust, #11111b);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
 /* Collapsed Sidebar Styles */
 .sidebar.collapsed .sidebar-brand {
   justify-content: center;
@@ -602,6 +617,18 @@ body.is-overlay-scrollbar-thumb-drag .resizer {
 .sidebar.collapsed .nav-link {
   justify-content: center;
   padding: var(--space-3) 0;
+}
+
+.sidebar.collapsed .sidebar-nav-unread-badge {
+  position: absolute;
+  top: 3px;
+  right: 7px;
+  margin-left: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  line-height: 16px;
+  font-size: 9px;
 }
 
 .collapse-btn {

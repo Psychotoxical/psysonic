@@ -146,7 +146,7 @@ export default function Help() {
     <div className="content-body animate-fade-in">
       <h1 className="page-title" style={{ marginBottom: '2rem' }}>{t('help.title')}</h1>
 
-      <div style={{ columns: 2, columnGap: '1.25rem' }}>
+      <div className="help-columns">
         {sections.map((section, si) => (
           <section key={si} className="settings-section" style={{ breakInside: 'avoid', marginBottom: '1.25rem' }}>
             <div className="settings-section-header">
