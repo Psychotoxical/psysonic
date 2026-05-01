@@ -86,8 +86,8 @@ export default function LiveSearch() {
     const HYSTERESIS_PX = 20;
     // Live/Orbit compact-mode is intentionally stickier than search collapse,
     // otherwise both systems can feed each other and oscillate.
-    const HEADER_CONTROLS_COMPACT_ON_SPACER = 80;
-    const HEADER_CONTROLS_COMPACT_OFF_SPACER = 200;
+    const HEADER_CONTROLS_COMPACT_ON_SPACER = 36;
+    const HEADER_CONTROLS_COMPACT_OFF_SPACER = 108;
     const SWITCH_COOLDOWN_MS = 180;
     const collapseThreshold = MIN_EXPANDED_WIDTH + SPACER_RESERVE;
     const expandThreshold = collapseThreshold + HYSTERESIS_PX;
@@ -98,6 +98,7 @@ export default function LiveSearch() {
       const searchWidth = root.getBoundingClientRect().width;
       const spacerWidth = spacer.getBoundingClientRect().width;
       const budget = searchWidth + spacerWidth;
+      const headerOverflowing = header.scrollWidth - header.clientWidth > 1;
       let nextCollapsed = collapsedRef.current
         ? budget < expandThreshold
         : budget < collapseThreshold;
@@ -126,8 +127,10 @@ export default function LiveSearch() {
       const nextCompactControls = nextCollapsed
         ? (
           compactHeaderControlsRef.current
-            ? spacerWidth < HEADER_CONTROLS_COMPACT_OFF_SPACER
-            : spacerWidth < HEADER_CONTROLS_COMPACT_ON_SPACER
+            // Stay compact until we clearly have room and no overflow.
+            ? (headerOverflowing || spacerWidth < HEADER_CONTROLS_COMPACT_OFF_SPACER)
+            // Enter compact only when both tight spacer and real overflow exist.
+            : (headerOverflowing && spacerWidth < HEADER_CONTROLS_COMPACT_ON_SPACER)
         )
         : false;
       if (nextCompactControls !== compactHeaderControlsRef.current) {

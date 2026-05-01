@@ -3694,6 +3694,7 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
         .try_state::<TrayPlaybackState>()
         .map(|s| s.0.lock().unwrap().clone())
         .unwrap_or_else(|| "stop".to_string());
+    let tooltip_with_icon = format!("{} {}", tray_state_icon(&playback_state), cached_tooltip);
 
     // Linux/AppIndicator has no hover tooltip; surface the now-playing track as
     // a disabled menu entry at the top instead. The label is updated by
@@ -3748,7 +3749,7 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
-        .tooltip(&cached_tooltip)
+        .tooltip(&tooltip_with_icon)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "play_pause" => { let _ = app.emit("tray:play-pause", ()); }
             "next"       => { let _ = app.emit("tray:next", ()); }
@@ -3849,21 +3850,27 @@ fn set_tray_tooltip(
     tooltip: String,
     playback_state: Option<String>,
 ) -> Result<(), String> {
-    let truncated = if tooltip.chars().count() > 127 {
-        tooltip.chars().take(124).collect::<String>() + "..."
+    let has_track_input = !tooltip.is_empty();
+    let state = playback_state.as_deref().unwrap_or(if has_track_input { "play" } else { "stop" });
+    let icon = tray_state_icon(state);
+    let icon_prefix_len = format!("{icon} ").chars().count();
+    let max_text_chars = 127usize.saturating_sub(icon_prefix_len);
+    let ellipsis_reserve = 3usize;
+    let truncated = if tooltip.chars().count() > max_text_chars {
+        let take = max_text_chars.saturating_sub(ellipsis_reserve);
+        tooltip.chars().take(take).collect::<String>() + "..."
     } else {
         tooltip
     };
     let has_track = !truncated.is_empty();
     let effective = if has_track { truncated.clone() } else { "Psysonic".to_string() };
-    let state = playback_state.as_deref().unwrap_or(if has_track { "play" } else { "stop" });
-    let icon = tray_state_icon(state);
+    let effective_with_icon = format!("{icon} {effective}");
 
     *tooltip_cache.lock().unwrap() = truncated.clone();
     *playback_state_cache.0.lock().unwrap() = state.to_string();
 
     if let Some(tray) = tray_state.lock().unwrap().as_ref() {
-        tray.set_tooltip(Some(&effective)).map_err(|e| e.to_string())?;
+        tray.set_tooltip(Some(&effective_with_icon)).map_err(|e| e.to_string())?;
     }
 
     #[cfg(target_os = "linux")]

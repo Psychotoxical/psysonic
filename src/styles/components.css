@@ -653,7 +653,6 @@
   min-width: 240px;
   max-width: 420px;
   flex: 1 1 320px;
-  transition: max-width 0.18s ease, min-width 0.18s ease, flex-basis 0.18s ease;
 }
 
 /* JS-computed collapse mode (budget-based, with hysteresis) */
