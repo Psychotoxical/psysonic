@@ -161,7 +161,13 @@ function shouldSuppressQueueResizerMouseDown(clientX: number, clientY: number, q
   const xSlop = 22;
   const vPad = 40;
   for (let i = 0; i < thumbs.length; i++) {
-    const r = thumbs[i].getBoundingClientRect();
+    const thumb = thumbs[i];
+    const style = window.getComputedStyle(thumb);
+    const pointerActive = style.pointerEvents !== 'none';
+    const visible = Number.parseFloat(style.opacity || '0') > 0.01;
+    if (!pointerActive && !visible) continue;
+
+    const r = thumb.getBoundingClientRect();
     if (r.height < 4 || r.width < 1) continue;
     if (clientY < r.top - vPad || clientY > r.bottom + vPad) continue;
     const thumbHitRight = Math.min(r.right + xSlop, mainRight);
@@ -409,8 +415,13 @@ function AppShell() {
   }, [isDraggingQueue, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
-    const viewport = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
-    if (!viewport) return;
+    const viewports = new Set<HTMLElement>();
+    const appViewport = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    if (appViewport) viewports.add(appViewport);
+    const nowPlayingViewport = document.querySelector<HTMLElement>('.np-main__viewport');
+    if (nowPlayingViewport) viewports.add(nowPlayingViewport);
+    if (viewports.size === 0) return;
+
     let scrollHideTimer: number | null = null;
 
     const onScroll = () => {
@@ -422,10 +433,15 @@ function AppShell() {
       }, 180);
     };
 
-    viewport.addEventListener('scroll', onScroll, { passive: true });
+    viewports.forEach(viewport => {
+      viewport.addEventListener('scroll', onScroll, { passive: true });
+    });
     return () => {
-      viewport.removeEventListener('scroll', onScroll);
+      viewports.forEach(viewport => {
+        viewport.removeEventListener('scroll', onScroll);
+      });
       if (scrollHideTimer != null) window.clearTimeout(scrollHideTimer);
+      setIsMainScrolling(false);
     };
   }, [location.pathname]);
 
@@ -662,7 +678,16 @@ function AppShell() {
           className="resizer resizer-queue" 
           onMouseDown={(e) => {
             e.preventDefault();
-            if (document.body.classList.contains('is-overlay-scrollbar-thumb-drag')) return;
+            if (document.body.classList.contains('is-overlay-scrollbar-thumb-drag')) {
+              // Self-heal stale drag flag: if no thumb is actually dragging,
+              // unblock the queue resizer immediately.
+              const activeThumbDrag = document.querySelector('.overlay-scroll__thumb.is-thumb-dragging');
+              if (!activeThumbDrag) {
+                document.body.classList.remove('is-overlay-scrollbar-thumb-drag');
+              } else {
+                return;
+              }
+            }
             if (shouldSuppressQueueResizerMouseDown(e.clientX, e.clientY, queueWidth)) return;
             setIsDraggingQueue(true);
           }}
