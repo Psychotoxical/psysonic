@@ -89,10 +89,10 @@ export default function OfflineLibrary() {
             <button
               className="offline-library-enqueue"
               onClick={() => handleEnqueue(album.id)}
-              data-tooltip={t('queue.addToQueue')}
+              data-tooltip={t('queue.appendToQueue')}
               data-tooltip-pos="top"
             >
-              + Queue
+              + {t('queue.appendToQueue')}
             </button>
             <span className="offline-library-tracks">{trackCount} tracks</span>
             <button
