@@ -1139,7 +1139,6 @@ body.is-overlay-scrollbar-thumb-drag .resizer {
   background: var(--bg-app);
   position: relative;
   z-index: 10;
-  container-type: inline-size;
 }
 
 .content-header h1 {

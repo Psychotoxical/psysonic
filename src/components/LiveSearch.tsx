@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Disc3, Users, Music, SlidersVertical, TextSearch } from 'lucide-react';
+import { Search, Disc3, Users, Music, TextSearch } from 'lucide-react';
 import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
