@@ -219,11 +219,31 @@ jobs:
               return;
             }
 
-            const { data: ref } = await github.rest.git.getRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: `tags/${expectedTag}`,
-            });
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            let ref = null;
+            let lastRefError = null;
+            for (let attempt = 1; attempt <= 6; attempt++) {
+              try {
+                const resp = await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${expectedTag}`,
+                });
+                ref = resp.data;
+                break;
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                lastRefError = e;
+                core.warning(`Tag ref '${expectedTag}' is not visible yet (attempt ${attempt}/6); retrying...`);
+                await sleep(1500 * attempt);
+              }
+            }
+            if (!ref) {
+              core.setFailed(`tag ref 'tags/${expectedTag}' not found after retries (release_id=${releaseId})`);
+              if (lastRefError) core.warning(`Last getRef error: ${lastRefError.message}`);
+              return;
+            }
 
             let resolvedSha = ref.object.sha;
             if (ref.object.type === "tag") {
