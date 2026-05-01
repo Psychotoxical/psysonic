@@ -94,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: align existing tag to source ref
+      - name: ensure tag points to source ref
         env:
           TAG: ${{ steps.tag.outputs.value }}
           EXPECTED_SHA: ${{ steps.source-sha.outputs.value }}
@@ -108,6 +108,27 @@ jobs:
               echo "::warning::Re-pointing tag '$TAG' to expected source commit to keep Source code archives aligned with built artifacts."
               git tag -f "$TAG" "$EXPECTED_SHA"
               git push --force origin "refs/tags/$TAG"
+            else
+              echo "Tag '$TAG' already points to expected source commit $EXPECTED_SHA"
+            fi
+          else
+            echo "::warning::Tag '$TAG' does not exist yet. Creating it at $EXPECTED_SHA."
+            git tag "$TAG" "$EXPECTED_SHA"
+            if ! git push origin "refs/tags/$TAG"; then
+              echo "::warning::Initial tag push failed (possible race). Re-checking remote tag..."
+              git fetch --force --tags origin
+              if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+                TAG_SHA="$(git rev-list -n 1 "refs/tags/$TAG")"
+                if [ "$TAG_SHA" = "$EXPECTED_SHA" ]; then
+                  echo "::warning::Tag '$TAG' appeared concurrently and already points to expected commit."
+                else
+                  echo "::error::Tag '$TAG' exists on remote at $TAG_SHA, expected $EXPECTED_SHA"
+                  exit 1
+                fi
+              else
+                echo "::error::Tag '$TAG' still missing after push attempt."
+                exit 1
+              fi
             fi
           fi
       - name: extract changelog
