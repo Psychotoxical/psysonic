@@ -3694,6 +3694,7 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
         .try_state::<TrayPlaybackState>()
         .map(|s| s.0.lock().unwrap().clone())
         .unwrap_or_else(|| "stop".to_string());
+    #[cfg(target_os = "windows")]
     let tooltip_with_icon = format!("{} {}", tray_state_icon(&playback_state), cached_tooltip);
 
     // Linux/AppIndicator has no hover tooltip; surface the now-playing track as
@@ -3746,10 +3747,18 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
         });
     }
 
-    TrayIconBuilder::new()
+    #[cfg(target_os = "windows")]
+    let tray_builder = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
-        .tooltip(&tooltip_with_icon)
+        .tooltip(&tooltip_with_icon);
+    #[cfg(not(target_os = "windows"))]
+    let tray_builder = TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .menu(&menu)
+        .tooltip(&cached_tooltip);
+
+    tray_builder
         .on_menu_event(|app, event| match event.id.as_ref() {
             "play_pause" => { let _ = app.emit("tray:play-pause", ()); }
             "next"       => { let _ = app.emit("tray:next", ()); }
@@ -3864,13 +3873,17 @@ fn set_tray_tooltip(
     };
     let has_track = !truncated.is_empty();
     let effective = if has_track { truncated.clone() } else { "Psysonic".to_string() };
+    #[cfg(target_os = "windows")]
     let effective_with_icon = format!("{icon} {effective}");
 
     *tooltip_cache.lock().unwrap() = truncated.clone();
     *playback_state_cache.0.lock().unwrap() = state.to_string();
 
     if let Some(tray) = tray_state.lock().unwrap().as_ref() {
+        #[cfg(target_os = "windows")]
         tray.set_tooltip(Some(&effective_with_icon)).map_err(|e| e.to_string())?;
+        #[cfg(not(target_os = "windows"))]
+        tray.set_tooltip(Some(&effective)).map_err(|e| e.to_string())?;
     }
 
     #[cfg(target_os = "linux")]
