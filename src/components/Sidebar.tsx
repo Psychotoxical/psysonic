@@ -95,6 +95,8 @@ export default function Sidebar({
   }, [playlistsRaw]);
   const [dropdownRect, setDropdownRect] = useState({ top: 0, left: 0, width: 0 });
   const libraryTriggerRef = useRef<HTMLButtonElement>(null);
+  const [sidebarViewportEl, setSidebarViewportEl] = useState<HTMLDivElement | null>(null);
+  const [isSidebarScrolling, setIsSidebarScrolling] = useState(false);
   const showLibraryPicker = !isCollapsed && isLoggedIn && musicFolders.length > 1;
 
   const filterId = serverId ? (musicLibraryFilterByServer[serverId] ?? 'all') : 'all';
@@ -399,6 +401,26 @@ export default function Sidebar({
     longPressTimersRef.current.clear();
   }, []);
 
+  useEffect(() => {
+    if (!sidebarViewportEl) return;
+    let hideTimer: number | null = null;
+
+    const onScroll = () => {
+      setIsSidebarScrolling(true);
+      if (hideTimer != null) window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        setIsSidebarScrolling(false);
+        hideTimer = null;
+      }, 180);
+    };
+
+    sidebarViewportEl.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      sidebarViewportEl.removeEventListener('scroll', onScroll);
+      if (hideTimer != null) window.clearTimeout(hideTimer);
+    };
+  }, [sidebarViewportEl]);
+
   return (
     <>
     <aside className={`sidebar animate-slide-in ${isCollapsed ? 'collapsed' : ''}`}>
@@ -412,6 +434,10 @@ export default function Sidebar({
       <button
         className="collapse-btn"
         onClick={toggleCollapse}
+        style={{
+          opacity: isSidebarScrolling ? 0 : 1,
+          pointerEvents: isSidebarScrolling ? 'none' : 'auto',
+        }}
         data-tooltip={isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
         data-tooltip-pos="right"
       >
@@ -432,6 +458,7 @@ export default function Sidebar({
         <OverlayScrollArea
           className="sidebar-nav-scroll"
           viewportClassName="sidebar-nav-viewport"
+          viewportRef={setSidebarViewportEl}
           railInset="panel"
           measureDeps={[
             isCollapsed,

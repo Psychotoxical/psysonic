@@ -40,15 +40,22 @@ export default function TooltipPortal() {
       const t = (e.target as HTMLElement).closest('[data-tooltip]');
       if (t) setTooltip(null);
     };
+    /** Wheel interactions (e.g. volume on overflow button) should suppress tooltip immediately. */
+    const onWheel = (e: WheelEvent) => {
+      const t = (e.target as HTMLElement).closest('[data-tooltip]');
+      if (t) setTooltip(null);
+    };
     document.addEventListener('mouseover', onOver);
     document.addEventListener('mouseout', onOut);
     document.addEventListener('mousemove', onMove, { passive: true });
     document.addEventListener('mousedown', onDown, true);
+    document.addEventListener('wheel', onWheel, { capture: true, passive: true });
     return () => {
       document.removeEventListener('mouseover', onOver);
       document.removeEventListener('mouseout', onOut);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('wheel', onWheel, true);
     };
   }, []);
 

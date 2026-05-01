@@ -1651,6 +1651,72 @@ html[data-platform="windows"] .player-bar.floating {
   color: var(--accent);
 }
 
+.player-overflow-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.player-overflow-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 238px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  z-index: 240;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-overflow-menu-row {
+  display: flex;
+  gap: 6px;
+}
+
+.player-overflow-menu-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.player-overflow-menu-btn:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.player-overflow-menu-btn.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.player-volume-section.player-volume-section--menu {
+  width: 100%;
+}
+
+.player-overflow-menu--volume-only {
+  padding: 10px;
+}
+
+.player-volume-slider-wrap.player-volume-slider-wrap--menu-only {
+  width: 100%;
+  min-width: 0;
+}
+
 /* ─── EQ Popup ─── */
 .eq-popup-backdrop {
   position: fixed;
