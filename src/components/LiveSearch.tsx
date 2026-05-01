@@ -233,6 +233,11 @@ export default function LiveSearch() {
         <button
           className="live-search-adv-btn"
           type="button"
+          onMouseDown={(e) => {
+            // Keep focus on the search input so collapsed-overlay controls
+            // remain active long enough for this button click to fire.
+            e.preventDefault();
+          }}
           onClick={() => navigate(query.trim() ? `/search/advanced?q=${encodeURIComponent(query.trim())}` : '/search/advanced')}
           data-tooltip={t('search.advanced')}
           data-tooltip-pos="bottom"
