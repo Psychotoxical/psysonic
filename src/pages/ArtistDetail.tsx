@@ -738,7 +738,7 @@ export default function ArtistDetail() {
                   <button
                     type="button"
                     className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
-                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'artist'); }}
+                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'artist'); }}
                     data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                     aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                   >

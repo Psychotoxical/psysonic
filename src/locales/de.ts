@@ -1191,6 +1191,8 @@ export const deTranslation = {
     prev: 'Vorheriger Titel',
     play: 'Play',
     pause: 'Pause',
+    previewActive: 'Vorschau läuft',
+    previewLabel: 'Vorschau',
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pause nach',
     delayStartSection: 'Start nach',
@@ -1731,5 +1733,13 @@ export const deTranslation = {
     exitRemovedBody: '{{host}} hat dich aus „{{name}}" entfernt. Du kannst jederzeit über den Einladungslink wieder beitreten.',
     exitEndedBody: '„{{name}}" ist zu Ende. Hoffentlich war\'s schön.',
     exitOk: 'OK',
+  },
+  tray: {
+    playPause: 'Wiedergabe / Pause',
+    nextTrack: 'Nächster Titel',
+    previousTrack: 'Vorheriger Titel',
+    showHide: 'Anzeigen / Verbergen',
+    exitPsysonic: 'Psysonic beenden',
+    nothingPlaying: 'Nichts wird abgespielt',
   },
 };

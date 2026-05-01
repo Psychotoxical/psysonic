@@ -1197,6 +1197,8 @@ export const enTranslation = {
     prev: 'Previous Track',
     play: 'Play',
     pause: 'Pause',
+    previewActive: 'Preview playing',
+    previewLabel: 'Preview',
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pause after',
     delayStartSection: 'Start after',
@@ -1738,5 +1740,13 @@ export const enTranslation = {
     exitRemovedBody: '{{host}} removed you from "{{name}}". You can re-join any time via the invite link.',
     exitEndedBody: '"{{name}}" has ended. Hope you had fun.',
     exitOk: 'OK',
+  },
+  tray: {
+    playPause: 'Play / Pause',
+    nextTrack: 'Next Track',
+    previousTrack: 'Previous Track',
+    showHide: 'Show / Hide',
+    exitPsysonic: 'Exit Psysonic',
+    nothingPlaying: 'Nothing playing',
   },
 };

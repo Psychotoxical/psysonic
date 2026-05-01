@@ -1178,6 +1178,8 @@ export const nlTranslation = {
     prev: 'Vorig nummer',
     play: 'Afspelen',
     pause: 'Pauzeren',
+    previewActive: 'Voorbeeld speelt af',
+    previewLabel: 'Voorbeeld',
     delayModalTitle: 'Timer',
     delayPauseSection: 'Pauzeren na',
     delayStartSection: 'Starten na',
@@ -1712,5 +1714,13 @@ export const nlTranslation = {
     exitRemovedBody: '{{host}} heeft je uit "{{name}}" verwijderd. Je kunt altijd opnieuw deelnemen via de link.',
     exitEndedBody: '"{{name}}" is beëindigd. Hopelijk had je plezier.',
     exitOk: 'OK',
+  },
+  tray: {
+    playPause: 'Afspelen / Pauzeren',
+    nextTrack: 'Volgende nummer',
+    previousTrack: 'Vorige nummer',
+    showHide: 'Tonen / Verbergen',
+    exitPsysonic: 'Psysonic afsluiten',
+    nothingPlaying: 'Niets wordt afgespeeld',
   },
 };

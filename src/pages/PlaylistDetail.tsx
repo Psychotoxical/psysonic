@@ -938,6 +938,9 @@ export default function PlaylistDetail() {
   const startPreview = useCallback((song: SubsonicSong) => {
     usePreviewStore.getState().startPreview({
       id: song.id,
+      title: song.title,
+      artist: song.artist,
+      coverArt: song.coverArt,
       duration: song.duration,
     }, 'suggestions').catch(() => { /* engine errored — store already rolled back */ });
   }, []);
@@ -1709,7 +1712,7 @@ export default function PlaylistDetail() {
                         className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
                         onClick={e => {
                           e.stopPropagation();
-                          usePreviewStore.getState().startPreview({ id: song.id, duration: song.duration }, 'playlists');
+                          usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'playlists');
                         }}
                         data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                         aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}

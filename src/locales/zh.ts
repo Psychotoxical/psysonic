@@ -1173,6 +1173,8 @@ export const zhTranslation = {
     prev: '上一首',
     play: '播放',
     pause: '暂停',
+    previewActive: '正在试听',
+    previewLabel: '试听',
     delayModalTitle: '定时',
     delayPauseSection: '多久后暂停',
     delayStartSection: '多久后开始',
@@ -1705,5 +1707,13 @@ export const zhTranslation = {
     exitRemovedBody: '{{host}} 已将你从"{{name}}"移除。你可以随时通过邀请链接重新加入。',
     exitEndedBody: '"{{name}}"已结束。希望你玩得开心。',
     exitOk: '好的',
+  },
+  tray: {
+    playPause: '播放 / 暂停',
+    nextTrack: '下一首',
+    previousTrack: '上一首',
+    showHide: '显示 / 隐藏',
+    exitPsysonic: '退出 Psysonic',
+    nothingPlaying: '当前没有播放',
   },
 };

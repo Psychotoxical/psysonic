@@ -1264,6 +1264,8 @@ export const ruTranslation = {
     prev: 'Предыдущий трек',
     play: 'Играть',
     pause: 'Пауза',
+    previewActive: 'Превью воспроизводится',
+    previewLabel: 'Превью',
     delayModalTitle: 'Таймер',
     delayPauseSection: 'Пауза через',
     delayStartSection: 'Старт через',
@@ -1799,5 +1801,13 @@ export const ruTranslation = {
     exitRemovedBody: '{{host}} удалил тебя из «{{name}}». Ты можешь присоединиться снова в любое время по ссылке.',
     exitEndedBody: '«{{name}}» завершена. Надеюсь, тебе понравилось.',
     exitOk: 'ОК',
+  },
+  tray: {
+    playPause: 'Воспроизвести / Пауза',
+    nextTrack: 'Следующий трек',
+    previousTrack: 'Предыдущий трек',
+    showHide: 'Показать / Скрыть',
+    exitPsysonic: 'Закрыть Psysonic',
+    nothingPlaying: 'Ничего не воспроизводится',
   },
 };

@@ -1178,6 +1178,8 @@ export const nbTranslation = {
     prev: 'Forrige spor',
     play: 'Spill av',
     pause: 'Pause',
+    previewActive: 'Forhåndsvisning spilles av',
+    previewLabel: 'Forhåndsvisning',
     delayModalTitle: 'Tidsur',
     delayPauseSection: 'Pause etter',
     delayStartSection: 'Start etter',
@@ -1712,5 +1714,13 @@ export const nbTranslation = {
     exitRemovedBody: '{{host}} fjernet deg fra "{{name}}". Du kan bli med igjen når som helst via invitasjonslenken.',
     exitEndedBody: '"{{name}}" er avsluttet. Håper du hadde det gøy.',
     exitOk: 'OK',
+  },
+  tray: {
+    playPause: 'Spill / Pause',
+    nextTrack: 'Neste spor',
+    previousTrack: 'Forrige spor',
+    showHide: 'Vis / Skjul',
+    exitPsysonic: 'Avslutt Psysonic',
+    nothingPlaying: 'Ingenting spilles',
   },
 };

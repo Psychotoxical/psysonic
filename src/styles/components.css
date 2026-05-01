@@ -2424,6 +2424,78 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   vertical-align: middle;
 }
 
+/* ── Preview-active state on the player bar ─────────────────────────
+   Combo of two cues so it's unmistakable that a preview is sounding:
+   1) accent top-border on the bar itself
+   2) tiny "Preview" pill above the title in the track-info cell */
+.player-bar.is-previewing {
+  box-shadow: inset 0 2px 0 0 var(--accent), 0 -1px 0 0 var(--bg-border);
+}
+
+.player-preview-label {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ctp-crust);
+  background: var(--accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-bottom: 3px;
+  line-height: 1.3;
+  user-select: none;
+}
+
+/* ── Preview-active state on the play button ────────────────────────
+   While a track preview is sounding, the player-bar play button mirrors
+   the inline preview button used in tracklists: hollow circle + chevron
+   icon + countdown ring. Click still resumes main playback (which the
+   Rust audio engine cancels the preview for, see audio.rs). */
+.player-btn-primary.is-previewing {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.player-btn-primary.is-previewing:hover {
+  background: var(--bg-hover, transparent);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.player-btn-preview-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: rotate(-90deg);
+  z-index: 1;
+}
+
+.player-btn-preview-ring-track {
+  fill: none;
+  stroke: var(--ctp-overlay0);
+  stroke-width: 4;
+}
+
+.player-btn-preview-ring-progress {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: player-preview-progress var(--preview-duration, 30s) linear forwards;
+}
+
+@keyframes player-preview-progress {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
 /* ── Custom-minutes input with inline "min" suffix ──────────────────── */
 .playback-delay-custom__field {
   position: relative;

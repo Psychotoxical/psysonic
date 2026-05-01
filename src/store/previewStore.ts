@@ -4,15 +4,25 @@ import { buildStreamUrl } from '../api/subsonic';
 import { usePlayerStore } from './playerStore';
 import { useAuthStore, type TrackPreviewLocation } from './authStore';
 
+/** Minimal track info needed to surface the preview in the player bar UI. */
+export interface PreviewingTrack {
+  id: string;
+  title: string;
+  artist: string;
+  coverArt?: string;
+}
+
 interface PreviewState {
   /** Subsonic song id of the active preview, or null when nothing previews. */
   previewingId: string | null;
+  /** Currently previewing track with the metadata the player-bar UI needs. */
+  previewingTrack: PreviewingTrack | null;
   /** Seconds elapsed in the current preview window. */
   elapsed: number;
   /** Total preview window in seconds (echoes the duration_sec arg). */
   duration: number;
 
-  startPreview: (song: { id: string; duration?: number }, location: TrackPreviewLocation) => Promise<void>;
+  startPreview: (song: { id: string; title: string; artist: string; coverArt?: string; duration?: number }, location: TrackPreviewLocation) => Promise<void>;
   stopPreview: () => Promise<void>;
 
   /** Internal — called from the TauriEventBridge on `audio:preview-start`. */
@@ -27,6 +37,7 @@ const PREVIEW_VOLUME_MATCH = true;
 
 export const usePreviewStore = create<PreviewState>((set, get) => ({
   previewingId: null,
+  previewingTrack: null,
   elapsed: 0,
   duration: 30,
 
@@ -61,7 +72,12 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       }
     }
 
-    set({ previewingId: song.id, elapsed: 0, duration: previewDuration });
+    set({
+      previewingId: song.id,
+      previewingTrack: { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt },
+      elapsed: 0,
+      duration: previewDuration,
+    });
 
     try {
       await invoke('audio_preview_play', {
@@ -74,7 +90,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     } catch (e) {
       // Roll back optimistic state on failure.
       if (get().previewingId === song.id) {
-        set({ previewingId: null, elapsed: 0 });
+        set({ previewingId: null, previewingTrack: null, elapsed: 0 });
       }
       throw e;
     }
@@ -86,12 +102,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       await invoke('audio_preview_stop');
     } catch {
       /* engine will emit preview-end anyway; clear locally as fallback */
-      set({ previewingId: null, elapsed: 0 });
+      set({ previewingId: null, previewingTrack: null, elapsed: 0 });
     }
   },
 
   _onStart: (id) => {
     if (get().previewingId !== id) {
+      // Engine fired start for an id we didn't track locally — keep id but
+      // leave previewingTrack as-is (the caller's startPreview() set it).
       set({ previewingId: id, elapsed: 0 });
     }
   },
@@ -103,6 +121,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
   _onEnd: (id) => {
     if (get().previewingId !== id) return;
-    set({ previewingId: null, elapsed: 0 });
+    set({ previewingId: null, previewingTrack: null, elapsed: 0 });
   },
 }));

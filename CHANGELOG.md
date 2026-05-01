@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Audio Preview — Rust Preview Engine and Tracklist Rollout
 
-**By [@Psychotoxical](https://github.com/Psychotoxical)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#392](https://github.com/Psychotoxical/psysonic/pull/392), [#394](https://github.com/Psychotoxical/psysonic/pull/394)**
 
 Psysonic now has a native Rust-powered preview engine for tracklist previews. Instead of using a separate HTML5 audio path, previews run through a parallel `rodio` sink on the existing output stream, with dedicated Tauri commands and engine events for preview start, progress and end.
 
@@ -38,11 +38,28 @@ Track numbers now stay stable on hover, while dedicated inline Play and Preview 
 
 Settings → Audio now includes a preview section with a master toggle, configurable start position, configurable duration and per-location toggles. Users can keep previews enabled on discovery-heavy surfaces while hiding them on owned-content views. The preview progress ring follows the configured duration automatically.
 
-Preview state is mirrored through a new `previewStore`, giving the UI one reliable source of truth for preview progress and active state. Spacebar stops an active preview, media keys are ignored during previews, and tray actions cancel the preview before continuing with the requested player action.
+Preview state is mirrored through a new `previewStore`, giving the UI one reliable source of truth for preview progress, active state and the currently previewing track metadata.
+
+While a preview is playing, the player bar mirrors the previewed track with cover, title, artist, a dedicated Preview label and an accent top border. Actions that would otherwise target the queued track, such as rating, fullscreen hint and album/artist links, are suppressed during preview playback.
+
+The main play button also reflects preview state with a stop-style preview control and progress ring. Its behavior matches the inline preview buttons: stopping the preview resumes the main player only if it was already playing before. The smaller Stop button uses silent preview stop semantics, cancelling the preview and leaving the main player paused so Stop always means silence.
+
+Spacebar stops an active preview, media keys are ignored during previews, and tray actions cancel the preview before continuing with the requested player action.
 
 Play Next in the context menu now uses a double-chevron icon, making it visually distinct from the Preview button.
 
-The feature includes updated i18n coverage across all supported locales.
+The feature includes updated i18n coverage across all supported locales, including the new player-bar preview labels.
+
+
+### Tray — Now Playing Tooltip and Localized Menu Labels
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#395](https://github.com/Psychotoxical/psysonic/pull/395), closes [#383](https://github.com/Psychotoxical/psysonic/issues/383)**
+
+The system tray now reflects the current playback state more clearly. On Windows and macOS, the tray tooltip shows the currently playing track as `Artist – Title` on play, pause and track changes, falling back to `Psysonic` when nothing is playing.
+
+On Linux, where AppIndicator does not expose a hover-tooltip API, the same now-playing text is shown as a disabled entry at the top of the tray menu instead.
+
+Tray menu labels are now localized across all supported languages, including Play/Pause, Next/Previous, Show/Hide, Exit and the Linux-only empty-state label. The frontend updates the tray labels on startup and whenever the app language changes, without rebuilding the tray icon.
 
 
 ### Themes — Kanagawa, Atom One and 1984 Palettes

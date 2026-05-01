@@ -1179,6 +1179,8 @@ export const frTranslation = {
     prev: 'Piste précédente',
     play: 'Lecture',
     pause: 'Pause',
+    previewActive: 'Aperçu en cours',
+    previewLabel: 'Aperçu',
     delayModalTitle: 'Minuteur',
     delayPauseSection: 'Pause après',
     delayStartSection: 'Démarrage après',
@@ -1713,5 +1715,13 @@ export const frTranslation = {
     exitRemovedBody: '{{host}} t\'a retiré de « {{name}} ». Tu peux rejoindre via le lien à tout moment.',
     exitEndedBody: '« {{name}} » est terminée. J\'espère que tu t\'es bien amusé.',
     exitOk: 'OK',
+  },
+  tray: {
+    playPause: 'Lecture / Pause',
+    nextTrack: 'Piste suivante',
+    previousTrack: 'Piste précédente',
+    showHide: 'Afficher / Masquer',
+    exitPsysonic: 'Quitter Psysonic',
+    nothingPlaying: 'Aucune lecture',
   },
 };

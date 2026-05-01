@@ -1184,6 +1184,8 @@ export const esTranslation = {
     prev: 'Pista Anterior',
     play: 'Reproducir',
     pause: 'Pausa',
+    previewActive: 'Vista previa activa',
+    previewLabel: 'Vista previa',
     delayModalTitle: 'Temporizador',
     delayPauseSection: 'Pausar después de',
     delayStartSection: 'Iniciar después de',
@@ -1718,5 +1720,13 @@ export const esTranslation = {
     exitRemovedBody: '{{host}} te ha quitado de "{{name}}". Puedes volver a unirte en cualquier momento por el enlace.',
     exitEndedBody: '"{{name}}" ha terminado. Espero que te hayas divertido.',
     exitOk: 'OK',
+  },
+  tray: {
+    playPause: 'Reproducir / Pausa',
+    nextTrack: 'Pista siguiente',
+    previousTrack: 'Pista anterior',
+    showHide: 'Mostrar / Ocultar',
+    exitPsysonic: 'Salir de Psysonic',
+    nothingPlaying: 'Nada en reproducción',
   },
 };
