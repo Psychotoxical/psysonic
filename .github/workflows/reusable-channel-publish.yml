@@ -207,6 +207,30 @@ jobs:
               core.info(`Created release id=${releaseId} tag=${tag} target_commitish=${targetCommitish}`);
             }
 
+            // Self-heal: GitHub can occasionally produce a draft release with an untagged
+            // placeholder even when tag_name was requested. Force the expected tag binding.
+            const { data: createdOrUpdated } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+            });
+            if ((createdOrUpdated.tag_name || "") !== tag) {
+              core.warning(
+                `Release id=${releaseId} has tag '${createdOrUpdated.tag_name ?? ""}', expected '${tag}'. Re-binding release tag.`
+              );
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: releaseId,
+                tag_name: tag,
+                target_commitish: targetCommitish,
+                name,
+                body,
+                draft,
+                prerelease,
+              });
+            }
+
             core.setOutput("release_id", String(releaseId));
       - name: validate release id output
         env:
