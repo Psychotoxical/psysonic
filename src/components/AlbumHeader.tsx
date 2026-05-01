@@ -11,6 +11,7 @@ import StarRating from './StarRating';
 import type { EntityRatingSupportLevel } from '../api/subsonic';
 import { copyEntityShareLink } from '../utils/copyEntityShareLink';
 import { showToast } from '../utils/toast';
+import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -68,6 +69,7 @@ interface AlbumInfo {
   genre?: string;
   coverArt?: string;
   recordLabel?: string;
+  created?: string;
 }
 
 interface AlbumHeaderProps {
@@ -131,6 +133,7 @@ export default function AlbumHeader({
   const totalDuration = songs.reduce((acc, s) => acc + s.duration, 0);
   const totalSize = songs.reduce((acc, s) => acc + (s.size ?? 0), 0);
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
+  const isNewAlbum = isAlbumRecentlyAdded(info.created);
 
   const handleShareAlbum = async () => {
     try {
@@ -183,6 +186,9 @@ export default function AlbumHeader({
               <div className="album-detail-cover album-cover-placeholder">♪</div>
             )}
             <div className="album-detail-meta">
+              {isNewAlbum && (
+                <span className="badge album-detail-badge">{t('common.new', 'New')}</span>
+              )}
               <h1 className="album-detail-title">{info.name}</h1>
               <p className="album-detail-artist">
                 <button

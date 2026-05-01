@@ -471,6 +471,7 @@ export const zhTranslation = {
     delete: '删除',
     use: '使用',
     add: '添加',
+    new: '新',
     active: '当前使用',
     download: '下载',
     chooseDownloadFolder: '选择下载文件夹',

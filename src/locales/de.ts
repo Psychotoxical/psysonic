@@ -478,6 +478,7 @@ export const deTranslation = {
     delete: 'Löschen',
     use: 'Verwenden',
     add: 'Hinzufügen',
+    new: 'Neu',
     active: 'Aktiv',
     download: 'Herunterladen',
     chooseDownloadFolder: 'Download-Ordner wählen',

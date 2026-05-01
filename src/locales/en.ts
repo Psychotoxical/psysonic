@@ -480,6 +480,7 @@ export const enTranslation = {
     delete: 'Delete',
     use: 'Use',
     add: 'Add',
+    new: 'New',
     active: 'Active',
     download: 'Download',
     chooseDownloadFolder: 'Choose download folder',

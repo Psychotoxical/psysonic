@@ -479,6 +479,7 @@ export const esTranslation = {
     delete: 'Eliminar',
     use: 'Usar',
     add: 'Agregar',
+    new: 'Nuevo',
     active: 'Activo',
     download: 'Descargar',
     chooseDownloadFolder: 'Elegir carpeta de descarga',

@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/authStore';
 import CachedImage from './CachedImage';
 import { playAlbum } from '../utils/playAlbum';
 import { useDragDrop } from '../contexts/DragDropContext';
+import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 
 interface AlbumCardProps {
   album: SubsonicAlbum;
@@ -32,6 +33,7 @@ function AlbumCard({ album, selected, selectionMode, onToggleSelect, showRating 
   });
   const coverUrl = album.coverArt ? buildCoverArtUrl(album.coverArt, 300) : '';
   const psyDrag = useDragDrop();
+  const isNewAlbum = isAlbumRecentlyAdded(album.created);
 
   const handleClick = () => {
     if (selectionMode) { onToggleSelect?.(album.id); return; }
@@ -84,6 +86,11 @@ function AlbumCard({ album, selected, selectionMode, onToggleSelect, showRating 
         {isOffline && !selectionMode && (
           <div className="album-card-offline-badge" aria-label="Offline available">
             <HardDriveDownload size={12} />
+          </div>
+        )}
+        {isNewAlbum && (
+          <div className="album-card-new-badge" aria-label={t('common.new', 'New')}>
+            {t('common.new', 'New')}
           </div>
         )}
         {selectionMode && (

@@ -477,6 +477,7 @@ export const nbTranslation = {
     delete: 'Slett',
     use: 'Bruk',
     add: 'Legg til',
+    new: 'Ny',
     active: 'Aktiv',
     download: 'Last ned',
     chooseDownloadFolder: 'Velg nedlastingsmappe',

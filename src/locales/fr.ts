@@ -477,6 +477,7 @@ export const frTranslation = {
     delete: 'Supprimer',
     use: 'Utiliser',
     add: 'Ajouter',
+    new: 'Nouveau',
     active: 'Actif',
     download: 'Télécharger',
     chooseDownloadFolder: 'Choisir le dossier de téléchargement',

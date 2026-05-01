@@ -508,6 +508,7 @@ export const ruTranslation = {
     delete: 'Удалить',
     use: 'Использовать',
     add: 'Добавить',
+    new: 'Новое',
     active: 'Активен',
     download: 'Скачать',
     chooseDownloadFolder: 'Выбрать папку',

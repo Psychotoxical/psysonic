@@ -476,6 +476,7 @@ export const nlTranslation = {
     delete: 'Verwijderen',
     use: 'Gebruiken',
     add: 'Toevoegen',
+    new: 'Nieuw',
     active: 'Actief',
     download: 'Downloaden',
     chooseDownloadFolder: 'Downloadmap kiezen',
