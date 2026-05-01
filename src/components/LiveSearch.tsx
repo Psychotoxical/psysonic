@@ -35,6 +35,7 @@ export default function LiveSearch() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const collapsedRef = useRef(false);
+  const compactHeaderControlsRef = useRef(false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   const doSearch = useCallback(
@@ -83,6 +84,10 @@ export default function LiveSearch() {
     const MIN_EXPANDED_WIDTH = 260;
     const SPACER_RESERVE = 24;
     const HYSTERESIS_PX = 20;
+    // Live/Orbit compact-mode is intentionally stickier than search collapse,
+    // otherwise both systems can feed each other and oscillate.
+    const HEADER_CONTROLS_COMPACT_ON_SPACER = 80;
+    const HEADER_CONTROLS_COMPACT_OFF_SPACER = 200;
     const SWITCH_COOLDOWN_MS = 180;
     const collapseThreshold = MIN_EXPANDED_WIDTH + SPACER_RESERVE;
     const expandThreshold = collapseThreshold + HYSTERESIS_PX;
@@ -93,9 +98,14 @@ export default function LiveSearch() {
       const searchWidth = root.getBoundingClientRect().width;
       const spacerWidth = spacer.getBoundingClientRect().width;
       const budget = searchWidth + spacerWidth;
-      const nextCollapsed = collapsedRef.current
+      let nextCollapsed = collapsedRef.current
         ? budget < expandThreshold
         : budget < collapseThreshold;
+      // Priority rule: if we are already compacting Live/Orbit labels, search
+      // must stay collapsed until compact mode can be released.
+      if (compactHeaderControlsRef.current) {
+        nextCollapsed = true;
+      }
       if (nextCollapsed !== collapsedRef.current) {
         const now = performance.now();
         const remaining = SWITCH_COOLDOWN_MS - (now - lastSwitchAt);
@@ -112,6 +122,22 @@ export default function LiveSearch() {
         collapsedRef.current = nextCollapsed;
         setIsCollapsed(nextCollapsed);
       }
+
+      const nextCompactControls = nextCollapsed
+        ? (
+          compactHeaderControlsRef.current
+            ? spacerWidth < HEADER_CONTROLS_COMPACT_OFF_SPACER
+            : spacerWidth < HEADER_CONTROLS_COMPACT_ON_SPACER
+        )
+        : false;
+      if (nextCompactControls !== compactHeaderControlsRef.current) {
+        compactHeaderControlsRef.current = nextCompactControls;
+        if (nextCompactControls) {
+          header.dataset.liveHeaderCompact = 'true';
+        } else {
+          delete header.dataset.liveHeaderCompact;
+        }
+      }
     };
 
     updateCollapsed();
@@ -123,6 +149,7 @@ export default function LiveSearch() {
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', updateCollapsed);
+      delete header.dataset.liveHeaderCompact;
       if (cooldownTimer != null) {
         window.clearTimeout(cooldownTimer);
       }

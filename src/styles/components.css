@@ -12496,6 +12496,21 @@ html[data-psy-native-hidden="true"] *::after {
 }
 .orbit-start-trigger:hover .orbit-start-trigger__spin { transform: rotate(45deg); }
 
+/* Collapse Live/Orbit labels in a sticky low-space mode (with hysteresis). */
+.content-header[data-live-header-compact] .now-playing-dropdown__trigger,
+.content-header[data-live-header-compact] .orbit-start-trigger {
+  padding-left: 0.55rem !important;
+  padding-right: 0.55rem !important;
+  gap: 0.35rem !important;
+  min-width: 36px;
+  justify-content: center;
+}
+
+.content-header[data-live-header-compact] .now-playing-dropdown__label,
+.content-header[data-live-header-compact] .orbit-start-trigger__label {
+  display: none !important;
+}
+
 /* Launch popover — three-option menu anchored below the topbar trigger. */
 .orbit-launch-pop {
   min-width: 220px;

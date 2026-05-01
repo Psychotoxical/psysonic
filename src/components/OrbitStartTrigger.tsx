@@ -76,7 +76,7 @@ export default function OrbitStartTrigger() {
         style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
       >
         <OrbitIcon size={18} className="orbit-start-trigger__spin" />
-        <span style={{ display: 'inline-flex', alignItems: 'center', height: '1.5em' }}>
+        <span className="orbit-start-trigger__label" style={{ display: 'inline-flex', alignItems: 'center', height: '1.5em' }}>
           <OrbitWordmark height={14} />
         </span>
       </button>

@@ -94,14 +94,14 @@ export default function NowPlayingDropdown() {
   return (
     <div className="now-playing-dropdown" ref={triggerWrapRef} style={{ position: 'relative' }}>
       <button
-        className="btn btn-surface"
+        className="btn btn-surface now-playing-dropdown__trigger"
         onClick={() => setIsOpen(!isOpen)}
         data-tooltip={t('nowPlaying.tooltip')}
         data-tooltip-pos="bottom"
         style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
       >
         <Radio size={18} className={visible.length > 0 ? 'animate-pulse' : ''} style={{ color: visible.length > 0 ? 'var(--accent)' : 'inherit' }} />
-        <span>Live</span>
+        <span className="now-playing-dropdown__label">Live</span>
         {visible.length > 0 && (
           <span style={{
             background: 'var(--accent)',
