@@ -16,7 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.45.0] - 2026-04-30
 
-### Fixed
+## Added
+
+### Themes — Kanagawa, Atom One and 1984 Palettes
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#390](https://github.com/Psychotoxical/psysonic/pull/390)**
+
+Open Source Classics gains three new theme families: **Kanagawa**, **Atom One** and **1984**, adding nine new themes in total.
+
+* **Kanagawa:** Wave, Dragon and Lotus
+* **Atom One:** Dark and Light
+* **1984:** Default, Cyberpunk, Light and Orwell
+
+Each theme defines the full token set, including background, accent, text, Catppuccin compatibility, waveform, status and select-arrow tokens. This lets login, queue sidebar and subpages inherit the palette cleanly without component-specific overrides.
+
+The theme picker now groups Open Source Classics by family with dedicated family headings. Theme scheduler dropdown labels are also family-prefixed, making it clearer which palette family a scheduled theme belongs to.
+
+
+## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
 
