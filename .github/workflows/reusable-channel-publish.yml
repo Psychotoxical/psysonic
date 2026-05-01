@@ -191,12 +191,11 @@ jobs:
 
           jq -n \
             --arg tag "$TAG" \
-            --arg target_commitish "$TARGET_COMMITISH" \
             --arg name "$RELEASE_NAME" \
             --rawfile body "$BODY_FILE" \
             --argjson draft "$([[ "${IS_DRAFT}" == "true" ]] && echo true || echo false)" \
             --argjson prerelease "$([[ "${IS_PRERELEASE}" == "true" ]] && echo true || echo false)" \
-            '{tag_name:$tag,target_commitish:$target_commitish,name:$name,body:$body,draft:$draft,prerelease:$prerelease}' > /tmp/release-payload.json
+            '{tag_name:$tag,name:$name,body:$body,draft:$draft,prerelease:$prerelease}' > /tmp/release-payload.json
 
           RELEASE_ID=""
           # 1) Preferred lookup: by tag
@@ -211,10 +210,21 @@ jobs:
             gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --input /tmp/release-payload.json >/dev/null
             echo "Updated existing release id=${RELEASE_ID} for tag ${TAG}"
           else
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" --input /tmp/release-payload.json >/tmp/release-created.json
-            RELEASE_ID="$(jq -r '.id' /tmp/release-created.json)"
+            EXTRA_FLAGS=()
+            if [[ "${IS_DRAFT}" == "true" ]]; then
+              EXTRA_FLAGS+=(--draft)
+            fi
+            if [[ "${IS_PRERELEASE}" == "true" ]]; then
+              EXTRA_FLAGS+=(--prerelease)
+            fi
+            gh release create "$TAG" \
+              --verify-tag \
+              --title "$RELEASE_NAME" \
+              --notes-file "$BODY_FILE" \
+              "${EXTRA_FLAGS[@]}"
+            RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.id' || true)"
             if [[ -z "${RELEASE_ID:-}" || ! "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
-              echo "::error::Release create response missing numeric id"
+              echo "::error::Release created but failed to resolve numeric id for tag '${TAG}'"
               exit 1
             fi
             echo "Created release id=${RELEASE_ID} for tag ${TAG}"
