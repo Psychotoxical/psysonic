@@ -490,6 +490,12 @@ type TrayState = Mutex<Option<TrayIcon>>;
 /// Empty string means "use the default `Psysonic` tooltip".
 type TrayTooltip = Mutex<String>;
 
+/// Handle to the "Now Playing" menu entry on Linux. AppIndicator does not expose
+/// a hover tooltip, so we surface the current track as a disabled menu item
+/// instead. Refreshed on every track change via `set_tray_tooltip`.
+/// Always `None` on Windows/macOS — the OS-native tooltip is used there.
+type TrayNowPlayingItem = Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>;
+
 /// Shared handle to OS media controls (MPRIS2 on Linux, Now Playing on macOS, SMTC on Windows).
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
@@ -3622,7 +3628,35 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
     let sep2       = PredefinedMenuItem::separator(app)?;
     let quit       = MenuItemBuilder::with_id("quit",       "Exit Psysonic").build(app)?;
 
-    let menu = MenuBuilder::new(app)
+    let cached_tooltip = app
+        .try_state::<TrayTooltip>()
+        .and_then(|s| {
+            let g = s.lock().ok()?;
+            if g.is_empty() { None } else { Some(g.clone()) }
+        })
+        .unwrap_or_else(|| "Psysonic".to_string());
+
+    // Linux/AppIndicator has no hover tooltip; surface the now-playing track as
+    // a disabled menu entry at the top instead. The label is updated by
+    // `set_tray_tooltip` on every track change.
+    #[cfg(target_os = "linux")]
+    let (now_playing, sep_now_playing) = {
+        let label = if cached_tooltip == "Psysonic" { "Nothing playing" } else { cached_tooltip.as_str() };
+        let item = MenuItemBuilder::with_id("now_playing", label)
+            .enabled(false)
+            .build(app)?;
+        if let Some(state) = app.try_state::<TrayNowPlayingItem>() {
+            *state.lock().unwrap() = Some(item.clone());
+        }
+        (item, PredefinedMenuItem::separator(app)?)
+    };
+
+    let mut menu_builder = MenuBuilder::new(app);
+    #[cfg(target_os = "linux")]
+    {
+        menu_builder = menu_builder.item(&now_playing).item(&sep_now_playing);
+    }
+    let menu = menu_builder
         .item(&play_pause)
         .item(&previous)
         .item(&next)
@@ -3631,14 +3665,6 @@ fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
         .item(&sep2)
         .item(&quit)
         .build()?;
-
-    let cached_tooltip = app
-        .try_state::<TrayTooltip>()
-        .and_then(|s| {
-            let g = s.lock().ok()?;
-            if g.is_empty() { None } else { Some(g.clone()) }
-        })
-        .unwrap_or_else(|| "Psysonic".to_string());
 
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
@@ -3737,6 +3763,7 @@ fn try_build_tray_icon(app: &tauri::AppHandle) -> Option<TrayIcon> {
 /// extension) show it; pure-GNOME without the extension does not.
 #[tauri::command]
 fn set_tray_tooltip(
+    app: tauri::AppHandle,
     tray_state: tauri::State<TrayState>,
     tooltip_cache: tauri::State<TrayTooltip>,
     tooltip: String,
@@ -3746,18 +3773,27 @@ fn set_tray_tooltip(
     } else {
         tooltip
     };
+    let has_track = !truncated.is_empty();
+    let effective = if has_track { truncated.clone() } else { "Psysonic".to_string() };
 
-    let effective = if truncated.is_empty() {
-        "Psysonic".to_string()
-    } else {
-        truncated.clone()
-    };
-
-    *tooltip_cache.lock().unwrap() = truncated;
+    *tooltip_cache.lock().unwrap() = truncated.clone();
 
     if let Some(tray) = tray_state.lock().unwrap().as_ref() {
         tray.set_tooltip(Some(&effective)).map_err(|e| e.to_string())?;
     }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(state) = app.try_state::<TrayNowPlayingItem>() {
+            if let Some(item) = state.lock().unwrap().as_ref() {
+                let label = if has_track { effective.as_str() } else { "Nothing playing" };
+                let _ = item.set_text(label);
+            }
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = &app;
+
     Ok(())
 }
 
@@ -4381,6 +4417,7 @@ pub fn run() {
         .manage(Arc::new(tokio::sync::Semaphore::new(MAX_DL_CONCURRENCY)) as DownloadSemaphore)
         .manage(TrayState::default())
         .manage(TrayTooltip::default())
+        .manage(TrayNowPlayingItem::default())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
