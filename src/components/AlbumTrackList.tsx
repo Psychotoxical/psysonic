@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, ChevronRight, Heart, ListPlus, X, ChevronDown, Check, RotateCcw, Square } from 'lucide-react';
+import { Play, ChevronRight, Heart, ChevronDown, Check, RotateCcw, Square } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { SubsonicSong } from '../api/subsonic';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useDragDrop } from '../contexts/DragDropContext';
-import { AddToPlaylistSubmenu } from './ContextMenu';
 import { useIsMobile } from '../hooks/useIsMobile';
 import StarRating from './StarRating';
 import { useSelectionStore } from '../store/selectionStore';
@@ -323,8 +322,6 @@ export default function AlbumTrackList({
   const allSelected = selectedCount === songs.length && songs.length > 0;
   const lastSelectedIdxRef = useRef<number | null>(null);
 
-  const [showPlPicker, setShowPlPicker] = useState(false);
-
   // ── Column state ──────────────────────────────────────────────────────────
   const {
     colVisible, visibleCols, gridStyle,
@@ -353,15 +350,6 @@ export default function AlbumTrackList({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [inSelectMode, tracklistRef]);
-
-  useEffect(() => {
-    if (!showPlPicker) return;
-    const handler = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.bulk-pl-picker-wrap')) setShowPlPicker(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showPlPicker]);
 
   // ── Stable callbacks passed to memoised TrackRow ──────────────────────────
 
@@ -618,38 +606,6 @@ export default function AlbumTrackList({
           if (inSelectMode && e.target === e.currentTarget) useSelectionStore.getState().clearAll();
         }}
       >
-
-      {/* ── Bulk action bar ── */}
-      {inSelectMode && (
-        <div className="bulk-action-bar">
-          <span className="bulk-action-count">
-            {t('common.bulkSelected', { count: selectedCount })}
-          </span>
-          <div className="bulk-pl-picker-wrap">
-            <button
-              className="btn btn-surface btn-sm"
-              onClick={() => setShowPlPicker(v => !v)}
-            >
-              <ListPlus size={14} />
-              {t('common.bulkAddToPlaylist')}
-            </button>
-            {showPlPicker && (
-              <AddToPlaylistSubmenu
-                songIds={[...useSelectionStore.getState().selectedIds]}
-                onDone={() => { setShowPlPicker(false); useSelectionStore.getState().clearAll(); }}
-                dropDown
-              />
-            )}
-          </div>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => useSelectionStore.getState().clearAll()}
-          >
-            <X size={13} />
-            {t('common.bulkClear')}
-          </button>
-        </div>
-      )}
 
       {/* ── Header ── */}
       <div className="tracklist-header-wrapper">

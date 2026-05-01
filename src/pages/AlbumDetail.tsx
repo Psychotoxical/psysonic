@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
+import { Search, X, ListPlus } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { getAlbum, getArtist, getArtistInfo, setRating, buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl, star, unstar, SubsonicSong, SubsonicAlbum } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
@@ -14,9 +14,11 @@ import { useZipDownloadStore } from '../store/zipDownloadStore';
 import AlbumCard from '../components/AlbumCard';
 import AlbumHeader from '../components/AlbumHeader';
 import AlbumTrackList from '../components/AlbumTrackList';
+import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import { useCachedUrl } from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
+import { useSelectionStore } from '../store/selectionStore';
 
 function sanitizeFilename(name: string): string {
   return name
@@ -63,6 +65,9 @@ export default function AlbumDetail() {
   const [sortKey, setSortKey] = useState<'natural' | 'title' | 'artist' | 'album' | 'favorite' | 'rating' | 'duration'>('natural');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [sortClickCount, setSortClickCount] = useState(0);
+  const [showPlPicker, setShowPlPicker] = useState(false);
+  const selectedCount = useSelectionStore(s => s.selectedIds.size);
+  const inSelectMode = selectedCount > 0;
 
   // Derive a stable albumId for the selectors below (empty string when not yet loaded).
   const albumId = album?.album.id ?? '';
@@ -353,6 +358,19 @@ const handleShuffleAll = () => {
   const coverKey = useMemo(() => album?.album.coverArt ? coverArtCacheKey(album.album.coverArt, 400) : '', [album?.album.coverArt]);
   const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey);
 
+  useEffect(() => {
+    if (!showPlPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.bulk-pl-picker-wrap')) setShowPlPicker(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPlPicker]);
+
+  useEffect(() => {
+    if (!inSelectMode) setShowPlPicker(false);
+  }, [inSelectMode]);
+
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
   if (!album) return <div className="empty-state">{t('albumDetail.notFound')}</div>;
 
@@ -400,8 +418,8 @@ const handleShuffleAll = () => {
       )}
 
       {songs.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0 16px 8px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: '1 1 160px', maxWidth: 260 }}>
+        <div className="album-track-toolbar">
+          <div className="album-track-toolbar-filter">
             <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
             <input
               className="input-search"
@@ -418,6 +436,38 @@ const handleShuffleAll = () => {
               >
                 <X size={14} />
               </button>
+            )}
+          </div>
+          <div className="album-track-toolbar-actions">
+            {inSelectMode && (
+              <>
+                <span className="bulk-action-count">
+                  {t('common.bulkSelected', { count: selectedCount })}
+                </span>
+                <div className="bulk-pl-picker-wrap">
+                  <button
+                    className="btn btn-surface btn-sm"
+                    onClick={() => setShowPlPicker(v => !v)}
+                  >
+                    <ListPlus size={14} />
+                    {t('common.bulkAddToPlaylist')}
+                  </button>
+                  {showPlPicker && (
+                    <AddToPlaylistSubmenu
+                      songIds={[...useSelectionStore.getState().selectedIds]}
+                      onDone={() => { setShowPlPicker(false); useSelectionStore.getState().clearAll(); }}
+                      dropDown
+                    />
+                  )}
+                </div>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => useSelectionStore.getState().clearAll()}
+                >
+                  <X size={13} />
+                  {t('common.bulkClear')}
+                </button>
+              </>
             )}
           </div>
         </div>
