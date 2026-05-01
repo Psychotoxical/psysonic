@@ -14,9 +14,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few weeks of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
 
 
-## [1.45.0] - 2026-04-30
+## [1.45.0] - 2026-05-01
 
 ## Added
+
+### Audio Preview — Rust Preview Engine and Tracklist Rollout
+
+**By [@Psychotoxical](https://github.com/Psychotoxical)**
+
+Psysonic now has a native Rust-powered preview engine for tracklist previews. Instead of using a separate HTML5 audio path, previews run through a parallel `rodio` sink on the existing output stream, with dedicated Tauri commands and engine events for preview start, progress and end.
+
+When a preview starts, the main player pauses and only resumes automatically if it was playing beforehand. Starting normal playback, radio playback, resume or stop actions cancels any active preview first, so preview audio and main playback cannot overlap.
+
+The new preview UI is rolled out across the main tracklist surfaces:
+
+* **Albums**
+* **Playlist detail** including suggestions
+* **Favorites**
+* **Artist detail** top tracks
+* **Random Mix** genre and filtered-song lists
+
+Track numbers now stay stable on hover, while dedicated inline Play and Preview buttons handle playback actions from the title cell. Active playing rows keep the equalizer bars, including on hover; active paused rows fall back to a static accent-colored track number. `SongRow` is intentionally left untouched in this pass.
+
+Settings → Audio now includes a preview section with a master toggle, configurable start position, configurable duration and per-location toggles. Users can keep previews enabled on discovery-heavy surfaces while hiding them on owned-content views. The preview progress ring follows the configured duration automatically.
+
+Preview state is mirrored through a new `previewStore`, giving the UI one reliable source of truth for preview progress and active state. Spacebar stops an active preview, media keys are ignored during previews, and tray actions cancel the preview before continuing with the requested player action.
+
+Play Next in the context menu now uses a double-chevron icon, making it visually distinct from the Preview button.
+
+The feature includes updated i18n coverage across all supported locales.
+
 
 ### Themes — Kanagawa, Atom One and 1984 Palettes
 
