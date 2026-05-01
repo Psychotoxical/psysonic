@@ -207,18 +207,6 @@ jobs:
               core.info(`Created release id=${releaseId} tag=${tag} target_commitish=${targetCommitish}`);
             }
 
-            // Canonicalize release_id by querying the expected tag directly.
-            // This prevents passing a mismatched/untagged release id to later jobs.
-            const { data: byTag } = await github.rest.repos.getReleaseByTag({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag,
-            });
-            if (!byTag.tag_name || byTag.tag_name.startsWith("untagged-")) {
-              throw new Error(`Release fetched by tag '${tag}' is untagged ('${byTag.tag_name ?? ""}')`);
-            }
-            releaseId = byTag.id;
-            core.info(`Resolved canonical release id=${releaseId} by tag=${tag}`);
             core.setOutput("release_id", String(releaseId));
       - name: validate release id output
         env:
