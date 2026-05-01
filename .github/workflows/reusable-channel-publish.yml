@@ -357,9 +357,8 @@ jobs:
           mkdir -p ~/private_keys
           echo "${{ secrets.APPLE_API_KEY_B64 }}" | base64 --decode > ~/private_keys/AuthKey.p8
           echo "APPLE_API_KEY_PATH=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
-      - uses: tauri-apps/tauri-action@v1
+      - name: build app bundles (no release side effects)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
           VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -370,13 +369,42 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ needs.create-release.outputs.release_tag }}
-          releaseName: Psysonic v${{ needs.create-release.outputs.package_version }}
-          releaseDraft: ${{ inputs.draft_release }}
-          prerelease: ${{ inputs.prerelease }}
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: ${{ matrix.settings.args }}
+        run: npm run tauri:build -- ${{ matrix.settings.args }}
+      - name: upload macOS artifacts
+        if: runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ needs.create-release.outputs.release_tag }}"
+          TARGET_ARG='${{ matrix.settings.args }}'
+          if echo "$TARGET_ARG" | grep -q 'aarch64'; then
+            TARGET="aarch64-apple-darwin"
+          else
+            TARGET="x86_64-apple-darwin"
+          fi
+          mapfile -t FILES < <(find "src-tauri/target/${TARGET}/release/bundle" -type f \
+            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.sig" \))
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "::error::No macOS artifacts found to upload."
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${FILES[@]}" --clobber
+      - name: upload Windows artifacts
+        if: runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG='${{ needs.create-release.outputs.release_tag }}'
+          $files = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -File `
+            | Where-Object { $_.Name -match '\.(exe|msi|msix|zip)$' }
+          if ($files.Count -eq 0) {
+            Write-Error "No Windows artifacts found to upload."
+            exit 1
+          }
+          foreach ($f in $files) {
+            gh release upload "$RELEASE_TAG" "$($f.FullName)" --clobber
+          }
       - name: re-sign updater bundle + upload .sig (macOS only)
         if: runner.os == 'macOS'
         env:
