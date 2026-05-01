@@ -332,11 +332,15 @@ function AppShell() {
           await appWindow.setTitle(title);
           await invoke('set_tray_tooltip', {
             tooltip: `${currentTrack.artist} – ${currentTrack.title}`,
+            playbackState: isPlaying ? 'play' : 'pause',
           }).catch(() => {});
         } else {
           document.title = 'Psysonic';
           await appWindow.setTitle('Psysonic');
-          await invoke('set_tray_tooltip', { tooltip: '' }).catch(() => {});
+          await invoke('set_tray_tooltip', {
+            tooltip: '',
+            playbackState: 'stop',
+          }).catch(() => {});
         }
       } catch (err) {}
     };
@@ -682,9 +686,9 @@ function AppShell() {
             opacity: isMainScrolling ? 0 : 1,
             pointerEvents: isMainScrolling ? 'none' : 'auto',
           }}
-          data-tooltip={t('player.toggleQueue')}
+          data-tooltip={t('player.collapseQueueResize')}
           data-tooltip-pos="left"
-          aria-label={t('player.toggleQueue')}
+          aria-label={t('player.collapseQueueResize')}
         >
           {isQueueVisible ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
         </button>

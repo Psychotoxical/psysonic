@@ -1209,6 +1209,7 @@ export const frTranslation = {
     progress: 'Progression',
     volume: 'Volume',
     toggleQueue: 'Afficher/masquer la file',
+    collapseQueueResize: 'Réduire la file, redimensionner',
     moreOptions: 'Plus d’options',
     equalizer: 'Égaliseur',
     miniPlayer: 'Mini-lecteur',

@@ -1203,6 +1203,7 @@ export const zhTranslation = {
     progress: '播放进度',
     volume: '音量',
     toggleQueue: '切换队列',
+    collapseQueueResize: '收起队列，调整宽度',
     moreOptions: '更多选项',
     equalizer: '均衡器',
     miniPlayer: '迷你播放器',

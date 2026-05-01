@@ -1214,6 +1214,7 @@ export const esTranslation = {
     progress: 'Progreso de Canción',
     volume: 'Volumen',
     toggleQueue: 'Alternar Cola',
+    collapseQueueResize: 'Contraer cola, cambiar ancho',
     moreOptions: 'Más opciones',
     equalizer: 'Ecualizador',
     miniPlayer: 'Mini reproductor',

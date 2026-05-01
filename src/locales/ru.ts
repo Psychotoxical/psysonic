@@ -1294,6 +1294,7 @@ export const ruTranslation = {
     progress: 'Прогресс',
     volume: 'Громкость',
     toggleQueue: 'Очередь',
+    collapseQueueResize: 'Свернуть очередь, изменить ширину',
     moreOptions: 'Дополнительно',
     equalizer: 'Эквалайзер',
     miniPlayer: 'Мини-плеер',

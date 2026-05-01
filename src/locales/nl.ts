@@ -1208,6 +1208,7 @@ export const nlTranslation = {
     progress: 'Nummervoortgang',
     volume: 'Volume',
     toggleQueue: 'Wachtrij in-/uitschakelen',
+    collapseQueueResize: 'Wachtrij inklappen, breedte wijzigen',
     moreOptions: 'Meer opties',
     equalizer: 'Equalizer',
     miniPlayer: 'Minispeler',

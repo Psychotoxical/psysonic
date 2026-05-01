@@ -1221,6 +1221,7 @@ export const deTranslation = {
     progress: 'Songfortschritt',
     volume: 'Lautstärke',
     toggleQueue: 'Warteschlange umschalten',
+    collapseQueueResize: 'Warteschlange einklappen, Breite ändern',
     moreOptions: 'Weitere Optionen',
     equalizer: 'Equalizer',
     miniPlayer: 'Mini-Player',

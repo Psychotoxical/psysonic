@@ -1208,6 +1208,7 @@ export const nbTranslation = {
     progress: 'Sangfremdrift',
     volume: 'Volum',
     toggleQueue: 'Veksle kø',
+    collapseQueueResize: 'Skjul kø, endre bredde',
     moreOptions: 'Flere alternativer',
     equalizer: 'Equalizer',
     miniPlayer: 'Minispiller',

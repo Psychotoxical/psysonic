@@ -1227,6 +1227,7 @@ export const enTranslation = {
     progress: 'Song Progress',
     volume: 'Volume',
     toggleQueue: 'Toggle Queue',
+    collapseQueueResize: 'Collapse queue, resize',
     moreOptions: 'More options',
     equalizer: 'Equalizer',
     miniPlayer: 'Mini Player',
