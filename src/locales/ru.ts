@@ -954,6 +954,8 @@ export const ruTranslation = {
     sidebarLyricsStyleAppleDesc: 'Активная строка фиксируется сверху с плавной анимацией.',
     seekbarStyle: 'Стиль прогресс-бара',
     seekbarStyleDesc: 'Выбор внешнего вида полосы воспроизведения',
+    reducedAnimations: 'Снизить анимации',
+    reducedAnimationsDesc: 'Ограничить анимированные стили прогресс-бара 30 кадрами в секунду для снижения нагрузки на GPU на слабом железе. Визуальная разница минимальна.',
     seekbarTruewave: 'Реальная форма волны',
     seekbarPseudowave: 'Псевдо форма волны',
     seekbarLinedot: 'Линия и точка',

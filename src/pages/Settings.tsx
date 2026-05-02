@@ -396,7 +396,7 @@ const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'appearance',     titleKey: 'settings.uiScaleTitle',             keywords: 'ui scale zoom dpi size' },
   { tab: 'appearance',     titleKey: 'settings.font',                     keywords: 'font typography typeface' },
   { tab: 'appearance',     titleKey: 'settings.fsPlayerSection',          keywords: 'fullscreen player mesh blob' },
-  { tab: 'appearance',     titleKey: 'settings.seekbarStyle',             keywords: 'seekbar progress bar waveform' },
+  { tab: 'appearance',     titleKey: 'settings.seekbarStyle',             keywords: 'seekbar progress bar waveform reduced animations performance gpu fps low-end framerate cap' },
   { tab: 'input',          titleKey: 'settings.inputKeybindingsTitle',    keywords: 'keybindings shortcuts hotkeys keyboard' },
   { tab: 'input',          titleKey: 'settings.globalShortcutsTitle',     keywords: 'global shortcuts hotkeys system-wide media keys' },
   { tab: 'system',         titleKey: 'settings.language',                 keywords: 'language locale translation i18n' },
@@ -3843,6 +3843,16 @@ export default function Settings() {
                     onClick={() => auth.setSeekbarStyle(style)}
                   />
                 ))}
+              </div>
+              <div className="settings-toggle-row" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.reducedAnimations')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.reducedAnimationsDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.reducedAnimations')}>
+                  <input type="checkbox" checked={auth.reducedAnimations} onChange={e => auth.setReducedAnimations(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
               </div>
             </div>
           </SettingsSubSection>

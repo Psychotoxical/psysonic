@@ -915,6 +915,8 @@ export const deTranslation = {
     sidebarLyricsStyleAppleDesc: 'Aktive Zeile oben mit sanfter Animation.',
     seekbarStyle: 'Seekbar-Stil',
     seekbarStyleDesc: 'Aussehen der Wiedergabe-Seekbar auswählen',
+    reducedAnimations: 'Animationen reduzieren',
+    reducedAnimationsDesc: 'Animierte Seekbar-Stile auf 30 fps drosseln, um die GPU-Last auf schwächerer Hardware zu senken. Optisch kaum wahrnehmbar.',
     seekbarTruewave: 'Echte Wellenform',
     seekbarPseudowave: 'Pseudo-Wellenform',
     seekbarLinedot: 'Linie & Punkt',

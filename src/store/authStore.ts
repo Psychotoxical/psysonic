@@ -176,6 +176,8 @@ interface AuthState {
   lastSeenChangelogVersion: string;
 
   seekbarStyle: SeekbarStyle;
+  /** Cap animated seekbar styles to 30 fps (and similar GPU-friendly tweaks) for low-end hardware. */
+  reducedAnimations: boolean;
 
   /** Alpha: native hi-res sample rate output (disabled = safe 44.1 kHz mode) */
   enableHiRes: boolean;
@@ -323,6 +325,7 @@ interface AuthState {
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
   setSeekbarStyle: (v: SeekbarStyle) => void;
+  setReducedAnimations: (v: boolean) => void;
   setEnableHiRes: (v: boolean) => void;
   setAudioOutputDevice: (v: string | null) => void;
   setHotCacheEnabled: (v: boolean) => void;
@@ -442,6 +445,7 @@ export const useAuthStore = create<AuthState>()(
       showChangelogOnUpdate: true,
       lastSeenChangelogVersion: '',
       seekbarStyle: 'truewave',
+      reducedAnimations: false,
       enableHiRes: false,
       audioOutputDevice: null,
       hotCacheEnabled: false,
@@ -603,6 +607,7 @@ export const useAuthStore = create<AuthState>()(
       setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
 
       setSeekbarStyle: (v) => set({ seekbarStyle: v }),
+      setReducedAnimations: (v) => set({ reducedAnimations: v }),
       setEnableHiRes: (v) => set({ enableHiRes: v }),
       setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),
       setHotCacheEnabled: (v) => set({ hotCacheEnabled: v }),
