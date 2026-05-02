@@ -63,6 +63,105 @@ pub enum CliCommand {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CliActionRegistryEntry {
+    command: String,
+    verb: String,
+    description: String,
+}
+
+fn shortcut_actions_registry_source() -> &'static str {
+    include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../src/config/shortcutActions.ts"
+    ))
+}
+
+fn extract_quoted_field(line: &str, key: &str) -> Option<String> {
+    let needle = format!("{key}: '");
+    let start = line.find(&needle)? + needle.len();
+    let tail = &line[start..];
+    let end = tail.find('\'')?;
+    Some(tail[..end].to_string())
+}
+
+fn parse_registry_action_id(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    if !trimmed.ends_with('{') {
+        return None;
+    }
+    if trimmed.starts_with('\'') {
+        let rest = &trimmed[1..];
+        let end = rest.find('\'')?;
+        let id = &rest[..end];
+        let tail = rest[end + 1..].trim_start();
+        if !tail.starts_with(':') {
+            return None;
+        }
+        return Some(id.to_string());
+    }
+    let brace_idx = trimmed.find(':')?;
+    let candidate = trimmed[..brace_idx].trim();
+    if candidate.is_empty() || !trimmed[brace_idx + 1..].trim_start().starts_with('{') {
+        return None;
+    }
+    if !candidate
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+    {
+        return None;
+    }
+    Some(candidate.to_string())
+}
+
+fn parse_cli_action_registry_entries() -> Vec<CliActionRegistryEntry> {
+    let mut entries = Vec::new();
+    let mut current_action_id: Option<String> = None;
+
+    for line in shortcut_actions_registry_source().lines() {
+        if let Some(id) = parse_registry_action_id(line) {
+            current_action_id = Some(id);
+            continue;
+        }
+        let trimmed = line.trim();
+        if !trimmed.starts_with("cli: {") {
+            continue;
+        }
+        let Some(action_id) = current_action_id.clone() else {
+            continue;
+        };
+        let Some(verb) = extract_quoted_field(trimmed, "verb") else {
+            continue;
+        };
+        let Some(description) = extract_quoted_field(trimmed, "description") else {
+            continue;
+        };
+        let command = extract_quoted_field(trimmed, "command").unwrap_or_else(|| action_id.clone());
+        entries.push(CliActionRegistryEntry {
+            command,
+            verb,
+            description,
+        });
+    }
+
+    entries
+}
+
+fn cli_action_registry_entries() -> &'static Vec<CliActionRegistryEntry> {
+    static ENTRIES: OnceLock<Vec<CliActionRegistryEntry>> = OnceLock::new();
+    ENTRIES.get_or_init(parse_cli_action_registry_entries)
+}
+
+fn cli_registry_entry_by_verb(verb: &str) -> Option<&'static CliActionRegistryEntry> {
+    cli_action_registry_entries().iter().find(|entry| entry.verb == verb)
+}
+
+fn cli_registry_entry_by_command(command: &str) -> Option<&'static CliActionRegistryEntry> {
+    cli_action_registry_entries()
+        .iter()
+        .find(|entry| entry.command == command)
+}
+
 pub fn wants_version(args: &[String]) -> bool {
     args.iter()
         .skip(1)
@@ -270,16 +369,19 @@ pub fn print_help(program: &str) {
     eprintln!("    --json           With `audio-device list`, `library list`, `server list`, or `search`: JSON on stdout.");
     eprintln!("    Use  {program} -q --player seek -5  so the seek delta is not parsed as a flag.\n");
     eprintln!("  Playback");
-    eprintln!("    {program} [--quiet|-q] --player <command>");
+    eprintln!("    {program} [--quiet|-q] --player <action>");
+    for entry in cli_action_registry_entries() {
+        eprintln!(
+            "    {program} [--quiet|-q] --player {:<14} {}",
+            entry.verb, entry.description
+        );
+    }
     eprintln!("    {program} [--quiet|-q] --player play <id>   Track, album, or artist id (artist → shuffled library).");
     eprintln!("    {program} [--quiet|-q] --player seek <seconds>      Integer delta, e.g. 15 or -10");
     eprintln!("    {program} [--quiet|-q] --player volume <0-100>     Absolute volume percent.");
-    eprintln!("    {program} [--quiet|-q] --player shuffle         Shuffle the current queue.");
     eprintln!("    {program} [--quiet|-q] --player repeat off|all|one");
-    eprintln!("    {program} [--quiet|-q] --player mute | unmute");
-    eprintln!("    {program} [--quiet|-q] --player star | unstar     Current track (Subsonic star).");
     eprintln!("    {program} [--quiet|-q] --player rating <0-5>     Set song rating (0 clears).");
-    eprintln!("    {program} [--quiet|-q] --player reload          Restart audio for the current track or reload server queue.\n");
+    eprintln!();
     eprintln!("  Audio output");
     eprintln!("    {program} [--json] --player audio-device list");
     eprintln!("    {program} --player audio-device set <device-id|default>\n");
@@ -868,9 +970,9 @@ fn parse_repeat_mode(arg: &str) -> Option<RepeatCliMode> {
 
 fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
     let verb = args.get(pos + 1)?.as_str();
-    if verb == "play" {
+    if let Some(entry) = cli_registry_entry_by_verb(verb).filter(|entry| entry.command == "play") {
         return match args.get(pos + 2).map(|s| s.as_str()) {
-            None => Some(PlayerCliCmd::NoArgCommand("play".to_string())),
+            None => Some(PlayerCliCmd::NoArgCommand(entry.command.clone())),
             Some(flag) if flag.starts_with('-') => None,
             Some(extra) => {
                 if extra.is_empty() {
@@ -908,7 +1010,8 @@ fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
                 percent: v as u8,
             })
         }
-        _ => Some(PlayerCliCmd::NoArgCommand(verb.to_string())),
+        _ => cli_registry_entry_by_verb(verb)
+            .map(|entry| PlayerCliCmd::NoArgCommand(entry.command.clone())),
     }
 }
 
@@ -1196,6 +1299,9 @@ pub fn describe_cli_command(cmd: &CliCommand) -> String {
 
 pub fn describe_player_cli_cmd(cmd: &PlayerCliCmd) -> String {
     if let PlayerCliCmd::NoArgCommand(command) = cmd {
+        if let Some(entry) = cli_registry_entry_by_command(command) {
+            return entry.verb.clone();
+        }
         return command.clone();
     }
     match cmd {
