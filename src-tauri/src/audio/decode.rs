@@ -519,7 +519,7 @@ pub(crate) fn parse_gapless_info(data: &[u8]) -> GaplessInfo {
 
 /// Result of build_source: the fully-wrapped source plus metadata and control Arcs.
 pub(crate) struct BuiltSource {
-    pub(crate) source: CountingSource<NotifyingSource<TriggeredFadeOut<EqualPowerFadeIn<EqSource<DynSource>>>>>,
+    pub(crate) source: PriorityBoostSource<CountingSource<NotifyingSource<TriggeredFadeOut<EqualPowerFadeIn<EqSource<DynSource>>>>>>,
     pub(crate) duration_secs: f64,
     pub(crate) output_rate: u32,
     pub(crate) output_channels: u16,
@@ -611,9 +611,10 @@ pub(crate) fn build_source(
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
     let notifying = NotifyingSource::new(fade_out, done_flag);
     let counting = CountingSource::new(notifying, sample_counter);
+    let boosted = PriorityBoostSource::new(counting);
 
     Ok(BuiltSource {
-        source: counting,
+        source: boosted,
         duration_secs: effective_dur,
         output_rate,
         output_channels: channels,
@@ -670,9 +671,10 @@ pub(crate) fn build_streaming_source(
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
     let notifying = NotifyingSource::new(fade_out, done_flag);
     let counting = CountingSource::new(notifying, sample_counter);
+    let boosted = PriorityBoostSource::new(counting);
 
     Ok(BuiltSource {
-        source: counting,
+        source: boosted,
         duration_secs: effective_dur,
         output_rate,
         output_channels: channels,

@@ -399,3 +399,83 @@ impl<S: Source<Item = f32>> Source for CountingSource<S> {
         result
     }
 }
+
+// ─── PriorityBoostSource — promote the calling thread on first sample ────────
+//
+// rodio's `Sink` runs `Source::next` inside the cpal output-stream callback.
+// On Windows that callback is the WASAPI render thread, which by default has
+// only normal priority — when WebView2 / DWM / GPU work spikes the system,
+// the audio thread gets preempted and underruns produce audible click /
+// stutter. This wrapper sets the MMCSS "Pro Audio" task class on the first
+// `next()` call so the kernel keeps the render thread on a real-time class
+// alongside other audio applications. On Linux/macOS the wrapper compiles to
+// a no-op — those platforms already promote their audio threads externally
+// (PipeWire/rtkit, CoreAudio).
+//
+// Idempotent across track changes: each new track instantiates a fresh
+// PriorityBoostSource, but `AvSetMmThreadCharacteristicsW` can be called
+// repeatedly on the same thread.
+
+#[cfg(target_os = "windows")]
+fn promote_thread_to_pro_audio() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Threading::AvSetMmThreadCharacteristicsW;
+
+    static LOGGED: AtomicBool = AtomicBool::new(false);
+
+    // Null-terminated UTF-16 task name, lifetime-pinned for the call.
+    let task: [u16; 10] = [
+        b'P' as u16, b'r' as u16, b'o' as u16, b' ' as u16,
+        b'A' as u16, b'u' as u16, b'd' as u16, b'i' as u16,
+        b'o' as u16, 0,
+    ];
+    let mut idx: u32 = 0;
+    let result = unsafe { AvSetMmThreadCharacteristicsW(PCWSTR(task.as_ptr()), &mut idx) };
+
+    if result.is_ok() && !LOGGED.swap(true, Ordering::Relaxed) {
+        // First-time log: not in the hot path on subsequent track starts.
+        // Logging is file IO (blocking) but we only run it once per process
+        // lifetime, on the very first render-callback invocation.
+        crate::app_eprintln!("[psysonic] WASAPI render thread promoted to MMCSS \"Pro Audio\"");
+    }
+    // Handle leaks intentionally — promotion lasts until the thread exits,
+    // which matches the WASAPI render-thread lifetime.
+}
+
+#[cfg(not(target_os = "windows"))]
+#[inline(always)]
+fn promote_thread_to_pro_audio() {}
+
+pub(crate) struct PriorityBoostSource<S: Source<Item = f32>> {
+    inner: S,
+    promoted: bool,
+}
+
+impl<S: Source<Item = f32>> PriorityBoostSource<S> {
+    pub(crate) fn new(inner: S) -> Self {
+        Self { inner, promoted: false }
+    }
+}
+
+impl<S: Source<Item = f32>> Iterator for PriorityBoostSource<S> {
+    type Item = f32;
+    #[inline]
+    fn next(&mut self) -> Option<f32> {
+        if !self.promoted {
+            self.promoted = true;
+            promote_thread_to_pro_audio();
+        }
+        self.inner.next()
+    }
+}
+
+impl<S: Source<Item = f32>> Source for PriorityBoostSource<S> {
+    fn current_frame_len(&self) -> Option<usize> { self.inner.current_frame_len() }
+    fn channels(&self) -> u16 { self.inner.channels() }
+    fn sample_rate(&self) -> u32 { self.inner.sample_rate() }
+    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        self.inner.try_seek(pos)
+    }
+}

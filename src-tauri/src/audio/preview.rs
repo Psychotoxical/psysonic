@@ -9,6 +9,7 @@ use tauri::{AppHandle, Emitter, State};
 use super::decode::SizedDecoder;
 use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::MASTER_HEADROOM;
+use super::sources::PriorityBoostSource;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Preview engine — secondary Sink on the same OutputStream, fed by Symphonia.
@@ -189,6 +190,7 @@ pub async fn audio_preview_play(
     }
     let dur = Duration::from_secs_f64(duration_sec.max(1.0).min(120.0));
     let source = source.take_duration(dur);
+    let source = PriorityBoostSource::new(source);
 
     // ── Build secondary sink on the existing OutputStream ────────────────────
     let sink = Arc::new(

@@ -1638,12 +1638,13 @@ pub async fn audio_play_radio(
     let fade_out  = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
     let notifying = NotifyingSource::new(fade_out, done_flag.clone());
     let counting  = CountingSource::new(notifying, state.samples_played.clone());
+    let boosted   = PriorityBoostSource::new(counting);
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
     let sink = Arc::new(Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?);
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
-    sink.append(counting);
+    sink.append(boosted);
 
     {
         let mut cur = state.current.lock().unwrap();
