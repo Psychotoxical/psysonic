@@ -825,7 +825,7 @@ export function SeekbarPreview({
       }
     };
     const tick = () => {
-      if (document.hidden || window.__psyHidden) {
+      if (document.hidden || window.__psyHidden || window.__psyBlurred) {
         pollId = window.setTimeout(() => {
           pollId = null;
           tick();
@@ -1062,7 +1062,7 @@ export default function WaveformSeek({ trackId }: Props) {
       }
     };
     const tick = () => {
-      if (document.hidden || window.__psyHidden) {
+      if (document.hidden || window.__psyHidden || window.__psyBlurred) {
         pollId = window.setTimeout(() => {
           pollId = null;
           tick();

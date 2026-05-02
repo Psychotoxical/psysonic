@@ -11097,7 +11097,10 @@ html[data-app-hidden="true"] *::before,
 html[data-app-hidden="true"] *::after,
 html[data-psy-native-hidden="true"] *,
 html[data-psy-native-hidden="true"] *::before,
-html[data-psy-native-hidden="true"] *::after {
+html[data-psy-native-hidden="true"] *::after,
+html[data-app-blurred="true"] *,
+html[data-app-blurred="true"] *::before,
+html[data-app-blurred="true"] *::after {
   animation-play-state: paused !important;
 }
 

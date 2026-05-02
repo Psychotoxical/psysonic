@@ -580,6 +580,25 @@ function AppShell() {
     return () => document.removeEventListener('visibilitychange', update);
   }, []);
 
+  // Pause cosmetic animations when the window loses OS focus but stays visible
+  // (alt-tab, click into another app). On low-VRAM laptops WebView2 keeps
+  // compositing mesh blobs / waveform / marquee at full rate even though the
+  // user isn't looking — measurable GPU drain reported in issue #334.
+  useEffect(() => {
+    const update = () => {
+      const blurred = !document.hasFocus();
+      window.__psyBlurred = blurred;
+      document.documentElement.dataset.appBlurred = blurred ? 'true' : 'false';
+    };
+    window.addEventListener('focus', update);
+    window.addEventListener('blur', update);
+    update();
+    return () => {
+      window.removeEventListener('focus', update);
+      window.removeEventListener('blur', update);
+    };
+  }, []);
+
   const isMobilePlayer = isMobile && location.pathname === '/now-playing';
 
   return (
