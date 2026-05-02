@@ -98,6 +98,26 @@ The top header behavior was reworked for narrow widths: search, Live and Orbit c
 Waveform mouse-wheel seeking now uses fixed step-based jumps with debounce smoothing for more predictable navigation and less jitter during rapid scrolling.
 
 
+### Queue — Drag Outside to Remove
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#420](https://github.com/Psychotoxical/psysonic/pull/420)**
+
+You can remove a track from the play queue by dragging its row **outside** the queue sidebar (main window) or outside the mini player’s queue list. Drop targets still support reordering when you release inside the queue area.
+
+The drag ghost shows a **trash** affordance only while the cursor is outside the queue bounds; inside the queue it behaves as a normal reorder drag. The mouse-event `psy-drop` path now carries cursor coordinates so removal can be detected when the drop target is not the queue panel itself.
+
+
+### Statistics — Shareable Top-Albums Card
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#425](https://github.com/Psychotoxical/psysonic/pull/425)**
+
+Statistics page can now export your most-played albums as a shareable PNG, accessible via a share icon next to the **Most Played Albums** section header. Three aspect ratios for different platforms (Story 9:16, Square 1:1, Twitter Card 16:9), three grid sizes (3×3, 4×4, 5×5), with each cover carrying a thin info strip showing rank + play count.
+
+The card pulls the wordmark and accent color directly from the active theme, so a Catppuccin export looks Catppuccin and a Nord export looks Nord. Cover art reuses the existing IndexedDB cache, so no extra Subsonic round-trips on repeat exports. The header label is hardcoded English ("Top Albums") so a shared image stays legible to followers regardless of their language.
+
+Saving uses the native OS save dialog — no silent dump into Downloads, the user picks the path each time. Data source is local-only (Subsonic `getAlbumList(frequent)`); Last.fm is intentionally not used. There is no time-window selector because Navidrome's API exposes only cumulative play counts, not per-event play history.
+
+
 ### Queue Panel — Position Counter, Tri-State Duration Toggle, Collapsible Now Playing, EQ Indicator
 
 **By [@kveld9](https://github.com/kveld9), PR [#419](https://github.com/Psychotoxical/psysonic/pull/419)**
@@ -116,6 +136,10 @@ The currently playing row in the queue list is now indicated by **animated equal
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
 
 - **Polish** *(PR [#397](https://github.com/Psychotoxical/psysonic/pull/397), by [@cucadmuh](https://github.com/cucadmuh))*: multiple branch-local interaction fixes around sidebar drag/drop behavior, Live dropdown layering, queue-resize handle behavior during scroll/overlay-scrollbar interaction, and now-playing narrow-layout stability.
+
+- **Track preview audio in sync with progress ring; huge files no longer abort** *(Issue [#421](https://github.com/Psychotoxical/psysonic/issues/421), PR [#423](https://github.com/Psychotoxical/psysonic/pull/423), by [@Psychotoxical](https://github.com/Psychotoxical))*: Previews used to start audio about 25 % into the preview window on mid-track starts because `Sink::try_seek` ran in parallel with `sink.append` while the 30 s `take_duration` cap was already counting wall-clock from append. The seek now runs on the bare source before append, and the progress-ring animation only starts once the engine actually emits `audio:preview-start` — a small loading spinner is shown during the download/decode/seek warmup. The preview HTTP-client timeout was raised from 30 s to 5 min, so multi-hundred-megabyte Hi-Res files no longer abort the download mid-fetch.
+
+- **Windows playback stutter under GPU load** *(Issue [#334](https://github.com/Psychotoxical/psysonic/issues/334), PR [#426](https://github.com/Psychotoxical/psysonic/pull/426), by [@Psychotoxical](https://github.com/Psychotoxical))*: Audio could stutter and crackle on Windows whenever another app put GPU/CPU pressure on the system (browser, 3D apps, games). The WASAPI render thread is now promoted to MMCSS "Pro Audio" via `AvSetMmThreadCharacteristicsW`, so it survives priority contention from competing graphics work. Reproed and validated under a Half-Life parallel-load stresstest. Companion mitigations for high-GPU situations: cosmetic UI animations now pause when the window loses OS focus, and a new **Reduce animations** toggle in **Settings → Appearance** caps animated seekbar styles (pulsewave, particletrail, liquidfill, retrotape) to 30 fps for users on GPU-constrained machines (off by default).
 
 
 
