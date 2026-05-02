@@ -107,6 +107,17 @@ You can remove a track from the play queue by dragging its row **outside** the q
 The drag ghost shows a **trash** affordance only while the cursor is outside the queue bounds; inside the queue it behaves as a normal reorder drag. The mouse-event `psy-drop` path now carries cursor coordinates so removal can be detected when the drop target is not the queue panel itself.
 
 
+### Statistics — Shareable Top-Albums Card
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#425](https://github.com/Psychotoxical/psysonic/pull/425)**
+
+Statistics page can now export your most-played albums as a shareable PNG, accessible via a share icon next to the **Most Played Albums** section header. Three aspect ratios for different platforms (Story 9:16, Square 1:1, Twitter Card 16:9), three grid sizes (3×3, 4×4, 5×5), with each cover carrying a thin info strip showing rank + play count.
+
+The card pulls the wordmark and accent color directly from the active theme, so a Catppuccin export looks Catppuccin and a Nord export looks Nord. Cover art reuses the existing IndexedDB cache, so no extra Subsonic round-trips on repeat exports. The header label is hardcoded English ("Top Albums") so a shared image stays legible to followers regardless of their language.
+
+Saving uses the native OS save dialog — no silent dump into Downloads, the user picks the path each time. Data source is local-only (Subsonic `getAlbumList(frequent)`); Last.fm is intentionally not used. There is no time-window selector because Navidrome's API exposes only cumulative play counts, not per-event play history.
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
