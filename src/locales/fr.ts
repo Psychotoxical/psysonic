@@ -1106,7 +1106,7 @@ export const frTranslation = {
     trackPlural: 'pistes',
     showRemaining: 'Afficher le temps restant',
     showTotal: 'Afficher la durée totale',
-    etaTooltip: 'Fin estimée de la file',
+    showEta: 'Afficher l\'heure de fin estimée',
     replayGain: 'ReplayGain',
     rgTrack: 'T {{db}} dB',
     rgAlbum: 'A {{db}} dB',

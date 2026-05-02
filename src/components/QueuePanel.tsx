@@ -189,18 +189,26 @@ function LoadPlaylistModal({ onClose, onLoad }: { onClose: () => void, onLoad: (
   );
 }
 
+type DurationMode = 'total' | 'remaining' | 'eta';
+
 interface QueueHeaderProps {
   queue: Track[];
   queueIndex: number;
   activePlaylist: { id: string; name: string } | null;
   isNowPlayingCollapsed: boolean;
   setIsNowPlayingCollapsed: (v: boolean) => void;
+  durationMode: DurationMode;
+  setDurationMode: (m: DurationMode) => void;
   t: TFunction;
 }
-function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed, setIsNowPlayingCollapsed, t }: QueueHeaderProps) {
+function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed, setIsNowPlayingCollapsed, durationMode, setDurationMode, t }: QueueHeaderProps) {
   const currentTime = usePlayerStore((s) => Math.floor(s.currentTime / 30) * 30);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
 
+  const totalSecs = useMemo(() =>
+    queue.reduce((acc: number, track: Track) => acc + (track.duration || 0), 0),
+    [queue]
+  );
   const futureTracksDuration = useMemo(() =>
     queue.slice(queueIndex + 1).reduce((acc: number, track: Track) => acc + (track.duration || 0), 0),
     [queue, queueIndex]
@@ -208,12 +216,32 @@ function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed,
 
   const remainingSecs = Math.max(0, (queue[queueIndex]?.duration ?? 0) - currentTime + futureTracksDuration);
 
+  const fmt = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return h > 0 ? `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}` : `${m}:${s.toString().padStart(2, "0")}`;
+  };
   const fmtEta = (secs: number) => {
     const finishTime = new Date(Date.now() + secs * 1000);
     return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(finishTime);
   };
 
-  const eta = queue.length > 0 ? fmtEta(remainingSecs) : null;
+  let dur: string | null = null;
+  if (queue.length > 0) {
+    if (durationMode === 'total') dur = fmt(Math.floor(totalSecs));
+    else if (durationMode === 'remaining') dur = `-${fmt(Math.floor(remainingSecs))}`;
+    else dur = fmtEta(remainingSecs);
+  }
+
+  const nextMode: DurationMode =
+    durationMode === 'total' ? 'remaining' :
+    durationMode === 'remaining' ? 'eta' : 'total';
+  const nextTooltipKey =
+    nextMode === 'total' ? 'queue.showTotal' :
+    nextMode === 'remaining' ? 'queue.showRemaining' : 'queue.showEta';
+
+  const isEta = durationMode === 'eta';
 
   return (
     <div className="queue-header">
@@ -225,9 +253,20 @@ function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed,
               ({queueIndex + 1}/{queue.length})
             </span>
           )}
-          {eta && (
-            <span style={{ fontSize: "13px", color: isPlaying ? "var(--accent)" : "var(--text-muted)", opacity: isPlaying ? 1 : 0.5, whiteSpace: "nowrap", userSelect: "none" }} data-tooltip={t('queue.etaTooltip')}>
-              · {eta}
+          {dur !== null && (
+            <span
+              onClick={() => setDurationMode(nextMode)}
+              data-tooltip={t(nextTooltipKey)}
+              style={{
+                fontSize: "13px",
+                color: isEta ? (isPlaying ? "var(--accent)" : "var(--text-muted)") : "var(--accent)",
+                opacity: isEta && !isPlaying ? 0.5 : 1,
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              · {dur}
             </span>
           )}
         </div>
@@ -344,6 +383,7 @@ function QueuePanelHostOrSolo() {
 
   const isNowPlayingCollapsed = useAuthStore(s => s.queueNowPlayingCollapsed);
   const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
+  const [durationMode, setDurationMode] = useState<DurationMode>('total');
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
   const [lufsTgtOpen, setLufsTgtOpen] = useState(false);
   const [lufsTgtPopStyle, setLufsTgtPopStyle] = useState<React.CSSProperties>({});
@@ -620,6 +660,8 @@ function QueuePanelHostOrSolo() {
         activePlaylist={activePlaylist}
         isNowPlayingCollapsed={isNowPlayingCollapsed}
         setIsNowPlayingCollapsed={setIsNowPlayingCollapsed}
+        durationMode={durationMode}
+        setDurationMode={setDurationMode}
         t={t}
       />
 

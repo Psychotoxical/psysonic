@@ -1105,7 +1105,7 @@ export const nlTranslation = {
     trackPlural: 'nummers',
     showRemaining: 'Resterende tijd tonen',
     showTotal: 'Totale tijd tonen',
-    etaTooltip: 'Geschatte eindtijd van wachtrij',
+    showEta: 'Geschatte eindtijd tonen',
     replayGain: 'ReplayGain',
     rgTrack: 'T {{db}} dB',
     rgAlbum: 'A {{db}} dB',

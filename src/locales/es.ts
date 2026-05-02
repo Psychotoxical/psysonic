@@ -1111,7 +1111,7 @@ export const esTranslation = {
     trackPlural: 'pistas',
     showRemaining: 'Mostrar tiempo restante',
     showTotal: 'Mostrar tiempo total',
-    etaTooltip: 'Fin estimado de la cola',
+    showEta: 'Mostrar hora estimada de fin',
     replayGain: 'ReplayGain',
     rgTrack: 'T {{db}} dB',
     rgAlbum: 'A {{db}} dB',
