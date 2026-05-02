@@ -800,12 +800,18 @@ export const useAuthStore = create<AuthState>()(
           } catch { /* ignore */ }
         }
 
-        // One-time: 'waveform' style was renamed to 'truewave' (with 'pseudowave'
-        // added as the deterministic legacy variant). Existing persisted value
-        // 'waveform' should land on the new bins-based default.
-        const seekbarStyleMigrated = (state.seekbarStyle as string) === 'waveform'
-          ? { seekbarStyle: 'truewave' as SeekbarStyle }
-          : {};
+        // 'waveform' style was renamed to 'truewave' (with 'pseudowave' added
+        // as the deterministic legacy variant). Any persisted value that is
+        // not a valid SeekbarStyle (legacy 'waveform', undefined, tampered
+        // strings) lands on the new bins-based default — otherwise the
+        // dispatcher's switch finds no match and the seekbar renders blank.
+        const VALID_SEEKBAR_STYLES = new Set<string>([
+          'truewave', 'pseudowave', 'linedot', 'bar', 'thick',
+          'segmented', 'neon', 'pulsewave', 'particletrail', 'liquidfill', 'retrotape',
+        ]);
+        const seekbarStyleMigrated = VALID_SEEKBAR_STYLES.has(state.seekbarStyle as string)
+          ? {}
+          : { seekbarStyle: 'truewave' as SeekbarStyle };
 
         const st = state as {
           loudnessTargetLufs?: unknown;

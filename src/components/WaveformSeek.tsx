@@ -785,6 +785,10 @@ export function drawSeekbar(
     case 'particletrail': drawParticleTrail(canvas, progress, buffered, anim); break;
     case 'liquidfill':    drawLiquidFill(canvas, progress, buffered, anim); break;
     case 'retrotape':     drawRetroTape(canvas, progress, buffered, anim); break;
+    // Safety net: if a legacy or tampered persisted style sneaks past the
+    // authStore migration, fall back to the truewave renderer instead of
+    // leaving a blank canvas.
+    default:              drawWaveform(canvas, heights, progress, buffered); break;
   }
 }
 
