@@ -119,6 +119,7 @@ const TrackRow = React.memo(function TrackRow({
   const isActive = currentTrackId === song.id;
   // Primitive selector: row only re-renders when *this song's* preview state flips.
   const isPreviewing = usePreviewStore(s => s.previewingId === song.id);
+  const isPreviewAudioStarted = usePreviewStore(s => s.previewingId === song.id && s.audioStarted);
 
   const renderCell = (colDef: ColDef) => {
     const key = colDef.key as ColKey;
@@ -156,7 +157,7 @@ const TrackRow = React.memo(function TrackRow({
             </button>
             <button
               type="button"
-              className={`playlist-suggestion-preview-btn${isPreviewing ? ' is-previewing' : ''}`}
+              className={`playlist-suggestion-preview-btn${isPreviewing ? ' is-previewing' : ''}${isPreviewAudioStarted ? ' audio-started' : ''}`}
               onClick={e => {
                 e.stopPropagation();
                 usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'albums');

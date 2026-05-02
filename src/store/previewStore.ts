@@ -21,6 +21,15 @@ interface PreviewState {
   elapsed: number;
   /** Total preview window in seconds (echoes the duration_sec arg). */
   duration: number;
+  /**
+   * True only after the engine has emitted `audio:preview-start` for the
+   * current `previewingId` — i.e. audio is actually playing. Drives the
+   * progress-ring animation so the ring doesn't run ahead of the speaker
+   * during the engine's download/decode/seek warmup. Reset to false on every
+   * `startPreview` call so a switch from track A to track B doesn't carry
+   * over A's animation state.
+   */
+  audioStarted: boolean;
 
   startPreview: (song: { id: string; title: string; artist: string; coverArt?: string; duration?: number }, location: TrackPreviewLocation) => Promise<void>;
   stopPreview: () => Promise<void>;
@@ -40,6 +49,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   previewingTrack: null,
   elapsed: 0,
   duration: 30,
+  audioStarted: false,
 
   startPreview: async (song, location) => {
     const auth = useAuthStore.getState();
@@ -77,6 +87,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       previewingTrack: { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt },
       elapsed: 0,
       duration: previewDuration,
+      audioStarted: false,
     });
 
     try {
@@ -90,7 +101,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     } catch (e) {
       // Roll back optimistic state on failure.
       if (get().previewingId === song.id) {
-        set({ previewingId: null, previewingTrack: null, elapsed: 0 });
+        set({ previewingId: null, previewingTrack: null, elapsed: 0, audioStarted: false });
       }
       throw e;
     }
@@ -102,15 +113,19 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       await invoke('audio_preview_stop');
     } catch {
       /* engine will emit preview-end anyway; clear locally as fallback */
-      set({ previewingId: null, previewingTrack: null, elapsed: 0 });
+      set({ previewingId: null, previewingTrack: null, elapsed: 0, audioStarted: false });
     }
   },
 
   _onStart: (id) => {
-    if (get().previewingId !== id) {
+    const current = get().previewingId;
+    if (current !== id) {
       // Engine fired start for an id we didn't track locally — keep id but
       // leave previewingTrack as-is (the caller's startPreview() set it).
-      set({ previewingId: id, elapsed: 0 });
+      set({ previewingId: id, elapsed: 0, audioStarted: true });
+    } else {
+      // Audio is now actually playing — unblock the progress-ring animation.
+      set({ audioStarted: true });
     }
   },
 
@@ -121,6 +136,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
   _onEnd: (id) => {
     if (get().previewingId !== id) return;
-    set({ previewingId: null, previewingTrack: null, elapsed: 0 });
+    set({ previewingId: null, previewingTrack: null, elapsed: 0, audioStarted: false });
   },
 }));

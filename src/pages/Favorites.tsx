@@ -87,6 +87,7 @@ export default function Favorites() {
   const currentRadio = usePlayerStore(s => s.currentRadio);
   const isPlaying = usePlayerStore(s => s.isPlaying);
   const previewingId = usePreviewStore(s => s.previewingId);
+  const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
@@ -693,7 +694,7 @@ export default function Favorites() {
                               </button>
                               <button
                                 type="button"
-                                className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                                className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
                                 onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'favorites'); }}
                                 data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                                 aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}

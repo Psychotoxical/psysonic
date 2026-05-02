@@ -1866,7 +1866,27 @@
   transform: translateX(0.5px);
 }
 
-.playlist-suggestion-preview-btn.is-previewing .playlist-suggestion-preview-ring-progress {
+/* Loading state: the engine is still downloading/decoding/seeking. A short
+   rotating arc (~25% of the circumference) signals "pending" without
+   pretending to be progress. 150 ms delay suppresses the spinner for
+   small/cached files where audio starts almost instantly. */
+.playlist-suggestion-preview-btn.is-previewing:not(.audio-started) .playlist-suggestion-preview-ring-progress {
+  /* circumference = 2π × 10.5 ≈ 65.97 → 25% arc + 75% gap */
+  stroke-dasharray: 16.5 49.5;
+  stroke-dashoffset: 0;
+  animation: playlist-preview-loading 1.1s linear infinite;
+  animation-delay: 150ms;
+}
+
+@keyframes playlist-preview-loading {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -65.97; }
+}
+
+/* Animation runs only after `audio-started` is added — i.e. once the engine
+   emitted `audio:preview-start` for this track. Prevents the ring from
+   sprinting ahead of audio during the engine's download/decode/seek warmup. */
+.playlist-suggestion-preview-btn.audio-started .playlist-suggestion-preview-ring-progress {
   animation: playlist-preview-progress var(--preview-duration, 30s) linear forwards;
 }
 
@@ -2487,6 +2507,27 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   stroke-linecap: round;
   stroke-dasharray: 100;
   stroke-dashoffset: 100;
+}
+
+/* Loading spinner — same logic as the tracklist ring above. The SVG uses
+   pathLength="100", so the circumference is normalised: 25 unit arc + 75
+   unit gap, with the offset rolling from 0 to -100. */
+.player-bar.is-previewing:not(.audio-started) .player-btn-preview-ring-progress {
+  stroke-dasharray: 25 75;
+  stroke-dashoffset: 0;
+  animation: player-preview-loading 1.1s linear infinite;
+  animation-delay: 150ms;
+}
+
+@keyframes player-preview-loading {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -100; }
+}
+
+/* Animation gated on the player-bar `audio-started` flag (set after the
+   engine emits `audio:preview-start`). Same rationale as the tracklist
+   preview ring above. */
+.player-bar.audio-started .player-btn-preview-ring-progress {
   animation: player-preview-progress var(--preview-duration, 30s) linear forwards;
 }
 

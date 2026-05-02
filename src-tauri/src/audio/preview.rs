@@ -133,7 +133,19 @@ pub async fn audio_preview_play(
     }
 
     // ── Download ─────────────────────────────────────────────────────────────
-    let bytes = audio_http_client(&state)
+    // Dedicated client with a generous timeout. The shared `audio_http_client`
+    // caps at 30 s, which aborts mid-download on multi-hundred-megabyte
+    // uncompressed files (e.g. 18-min Hi-Res WAV ~600 MB) — those need
+    // ~60–120 s on a typical home LAN. The watchdog (30 s wall-clock) still
+    // bounds how long the preview plays once the bytes are in memory, so a
+    // long download just means a longer "loading" spinner before audio starts.
+    let preview_http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(300))
+        .use_rustls_tls()
+        .user_agent(crate::subsonic_wire_user_agent())
+        .build()
+        .unwrap_or_else(|_| audio_http_client(&state));
+    let bytes = preview_http
         .get(&url)
         .send()
         .await
@@ -163,12 +175,20 @@ pub async fn audio_preview_play(
     if state.preview_gen.load(Ordering::SeqCst) != gen { return Ok(()); }
 
     // ── Build source pipeline ────────────────────────────────────────────────
-    // Minimal pipeline: f32 conversion + take_duration cap. No EQ, no crossfade,
-    // no ReplayGain — preview is intentionally simple. Volume is set on the Sink.
+    // Seek FIRST on the bare decoder, THEN cap with take_duration. Capping
+    // before the seek made take_duration's wall-clock counter tick from
+    // sink.append() while try_seek was still iterating the decoder to
+    // mid-track — the preview window consumed itself before audio actually
+    // arrived at the speaker (~25% of duration silent on FLAC/MP3 mid-track
+    // starts). Symphonia FLAC without SEEKTABLE may fail try_seek; preview
+    // then plays from 0, which is acceptable.
+    // No EQ / no crossfade / no ReplayGain — preview stays simple.
+    let mut source = decoder.convert_samples::<f32>();
+    if start_sec > 0.5 {
+        let _ = source.try_seek(Duration::from_secs_f64(start_sec));
+    }
     let dur = Duration::from_secs_f64(duration_sec.max(1.0).min(120.0));
-    let source = decoder
-        .convert_samples::<f32>()
-        .take_duration(dur);
+    let source = source.take_duration(dur);
 
     // ── Build secondary sink on the existing OutputStream ────────────────────
     let sink = Arc::new(
@@ -177,20 +197,6 @@ pub async fn audio_preview_play(
     );
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(source);
-
-    // ── Best-effort seek to mid-track start position ─────────────────────────
-    // Symphonia FLAC without SEEKTABLE may fail here; preview then plays from 0
-    // which is acceptable. Hard timeout 800 ms via a worker thread.
-    if start_sec > 0.5 {
-        let start_dur = Duration::from_secs_f64(start_sec);
-        let seek_sink = sink.clone();
-        let (tx, rx) = std::sync::mpsc::channel::<()>();
-        std::thread::spawn(move || {
-            seek_sink.try_seek(start_dur).ok();
-            let _ = tx.send(());
-        });
-        let _ = rx.recv_timeout(Duration::from_millis(800));
-    }
 
     *state.preview_sink.lock().unwrap() = Some(sink.clone());
     *state.preview_song_id.lock().unwrap() = Some(id.clone());

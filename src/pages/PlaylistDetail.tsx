@@ -294,6 +294,7 @@ export default function PlaylistDetail() {
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const [hoveredSuggestionId, setHoveredSuggestionId] = useState<string | null>(null);
   const previewingId = usePreviewStore(s => s.previewingId);
+  const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
   const zipDownloads = useZipDownloadStore(s => s.downloads);
@@ -1709,7 +1710,7 @@ export default function PlaylistDetail() {
                       </button>
                       <button
                         type="button"
-                        className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                        className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
                         onClick={e => {
                           e.stopPropagation();
                           usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'playlists');
@@ -1856,7 +1857,7 @@ export default function PlaylistDetail() {
                           <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
                         </button>
                         <button
-                          className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                          className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
                           onClick={e => { e.stopPropagation(); startPreview(song); }}
                           data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                           aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
