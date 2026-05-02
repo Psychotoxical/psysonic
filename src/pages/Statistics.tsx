@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Share2 } from 'lucide-react';
 import {
   fetchStatisticsFormatSample,
   fetchStatisticsLibraryAggregates,
@@ -9,6 +10,7 @@ import {
 } from '../api/subsonic';
 import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
 import AlbumRow from '../components/AlbumRow';
+import StatsExportModal from '../components/StatsExportModal';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
@@ -50,6 +52,8 @@ export default function Statistics() {
   const [playtimeCapped, setPlaytimeCapped] = useState(false);
   const [formatData, setFormatData] = useState<{ format: string; count: number }[] | null>(null);
   const [formatSampleSize, setFormatSampleSize] = useState(0);
+
+  const [exportOpen, setExportOpen] = useState(false);
 
   const [lfmPeriod, setLfmPeriod] = useState<LastfmPeriod>('1month');
   const [lfmTopArtists, setLfmTopArtists] = useState<LastfmTopArtist[]>([]);
@@ -270,6 +274,17 @@ export default function Statistics() {
             albums={frequent}
             onLoadMore={() => loadMore('frequent', frequent, setFrequent)}
             moreText={t('statistics.loadMore')}
+            headerExtra={frequent.length >= 9 ? (
+              <button
+                type="button"
+                className="nav-btn"
+                onClick={() => setExportOpen(true)}
+                data-tooltip={t('statistics.exportTitle')}
+                aria-label={t('statistics.exportTitle')}
+              >
+                <Share2 size={18} />
+              </button>
+            ) : undefined}
           />
 
           <AlbumRow
@@ -384,6 +399,11 @@ export default function Statistics() {
 
         </div>
       )}
+      <StatsExportModal
+        open={exportOpen}
+        albums={frequent}
+        onClose={() => setExportOpen(false)}
+      />
     </div>
   );
 }
