@@ -98,6 +98,19 @@ The top header behavior was reworked for narrow widths: search, Live and Orbit c
 Waveform mouse-wheel seeking now uses fixed step-based jumps with debounce smoothing for more predictable navigation and less jitter during rapid scrolling.
 
 
+### Queue Panel — Position Counter, Tri-State Duration Toggle, Collapsible Now Playing, EQ Indicator
+
+**By [@kveld9](https://github.com/kveld9), PR [#419](https://github.com/Psychotoxical/psysonic/pull/419)**
+
+The queue panel got a sweep of UX refinements. The header now shows the current position as `(N/M)` next to the queue title for at-a-glance context.
+
+The clickable duration label in the header rotates through **three** modes per click instead of two: total queue time, remaining time, and **estimated end-of-queue clock time** (e.g. `· 02:10`). ETA updates every 30 seconds, is formatted in the user's locale, and is visually highlighted with the accent colour while playing.
+
+A new chevron next to the queue title **collapses the Now Playing section and queue toolbar**, and the collapsed state is persisted across restarts, so users who treat the queue as a pure list can keep it that way.
+
+The currently playing row in the queue list is now indicated by **animated equalizer bars** to the left of the track title; the bars freeze in place when playback is paused. The previous small play icon next to the title is removed since the EQ bars carry the same signal more clearly.
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
