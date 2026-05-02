@@ -229,7 +229,10 @@ export default function MiniPlayer() {
       const openMiniBinding = useKeybindingsStore.getState().bindings['open-mini-player'];
       if (matchInAppBinding(e, openMiniBinding)) {
         e.preventDefault();
-        invoke('open_mini_player').catch(() => {});
+        emit('shortcut:run-action', {
+          action: 'open-mini-player',
+          source: 'mini-window',
+        }).catch(() => {});
         return;
       }
 
@@ -245,11 +248,20 @@ export default function MiniPlayer() {
 
       if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
-        emit('mini:control', 'toggle').catch(() => {});
+        emit('shortcut:run-action', {
+          action: 'play-pause',
+          source: 'mini-window',
+        }).catch(() => {});
       } else if (e.key === 'ArrowRight') {
-        emit('mini:control', 'next').catch(() => {});
+        emit('shortcut:run-action', {
+          action: 'next',
+          source: 'mini-window',
+        }).catch(() => {});
       } else if (e.key === 'ArrowLeft') {
-        emit('mini:control', 'prev').catch(() => {});
+        emit('shortcut:run-action', {
+          action: 'prev',
+          source: 'mini-window',
+        }).catch(() => {});
       }
     };
     window.addEventListener('keydown', onKey);

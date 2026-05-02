@@ -29,15 +29,7 @@ pub(crate) fn register_global_shortcut(
     app.global_shortcut()
         .on_shortcut(parsed, move |app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                let event_name = match action.as_str() {
-                    "play-pause"  => "media:play-pause",
-                    "next"        => "media:next",
-                    "prev"        => "media:prev",
-                    "volume-up"   => "media:volume-up",
-                    "volume-down" => "media:volume-down",
-                    _             => return,
-                };
-                let _ = app.emit(event_name, ());
+                let _ = app.emit("shortcut:global-action", action.clone());
             }
         })
         .map_err(|e| e.to_string())

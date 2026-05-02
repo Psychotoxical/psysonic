@@ -5,7 +5,6 @@ const COMPLETIONS_BASH: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), 
 const COMPLETIONS_ZSH: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../completions/_psysonic"));
 
 use std::path::PathBuf;
-#[cfg(target_os = "linux")]
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use std::{
@@ -32,22 +31,12 @@ pub enum SearchCliScope {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PlayerCliCmd {
-    Next,
-    Prev,
-    Play,
+    NoArgCommand(String),
     PlayOpaqueId(String),
-    Pause,
-    Stop,
     Seek { delta_secs: i32 },
     Volume { percent: u8 },
-    ShuffleQueue,
     Repeat(RepeatCliMode),
-    Mute,
-    Unmute,
-    StarCurrent,
-    UnstarCurrent,
     Rating { stars: u8 },
-    ReloadPlayer,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -281,7 +270,7 @@ pub fn print_help(program: &str) {
     eprintln!("    --json           With `audio-device list`, `library list`, `server list`, or `search`: JSON on stdout.");
     eprintln!("    Use  {program} -q --player seek -5  so the seek delta is not parsed as a flag.\n");
     eprintln!("  Playback");
-    eprintln!("    {program} [--quiet|-q] --player next | prev | play | pause | stop");
+    eprintln!("    {program} [--quiet|-q] --player <command>");
     eprintln!("    {program} [--quiet|-q] --player play <id>   Track, album, or artist id (artist → shuffled library).");
     eprintln!("    {program} [--quiet|-q] --player seek <seconds>      Integer delta, e.g. 15 or -10");
     eprintln!("    {program} [--quiet|-q] --player volume <0-100>     Absolute volume percent.");
@@ -879,11 +868,9 @@ fn parse_repeat_mode(arg: &str) -> Option<RepeatCliMode> {
 
 fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
     let verb = args.get(pos + 1)?.as_str();
-    match verb {
-        "next" => Some(PlayerCliCmd::Next),
-        "prev" => Some(PlayerCliCmd::Prev),
-        "play" => match args.get(pos + 2).map(|s| s.as_str()) {
-            None => Some(PlayerCliCmd::Play),
+    if verb == "play" {
+        return match args.get(pos + 2).map(|s| s.as_str()) {
+            None => Some(PlayerCliCmd::NoArgCommand("play".to_string())),
             Some(flag) if flag.starts_with('-') => None,
             Some(extra) => {
                 if extra.is_empty() {
@@ -891,18 +878,13 @@ fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
                 }
                 Some(PlayerCliCmd::PlayOpaqueId(extra.to_string()))
             }
-        },
-        "pause" => Some(PlayerCliCmd::Pause),
-        "stop" => Some(PlayerCliCmd::Stop),
-        "shuffle" => Some(PlayerCliCmd::ShuffleQueue),
+        };
+    }
+    match verb {
         "repeat" => {
             let m = parse_repeat_mode(args.get(pos + 2)?.as_str())?;
             Some(PlayerCliCmd::Repeat(m))
         }
-        "mute" => Some(PlayerCliCmd::Mute),
-        "unmute" => Some(PlayerCliCmd::Unmute),
-        "star" => Some(PlayerCliCmd::StarCurrent),
-        "unstar" => Some(PlayerCliCmd::UnstarCurrent),
         "rating" => {
             let raw = args.get(pos + 2)?;
             let n: u8 = raw.parse().ok()?;
@@ -911,7 +893,6 @@ fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
             }
             Some(PlayerCliCmd::Rating { stars: n })
         }
-        "reload" => Some(PlayerCliCmd::ReloadPlayer),
         "seek" => {
             let raw = args.get(pos + 2)?;
             let delta_secs: i32 = raw.parse().ok()?;
@@ -927,7 +908,7 @@ fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
                 percent: v as u8,
             })
         }
-        _ => None,
+        _ => Some(PlayerCliCmd::NoArgCommand(verb.to_string())),
     }
 }
 
@@ -1214,58 +1195,65 @@ pub fn describe_cli_command(cmd: &CliCommand) -> String {
 }
 
 pub fn describe_player_cli_cmd(cmd: &PlayerCliCmd) -> String {
+    if let PlayerCliCmd::NoArgCommand(command) = cmd {
+        return command.clone();
+    }
     match cmd {
-        PlayerCliCmd::Next => "next track".into(),
-        PlayerCliCmd::Prev => "previous track".into(),
-        PlayerCliCmd::Play => "play".into(),
         PlayerCliCmd::PlayOpaqueId(id) => format!("play {id}"),
-        PlayerCliCmd::Pause => "pause".into(),
-        PlayerCliCmd::Stop => "stop".into(),
         PlayerCliCmd::Seek { delta_secs } => format!("seek {delta_secs:+} s"),
         PlayerCliCmd::Volume { percent } => format!("volume {percent}%"),
-        PlayerCliCmd::ShuffleQueue => "shuffle".into(),
         PlayerCliCmd::Repeat(m) => match m {
             RepeatCliMode::Off => "repeat off".into(),
             RepeatCliMode::All => "repeat all".into(),
             RepeatCliMode::One => "repeat one".into(),
         },
-        PlayerCliCmd::Mute => "mute".into(),
-        PlayerCliCmd::Unmute => "unmute".into(),
-        PlayerCliCmd::StarCurrent => "star".into(),
-        PlayerCliCmd::UnstarCurrent => "unstar".into(),
         PlayerCliCmd::Rating { stars } => format!("rating {stars}"),
-        PlayerCliCmd::ReloadPlayer => "reload".into(),
+        PlayerCliCmd::NoArgCommand(command) => command.clone(),
     }
 }
 
+fn emit_cli_player_command<R: Runtime>(app: &AppHandle<R>, payload: serde_json::Value) {
+    let _ = app.emit("cli:player-command", payload);
+}
+
 pub fn emit_player_cli_cmd<R: Runtime>(app: &AppHandle<R>, cmd: PlayerCliCmd) {
+    if let PlayerCliCmd::NoArgCommand(command) = &cmd {
+        emit_cli_player_command(
+            app,
+            serde_json::json!({
+                "command": command
+            }),
+        );
+        return;
+    }
+
     match cmd {
-        PlayerCliCmd::Next => {
-            let _ = app.emit("media:next", ());
-        }
-        PlayerCliCmd::Prev => {
-            let _ = app.emit("media:prev", ());
-        }
-        PlayerCliCmd::Play => {
-            let _ = app.emit("media:play", ());
-        }
         PlayerCliCmd::PlayOpaqueId(id) => {
-            let _ = app.emit("cli:play-id", id);
-        }
-        PlayerCliCmd::Pause => {
-            let _ = app.emit("media:pause", ());
-        }
-        PlayerCliCmd::Stop => {
-            let _ = app.emit("media:stop", ());
+            emit_cli_player_command(
+                app,
+                serde_json::json!({
+                    "command": "play-id",
+                    "id": id
+                }),
+            );
         }
         PlayerCliCmd::Seek { delta_secs } => {
-            let _ = app.emit("media:seek-relative", delta_secs);
+            emit_cli_player_command(
+                app,
+                serde_json::json!({
+                    "command": "seek-relative",
+                    "deltaSecs": delta_secs
+                }),
+            );
         }
         PlayerCliCmd::Volume { percent } => {
-            let _ = app.emit("media:set-volume", percent);
-        }
-        PlayerCliCmd::ShuffleQueue => {
-            let _ = app.emit("cli:shuffle-queue", ());
+            emit_cli_player_command(
+                app,
+                serde_json::json!({
+                    "command": "set-volume",
+                    "percent": percent
+                }),
+            );
         }
         PlayerCliCmd::Repeat(mode) => {
             let s = match mode {
@@ -1273,26 +1261,24 @@ pub fn emit_player_cli_cmd<R: Runtime>(app: &AppHandle<R>, cmd: PlayerCliCmd) {
                 RepeatCliMode::All => "all",
                 RepeatCliMode::One => "one",
             };
-            let _ = app.emit("cli:set-repeat", s);
-        }
-        PlayerCliCmd::Mute => {
-            let _ = app.emit("cli:mute", ());
-        }
-        PlayerCliCmd::Unmute => {
-            let _ = app.emit("cli:unmute", ());
-        }
-        PlayerCliCmd::StarCurrent => {
-            let _ = app.emit("cli:star-current", true);
-        }
-        PlayerCliCmd::UnstarCurrent => {
-            let _ = app.emit("cli:star-current", false);
+            emit_cli_player_command(
+                app,
+                serde_json::json!({
+                    "command": "set-repeat",
+                    "mode": s
+                }),
+            );
         }
         PlayerCliCmd::Rating { stars } => {
-            let _ = app.emit("cli:set-rating-current", stars);
+            emit_cli_player_command(
+                app,
+                serde_json::json!({
+                    "command": "set-rating-current",
+                    "stars": stars
+                }),
+            );
         }
-        PlayerCliCmd::ReloadPlayer => {
-            let _ = app.emit("cli:reload-player", ());
-        }
+        PlayerCliCmd::NoArgCommand(_) => {}
     }
 }
 

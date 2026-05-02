@@ -45,6 +45,7 @@ import { useThemeStore } from '../store/themeStore';
 import { useFontStore, FontId } from '../store/fontStore';
 import { useKeybindingsStore, KeyAction, formatBinding, buildInAppBinding } from '../store/keybindingsStore';
 import { useGlobalShortcutsStore, GlobalAction, buildGlobalShortcut, formatGlobalShortcut } from '../store/globalShortcutsStore';
+import { IN_APP_SHORTCUT_ACTIONS, GLOBAL_SHORTCUT_ACTIONS } from '../config/shortcutActions';
 import { useSidebarStore, DEFAULT_SIDEBAR_ITEMS, SidebarItemConfig } from '../store/sidebarStore';
 import {
   effectiveLoudnessPreAnalysisAttenuationDb,
@@ -3882,20 +3883,8 @@ export default function Settings() {
         >
           <div className="settings-card">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {([
-                ['play-pause',        t('settings.shortcutPlayPause')],
-                ['next',              t('settings.shortcutNext')],
-                ['prev',              t('settings.shortcutPrev')],
-                ['volume-up',         t('settings.shortcutVolumeUp')],
-                ['volume-down',       t('settings.shortcutVolumeDown')],
-                ['seek-forward',      t('settings.shortcutSeekForward')],
-                ['seek-backward',     t('settings.shortcutSeekBackward')],
-                ['toggle-queue',      t('settings.shortcutToggleQueue')],
-                ['open-folder-browser', t('settings.shortcutOpenFolderBrowser', { folderBrowser: t('sidebar.folderBrowser') })],
-                ['fullscreen-player', t('settings.shortcutFullscreenPlayer')],
-                ['native-fullscreen', t('settings.shortcutNativeFullscreen')],
-                ['open-mini-player',  t('settings.shortcutOpenMiniPlayer')],
-              ] as [KeyAction, string][]).map(([action, label]) => {
+              {IN_APP_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
+                const label = getLabel(t);
                 const bound = kb.bindings[action];
                 const isListening = listeningFor === action;
                 return (
@@ -3978,13 +3967,8 @@ export default function Settings() {
         >
           <div className="settings-card">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {([
-                ['play-pause',  t('settings.shortcutPlayPause')],
-                ['next',        t('settings.shortcutNext')],
-                ['prev',        t('settings.shortcutPrev')],
-                ['volume-up',   t('settings.shortcutVolumeUp')],
-                ['volume-down', t('settings.shortcutVolumeDown')],
-              ] as [GlobalAction, string][]).map(([action, label]) => {
+              {GLOBAL_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
+                const label = getLabel(t);
                 const bound = gs.shortcuts[action] ?? null;
                 const isListening = listeningForGlobal === action;
                 return (

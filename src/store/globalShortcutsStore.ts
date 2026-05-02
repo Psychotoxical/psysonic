@@ -2,8 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { MODIFIER_KEY_CODES, formatBinding } from './keybindingsStore';
-
-export type GlobalAction = 'play-pause' | 'next' | 'prev' | 'volume-up' | 'volume-down';
+import { DEFAULT_GLOBAL_SHORTCUTS, isGlobalShortcutActionId, type GlobalAction } from '../config/shortcutActions';
 
 /** Build a Tauri-compatible shortcut string from a KeyboardEvent, or null if invalid. */
 export function buildGlobalShortcut(e: KeyboardEvent): string | null {
@@ -39,7 +38,7 @@ interface GlobalShortcutsState {
 export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
   persist(
     (set, get) => ({
-      shortcuts: {},
+      shortcuts: { ...DEFAULT_GLOBAL_SHORTCUTS },
 
       setShortcut: async (action, shortcut) => {
         const prev = get().shortcuts[action];
@@ -67,6 +66,7 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
         _registerAllCalled = true;
         const { shortcuts } = get();
         for (const [action, shortcut] of Object.entries(shortcuts)) {
+          if (!isGlobalShortcutActionId(action)) continue;
           if (shortcut) {
             try {
               await invoke('register_global_shortcut', { shortcut, action });
@@ -84,9 +84,11 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
             try { await invoke('unregister_global_shortcut', { shortcut }); } catch {}
           }
         }
-        set({ shortcuts: {} });
+        set({ shortcuts: { ...DEFAULT_GLOBAL_SHORTCUTS } });
       },
     }),
     { name: 'psysonic_global_shortcuts' }
   )
 );
+
+export type { GlobalAction } from '../config/shortcutActions';
