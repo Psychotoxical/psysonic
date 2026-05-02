@@ -194,14 +194,12 @@ interface QueueHeaderProps {
   queueIndex: number;
   activePlaylist: { id: string; name: string } | null;
   isNowPlayingCollapsed: boolean;
-  setIsNowPlayingCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsNowPlayingCollapsed: (v: boolean) => void;
   t: TFunction;
 }
 function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed, setIsNowPlayingCollapsed, t }: QueueHeaderProps) {
   const currentTime = usePlayerStore((s) => Math.floor(s.currentTime / 30) * 30);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
-
-  if (queue.length === 0) return null;
 
   const futureTracksDuration = useMemo(() =>
     queue.slice(queueIndex + 1).reduce((acc: number, track: Track) => acc + (track.duration || 0), 0),
@@ -212,22 +210,26 @@ function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed,
 
   const fmtEta = (secs: number) => {
     const finishTime = new Date(Date.now() + secs * 1000);
-    return finishTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(finishTime);
   };
 
-  const eta = fmtEta(remainingSecs);
+  const eta = queue.length > 0 ? fmtEta(remainingSecs) : null;
 
   return (
     <div className="queue-header">
       <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: "8px", minWidth: 0 }}>
           <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, flexShrink: 0 }}>{t("queue.title")}</h2>
-          <span style={{ fontSize: "13px", color: "var(--text-muted)", whiteSpace: "nowrap", userSelect: "none" }}>
-            ({queueIndex + 1}/{queue.length})
-          </span>
-          <span style={{ fontSize: "13px", color: isPlaying ? "var(--accent)" : "var(--text-muted)", opacity: isPlaying ? 1 : 0.5, whiteSpace: "nowrap", userSelect: "none" }}>
-            · {eta}
-          </span>
+          {queue.length > 0 && (
+            <span style={{ fontSize: "13px", color: "var(--text-muted)", whiteSpace: "nowrap", userSelect: "none" }}>
+              ({queueIndex + 1}/{queue.length})
+            </span>
+          )}
+          {eta && (
+            <span style={{ fontSize: "13px", color: isPlaying ? "var(--accent)" : "var(--text-muted)", opacity: isPlaying ? 1 : 0.5, whiteSpace: "nowrap", userSelect: "none" }} data-tooltip={t('queue.etaTooltip')}>
+              · {eta}
+            </span>
+          )}
         </div>
         {activePlaylist && (
           <div className="truncate" style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
@@ -238,11 +240,12 @@ function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed,
       </div>
       <button
         className="queue-action-btn"
-        onClick={() => setIsNowPlayingCollapsed(v => !v)}
-        data-tooltip={isNowPlayingCollapsed ? t('queue.showNowPlaying') : t('queue.hideNowPlaying')}
-        aria-label={isNowPlayingCollapsed ? t('queue.showNowPlaying') : t('queue.hideNowPlaying')}
+        onClick={() => queue.length > 0 && setIsNowPlayingCollapsed(!isNowPlayingCollapsed)}
+        disabled={queue.length === 0}
+        data-tooltip={queue.length === 0 ? t('queue.emptyQueue') : (isNowPlayingCollapsed ? t('queue.showNowPlaying') : t('queue.hideNowPlaying'))}
+        aria-label={queue.length === 0 ? t('queue.emptyQueue') : (isNowPlayingCollapsed ? t('queue.showNowPlaying') : t('queue.hideNowPlaying'))}
         aria-expanded={!isNowPlayingCollapsed}
-        style={{ marginLeft: '8px' }}
+        style={{ marginLeft: '8px', opacity: queue.length === 0 ? 0.3 : 1, cursor: queue.length === 0 ? 'not-allowed' : 'pointer' }}
       >
         <ChevronDown size={18} style={{ transform: isNowPlayingCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s ease' }} />
       </button>
@@ -339,7 +342,8 @@ function QueuePanelHostOrSolo() {
   const setTab     = useLyricsStore(s => s.setTab);
   const luckyRolling = useLuckyMixStore(s => s.isRolling);
 
-  const [isNowPlayingCollapsed, setIsNowPlayingCollapsed] = useState(false);
+  const isNowPlayingCollapsed = useAuthStore(s => s.queueNowPlayingCollapsed);
+  const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
   const [lufsTgtOpen, setLufsTgtOpen] = useState(false);
   const [lufsTgtPopStyle, setLufsTgtPopStyle] = useState<React.CSSProperties>({});
@@ -350,6 +354,7 @@ function QueuePanelHostOrSolo() {
   const crossfadeBtnRef = useRef<HTMLButtonElement>(null);
   const crossfadePopoverRef = useRef<HTMLDivElement>(null);
   const reanalyzeLoudnessForTrack = usePlayerStore(s => s.reanalyzeLoudnessForTrack);
+  const isStorePlaying = usePlayerStore(s => s.isPlaying);
   const authLoudnessTargetLufs = useAuthStore(s => s.loudnessTargetLufs);
   const setLoudnessTargetLufs = useAuthStore(s => s.setLoudnessTargetLufs);
   const loudnessPreAnalysisAttenuationDb = useAuthStore(s => s.loudnessPreAnalysisAttenuationDb);
@@ -1004,7 +1009,7 @@ function QueuePanelHostOrSolo() {
                 style={dragStyle}
               >
                 {isPlaying && (
-                  <div className="eq-bars" style={{ marginRight: '8px', flexShrink: 0 }}>
+                  <div className={`eq-bars${isStorePlaying ? '' : ' paused'}`} style={{ marginRight: '8px', flexShrink: 0 }}>
                     <div className="eq-bar" />
                     <div className="eq-bar" />
                     <div className="eq-bar" />
@@ -1012,7 +1017,6 @@ function QueuePanelHostOrSolo() {
                 )}
                 <div className="queue-item-info">
                   <div className="queue-item-title truncate" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {isPlaying && <Play size={10} fill="currentColor" style={{ flexShrink: 0 }} />}
                     <span className="truncate">{track.title}</span>
                   </div>
                   <div className="queue-item-artist truncate">{track.artist}</div>

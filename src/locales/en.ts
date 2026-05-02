@@ -1124,6 +1124,7 @@ export const enTranslation = {
     trackPlural: 'tracks',
     showRemaining: 'Show remaining time',
     showTotal: 'Show total time',
+    etaTooltip: 'Estimated end of queue',
     replayGain: 'ReplayGain',
     rgTrack: 'T {{db}} dB',
     rgAlbum: 'A {{db}} dB',

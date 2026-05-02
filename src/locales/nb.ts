@@ -1105,6 +1105,7 @@ export const nbTranslation = {
     trackPlural: 'spor',
     showRemaining: 'Vis gjenværende tid',
     showTotal: 'Vis total tid',
+    etaTooltip: 'Anslått sluttid for køen',
     replayGain: 'ReplayGain',
     rgTrack: 'T {{db}} dB',
     rgAlbum: 'A {{db}} dB',

@@ -1180,6 +1180,7 @@ export const ruTranslation = {
     trackPlural: 'треков',
     showRemaining: 'Осталось',
     showTotal: 'Всего',
+    etaTooltip: 'Ориентировочное окончание очереди',
     replayGain: 'ReplayGain',
     rgTrack: 'Т {{db}} дБ',
     rgAlbum: 'А {{db}} дБ',

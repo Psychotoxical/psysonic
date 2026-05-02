@@ -2042,6 +2042,11 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   animation-duration: 0.9s;
 }
 
+/* Pause EQ bars animation when playback is paused */
+.eq-bars.paused .eq-bar {
+  animation-play-state: paused;
+}
+
 @keyframes eq-bounce {
 
   0%,

@@ -1100,6 +1100,7 @@ export const zhTranslation = {
     trackPlural: '首曲目',
     showRemaining: '显示剩余时间',
     showTotal: '显示总时间',
+    etaTooltip: '预计队列结束时间',
     replayGain: 'ReplayGain',
     rgTrack: '曲目 {{db}} dB',
     rgAlbum: '专辑 {{db}} dB',

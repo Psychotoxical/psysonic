@@ -1118,6 +1118,7 @@ export const deTranslation = {
     trackPlural: 'Titel',
     showRemaining: 'Restzeit anzeigen',
     showTotal: 'Gesamtzeit anzeigen',
+    etaTooltip: 'Geschätztes Ende der Warteschlange',
     replayGain: 'ReplayGain',
     rgTrack: 'T {{db}} dB',
     rgAlbum: 'A {{db}} dB',
