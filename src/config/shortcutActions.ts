@@ -4,12 +4,13 @@ import i18n from '../i18n';
 import { getSong, setRating, star, unstar } from '../api/subsonic';
 import { songToTrack, usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
+import { useLyricsStore } from '../store/lyricsStore';
 import { showToast } from '../utils/toast';
 import { playByOpaqueId } from '../utils/playByOpaqueId';
 
 export type TranslateLike = (key: string, options?: any) => string;
 
-type ShortcutSlot = { defaultBinding: string | null };
+type ShortcutSlot = { defaultBinding: string | null; hidden?: boolean };
 
 type ActionContext = {
   navigate: (to: string, options?: any) => void;
@@ -44,6 +45,14 @@ const withPreviewPolicy = (
   }
   fn();
 };
+
+function focusLiveSearchInput(): boolean {
+  const input = document.getElementById('live-search-input') as HTMLInputElement | null;
+  if (!input) return false;
+  input.focus();
+  input.select();
+  return true;
+}
 
 
 export const SHORTCUT_ACTION_REGISTRY = {
@@ -183,6 +192,110 @@ export const SHORTCUT_ACTION_REGISTRY = {
     runInMiniWindow: true,
     run: () => {
       invoke('open_mini_player').catch(() => {});
+    },
+  },
+  'start-search': {
+    getLabel: t => t('settings.shortcutStartSearch', { defaultValue: 'Start a search' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: ({ navigate }) => {
+      if (focusLiveSearchInput()) return;
+      navigate('/');
+      requestAnimationFrame(() => {
+        window.setTimeout(() => { focusLiveSearchInput(); }, 80);
+      });
+    },
+  },
+  'start-advanced-search': {
+    getLabel: t => t('settings.shortcutStartAdvancedSearch', { defaultValue: 'Start an advanced search' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: ({ navigate }) => {
+      navigate('/search/advanced');
+    },
+  },
+  'toggle-sidebar': {
+    getLabel: t => t('settings.shortcutToggleSidebar', { defaultValue: 'Toggle sidebar' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => {
+      window.dispatchEvent(new Event('psy:toggle-sidebar'));
+    },
+  },
+  'mute-sound': {
+    getLabel: t => t('settings.shortcutMuteSound', { defaultValue: 'Mute sound' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => {
+      const state = usePlayerStore.getState();
+      if (state.volume <= 0) {
+        const restore = cliPremuteVolume ?? 0.8;
+        cliPremuteVolume = null;
+        state.setVolume(restore);
+        return;
+      }
+      cliPremuteVolume = state.volume;
+      state.setVolume(0);
+    },
+  },
+  'toggle-equalizer': {
+    getLabel: t => t('settings.shortcutToggleEqualizer', { defaultValue: 'Open / Toggle Equalizer' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => {
+      window.dispatchEvent(new Event('psy:toggle-equalizer'));
+    },
+  },
+  'toggle-repeat': {
+    getLabel: t => t('settings.shortcutToggleRepeat', { defaultValue: 'Toggle repeat' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => {
+      usePlayerStore.getState().toggleRepeat();
+    },
+  },
+  'open-now-playing': {
+    getLabel: t => t('settings.shortcutOpenNowPlaying', { defaultValue: 'Open "Now Playing"' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: ({ navigate }) => {
+      navigate('/now-playing');
+    },
+  },
+  'show-lyrics': {
+    getLabel: t => t('settings.shortcutShowLyrics', { defaultValue: 'Show lyrics' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => {
+      const player = usePlayerStore.getState();
+      player.setQueueVisible(true);
+      useLyricsStore.getState().showLyrics();
+    },
+  },
+  'favorite-current-track': {
+    getLabel: t => t('settings.shortcutFavoriteCurrentTrack', { defaultValue: 'Add current track to favorites' }),
+    inApp: { defaultBinding: null },
+    runInMiniWindow: false,
+    run: () => {
+      const track = usePlayerStore.getState().currentTrack;
+      if (!track) {
+        showToast(i18n.t('contextMenu.cliMixNeedsTrack', { defaultValue: 'Load a track first.' }), 5000, 'error');
+        return;
+      }
+      star(track.id, 'song')
+        .then(() => usePlayerStore.getState().setStarredOverride(track.id, true))
+        .catch(err => {
+          console.error('Favorite current track failed', err);
+          showToast(i18n.t('contextMenu.cliStarFailed', { defaultValue: 'Could not add the track to favorites.' }), 5000, 'error');
+        });
+    },
+  },
+  'open-help': {
+    getLabel: t => t('settings.shortcutOpenHelp', { defaultValue: 'Help' }),
+    inApp: { defaultBinding: 'F1', hidden: true },
+    runInMiniWindow: false,
+    run: ({ navigate }) => {
+      navigate('/help');
     },
   },
   'shuffle': {
@@ -374,13 +487,19 @@ export function executeCliPlayerCommand(ctx: CliContext): void | Promise<void> {
   // no-op for unknown command
 }
 
-export const IN_APP_SHORTCUT_ACTIONS = (Object.keys(SHORTCUT_ACTION_REGISTRY) as ShortcutAction[])
+const ALL_IN_APP_SHORTCUT_ACTIONS = (Object.keys(SHORTCUT_ACTION_REGISTRY) as ShortcutAction[])
   .filter((action): action is KeyAction => 'inApp' in SHORTCUT_ACTION_REGISTRY[action])
-  .map(action => ({
-    id: action,
-    getLabel: SHORTCUT_ACTION_REGISTRY[action].getLabel,
-    defaultBinding: SHORTCUT_ACTION_REGISTRY[action].inApp.defaultBinding,
-  }));
+  .map(action => {
+    const inApp = SHORTCUT_ACTION_REGISTRY[action].inApp as ShortcutSlot;
+    return {
+      id: action,
+      getLabel: SHORTCUT_ACTION_REGISTRY[action].getLabel,
+      defaultBinding: inApp.defaultBinding,
+      hidden: inApp.hidden === true,
+    };
+  });
+
+export const IN_APP_SHORTCUT_ACTIONS = ALL_IN_APP_SHORTCUT_ACTIONS.filter(action => !action.hidden);
 
 export const GLOBAL_SHORTCUT_ACTIONS = (Object.keys(SHORTCUT_ACTION_REGISTRY) as ShortcutAction[])
   .filter((action): action is GlobalAction => 'global' in SHORTCUT_ACTION_REGISTRY[action])
@@ -391,7 +510,7 @@ export const GLOBAL_SHORTCUT_ACTIONS = (Object.keys(SHORTCUT_ACTION_REGISTRY) as
   }));
 
 export const DEFAULT_IN_APP_BINDINGS = Object.fromEntries(
-  IN_APP_SHORTCUT_ACTIONS.map(action => [action.id, action.defaultBinding])
+  ALL_IN_APP_SHORTCUT_ACTIONS.map(action => [action.id, action.defaultBinding])
 ) as Record<KeyAction, string | null>;
 
 export const DEFAULT_GLOBAL_SHORTCUTS: Partial<Record<GlobalAction, string>> = {};

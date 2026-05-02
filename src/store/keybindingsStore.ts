@@ -14,6 +14,15 @@ export type Bindings = Record<KeyAction, string | null>;
 export const DEFAULT_BINDINGS: Bindings = { ...DEFAULT_IN_APP_BINDINGS };
 export type { KeyAction } from '../config/shortcutActions';
 
+function normalizeBindings(
+  bindings: Partial<Record<KeyAction, string | null>> | undefined
+): Bindings {
+  return {
+    ...DEFAULT_BINDINGS,
+    ...(bindings ?? {}),
+  } as Bindings;
+}
+
 interface KeybindingsState {
   bindings: Bindings;
   setBinding: (action: KeyAction, binding: string | null) => void;
@@ -56,12 +65,18 @@ export function matchInAppBinding(e: KeyboardEvent, binding: string | null): boo
 export const useKeybindingsStore = create<KeybindingsState>()(
   persist(
     (set) => ({
-      bindings: { ...DEFAULT_BINDINGS },
+      bindings: normalizeBindings(undefined),
       setBinding: (action, binding) =>
         set(s => ({ bindings: { ...s.bindings, [action]: binding } })),
-      resetToDefaults: () => set({ bindings: { ...DEFAULT_BINDINGS } }),
+      resetToDefaults: () => set({ bindings: normalizeBindings(undefined) }),
     }),
-    { name: 'psysonic_keybindings' }
+    {
+      name: 'psysonic_keybindings',
+      onRehydrateStorage: () => state => {
+        if (!state) return;
+        state.bindings = normalizeBindings(state.bindings);
+      },
+    }
   )
 );
 

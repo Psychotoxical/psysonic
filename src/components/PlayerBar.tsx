@@ -204,6 +204,12 @@ export default function PlayerBar() {
   }, []);
 
   useEffect(() => {
+    const onToggleEqualizer = () => setEqOpen(v => !v);
+    window.addEventListener('psy:toggle-equalizer', onToggleEqualizer);
+    return () => window.removeEventListener('psy:toggle-equalizer', onToggleEqualizer);
+  }, []);
+
+  useEffect(() => {
     if (!utilityMenuOpen) return;
     const MENU_WIDTH = 238;
     const MARGIN = 8;

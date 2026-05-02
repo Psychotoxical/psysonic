@@ -103,7 +103,7 @@ import { useKeybindingsStore, buildInAppBinding } from './store/keybindingsStore
 import { useGlobalShortcutsStore } from './store/globalShortcutsStore';
 import { useZipDownloadStore } from './store/zipDownloadStore';
 import { usePreviewStore } from './store/previewStore';
-import { canRunShortcutActionInMiniWindow, executeCliPlayerCommand, executeRuntimeAction, isGlobalShortcutActionId, isShortcutAction } from './config/shortcutActions';
+import { DEFAULT_IN_APP_BINDINGS, canRunShortcutActionInMiniWindow, executeCliPlayerCommand, executeRuntimeAction, isGlobalShortcutActionId, isShortcutAction } from './config/shortcutActions';
 import { matchInAppShortcutAction } from './shortcuts/runtime';
 import ZipDownloadOverlay from './components/ZipDownloadOverlay';
 import PasteClipboardHandler from './components/PasteClipboardHandler';
@@ -378,6 +378,12 @@ function AppShell() {
     persistSidebarCollapsed(collapsed);
     setIsSidebarCollapsed(collapsed);
   }, []);
+
+  useEffect(() => {
+    const onToggleSidebar = () => setSidebarCollapsed(!isSidebarCollapsed);
+    window.addEventListener('psy:toggle-sidebar', onToggleSidebar);
+    return () => window.removeEventListener('psy:toggle-sidebar', onToggleSidebar);
+  }, [isSidebarCollapsed, setSidebarCollapsed]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (isDraggingQueue) {
@@ -1005,7 +1011,7 @@ function TauriEventBridge() {
       }
 
       const { bindings } = useKeybindingsStore.getState();
-      const action = matchInAppShortcutAction(e, bindings);
+      const action = matchInAppShortcutAction(e, { ...DEFAULT_IN_APP_BINDINGS, ...bindings });
 
       if (!action) return;
       e.preventDefault();
