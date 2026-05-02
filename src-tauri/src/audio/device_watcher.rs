@@ -5,6 +5,8 @@ use std::time::Duration;
 use tauri::Emitter;
 
 use super::engine::AudioEngine;
+#[cfg(not(target_os = "linux"))]
+use super::dev_io::output_enumeration_includes_pinned;
 
 pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
     let reopen_tx       = engine.stream_reopen_tx.clone();

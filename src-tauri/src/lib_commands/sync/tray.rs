@@ -390,6 +390,11 @@ pub(crate) fn no_compositing_mode() -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn is_tiling_wm() -> bool {
+    false
+}
+
 /// Tauri command: lets the frontend know whether we're running under a tiling
 /// WM so it can decide whether to render the custom TitleBar component.
 #[tauri::command]
