@@ -11097,15 +11097,29 @@ html.no-compositing .fs-seekbar-played {
   background: var(--accent);
 }
 
+/* Window completely invisible (tab hidden via Visibility API, or Tauri
+   `win.hide()`): pausing every animation is safe because the user is not
+   looking. */
 html[data-app-hidden="true"] *,
 html[data-app-hidden="true"] *::before,
 html[data-app-hidden="true"] *::after,
 html[data-psy-native-hidden="true"] *,
 html[data-psy-native-hidden="true"] *::before,
-html[data-psy-native-hidden="true"] *::after,
-html[data-app-blurred="true"] *,
-html[data-app-blurred="true"] *::before,
-html[data-app-blurred="true"] *::after {
+html[data-psy-native-hidden="true"] *::after {
+  animation-play-state: paused !important;
+}
+
+/* Window visible but unfocused (alt-tab, click into another app): only
+   pause the heaviest known infinite animations to save GPU. The previous
+   `*`-selector variant fired a repaint over every node and triggered a
+   stale-blur HMR rendering bug on WebKitGTK + no-compositing. */
+html[data-app-blurred="true"] .eq-bars .eq-bar,
+html[data-app-blurred="true"] .player-marquee,
+html[data-app-blurred="true"] .marquee-text,
+html[data-app-blurred="true"] .np-dot-pulse,
+html[data-app-blurred="true"] .fs-mesh-blob,
+html[data-app-blurred="true"] .fs-portrait-wrap,
+html[data-app-blurred="true"] .spin {
   animation-play-state: paused !important;
 }
 

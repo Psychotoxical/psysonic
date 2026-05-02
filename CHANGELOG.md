@@ -141,6 +141,8 @@ The currently playing row in the queue list is now indicated by **animated equal
 
 - **Windows playback stutter under GPU load** *(Issue [#334](https://github.com/Psychotoxical/psysonic/issues/334), PR [#426](https://github.com/Psychotoxical/psysonic/pull/426), by [@Psychotoxical](https://github.com/Psychotoxical))*: Audio could stutter and crackle on Windows whenever another app put GPU/CPU pressure on the system (browser, 3D apps, games). The WASAPI render thread is now promoted to MMCSS "Pro Audio" via `AvSetMmThreadCharacteristicsW`, so it survives priority contention from competing graphics work. Reproed and validated under a Half-Life parallel-load stresstest. Companion mitigations for high-GPU situations: cosmetic UI animations now pause when the window loses OS focus, and a new **Reduce animations** toggle in **Settings → Appearance** caps animated seekbar styles (pulsewave, particletrail, liquidfill, retrotape) to 30 fps for users on GPU-constrained machines (off by default).
 
+- **Linux dev — sidebar and main content invisible after HMR** *(PR [#434](https://github.com/Psychotoxical/psysonic/pull/434), by [@Psychotoxical](https://github.com/Psychotoxical))*: The `data-app-blurred="true"` CSS rule introduced in #426 used a `*` selector to pause every animation while the window was unfocused. On WebKitGTK + no-compositing this triggered a stale rendering bug after Vite hot-reloads — the sidebar and main content stayed unpainted until any user interaction nudged a re-render. The rule now targets only the concrete heaviest infinite animations (eq bars, marquees, now-playing dot pulse, fullscreen mesh blob / portrait, `.spin`); release builds are unchanged in behaviour.
+
 
 
 ## [1.44.0] - 2026-04-29
