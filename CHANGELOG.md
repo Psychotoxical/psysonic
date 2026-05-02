@@ -113,6 +113,8 @@ The drag ghost shows a **trash** affordance only while the cursor is outside the
 
 - **Polish** *(PR [#397](https://github.com/Psychotoxical/psysonic/pull/397), by [@cucadmuh](https://github.com/cucadmuh))*: multiple branch-local interaction fixes around sidebar drag/drop behavior, Live dropdown layering, queue-resize handle behavior during scroll/overlay-scrollbar interaction, and now-playing narrow-layout stability.
 
+- **Track preview audio in sync with progress ring; huge files no longer abort** *(Issue [#421](https://github.com/Psychotoxical/psysonic/issues/421), PR [#423](https://github.com/Psychotoxical/psysonic/pull/423), by [@Psychotoxical](https://github.com/Psychotoxical))*: Previews used to start audio about 25 % into the preview window on mid-track starts because `Sink::try_seek` ran in parallel with `sink.append` while the 30 s `take_duration` cap was already counting wall-clock from append. The seek now runs on the bare source before append, and the progress-ring animation only starts once the engine actually emits `audio:preview-start` — a small loading spinner is shown during the download/decode/seek warmup. The preview HTTP-client timeout was raised from 30 s to 5 min, so multi-hundred-megabyte Hi-Res files no longer abort the download mid-fetch.
+
 
 
 ## [1.44.0] - 2026-04-29
