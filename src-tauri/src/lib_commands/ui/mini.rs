@@ -1,7 +1,5 @@
 use super::*;
 
-use super::*;
-
 // ── Mini Player window ──────────────────────────────────────────────────────
 // Secondary always-on-top window with minimal playback controls. Uses the
 // same frontend bundle as the main window; disambiguated by window label

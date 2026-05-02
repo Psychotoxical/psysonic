@@ -1,7 +1,5 @@
 use super::*;
 
-use super::*;
-
 #[tauri::command]
 pub(crate) fn greet(name: &str) -> String {
     format!("Hello, {}!", name)

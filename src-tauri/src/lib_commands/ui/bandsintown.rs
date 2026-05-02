@@ -1,5 +1,3 @@
-use super::*;
-
 // ── Bandsintown ──────────────────────────────────────────────────────────────
 // Public REST API: https://rest.bandsintown.com/artists/{name}/events?app_id=…
 // Bandsintown whitelists app IDs — arbitrary strings now return 403 Forbidden.

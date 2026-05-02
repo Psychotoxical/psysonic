@@ -1,5 +1,3 @@
-use super::*;
-
 /// Authenticate with Navidrome's own REST API and return a Bearer token.
 pub(crate) async fn navidrome_token(server_url: &str, username: &str, password: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
