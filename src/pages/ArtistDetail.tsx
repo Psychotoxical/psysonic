@@ -82,6 +82,7 @@ export default function ArtistDetail() {
   const currentTrack = usePlayerStore(state => state.currentTrack);
   const isPlaying = usePlayerStore(state => state.isPlaying);
   const previewingId = usePreviewStore(s => s.previewingId);
+  const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const downloadArtist = useOfflineStore(s => s.downloadArtist);
   const bulkProgress = useOfflineJobStore(s => s.bulkProgress);
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
@@ -737,7 +738,7 @@ export default function ArtistDetail() {
                   </button>
                   <button
                     type="button"
-                    className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}`}
+                    className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
                     onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'artist'); }}
                     data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
                     aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}

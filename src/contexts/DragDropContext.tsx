@@ -19,6 +19,7 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Trash2 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────
 export interface DragPayload {
@@ -33,6 +34,8 @@ export interface DragPayload {
 interface DragState {
   payload: DragPayload | null;
   position: { x: number; y: number };
+  /** `queue_reorder` only: true when cursor is outside every registered queue rect */
+  queueReorderOutside?: boolean;
 }
 
 interface DragDropContextValue {
@@ -52,10 +55,41 @@ const Ctx = createContext<DragDropContextValue>({
 
 export const useDragDrop = () => useContext(Ctx);
 
+function isQueueReorderDrag(data: string): boolean {
+  try {
+    return JSON.parse(data).type === 'queue_reorder';
+  } catch {
+    return false;
+  }
+}
+
+/** Hit-tests for queue UI rects (main sidebar + mini-player list). Used so the drag ghost only shows “remove” outside those bounds. */
+const queueDragHitTests: Array<(x: number, y: number) => boolean> = [];
+
+/**
+ * Register a function that returns true when (clientX, clientY) lies inside
+ * this window’s queue drop area. Unregister on cleanup.
+ */
+export function registerQueueDragHitTest(fn: (x: number, y: number) => boolean): () => void {
+  queueDragHitTests.push(fn);
+  return () => {
+    const i = queueDragHitTests.indexOf(fn);
+    if (i >= 0) queueDragHitTests.splice(i, 1);
+  };
+}
+
+function computeQueueReorderOutside(clientX: number, clientY: number): boolean {
+  if (queueDragHitTests.length === 0) return false;
+  const inside = queueDragHitTests.some((t) => t(clientX, clientY));
+  return !inside;
+}
+
 // ── Ghost overlay ─────────────────────────────────────────────────
 function DragGhost({ state }: { state: DragState }) {
   if (!state.payload) return null;
-  const { label, coverUrl } = state.payload;
+  const { label, coverUrl, data } = state.payload;
+  const queueReorder = isQueueReorderDrag(data);
+  const showTrash = queueReorder && state.queueReorderOutside === true;
   return createPortal(
     <div
       style={{
@@ -83,6 +117,14 @@ function DragGhost({ state }: { state: DragState }) {
         userSelect: 'none',
       }}
     >
+      {showTrash && (
+        <Trash2
+          size={16}
+          strokeWidth={2.25}
+          aria-hidden
+          style={{ flexShrink: 0, color: 'var(--danger, var(--ctp-red, #f38ba8))' }}
+        />
+      )}
       {coverUrl && (
         <img
           src={coverUrl}
@@ -119,7 +161,13 @@ export function DragDropProvider({ children }: { children: React.ReactNode }) {
       // Clear any text selection the browser may have started during the
       // threshold detection phase (mousedown → mousemove before startDrag).
       window.getSelection()?.removeAllRanges();
-      setState({ payload, position: { x, y } });
+      setState({
+        payload,
+        position: { x, y },
+        ...(isQueueReorderDrag(payload.data)
+          ? { queueReorderOutside: computeQueueReorderOutside(x, y) }
+          : {}),
+      });
     },
     [],
   );
@@ -135,7 +183,18 @@ export function DragDropProvider({ children }: { children: React.ReactNode }) {
       // a text-selection drag, which causes element highlighting and
       // horizontal auto-scroll in grid containers.
       e.preventDefault();
-      setState((prev) => ({ ...prev, position: { x: e.clientX, y: e.clientY } }));
+      setState((prev) => {
+        if (!prev.payload) return prev;
+        const pos = { x: e.clientX, y: e.clientY };
+        if (!isQueueReorderDrag(prev.payload.data)) {
+          return { ...prev, position: pos };
+        }
+        return {
+          ...prev,
+          position: pos,
+          queueReorderOutside: computeQueueReorderOutside(pos.x, pos.y),
+        };
+      });
     };
 
     /** End drag; optionally fire `psy-drop` at the last known cursor position. */
@@ -146,14 +205,15 @@ export function DragDropProvider({ children }: { children: React.ReactNode }) {
       window.getSelection()?.removeAllRanges();
 
       if (dispatchDrop) {
+        const p = stateRef.current.position;
+        const pl = stateRef.current.payload;
         const evt = new CustomEvent('psy-drop', {
           bubbles: true,
-          detail: stateRef.current.payload,
+          detail: pl
+            ? { ...pl, clientX: p.x, clientY: p.y }
+            : pl,
         });
-        const el = document.elementFromPoint(
-          stateRef.current.position.x,
-          stateRef.current.position.y,
-        );
+        const el = document.elementFromPoint(p.x, p.y);
         if (el) el.dispatchEvent(evt);
       }
 

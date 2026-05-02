@@ -20,6 +20,8 @@ export type OverlayScrollAreaProps = {
   viewportScrollBehaviorAuto?: boolean;
   /** Ref to the scrollable element (querySelector, scrollIntoView, etc.). */
   viewportRef?: React.Ref<HTMLDivElement>;
+  /** Ref to the outer wrapper (incl. overlay scrollbar rail). */
+  wrapRef?: React.Ref<HTMLDivElement>;
   /** Optional id on the viewport (e.g. main app scroll for route pages). */
   viewportId?: string;
   /** Optional wheel handler on the scrollable viewport. */
@@ -49,11 +51,12 @@ export default function OverlayScrollArea({
   railInset = 'none',
   viewportScrollBehaviorAuto = false,
   viewportRef: viewportRefProp,
+  wrapRef: wrapRefProp,
   viewportId,
   viewportOnWheel,
   viewportOnTouchMove,
 }: OverlayScrollAreaProps) {
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [meta, setMeta] = useState({ thumbH: 0, thumbT: 0, visible: false });
 
@@ -109,6 +112,11 @@ export default function OverlayScrollArea({
     assignRef(viewportRefProp, el);
   };
 
+  const setWrapNode = (el: HTMLDivElement | null) => {
+    wrapRef.current = el;
+    assignRef(wrapRefProp, el);
+  };
+
   const rootClass = [
     'overlay-scroll',
     RAIL_INSET_CLASS[railInset],
@@ -121,7 +129,7 @@ export default function OverlayScrollArea({
   const viewportClass = ['overlay-scroll__viewport', viewportClassName].filter(Boolean).join(' ');
 
   return (
-    <div ref={wrapRef} className={rootClass} onMouseMove={onMouseMove}>
+    <div ref={setWrapNode} className={rootClass} onMouseMove={onMouseMove}>
       <div
         id={viewportId}
         ref={setViewportNode}

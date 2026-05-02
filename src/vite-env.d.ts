@@ -3,6 +3,7 @@
 declare global {
   interface Window {
     __psyHidden?: boolean;
+    __psyBlurred?: boolean;
   }
 }
 

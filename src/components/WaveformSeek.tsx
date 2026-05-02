@@ -825,7 +825,7 @@ export function SeekbarPreview({
       }
     };
     const tick = () => {
-      if (document.hidden || window.__psyHidden) {
+      if (document.hidden || window.__psyHidden || window.__psyBlurred) {
         pollId = window.setTimeout(() => {
           pollId = null;
           tick();
@@ -912,11 +912,14 @@ export default function WaveformSeek({ trackId }: Props) {
   const waveformBins = usePlayerStore(s => s.waveformBins);
   const duration     = usePlayerStore(s => s.currentTrack?.duration ?? 0);
   const seekbarStyle = useAuthStore(s => s.seekbarStyle);
+  const reducedAnimations = useAuthStore(s => s.reducedAnimations);
 
   // Ref so the subscription callback (closed over at mount) can read the
   // current style without stale-closure issues.
   const styleRef = useRef(seekbarStyle);
   styleRef.current = seekbarStyle;
+  const reducedRef = useRef(reducedAnimations);
+  reducedRef.current = reducedAnimations;
 
   useEffect(() => {
     if (!trackId) {
@@ -1051,6 +1054,7 @@ export default function WaveformSeek({ trackId }: Props) {
     animStateRef.current = makeAnimState();
     let rafId: number | null = null;
     let pollId: number | null = null;
+    let skip = false;
     const stop = () => {
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
@@ -1062,14 +1066,22 @@ export default function WaveformSeek({ trackId }: Props) {
       }
     };
     const tick = () => {
-      if (document.hidden || window.__psyHidden) {
+      if (document.hidden || window.__psyHidden || window.__psyBlurred) {
         pollId = window.setTimeout(() => {
           pollId = null;
           tick();
         }, 400);
         return;
       }
-      animStateRef.current.time += 0.016;
+      // 30 fps cap when reducedAnimations is on: skip every other rAF, advance
+      // animation time by a doubled delta so wave speed stays the same.
+      if (reducedRef.current && skip) {
+        skip = false;
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+      skip = reducedRef.current;
+      animStateRef.current.time += reducedRef.current ? 0.032 : 0.016;
       drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
       rafId = requestAnimationFrame(tick);
     };

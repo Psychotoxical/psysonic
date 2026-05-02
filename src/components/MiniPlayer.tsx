@@ -9,7 +9,7 @@ import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';
-import { useDragDrop } from '../contexts/DragDropContext';
+import { useDragDrop, registerQueueDragHitTest } from '../contexts/DragDropContext';
 import { useWindowVisibility } from '../hooks/useWindowVisibility';
 import { IS_LINUX } from '../utils/platform';
 import MiniContextMenu from './MiniContextMenu';
@@ -115,6 +115,18 @@ export default function MiniPlayer() {
   const [volumeOpen, setVolumeOpen] = useState(false);
   const ticker = useRef<number | null>(null);
   const queueScrollRef = useRef<HTMLDivElement>(null);
+  const miniQueueWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!queueOpen) return;
+    const hitTest = (cx: number, cy: number) => {
+      const el = miniQueueWrapRef.current;
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+    };
+    return registerQueueDragHitTest(hitTest);
+  }, [queueOpen]);
   const volumeBtnRef = useRef<HTMLButtonElement>(null);
   const volumePopRef = useRef<HTMLDivElement>(null);
   const [volumePopStyle, setVolumePopStyle] = useState<React.CSSProperties>({});
@@ -415,6 +427,37 @@ export default function MiniPlayer() {
     return () => el.removeEventListener('psy-drop', onPsyDrop);
   }, [queueOpen, state.queue.length]);
 
+  // Drop outside the mini queue strip → remove (same UX as main QueuePanel).
+  useEffect(() => {
+    if (!queueOpen) return;
+    const onDocPsyDrop = (e: Event) => {
+      const d = (e as CustomEvent<{ data?: string; clientX?: number; clientY?: number }>).detail;
+      if (!d?.data) return;
+      const cx = d.clientX;
+      const cy = d.clientY;
+      if (typeof cx !== 'number' || typeof cy !== 'number') return;
+      let parsed: { type?: string; index?: number } | null = null;
+      try {
+        parsed = JSON.parse(d.data);
+      } catch {
+        return;
+      }
+      if (parsed?.type !== 'queue_reorder' || typeof parsed.index !== 'number') return;
+      const wrap = miniQueueWrapRef.current;
+      if (!wrap) return;
+      const r = wrap.getBoundingClientRect();
+      const inside =
+        cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+      if (inside) return;
+      psyDragFromIdxRef.current = null;
+      dropTargetRef.current = null;
+      setDropTarget(null);
+      emit('mini:remove', { index: parsed.index }).catch(() => {});
+    };
+    document.addEventListener('psy-drop', onDocPsyDrop);
+    return () => document.removeEventListener('psy-drop', onDocPsyDrop);
+  }, [queueOpen]);
+
   // Auto-scroll the current track into view when the queue expands.
   useEffect(() => {
     if (!queueOpen) return;
@@ -633,6 +676,7 @@ export default function MiniPlayer() {
 
         {queueOpen && (
         <OverlayScrollArea
+          wrapRef={miniQueueWrapRef}
           viewportRef={queueScrollRef}
           className="mini-queue-wrap"
           viewportClassName="mini-queue"
