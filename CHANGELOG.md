@@ -131,6 +131,17 @@ A new chevron next to the queue title **collapses the Now Playing section and qu
 The currently playing row in the queue list is now indicated by **animated equalizer bars** to the left of the track title; the bars freeze in place when playback is paused. The previous small play icon next to the title is removed since the EQ bars carry the same signal more clearly.
 
 
+### Shortcuts — Action Registry, Dynamic CLI Help, New Input Targets
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#435](https://github.com/Psychotoxical/psysonic/pull/435)**
+
+Shortcut, keyboard, global-hotkey, mini-window and CLI inputs are now all routed through one TypeScript action registry — a single source of truth for what an action does, how it's labelled, and which input transports can fire it. CLI `--player help` is generated dynamically from the registry, so command coverage stays in sync with the action set automatically.
+
+Nine new input actions were added (requested by @zunoz on Discord): start search, start advanced search, toggle sidebar, mute, open / toggle equalizer, toggle repeat, open Now Playing, show lyrics, favorite current track. Help is bound to **F1** by default and hidden from the Settings input list; existing users get the F1 binding back-filled into their persisted keybindings on next launch.
+
+Translations for the new action labels follow in a separate i18n nachhol-PR (de, fr, nl, zh, nb, ru, es).
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
