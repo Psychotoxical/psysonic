@@ -205,6 +205,7 @@ const CONTRIBUTORS = [
       'UI refinements — sidebar discovery indicators, adaptive header, interaction polish (PR #397)',
       'Queue: drag rows outside to remove with trash ghost (PR #420)',
       'Tauri: modularize audio and lib command layers (PR #422)',
+      'Shortcuts: action registry, dynamic CLI help, 9 new input targets + F1 help binding (PR #435)',
     ],
   },
   {
