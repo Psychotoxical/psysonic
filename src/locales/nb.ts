@@ -902,6 +902,8 @@ export const nbTranslation = {
     sidebarLyricsStyleAppleDesc: 'Aktiv linje forankres øverst med jevn animasjon.',
     seekbarStyle: 'Søkefelt-stil',
     seekbarStyleDesc: 'Velg utseendet på avspillingssøkefeltet',
+    reducedAnimations: 'Reduser animasjoner',
+    reducedAnimationsDesc: 'Begrens animerte søkefelt-stiler til 30 fps for å redusere GPU-belastning på tregere maskinvare. Visuell forskjell er minimal.',
     seekbarTruewave: 'Ekte bølgeform',
     seekbarPseudowave: 'Pseudo-bølgeform',
     seekbarLinedot: 'Linje & punkt',

@@ -903,6 +903,8 @@ export const frTranslation = {
     sidebarLyricsStyleAppleDesc: "La ligne active reste en haut avec une animation fluide.",
     seekbarStyle: 'Style de la barre de lecture',
     seekbarStyleDesc: 'Choisir l\'apparence de la barre de progression',
+    reducedAnimations: 'Réduire les animations',
+    reducedAnimationsDesc: 'Limiter les styles de barre de lecture animés à 30 fps pour réduire l\'utilisation du GPU sur le matériel plus lent. La différence visuelle est minime.',
     seekbarTruewave: 'Forme d\'onde réelle',
     seekbarPseudowave: 'Forme d\'onde pseudo',
     seekbarLinedot: 'Ligne & point',

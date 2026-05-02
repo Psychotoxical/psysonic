@@ -908,6 +908,8 @@ export const esTranslation = {
     sidebarLyricsStyleAppleDesc: 'La línea activa se ancla arriba con animación suave.',
     seekbarStyle: 'Estilo de Barra de Progreso',
     seekbarStyleDesc: 'Elige la apariencia de la barra de progreso del reproductor',
+    reducedAnimations: 'Reducir animaciones',
+    reducedAnimationsDesc: 'Limita los estilos animados de la barra de progreso a 30 fps para reducir el uso de GPU en hardware más lento. La diferencia visual es mínima.',
     seekbarTruewave: 'Forma de Onda Real',
     seekbarPseudowave: 'Forma de Onda Pseudo',
     seekbarLinedot: 'Línea y Punto',

@@ -897,6 +897,8 @@ export const zhTranslation = {
     sidebarLyricsStyleAppleDesc: '活动行固定在顶部，带有平滑弹簧动画。',
     seekbarStyle: '进度条样式',
     seekbarStyleDesc: '选择播放进度条的外观',
+    reducedAnimations: '减少动画',
+    reducedAnimationsDesc: '将动画进度条样式限制为 30 fps，以降低较慢硬件上的 GPU 占用。视觉差异极小。',
     seekbarTruewave: '真实波形',
     seekbarPseudowave: '伪波形',
     seekbarLinedot: '线条与点',

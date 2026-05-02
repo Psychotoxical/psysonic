@@ -921,6 +921,8 @@ export const enTranslation = {
     fsPortraitDim: 'Photo dimming',
     seekbarStyle: 'Seekbar Style',
     seekbarStyleDesc: 'Choose the look of the player seek bar',
+    reducedAnimations: 'Reduce animations',
+    reducedAnimationsDesc: 'Cap animated seekbar styles to 30 fps to lower GPU usage on slower hardware. Visual difference is minimal.',
     seekbarTruewave: 'Truewave',
     seekbarPseudowave: 'Pseudowave',
     seekbarLinedot: 'Line & Dot',

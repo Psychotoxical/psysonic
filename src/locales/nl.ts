@@ -902,6 +902,8 @@ export const nlTranslation = {
     sidebarLyricsStyleAppleDesc: 'Actieve regel verankerd bovenaan met vloeiende animatie.',
     seekbarStyle: 'Zoekbalkstijl',
     seekbarStyleDesc: 'Kies het uiterlijk van de afspeelbalk',
+    reducedAnimations: 'Animaties beperken',
+    reducedAnimationsDesc: 'Beperk geanimeerde zoekbalkstijlen tot 30 fps om GPU-gebruik op tragere hardware te verminderen. Visueel verschil is minimaal.',
     seekbarTruewave: 'Echte golfvorm',
     seekbarPseudowave: 'Pseudo-golfvorm',
     seekbarLinedot: 'Lijn & punt',
