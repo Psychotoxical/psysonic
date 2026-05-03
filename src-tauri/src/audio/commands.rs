@@ -614,6 +614,14 @@ pub async fn audio_play(
 
     // Gapless OFF: prepend a short silence so tracks are clearly separated.
     // Only when this is an auto-advance (near end), not on manual skip.
+    //
+    // Use a frame-aligned `SamplesBuffer` rather than `Zero + take_duration` —
+    // the latter computes its sample count via integer-nanosecond division
+    // (1_000_000_000 / (sr * ch)), which at common rates leaks an odd number
+    // of samples (e.g. 44103 at 44.1 kHz / 2 ch / 500 ms = 22051.5 frames).
+    // The half-frame leak shifts the next source's L/R parity in the device
+    // stream and can manifest as a dead channel for the rest of the track
+    // (reported by users for natural-end-without-gapless transitions only).
     if !gapless {
         let cur_pos = {
             let cur = state.current.lock().unwrap();
@@ -625,10 +633,12 @@ pub async fn audio_play(
         };
         let is_auto_advance = cur_dur > 3.0 && cur_pos >= cur_dur - 3.0;
         if is_auto_advance {
-            let silence = rodio::source::Zero::<f32>::new(
-                source.channels(),
-                source.sample_rate(),
-            ).take_duration(Duration::from_millis(500));
+            let ch = source.channels();
+            let sr = source.sample_rate();
+            // 500 ms in whole frames, then expand to interleaved samples.
+            let frames = (sr / 2) as usize;
+            let total_samples = frames.saturating_mul(ch as usize);
+            let silence = rodio::buffer::SamplesBuffer::new(ch, sr, vec![0f32; total_samples]);
             sink.append(silence);
         }
     }
