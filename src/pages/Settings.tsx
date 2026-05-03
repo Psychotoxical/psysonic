@@ -349,6 +349,7 @@ const CONTRIBUTORS = [
       'Statistics: shareable Top-Albums card export (PR #425)',
       'Windows: playback stutter under GPU load — MMCSS Pro Audio promotion + animation pause + reduce-animations toggle (PR #426)',
       'Audio: frame-align gapless-off track-separation silence (fixes mono-channel playback after natural track end) (PR #439)',
+      'Settings: 3-state animation mode (Full / Reduced / Static) — replaces boolean reduce-animations toggle (PR #441)',
     ],
   },
 ] as const;
