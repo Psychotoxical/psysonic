@@ -3862,15 +3862,42 @@ export default function Settings() {
                   />
                 ))}
               </div>
-              <div className="settings-toggle-row" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.reducedAnimations')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.reducedAnimationsDesc')}</div>
+              <div className="settings-norm-block" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <div className="settings-norm-field">
+                  <div className="settings-norm-row">
+                    <span className="settings-norm-label">{t('settings.animationMode')}</span>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <button
+                        className={`btn ${auth.animationMode === 'full' ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ fontSize: 12, padding: '4px 14px' }}
+                        onClick={() => auth.setAnimationMode('full')}
+                      >
+                        {t('settings.animationModeFull')}
+                      </button>
+                      <button
+                        className={`btn ${auth.animationMode === 'reduced' ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ fontSize: 12, padding: '4px 14px' }}
+                        onClick={() => auth.setAnimationMode('reduced')}
+                      >
+                        {t('settings.animationModeReduced')}
+                      </button>
+                      <button
+                        className={`btn ${auth.animationMode === 'static' ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ fontSize: 12, padding: '4px 14px' }}
+                        onClick={() => auth.setAnimationMode('static')}
+                      >
+                        {t('settings.animationModeStatic')}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="settings-norm-help">
+                    {auth.animationMode === 'reduced'
+                      ? t('settings.animationModeReducedHint')
+                      : auth.animationMode === 'static'
+                        ? t('settings.animationModeStaticHint')
+                        : t('settings.animationModeDesc')}
+                  </div>
                 </div>
-                <label className="toggle-switch" aria-label={t('settings.reducedAnimations')}>
-                  <input type="checkbox" checked={auth.reducedAnimations} onChange={e => auth.setReducedAnimations(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
               </div>
             </div>
           </SettingsSubSection>

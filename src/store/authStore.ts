@@ -25,6 +25,7 @@ export interface ServerProfile {
 export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thick' | 'segmented' | 'neon' | 'pulsewave' | 'particletrail' | 'liquidfill' | 'retrotape';
 export type LoggingMode = 'off' | 'normal' | 'debug';
 export type NormalizationEngine = 'off' | 'replaygain' | 'loudness';
+export type AnimationMode = 'full' | 'reduced' | 'static';
 
 /** Integrated-loudness target presets (Settings + analysis). */
 export type LoudnessLufsPreset = -16 | -14 | -12 | -10;
@@ -176,8 +177,12 @@ interface AuthState {
   lastSeenChangelogVersion: string;
 
   seekbarStyle: SeekbarStyle;
-  /** Cap animated seekbar styles to 30 fps (and similar GPU-friendly tweaks) for low-end hardware. */
-  reducedAnimations: boolean;
+  /** Animation budget across the UI:
+   *  - `full`   = native frame rate
+   *  - `reduced`= 30 fps cap on animated seekbar; marquee at half frame rate
+   *  - `static` = ~1 fps progress (no rAF interpolation); marquee disabled (truncate)
+   */
+  animationMode: AnimationMode;
   /** Persisted UI toggle: is the Now Playing section in queue panel collapsed */
   queueNowPlayingCollapsed: boolean;
 
@@ -327,7 +332,7 @@ interface AuthState {
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
   setSeekbarStyle: (v: SeekbarStyle) => void;
-  setReducedAnimations: (v: boolean) => void;
+  setAnimationMode: (v: AnimationMode) => void;
   setQueueNowPlayingCollapsed: (v: boolean) => void;
   setEnableHiRes: (v: boolean) => void;
   setAudioOutputDevice: (v: string | null) => void;
@@ -448,7 +453,7 @@ export const useAuthStore = create<AuthState>()(
       showChangelogOnUpdate: true,
       lastSeenChangelogVersion: '',
       seekbarStyle: 'truewave',
-      reducedAnimations: false,
+      animationMode: 'full',
       queueNowPlayingCollapsed: false,
       enableHiRes: false,
       audioOutputDevice: null,
@@ -611,7 +616,7 @@ export const useAuthStore = create<AuthState>()(
       setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
 
       setSeekbarStyle: (v) => set({ seekbarStyle: v }),
-      setReducedAnimations: (v) => set({ reducedAnimations: v }),
+      setAnimationMode: (v) => set({ animationMode: v }),
       setQueueNowPlayingCollapsed: (v: boolean) => set({ queueNowPlayingCollapsed: v }),
       setEnableHiRes: (v) => set({ enableHiRes: v }),
       setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),
@@ -813,6 +818,15 @@ export const useAuthStore = create<AuthState>()(
           ? {}
           : { seekbarStyle: 'truewave' as SeekbarStyle };
 
+        // `reducedAnimations: boolean` superseded by `animationMode: AnimationMode`.
+        // Map legacy true → 'reduced', false/missing → 'full'. Static is opt-in only.
+        let animationModeMigrated: { animationMode?: AnimationMode } = {};
+        const legacyReduced = (state as { reducedAnimations?: unknown }).reducedAnimations;
+        const VALID_ANIM_MODES = new Set<string>(['full', 'reduced', 'static']);
+        if (!VALID_ANIM_MODES.has(state.animationMode as string)) {
+          animationModeMigrated = { animationMode: legacyReduced === true ? 'reduced' : 'full' };
+        }
+
         const st = state as {
           loudnessTargetLufs?: unknown;
           loudnessPreAnalysisAttenuationDb?: unknown;
@@ -844,6 +858,7 @@ export const useAuthStore = create<AuthState>()(
           ...lyricsSourcesMigrated,
           ...wheelSmoothOneTime,
           ...seekbarStyleMigrated,
+          ...animationModeMigrated,
         });
       },
     }

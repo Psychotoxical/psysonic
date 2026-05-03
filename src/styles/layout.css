@@ -1516,10 +1516,21 @@ html[data-platform="windows"] .player-bar.floating {
   width: 100%;
 }
 
+/* `static` animation mode: never scroll, truncate with ellipsis instead. */
+.marquee-wrap[data-anim-mode="static"] {
+  text-overflow: ellipsis;
+}
+
 .marquee-scroll {
   display: inline-block;
   animation: player-marquee 12s linear infinite;
   animation-delay: 2s;
+}
+
+/* `reduced` animation mode: double the marquee cycle so visual change
+   per second is roughly halved. */
+.marquee-wrap[data-anim-mode="reduced"] .marquee-scroll {
+  animation-duration: 24s;
 }
 
 @keyframes player-marquee {

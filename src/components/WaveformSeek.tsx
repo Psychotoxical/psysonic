@@ -916,14 +916,14 @@ export default function WaveformSeek({ trackId }: Props) {
   const waveformBins = usePlayerStore(s => s.waveformBins);
   const duration     = usePlayerStore(s => s.currentTrack?.duration ?? 0);
   const seekbarStyle = useAuthStore(s => s.seekbarStyle);
-  const reducedAnimations = useAuthStore(s => s.reducedAnimations);
+  const animationMode = useAuthStore(s => s.animationMode);
 
   // Ref so the subscription callback (closed over at mount) can read the
   // current style without stale-closure issues.
   const styleRef = useRef(seekbarStyle);
   styleRef.current = seekbarStyle;
-  const reducedRef = useRef(reducedAnimations);
-  reducedRef.current = reducedAnimations;
+  const animationModeRef = useRef(animationMode);
+  animationModeRef.current = animationMode;
 
   useEffect(() => {
     if (!trackId) {
@@ -1031,7 +1031,12 @@ export default function WaveformSeek({ trackId }: Props) {
       }
       progressRef.current = state.progress;
       bufferedRef.current = state.buffered;
-      if (!ANIMATED_STYLES.has(styleRef.current)) {
+      // Static styles always redraw on progress; animated styles let the rAF
+      // loop drive paints. In `static` animation mode we skip the rAF loop
+      // entirely, so animated styles also need to repaint here on every tick.
+      const drawNow =
+        !ANIMATED_STYLES.has(styleRef.current) || animationModeRef.current === 'static';
+      if (drawNow) {
         const canvas = canvasRef.current;
         if (canvas) drawSeekbar(canvas, styleRef.current, heightsRef.current, state.progress, state.buffered);
       }
@@ -1050,9 +1055,22 @@ export default function WaveformSeek({ trackId }: Props) {
     duration,
   ]);
 
-  // rAF loop — animated styles only.
+  // rAF loop — animated styles only, and only in `full`/`reduced` mode.
+  // In `static` mode the loop is skipped entirely; the imperative progress
+  // subscription (~2 Hz audio heartbeat) handles repaints, so the seekbar
+  // updates a couple of times per second with no wave animation.
   useEffect(() => {
     if (!ANIMATED_STYLES.has(seekbarStyle)) return;
+    if (animationMode === 'static') {
+      // Repaint once on entry so the canvas reflects current progress
+      // without any wave morph and stays put until the next heartbeat.
+      const canvas = canvasRef.current;
+      if (canvas) {
+        animStateRef.current = makeAnimState();
+        drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
+      }
+      return;
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
     animStateRef.current = makeAnimState();
@@ -1077,21 +1095,22 @@ export default function WaveformSeek({ trackId }: Props) {
         }, 400);
         return;
       }
-      // 30 fps cap when reducedAnimations is on: skip every other rAF, advance
+      // 30 fps cap in `reduced` mode: skip every other rAF, advance
       // animation time by a doubled delta so wave speed stays the same.
-      if (reducedRef.current && skip) {
+      const isReduced = animationModeRef.current === 'reduced';
+      if (isReduced && skip) {
         skip = false;
         rafId = requestAnimationFrame(tick);
         return;
       }
-      skip = reducedRef.current;
-      animStateRef.current.time += reducedRef.current ? 0.032 : 0.016;
+      skip = isReduced;
+      animStateRef.current.time += isReduced ? 0.032 : 0.016;
       drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
       rafId = requestAnimationFrame(tick);
     };
     tick();
     return () => stop();
-  }, [seekbarStyle]);
+  }, [seekbarStyle, animationMode]);
 
   // Resize observer.
   useEffect(() => {
