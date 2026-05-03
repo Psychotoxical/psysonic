@@ -11112,8 +11112,10 @@ html[data-psy-native-hidden="true"] *::after {
 /* Window visible but unfocused (alt-tab, click into another app): only
    pause the heaviest known infinite animations to save GPU. The previous
    `*`-selector variant fired a repaint over every node and triggered a
-   stale-blur HMR rendering bug on WebKitGTK + no-compositing. */
-html[data-app-blurred="true"] .eq-bars .eq-bar,
+   stale-blur HMR rendering bug on WebKitGTK + no-compositing.
+   Note: queue `.eq-bars` are intentionally NOT in this list — three small
+   `scaleY` transforms cost nothing GPU-wise, but pausing them looked like
+   a "frozen UI" bug to users on WMs that drop window focus on hover. */
 html[data-app-blurred="true"] .player-marquee,
 html[data-app-blurred="true"] .marquee-text,
 html[data-app-blurred="true"] .np-dot-pulse,
