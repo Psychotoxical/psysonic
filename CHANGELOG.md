@@ -154,6 +154,8 @@ Translations for the new action labels follow in a separate i18n nachhol-PR (de,
 
 - **Linux dev — sidebar and main content invisible after HMR** *(PR [#434](https://github.com/Psychotoxical/psysonic/pull/434), by [@Psychotoxical](https://github.com/Psychotoxical))*: The `data-app-blurred="true"` CSS rule introduced in #426 used a `*` selector to pause every animation while the window was unfocused. On WebKitGTK + no-compositing this triggered a stale rendering bug after Vite hot-reloads — the sidebar and main content stayed unpainted until any user interaction nudged a re-render. The rule now targets only the concrete heaviest infinite animations (eq bars, marquees, now-playing dot pulse, fullscreen mesh blob / portrait, `.spin`); release builds are unchanged in behaviour.
 
+- **Mono playback (right channel only) after natural track end with gapless OFF** *(PR [#439](https://github.com/Psychotoxical/psysonic/pull/439), by [@Psychotoxical](https://github.com/Psychotoxical))*: When gapless playback was disabled and a track ended naturally, the next track could play only on the right channel for the rest of its duration. The 500 ms track-separation silence prepended in this exact transition was built with `Zero + take_duration`, whose integer-nanosecond math at 44.1 kHz / 2 ch leaks half a frame (44103 samples instead of 44100), shifting the next source's L/R parity in the device frame stream. Replaced with a frame-aligned `SamplesBuffer`. Manual skip and album-first-play were unaffected because they bypass the silence prepend. Independently identified by xrexy on Discord while the diagnosis was landing here.
+
 
 
 ## [1.44.0] - 2026-04-29
