@@ -155,6 +155,17 @@ The boolean **Reduce animations** toggle in **Settings → Appearance** is now a
 Existing users with `reducedAnimations: true` are migrated 1:1 to **Reduced** on first launch; everyone else lands on **Full**. The picker is in the same place as before. A contextual hint below the picker explains what the selected mode does.
 
 
+### Tracks — Highly Rated Rail and Per-Card Star Display
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#443](https://github.com/Psychotoxical/psysonic/pull/443), prompted by Foxhunter-de in discussion [#442](https://github.com/Psychotoxical/psysonic/discussions/442)**
+
+The Tracks page gets a new **Highly Rated** rail above Random Pick, surfacing your top-rated tracks (sorted by rating, descending). The rail auto-hides on non-Navidrome servers and on libraries with no rated tracks yet. The standard reroll button forces a fresh fetch.
+
+Every song card across the app whose rating is greater than zero now shows a small five-star row below the artist line, filled to the rating value. Read-only display — rating is still done via the row's context menu or the Now Playing star widget.
+
+Backed by an opt-in 60 s in-memory cache for `ndListSongs` (used only by the new rail; paginated browsing is unaffected). The cache is cleared automatically when you rate a track, switch server, or click the rail's reroll button.
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
