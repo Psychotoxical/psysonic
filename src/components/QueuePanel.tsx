@@ -23,7 +23,7 @@ import { copyTextToClipboard } from '../utils/serverMagicString';
 import { showToast } from '../utils/toast';
 import { useThemeStore } from '../store/themeStore';
 import { useLyricsStore } from '../store/lyricsStore';
-import { useDragDrop } from '../contexts/DragDropContext';
+import { useDragDrop, registerQueueDragHitTest } from '../contexts/DragDropContext';
 import LyricsPane from './LyricsPane';
 import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
@@ -350,6 +350,7 @@ function QueuePanelHostOrSolo() {
   const clearQueue = usePlayerStore(s => s.clearQueue);
 
   const reorderQueue = usePlayerStore(s => s.reorderQueue);
+  const removeTrack = usePlayerStore(s => s.removeTrack);
   const shuffleQueue = usePlayerStore(s => s.shuffleQueue);
   const enqueue = usePlayerStore(s => s.enqueue);
   const enqueueAt = usePlayerStore(s => s.enqueueAt);
@@ -492,6 +493,16 @@ function QueuePanelHostOrSolo() {
 
   const asideRef = useRef<HTMLElement>(null);
 
+  useEffect(() => {
+    const hitTest = (cx: number, cy: number) => {
+      const el = asideRef.current;
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+    };
+    return registerQueueDragHitTest(hitTest);
+  }, []);
+
   const { isDragging: isPsyDragging, startDrag, payload: psyPayload } = useDragDrop();
   /** Only these drag types may be dropped into the queue. */
   const QUEUE_DROP_TYPES = new Set(['song', 'album', 'queue_reorder']);
@@ -558,6 +569,37 @@ function QueuePanelHostOrSolo() {
     aside.addEventListener('psy-drop', onPsyDrop);
     return () => aside.removeEventListener('psy-drop', onPsyDrop);
   }, [enqueueAt]);
+
+  // Drag a queue row outside the panel → remove (drop never reaches `aside`).
+  useEffect(() => {
+    const onDocPsyDrop = (e: Event) => {
+      if (!isQueueVisible) return;
+      const d = (e as CustomEvent<{ data?: string; clientX?: number; clientY?: number }>).detail;
+      if (!d?.data) return;
+      const cx = d.clientX;
+      const cy = d.clientY;
+      if (typeof cx !== 'number' || typeof cy !== 'number') return;
+      let parsed: { type?: string; index?: number } | null = null;
+      try {
+        parsed = JSON.parse(d.data);
+      } catch {
+        return;
+      }
+      if (parsed?.type !== 'queue_reorder' || typeof parsed.index !== 'number') return;
+      const aside = asideRef.current;
+      if (!aside) return;
+      const r = aside.getBoundingClientRect();
+      const inside =
+        cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+      if (inside) return;
+      psyDragFromIdxRef.current = null;
+      externalDropTargetRef.current = null;
+      setExternalDropTarget(null);
+      removeTrack(parsed.index);
+    };
+    document.addEventListener('psy-drop', onDocPsyDrop);
+    return () => document.removeEventListener('psy-drop', onDocPsyDrop);
+  }, [isQueueVisible, removeTrack]);
 
   useEffect(function queueAutoScroll() {
     if (suppressNextAutoScrollRef.current) {

@@ -348,6 +348,7 @@ const CONTRIBUTORS = [
       'Preview: audio start sync, ring animation, download timeout (PR #423)',
       'Statistics: shareable Top-Albums card export (PR #425)',
       'Windows: playback stutter under GPU load — MMCSS Pro Audio promotion + animation pause + reduce-animations toggle (PR #426)',
+      'Audio: frame-align gapless-off track-separation silence (fixes mono-channel playback after natural track end) (PR #439)',
     ],
   },
 ] as const;
