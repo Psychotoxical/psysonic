@@ -142,6 +142,19 @@ Nine new input actions were added (requested by zunoz on Discord): start search,
 Translations for the new action labels follow in a separate i18n nachhol-PR (de, fr, nl, zh, nb, ru, es).
 
 
+### Settings — 3-State Animation Mode (Full / Reduced / Static)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#441](https://github.com/Psychotoxical/psysonic/pull/441), suggested by harumscarum on Telegram**
+
+The boolean **Reduce animations** toggle in **Settings → Appearance** is now a three-state picker matching the ReplayGain Auto/Track/Album pattern:
+
+- **Full** (default for new users): native frame rate, marquee scrolls normally.
+- **Reduced** (default for users who had the legacy toggle on): 30 fps cap on the animated seekbar wave; the player title marquee runs at half speed.
+- **Static**: the rAF loop driving the animated seekbar is disabled entirely — the seekbar repaints from the ~2 Hz `audio:progress` heartbeat only. The player title/artist no longer scroll; long names are truncated with an ellipsis. Lowest GPU/CPU cost of the three.
+
+Existing users with `reducedAnimations: true` are migrated 1:1 to **Reduced** on first launch; everyone else lands on **Full**. The picker is in the same place as before. A contextual hint below the picker explains what the selected mode does.
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
