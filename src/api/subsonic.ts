@@ -959,6 +959,11 @@ export async function searchSongsPaged(query: string, songCount: number, songOff
 
 export async function setRating(id: string, rating: number): Promise<void> {
   await api('setRating.view', { id, rating });
+  // Cached song lists keyed by rating (e.g. Tracks → Highly Rated rail) become
+  // stale immediately. Lazy-import to keep the module dep direction
+  // subsonic ← navidromeBrowse and avoid pulling Tauri internals into shared
+  // type-only consumers.
+  void import('./navidromeBrowse').then(m => m.ndInvalidateSongsCache()).catch(() => {});
 }
 
 /** How aggressively we assume `setRating` accepts album/artist ids (OpenSubsonic-style). */

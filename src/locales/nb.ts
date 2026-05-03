@@ -388,6 +388,7 @@ export const nbTranslation = {
     playSong: 'Spill av',
     enqueueSong: 'Legg til i kø',
     railRandom: 'Tilfeldig valg',
+    railHighlyRated: 'Høyt vurdert',
     browseTitle: 'Bla gjennom alle spor',
     browseUnsupported: 'Denne tjeneren lister ikke hele biblioteket på én gang. Bruk søket ovenfor for å finne bestemte spor.',
     searchPlaceholder: 'Finn et spor etter tittel, artist eller album…',

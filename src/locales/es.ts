@@ -390,6 +390,7 @@ export const esTranslation = {
     playSong: 'Reproducir',
     enqueueSong: 'Añadir a la cola',
     railRandom: 'Selección aleatoria',
+    railHighlyRated: 'Mejor valoradas',
     browseTitle: 'Explorar todas las canciones',
     browseUnsupported: 'Este servidor no lista toda la biblioteca de una vez. Usa la búsqueda de arriba para encontrar canciones concretas.',
     searchPlaceholder: 'Busca una canción por título, artista o álbum…',

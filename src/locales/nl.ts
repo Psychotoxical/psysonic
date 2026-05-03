@@ -387,6 +387,7 @@ export const nlTranslation = {
     playSong: 'Afspelen',
     enqueueSong: 'Aan wachtrij toevoegen',
     railRandom: 'Willekeurige selectie',
+    railHighlyRated: 'Hoog beoordeeld',
     browseTitle: 'Alle nummers doorbladeren',
     browseUnsupported: 'Deze server toont niet de hele bibliotheek in één keer. Gebruik de zoekbalk hierboven om specifieke nummers te vinden.',
     searchPlaceholder: 'Zoek op titel, artiest of album…',

@@ -390,6 +390,7 @@ export const enTranslation = {
     playSong: 'Play',
     enqueueSong: 'Add to queue',
     railRandom: 'Random Pick',
+    railHighlyRated: 'Highly Rated',
     browseTitle: 'Browse all tracks',
     browseUnsupported: "This server doesn't list the whole library at once. Use the search above to find specific tracks.",
     searchPlaceholder: 'Find a track by title, artist or album…',

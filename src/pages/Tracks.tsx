@@ -14,8 +14,17 @@ import CachedImage from '../components/CachedImage';
 import SongRail from '../components/SongRail';
 import VirtualSongList from '../components/VirtualSongList';
 import { playSongNow } from '../utils/playSong';
+import { ndListSongs, ndInvalidateSongsCache } from '../api/navidromeBrowse';
 
 const RANDOM_RAIL_SIZE = 18;
+/** Over-fetch buffer so the client-side `userRating > 0` filter still leaves
+ *  enough cards for the rail. Server-side rating filter on Navidrome's REST
+ *  is finicky and not yet wired through — revisit when verified. */
+const RATED_RAIL_FETCH = 60;
+const RATED_RAIL_DISPLAY = 30;
+/** Stay-fresh window for the Highly Rated rail. Cleared on rating mutation, so
+ *  the only staleness path is a reroll-button click after >60 s. */
+const RATED_RAIL_CACHE_MS = 60_000;
 
 export default function Tracks() {
   const { t } = useTranslation();
@@ -28,6 +37,11 @@ export default function Tracks() {
 
   const [random, setRandom] = useState<SubsonicSong[]>([]);
   const [randomLoading, setRandomLoading] = useState(true);
+
+  const [rated, setRated] = useState<SubsonicSong[]>([]);
+  const [ratedLoading, setRatedLoading] = useState(true);
+  /** Hide the rail entirely on non-Navidrome servers (REST call throws) so we don't show an empty section. */
+  const [ratedSupported, setRatedSupported] = useState(true);
 
   const rerollHero = useCallback(async () => {
     setHeroLoading(true);
@@ -49,11 +63,28 @@ export default function Tracks() {
     }
   }, []);
 
+  const reloadRated = useCallback(async () => {
+    setRatedLoading(true);
+    try {
+      const songs = await ndListSongs(0, RATED_RAIL_FETCH, 'rating', 'DESC', RATED_RAIL_CACHE_MS);
+      const filtered = songs.filter(s => (s.userRating ?? 0) > 0).slice(0, RATED_RAIL_DISPLAY);
+      setRated(filtered);
+      setRatedSupported(true);
+    } catch {
+      // Non-Navidrome server, or REST endpoint refused → silently hide the rail.
+      setRated([]);
+      setRatedSupported(false);
+    } finally {
+      setRatedLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!activeServerId) return;
     rerollHero();
     rerollRandom();
-  }, [activeServerId, rerollHero, rerollRandom]);
+    reloadRated();
+  }, [activeServerId, rerollHero, rerollRandom, reloadRated]);
 
   const heroCoverUrl = hero?.coverArt ? buildCoverArtUrl(hero.coverArt, 600) : '';
 
@@ -135,6 +166,15 @@ export default function Tracks() {
             </div>
           </div>
         </section>
+      )}
+
+      {ratedSupported && (ratedLoading || rated.length > 0) && (
+        <SongRail
+          title={t('tracks.railHighlyRated')}
+          songs={rated}
+          loading={ratedLoading}
+          onReroll={() => { ndInvalidateSongsCache(); return reloadRated(); }}
+        />
       )}
 
       <SongRail

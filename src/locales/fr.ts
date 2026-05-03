@@ -388,6 +388,7 @@ export const frTranslation = {
     playSong: 'Lire',
     enqueueSong: 'Ajouter à la file',
     railRandom: 'Sélection aléatoire',
+    railHighlyRated: 'Mieux notés',
     browseTitle: 'Parcourir tous les titres',
     browseUnsupported: 'Ce serveur ne liste pas toute la bibliothèque d\'un coup. Utilisez la recherche ci-dessus pour trouver des titres précis.',
     searchPlaceholder: 'Chercher un titre par titre, artiste ou album…',

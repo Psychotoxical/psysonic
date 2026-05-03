@@ -54,20 +54,44 @@ function mapNdSong(o: Record<string, unknown>): SubsonicSong {
   };
 }
 
-export type NdSongSort = 'title' | 'artist' | 'album' | 'recently_added' | 'play_count';
+export type NdSongSort = 'title' | 'artist' | 'album' | 'recently_added' | 'play_count' | 'rating';
+
+/** Optional opt-in cache for `ndListSongs` — keyed by call signature + active server. */
+type SongsCacheEntry = { data: SubsonicSong[]; expiresAt: number };
+const songsCache = new Map<string, SongsCacheEntry>();
+
+function songsCacheKey(
+  baseUrl: string, start: number, end: number, sort: string, order: string,
+): string {
+  return `${baseUrl}|${start}-${end}|${sort}|${order}`;
+}
 
 /**
  * Fetch a sorted, paginated slice of all songs via Navidrome's native REST API.
  * Returns mapped SubsonicSong objects. Throws on auth failure or non-Navidrome.
+ *
+ * `cacheMs` (> 0) opts in to a per-call-signature in-memory cache. Skip for
+ * paginated browsing — only useful for stable-list rails (e.g. Highly Rated)
+ * where a brief staleness window is acceptable in exchange for skipping the
+ * roundtrip on every page revisit.
  */
 export async function ndListSongs(
   start: number,
   end: number,
   sort: NdSongSort = 'title',
   order: 'ASC' | 'DESC' = 'ASC',
+  cacheMs?: number,
 ): Promise<SubsonicSong[]> {
   const baseUrl = useAuthStore.getState().getBaseUrl();
   if (!baseUrl) throw new Error('No server configured');
+
+  const cacheKey = (cacheMs && cacheMs > 0)
+    ? songsCacheKey(baseUrl, start, end, sort, order)
+    : null;
+  if (cacheKey) {
+    const hit = songsCache.get(cacheKey);
+    if (hit && hit.expiresAt > Date.now()) return hit.data;
+  }
 
   const callOnce = async (token: string): Promise<unknown> =>
     invoke<unknown>('nd_list_songs', { serverUrl: baseUrl, token, sort, order, start, end });
@@ -88,10 +112,21 @@ export async function ndListSongs(
   }
 
   if (!Array.isArray(raw)) return [];
-  return raw.map(s => mapNdSong(s as Record<string, unknown>));
+  const data = raw.map(s => mapNdSong(s as Record<string, unknown>));
+
+  if (cacheKey && cacheMs && cacheMs > 0) {
+    songsCache.set(cacheKey, { data, expiresAt: Date.now() + cacheMs });
+  }
+  return data;
 }
 
-/** Drop the cached token — call when the active server changes. */
+/** Drop the cached token AND the songs cache — call when the active server changes. */
 export function ndClearTokenCache(): void {
   cachedToken = null;
+  songsCache.clear();
+}
+
+/** Drop the songs cache only (e.g. after a rating mutation). */
+export function ndInvalidateSongsCache(): void {
+  songsCache.clear();
 }

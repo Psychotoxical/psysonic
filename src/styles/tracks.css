@@ -294,6 +294,14 @@
   text-overflow: ellipsis;
 }
 
+.song-card-rating {
+  display: flex;
+  gap: 2px;
+  color: var(--accent);
+  margin-top: 4px;
+  line-height: 1;
+}
+
 /* ─── Virtual Song List ───────────────────────────────────────── */
 
 .virtual-song-list-section {

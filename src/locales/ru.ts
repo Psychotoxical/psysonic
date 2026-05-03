@@ -412,6 +412,7 @@ export const ruTranslation = {
     playSong: 'Воспроизвести',
     enqueueSong: 'В очередь',
     railRandom: 'Случайная подборка',
+    railHighlyRated: 'Высоко оценённые',
     browseTitle: 'Просмотреть все треки',
     browseUnsupported: 'Этот сервер не возвращает всю библиотеку сразу. Воспользуйтесь поиском выше, чтобы найти конкретные треки.',
     searchPlaceholder: 'Найти трек по названию, исполнителю или альбому…',

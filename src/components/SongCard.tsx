@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, ListPlus } from 'lucide-react';
+import { Play, ListPlus, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SubsonicSong, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
@@ -118,6 +118,18 @@ function SongCard({ song }: SongCardProps) {
           onClick={handleArtistClick}
           title={song.artist}
         >{song.artist}</p>
+        {(song.userRating ?? 0) > 0 && (
+          <div className="song-card-rating" aria-label={`${song.userRating} stars`}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <Star
+                key={i}
+                size={11}
+                fill={i < (song.userRating ?? 0) ? 'currentColor' : 'none'}
+                strokeWidth={1.5}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
