@@ -351,6 +351,7 @@ const CONTRIBUTORS = [
       'Audio: frame-align gapless-off track-separation silence (fixes mono-channel playback after natural track end) (PR #439)',
       'Settings: 3-state animation mode (Full / Reduced / Static) — replaces boolean reduce-animations toggle (PR #441)',
       'Tracks: Highly Rated rail and per-card star display, with cache layer for ndListSongs (PR #443)',
+      'Random Mix: playlist-size picker (50/75/100/125/150) and filter-panel layout cleanup (PR #445)',
     ],
   },
 ] as const;
