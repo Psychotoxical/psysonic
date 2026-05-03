@@ -137,7 +137,7 @@ The currently playing row in the queue list is now indicated by **animated equal
 
 Shortcut, keyboard, global-hotkey, mini-window and CLI inputs are now all routed through one TypeScript action registry — a single source of truth for what an action does, how it's labelled, and which input transports can fire it. CLI `--player help` is generated dynamically from the registry, so command coverage stays in sync with the action set automatically.
 
-Nine new input actions were added (requested by @zunoz on Discord): start search, start advanced search, toggle sidebar, mute, open / toggle equalizer, toggle repeat, open Now Playing, show lyrics, favorite current track. Help is bound to **F1** by default and hidden from the Settings input list; existing users get the F1 binding back-filled into their persisted keybindings on next launch.
+Nine new input actions were added (requested by zunoz on Discord): start search, start advanced search, toggle sidebar, mute, open / toggle equalizer, toggle repeat, open Now Playing, show lyrics, favorite current track. Help is bound to **F1** by default and hidden from the Settings input list; existing users get the F1 binding back-filled into their persisted keybindings on next launch.
 
 Translations for the new action labels follow in a separate i18n nachhol-PR (de, fr, nl, zh, nb, ru, es).
 
