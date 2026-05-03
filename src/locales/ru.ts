@@ -340,6 +340,10 @@ export const ruTranslation = {
     favoriteRemove: 'Убрать из избранного',
     play: 'Играть',
     trackGenre: 'Жанр',
+    mixSettingsHeader: 'Настройки микса',
+    exclusionsHeader: 'Исключения',
+    filterPanelInexactSizeNote: 'Размер микса — это цель. При больших запросах сервер может вернуть меньше уникальных треков, если его случайный пул иссякает.',
+    mixSize: 'Размер списка',
     excludeAudiobooks: 'Исключать аудиокниги и радиоспектакли',
     excludeAudiobooksDesc:
       'По ключевым словам в жанре, названии, альбоме и исполнителе — например Hörbuch, Audiobook, Spoken Word и т. п.',

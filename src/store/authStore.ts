@@ -220,6 +220,8 @@ interface AuthState {
   mixMinRatingAlbum: number;
   /** 0 = ignore; artist rating from payload / nested OpenSubsonic fields or `getArtist`. */
   mixMinRatingArtist: number;
+  /** Random Mix target list size (50, 75, 100, 125, or 150). */
+  randomMixSize: number;
   /** Show "Lucky Mix" as a regular sidebar/menu item. */
   showLuckyMixMenu: boolean;
 
@@ -346,6 +348,7 @@ interface AuthState {
   setMixMinRatingSong: (v: number) => void;
   setMixMinRatingAlbum: (v: number) => void;
   setMixMinRatingArtist: (v: number) => void;
+  setRandomMixSize: (v: number) => void;
   setShowLuckyMixMenu: (v: boolean) => void;
   setMusicFolders: (folders: Array<{ id: string; name: string }>) => void;
   setMusicLibraryFilter: (folderId: 'all' | string) => void;
@@ -372,6 +375,21 @@ function clampMixFilterMinStars(v: number): number {
   if (!Number.isFinite(v)) return 0;
   return Math.max(0, Math.min(MIX_MIN_RATING_FILTER_MAX_STARS, Math.round(v)));
 }
+
+export const RANDOM_MIX_SIZE_OPTIONS: readonly number[] = [50, 75, 100, 125, 150];
+
+function clampRandomMixSize(v: number): number {
+  if (!Number.isFinite(v)) return 50;
+  // Snap to the nearest allowed option so a tampered persisted value can't break the picker.
+  let nearest = RANDOM_MIX_SIZE_OPTIONS[0];
+  let bestDelta = Math.abs(v - nearest);
+  for (const opt of RANDOM_MIX_SIZE_OPTIONS) {
+    const d = Math.abs(v - opt);
+    if (d < bestDelta) { nearest = opt; bestDelta = d; }
+  }
+  return nearest;
+}
+
 
 function clampSkipStarThreshold(v: number): number {
   if (!Number.isFinite(v)) return 3;
@@ -468,6 +486,7 @@ export const useAuthStore = create<AuthState>()(
       mixMinRatingSong: 0,
       mixMinRatingAlbum: 0,
       mixMinRatingArtist: 0,
+      randomMixSize: 50,
       showLuckyMixMenu: true,
       randomNavMode: 'hub',
       musicFolders: [],
@@ -662,6 +681,7 @@ export const useAuthStore = create<AuthState>()(
       setMixMinRatingSong: (v) => set({ mixMinRatingSong: clampMixFilterMinStars(v) }),
       setMixMinRatingAlbum: (v) => set({ mixMinRatingAlbum: clampMixFilterMinStars(v) }),
       setMixMinRatingArtist: (v) => set({ mixMinRatingArtist: clampMixFilterMinStars(v) }),
+      setRandomMixSize: (v) => set({ randomMixSize: clampRandomMixSize(v) }),
       setShowLuckyMixMenu: (v) => set({ showLuckyMixMenu: v }),
       setRandomNavMode: (v) => set({ randomNavMode: v }),
 
@@ -848,6 +868,7 @@ export const useAuthStore = create<AuthState>()(
           mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
           mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),
           mixMinRatingArtist: clampMixFilterMinStars(state.mixMinRatingArtist as number),
+          randomMixSize: clampRandomMixSize(state.randomMixSize as number),
           skipStarManualSkipCountsByKey: sanitizeSkipStarCounts(
             (state as { skipStarManualSkipCountsByKey?: unknown }).skipStarManualSkipCountsByKey,
           ),

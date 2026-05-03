@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getGenres, SubsonicSong, SubsonicGenre, star, unstar } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore, RANDOM_MIX_SIZE_OPTIONS } from '../store/authStore';
 import { Play, RefreshCw, ChevronDown, ChevronRight, ChevronUp, Heart, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';
@@ -56,6 +56,8 @@ export default function RandomMix() {
     mixMinRatingSong,
     mixMinRatingAlbum,
     mixMinRatingArtist,
+    randomMixSize,
+    setRandomMixSize,
   } = useAuthStore();
 
   const mixRatingCfg = useMemo(
@@ -88,10 +90,10 @@ export default function RandomMix() {
   const [genreMixLoading, setGenreMixLoading] = useState(false);
   const [genreMixComplete, setGenreMixComplete] = useState(false);
 
-  const fetchSongs = () => {
+  const fetchSongs = (overrideSize?: number) => {
     setLoading(true);
     setSongs([]);
-    fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth())
+    fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), { targetSize: overrideSize ?? randomMixSize })
       .then(list => {
         setSongs(list);
         const st = new Set<string>();
@@ -163,7 +165,7 @@ export default function RandomMix() {
     }
   };
 
-  const loadGenreMix = async (genre: string) => {
+  const loadGenreMix = async (genre: string, overrideSize?: number) => {
     setGenreMixLoading(true);
     setGenreMixComplete(false);
     setGenreMixSongs([]);
@@ -171,6 +173,7 @@ export default function RandomMix() {
       const list = await fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), {
         genre,
         timeout: 45000,
+        targetSize: overrideSize ?? randomMixSize,
       });
       setGenreMixSongs(list);
     } catch {}
@@ -195,7 +198,7 @@ export default function RandomMix() {
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             className="btn btn-surface"
-            onClick={selectedGenre ? () => loadGenreMix(selectedGenre) : fetchSongs}
+            onClick={selectedGenre ? () => loadGenreMix(selectedGenre) : () => fetchSongs()}
             disabled={selectedGenre ? genreMixLoading : loading}
             data-tooltip={selectedGenre
               ? t('randomMix.remixTooltipGenre', { genre: selectedGenre })
@@ -215,7 +218,7 @@ export default function RandomMix() {
                 disabled={isDisabled}
               >
                 {isGenreLoading ? (
-                  <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> {Math.min(genreMixSongs.length, 50)} / 50</>
+                  <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> {Math.min(genreMixSongs.length, randomMixSize)} / {randomMixSize}</>
                 ) : (
                   <><Play size={18} fill="currentColor" /> {t('randomMix.playAll')}</>
                 )}
@@ -241,24 +244,58 @@ export default function RandomMix() {
           {isMobile ? (
             <button
               className="btn btn-ghost"
-              style={{ width: '100%', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', padding: '0' }}
+              style={{ width: '100%', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', padding: '0' }}
               onClick={() => setFiltersExpanded(v => !v)}
             >
               {t('randomMix.filterPanelTitle')}
               {filtersExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
           ) : (
-            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: '0.85rem' }}>
               {t('randomMix.filterPanelTitle')}
             </div>
           )}
           {(!isMobile || filtersExpanded) && (
             <div style={{ marginTop: isMobile ? '0.75rem' : 0 }}>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+              {/* ── Mix Settings ── */}
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                {t('randomMix.mixSettingsHeader')}
+              </div>
+
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 0, marginBottom: '0.6rem', lineHeight: 1.45, fontStyle: 'italic' }}>
+                {t('randomMix.filterPanelInexactSizeNote')}
+              </p>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('randomMix.mixSize')}</span>
+                {RANDOM_MIX_SIZE_OPTIONS.map(n => (
+                  <button
+                    key={n}
+                    className={`btn ${randomMixSize === n ? 'btn-primary' : 'btn-surface'}`}
+                    style={{ fontSize: 12, padding: '3px 10px' }}
+                    onClick={() => {
+                      if (n === randomMixSize) return;
+                      setRandomMixSize(n);
+                      if (selectedGenre) loadGenreMix(selectedGenre, n);
+                      else fetchSongs(n);
+                    }}
+                  >{n}</button>
+                ))}
+              </div>
+
+              {/* ── divider ── */}
+              <div style={{ borderTop: '1px solid var(--border)', margin: '0.85rem 0' }} />
+
+              {/* ── Exclusions ── */}
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                {t('randomMix.exclusionsHeader')}
+              </div>
+
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '0.6rem', lineHeight: 1.45 }}>
                 {t('randomMix.filterPanelDesc')}
               </p>
 
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: 13, marginBottom: '0.75rem' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: 13, marginBottom: '0.6rem' }}>
                 <input
                   type="checkbox"
                   checked={excludeAudiobooks}
@@ -340,14 +377,14 @@ export default function RandomMix() {
           {isMobile ? (
             <button
               className="btn btn-ghost"
-              style={{ width: '100%', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', padding: '0' }}
+              style={{ width: '100%', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', padding: '0' }}
               onClick={() => setGenreMixExpanded(v => !v)}
             >
               {t('randomMix.genreMixTitle')}
               {genreMixExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
           ) : (
-            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: '0.85rem' }}>
               {t('randomMix.genreMixTitle')}
             </div>
           )}
