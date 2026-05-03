@@ -166,6 +166,17 @@ Every song card across the app whose rating is greater than zero now shows a sma
 Backed by an opt-in 60 s in-memory cache for `ndListSongs` (used only by the new rail; paginated browsing is unaffected). The cache is cleared automatically when you rate a track, switch server, or click the rail's reroll button.
 
 
+### Random Mix — Playlist Size Selector and Filter Panel Cleanup
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#445](https://github.com/Psychotoxical/psysonic/pull/445), prompted by Foxhunter-de in discussion [#442](https://github.com/Psychotoxical/psysonic/discussions/442)**
+
+Random Mix can now build longer mixes. A new playlist-size picker (50 / 75 / 100 / 125 / 150) sits at the top of the filter panel. Clicking a size button immediately reloads the current mix at the new count — Genre Mix and All Songs both honored, no extra Remix click needed. The choice is persisted across restarts.
+
+The filter panel layout was tightened up at the same time: two sub-headings (**MIX SETTINGS** and **EXCLUSIONS**) with a divider between them, and a slightly larger panel-level header so the visual hierarchy reads cleanly. A small italic note below MIX SETTINGS explains that large mix sizes may return fewer unique tracks if the server's random pool runs short.
+
+Under the hood, `fetchRandomMixSongsUntilFull` now scales batch size, max-batch ceiling and dup-streak budget with the requested target — so a 150-track mix can finish in a single round-trip on most libraries instead of stalling out at ~120.
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
