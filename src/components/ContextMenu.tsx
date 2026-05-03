@@ -1231,9 +1231,27 @@ export default function ContextMenu() {
       const album = item as SubsonicAlbum;
       if (album.id === id) return userRatingOverrides[id] ?? album.userRating ?? 0;
     }
+    if (kind === 'album' && type === 'multi-album') {
+      const albums = item as SubsonicAlbum[];
+      const compositeId = [...albums.map(a => a.id)].sort().join('\x1e');
+      if (id !== compositeId) return userRatingOverrides[id] ?? 0;
+      if (albums.length === 0) return 0;
+      const vals = albums.map(a => userRatingOverrides[a.id] ?? a.userRating ?? 0);
+      const first = vals[0];
+      return vals.every(v => v === first) ? first : 0;
+    }
     if (kind === 'artist' && type === 'artist') {
       const artist = item as SubsonicArtist;
       if (artist.id === id) return userRatingOverrides[id] ?? artist.userRating ?? 0;
+    }
+    if (kind === 'artist' && type === 'multi-artist') {
+      const artists = item as SubsonicArtist[];
+      const compositeId = [...artists.map(a => a.id)].sort().join('\x1e');
+      if (id !== compositeId) return userRatingOverrides[id] ?? 0;
+      if (artists.length === 0) return 0;
+      const vals = artists.map(a => userRatingOverrides[a.id] ?? a.userRating ?? 0);
+      const first = vals[0];
+      return vals.every(v => v === first) ? first : 0;
     }
     return userRatingOverrides[id] ?? 0;
   }, [type, item, userRatingOverrides]);
@@ -1247,8 +1265,22 @@ export default function ContextMenu() {
       applyAlbumRating(item as SubsonicAlbum, rating);
       return;
     }
+    if (kind === 'album' && type === 'multi-album') {
+      const albums = item as SubsonicAlbum[];
+      const compositeId = [...albums.map(a => a.id)].sort().join('\x1e');
+      if (id !== compositeId) return;
+      for (const a of albums) applyAlbumRating(a, rating);
+      return;
+    }
     if (kind === 'artist' && type === 'artist') {
       applyArtistRating(item as SubsonicArtist, rating);
+      return;
+    }
+    if (kind === 'artist' && type === 'multi-artist') {
+      const artists = item as SubsonicArtist[];
+      const compositeId = [...artists.map(a => a.id)].sort().join('\x1e');
+      if (id !== compositeId) return;
+      for (const a of artists) applyArtistRating(a, rating);
     }
   }, [applySongRating, applyAlbumRating, applyArtistRating, type, item]);
 
@@ -1922,6 +1954,14 @@ export default function ContextMenu() {
         {type === 'multi-album' && (() => {
           const albums = item as SubsonicAlbum[];
           const albumIds = albums.map(a => a.id);
+          const albumRatingDisabled = entityRatingSupport === 'track_only';
+          const multiAlbumRatingId = [...albumIds].sort().join('\x1e');
+          const unifiedAlbumRating = (() => {
+            if (albums.length === 0) return 0;
+            const vals = albums.map(a => userRatingOverrides[a.id] ?? a.userRating ?? 0);
+            const first = vals[0];
+            return vals.every(v => v === first) ? first : 0;
+          })();
           return (
             <>
               <div className="context-menu-header" style={{ padding: '8px 12px', fontSize: 13, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -1947,6 +1987,28 @@ export default function ContextMenu() {
                 {playlistSubmenuOpen && playlistSongIds[0] === `multi-album:${albumIds.join(',')}` && (
                   <MultiAlbumToPlaylistSubmenu albumIds={albumIds} triggerId={`multi-album:${albumIds.join(',')}`} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
+              </div>
+              <div
+                className="context-menu-rating-row"
+                data-rating-kind="album"
+                data-rating-id={multiAlbumRatingId}
+                data-rating-disabled={albumRatingDisabled ? 'true' : 'false'}
+                onClick={e => e.stopPropagation()}
+              >
+                <Star size={14} className="context-menu-rating-icon" aria-hidden />
+                <StarRating
+                  value={
+                    keyboardRating?.kind === 'album' && keyboardRating.id === multiAlbumRatingId
+                      ? keyboardRating.value
+                      : unifiedAlbumRating
+                  }
+                  disabled={albumRatingDisabled}
+                  ariaLabel={t('entityRating.selectedAlbumsRatingAriaLabel', { count: albums.length })}
+                  onChange={r => {
+                    setKeyboardRating({ kind: 'album', id: multiAlbumRatingId, value: r });
+                    for (const a of albums) applyAlbumRating(a, r);
+                  }}
+                />
               </div>
             </>
           );
@@ -2008,6 +2070,14 @@ export default function ContextMenu() {
         {type === 'multi-artist' && (() => {
           const artists = item as SubsonicArtist[];
           const artistIds = artists.map(a => a.id);
+          const artistRatingDisabled = entityRatingSupport === 'track_only';
+          const multiArtistRatingId = [...artistIds].sort().join('\x1e');
+          const unifiedArtistRating = (() => {
+            if (artists.length === 0) return 0;
+            const vals = artists.map(a => userRatingOverrides[a.id] ?? a.userRating ?? 0);
+            const first = vals[0];
+            return vals.every(v => v === first) ? first : 0;
+          })();
           return (
             <>
               <div className="context-menu-header" style={{ padding: '8px 12px', fontSize: 13, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -2025,6 +2095,28 @@ export default function ContextMenu() {
                 {playlistSubmenuOpen && playlistSongIds[0] === `multi-artist:${artistIds.join(',')}` && (
                   <MultiArtistToPlaylistSubmenu artistIds={artistIds} triggerId={`multi-artist:${artistIds.join(',')}`} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
+              </div>
+              <div
+                className="context-menu-rating-row"
+                data-rating-kind="artist"
+                data-rating-id={multiArtistRatingId}
+                data-rating-disabled={artistRatingDisabled ? 'true' : 'false'}
+                onClick={e => e.stopPropagation()}
+              >
+                <Star size={14} className="context-menu-rating-icon" aria-hidden />
+                <StarRating
+                  value={
+                    keyboardRating?.kind === 'artist' && keyboardRating.id === multiArtistRatingId
+                      ? keyboardRating.value
+                      : unifiedArtistRating
+                  }
+                  disabled={artistRatingDisabled}
+                  ariaLabel={t('entityRating.selectedArtistsRatingAriaLabel', { count: artists.length })}
+                  onChange={r => {
+                    setKeyboardRating({ kind: 'artist', id: multiArtistRatingId, value: r });
+                    for (const a of artists) applyArtistRating(a, r);
+                  }}
+                />
               </div>
             </>
           );

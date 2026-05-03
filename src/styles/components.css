@@ -437,10 +437,20 @@
   box-shadow: var(--shadow-sm);
 }
 
-.album-card-offline-badge {
+.album-card-cover-badges-tr {
   position: absolute;
   top: 6px;
   right: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.album-card-offline-badge {
+  flex-shrink: 0;
   background: color-mix(in srgb, var(--accent) 85%, transparent);
   color: var(--ctp-crust);
   border-radius: var(--radius-sm);
@@ -448,14 +458,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2;
-  pointer-events: none;
 }
 
 .album-card-new-badge {
-  position: absolute;
-  top: 6px;
-  left: 6px;
+  flex-shrink: 0;
   background: var(--accent);
   color: var(--ctp-crust);
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
@@ -465,8 +471,6 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1;
-  z-index: 2;
-  pointer-events: none;
 }
 
 .album-card-play-overlay {

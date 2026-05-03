@@ -189,6 +189,7 @@ export default function RandomAlbums() {
               selectionMode={selectionMode}
               selected={selectedIds.has(a.id)}
               onToggleSelect={toggleSelect}
+              selectedAlbums={selectedAlbums}
             />
           ))}
         </div>

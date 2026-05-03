@@ -83,14 +83,18 @@ function AlbumCard({ album, selected, selectionMode, onToggleSelect, showRating 
             </svg>
           </div>
         )}
-        {isOffline && !selectionMode && (
-          <div className="album-card-offline-badge" aria-label="Offline available">
-            <HardDriveDownload size={12} />
-          </div>
-        )}
-        {isNewAlbum && (
-          <div className="album-card-new-badge" aria-label={t('common.new', 'New')}>
-            {t('common.new', 'New')}
+        {(isNewAlbum || (isOffline && !selectionMode)) && (
+          <div className="album-card-cover-badges-tr">
+            {isNewAlbum && (
+              <div className="album-card-new-badge" aria-label={t('common.new', 'New')}>
+                {t('common.new', 'New')}
+              </div>
+            )}
+            {isOffline && !selectionMode && (
+              <div className="album-card-offline-badge" aria-label="Offline available">
+                <HardDriveDownload size={12} />
+              </div>
+            )}
           </div>
         )}
         {selectionMode && (
