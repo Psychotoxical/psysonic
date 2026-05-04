@@ -3,8 +3,8 @@
     Psysonic for NixOS / nixpkgs: installable app + dev shell.
 
     Packages:
-      nix build .#psysonic          # or .#default — desktop app (.desktop + icon)
-      nix build .#psysonic-gdk-session   # same, but no forced GDK_BACKEND=x11 (session Wayland/X11)
+      nix build .#psysonic          # or .#default — desktop app (.desktop + icon); GDK_BACKEND=x11 (default, fewer WebKit surprises)
+      nix build .#psysonic-gdk-session   # same app, no forced GDK x11 — optional; can misbehave on some stacks (see nixos-install.md)
       nix profile install .#psysonic
 
     Run (after build, or from any clone with flake):
