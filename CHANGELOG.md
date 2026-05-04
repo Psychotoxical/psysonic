@@ -177,6 +177,20 @@ The filter panel layout was tightened up at the same time: two sub-headings (**M
 Under the hood, `fetchRandomMixSongsUntilFull` now scales batch size, max-batch ceiling and dup-streak budget with the requested target — so a 150-track mix can finish in a single round-trip on most libraries instead of stalling out at ~120.
 
 
+### UI — Bulk Entity Ratings, Random Albums Multi-Select, Album New Badge
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#446](https://github.com/Psychotoxical/psysonic/pull/446)**
+
+Multi-album and multi-artist **context menus** now include a shared star-rating row for the current selection (mixed ratings show empty until you set a value; keyboard navigation supported), with new aria-label strings across locales. **Random Albums** passes the active selection into each **AlbumCard** so the same bulk context menu works from the roll grid. The album **New** badge moves to the **top-right** of the cover and **stacks** with the offline badge so the two no longer overlap.
+
+
+### NixOS — Flake: X11-wrapped default vs session GDK
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#447](https://github.com/Psychotoxical/psysonic/pull/447)**
+
+The flake exposes two Linux installables: **`psysonic`** / **`default`** pins **`GDK_BACKEND=x11`** for a stable GTK/WebKit stack on mixed Wayland setups; **`psysonic-gdk-session`** drops that override so GDK follows the session (native Wayland where the stack supports it). **[nixos-install.md](nixos-install.md)** and the README spell out trade-offs and include **zsh-safe** quoting for `nix run 'github:…#…'` URLs.
+
+
 ## Fixed
 
 - **Settings → Audio no longer blanks the app on macOS** *(Issue [#382](https://github.com/Psychotoxical/psysonic/issues/382), PR [#384](https://github.com/Psychotoxical/psysonic/pull/384), by [@Psychotoxical](https://github.com/Psychotoxical))*: Fixed a macOS-only crash where opening Settings → Audio could turn the whole app into a blank window. The Equalizer canvas now waits until it has valid layout dimensions before drawing, and redraws automatically once the section is visible.
