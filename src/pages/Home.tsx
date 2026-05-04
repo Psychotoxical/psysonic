@@ -10,6 +10,7 @@ import { useHomeStore } from '../store/homeStore';
 import { useAuthStore } from '../store/authStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mixRatingFilter';
 import { usePerfProbeFlags } from '../utils/perfFlags';
+import { bumpPerfCounter } from '../utils/perfTelemetry';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
 const HOME_RANDOM_FETCH = 100;
@@ -18,7 +19,6 @@ const HOME_DISCOVER_SLICE = 20;
 const HOME_DISCOVER_SONGS_SIZE = 18;
 const HOME_ALBUM_ROW_ARTWORK_SIZE = 300;
 const HOME_SONG_RAIL_ARTWORK_SIZE = 200;
-const HOME_DIRECT_IMAGE_SRC = false;
 const HOME_ARTWORK_WINDOWING = true;
 const HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET = 3;
 const HOME_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 4;
@@ -49,9 +49,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const root = globalThis as unknown as { __psyPerfCounters?: Record<string, number> };
-    const counters = root.__psyPerfCounters ?? (root.__psyPerfCounters = Object.create(null) as Record<string, number>);
-    counters.homeCommits = (counters.homeCommits ?? 0) + 1;
+    bumpPerfCounter('homeCommits');
   });
 
   useEffect(() => {
@@ -189,7 +187,6 @@ export default function Home() {
                 moreText={t('home.loadMore')}
                 disableArtwork={!recentArtworkEnabled}
                 artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
-                directImageSrc={HOME_DIRECT_IMAGE_SRC}
                 windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                 initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
               />
@@ -203,7 +200,6 @@ export default function Home() {
                 moreText={t('home.discoverMore')}
                 disableArtwork={!discoverArtworkEnabled}
                 artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
-                directImageSrc={HOME_DIRECT_IMAGE_SRC}
                 windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                 initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
               />
@@ -214,7 +210,6 @@ export default function Home() {
                 songs={discoverSongs}
                 disableArtwork={!discoverSongsArtworkEnabled}
                 artworkSize={HOME_SONG_RAIL_ARTWORK_SIZE}
-                directImageSrc={HOME_DIRECT_IMAGE_SRC}
                 windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                 initialArtworkBudget={HOME_SONG_RAIL_INITIAL_ARTWORK_BUDGET}
               />
@@ -247,7 +242,6 @@ export default function Home() {
                 moreText={t('home.loadMore')}
                 disableArtwork={!recentlyPlayedArtworkEnabled}
                 artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
-                directImageSrc={HOME_DIRECT_IMAGE_SRC}
                 windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                 initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
               />
@@ -261,7 +255,6 @@ export default function Home() {
                 moreText={t('home.loadMore')}
                 disableArtwork={!starredArtworkEnabled}
                 artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
-                directImageSrc={HOME_DIRECT_IMAGE_SRC}
                 windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                 initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
               />
@@ -275,7 +268,6 @@ export default function Home() {
                 moreText={t('home.loadMore')}
                 disableArtwork={!mostPlayedArtworkEnabled}
                 artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
-                directImageSrc={HOME_DIRECT_IMAGE_SRC}
                 windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                 initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
               />

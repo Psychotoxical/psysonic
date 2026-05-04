@@ -16,7 +16,6 @@ interface Props {
   disableArtwork?: boolean;
   disableInteractivity?: boolean;
   artworkSize?: number;
-  directImageSrc?: boolean;
   windowArtworkByViewport?: boolean;
   initialArtworkBudget?: number;
 }
@@ -30,7 +29,6 @@ export default function SongRail({
   disableArtwork = false,
   disableInteractivity = false,
   artworkSize,
-  directImageSrc = false,
   windowArtworkByViewport = false,
   initialArtworkBudget = 10,
 }: Props) {
@@ -150,7 +148,6 @@ export default function SongRail({
                   (windowArtworkByViewport && idx >= artworkBudget)
                 }
                 artworkSize={artworkSize}
-                directImageSrc={directImageSrc}
               />
             ))}
           </div>

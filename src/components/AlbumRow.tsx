@@ -19,7 +19,6 @@ interface Props {
   disableArtwork?: boolean;
   disableInteractivity?: boolean;
   artworkSize?: number;
-  directImageSrc?: boolean;
   windowArtworkByViewport?: boolean;
   initialArtworkBudget?: number;
 }
@@ -36,7 +35,6 @@ export default function AlbumRow({
   disableArtwork = false,
   disableInteractivity = false,
   artworkSize,
-  directImageSrc = false,
   windowArtworkByViewport = false,
   initialArtworkBudget = 8,
 }: Props) {
@@ -167,7 +165,6 @@ export default function AlbumRow({
                 (windowArtworkByViewport && idx >= artworkBudget)
               }
               artworkSize={artworkSize}
-              directImageSrc={directImageSrc}
             />
           ))}
           {loadingMore && (

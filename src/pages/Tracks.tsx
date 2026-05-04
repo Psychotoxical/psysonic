@@ -26,6 +26,9 @@ const RATED_RAIL_DISPLAY = 30;
 /** Stay-fresh window for the Highly Rated rail. Cleared on rating mutation, so
  *  the only staleness path is a reroll-button click after >60 s. */
 const RATED_RAIL_CACHE_MS = 60_000;
+/** Match Home: only mount artwork for cards near the horizontal viewport. */
+const TRACKS_SONG_RAIL_WINDOWING = true;
+const TRACKS_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 4;
 
 export default function Tracks() {
   const perfFlags = usePerfProbeFlags();
@@ -178,6 +181,8 @@ export default function Tracks() {
           songs={rated}
           loading={ratedLoading}
           onReroll={() => { ndInvalidateSongsCache(); return reloadRated(); }}
+          windowArtworkByViewport={TRACKS_SONG_RAIL_WINDOWING}
+          initialArtworkBudget={TRACKS_SONG_RAIL_INITIAL_ARTWORK_BUDGET}
         />
       )}
 
@@ -187,6 +192,8 @@ export default function Tracks() {
           songs={railSongs}
           loading={randomLoading}
           onReroll={rerollRandom}
+          windowArtworkByViewport={TRACKS_SONG_RAIL_WINDOWING}
+          initialArtworkBudget={TRACKS_SONG_RAIL_INITIAL_ARTWORK_BUDGET}
         />
       )}
 

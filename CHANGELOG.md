@@ -5,29 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.45.1] - 2026-05-04
 
-Summarizes work on branch `experiment/performance` until it is folded into a versioned release.
+## Added
 
-### Added
+### Performance probe, snapshot progress, and Linux WebKit diagnostics
 
-- **Performance Probe (diagnostics)** — Modal at **Ctrl+Shift+D** (sidebar logo is decorative only). Collapsible Phase 1/2 and an open-by-default Phase 3 for the toggles used most in profiling. Flags persist in `localStorage`, map to `data-perf-*` on the document root, and can disable targeted subsystems (shell/network hooks, mainstage sections, PlayerBar waveform only, live progress UI, rail artwork, and similar) to isolate WebKit/WebProcess CPU on Linux.
-- **Approximate live CPU (Linux)** — Tauri command reading `/proc` (including WebKit helper process names) for rough host CPU share during tuning.
-- **Playback progress snapshot API** — `getPlaybackProgressSnapshot` / `subscribePlaybackProgress` so time, seekbars, and lyrics can update without writing every tick into the persisted player store.
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#452](https://github.com/Psychotoxical/psysonic/pull/452)**
 
-### Changed
+* **Performance Probe** — Modal at **Ctrl+Shift+D** (sidebar logo is decorative only). Collapsible Phase 1/2 and an open-by-default Phase 3 for the toggles used most in profiling. Flags persist in `localStorage`, map to `data-perf-*` on the document root, and can disable targeted subsystems (shell/network hooks, mainstage sections, PlayerBar waveform only, live progress UI, rail artwork, and similar) to isolate WebKit/WebProcess CPU on Linux.
+* **Approximate live CPU (Linux)** — Tauri command reading `/proc` (including WebKit helper process names) for rough host CPU share while the probe is open.
+* **`getPlaybackProgressSnapshot` / `subscribePlaybackProgress`** — Live time, seekbars, lyrics, and related UI subscribe without writing every progress tick into the persisted player store.
+* **Perf telemetry gating** — Hot-path counters (`audioProgressEvents`, `waveformDraws`, `homeCommits`) increment in development builds always, and in production only while the Performance Probe is open, avoiding extra global writes during normal playback.
 
-- **`audio:progress` (Rust)** — Throttled by minimum interval and position delta, with immediate emit on pause transitions, to reduce IPC during playback.
-- **Player store timeline** — `currentTime` / `progress` / `buffered` updates to the persisted store are coarse-grained; live UI reads the snapshot channel instead.
-- **`WaveformSeek`** — Still one **`<canvas>`** with **2D `fillRect`** bar drawing (same style functions as before; not pre-rendered image layers or `drawImage` compositing). Progress is fed from the snapshot channel; sparse backend ticks are bridged with prediction/smoothing and capped repaint cadence; animated preview ticks no longer stop solely because the window lost focus while still visible.
-- **MPRIS position** — Driven from the progress snapshot with conservative timing.
+## Changed
 
-### Fixed
+* **`audio:progress` (Rust)** — Throttled by minimum interval and position delta, with immediate emit on pause transitions, to reduce IPC during playback.
+* **Persisted player store** — `currentTime` / `progress` / `buffered` commits are coarse-grained; live UI reads the snapshot channel instead.
+* **`WaveformSeek`** — Same **`<canvas>`** **2D `fillRect`** bar renderer as before (not pre-rendered bitmap layers). Progress is fed from the snapshot channel; sparse backend ticks are bridged with prediction/smoothing and a capped repaint cadence; animated preview ticks no longer stop solely because the window lost focus while still visible.
+* **MPRIS** — Position updates while playing use the snapshot channel on a conservative cadence; play/pause transitions send **snapshot** time (not coarse store `currentTime`). Removed the redundant store-driven position branch that could push stale values after timeline coarsening.
+* **Home / card artwork** — Album and song cards always use **`CachedImage`** for covers; removed unused `directImageSrc` plumbing from `Home`, `AlbumRow`, `SongRail`, `AlbumCard`, and `SongCard`.
+* **Tracks** — Highly Rated and Random Mix **`SongRail`** rows enable the same horizontal **artwork windowing** defaults as Home.
 
-- **Hero** — Auto-advance respects visibility in the app scroll viewport, pauses when the window is blurred, and recovers after returning on-screen or on focus/visibility changes.
-- **Home `AlbumRow` / `SongRail`** — Artwork visibility budget uses real card geometry so covers fill the viewport without requiring an initial horizontal scroll nudge.
-- **Server switch menu** — Portaled with fixed coordinates so it stacks above the sidebar.
-- **Linux / Nix** — `PSYSONIC_ALLOW_NATIVE_GDK` skips the default `GDK_BACKEND=x11` pin when using the `gdk-session` wrapper; `tauri:dev` no longer forces `GDK_BACKEND` over `nix develop` defaults.
+## Fixed
+
+* **Hero** — Auto-advance respects visibility in the app scroll viewport, pauses when the window is blurred, and recovers after returning on-screen or on focus/visibility changes.
+* **Home `AlbumRow` / `SongRail`** — Artwork visibility budget uses real card geometry so covers fill the viewport without requiring an initial horizontal scroll nudge.
+* **Server switch menu** — Portaled with fixed coordinates so it stacks above the sidebar.
+* **Linux / Nix** — `PSYSONIC_ALLOW_NATIVE_GDK` skips the default `GDK_BACKEND=x11` pin when using the `gdk-session` wrapper; `tauri:dev` no longer forces `GDK_BACKEND` over `nix develop` defaults.
+* **`WaveformSeek`** — Static seekbar styles follow external seeks (keyboard, MPRIS, queue) while **paused** by syncing the visual progress ref to the snapshot target whenever the interpolation `rAF` loop is not running.
 
 > **🛡️ A note on safety investments:** Making sure Psysonic is trusted on every OS takes real money out of my pocket — an Apple Developer Account (now active, which is why macOS builds are signed + notarized for everyone starting with this release) and a Windows code-signing certificate (ordered, currently in validation). If you'd like to help cover those costs, you can chip in at [ko-fi.com/psychotoxic](https://ko-fi.com/psychotoxic) — completely voluntary, no pressure at all. Every bit helps keep Psysonic free and safe across Windows, macOS and Linux.
 >

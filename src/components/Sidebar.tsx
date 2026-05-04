@@ -30,6 +30,7 @@ import {
 } from '../utils/sidebarNavReorder';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { resetPerfProbeFlags, setPerfProbeFlag, usePerfProbeFlags } from '../utils/perfFlags';
+import { setPerfProbeTelemetryActive } from '../utils/perfTelemetry';
 
 const SIDEBAR_NAV_LONG_PRESS_MS = 1000;
 const SIDEBAR_NAV_LONG_PRESS_MOVE_CANCEL_PX = 10;
@@ -163,6 +164,11 @@ export default function Sidebar({
   const perfFlags = usePerfProbeFlags();
   const [perfCpu, setPerfCpu] = useState<{ app: number; webkit: number; supported: boolean } | null>(null);
   const [perfDiagRates, setPerfDiagRates] = useState<{ progress: number; waveform: number; home: number } | null>(null);
+
+  useEffect(() => {
+    setPerfProbeTelemetryActive(perfProbeOpen);
+    return () => setPerfProbeTelemetryActive(false);
+  }, [perfProbeOpen]);
 
   const newReleasesSeenStorageKey = useMemo(
     () => `${NEW_RELEASES_UNREAD_STORAGE_PREFIX}:${serverId || 'no-server'}:${filterId || 'all'}`,

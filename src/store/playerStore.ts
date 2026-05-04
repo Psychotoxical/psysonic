@@ -23,6 +23,7 @@ import {
   passesMixMinRatings,
 } from '../utils/mixRatingFilter';
 import { getPerfProbeFlags } from '../utils/perfFlags';
+import { bumpPerfCounter } from '../utils/perfTelemetry';
 
 const QUEUE_VISIBILITY_STORAGE_KEY = 'psysonic_queue_visible';
 
@@ -669,11 +670,6 @@ export function subscribePlaybackProgress(
   };
 }
 
-function bumpUiPerfCounter(key: 'audioProgressEvents'): void {
-  const root = globalThis as unknown as { __psyPerfCounters?: Record<string, number> };
-  const counters = root.__psyPerfCounters ?? (root.__psyPerfCounters = Object.create(null) as Record<string, number>);
-  counters[key] = (counters[key] ?? 0) + 1;
-}
 
 /** Deferred pause / resume — cleared on stop, new track, manual pause/resume. */
 let scheduledPauseTimer: number | null = null;
@@ -1246,7 +1242,7 @@ function handleAudioPlaying(_duration: number) {
 }
 
 function handleAudioProgress(current_time: number, duration: number) {
-  bumpUiPerfCounter('audioProgressEvents');
+  bumpPerfCounter('audioProgressEvents');
   const perfFlags = getPerfProbeFlags();
   const progressUiDisabled = perfFlags.disablePlayerProgressUi;
   // While a seek is pending, the store already holds the optimistic target
@@ -1833,7 +1829,7 @@ export function initAudioListeners(): () => void {
   let lastMprisPositionUpdate = 0;
 
   const unsubMpris = usePlayerStore.subscribe((state) => {
-    const { currentTrack, currentRadio, isPlaying, currentTime } = state;
+    const { currentTrack, currentRadio, isPlaying } = state;
 
     // Update metadata when track changes
     if (currentTrack && currentTrack.id !== prevTrackId) {
@@ -1865,29 +1861,19 @@ export function initAudioListeners(): () => void {
       }).catch(() => {});
     }
 
-    // Update playback state on play/pause change
+    // Update playback state on play/pause change (use live snapshot — persisted
+    // store currentTime is intentionally coarse between commits).
     const playbackChanged = isPlaying !== prevIsPlaying;
     if (playbackChanged) {
       prevIsPlaying = isPlaying;
       lastMprisPositionUpdate = Date.now();
+      const pos = getPlaybackProgressSnapshot().currentTime;
       invoke('mpris_set_playback', {
         playing: isPlaying,
-        positionSecs: currentTime > 0 ? currentTime : null,
+        positionSecs: pos > 0 ? pos : null,
       }).catch(() => {});
       invoke('update_taskbar_icon', { isPlaying }).catch(() => {});
       return;
-    }
-
-    // Keep position in sync while playing — update at a coarse cadence so UI
-    // updates do not amplify IPC churn on Linux/WebKit.
-    // always shows the correct time without interpolation gaps.
-    // Radio streams have no meaningful position, so skip for radio.
-    if (!currentRadio && isPlaying && Date.now() - lastMprisPositionUpdate >= 1500) {
-      lastMprisPositionUpdate = Date.now();
-      invoke('mpris_set_playback', {
-        playing: true,
-        positionSecs: currentTime,
-      }).catch(() => {});
     }
   });
   const unsubMprisProgress = subscribePlaybackProgress(({ currentTime }) => {

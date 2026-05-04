@@ -13,10 +13,9 @@ interface SongCardProps {
   song: SubsonicSong;
   disableArtwork?: boolean;
   artworkSize?: number;
-  directImageSrc?: boolean;
 }
 
-function SongCard({ song, disableArtwork = false, artworkSize = 200, directImageSrc = false }: SongCardProps) {
+function SongCard({ song, disableArtwork = false, artworkSize = 200 }: SongCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
@@ -86,23 +85,13 @@ function SongCard({ song, disableArtwork = false, artworkSize = 200, directImage
     >
       <div className="song-card-cover">
         {!disableArtwork && coverUrl ? (
-          directImageSrc ? (
-            <img
-              src={coverUrl}
-              alt={`${song.album} Cover`}
-              loading="lazy"
-              decoding="async"
-              fetchPriority="low"
-            />
-          ) : (
-            <CachedImage
-              src={coverUrl}
-              cacheKey={coverCacheKey}
-              alt={`${song.album} Cover`}
-              loading="lazy"
-              decoding="async"
-            />
-          )
+          <CachedImage
+            src={coverUrl}
+            cacheKey={coverCacheKey}
+            alt={`${song.album} Cover`}
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="song-card-cover-placeholder">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

@@ -20,7 +20,6 @@ interface AlbumCardProps {
   selectedAlbums?: SubsonicAlbum[];
   disableArtwork?: boolean;
   artworkSize?: number;
-  directImageSrc?: boolean;
 }
 
 function AlbumCard({
@@ -32,7 +31,6 @@ function AlbumCard({
   selectedAlbums = [],
   disableArtwork = false,
   artworkSize = 300,
-  directImageSrc = false,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -95,23 +93,13 @@ function AlbumCard({
     >
       <div className="album-card-cover">
         {!disableArtwork && coverUrl ? (
-          directImageSrc ? (
-            <img
-              src={coverUrl}
-              alt={`${album.name} Cover`}
-              loading="lazy"
-              decoding="async"
-              fetchPriority="low"
-            />
-          ) : (
-            <CachedImage
-              src={coverUrl}
-              cacheKey={coverCacheKey}
-              alt={`${album.name} Cover`}
-              loading="lazy"
-              decoding="async"
-            />
-          )
+          <CachedImage
+            src={coverUrl}
+            cacheKey={coverCacheKey}
+            alt={`${album.name} Cover`}
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <div className="album-card-cover-placeholder">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

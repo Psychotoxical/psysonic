@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playerStore';
 import { useAuthStore, type SeekbarStyle } from '../store/authStore';
+import { bumpPerfCounter } from '../utils/perfTelemetry';
 function fmt(s: number): string {
   if (!s || isNaN(s)) return '0:00';
   return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
@@ -812,9 +813,7 @@ export function drawSeekbar(
   buffered: number,
   animState?: AnimState,
 ) {
-  const root = globalThis as unknown as { __psyPerfCounters?: Record<string, number> };
-  const counters = root.__psyPerfCounters ?? (root.__psyPerfCounters = Object.create(null) as Record<string, number>);
-  counters.waveformDraws = (counters.waveformDraws ?? 0) + 1;
+  bumpPerfCounter('waveformDraws');
   const anim = animState ?? makeAnimState();
   switch (style) {
     case 'truewave':      drawWaveform(canvas, heights, progress, buffered); break;
@@ -1087,6 +1086,12 @@ export default function WaveformSeek({ trackId }: Props) {
       visualTargetProgressRef.current = isBarQuantizedSeekStyle(styleRef.current)
         ? quantizeProgressByBars(state.progress)
         : state.progress;
+      // While paused the interpolation rAF is disabled, so keep the drawn playhead
+      // in sync with external seeks (keyboard, MPRIS, queue). Drag/wheel still
+      // update these refs via previewFraction.
+      if (!usePlayerStore.getState().isPlaying) {
+        visualProgressRef.current = visualTargetProgressRef.current;
+      }
       // Static styles always redraw on progress; animated styles let the rAF
       // loop drive paints. In `static` animation mode we skip the rAF loop
       // entirely, so animated styles also need to repaint here on every tick.
