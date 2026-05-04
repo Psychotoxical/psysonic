@@ -4,15 +4,18 @@
 
     Packages:
       nix build .#psysonic          # or .#default — desktop app (.desktop + icon)
+      nix build .#psysonic-gdk-session   # same, but no forced GDK_BACKEND=x11 (session Wayland/X11)
       nix profile install .#psysonic
 
     Run (after build, or from any clone with flake):
       nix run .#psysonic
+      nix run .#psysonic-gdk-session
       nix run github:Psychotoxical/psysonic
 
     Development:
       nix develop                   # mkShell (Rust/Node/WebKit deps + hooks)
       nix shell .#devShells.default # same environment without entering subshell semantics
+      Local cargo output: .build-local/ (gitignored; not copied into flake source tarball)
 
     Release pipeline updates `flake.lock` (nixpkgs pin refresh) and
     `nix/upstream-sources.json` (npmDepsHash) on every `v*` tag push —
@@ -71,6 +74,10 @@
           ++ gstPlugins;
 
           shellHook = ''
+            _repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+            if [ -n "$_repo" ] && [ -f "$_repo/flake.nix" ]; then
+              export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-$_repo/.build-local/cargo-target}"
+            fi
             export LD_LIBRARY_PATH="${pkgs.libayatana-appindicator}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
             export GST_PLUGIN_PATH="${gstPluginPath}''${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}"
             export GIO_EXTRA_MODULES="${pkgs.glib-networking}/lib/gio/modules''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"
@@ -92,12 +99,21 @@
           src = self;
           inherit upstreamMeta;
         };
+
+      psysonicGdkSessionFor =
+        system:
+        nixpkgs.legacyPackages.${system}.callPackage ./nix/psysonic.nix {
+          src = self;
+          inherit upstreamMeta;
+          forceGdkX11 = false;
+        };
     in
     {
       devShells = forSystem (system: { default = mkShellFor system; });
 
       packages = forSystem (system: {
         psysonic = psysonicFor system;
+        psysonic-gdk-session = psysonicGdkSessionFor system;
         default = psysonicFor system;
       });
 
@@ -105,6 +121,7 @@
         system:
         let
           p = psysonicFor system;
+          pGdk = psysonicGdkSessionFor system;
         in
         {
           default = {
@@ -112,6 +129,14 @@
             program = lib.getExe p;
             meta = {
               inherit (p.meta) description homepage license;
+              mainProgram = "psysonic";
+            };
+          };
+          psysonic-gdk-session = {
+            type = "app";
+            program = lib.getExe pGdk;
+            meta = {
+              inherit (pGdk.meta) description homepage license;
               mainProgram = "psysonic";
             };
           };

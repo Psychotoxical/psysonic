@@ -158,8 +158,6 @@ From a **flake-enabled** clone of the repo:
 
 The flake **`devShell`** uses the same **`nixpkgs`** input as **`packages.psysonic`** (see **`flake.nix`**).
 
-If you prefer **classic `nix-shell`** without evaluating the flake, the repo also provides **`shell.nix`**: it pulls **`nixos-unstable`** via `fetchTarball`, so the nixpkgs pin may **differ** from **`flake.lock`**; use it only when you understand that tradeoff (comments at the top of `shell.nix` describe local Tauri build commands).
-
 ## Desktop entry
 
 The flake package installs a **`.desktop`** file and icon via `copyDesktopItems`; after `nixos-rebuild switch` (or a Home Manager activation that includes the package), Psysonic should appear in your application launcher like any other desktop app.

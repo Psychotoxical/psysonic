@@ -35,6 +35,9 @@
   gst_all_1,
   src,
   upstreamMeta,
+  # When true (default), wrapProgram sets GDK_BACKEND=x11 for WebKit stability on many setups.
+  # When false, GDK follows the session (e.g. native Wayland) — often better HiDPI sizing.
+  forceGdkX11 ? true,
 }:
 
 let
@@ -59,7 +62,8 @@ let
       && !(lib.hasInfix "/target/" f)
       && !(lib.hasInfix "/.git/" f)
       && !(lib.hasInfix "/result/" f)
-      && !(lib.hasInfix "/.flatpak-builder/" f);
+      && !(lib.hasInfix "/.flatpak-builder/" f)
+      && !(lib.hasInfix "/.build-local/" f);
   };
   npmDeps = fetchNpmDeps {
     src = srcClean;
@@ -156,15 +160,20 @@ stdenv.mkDerivation (finalAttrs: {
     })
   ];
 
-  postFixup = ''
-    wrapProgram $out/bin/psysonic \
-      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ libayatana-appindicator ]}" \
-      --prefix GST_PLUGIN_PATH : "${gstPluginPath}" \
-      --prefix GIO_EXTRA_MODULES : "${glib-networking}/lib/gio/modules" \
-      --set GDK_BACKEND x11 \
-      --set WEBKIT_DISABLE_COMPOSITING_MODE 1 \
-      --set WEBKIT_DISABLE_DMABUF_RENDERER 1
-  '';
+  postFixup =
+    let
+      gdkX11Wrap = lib.optionalString forceGdkX11 ''
+        --set GDK_BACKEND x11 \
+      '';
+    in
+    ''
+      wrapProgram $out/bin/psysonic \
+        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ libayatana-appindicator ]}" \
+        --prefix GST_PLUGIN_PATH : "${gstPluginPath}" \
+        --prefix GIO_EXTRA_MODULES : "${glib-networking}/lib/gio/modules" \
+        ${gdkX11Wrap}--set WEBKIT_DISABLE_COMPOSITING_MODE 1 \
+        --set WEBKIT_DISABLE_DMABUF_RENDERER 1
+    '';
 
   meta = {
     description = "Desktop music player for Subsonic-compatible servers";
