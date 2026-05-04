@@ -18,25 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
-### Linux / WebKit — performance probe, progress IPC, and UI isolation
+### Themes — Kanagawa, Atom One and 1984 Palettes
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#452](https://github.com/Psychotoxical/psysonic/pull/452)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#390](https://github.com/Psychotoxical/psysonic/pull/390)**
 
-* **Performance Probe** — Modal at **Ctrl+Shift+D** (sidebar logo is decorative only). Collapsible Phase 1/2 and an open-by-default Phase 3 for the toggles used most in profiling. Flags persist in `localStorage`, map to `data-perf-*` on the document root, and can disable targeted subsystems (shell/network hooks, mainstage sections, PlayerBar waveform only, live progress UI, rail artwork, and similar) to isolate WebKit/WebProcess CPU on Linux.
-* **Approximate live CPU (Linux)** — Tauri command reading `/proc` (including WebKit helper process names) for rough host CPU share while the probe is open.
-* **`getPlaybackProgressSnapshot` / `subscribePlaybackProgress`** — Live time, seekbars, lyrics, and related UI subscribe without writing every progress tick into the persisted player store.
-* **Perf telemetry gating** — Hot-path counters (`audioProgressEvents`, `waveformDraws`, `homeCommits`) increment in development builds always, and in production only while the Performance Probe is open, avoiding extra global writes during normal playback.
-* **`audio:progress` (Rust)** — Throttled by minimum interval and position delta, with immediate emit on pause transitions, to reduce IPC during playback.
-* **Persisted player store** — `currentTime` / `progress` / `buffered` commits are coarse-grained; live UI reads the snapshot channel instead.
-* **`WaveformSeek`** — Same **`<canvas>`** **2D `fillRect`** bar renderer as before (not pre-rendered bitmap layers). Progress is fed from the snapshot channel; sparse backend ticks are bridged with prediction/smoothing and a capped repaint cadence; animated preview ticks no longer stop solely because the window lost focus while still visible; static styles stay aligned with external seeks while **paused** by syncing the visual progress ref to the snapshot when the interpolation `rAF` loop is not running.
-* **MPRIS** — Position updates while playing use the snapshot channel on a conservative cadence; play/pause transitions send **snapshot** time (not coarse store `currentTime`). Removed the redundant store-driven position branch that could push stale values after timeline coarsening.
-* **Home / card artwork** — Album and song cards always use **`CachedImage`** for covers; removed unused `directImageSrc` plumbing from `Home`, `AlbumRow`, `SongRail`, `AlbumCard`, and `SongCard`.
-* **Tracks** — Highly Rated and Random Mix **`SongRail`** rows enable the same horizontal **artwork windowing** defaults as Home.
-* **Hero** — Auto-advance respects visibility in the app scroll viewport, pauses when the window is blurred, and recovers after returning on-screen or on focus/visibility changes.
-* **Home `AlbumRow` / `SongRail`** — Artwork visibility budget uses real card geometry so covers fill the viewport without requiring an initial horizontal scroll nudge.
-* **Server switch menu** — Portaled with fixed coordinates so it stacks above the sidebar.
-* **Linux / Nix** — `PSYSONIC_ALLOW_NATIVE_GDK` skips the default `GDK_BACKEND=x11` pin when using the `gdk-session` wrapper; `tauri:dev` no longer forces `GDK_BACKEND` over `nix develop` defaults.
+Open Source Classics gains three new theme families: **Kanagawa**, **Atom One** and **1984**, adding nine new themes in total.
 
+* **Kanagawa:** Wave, Dragon and Lotus
+* **Atom One:** Dark and Light
+* **1984:** Default, Cyberpunk, Light and Orwell
+
+Each theme defines the full token set, including background, accent, text, Catppuccin compatibility, waveform, status and select-arrow tokens. This lets login, queue sidebar and subpages inherit the palette cleanly without component-specific overrides.
+
+The theme picker now groups Open Source Classics by family with dedicated family headings. Theme scheduler dropdown labels are also family-prefixed, making it clearer which palette family a scheduled theme belongs to.
 
 ### Audio Preview — Rust Preview Engine and Tracklist Rollout
 
@@ -70,7 +64,6 @@ Play Next in the context menu now uses a double-chevron icon, making it visually
 
 The feature includes updated i18n coverage across all supported locales, including the new player-bar preview labels.
 
-
 ### Tray — Now Playing Tooltip and Localized Menu Labels
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#395](https://github.com/Psychotoxical/psysonic/pull/395), closes [#383](https://github.com/Psychotoxical/psysonic/issues/383)**
@@ -80,22 +73,6 @@ The system tray now reflects the current playback state more clearly. On Windows
 On Linux, where AppIndicator does not expose a hover-tooltip API, the same now-playing text is shown as a disabled entry at the top of the tray menu instead.
 
 Tray menu labels are now localized across all supported languages, including Play/Pause, Next/Previous, Show/Hide, Exit and the Linux-only empty-state label. The frontend updates the tray labels on startup and whenever the app language changes, without rebuilding the tray icon.
-
-
-### Themes — Kanagawa, Atom One and 1984 Palettes
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#390](https://github.com/Psychotoxical/psysonic/pull/390)**
-
-Open Source Classics gains three new theme families: **Kanagawa**, **Atom One** and **1984**, adding nine new themes in total.
-
-* **Kanagawa:** Wave, Dragon and Lotus
-* **Atom One:** Dark and Light
-* **1984:** Default, Cyberpunk, Light and Orwell
-
-Each theme defines the full token set, including background, accent, text, Catppuccin compatibility, waveform, status and select-arrow tokens. This lets login, queue sidebar and subpages inherit the palette cleanly without component-specific overrides.
-
-The theme picker now groups Open Source Classics by family with dedicated family headings. Theme scheduler dropdown labels are also family-prefixed, making it clearer which palette family a scheduled theme belongs to.
-
 
 ### Sidebar Discovery Indicators
 
@@ -117,27 +94,6 @@ The top header behavior was reworked for narrow widths: search, Live and Orbit c
 
 Waveform mouse-wheel seeking now uses fixed step-based jumps with debounce smoothing for more predictable navigation and less jitter during rapid scrolling.
 
-
-### Queue — Drag Outside to Remove
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#420](https://github.com/Psychotoxical/psysonic/pull/420)**
-
-You can remove a track from the play queue by dragging its row **outside** the queue sidebar (main window) or outside the mini player’s queue list. Drop targets still support reordering when you release inside the queue area.
-
-The drag ghost shows a **trash** affordance only while the cursor is outside the queue bounds; inside the queue it behaves as a normal reorder drag. The mouse-event `psy-drop` path now carries cursor coordinates so removal can be detected when the drop target is not the queue panel itself.
-
-
-### Statistics — Shareable Top-Albums Card
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#425](https://github.com/Psychotoxical/psysonic/pull/425)**
-
-Statistics page can now export your most-played albums as a shareable PNG, accessible via a share icon next to the **Most Played Albums** section header. Three aspect ratios for different platforms (Story 9:16, Square 1:1, Twitter Card 16:9), three grid sizes (3×3, 4×4, 5×5), with each cover carrying a thin info strip showing rank + play count.
-
-The card pulls the wordmark and accent color directly from the active theme, so a Catppuccin export looks Catppuccin and a Nord export looks Nord. Cover art reuses the existing IndexedDB cache, so no extra Subsonic round-trips on repeat exports. The header label is hardcoded English ("Top Albums") so a shared image stays legible to followers regardless of their language.
-
-Saving uses the native OS save dialog — no silent dump into Downloads, the user picks the path each time. Data source is local-only (Subsonic `getAlbumList(frequent)`); Last.fm is intentionally not used. There is no time-window selector because Navidrome's API exposes only cumulative play counts, not per-event play history.
-
-
 ### Queue Panel — Position Counter, Tri-State Duration Toggle, Collapsible Now Playing, EQ Indicator
 
 **By [@kveld9](https://github.com/kveld9), PR [#419](https://github.com/Psychotoxical/psysonic/pull/419)**
@@ -150,6 +106,23 @@ A new chevron next to the queue title **collapses the Now Playing section and qu
 
 The currently playing row in the queue list is now indicated by **animated equalizer bars** to the left of the track title; the bars freeze in place when playback is paused. The previous small play icon next to the title is removed since the EQ bars carry the same signal more clearly.
 
+### Queue — Drag Outside to Remove
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#420](https://github.com/Psychotoxical/psysonic/pull/420)**
+
+You can remove a track from the play queue by dragging its row **outside** the queue sidebar (main window) or outside the mini player’s queue list. Drop targets still support reordering when you release inside the queue area.
+
+The drag ghost shows a **trash** affordance only while the cursor is outside the queue bounds; inside the queue it behaves as a normal reorder drag. The mouse-event `psy-drop` path now carries cursor coordinates so removal can be detected when the drop target is not the queue panel itself.
+
+### Statistics — Shareable Top-Albums Card
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#425](https://github.com/Psychotoxical/psysonic/pull/425)**
+
+Statistics page can now export your most-played albums as a shareable PNG, accessible via a share icon next to the **Most Played Albums** section header. Three aspect ratios for different platforms (Story 9:16, Square 1:1, Twitter Card 16:9), three grid sizes (3×3, 4×4, 5×5), with each cover carrying a thin info strip showing rank + play count.
+
+The card pulls the wordmark and accent color directly from the active theme, so a Catppuccin export looks Catppuccin and a Nord export looks Nord. Cover art reuses the existing IndexedDB cache, so no extra Subsonic round-trips on repeat exports. The header label is hardcoded English ("Top Albums") so a shared image stays legible to followers regardless of their language.
+
+Saving uses the native OS save dialog — no silent dump into Downloads, the user picks the path each time. Data source is local-only (Subsonic `getAlbumList(frequent)`); Last.fm is intentionally not used. There is no time-window selector because Navidrome's API exposes only cumulative play counts, not per-event play history.
 
 ### Shortcuts — Action Registry, Dynamic CLI Help, New Input Targets
 
@@ -160,7 +133,6 @@ Shortcut, keyboard, global-hotkey, mini-window and CLI inputs are now all routed
 Nine new input actions were added (requested by zunoz on Discord): start search, start advanced search, toggle sidebar, mute, open / toggle equalizer, toggle repeat, open Now Playing, show lyrics, favorite current track. Help is bound to **F1** by default and hidden from the Settings input list; existing users get the F1 binding back-filled into their persisted keybindings on next launch.
 
 Translations for the new action labels follow in a separate i18n nachhol-PR (de, fr, nl, zh, nb, ru, es).
-
 
 ### Settings — 3-State Animation Mode (Full / Reduced / Static)
 
@@ -174,7 +146,6 @@ The boolean **Reduce animations** toggle in **Settings → Appearance** is now a
 
 Existing users with `reducedAnimations: true` are migrated 1:1 to **Reduced** on first launch; everyone else lands on **Full**. The picker is in the same place as before. A contextual hint below the picker explains what the selected mode does.
 
-
 ### Tracks — Highly Rated Rail and Per-Card Star Display
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#443](https://github.com/Psychotoxical/psysonic/pull/443), prompted by Foxhunter-de in discussion [#442](https://github.com/Psychotoxical/psysonic/discussions/442)**
@@ -184,7 +155,6 @@ The Tracks page gets a new **Highly Rated** rail above Random Pick, surfacing yo
 Every song card across the app whose rating is greater than zero now shows a small five-star row below the artist line, filled to the rating value. Read-only display — rating is still done via the row's context menu or the Now Playing star widget.
 
 Backed by an opt-in 60 s in-memory cache for `ndListSongs` (used only by the new rail; paginated browsing is unaffected). The cache is cleared automatically when you rate a track, switch server, or click the rail's reroll button.
-
 
 ### Random Mix — Playlist Size Selector and Filter Panel Cleanup
 
@@ -196,19 +166,37 @@ The filter panel layout was tightened up at the same time: two sub-headings (**M
 
 Under the hood, `fetchRandomMixSongsUntilFull` now scales batch size, max-batch ceiling and dup-streak budget with the requested target — so a 150-track mix can finish in a single round-trip on most libraries instead of stalling out at ~120.
 
-
 ### UI — Bulk Entity Ratings, Random Albums Multi-Select, Album New Badge
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#446](https://github.com/Psychotoxical/psysonic/pull/446)**
 
 Multi-album and multi-artist **context menus** now include a shared star-rating row for the current selection (mixed ratings show empty until you set a value; keyboard navigation supported), with new aria-label strings across locales. **Random Albums** passes the active selection into each **AlbumCard** so the same bulk context menu works from the roll grid. The album **New** badge moves to the **top-right** of the cover and **stacks** with the offline badge so the two no longer overlap.
 
-
 ### NixOS — Flake: X11-wrapped default vs session GDK
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#447](https://github.com/Psychotoxical/psysonic/pull/447)**
 
 The flake exposes two Linux installables: **`psysonic`** / **`default`** pins **`GDK_BACKEND=x11`** for a stable GTK/WebKit stack on mixed Wayland setups; **`psysonic-gdk-session`** drops that override so GDK follows the session (native Wayland where the stack supports it). **[nixos-install.md](nixos-install.md)** documents trade-offs and **zsh-safe** quoting for `nix run 'github:…#…'` URLs.
+
+### Linux / WebKit — performance probe, progress IPC, and UI isolation
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#452](https://github.com/Psychotoxical/psysonic/pull/452)**
+
+* **Performance Probe** — Modal at **Ctrl+Shift+D** (sidebar logo is decorative only). Collapsible Phase 1/2 and an open-by-default Phase 3 for the toggles used most in profiling. Flags persist in `localStorage`, map to `data-perf-*` on the document root, and can disable targeted subsystems (shell/network hooks, mainstage sections, PlayerBar waveform only, live progress UI, rail artwork, and similar) to isolate WebKit/WebProcess CPU on Linux.
+* **Approximate live CPU (Linux)** — Tauri command reading `/proc` (including WebKit helper process names) for rough host CPU share while the probe is open.
+* **`getPlaybackProgressSnapshot` / `subscribePlaybackProgress`** — Live time, seekbars, lyrics, and related UI subscribe without writing every progress tick into the persisted player store.
+* **Perf telemetry gating** — Hot-path counters (`audioProgressEvents`, `waveformDraws`, `homeCommits`) increment in development builds always, and in production only while the Performance Probe is open, avoiding extra global writes during normal playback.
+* **`audio:progress` (Rust)** — Throttled by minimum interval and position delta, with immediate emit on pause transitions, to reduce IPC during playback.
+* **Persisted player store** — `currentTime` / `progress` / `buffered` commits are coarse-grained; live UI reads the snapshot channel instead.
+* **`WaveformSeek`** — Same **`<canvas>`** **2D `fillRect`** bar renderer as before (not pre-rendered bitmap layers). Progress is fed from the snapshot channel; sparse backend ticks are bridged with prediction/smoothing and a capped repaint cadence; animated preview ticks no longer stop solely because the window lost focus while still visible; static styles stay aligned with external seeks while **paused** by syncing the visual progress ref to the snapshot when the interpolation `rAF` loop is not running.
+* **MPRIS** — Position updates while playing use the snapshot channel on a conservative cadence; play/pause transitions send **snapshot** time (not coarse store `currentTime`). Removed the redundant store-driven position branch that could push stale values after timeline coarsening.
+* **Home / card artwork** — Album and song cards always use **`CachedImage`** for covers; removed unused `directImageSrc` plumbing from `Home`, `AlbumRow`, `SongRail`, `AlbumCard`, and `SongCard`.
+* **Tracks** — Highly Rated and Random Mix **`SongRail`** rows enable the same horizontal **artwork windowing** defaults as Home.
+* **Hero** — Auto-advance respects visibility in the app scroll viewport, pauses when the window is blurred, and recovers after returning on-screen or on focus/visibility changes.
+* **Home `AlbumRow` / `SongRail`** — Artwork visibility budget uses real card geometry so covers fill the viewport without requiring an initial horizontal scroll nudge.
+* **Server switch menu** — Portaled with fixed coordinates so it stacks above the sidebar.
+* **Linux / Nix** — `PSYSONIC_ALLOW_NATIVE_GDK` skips the default `GDK_BACKEND=x11` pin when using the `gdk-session` wrapper; `tauri:dev` no longer forces `GDK_BACKEND` over `nix develop` defaults.
+
 
 
 ## Fixed
