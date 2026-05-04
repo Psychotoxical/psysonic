@@ -188,7 +188,7 @@ Multi-album and multi-artist **context menus** now include a shared star-rating 
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#447](https://github.com/Psychotoxical/psysonic/pull/447)**
 
-The flake exposes two Linux installables: **`psysonic`** / **`default`** pins **`GDK_BACKEND=x11`** for a stable GTK/WebKit stack on mixed Wayland setups; **`psysonic-gdk-session`** drops that override so GDK follows the session (native Wayland where the stack supports it). **[nixos-install.md](nixos-install.md)** and the README spell out trade-offs and include **zsh-safe** quoting for `nix run 'github:…#…'` URLs.
+The flake exposes two Linux installables: **`psysonic`** / **`default`** pins **`GDK_BACKEND=x11`** for a stable GTK/WebKit stack on mixed Wayland setups; **`psysonic-gdk-session`** drops that override so GDK follows the session (native Wayland where the stack supports it). **[nixos-install.md](nixos-install.md)** documents trade-offs and **zsh-safe** quoting for `nix run 'github:…#…'` URLs.
 
 
 ## Fixed
