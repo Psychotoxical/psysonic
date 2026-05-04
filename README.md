@@ -137,6 +137,19 @@ Supports **8 languages** and growing.
 curl -fsSL https://raw.githubusercontent.com/Psychotoxical/psysonic/main/scripts/install.sh | sudo bash
 ```
 
+## NixOS (flake)
+
+Full guide: **[nixos-install.md](nixos-install.md)** (Cachix, `configuration.nix`, **`psysonic`** vs **`psysonic-gdk-session`**).
+
+**zsh:** `?` and `#` in a flake URL are treated as glob / history syntax. **Quote** the whole installable (everything before any `--` that separates app args):
+
+```bash
+nix run 'github:Psychotoxical/psysonic?ref=main#default' -- --help
+nix run 'github:Psychotoxical/psysonic?ref=main#psysonic-gdk-session' -- --help
+```
+
+Bash often accepts the same URL unquoted; when in doubt, use quotes there too.
+
 ## Windows
 
 Download the latest installer from Releases.

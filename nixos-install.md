@@ -100,7 +100,11 @@ Use the alternate package when you understand that trade-off:
 inputs.psysonic.packages.${system}.psysonic-gdk-session
 ```
 
-Or one-shot: `nix run github:Psychotoxical/psysonic#psysonic-gdk-session`.
+Or one-shot (quote the URL in **zsh** — `?` / `#` are special):
+
+```bash
+nix run 'github:Psychotoxical/psysonic#psysonic-gdk-session' -- --help
+```
 
 ### Pinning a revision, branch, or tag
 
@@ -135,10 +139,10 @@ End users who pin **`main`** should run `nix flake update psysonic` (or equivale
 From any machine with flakes:
 
 ```bash
-nix run github:Psychotoxical/psysonic
+nix run 'github:Psychotoxical/psysonic'
 ```
 
-Same as `nix build` / `packages.<system>.default` (the **x11-wrapped** binary); uses the flake `apps` output. For the session-GDK variant, use `#psysonic-gdk-session` (see [Linux wrapper](#linux-wrapper-default-vs-gdk-session) above).
+Same as `nix build` / `packages.<system>.default` (the **x11-wrapped** binary); uses the flake `apps` output. For the session-GDK variant, use `'github:Psychotoxical/psysonic#psysonic-gdk-session'` (see [Linux wrapper](#linux-wrapper-default-vs-gdk-session) above). With a branch pin, keep the **whole** `github:…?ref=…#…` string in **single quotes** under **zsh**.
 
 ### Apply configuration
 
