@@ -158,6 +158,8 @@ From a **flake-enabled** clone of the repo:
 
 The flake **`devShell`** uses the same **`nixpkgs`** input as **`packages.psysonic`** (see **`flake.nix`**).
 
+Optional **local-only** helpers (`dev.sh`, `shell.nix`, `prod.sh`) are **gitignored** — not part of the upstream tree; keep your own copies if you use them (e.g. a small `dev.sh` that runs `nix develop` and `npm run tauri:dev`).
+
 ## Desktop entry
 
 The flake package installs a **`.desktop`** file and icon via `copyDesktopItems`; after `nixos-rebuild switch` (or a Home Manager activation that includes the package), Psysonic should appear in your application launcher like any other desktop app.
