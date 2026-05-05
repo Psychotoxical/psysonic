@@ -83,7 +83,12 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
     let tray_builder = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
-        .tooltip(&tooltip_with_icon);
+        .tooltip(&tooltip_with_icon)
+        // tray-icon defaults to opening the context menu on every WM_LBUTTONUP when this is true.
+        // A left double-click emits Down, Up, DoubleClick, Up — the final Up re-opens the menu right
+        // after we hide the window from DoubleClick. We only use left double-click for show/hide
+        // (see on_tray_icon_event); keep the menu on right-click like typical Windows tray apps.
+        .show_menu_on_left_click(false);
     #[cfg(not(target_os = "windows"))]
     let tray_builder = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())

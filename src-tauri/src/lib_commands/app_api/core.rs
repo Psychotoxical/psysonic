@@ -1,5 +1,7 @@
 use super::*;
 use serde::Serialize;
+
+#[cfg(target_os = "linux")]
 use std::fs;
 
 #[derive(Debug, Clone, Serialize)]
