@@ -206,6 +206,7 @@ const CONTRIBUTORS = [
       'Queue: drag rows outside to remove with trash ghost (PR #420)',
       'Tauri: modularize audio and lib command layers (PR #422)',
       'Shortcuts: action registry, dynamic CLI help, 9 new input targets + F1 help binding (PR #435)',
+      'Environment upgrade & hot-cache playback — replay via RAM/disk on same-track and queue-end resume, playback-source icon stays correct after resume/undo/gapless, sidebar new-releases 500-id cap merge, Windows tray double-click fix, lazy-loaded routes, rodio 0.22 migration (PR #463)',
     ],
   },
   {
