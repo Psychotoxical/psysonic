@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New cover-source picker under Discord Rich Presence settings: **None** (app icon only), **Server**, or **Apple Music**. Mutually exclusive.
 * Fresh installs default to **Server** for opt-in-friendly cover art with no third-party data leak. Existing users keep their previous Apple-covers preference via migration.
 
+### Queue — preserve "Play Next" insertion order (toggle)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by [@Sayykii](https://github.com/Sayykii), PR [#464](https://github.com/Psychotoxical/psysonic/pull/464)**
+
+* New optional toggle in Settings → Audio → Playback ("Preserve Play Next order"). When on, multiple "Play Next" insertions **queue up behind each other** instead of the latest one bumping earlier picks down. Default off — existing behaviour unchanged.
+* Side-benefit: single-song "Play Next" now goes through the unified `enqueueAt` path and gets undo + server-sync support that the album path already had.
+
 ## Changed
 
 ### Dependencies — npm / Cargo refresh and rodio 0.22
