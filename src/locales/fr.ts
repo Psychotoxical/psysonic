@@ -879,6 +879,8 @@ export const frTranslation = {
     notWithCrossfade: 'Non disponible quand le fondu enchaîné est actif',
     gapless: 'Lecture sans blanc',
     gaplessDesc: 'Préparer la piste suivante pour éliminer les silences entre les morceaux',
+    preservePlayNextOrder: "Préserver l'ordre « Lire ensuite »",
+    preservePlayNextOrderDesc: 'Les nouveaux éléments « Lire ensuite » s\'ajoutent à la fin de la file existante au lieu de la doubler.',
     trackPreviewsTitle: 'Aperçus de pistes',
     trackPreviewsToggle: 'Activer les aperçus de pistes',
     trackPreviewsDesc: 'Affiche les boutons Lecture et Aperçu dans les listes pour un court extrait au milieu du morceau.',

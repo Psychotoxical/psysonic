@@ -1019,12 +1019,13 @@ function MultiPlaylistToPlaylistSubmenu({ playlists, onDone, triggerId }: { play
 export default function ContextMenu() {
   const { t } = useTranslation();
   const orbitRole = useOrbitStore(s => s.role);
-  const { contextMenu, closeContextMenu, playTrack, enqueue, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore(
+  const { contextMenu, closeContextMenu, playTrack, enqueue, playNext, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore(
     useShallow(s => ({
       contextMenu: s.contextMenu,
       closeContextMenu: s.closeContextMenu,
       playTrack: s.playTrack,
       enqueue: s.enqueue,
+      playNext: s.playNext,
       queue: s.queue,
       currentTrack: s.currentTrack,
       removeTrack: s.removeTrack,
@@ -1528,16 +1529,7 @@ export default function ContextMenu() {
               <div className="context-menu-item" onClick={() => handleAction(() => playTrack(song, [song]))}>
                 <Play size={14} /> {t('contextMenu.playNow')}
               </div>
-              <div className="context-menu-item" onClick={() => handleAction(() => {
-                if (!currentTrack) {
-                  playTrack(song, [song]);
-                  return;
-                }
-                const currentIdx = usePlayerStore.getState().queueIndex;
-                const newQueue = [...queue];
-                newQueue.splice(currentIdx + 1, 0, song);
-                usePlayerStore.setState({ queue: newQueue });
-              })}>
+              <div className="context-menu-item" onClick={() => handleAction(() => playNext([song]))}>
                 <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => enqueue([song]))}>
@@ -1691,16 +1683,7 @@ export default function ContextMenu() {
               <div className="context-menu-item" onClick={() => handleAction(() => playTrack(song, [song]))}>
                 <Play size={14} /> {t('contextMenu.playNow')}
               </div>
-              <div className="context-menu-item" onClick={() => handleAction(() => {
-                if (!currentTrack) {
-                  playTrack(song, [song]);
-                  return;
-                }
-                const currentIdx = usePlayerStore.getState().queueIndex;
-                const newQueue = [...queue];
-                newQueue.splice(currentIdx + 1, 0, song);
-                usePlayerStore.setState({ queue: newQueue });
-              })}>
+              <div className="context-menu-item" onClick={() => handleAction(() => playNext([song]))}>
                 <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => enqueue([song]))}>
@@ -1830,12 +1813,7 @@ export default function ContextMenu() {
                 const albumData = await getAlbum(album.id);
                 const tracks = albumData.songs.map(songToTrack);
                 if (tracks.length === 0) return;
-                if (!currentTrack) {
-                  playTrack(tracks[0], tracks);
-                  return;
-                }
-                const currentIdx = usePlayerStore.getState().queueIndex;
-                usePlayerStore.getState().enqueueAt(tracks, currentIdx + 1);
+                playNext(tracks);
               })}>
                 <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>

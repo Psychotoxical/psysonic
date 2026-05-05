@@ -884,6 +884,8 @@ export const esTranslation = {
     notWithCrossfade: 'No disponible mientras Crossfade está activo',
     gapless: 'Reproducción Gapless',
     gaplessDesc: 'Precarga siguiente pista para eliminar silencios entre canciones',
+    preservePlayNextOrder: 'Mantener el orden de "Reproducir Siguiente"',
+    preservePlayNextOrderDesc: 'Los elementos añadidos a "Reproducir Siguiente" se encolan detrás de los anteriores en vez de saltar al principio.',
     trackPreviewsTitle: 'Previsualizaciones de pistas',
     trackPreviewsToggle: 'Activar previsualizaciones',
     trackPreviewsDesc: 'Mostrar botones de Reproducir y Previsualización en las listas de pistas para una muestra rápida a mitad de canción.',

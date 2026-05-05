@@ -878,6 +878,8 @@ export const nlTranslation = {
     notWithCrossfade: 'Niet beschikbaar als overgang actief is',
     gapless: 'Naadloos afspelen',
     gaplessDesc: 'Volgend nummer vooraf bufferen om stiltes tussen nummers te elimineren',
+    preservePlayNextOrder: '"Volgende afspelen"-volgorde behouden',
+    preservePlayNextOrderDesc: 'Nieuwe "Volgende afspelen"-items komen achter bestaande te staan in plaats van ervoor.',
     trackPreviewsTitle: 'Track-voorvertoning',
     trackPreviewsToggle: 'Track-voorvertoning inschakelen',
     trackPreviewsDesc: 'Inline Play- en Voorvertoning-knoppen in trackslijsten tonen voor een korte sample midden in het nummer.',

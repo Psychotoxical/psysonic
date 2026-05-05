@@ -891,6 +891,8 @@ export const deTranslation = {
     notWithCrossfade: 'Nicht verfügbar wenn Crossfade aktiv ist',
     gapless: 'Nahtlose Wiedergabe',
     gaplessDesc: 'Nächsten Track vorpuffern um Lücken zwischen Songs zu vermeiden',
+    preservePlayNextOrder: '„Als Nächstes"-Reihenfolge bewahren',
+    preservePlayNextOrderDesc: 'Neu hinzugefügte „Als Nächstes"-Titel reihen sich hinten an statt sich vorn einzuschieben.',
     trackPreviewsTitle: 'Track-Vorschau',
     trackPreviewsToggle: 'Track-Vorschau aktivieren',
     trackPreviewsDesc: 'Inline Play- und Vorschau-Buttons in den Tracklisten anzeigen für eine kurze Hörprobe mitten im Song.',

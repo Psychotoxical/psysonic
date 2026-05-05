@@ -2552,6 +2552,22 @@ export default function Settings() {
                   <span className="toggle-track" />
                 </label>
               </div>
+
+              <div className="settings-toggle-row" style={{ marginTop: '0.75rem' }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>
+                    {t('settings.preservePlayNextOrder')}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t('settings.preservePlayNextOrderDesc')}
+                  </div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.preservePlayNextOrder')}>
+                  <input type="checkbox" checked={auth.preservePlayNextOrder}
+                    onChange={e => auth.setPreservePlayNextOrder(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
             </div>
           </SettingsSubSection>
 

@@ -878,6 +878,8 @@ export const nbTranslation = {
     notWithCrossfade: 'Ikke tilgjengelig mens Crossfade er aktiv',
     gapless: 'Gapless avspilling',
     gaplessDesc: 'Forhåndsbuffer neste spor for å eliminere mellomrom mellom sanger',
+    preservePlayNextOrder: 'Behold "Spill neste"-rekkefølge',
+    preservePlayNextOrderDesc: 'Nye "Spill neste"-elementer havner bak de eksisterende i stedet for å snike seg foran.',
     trackPreviewsTitle: 'Sporforhåndsvisning',
     trackPreviewsToggle: 'Aktiver sporforhåndsvisning',
     trackPreviewsDesc: 'Vis innebygde Spill- og Forhåndsvisning-knapper i sporlister for en kort smakebit fra midten av sangen.',

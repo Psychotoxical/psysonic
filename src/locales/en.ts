@@ -897,6 +897,8 @@ export const enTranslation = {
     notWithCrossfade: 'Not available while Crossfade is active',
     gapless: 'Gapless Playback',
     gaplessDesc: 'Pre-buffer next track to eliminate gaps between songs',
+    preservePlayNextOrder: 'Preserve "Play Next" order',
+    preservePlayNextOrderDesc: 'Newly added Play Next items queue up behind earlier ones instead of jumping in front.',
     trackPreviewsTitle: 'Track Previews',
     trackPreviewsToggle: 'Enable track previews',
     trackPreviewsDesc: 'Show inline Play and Preview buttons in tracklists for a quick mid-song sample.',

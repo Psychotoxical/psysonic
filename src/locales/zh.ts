@@ -873,6 +873,8 @@ export const zhTranslation = {
     notWithCrossfade: '交叉淡入淡出开启时不可用',
     gapless: '无缝播放',
     gaplessDesc: '预缓冲下一首曲目以消除歌曲间的间隙',
+    preservePlayNextOrder: '保留"下一首播放"顺序',
+    preservePlayNextOrderDesc: '新添加的"下一首播放"项目排在现有项目之后，而不是插到前面。',
     trackPreviewsTitle: '曲目预览',
     trackPreviewsToggle: '启用曲目预览',
     trackPreviewsDesc: '在曲目列表中显示内联播放与预览按钮，可快速试听歌曲中段。',
