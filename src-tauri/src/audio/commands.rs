@@ -9,7 +9,7 @@ use ringbuf::traits::Split;
 use rodio::Player;
 use rodio::Source;
 use symphonia::core::io::MediaSource;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use super::decode::{build_source, build_streaming_source, SizedDecoder};
 use super::dev_io::*;
@@ -31,6 +31,9 @@ use super::stream::{
 /// `analysis_track_id`: Subsonic `song.id` from the UI — ties waveform/loudness
 /// cache to the track when playing `psysonic-local://` (hot/offline). Optional
 /// for HTTP streams (`playback_identity` is used as fallback).
+///
+/// `stream_format_suffix`: Subsonic `song.suffix` (e.g. m4a); `stream.view` URLs have no
+/// file extension, so this helps pick a Symphonia `format_hint` for ranged HTTP.
 #[tauri::command]
 pub async fn audio_play(
     url: String,
@@ -44,6 +47,7 @@ pub async fn audio_play(
     manual: bool, // true = user-initiated skip → bypass crossfade, start immediately
     hi_res_enabled: bool, // false = safe 44.1 kHz mode; true = native rate (alpha)
     analysis_track_id: Option<String>,
+    stream_format_suffix: Option<String>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -212,47 +216,53 @@ pub async fn audio_play(
                 local_hint
             );
             if let Some(ref seed_id) = cache_id_for_tasks {
-                let path_owned = std::path::PathBuf::from(path);
-                let app_seed = app.clone();
-                let gen_seed = gen;
-                let gen_arc_seed = state.generation.clone();
-                let seed_id = seed_id.clone();
-                tokio::spawn(async move {
-                    if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
-                        return;
-                    }
-                    let data = match tokio::fs::read(&path_owned).await {
-                        Ok(d) => d,
-                        Err(_) => return,
-                    };
-                    if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
-                        return;
-                    }
-                    if data.is_empty() || data.len() > LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES {
+                let skip_cpu_seed = app
+                    .try_state::<crate::analysis_cache::AnalysisCache>()
+                    .map(|c| c.cpu_seed_redundant_for_track(seed_id).unwrap_or(false))
+                    .unwrap_or(false);
+                if !skip_cpu_seed {
+                    let path_owned = std::path::PathBuf::from(path);
+                    let app_seed = app.clone();
+                    let gen_seed = gen;
+                    let gen_arc_seed = state.generation.clone();
+                    let seed_id = seed_id.clone();
+                    tokio::spawn(async move {
+                        if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
+                            return;
+                        }
+                        let data = match tokio::fs::read(&path_owned).await {
+                            Ok(d) => d,
+                            Err(_) => return,
+                        };
+                        if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
+                            return;
+                        }
+                        if data.is_empty() || data.len() > LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES {
+                            crate::app_deprintln!(
+                                "[stream] psysonic-local: skip analysis seed track_id={} bytes={} (over {} MiB cap)",
+                                seed_id,
+                                data.len(),
+                                LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES / (1024 * 1024)
+                            );
+                            return;
+                        }
                         crate::app_deprintln!(
-                            "[stream] psysonic-local: skip analysis seed track_id={} bytes={} (over {} MiB cap)",
+                            "[stream] psysonic-local: file read complete track_id={} size_mib={:.2} — full-track analysis (cpu-seed queue)",
                             seed_id,
-                            data.len(),
-                            LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES / (1024 * 1024)
+                            data.len() as f64 / (1024.0 * 1024.0)
                         );
-                        return;
-                    }
-                    crate::app_deprintln!(
-                        "[stream] psysonic-local: file read complete track_id={} size_mib={:.2} — full-track analysis (cpu-seed queue)",
-                        seed_id,
-                        data.len() as f64 / (1024.0 * 1024.0)
-                    );
-                    let high = crate::audio::engine::analysis_seed_high_priority_for_track(&app_seed, &seed_id);
-                    if let Err(e) =
-                        crate::submit_analysis_cpu_seed(app_seed.clone(), seed_id.clone(), data, high).await
-                    {
-                        crate::app_eprintln!(
-                            "[analysis] local-file seed failed for {}: {}",
-                            seed_id,
-                            e
-                        );
-                    }
-                });
+                        let high = crate::audio::engine::analysis_seed_high_priority_for_track(&app_seed, &seed_id);
+                        if let Err(e) =
+                            crate::submit_analysis_cpu_seed(app_seed.clone(), seed_id.clone(), data, high).await
+                        {
+                            crate::app_eprintln!(
+                                "[analysis] local-file seed failed for {}: {}",
+                                seed_id,
+                                e
+                            );
+                        }
+                    });
+                }
             }
             let reader = LocalFileSource { file, len };
             PlayInput::SeekableMedia {
@@ -260,7 +270,11 @@ pub async fn audio_play(
                 format_hint: local_hint,
                 tag: "local-file",
             }
-        } else if manual && !stream_cache_hit && !preloaded_hit && !is_local {
+        } else if !stream_cache_hit && !preloaded_hit && !is_local {
+            // `manual` must NOT gate this branch: natural track end calls `next(false)`,
+            // so auto-advance must still use ranged HTTP when available. Gating used to
+            // force every auto-start through `fetch_data` (full RAM buffer + extra fetch log)
+            // instead of `RangedHttpSource`.
             let response = audio_http_client(&state).get(&url).send().await.map_err(|e| e.to_string())?;
             if !response.status().is_success() {
                 if state.generation.load(Ordering::SeqCst) != gen {
@@ -272,19 +286,61 @@ pub async fn audio_play(
                 return Err(msg);
             }
 
-            let stream_hint = content_type_to_hint(
+            let mut stream_hint = content_type_to_hint(
                 response
                     .headers()
-                    .get("content-type")
+                    .get(reqwest::header::CONTENT_TYPE)
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or(""),
-            ).or_else(|| format_hint.clone());
+            )
+            .or_else(|| {
+                response
+                    .headers()
+                    .get(reqwest::header::CONTENT_DISPOSITION)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|cd| format_hint_from_content_disposition(cd))
+            })
+            .or_else(|| normalize_stream_suffix_for_hint(stream_format_suffix.as_deref()))
+            .or_else(|| format_hint.clone());
 
             let supports_range = response.headers()
                 .get(reqwest::header::ACCEPT_RANGES)
                 .and_then(|v| v.to_str().ok())
                 .is_some_and(|v| v.to_ascii_lowercase().contains("bytes"));
             let total_size = response.content_length();
+
+            if stream_hint.is_none() && supports_range {
+                if let Some(total_u64) = total_size.filter(|&t| t > 0) {
+                    let last = total_u64
+                        .saturating_sub(1)
+                        .min((STREAM_FORMAT_SNIFF_PROBE_BYTES - 1) as u64);
+                    if let Ok(pr) = audio_http_client(&state)
+                        .get(&url)
+                        .header(reqwest::header::RANGE, format!("bytes=0-{last}"))
+                        .send()
+                        .await
+                    {
+                        let stat = pr.status();
+                        let ok = stat == reqwest::StatusCode::PARTIAL_CONTENT
+                            || stat == reqwest::StatusCode::OK;
+                        if ok {
+                            match pr.bytes().await {
+                                Ok(bytes) if !bytes.is_empty() => {
+                                    stream_hint = sniff_stream_format_extension(&bytes).or(stream_hint);
+                                    if stream_hint.is_some() {
+                                        crate::app_deprintln!(
+                                            "[stream] ranged: format sniff from {} B prefix → hint={:?}",
+                                            bytes.len(),
+                                            stream_hint
+                                        );
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
 
             // Guardrail: when format/container hint is unknown, some demuxers may
             // seek near EOF during probe. With a progressively downloaded ranged
@@ -1221,7 +1277,9 @@ pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
     *state.current_playback_url.lock().unwrap() = None;
     *state.current_analysis_track_id.lock().unwrap() = None;
     *state.chained_info.lock().unwrap() = None;
-    *state.stream_completed_cache.lock().unwrap() = None;
+    // Keep `stream_completed_cache`: natural track end often calls `audio_stop` when the
+    // queue is exhausted; clearing here dropped the full ranged buffer and forced a
+    // re-download on replay. The slot is only consumed on `take`/overwrite for another URL.
     // Drop RadioLiveState → triggers Drop → task.abort() → TCP released.
     drop(state.radio_state.lock().unwrap().take());
     let mut cur = state.current.lock().unwrap();

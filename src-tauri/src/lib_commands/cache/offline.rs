@@ -21,6 +21,11 @@ pub(crate) async fn stream_to_file(response: reqwest::Response, dest_path: &std:
 }
 
 pub(crate) async fn enqueue_analysis_seed(app: &tauri::AppHandle, track_id: &str, bytes: &[u8]) -> Result<bool, String> {
+    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+        if cache.cpu_seed_redundant_for_track(track_id).unwrap_or(false) {
+            return Ok(true);
+        }
+    }
     let high = analysis_backfill_is_current_track(app, track_id);
     let outcome = submit_analysis_cpu_seed(
         app.clone(),
@@ -51,6 +56,11 @@ pub(crate) async fn enqueue_analysis_seed_from_file(
     track_id: &str,
     file_path: &std::path::Path,
 ) {
+    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+        if cache.cpu_seed_redundant_for_track(track_id).unwrap_or(false) {
+            return;
+        }
+    }
     let bytes = match tokio::fs::read(file_path).await {
         Ok(v) => v,
         Err(_) => return,

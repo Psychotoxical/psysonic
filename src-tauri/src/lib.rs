@@ -446,8 +446,9 @@ async fn analysis_cpu_seed_worker_loop(
 /// Submit full-buffer analysis; serializes with other producers. `high_priority` mirrors
 /// HTTP backfill head insertion for the currently playing track.
 ///
-/// Emits `analysis:waveform-updated` once here when the DB row is ready (Upserted or cache hit),
-/// so `audio` and other callers do not duplicate IPC.
+/// Emits `analysis:waveform-updated` when analysis **wrote** new waveform data (`Upserted`).
+/// Cache-hit skips (`SkippedWaveformCacheHit`) omit the event so the frontend does not
+/// re-run loudness refresh / waveform IPC for rows that were already current.
 pub(crate) async fn submit_analysis_cpu_seed(
     app: tauri::AppHandle,
     track_id: String,
@@ -467,11 +468,7 @@ pub(crate) async fn submit_analysis_cpu_seed(
         Ok(res) => res?,
         Err(_) => return Err("cpu-seed: result channel dropped".to_string()),
     };
-    if matches!(
-        outcome,
-        analysis_cache::SeedFromBytesOutcome::Upserted
-            | analysis_cache::SeedFromBytesOutcome::SkippedWaveformCacheHit
-    ) {
+    if matches!(outcome, analysis_cache::SeedFromBytesOutcome::Upserted) {
         let _ = app.emit(
             "analysis:waveform-updated",
             WaveformUpdatedPayload {

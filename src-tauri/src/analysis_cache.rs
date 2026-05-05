@@ -303,6 +303,15 @@ impl AnalysisCache {
         Ok(None)
     }
 
+    /// Both waveform and loudness rows exist — a CPU seed from bytes/file would only
+    /// decode the file to immediately skip with `SkippedWaveformCacheHit`.
+    pub fn cpu_seed_redundant_for_track(&self, track_id: &str) -> Result<bool, String> {
+        Ok(
+            self.get_latest_waveform_for_track(track_id)?.is_some()
+                && self.get_latest_loudness_for_track(track_id)?.is_some(),
+        )
+    }
+
     pub fn get_latest_loudness_for_track(&self, track_id: &str) -> Result<Option<LoudnessSnapshot>, String> {
         let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
         const SQL: &str = r#"

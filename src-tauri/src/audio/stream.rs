@@ -719,6 +719,10 @@ pub(crate) async fn track_download_task(
             }
         }
         if !capture_over_limit && !capture.is_empty() {
+            if gen_arc.load(Ordering::SeqCst) != gen {
+                done.store(true, Ordering::SeqCst);
+                return;
+            }
             if let Some(track_id) = cache_track_id {
                 crate::app_deprintln!(
                     "[stream] legacy stream: capture complete track_id={} capture_mib={:.2} — full-track analysis (cpu-seed queue)",
@@ -731,6 +735,10 @@ pub(crate) async fn track_download_task(
                 {
                     crate::app_eprintln!("[analysis] track seed failed for {}: {}", track_id, e);
                 }
+            }
+            if gen_arc.load(Ordering::SeqCst) != gen {
+                done.store(true, Ordering::SeqCst);
+                return;
             }
             *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack {
                 url: url.clone(),
@@ -786,8 +794,14 @@ pub(crate) async fn ranged_download_task(
     let mut reconnects: u32 = 0;
     let mut next_response: Option<reqwest::Response> = Some(initial_response);
     let dl_started = Instant::now();
-    let mut next_progress_mb: usize = 1;
+    let mut next_progress_mb: usize = 0;
     let mut last_partial_loudness_emit = Instant::now() - Duration::from_secs(5);
+
+    crate::app_deprintln!(
+        "[stream] ranged dl start: total={} KiB (~{:.2} MiB)",
+        total_size.saturating_div(1024),
+        total_size as f64 / (1024.0 * 1024.0)
+    );
 
     'outer: loop {
         let response = if let Some(r) = next_response.take() {
@@ -890,8 +904,12 @@ pub(crate) async fn ranged_download_task(
                 }
             }
             let mb = downloaded / (1024 * 1024);
-            if mb >= next_progress_mb {
-                let pct = (downloaded as f64 / total_size as f64 * 100.0) as u32;
+            while mb >= next_progress_mb {
+                let pct = if total_size > 0 {
+                    (downloaded as f64 / total_size as f64 * 100.0) as u32
+                } else {
+                    0u32
+                };
                 crate::app_deprintln!(
                     "[stream] dl progress: {} MB / {} MB ({}%)",
                     mb,
@@ -940,6 +958,9 @@ pub(crate) async fn ranged_download_task(
             if let Err(e) = crate::submit_analysis_cpu_seed(app.clone(), track_id.clone(), data.clone(), high).await {
                 crate::app_eprintln!("[analysis] ranged seed failed for {}: {}", track_id, e);
             }
+        }
+        if gen_arc.load(Ordering::SeqCst) != gen {
+            return;
         }
         *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack { url, data });
         crate::app_deprintln!("[stream] promoted to stream_completed_cache for replay");

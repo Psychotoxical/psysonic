@@ -96,7 +96,145 @@ pub(crate) fn content_type_to_hint(ct: &str) -> Option<String> {
     else if ct.contains("flac") { Some("flac".into()) }
     else if ct.contains("wav") || ct.contains("wave") { Some("wav".into()) }
     else if ct.contains("opus") { Some("opus".into()) }
+    // AAC/ALAC in MP4 — Navidrome/nginx often send `audio/mp4`; without a hint we skipped ranged open.
+    else if ct.contains("audio/mp4") || ct.contains("x-m4a") || ct.contains("/m4a") {
+        Some("m4a".into())
+    }
     else { None }
+}
+
+/// `Content-Disposition: attachment; filename="…"` from some Subsonic proxies.
+pub(crate) fn format_hint_from_content_disposition(cd: &str) -> Option<String> {
+    fn ext_ok(ext: &str) -> Option<String> {
+        let ext = ext.trim_matches(|c| c == '"' || c == '\'' || c == ' ').split(';').next()?.trim();
+        if !(1..=5).contains(&ext.len()) {
+            return None;
+        }
+        if !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return None;
+        }
+        let e = ext.to_ascii_lowercase();
+        if matches!(
+            e.as_str(),
+            "mp3" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "mp4" | "aac" | "wav" | "wave" | "ape" | "wv"
+                | "webm" | "mka"
+        ) {
+            Some(e)
+        } else {
+            None
+        }
+    }
+    fn ext_from_filename(path: &str) -> Option<String> {
+        let base = path.rsplit('/').next()?.trim_matches(|c| c == '"' || c == ' ');
+        if base.is_empty() {
+            return None;
+        }
+        let ext = base.rsplit('.').next()?;
+        if ext == base {
+            return None;
+        }
+        ext_ok(ext)
+    }
+    for part in cd.split(';') {
+        let part = part.trim();
+        if let Some(rest) = part.strip_prefix("filename*=") {
+            // RFC 5987: `charset'lang'value`
+            let value = rest.split("''").nth(1).unwrap_or(rest).trim().trim_matches('"');
+            if let Some(ext) = ext_from_filename(value) {
+                return Some(ext);
+            }
+        } else if let Some(rest) = part.strip_prefix("filename=") {
+            let value = rest.trim().trim_matches('"');
+            if let Some(ext) = ext_from_filename(value) {
+                return Some(ext);
+            }
+        }
+    }
+    None
+}
+
+/// Subsonic [`song.suffix`](https://www.subsonic.org/pages/api.jsp#getSong) — stream.view URLs
+/// usually have no file extension; this supplies `format_hint` for ranged open.
+pub(crate) fn normalize_stream_suffix_for_hint(suffix: Option<&str>) -> Option<String> {
+    let s = suffix?.trim();
+    if s.is_empty() {
+        return None;
+    }
+    let e = s.to_ascii_lowercase();
+    if matches!(
+        e.as_str(),
+        "mp3" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "mp4" | "aac" | "wav" | "wave" | "ape" | "wv"
+            | "webm" | "mka"
+    ) {
+        Some(e)
+    } else {
+        None
+    }
+}
+
+/// Max prefix length for an optional `Range` probe GET when ranged open needs a format hint.
+pub(crate) const STREAM_FORMAT_SNIFF_PROBE_BYTES: usize = 256 * 1024;
+
+fn id3v2_tag_len(data: &[u8]) -> usize {
+    if data.len() >= 10 && data[0..3] == *b"ID3" {
+        let size = ((data[6] as usize & 0x7f) << 21)
+            | ((data[7] as usize & 0x7f) << 14)
+            | ((data[8] as usize & 0x7f) << 7)
+            | (data[9] as usize & 0x7f);
+        10usize.saturating_add(size)
+    } else {
+        0
+    }
+}
+
+fn adts_frame_sync(b0: u8, b1: u8) -> bool {
+    b0 == 0xff && (b1 & 0xf6) == 0xf0
+}
+
+fn mp3_frame_sync(b0: u8, b1: u8) -> bool {
+    b0 == 0xff && (b1 & 0xe0) == 0xe0
+}
+
+/// Magic-byte sniff on the start of an HTTP body when headers / Subsonic suffix / path
+/// did not yield a Symphonia [`Hint`] extension (needed for `RangedHttpSource`).
+pub(crate) fn sniff_stream_format_extension(data: &[u8]) -> Option<String> {
+    if data.is_empty() {
+        return None;
+    }
+    if data.len() >= 4 && data[0..4] == *b"fLaC" {
+        return Some("flac".into());
+    }
+    if data.len() >= 4 && data[0..4] == *b"OggS" {
+        return Some("ogg".into());
+    }
+    if data.len() >= 12 && data[0..4] == *b"RIFF" && data[8..12] == *b"WAVE" {
+        return Some("wav".into());
+    }
+    // ISO-BMFF — `ftyp` inside a box; scan a small window (large `free`/`skip` before `ftyp` is rare but exists).
+    let scan = data.len().min(4096).saturating_sub(4);
+    for i in 0..=scan {
+        if data[i..i + 4] == *b"ftyp" {
+            return Some("m4a".into());
+        }
+    }
+    // EBML — WebM / Matroska (.mka)
+    if data.len() >= 4 && data[0] == 0x1a && data[1] == 0x45 && data[2] == 0xdf && data[3] == 0xa3 {
+        return Some("mka".into());
+    }
+    // AAC ADTS
+    let id3 = id3v2_tag_len(data);
+    if id3 < data.len().saturating_sub(2) && adts_frame_sync(data[id3], data[id3 + 1]) {
+        return Some("aac".into());
+    }
+    if data.len() >= 2 && adts_frame_sync(data[0], data[1]) {
+        return Some("aac".into());
+    }
+    // MPEG layer III / II — after ID3
+    let off = id3;
+    if off + 2 <= data.len() && mp3_frame_sync(data[off], data[off + 1]) {
+        return Some("mp3".into());
+    }
+    None
 }
 // ─── Event payloads ───────────────────────────────────────────────────────────
 
