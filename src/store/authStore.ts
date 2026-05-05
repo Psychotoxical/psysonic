@@ -130,6 +130,7 @@ interface AuthState {
   preloadMode: 'off' | 'balanced' | 'early' | 'custom';
   preloadCustomSeconds: number;
   infiniteQueueEnabled: boolean;
+  preservePlayNextOrder: boolean;
   showArtistImages: boolean;
   showTrayIcon: boolean;
   minimizeToTray: boolean;
@@ -307,6 +308,7 @@ interface AuthState {
   setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => void;
   setPreloadCustomSeconds: (v: number) => void;
   setInfiniteQueueEnabled: (v: boolean) => void;
+  setPreservePlayNextOrder: (v: boolean) => void;
   setShowArtistImages: (v: boolean) => void;
   setShowTrayIcon: (v: boolean) => void;
   setMinimizeToTray: (v: boolean) => void;
@@ -444,6 +446,7 @@ export const useAuthStore = create<AuthState>()(
       preloadMode: 'balanced',
       preloadCustomSeconds: 30,
       infiniteQueueEnabled: false,
+      preservePlayNextOrder: false,
       showArtistImages: false,
       showTrayIcon: true,
       minimizeToTray: false,
@@ -607,6 +610,7 @@ export const useAuthStore = create<AuthState>()(
       setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => set({ preloadMode: v }),
       setPreloadCustomSeconds: (v: number) => set({ preloadCustomSeconds: v }),
       setInfiniteQueueEnabled: (v) => set({ infiniteQueueEnabled: v }),
+      setPreservePlayNextOrder: (v) => set({ preservePlayNextOrder: v }),
       setShowArtistImages: (v) => set({ showArtistImages: v }),
       setShowTrayIcon: (v) => set({ showTrayIcon: v }),
       setMinimizeToTray: (v) => set({ minimizeToTray: v }),

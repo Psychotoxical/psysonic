@@ -73,6 +73,10 @@ export interface Track {
   size?: number;
   autoAdded?: boolean;
   radioAdded?: boolean;
+  /** Inserted via "Play Next". Used by the preserve-order toggle to find the
+   *  end of the current Play-Next streak. Stale flags behind queueIndex are
+   *  harmless — the streak scan only looks forward from queueIndex+1. */
+  playNextAdded?: boolean;
 }
 
 export function songToTrack(song: SubsonicSong): Track {
@@ -260,6 +264,12 @@ interface PlayerState {
    setProgress: (t: number, duration: number) => void;
   enqueue: (tracks: Track[], _orbitConfirmed?: boolean) => void;
   enqueueAt: (tracks: Track[], insertIndex: number, _orbitConfirmed?: boolean) => void;
+  /** "Play Next" — inserts after the current track. When
+   *  `preservePlayNextOrder` is on, appends to the existing Play-Next streak
+   *  (Spotify-style); otherwise inserts directly after the current track and
+   *  pushes any earlier Play-Next items down (default). Falls back to
+   *  `playTrack` when nothing is currently playing. */
+  playNext: (tracks: Track[]) => void;
   enqueueRadio: (tracks: Track[], artistId?: string) => void;
   setRadioArtistId: (artistId: string) => void;
   /** For Lucky Mix: drop upcoming tail; keep the currently playing item only. */
@@ -3245,6 +3255,23 @@ export const usePlayerStore = create<PlayerState>()(
           prefetchLoudnessForEnqueuedTracks(tracks, newQueue, newQueueIndex);
           return { queue: newQueue, queueIndex: newQueueIndex };
         });
+      },
+
+      playNext: (tracks) => {
+        if (tracks.length === 0) return;
+        const state = get();
+        const tagged = tracks.map(t => ({ ...t, playNextAdded: true as const }));
+        if (!state.currentTrack) {
+          state.playTrack(tagged[0], tagged);
+          return;
+        }
+        const baseIdx = state.queueIndex + 1;
+        let insertIdx = baseIdx;
+        if (useAuthStore.getState().preservePlayNextOrder) {
+          const q = state.queue;
+          while (insertIdx < q.length && q[insertIdx].playNextAdded) insertIdx++;
+        }
+        get().enqueueAt(tagged, insertIdx);
       },
 
       clearQueue: () => {
