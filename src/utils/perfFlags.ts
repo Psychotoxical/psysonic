@@ -150,3 +150,12 @@ export function resetPerfProbeFlags(): void {
 export function usePerfProbeFlags(): PerfProbeFlags {
   return useSyncExternalStore(subscribePerfProbeFlags, getPerfProbeFlags, () => DEFAULT_FLAGS);
 }
+
+/** Subscribe to a single probe flag so unrelated toggles do not re-render the consumer. */
+export function usePerfProbeFlag<K extends keyof PerfProbeFlags>(key: K): PerfProbeFlags[K] {
+  return useSyncExternalStore(
+    subscribePerfProbeFlags,
+    () => getPerfProbeFlags()[key],
+    () => DEFAULT_FLAGS[key],
+  );
+}
