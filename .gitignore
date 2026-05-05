@@ -36,6 +36,9 @@ src-tauri/gen/
 # Documentation
 CLAUDE.md
 
+# Local commit-instructions for agents (never commit)
+to_commit.md
+
 # Claude Code memory (local only)
 memory/
 
