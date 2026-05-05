@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { getArtists, SubsonicArtist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { LayoutGrid, List, Images, CheckSquare2, ListMusic, Check } from 'lucide-react';
+import StarFilterButton from '../components/StarFilterButton';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import CachedImage from '../components/CachedImage';
@@ -79,6 +80,7 @@ export default function Artists() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [letterFilter, setLetterFilter] = useState(ALL_SENTINEL);
+  const [starredOnly, setStarredOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const showArtistImages = useAuthStore(s => s.showArtistImages);
@@ -129,8 +131,9 @@ export default function Artists() {
   // Reset infinite scroll when filters or image setting change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [filter, letterFilter, viewMode, PAGE_SIZE]);
+  }, [filter, letterFilter, starredOnly, viewMode, PAGE_SIZE]);
 
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
   // Filter pipeline — memoised so unrelated state changes (selection mode,
   // viewMode, etc.) don't re-iterate the full artists array. With 5000+
   // artists each re-render walked the list twice without this.
@@ -148,8 +151,11 @@ export default function Artists() {
       const needle = filter.toLowerCase();
       out = out.filter(a => a.name.toLowerCase().includes(needle));
     }
+    if (starredOnly) {
+      out = out.filter(a => a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred);
+    }
     return out;
-  }, [artists, letterFilter, filter]);
+  }, [artists, letterFilter, filter, starredOnly, starredOverrides]);
 
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
@@ -200,6 +206,7 @@ export default function Artists() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {!(selectionMode && selectedIds.size > 0) && (<>
+                <StarFilterButton size="compact" active={starredOnly} onChange={setStarredOnly} />
                 <button
                   className={`btn btn-surface`}
                   onClick={() => setShowArtistImages(!showArtistImages)}

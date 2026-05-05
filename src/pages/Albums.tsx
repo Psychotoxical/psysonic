@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import YearFilterButton from '../components/YearFilterButton';
+import StarFilterButton from '../components/StarFilterButton';
 import SortDropdown from '../components/SortDropdown';
 import { getAlbumList, getAlbumsByGenre, getAlbum, SubsonicAlbum, buildDownloadUrl } from '../api/subsonic';
 import { songToTrack } from '../store/playerStore';
@@ -50,6 +51,7 @@ export default function Albums() {
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
   const [compFilter, setCompFilter] = useState<CompFilter>('all');
+  const [starredOnly, setStarredOnly] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // ── Multi-selection ──────────────────────────────────────────────────────
@@ -74,11 +76,16 @@ export default function Albums() {
     setSelectedIds(new Set());
   };
 
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const visibleAlbums = useMemo(() => {
-    if (compFilter === 'all') return albums;
-    if (compFilter === 'only') return albums.filter(a => a.isCompilation);
-    return albums.filter(a => !a.isCompilation);
-  }, [albums, compFilter]);
+    let out = albums;
+    if (compFilter === 'only') out = out.filter(a => a.isCompilation);
+    else if (compFilter === 'hide') out = out.filter(a => !a.isCompilation);
+    if (starredOnly) {
+      out = out.filter(a => a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred);
+    }
+    return out;
+  }, [albums, compFilter, starredOnly, starredOverrides]);
 
   const selectedAlbums = visibleAlbums.filter(a => selectedIds.has(a.id));
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
@@ -260,6 +267,8 @@ export default function Albums() {
                 />
 
                 <GenreFilterBar selected={selectedGenres} onSelectionChange={setSelectedGenres} />
+
+                <StarFilterButton active={starredOnly} onChange={setStarredOnly} />
 
                 <button
                   className={`btn btn-surface${compFilter !== 'all' ? ' btn-sort-active' : ''}`}
