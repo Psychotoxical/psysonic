@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight } from 'lucide-react';
-import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
+import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey, type SubsonicArtist } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import CachedImage from './CachedImage';
+import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
 import { showToast } from '../utils/toast';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
@@ -25,6 +25,32 @@ function saveRecent(q: string, prev: string[]): string[] {
 function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
   let timer: ReturnType<typeof setTimeout>;
   return (q: string) => { clearTimeout(timer); timer = setTimeout(() => fn(q), ms); };
+}
+
+function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id' | 'coverArt'> }) {
+  const [failed, setFailed] = useState(false);
+  const coverId = artist.coverArt || artist.id;
+  const src = useMemo(() => buildCoverArtUrl(coverId, 80), [coverId]);
+  const ck = useMemo(() => coverArtCacheKey(coverId, 80), [coverId]);
+  useEffect(() => { setFailed(false); }, [coverId]);
+  if (failed) {
+    return (
+      <div className="mobile-search-avatar mobile-search-avatar--circle">
+        <Users size={20} />
+      </div>
+    );
+  }
+  return (
+    <CachedImage
+      className="mobile-search-thumb mobile-search-thumb--artist-round"
+      src={src}
+      cacheKey={ck}
+      alt=""
+      loading="eager"
+      fetchQueueBias={FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM}
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export default function MobileSearchOverlay({ onClose }: { onClose: () => void }) {
@@ -188,9 +214,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                 <div className="mobile-search-section-label">{t('search.artists')}</div>
                 {results!.artists.map(a => (
                   <button key={a.id} className="mobile-search-item" onClick={() => goTo(`/artist/${a.id}`)}>
-                    <div className="mobile-search-avatar mobile-search-avatar--circle">
-                      <Users size={20} />
-                    </div>
+                    <MobileSearchArtistThumb artist={a} />
                     <div className="mobile-search-item-info">
                       <span className="mobile-search-item-title">{a.name}</span>
                       <span className="mobile-search-item-sub">{t('search.artists')}</span>

@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { downscaleCoverBlob } from './coverBlobDownscale';
 
 const DB_NAME = 'psysonic-img-cache';
 const STORE_NAME = 'images';
@@ -299,10 +300,169 @@ export async function invalidateCacheKey(cacheKey: string): Promise<void> {
   }
 }
 
+/** Every `coverArtCacheKey(_, size)` size used in the UI — sibling probe + `invalidateCoverArt` must see them all. */
+const COVER_ART_CACHE_SIZES = [
+  40, 48, 64, 80, 96, 128, 200, 256, 300, 400, 500, 600, 800, 2000,
+] as const;
+/** Prefer larger blobs as provisional placeholders — downscaled in `<img>` for sharpness. */
+const COVER_ART_CACHE_SIZES_DESC = [...COVER_ART_CACHE_SIZES].sort((a, b) => b - a);
+
+function parseCoverCacheKey(cacheKey: string): { stem: string; size: number } | null {
+  const colon = cacheKey.lastIndexOf(':');
+  if (colon <= 0) return null;
+  const tail = cacheKey.slice(colon + 1);
+  const size = Number(tail);
+  if (!Number.isFinite(size) || size <= 0) return null;
+  const stem = cacheKey.slice(0, colon);
+  if (!stem.includes(':cover:')) return null;
+  return { stem, size };
+}
+
+function probeSiblingCoverBlobInMemory(stem: string, excludedSize: number): Blob | null {
+  for (const sz of COVER_ART_CACHE_SIZES_DESC) {
+    if (sz === excludedSize) continue;
+    const b = blobCache.get(`${stem}:${sz}`);
+    if (b) return b;
+  }
+  return null;
+}
+
+async function probeSiblingCoverBlobFromIDB(stem: string, excludedSize: number): Promise<Blob | null> {
+  const keys = COVER_ART_CACHE_SIZES_DESC
+    .filter(sz => sz !== excludedSize)
+    .map(sz => `${stem}:${sz}`);
+  const blobs = await Promise.all(keys.map(k => getBlobFromIDB(k)));
+  for (const b of blobs) {
+    if (b) return b;
+  }
+  return null;
+}
+
+const coverUpgradeListeners = new Map<string, Set<() => void>>();
+const coverSiblingRaceInflights = new Map<string, Promise<void>>();
+
+/** Abort when any of `outer` / `peer` fires (ES2022 `AbortSignal.any` not in our lib target). */
+function mergedAbortSignals(outer: AbortSignal | undefined, peer: AbortSignal): AbortSignal {
+  if (!outer) return peer;
+  if (outer.aborted || peer.aborted) {
+    const c = new AbortController();
+    c.abort();
+    return c.signal;
+  }
+  const c = new AbortController();
+  const on = () => c.abort();
+  outer.addEventListener('abort', on, { once: true });
+  peer.addEventListener('abort', on, { once: true });
+  return c.signal;
+}
+
+function notifyCoverUpgraded(cacheKey: string): void {
+  purgeUrlEntry(cacheKey);
+  const listeners = coverUpgradeListeners.get(cacheKey);
+  if (!listeners) return;
+  for (const fn of [...listeners]) {
+    try {
+      fn();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** When the exact-resolution blob replaces a provisional sibling blob, repaint consumers. */
+export function subscribeCoverUpgraded(cacheKey: string, onUpgrade: () => void): () => void {
+  let set = coverUpgradeListeners.get(cacheKey);
+  if (!set) {
+    set = new Set();
+    coverUpgradeListeners.set(cacheKey, set);
+  }
+  set.add(onUpgrade);
+  return () => {
+    const s = coverUpgradeListeners.get(cacheKey);
+    if (!s) return;
+    s.delete(onUpgrade);
+    if (s.size === 0) coverUpgradeListeners.delete(cacheKey);
+  };
+}
+
+/**
+ * Parallel resolve when we only have another size of the same cover in cache:
+ * small server request vs local downscale — first successful blob wins, other side aborts.
+ */
+function scheduleSiblingVersusNetworkRace(
+  fetchUrl: string,
+  cacheKey: string,
+  siblingBlob: Blob,
+  outerSignal: AbortSignal | undefined,
+  getPriority?: () => number,
+): void {
+  if (coverSiblingRaceInflights.has(cacheKey)) return;
+  const parsed = parseCoverCacheKey(cacheKey);
+  if (!parsed) return;
+
+  const netCtl = new AbortController();
+  const dsCtl = new AbortController();
+  let winner = false;
+
+  const killLosers = () => {
+    netCtl.abort();
+    dsCtl.abort();
+  };
+
+  const tryCommitWinner = (blob: Blob | null) => {
+    if (!blob || winner || outerSignal?.aborted) return;
+    winner = true;
+    killLosers();
+    putBlob(cacheKey, blob);
+    rememberBlob(cacheKey, blob);
+    notifyCoverUpgraded(cacheKey);
+  };
+
+  outerSignal?.addEventListener('abort', () => killLosers(), { once: true });
+
+  const netBranch = (async () => {
+    if (winner || outerSignal?.aborted) return;
+    const waitSig = mergedAbortSignals(outerSignal, netCtl.signal);
+    const acquired = await acquireNetFetchSlot(waitSig, getPriority);
+    if (!acquired || winner || outerSignal?.aborted) {
+      if (acquired) releaseNetFetchSlot();
+      return;
+    }
+    try {
+      const fetchSig = mergedAbortSignals(outerSignal, netCtl.signal);
+      const resp = await fetch(fetchUrl, { signal: fetchSig });
+      if (!resp.ok || winner || outerSignal?.aborted) return;
+      const blob = await resp.blob();
+      tryCommitWinner(blob);
+    } catch {
+      /* fetch aborted / network */
+    } finally {
+      releaseNetFetchSlot();
+    }
+  })();
+
+  const clientBranch = (async () => {
+    await Promise.resolve();
+    if (winner || outerSignal?.aborted) return;
+    const dsSig = mergedAbortSignals(outerSignal, dsCtl.signal);
+    const out = await downscaleCoverBlob(siblingBlob, parsed.size, dsSig);
+    if (!out || winner || outerSignal?.aborted) return;
+    if (out.size >= siblingBlob.size * 0.92) return;
+    tryCommitWinner(out);
+  })();
+
+  const settled = Promise.allSettled([netBranch, clientBranch]).then(() => {});
+  coverSiblingRaceInflights.set(cacheKey, settled);
+  void settled.finally(() => coverSiblingRaceInflights.delete(cacheKey));
+}
+
 export async function invalidateCoverArt(entityId: string): Promise<void> {
   const serverId = useAuthStore.getState().getActiveServer()?.id ?? '_';
-  const sizes = [40, 64, 128, 200, 256, 300, 500, 2000];
-  await Promise.all(sizes.map(size => invalidateCacheKey(`${serverId}:cover:${entityId}:${size}`)));
+  await Promise.all(
+    COVER_ART_CACHE_SIZES.map(size =>
+      invalidateCacheKey(`${serverId}:cover:${entityId}:${size}`),
+    ),
+  );
 }
 
 export async function clearImageCache(): Promise<void> {
@@ -312,6 +472,8 @@ export async function clearImageCache(): Promise<void> {
   }
   blobCache.clear();
   inflightBlobGets.clear();
+  coverUpgradeListeners.clear();
+  coverSiblingRaceInflights.clear();
   for (const key of Array.from(urlEntries.keys())) purgeUrlEntry(key);
   try {
     const database = await openDB();
@@ -361,6 +523,18 @@ export async function getCachedBlob(
     if (idbHit) {
       rememberBlob(cacheKey, idbHit);
       return idbHit;
+    }
+
+    const parsedCover = parseCoverCacheKey(cacheKey);
+    if (parsedCover && !signal?.aborted) {
+      const provisional =
+        probeSiblingCoverBlobInMemory(parsedCover.stem, parsedCover.size) ??
+        (await probeSiblingCoverBlobFromIDB(parsedCover.stem, parsedCover.size));
+      if (provisional && !signal?.aborted) {
+        rememberBlob(cacheKey, provisional);
+        scheduleSiblingVersusNetworkRace(fetchUrl, cacheKey, provisional, signal, getPriority);
+        return provisional;
+      }
     }
 
     const acquired = await acquireNetFetchSlot(signal, getPriority);

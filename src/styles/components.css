@@ -8902,6 +8902,10 @@ html.no-compositing .fs-seekbar-played {
   flex-shrink: 0;
 }
 
+.mobile-search-thumb--artist-round {
+  border-radius: 50%;
+}
+
 .mobile-search-avatar {
   width: 46px;
   height: 46px;

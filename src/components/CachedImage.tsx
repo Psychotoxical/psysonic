@@ -1,11 +1,28 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
-import { acquireUrl, getCachedBlob, releaseUrl } from '../utils/imageCache';
+import { acquireUrl, getCachedBlob, releaseUrl, subscribeCoverUpgraded } from '../utils/imageCache';
 
 interface CachedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
   cacheKey: string;
+  /**
+   * Added to the viewport-based score when waiting for a `getCachedBlob` **network** slot.
+   * Use to order tiers (e.g. search: artist thumbs before album thumbs) without changing layout.
+   */
+  fetchQueueBias?: number;
+  /**
+   * How far beyond the app scroll viewport `IntersectionObserver` expands the root.
+   * Larger = priority / slot ordering updates while the row is still off-screen → less
+   * empty flash when it hits the viewport. CSS margin syntax (`440px`, `10% 0`, …).
+   */
+  observeRootMargin?: string;
 }
+
+/** Search UI: load artist avatars before album covers when many requests compete. */
+export const FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM = 1_000_000_000;
+
+/** Default IO lead — slightly before visible to reduce scroll-in jitter (tune per `CachedImage`). */
+export const DEFAULT_CACHED_IMAGE_PREPARE_MARGIN = '440px';
 
 /**
  * Returns a shared, refcounted object URL for a cached image. Multiple
@@ -89,10 +106,36 @@ export function useCachedUrl(
     };
   }, [cacheKey]);
 
+  useEffect(() => {
+    if (!fetchUrl || !fallbackToFetch) return;
+    let cancelled = false;
+    const unsub = subscribeCoverUpgraded(cacheKey, () => {
+      if (cancelled) return;
+      const refreshed = acquireUrl(cacheKey);
+      if (refreshed) {
+        ownedKeyRef.current = cacheKey;
+        setResolved(refreshed);
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, [cacheKey, fetchUrl, fallbackToFetch]);
+
   return fallbackToFetch ? (resolved || fetchUrl) : resolved;
 }
 
-export default function CachedImage({ src, cacheKey, style, onLoad, onError, ...props }: CachedImageProps) {
+export default function CachedImage({
+  src,
+  cacheKey,
+  fetchQueueBias = 0,
+  observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
+  style,
+  onLoad,
+  onError,
+  ...props
+}: CachedImageProps) {
   const [fallbackSrc, setFallbackSrc] = useState<string | undefined>(undefined);
   const imgRef = useRef<HTMLImageElement>(null);
   /**
@@ -101,7 +144,10 @@ export default function CachedImage({ src, cacheKey, style, onLoad, onError, ...
    * (custom scroll roots, content-visibility, horizontal rails) and led to blank covers.
    */
   const priorityRef = useRef(0);
-  const getViewportImagePriority = useCallback(() => priorityRef.current, []);
+  const getViewportImagePriority = useCallback(
+    () => fetchQueueBias + priorityRef.current,
+    [fetchQueueBias],
+  );
 
   useEffect(() => {
     const el = imgRef.current;
@@ -128,13 +174,13 @@ export default function CachedImage({ src, cacheKey, style, onLoad, onError, ...
       entries => { for (const e of entries) updateFromEntry(e); },
       {
         root: root ?? undefined,
-        rootMargin: '300px',
+        rootMargin: observeRootMargin,
         threshold: [0, 0.02, 0.1, 0.25, 0.5, 0.75, 1],
       },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [observeRootMargin]);
 
   // Same as Hero/PlayerBar: show the salted fetch URL while IndexedDB/network resolves,
   // then swap to the shared blob URL — avoids an <img> with no src and opacity stuck at 0.
