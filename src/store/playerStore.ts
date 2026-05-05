@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { showToast } from '../utils/toast';
-import { buildCoverArtUrl, buildStreamUrl, getPlayQueue, savePlayQueue, reportNowPlaying, scrobbleSong, SubsonicSong, getSong, getRandomSongs, getSimilarSongs2, getTopSongs, InternetRadioStation, setRating } from '../api/subsonic';
+import { buildCoverArtUrl, buildStreamUrl, getPlayQueue, savePlayQueue, reportNowPlaying, scrobbleSong, SubsonicSong, getSong, getRandomSongs, getSimilarSongs2, getTopSongs, InternetRadioStation, setRating, getAlbumInfo2 } from '../api/subsonic';
 import { resolvePlaybackUrl, streamUrlTrackId, getPlaybackSourceKind, type PlaybackSourceKind } from '../utils/resolvePlaybackUrl';
 import { redactSubsonicUrlForLog } from '../utils/redactSubsonicUrl';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
@@ -73,6 +73,10 @@ export interface Track {
   size?: number;
   autoAdded?: boolean;
   radioAdded?: boolean;
+  /** Inserted via "Play Next". Used by the preserve-order toggle to find the
+   *  end of the current Play-Next streak. Stale flags behind queueIndex are
+   *  harmless — the streak scan only looks forward from queueIndex+1. */
+  playNextAdded?: boolean;
 }
 
 export function songToTrack(song: SubsonicSong): Track {
@@ -260,6 +264,12 @@ interface PlayerState {
    setProgress: (t: number, duration: number) => void;
   enqueue: (tracks: Track[], _orbitConfirmed?: boolean) => void;
   enqueueAt: (tracks: Track[], insertIndex: number, _orbitConfirmed?: boolean) => void;
+  /** "Play Next" — inserts after the current track. When
+   *  `preservePlayNextOrder` is on, appends to the existing Play-Next streak
+   *  (Spotify-style); otherwise inserts directly after the current track and
+   *  pushes any earlier Play-Next items down (default). Falls back to
+   *  `playTrack` when nothing is currently playing. */
+  playNext: (tracks: Track[]) => void;
   enqueueRadio: (tracks: Track[], artistId?: string) => void;
   setRadioArtistId: (artistId: string) => void;
   /** For Lucky Mix: drop upcoming tail; keep the currently playing item only. */
@@ -1968,13 +1978,15 @@ export function initAudioListeners(): () => void {
   let discordPrevTemplateDetails: string | null = null;
   let discordPrevTemplateState: string | null = null;
   let discordPrevTemplateLargeText: string | null = null;
+  let discordPrevCoverSource: string | null = null;
+  const discordServerCoverCache = new Map<string, string | null>();
 
   function syncDiscord() {
     const { currentTrack, isPlaying } = usePlayerStore.getState();
     const currentTime = getPlaybackProgressSnapshot().currentTime;
     const {
       discordRichPresence,
-      enableAppleMusicCoversDiscord,
+      discordCoverSource,
       discordTemplateDetails,
       discordTemplateState,
       discordTemplateLargeText,
@@ -1985,6 +1997,7 @@ export function initAudioListeners(): () => void {
         discordPrevTrackId = null;
         discordPrevIsPlaying = null;
         discordPrevFetchCovers = null;
+        discordPrevCoverSource = null;
         discordPrevTemplateDetails = null;
         discordPrevTemplateState = null;
         discordPrevTemplateLargeText = null;
@@ -1995,33 +2008,49 @@ export function initAudioListeners(): () => void {
 
     const trackChanged = currentTrack.id !== discordPrevTrackId;
     const playingChanged = isPlaying !== discordPrevIsPlaying;
-    const coversSettingChanged = enableAppleMusicCoversDiscord !== discordPrevFetchCovers;
+    const coverSourceChanged = discordCoverSource !== discordPrevCoverSource;
     const detailsTemplateChanged = discordTemplateDetails !== discordPrevTemplateDetails;
     const stateTemplateChanged = discordTemplateState !== discordPrevTemplateState;
     const largeTextTemplateChanged = discordTemplateLargeText !== discordPrevTemplateLargeText;
-    if (!trackChanged && !playingChanged && !coversSettingChanged && !detailsTemplateChanged && !stateTemplateChanged && !largeTextTemplateChanged) return;
+    if (!trackChanged && !playingChanged && !coverSourceChanged && !detailsTemplateChanged && !stateTemplateChanged && !largeTextTemplateChanged) return;
 
     discordPrevTrackId = currentTrack.id;
     discordPrevIsPlaying = isPlaying;
-    discordPrevFetchCovers = enableAppleMusicCoversDiscord;
+    discordPrevFetchCovers = discordCoverSource === 'apple';
+    discordPrevCoverSource = discordCoverSource;
     discordPrevTemplateDetails = discordTemplateDetails;
     discordPrevTemplateState = discordTemplateState;
     discordPrevTemplateLargeText = discordTemplateLargeText;
 
-    invoke('discord_update_presence', {
-      title: currentTrack.title,
-      artist: currentTrack.artist ?? 'Unknown Artist',
-      album: currentTrack.album ?? null,
-      isPlaying,
-      elapsedSecs: isPlaying ? currentTime : null,
-      // coverArtUrl is intentionally not passed — Subsonic URLs require auth.
-      // iTunes cover fetching is only done when explicitly opted in.
-      coverArtUrl: null,
-      fetchItunesCovers: enableAppleMusicCoversDiscord,
-      detailsTemplate: discordTemplateDetails,
-      stateTemplate: discordTemplateState,
-      largeTextTemplate: discordTemplateLargeText,
-    }).catch(() => {});
+    const sendPresence = (coverArtUrl: string | null) => {
+      invoke('discord_update_presence', {
+        title: currentTrack.title,
+        artist: currentTrack.artist ?? 'Unknown Artist',
+        album: currentTrack.album ?? null,
+        isPlaying,
+        elapsedSecs: isPlaying ? currentTime : null,
+        coverArtUrl,
+        fetchItunesCovers: discordCoverSource === 'apple',
+        detailsTemplate: discordTemplateDetails,
+        stateTemplate: discordTemplateState,
+        largeTextTemplate: discordTemplateLargeText,
+      }).catch(() => {});
+    };
+
+    if (discordCoverSource === 'server' && currentTrack.albumId) {
+      const cached = discordServerCoverCache.get(currentTrack.albumId);
+      if (cached !== undefined) {
+        sendPresence(cached);
+      } else {
+        getAlbumInfo2(currentTrack.albumId).then(info => {
+          const url = info?.largeImageUrl || info?.mediumImageUrl || info?.smallImageUrl || null;
+          discordServerCoverCache.set(currentTrack.albumId, url);
+          sendPresence(url);
+        });
+      }
+    } else {
+      sendPresence(null);
+    }
   }
 
   const unsubDiscordPlayer = usePlayerStore.subscribe(syncDiscord);
@@ -3226,6 +3255,23 @@ export const usePlayerStore = create<PlayerState>()(
           prefetchLoudnessForEnqueuedTracks(tracks, newQueue, newQueueIndex);
           return { queue: newQueue, queueIndex: newQueueIndex };
         });
+      },
+
+      playNext: (tracks) => {
+        if (tracks.length === 0) return;
+        const state = get();
+        const tagged = tracks.map(t => ({ ...t, playNextAdded: true as const }));
+        if (!state.currentTrack) {
+          state.playTrack(tagged[0], tagged);
+          return;
+        }
+        const baseIdx = state.queueIndex + 1;
+        let insertIdx = baseIdx;
+        if (useAuthStore.getState().preservePlayNextOrder) {
+          const q = state.queue;
+          while (insertIdx < q.length && q[insertIdx].playNextAdded) insertIdx++;
+        }
+        get().enqueueAt(tagged, insertIdx);
       },
 
       clearQueue: () => {

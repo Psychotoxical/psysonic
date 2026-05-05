@@ -270,6 +270,13 @@ const CONTRIBUTORS = [
     ],
   },
   {
+    github: 'Sayykii',
+    since: '1.46.0',
+    contributions: [
+      'Discord Rich Presence: cover art from your own server (Subsonic getAlbumInfo2) with three-way picker — none / server / Apple Music (PR #462)',
+    ],
+  },
+  {
     github: 'Psychotoxical',
     since: '1.0.0',
     contributions: [
@@ -353,6 +360,7 @@ const CONTRIBUTORS = [
       'Settings: 3-state animation mode (Full / Reduced / Static) — replaces boolean reduce-animations toggle (PR #441)',
       'Tracks: Highly Rated rail and per-card star display, with cache layer for ndListSongs (PR #443)',
       'Random Mix: playlist-size picker (50/75/100/125/150) and filter-panel layout cleanup (PR #445)',
+      'Queue: optional "Preserve Play Next order" toggle — multiple Play Next inserts queue up behind each other instead of latest-on-top (PR #464)',
     ],
   },
 ] as const;
@@ -2545,6 +2553,22 @@ export default function Settings() {
                   <span className="toggle-track" />
                 </label>
               </div>
+
+              <div className="settings-toggle-row" style={{ marginTop: '0.75rem' }}>
+                <div>
+                  <div style={{ fontWeight: 500 }}>
+                    {t('settings.preservePlayNextOrder')}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t('settings.preservePlayNextOrderDesc')}
+                  </div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.preservePlayNextOrder')}>
+                  <input type="checkbox" checked={auth.preservePlayNextOrder}
+                    onChange={e => auth.setPreservePlayNextOrder(e.target.checked)} />
+                  <span className="toggle-track" />
+                </label>
+              </div>
             </div>
           </SettingsSubSection>
 
@@ -2803,14 +2827,36 @@ export default function Settings() {
               </div>
               {auth.discordRichPresence && (
                 <>
-                  <div className="settings-section-divider" />
-                  <div className="settings-toggle-row">
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.discordAppleCovers')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordAppleCoversDesc')}</div>
-                    </div>
-                    <label className="toggle-switch" aria-label={t('settings.discordAppleCovers')}>
-                      <input type="checkbox" checked={auth.enableAppleMusicCoversDiscord} onChange={e => auth.setEnableAppleMusicCoversDiscord(e.target.checked)} />
+                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverNone')}</div>
+                    <label className="toggle-switch" aria-label={t('settings.discordCoverNone')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.discordCoverSource === 'none'}
+                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'none' : 'server')}
+                      />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverServer')}</div>
+                    <label className="toggle-switch" aria-label={t('settings.discordCoverServer')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.discordCoverSource === 'server'}
+                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'server' : 'none')}
+                      />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverApple')}</div>
+                    <label className="toggle-switch" aria-label={t('settings.discordCoverApple')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.discordCoverSource === 'apple'}
+                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'apple' : 'none')}
+                      />
                       <span className="toggle-track" />
                     </label>
                   </div>
@@ -2825,7 +2871,7 @@ export default function Settings() {
                         type="text"
                         value={auth.discordTemplateDetails}
                         onChange={e => auth.setDiscordTemplateDetails(e.target.value)}
-                        placeholder="{artist} - {title}"
+                        placeholder="{artist}"
                       />
                     </div>
                     <div className="form-group" style={{ marginBottom: '0.75rem' }}>
@@ -2835,7 +2881,7 @@ export default function Settings() {
                         type="text"
                         value={auth.discordTemplateState}
                         onChange={e => auth.setDiscordTemplateState(e.target.value)}
-                        placeholder="{album}"
+                        placeholder="{title}"
                       />
                     </div>
                     <div className="form-group">
