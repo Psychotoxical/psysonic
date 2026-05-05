@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -481,6 +481,14 @@ export default function MiniPlayer() {
   }, [queueOpen, state.queueIndex]);
 
   const { track, isPlaying } = state;
+  const miniCoverSrc = useMemo(
+    () => (track?.coverArt ? buildCoverArtUrl(track.coverArt, 300) : ''),
+    [track?.coverArt],
+  );
+  const miniCoverKey = useMemo(
+    () => (track?.coverArt ? coverArtCacheKey(track.coverArt, 300) : ''),
+    [track?.coverArt],
+  );
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (
@@ -540,8 +548,8 @@ export default function MiniPlayer() {
           <div className="mini-player__art">
             {track?.coverArt ? (
               <CachedImage
-                src={buildCoverArtUrl(track.coverArt, 300)}
-                cacheKey={coverArtCacheKey(track.coverArt, 300)}
+                src={miniCoverSrc}
+                cacheKey={miniCoverKey}
                 alt={track.album}
               />
             ) : (

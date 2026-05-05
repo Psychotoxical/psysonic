@@ -5,8 +5,8 @@ const STORE_NAME = 'images';
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 /** In-memory blobs — scrolling large grids used to thrash at 200 and re-hit IndexedDB for “cold” keys that still had a live shared object URL. */
 const MAX_BLOB_CACHE = 600; // hot in-memory blob entries (LRU)
-/** Shared pool for IndexedDB reads + network fetches — avoids IDB stampede and matches “visible first” scheduling. */
-const MAX_CONCURRENT_DISK_NET_LOADS = 6;
+/** Network-only pool — IndexedDB hits must not queue behind remote fetches. */
+const MAX_CONCURRENT_NET_FETCHES = 6;
 
 type LoadWaiter = {
   getPriority: () => number;
@@ -85,7 +85,7 @@ export function releaseUrl(cacheKey: string): void {
   }, URL_REVOKE_DELAY_MS);
 }
 
-let activeDiskNetLoads = 0;
+let activeNetFetches = 0;
 
 function removeLoadWaiter(waiter: LoadWaiter): void {
   const i = loadWaiters.indexOf(waiter);
@@ -93,14 +93,13 @@ function removeLoadWaiter(waiter: LoadWaiter): void {
 }
 
 /**
- * Grants a slot for one “slow” step (IndexedDB read or `fetch`). When oversubscribed,
- * waiters are ranked by `getPriority()` whenever a slot frees — higher = nearer /
- * more visible, so scrolling continuously reshuffles who runs next without a FIFO bias.
+ * Slot for remote `fetch` only. IndexedDB reads run before this — cached disk
+ * art can render without waiting on in-flight network downloads.
  */
-function acquireDiskNetSlot(signal?: AbortSignal, getPriority?: () => number): Promise<boolean> {
+function acquireNetFetchSlot(signal?: AbortSignal, getPriority?: () => number): Promise<boolean> {
   if (signal?.aborted) return Promise.resolve(false);
-  if (activeDiskNetLoads < MAX_CONCURRENT_DISK_NET_LOADS) {
-    activeDiskNetLoads++;
+  if (activeNetFetches < MAX_CONCURRENT_NET_FETCHES) {
+    activeNetFetches++;
     return Promise.resolve(true);
   }
   return new Promise<boolean>(resolve => {
@@ -144,13 +143,13 @@ function safePriority(fn: () => number): number {
   }
 }
 
-function releaseDiskNetSlot(): void {
-  activeDiskNetLoads = Math.max(0, activeDiskNetLoads - 1);
-  if (activeDiskNetLoads >= MAX_CONCURRENT_DISK_NET_LOADS) return;
+function releaseNetFetchSlot(): void {
+  activeNetFetches = Math.max(0, activeNetFetches - 1);
+  if (activeNetFetches >= MAX_CONCURRENT_NET_FETCHES) return;
   const idx = pickHighestPriorityWaiterIndex();
   if (idx === -1) return;
   const [w] = loadWaiters.splice(idx, 1);
-  activeDiskNetLoads++;
+  activeNetFetches++;
   w.resolve(true);
 }
 
@@ -238,6 +237,19 @@ async function evictDiskIfNeeded(maxBytes: number): Promise<void> {
   }
 }
 
+/** Batched eviction — avoids `getAll()` on every cover write during fast scrolling. */
+let evictDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let evictPendingMaxBytes = 0;
+
+function scheduleEvictDiskIfNeeded(maxBytes: number): void {
+  evictPendingMaxBytes = maxBytes;
+  if (evictDebounceTimer) clearTimeout(evictDebounceTimer);
+  evictDebounceTimer = setTimeout(() => {
+    evictDebounceTimer = null;
+    void evictDiskIfNeeded(evictPendingMaxBytes);
+  }, 450);
+}
+
 async function putBlob(key: string, blob: Blob): Promise<void> {
   try {
     const database = await openDB();
@@ -248,7 +260,7 @@ async function putBlob(key: string, blob: Blob): Promise<void> {
       tx.onerror = () => resolve();
     });
     const maxBytes = useAuthStore.getState().maxCacheMb * 1024 * 1024;
-    evictDiskIfNeeded(maxBytes);
+    scheduleEvictDiskIfNeeded(maxBytes);
   } catch {
     // Ignore write errors
   }
@@ -294,6 +306,10 @@ export async function invalidateCoverArt(entityId: string): Promise<void> {
 }
 
 export async function clearImageCache(): Promise<void> {
+  if (evictDebounceTimer) {
+    clearTimeout(evictDebounceTimer);
+    evictDebounceTimer = null;
+  }
   blobCache.clear();
   inflightBlobGets.clear();
   for (const key of Array.from(urlEntries.keys())) purgeUrlEntry(key);
@@ -318,7 +334,7 @@ export async function clearImageCache(): Promise<void> {
  * @param fetchUrl  The actual URL to fetch from (may contain ephemeral auth params).
  * @param cacheKey  A stable key that identifies the image across sessions.
  * @param signal    Optional AbortSignal — aborts queue-waiting and in-flight fetches.
- * @param getPriority  Called whenever a wait slot is about to be granted — higher = load sooner.
+ * @param getPriority  Called when waiting for a **network** slot (IndexedDB hits skip this queue).
  */
 export async function getCachedBlob(
   fetchUrl: string,
@@ -338,18 +354,21 @@ export async function getCachedBlob(
   if (existing) return existing;
 
   const run = (async () => {
-    const acquired = await acquireDiskNetSlot(signal, getPriority);
+    if (signal?.aborted) return null;
+
+    const idbHit = await getBlobFromIDB(cacheKey);
+    if (signal?.aborted) return null;
+    if (idbHit) {
+      rememberBlob(cacheKey, idbHit);
+      return idbHit;
+    }
+
+    const acquired = await acquireNetFetchSlot(signal, getPriority);
     if (!acquired || signal?.aborted) {
-      if (acquired) releaseDiskNetSlot();
+      if (acquired) releaseNetFetchSlot();
       return null;
     }
     try {
-      const idbHit = await getBlobFromIDB(cacheKey);
-      if (idbHit) {
-        rememberBlob(cacheKey, idbHit);
-        return idbHit;
-      }
-
       const resp = await fetch(fetchUrl, { signal });
       if (!resp.ok) return null;
       const newBlob = await resp.blob();
@@ -360,7 +379,7 @@ export async function getCachedBlob(
     } catch {
       return null;
     } finally {
-      releaseDiskNetSlot();
+      releaseNetFetchSlot();
     }
   })();
 

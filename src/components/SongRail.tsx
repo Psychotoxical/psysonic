@@ -1,8 +1,9 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { SubsonicSong } from '../api/subsonic';
 import SongCard from './SongCard';
 import { usePerfProbeFlags } from '../utils/perfFlags';
+import { dedupeById } from '../utils/dedupeById';
 
 interface Props {
   title: string;
@@ -36,6 +37,7 @@ export default function SongRail({
   const artworkDisabled = perfFlags.disableMainstageRailArtwork || disableArtwork;
   const interactivityDisabled = perfFlags.disableMainstageRailInteractivity || disableInteractivity;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const uniqueSongs = useMemo(() => dedupeById(songs), [songs]);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
   const [artworkBudget, setArtworkBudget] = useState(initialArtworkBudget);
@@ -51,29 +53,30 @@ export default function SongRail({
     const gap = Number.parseFloat(gridStyles.columnGap || gridStyles.gap || '12') || 12;
     const step = Math.max(1, cardW + gap);
     const visibleCount = Math.ceil((scrollLeft + clientWidth) / step);
-    const nextBudget = Math.max(initialArtworkBudget, visibleCount + 4);
+    const nextBudget = Math.max(initialArtworkBudget, visibleCount + 12);
     setArtworkBudget(prev => (nextBudget > prev ? nextBudget : prev));
   };
 
   const handleScroll = () => {
-    if (interactivityDisabled) return;
+    if (windowArtworkByViewport) recomputeArtworkBudget();
+
     if (!scrollRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-    setShowLeft(scrollLeft > 0);
-    setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
-    recomputeArtworkBudget();
+
+    if (!interactivityDisabled) {
+      setShowLeft(scrollLeft > 0);
+      setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
+    }
   };
 
   useEffect(() => {
-    if (interactivityDisabled) return;
     handleScroll();
     const raf = window.requestAnimationFrame(() => {
-      // One post-layout pass ensures we account for final grid/card geometry.
-      recomputeArtworkBudget();
+      if (windowArtworkByViewport) recomputeArtworkBudget();
     });
     window.addEventListener('resize', handleScroll);
     const ro = new ResizeObserver(() => {
-      recomputeArtworkBudget();
+      if (windowArtworkByViewport) recomputeArtworkBudget();
     });
     if (scrollRef.current) ro.observe(scrollRef.current);
     return () => {
@@ -81,11 +84,12 @@ export default function SongRail({
       window.removeEventListener('resize', handleScroll);
       ro.disconnect();
     };
-  }, [songs, interactivityDisabled, windowArtworkByViewport, initialArtworkBudget]);
+  }, [uniqueSongs, interactivityDisabled, windowArtworkByViewport, initialArtworkBudget]);
 
+  const rowArtworkResetKey = uniqueSongs[0]?.id ?? '';
   useEffect(() => {
     setArtworkBudget(initialArtworkBudget);
-  }, [initialArtworkBudget, songs.length]);
+  }, [initialArtworkBudget, rowArtworkResetKey]);
 
   const scroll = (dir: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -94,7 +98,7 @@ export default function SongRail({
   };
 
   // Hide rail entirely if empty and no empty-state copy
-  if (songs.length === 0 && !loading && !emptyText) return null;
+  if (uniqueSongs.length === 0 && !loading && !emptyText) return null;
 
   return (
     <section className="song-row-section">
@@ -135,11 +139,11 @@ export default function SongRail({
       </div>
 
       <div className="song-grid-wrapper">
-        {songs.length === 0 && emptyText ? (
+        {uniqueSongs.length === 0 && emptyText ? (
           <p className="song-row-empty">{emptyText}</p>
         ) : (
-          <div className="song-grid" ref={scrollRef} onScroll={interactivityDisabled ? undefined : handleScroll}>
-            {songs.map((s, idx) => (
+          <div className="song-grid" ref={scrollRef} onScroll={handleScroll}>
+            {uniqueSongs.map((s, idx) => (
               <SongCard
                 key={s.id}
                 song={s}

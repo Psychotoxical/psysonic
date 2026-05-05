@@ -117,49 +117,109 @@ export function ensureContrast(
 const FS_BG_LUMINANCE = 0.010;
 const MIN_CONTRAST    = 4.5;
 
+function isRemoteHttpUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
+function isBlobOrDataUrl(url: string): boolean {
+  return url.startsWith('blob:') || url.startsWith('data:');
+}
+
+/**
+ * Samples decoded pixels from an HTMLImageElement (already loaded).
+ * Throws if the canvas is tainted (caller should catch).
+ */
+function sampleImageToAccent(img: HTMLImageElement): CoverColors {
+  const canvas = document.createElement('canvas');
+  canvas.width = 8;
+  canvas.height = 8;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { accent: '' };
+
+  ctx.drawImage(img, 0, 0, 8, 8);
+  const { data } = ctx.getImageData(0, 0, 8, 8);
+
+  let bestSat = -1;
+  let bestR = 180;
+  let bestG = 100;
+  let bestB = 50;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const [, s] = rgbToHsl(r, g, b);
+    if (s > bestSat) {
+      bestSat = s;
+      bestR = r;
+      bestG = g;
+      bestB = b;
+    }
+  }
+
+  const [fr, fg, fb] = ensureContrast([bestR, bestG, bestB], FS_BG_LUMINANCE, MIN_CONTRAST);
+  return { accent: `rgb(${fr},${fg},${fb})` };
+}
+
+function loadImage(url: string, crossOrigin: '' | 'anonymous'): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('image load failed'));
+    if (crossOrigin) img.crossOrigin = crossOrigin;
+    img.src = url;
+  });
+}
+
 /**
  * Loads `imageUrl` into an 8×8 canvas and finds the most vibrant pixel
  * (highest HSL saturation).  Applies `ensureContrast` to guarantee
  * WCAG AA readability against the FS player background.
  *
+ * Remote `https?://` URLs would taint a canvas if drawn from a plain `<img>`
+ * without CORS — we prefer `fetch` → `blob:` for sampling, then fall back to
+ * `crossOrigin = "anonymous"` when the server allows it.
+ *
  * Resolves with `{ accent: '' }` on any error — the caller's CSS
  * `var(--dynamic-fs-accent, var(--accent))` then falls back to the theme accent.
  */
-export function extractCoverColors(imageUrl: string): Promise<CoverColors> {
-  if (!imageUrl) return Promise.resolve({ accent: '' });
-  // Logo fallback has no meaningful color — skip extraction and use theme accent
-  if (imageUrl.includes('logo-psysonic')) return Promise.resolve({ accent: '' });
+export async function extractCoverColors(imageUrl: string): Promise<CoverColors> {
+  if (!imageUrl) return { accent: '' };
+  if (imageUrl.includes('logo-psysonic')) return { accent: '' };
 
-  return new Promise(resolve => {
-    const img = new Image();
-    // Blob URLs are same-origin in Tauri WebKit — no crossOrigin needed.
-    img.onload = () => {
+  const safeSample = async (url: string, co: '' | 'anonymous'): Promise<CoverColors> => {
+    try {
+      const img = await loadImage(url, co);
       try {
-        const canvas = document.createElement('canvas');
-        canvas.width  = 8;
-        canvas.height = 8;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { resolve({ accent: '' }); return; }
-
-        ctx.drawImage(img, 0, 0, 8, 8);
-        const { data } = ctx.getImageData(0, 0, 8, 8);
-
-        // Pick pixel with highest HSL saturation (most vibrant).
-        let bestSat = -1;
-        let bestR = 180, bestG = 100, bestB = 50; // warm orange fallback
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          const [, s] = rgbToHsl(r, g, b);
-          if (s > bestSat) { bestSat = s; bestR = r; bestG = g; bestB = b; }
-        }
-
-        const [fr, fg, fb] = ensureContrast([bestR, bestG, bestB], FS_BG_LUMINANCE, MIN_CONTRAST);
-        resolve({ accent: `rgb(${fr},${fg},${fb})` });
+        return sampleImageToAccent(img);
       } catch {
-        resolve({ accent: '' });
+        return { accent: '' };
       }
-    };
-    img.onerror = () => resolve({ accent: '' });
-    img.src = imageUrl;
-  });
+    } catch {
+      return { accent: '' };
+    }
+  };
+
+  if (isBlobOrDataUrl(imageUrl)) {
+    return safeSample(imageUrl, '');
+  }
+
+  if (isRemoteHttpUrl(imageUrl)) {
+    try {
+      const resp = await fetch(imageUrl);
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        try {
+          return await safeSample(objectUrl, '');
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      }
+    } catch {
+      // CORS / network — try credentialed image load if server sends ACAO for art
+    }
+    return safeSample(imageUrl, 'anonymous');
+  }
+
+  return safeSample(imageUrl, '');
 }

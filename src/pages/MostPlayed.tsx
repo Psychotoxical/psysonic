@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound } from 'lucide-react';
 import { getAlbumList, SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
@@ -47,6 +47,12 @@ function deriveTopArtists(albums: SubsonicAlbum[], filterCompilations: boolean):
 
 function formatPlays(n: number, t: ReturnType<typeof import('react-i18next').useTranslation>['t']): string {
   return t('mostPlayed.plays', { n: n.toLocaleString() }) as string;
+}
+
+function MpCover80({ coverArt, alt, className }: { coverArt: string; alt: string; className: string }) {
+  const src = useMemo(() => buildCoverArtUrl(coverArt, 80), [coverArt]);
+  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 80), [coverArt]);
+  return <CachedImage src={src} cacheKey={cacheKey} alt={alt} className={className} />;
 }
 
 export default function MostPlayed() {
@@ -136,12 +142,7 @@ export default function MostPlayed() {
               >
                 <span className="mp-rank">{i + 1}</span>
                 {artist.coverArt ? (
-                  <CachedImage
-                    src={buildCoverArtUrl(artist.coverArt, 80)}
-                    cacheKey={coverArtCacheKey(artist.coverArt, 80)}
-                    alt=""
-                    className="mp-artist-avatar"
-                  />
+                  <MpCover80 coverArt={artist.coverArt} alt="" className="mp-artist-avatar" />
                 ) : (
                   <div className="mp-artist-avatar mp-artist-avatar--placeholder" />
                 )}
@@ -175,12 +176,7 @@ export default function MostPlayed() {
                 >
                   <span className="mp-album-rank">{sortAsc ? withPlays.length - i : i + 1}</span>
                   {album.coverArt ? (
-                    <CachedImage
-                      src={buildCoverArtUrl(album.coverArt, 80)}
-                      cacheKey={coverArtCacheKey(album.coverArt, 80)}
-                      alt=""
-                      className="mp-album-cover"
-                    />
+                    <MpCover80 coverArt={album.coverArt} alt="" className="mp-album-cover" />
                   ) : (
                     <div className="mp-album-cover mp-album-cover--placeholder" />
                   )}

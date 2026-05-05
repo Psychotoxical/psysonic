@@ -235,6 +235,12 @@ const PL_COLUMNS: readonly ColDef[] = [
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration']);
 
+function PlaylistSearchResultThumb({ coverArt }: { coverArt: string }) {
+  const src = useMemo(() => buildCoverArtUrl(coverArt, 40), [coverArt]);
+  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 40), [coverArt]);
+  return <CachedImage src={src} cacheKey={cacheKey} alt="" className="playlist-search-thumb" />;
+}
+
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
@@ -1408,7 +1414,7 @@ export default function PlaylistDetail() {
                     return next;
                   })}
                 />
-                <CachedImage src={buildCoverArtUrl(song.coverArt ?? '', 40)} cacheKey={coverArtCacheKey(song.coverArt ?? '', 40)} alt="" className="playlist-search-thumb" />
+                <PlaylistSearchResultThumb coverArt={song.coverArt ?? ''} />
                 <div className="playlist-search-info">
                   <span className="playlist-search-title">{song.title}</span>
                   <span className="playlist-search-artist">{song.artist} · <span className="playlist-search-album">{song.album}</span></span>

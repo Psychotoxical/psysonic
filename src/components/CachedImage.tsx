@@ -24,6 +24,13 @@ export function useCachedUrl(
   fallbackToFetch = true,
   getPriority?: () => number,
 ): string {
+  // `buildCoverArtUrl` rotates salt/token on every call — `fetchUrl` is a new
+  // string each render though the logical image is unchanged (`cacheKey`). If
+  // `fetchUrl` were an effect dependency, cleanup would run every frame, call
+  // `releaseUrl`, revoke the blob, and break <img> until onError hides it.
+  const fetchUrlRef = useRef(fetchUrl);
+  fetchUrlRef.current = fetchUrl;
+
   // Synchronously acquire on first render when the blob is already hot. This
   // makes the very first <img src> a blob URL, avoiding a fetchUrl→blobUrl
   // swap that would trigger a redundant network request and decode pass.
@@ -43,14 +50,17 @@ export function useCachedUrl(
       }
     };
 
-    if (!fetchUrl) {
+    const currentUrl = fetchUrlRef.current;
+    if (!currentUrl) {
       release();
       setResolved('');
-      return;
+      return release;
     }
 
-    // Lazy initializer (or a previous run) already acquired the right key.
-    if (ownedKeyRef.current === cacheKey) return release;
+    // Same logical image as last run — only `cacheKey` drives this effect.
+    if (ownedKeyRef.current === cacheKey) {
+      return release;
+    }
 
     // Different key than we're currently holding: drop the old one.
     release();
@@ -66,7 +76,7 @@ export function useCachedUrl(
     // Slow path: fetch (or read from IDB), then acquire.
     setResolved('');
     const controller = new AbortController();
-    getCachedBlob(fetchUrl, cacheKey, controller.signal, () => getPriorityRef.current?.() ?? 0).then(blob => {
+    getCachedBlob(currentUrl, cacheKey, controller.signal, () => getPriorityRef.current?.() ?? 0).then(blob => {
       if (controller.signal.aborted || !blob) return;
       const url = acquireUrl(cacheKey);
       if (!url) return;
@@ -77,7 +87,7 @@ export function useCachedUrl(
       controller.abort();
       release();
     };
-  }, [fetchUrl, cacheKey]);
+  }, [cacheKey]);
 
   return fallbackToFetch ? (resolved || fetchUrl) : resolved;
 }
@@ -139,6 +149,26 @@ export default function CachedImage({ src, cacheKey, style, onLoad, onError, ...
     setFallbackSrc(undefined);
   }, [cacheKey]);
 
+  const isFallback = fallbackSrc !== undefined;
+  const finalSrc = fallbackSrc ?? (resolvedSrc || undefined);
+
+  // Browsers sometimes skip `load` for cache hits / lazy + horizontal scroll — unstick opacity.
+  useEffect(() => {
+    if (!finalSrc) return;
+    let alive = true;
+    const id = requestAnimationFrame(() => {
+      if (!alive) return;
+      const img = imgRef.current;
+      if (img?.complete && img.naturalWidth > 0) {
+        setLoaded(true);
+      }
+    });
+    return () => {
+      alive = false;
+      cancelAnimationFrame(id);
+    };
+  }, [finalSrc]);
+
   const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     if (onError) {
       // Caller wants custom error handling (e.g. hide the element)
@@ -149,9 +179,6 @@ export default function CachedImage({ src, cacheKey, style, onLoad, onError, ...
       setFallbackSrc('/logo-psysonic.png');
     }
   };
-
-  const isFallback = fallbackSrc !== undefined;
-  const finalSrc = fallbackSrc ?? (resolvedSrc || undefined);
 
   const fallbackStyle: React.CSSProperties = isFallback
     ? { objectFit: 'contain', background: 'var(--bg-card, var(--ctp-surface0, #313244))', padding: '15%' }

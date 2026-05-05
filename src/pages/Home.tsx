@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mixRatingFilter';
 import { usePerfProbeFlags } from '../utils/perfFlags';
 import { bumpPerfCounter } from '../utils/perfTelemetry';
+import { dedupeById } from '../utils/dedupeById';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
 const HOME_RANDOM_FETCH = 100;
@@ -20,8 +21,9 @@ const HOME_DISCOVER_SONGS_SIZE = 18;
 const HOME_ALBUM_ROW_ARTWORK_SIZE = 300;
 const HOME_SONG_RAIL_ARTWORK_SIZE = 200;
 const HOME_ARTWORK_WINDOWING = true;
-const HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET = 3;
-const HOME_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 4;
+// At least one viewport width of cards on first paint (low values left half the row as placeholders).
+const HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET = 14;
+const HOME_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 16;
 // Keep artwork enabled across Home rows in normal mode.
 const HOME_ARTWORK_VISIBLE_ROW_BUDGET_WHEN_ENABLED = 8;
 
@@ -73,20 +75,20 @@ export default function Home() {
             : Promise.resolve<SubsonicSong[]>([]),
         ]);
         if (cancelled) return;
-        const r = await filterAlbumsByMixRatings(rRaw, mixCfg);
-        setStarred(s);
-        setRecent(n);
+        const r = dedupeById(await filterAlbumsByMixRatings(rRaw, mixCfg));
+        setStarred(dedupeById(s));
+        setRecent(dedupeById(n));
         setHeroAlbums(r.slice(0, HOME_HERO_COUNT));
         setRandom(r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE));
-        setMostPlayed(f);
-        setRecentlyPlayed(rp);
-        setDiscoverSongs(songs);
+        setMostPlayed(dedupeById(f));
+        setRecentlyPlayed(dedupeById(rp));
+        setDiscoverSongs(dedupeById(songs));
         const shuffled = [...artists];
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-        setRandomArtists(shuffled.slice(0, 16));
+        setRandomArtists(dedupeById(shuffled).slice(0, 16));
       } catch {
         /* ignore */
       } finally {
@@ -111,8 +113,9 @@ export default function Home() {
     try {
       const more = await getAlbumList(type, 12, currentList.length);
       const mixCfg = getMixMinRatingsConfigFromAuth();
-      const batch =
+      const batchRaw =
         type === 'random' ? await filterAlbumsByMixRatings(more, mixCfg) : more;
+      const batch = dedupeById(batchRaw);
       const newItems = batch.filter(m => !currentList.find(c => c.id === m.id));
       if (newItems.length > 0) setter(prev => [...prev, ...newItems]);
     } catch (e) {

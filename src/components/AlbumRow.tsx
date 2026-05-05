@@ -1,10 +1,11 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { SubsonicAlbum } from '../api/subsonic';
 import AlbumCard from './AlbumCard';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { usePerfProbeFlags } from '../utils/perfFlags';
+import { dedupeById } from '../utils/dedupeById';
 
 interface Props {
   title: string;
@@ -50,6 +51,7 @@ export default function AlbumRow({
   const [artworkBudget, setArtworkBudget] = useState(initialArtworkBudget);
 
   const loadingRef = useRef(false);
+  const uniqueAlbums = useMemo(() => dedupeById(albums), [albums]);
 
   const recomputeArtworkBudget = () => {
     if (!windowArtworkByViewport) return;
@@ -62,19 +64,23 @@ export default function AlbumRow({
     const gap = Number.parseFloat(gridStyles.columnGap || gridStyles.gap || '16') || 16;
     const step = Math.max(1, cardW + gap);
     const visibleCount = Math.ceil((scrollLeft + clientWidth) / step);
-    const nextBudget = Math.max(initialArtworkBudget, visibleCount + 4);
+    // Extra slack so fast horizontal scroll doesn’t hit the idx≥budget cliff between frames.
+    const nextBudget = Math.max(initialArtworkBudget, visibleCount + 12);
     setArtworkBudget(prev => (nextBudget > prev ? nextBudget : prev));
   };
 
   const handleScroll = () => {
-    if (interactivityDisabled) return;
+    if (windowArtworkByViewport) recomputeArtworkBudget();
+
     if (!scrollRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-    setShowLeft(scrollLeft > 0);
-    setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
-    recomputeArtworkBudget();
 
-    // Auto-load trigger
+    if (!interactivityDisabled) {
+      setShowLeft(scrollLeft > 0);
+      setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
+    }
+
+    // Auto-load trigger (native horizontal scroll still works when rail buttons are perf-disabled)
     if (onLoadMore && !loadingRef.current && scrollLeft > 0 && scrollLeft + clientWidth >= scrollWidth - 300) {
       triggerLoadMore();
     }
@@ -90,15 +96,13 @@ export default function AlbumRow({
   };
 
   useEffect(() => {
-    if (interactivityDisabled) return;
     handleScroll();
     const raf = window.requestAnimationFrame(() => {
-      // One post-layout pass ensures we account for final grid/card geometry.
-      recomputeArtworkBudget();
+      if (windowArtworkByViewport) recomputeArtworkBudget();
     });
     window.addEventListener('resize', handleScroll);
     const ro = new ResizeObserver(() => {
-      recomputeArtworkBudget();
+      if (windowArtworkByViewport) recomputeArtworkBudget();
     });
     if (scrollRef.current) ro.observe(scrollRef.current);
     return () => {
@@ -106,11 +110,14 @@ export default function AlbumRow({
       window.removeEventListener('resize', handleScroll);
       ro.disconnect();
     };
-  }, [albums, interactivityDisabled, windowArtworkByViewport, initialArtworkBudget]);
+  }, [uniqueAlbums, interactivityDisabled, windowArtworkByViewport, initialArtworkBudget]);
 
+  // Reset when the row’s identity changes (new data / server), not when the list grows via
+  // “load more” — reusing albums.length would shrink the budget mid-scroll and flash placeholders.
+  const rowArtworkResetKey = uniqueAlbums[0]?.id ?? '';
   useEffect(() => {
     setArtworkBudget(initialArtworkBudget);
-  }, [initialArtworkBudget, albums.length]);
+  }, [initialArtworkBudget, rowArtworkResetKey]);
 
   const scroll = (dir: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -118,7 +125,7 @@ export default function AlbumRow({
     scrollRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
   };
 
-  if (albums.length === 0) return null;
+  if (uniqueAlbums.length === 0) return null;
 
   return (
     <section className="album-row-section">
@@ -154,8 +161,8 @@ export default function AlbumRow({
       </div>
       
       <div className="album-grid-wrapper">
-        <div className="album-grid" ref={scrollRef} onScroll={interactivityDisabled ? undefined : handleScroll}>
-          {albums.map((a, idx) => (
+        <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
+          {uniqueAlbums.map((a, idx) => (
             <AlbumCard
               key={a.id}
               album={a}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Disc3, Users, Music, TextSearch } from 'lucide-react';
 import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
@@ -14,6 +14,12 @@ function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
     clearTimeout(timer);
     timer = setTimeout(() => fn(q), ms);
   };
+}
+
+function LiveSearchAlbumThumb({ coverArt }: { coverArt: string }) {
+  const src = useMemo(() => buildCoverArtUrl(coverArt, 40), [coverArt]);
+  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 40), [coverArt]);
+  return <CachedImage className="search-result-thumb" src={src} cacheKey={cacheKey} alt="" />;
 }
 
 export default function LiveSearch() {
@@ -323,12 +329,7 @@ export default function LiveSearch() {
                         }}
                         role="option" aria-selected={activeIndex === i}>
                         {a.coverArt ? (
-                          <CachedImage
-                            className="search-result-thumb"
-                            src={buildCoverArtUrl(a.coverArt, 40)}
-                            cacheKey={coverArtCacheKey(a.coverArt, 40)}
-                            alt=""
-                          />
+                          <LiveSearchAlbumThumb coverArt={a.coverArt} />
                         ) : (
                           <div className="search-result-icon"><Disc3 size={14} /></div>
                         )}

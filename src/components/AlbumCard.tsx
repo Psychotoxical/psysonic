@@ -97,7 +97,7 @@ function AlbumCard({
             src={coverUrl}
             cacheKey={coverCacheKey}
             alt={`${album.name} Cover`}
-            loading="lazy"
+            loading="eager"
             decoding="async"
           />
         ) : (

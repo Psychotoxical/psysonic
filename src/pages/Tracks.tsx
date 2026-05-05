@@ -28,7 +28,7 @@ const RATED_RAIL_DISPLAY = 30;
 const RATED_RAIL_CACHE_MS = 60_000;
 /** Match Home: only mount artwork for cards near the horizontal viewport. */
 const TRACKS_SONG_RAIL_WINDOWING = true;
-const TRACKS_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 4;
+const TRACKS_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 14;
 
 export default function Tracks() {
   const perfFlags = usePerfProbeFlags();
@@ -91,7 +91,14 @@ export default function Tracks() {
     reloadRated();
   }, [activeServerId, rerollHero, rerollRandom, reloadRated]);
 
-  const heroCoverUrl = hero?.coverArt ? buildCoverArtUrl(hero.coverArt, 600) : '';
+  const heroCoverUrl = useMemo(
+    () => (hero?.coverArt ? buildCoverArtUrl(hero.coverArt, 600) : ''),
+    [hero?.coverArt],
+  );
+  const heroCoverKey = useMemo(
+    () => (hero?.coverArt ? coverArtCacheKey(hero.coverArt, 600) : ''),
+    [hero?.coverArt],
+  );
 
   // Hide the hero song from the random rail if the server happens to return it in
   // both fetches (Navidrome's getRandomSongs sometimes overlaps within a short window).
@@ -117,7 +124,7 @@ export default function Tracks() {
             {heroCoverUrl ? (
               <CachedImage
                 src={heroCoverUrl}
-                cacheKey={coverArtCacheKey(hero.coverArt!, 600)}
+                cacheKey={heroCoverKey}
                 alt=""
               />
             ) : (

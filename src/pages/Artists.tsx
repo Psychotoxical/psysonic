@@ -6,9 +6,21 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import CachedImage from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { usePerfProbeFlags } from '../utils/perfFlags';
 
 const ALL_SENTINEL = 'ALL';
 const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+
+/** Virtual row height guesses — letter heading vs dense rows vs last row in section (group gap). */
+const ARTIST_LIST_LETTER_ROW_EST = 48;
+const ARTIST_LIST_ROW_EST = 64;
+const ARTIST_LIST_LAST_IN_LETTER_EST = 88;
+
+type ArtistListFlatRow =
+  | { kind: 'letter'; letter: string }
+  | { kind: 'artist'; artist: SubsonicArtist; isLastInLetter: boolean };
 
 // Catppuccin accent colors — one is picked deterministically from the artist name
 const CTP_COLORS = [
@@ -90,6 +102,7 @@ function ArtistRowAvatar({ artist, showImages }: { artist: SubsonicArtist; showI
 }
 
 export default function Artists() {
+  const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
   const [artists, setArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,6 +206,39 @@ export default function Artists() {
     }
     return { groups: g, letters: Object.keys(g).sort() };
   }, [visible, viewMode]);
+
+  const artistListFlatRows = useMemo((): ArtistListFlatRow[] => {
+    if (viewMode !== 'list') return [];
+    const out: ArtistListFlatRow[] = [];
+    for (const letter of letters) {
+      out.push({ kind: 'letter', letter });
+      const group = groups[letter];
+      for (let i = 0; i < group.length; i++) {
+        out.push({ kind: 'artist', artist: group[i], isLastInLetter: i === group.length - 1 });
+      }
+    }
+    return out;
+  }, [viewMode, letters, groups]);
+
+  const artistListVirtualizer = useVirtualizer({
+    count:
+      perfFlags.disableMainstageVirtualLists || viewMode !== 'list' ? 0 : artistListFlatRows.length,
+    getScrollElement: () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    estimateSize: index => {
+      const row = artistListFlatRows[index];
+      if (!row) return ARTIST_LIST_ROW_EST;
+      if (row.kind === 'letter') return ARTIST_LIST_LETTER_ROW_EST;
+      return row.isLastInLetter ? ARTIST_LIST_LAST_IN_LETTER_EST : ARTIST_LIST_ROW_EST;
+    },
+    /** Stable keys — avoids row DOM reuse glitches when the filtered slice changes. */
+    getItemKey: index => {
+      const row = artistListFlatRows[index];
+      if (!row) return index;
+      if (row.kind === 'letter') return `letter:${row.letter}`;
+      return `artist:${row.artist.id}`;
+    },
+    overscan: 10,
+  });
 
   return (
     <div className="content-body animate-fade-in">
@@ -316,49 +362,129 @@ export default function Artists() {
       )}
 
       {!loading && viewMode === 'list' && (
-        <>
-          {letters.map(letter => (
-            <div key={letter} style={{ marginBottom: '1.5rem' }}>
-              <h3 className="letter-heading">{letter}</h3>
-              <div className="artist-list">
-                {groups[letter].map(artist => (
-                  <button
-                    key={artist.id}
-                    className={`artist-row${selectionMode && selectedIds.has(artist.id) ? ' selected' : ''}`}
-                    onClick={() => {
-                      if (selectionMode) {
-                        toggleSelect(artist.id);
-                      } else {
-                        navigate(`/artist/${artist.id}`);
-                      }
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      if (selectionMode && selectedIds.size > 0) {
-                        openContextMenu(e.clientX, e.clientY, selectedArtists, 'multi-artist');
-                      } else {
-                        openContextMenu(e.clientX, e.clientY, artist, 'artist');
-                      }
-                    }}
-                    id={`artist-${artist.id}`}
-                    style={selectionMode && selectedIds.has(artist.id) ? {
-                      background: 'var(--accent-dim)',
-                      color: 'var(--accent)'
-                    } : {}}
-                  >
-                    <ArtistRowAvatar artist={artist} showImages={showArtistImages} />
-                    <div style={{ textAlign: 'left' }}>
-                      <div className="artist-name">{artist.name}</div>
-                      {artist.albumCount != null && (
-                        <div className="artist-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
-                      )}
-                    </div>
-                  </button>
-                ))}
+        perfFlags.disableMainstageVirtualLists ? (
+          <>
+            {letters.map(letter => (
+              <div key={letter} style={{ marginBottom: '1.5rem' }}>
+                <h3 className="letter-heading">{letter}</h3>
+                <div className="artist-list">
+                  {groups[letter].map(artist => (
+                    <button
+                      key={artist.id}
+                      className={`artist-row${selectionMode && selectedIds.has(artist.id) ? ' selected' : ''}`}
+                      onClick={() => {
+                        if (selectionMode) {
+                          toggleSelect(artist.id);
+                        } else {
+                          navigate(`/artist/${artist.id}`);
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (selectionMode && selectedIds.size > 0) {
+                          openContextMenu(e.clientX, e.clientY, selectedArtists, 'multi-artist');
+                        } else {
+                          openContextMenu(e.clientX, e.clientY, artist, 'artist');
+                        }
+                      }}
+                      id={`artist-${artist.id}`}
+                      style={selectionMode && selectedIds.has(artist.id) ? {
+                        background: 'var(--accent-dim)',
+                        color: 'var(--accent)'
+                      } : {}}
+                    >
+                      <ArtistRowAvatar artist={artist} showImages={showArtistImages} />
+                      <div style={{ textAlign: 'left' }}>
+                        <div className="artist-name">{artist.name}</div>
+                        {artist.albumCount != null && (
+                          <div className="artist-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
+            ))}
+          </>
+        ) : (
+          <div style={{ position: 'relative', width: '100%' }}>
+            <div
+              style={{
+                height: artistListFlatRows.length === 0 ? 0 : artistListVirtualizer.getTotalSize(),
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {artistListVirtualizer.getVirtualItems().map(vi => {
+                const row = artistListFlatRows[vi.index];
+                if (!row) return null;
+                if (row.kind === 'letter') {
+                  return (
+                    <div
+                      key={vi.key}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${vi.start}px)`,
+                      }}
+                    >
+                      <h3 className="letter-heading">{row.letter}</h3>
+                    </div>
+                  );
+                }
+                const artist = row.artist;
+                return (
+                  <div
+                    key={vi.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${vi.start}px)`,
+                      paddingBottom: row.isLastInLetter ? '1.5rem' : undefined,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={`artist-row${selectionMode && selectedIds.has(artist.id) ? ' selected' : ''}`}
+                      onClick={() => {
+                        if (selectionMode) {
+                          toggleSelect(artist.id);
+                        } else {
+                          navigate(`/artist/${artist.id}`);
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (selectionMode && selectedIds.size > 0) {
+                          openContextMenu(e.clientX, e.clientY, selectedArtists, 'multi-artist');
+                        } else {
+                          openContextMenu(e.clientX, e.clientY, artist, 'artist');
+                        }
+                      }}
+                      id={`artist-${artist.id}`}
+                      style={selectionMode && selectedIds.has(artist.id) ? {
+                        background: 'var(--accent-dim)',
+                        color: 'var(--accent)'
+                      } : {}}
+                    >
+                      <ArtistRowAvatar artist={artist} showImages={showArtistImages} />
+                      <div style={{ textAlign: 'left' }}>
+                        <div className="artist-name">{artist.name}</div>
+                        {artist.albumCount != null && (
+                          <div className="artist-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </>
+          </div>
+        )
       )}
 
       {!loading && hasMore && (

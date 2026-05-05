@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Loader2, Highlighter, Shuffle, Share2 } from 'lucide-react';
 import { SubsonicSong, buildCoverArtUrl } from '../api/subsonic';
@@ -135,6 +135,11 @@ export default function AlbumHeader({
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
   const isNewAlbum = isAlbumRecentlyAdded(info.created);
 
+  const lightboxCoverSrc = useMemo(
+    () => (info.coverArt ? buildCoverArtUrl(info.coverArt, 2000) : ''),
+    [info.coverArt],
+  );
+
   const handleShareAlbum = async () => {
     try {
       const ok = await copyEntityShareLink('album', info.id);
@@ -150,7 +155,7 @@ export default function AlbumHeader({
       {bioOpen && bio && <BioModal bio={bio} onClose={onCloseBio} />}
       {lightboxOpen && info.coverArt && (
         <CoverLightbox
-          src={buildCoverArtUrl(info.coverArt, 2000)}
+          src={lightboxCoverSrc}
           alt={`${info.name} Cover`}
           onClose={() => setLightboxOpen(false)}
         />

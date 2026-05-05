@@ -89,7 +89,7 @@ function SongCard({ song, disableArtwork = false, artworkSize = 200 }: SongCardP
             src={coverUrl}
             cacheKey={coverCacheKey}
             alt={`${song.album} Cover`}
-            loading="lazy"
+            loading="eager"
             decoding="async"
           />
         ) : (
