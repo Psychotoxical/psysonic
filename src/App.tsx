@@ -106,6 +106,7 @@ import { usePreviewStore } from './store/previewStore';
 import { DEFAULT_IN_APP_BINDINGS, canRunShortcutActionInMiniWindow, executeCliPlayerCommand, executeRuntimeAction, isGlobalShortcutActionId, isShortcutAction } from './config/shortcutActions';
 import { matchInAppShortcutAction } from './shortcuts/runtime';
 import ZipDownloadOverlay from './components/ZipDownloadOverlay';
+import FpsOverlay from './components/FpsOverlay';
 import PasteClipboardHandler from './components/PasteClipboardHandler';
 import { usePerfProbeFlags } from './utils/perfFlags';
 
@@ -1328,6 +1329,7 @@ export default function App() {
         <MiniPlayer />
         <GlobalConfirmModal />
         {!perfFlags.disableTooltipPortal && <TooltipPortal />}
+        <FpsOverlay />
       </DragDropProvider>
     );
   }
@@ -1418,6 +1420,7 @@ export default function App() {
         </Suspense>
         {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
         <ZipDownloadOverlay />
+        <FpsOverlay />
       </BrowserRouter>
     </WindowVisibilityProvider>
   );

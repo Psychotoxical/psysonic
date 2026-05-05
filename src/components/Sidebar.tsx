@@ -1112,6 +1112,14 @@ export default function Sidebar({
             <p className="sidebar-perf-modal__hint">
               Temporary runtime switches to estimate UI effect cost.
             </p>
+            <label className="sidebar-perf-modal__item">
+              <input
+                type="checkbox"
+                checked={perfFlags.showFpsOverlay}
+                onChange={e => setPerfProbeFlag('showFpsOverlay', e.target.checked)}
+              />
+              <span>Show FPS overlay (requestAnimationFrame rate)</span>
+            </label>
             <div className="sidebar-perf-modal__cpu">
               <div className="sidebar-perf-modal__cpu-title">Live CPU (approx)</div>
               {perfCpu == null ? (
@@ -1242,7 +1250,7 @@ export default function Sidebar({
                 />
                 <span>Disable central route content mount</span>
               </label>
-              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested" open>
+              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested">
                 <summary className="sidebar-perf-modal__phase-title">Shared mainstage layers (multiple pages)</summary>
                 <label className="sidebar-perf-modal__item">
                   <input
@@ -1254,7 +1262,7 @@ export default function Sidebar({
                 </label>
               </details>
 
-              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested" open>
+              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested">
                 <summary className="sidebar-perf-modal__phase-title">Home (`/`)</summary>
                 <label className="sidebar-perf-modal__item">
                   <input
@@ -1346,7 +1354,7 @@ export default function Sidebar({
                 </label>
               </details>
 
-              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested" open>
+              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested">
                 <summary className="sidebar-perf-modal__phase-title">Tracks (`/tracks`)</summary>
                 <label className="sidebar-perf-modal__item">
                   <input
@@ -1390,7 +1398,7 @@ export default function Sidebar({
                 </label>
               </details>
 
-              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested" open>
+              <details className="sidebar-perf-modal__phase sidebar-perf-modal__phase--nested">
                 <summary className="sidebar-perf-modal__phase-title">Albums (`/albums`)</summary>
                 <label className="sidebar-perf-modal__item">
                   <input
@@ -1402,7 +1410,7 @@ export default function Sidebar({
                 </label>
               </details>
             </details>
-            <details className="sidebar-perf-modal__phase" open>
+            <details className="sidebar-perf-modal__phase">
               <summary className="sidebar-perf-modal__phase-title">Phase 3 — Active diagnostics (quick access)</summary>
               <label className="sidebar-perf-modal__item">
                 <input

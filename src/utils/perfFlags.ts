@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
 export type PerfProbeFlags = {
+  /** On-screen rAF-based FPS counter (Performance Probe). */
+  showFpsOverlay: boolean;
   disableWaveformCanvas: boolean;
   disablePlayerProgressUi: boolean;
   disableMarqueeScroll: boolean;
@@ -29,6 +31,7 @@ export type PerfProbeFlags = {
 const STORAGE_KEY = 'psysonic_perf_probe_flags_v1';
 
 const DEFAULT_FLAGS: PerfProbeFlags = {
+  showFpsOverlay: false,
   disableWaveformCanvas: false,
   disablePlayerProgressUi: false,
   disableMarqueeScroll: false,
