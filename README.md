@@ -1,5 +1,3 @@
-# Psysonic
-
 <div align="center">
   <img src="public/psysonic-inapp-logo.svg" alt="Psysonic Logo" width="320"/>
 

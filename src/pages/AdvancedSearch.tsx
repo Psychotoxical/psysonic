@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SlidersVertical } from 'lucide-react';
 import {
@@ -10,7 +10,9 @@ import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
 import SongRow, { SongListHeader } from '../components/SongRow';
 import CustomSelect from '../components/CustomSelect';
+import StarFilterButton from '../components/StarFilterButton';
 import { useAuthStore } from '../store/authStore';
+import { usePlayerStore } from '../store/playerStore';
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -37,10 +39,23 @@ export default function AdvancedSearch() {
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
   const [resultType, setResultType] = useState<ResultType>('all');
+  const [starredOnly, setStarredOnly] = useState(false);
   const [genres, setGenres] = useState<SubsonicGenre[]>([]);
   const [results, setResults] = useState<Results | null>(null);
-  const total = results
-    ? results.artists.length + results.albums.length + results.songs.length
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
+  const filteredResults = useMemo<Results | null>(() => {
+    if (!results) return null;
+    if (!starredOnly) return results;
+    const isFav = (id: string, base: boolean | string | undefined) =>
+      id in starredOverrides ? !!starredOverrides[id] : !!base;
+    return {
+      artists: results.artists.filter(a => isFav(a.id, a.starred)),
+      albums: results.albums.filter(a => isFav(a.id, a.starred)),
+      songs: results.songs.filter(s => isFav(s.id, s.starred)),
+    };
+  }, [results, starredOnly, starredOverrides]);
+  const total = filteredResults
+    ? filteredResults.artists.length + filteredResults.albums.length + filteredResults.songs.length
     : 0;
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -260,7 +275,7 @@ export default function AdvancedSearch() {
 
             {/* Row 3: Result type + Search button */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {typeOptions.map(opt => (
                   <button
                     key={opt.id}
@@ -272,6 +287,7 @@ export default function AdvancedSearch() {
                     {opt.label}
                   </button>
                 ))}
+                <StarFilterButton size="small" active={starredOnly} onChange={setStarredOnly} />
               </div>
               <button
                 className="btn btn-primary"
@@ -303,21 +319,21 @@ export default function AdvancedSearch() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
 
-          {results && results.artists.length > 0 && (
+          {filteredResults && filteredResults.artists.length > 0 && (
             <ArtistRow
-              title={`${t('search.artists')} (${results.artists.length})`}
-              artists={results.artists}
+              title={`${t('search.artists')} (${filteredResults.artists.length})`}
+              artists={filteredResults.artists}
             />
           )}
 
-          {results && results.albums.length > 0 && (
+          {filteredResults && filteredResults.albums.length > 0 && (
             <AlbumRow
-              title={`${t('search.albums')} (${results.albums.length})`}
-              albums={results.albums}
+              title={`${t('search.albums')} (${filteredResults.albums.length})`}
+              albums={filteredResults.albums}
             />
           )}
 
-          {results && results.songs.length > 0 && (
+          {filteredResults && filteredResults.songs.length > 0 && (
             <section>
               <h2 className="section-title" style={{ marginBottom: '0.75rem' }}>
                 {t('search.songs')}
@@ -328,7 +344,7 @@ export default function AdvancedSearch() {
                 )}
               </h2>
               <SongListHeader />
-              {results.songs.map(song => (
+              {filteredResults.songs.map(song => (
                 <SongRow key={song.id} song={song} />
               ))}
               {songsHasMore && (
