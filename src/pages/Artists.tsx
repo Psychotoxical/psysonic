@@ -8,6 +8,7 @@ import CachedImage from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
 import { usePerfProbeFlags } from '../utils/perfFlags';
 
 const ALL_SENTINEL = 'ALL';
@@ -220,6 +221,13 @@ export default function Artists() {
     return out;
   }, [viewMode, letters, groups]);
 
+  const mainScrollViewportHeight = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
+  /** Mixed row heights; smallest typical step ≈ artist row — one viewport of extra indices each side. */
+  const artistListOverscan = Math.max(
+    12,
+    Math.ceil(mainScrollViewportHeight / ARTIST_LIST_ROW_EST),
+  );
+
   const artistListVirtualizer = useVirtualizer({
     count:
       perfFlags.disableMainstageVirtualLists || viewMode !== 'list' ? 0 : artistListFlatRows.length,
@@ -237,7 +245,7 @@ export default function Artists() {
       if (row.kind === 'letter') return `letter:${row.letter}`;
       return `artist:${row.artist.id}`;
     },
-    overscan: 10,
+    overscan: artistListOverscan,
   });
 
   return (

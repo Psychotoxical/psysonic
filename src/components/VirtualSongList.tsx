@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useRefElementClientHeight } from '../hooks/useResizeClientHeight';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -43,6 +44,8 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
   const [browseUnsupported, setBrowseUnsupported] = useState(false);
 
   const scrollParentRef = useRef<HTMLDivElement>(null);
+  const scrollParentHeight = useRefElementClientHeight(scrollParentRef);
+  const songListOverscan = Math.max(8, Math.ceil(scrollParentHeight / ROW_HEIGHT));
   const requestSeqRef = useRef(0);
 
   // Debounce query
@@ -139,7 +142,7 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
     count: songs.length,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
+    overscan: songListOverscan,
   });
 
   const totalSize = virtualizer.getTotalSize();

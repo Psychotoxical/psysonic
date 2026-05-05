@@ -17,6 +17,7 @@ import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { CheckSquare2, Download, HardDriveDownload, ListMusic, Disc3, ListPlus } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
 import { usePerfProbeFlags } from '../utils/perfFlags';
 
 const ALBUM_GRID_GAP_PX = 16; // matches --space-4
@@ -105,11 +106,18 @@ export default function Albums() {
 
   const albumVirtualRowCount = Math.max(0, Math.ceil(visibleAlbums.length / albumGridCols));
 
+  const mainScrollViewportHeight = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
+  /** ~One full viewport of grid rows above + below visible range (TanStack overscan = rows per side). */
+  const albumGridOverscan = Math.max(
+    2,
+    Math.ceil(mainScrollViewportHeight / ALBUM_VIRTUAL_ROW_HEIGHT),
+  );
+
   const albumGridVirtualizer = useVirtualizer({
     count: perfFlags.disableMainstageVirtualLists ? 0 : albumVirtualRowCount,
     getScrollElement: () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
     estimateSize: () => ALBUM_VIRTUAL_ROW_HEIGHT,
-    overscan: 2,
+    overscan: albumGridOverscan,
   });
 
   const selectedAlbums = visibleAlbums.filter(a => selectedIds.has(a.id));
