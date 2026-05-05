@@ -14,6 +14,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few weeks of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
 
 
+## [1.46.0] - 2026-05-05
+
+## Changed
+
+### Dependencies — npm / Cargo refresh and rodio 0.22
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+
+* Bumped **frontend** and **Tauri / Rust** dependencies across the workspace (`package.json`, `package-lock.json`, `Cargo.toml`, `Cargo.lock`).
+* Playback stack migrated to **rodio 0.22** with corresponding updates in decode, sources, engine, device I/O and related modules.
+
+### Build — lazy-loaded routes and Vite chunk warnings
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+
+* Heavier app **routes** are loaded **lazily** so the initial JS bundle stays smaller (`App.tsx` and related entry wiring).
+* Restored **default Vite `chunkSizeWarningLimit`** behaviour so oversized chunks are reported again during production builds (`vite.config.ts`).
+
+## Fixed
+
+### Hot cache, HTTP streaming replay, and queue source indicator
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+
+* **`stream_completed_cache`** is **no longer cleared** on **`audio_stop`**, so a fully buffered ranged download is not thrown away when the queue ends; starting the same track again can reuse **RAM** or **hot-disk** data instead of running a full **HTTP ranged** fetch from scratch (when hot cache is enabled and promotion succeeds).
+* **Same-track `playTrack`** and **cold `resume`** after **`audio:ended`** (engine not in paused-loaded state) **await hot-cache promote** so `resolvePlaybackUrl` can switch to **`psysonic-local://`** before the next **`audio_play`**.
+* **Ranged HTTP** sources merge format hints from the URL tail, **`Content-Type`**, **`Content-Disposition`** filename, and Subsonic **`song.suffix`** (IPC **`streamFormatSuffix`**). A bounded **Range** probe runs only when hints are still missing. Generic **`video/mp4`** **Content-Type** is not treated as an audio-container hint.
+* **SQLite analysis:** skip redundant **CPU seeds** when **waveform and loudness** rows already exist; emit **`analysis:waveform-updated`** only after a real DB **upsert**, not on cache-hit no-ops. Ranged / legacy download tasks re-check **playback generation** after awaits before writing the completed-stream slot.
+* **Queue panel** source icon (**stream / hot cache / offline**) now updates on **resume**, **queue-undo restore**, and **gapless `audio:track_switched`**, not only when **`playTrack`** runs.
+* **TypeScript / robustness:** non-null **`activeServerId`** bindings for promote IPC; **`.catch`** on the same-track **promote → play** promise chain with generation guard and prefetch-reset on failure.
+
+### Sidebar — New Releases read state under storage cap
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+
+* When persisted “seen” release IDs hit the **500-id cap**, **fresh reads are merged** at the front of the capped set so **unread badges** do not come back incorrectly (`mergeSeenNewReleaseIdsCap`).
+
+### Windows — tray double-click
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
+
+* **Double-click** on the tray icon opens (or focuses) the main window without a spurious **context-menu** interaction; tray module import cleanup.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
