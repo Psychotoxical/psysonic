@@ -2803,24 +2803,38 @@ export default function Settings() {
               </div>
               {auth.discordRichPresence && (
                 <>
-                  <div className="settings-section-divider" />
-                  <div style={{ padding: '8px 0' }}>
-                    <div style={{ fontWeight: 500, marginBottom: 4 }}>{t('settings.discordCoverSource')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('settings.discordCoverSourceDesc')}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                        <input type="radio" name="discordCoverSource" value="none" checked={auth.discordCoverSource === 'none'} onChange={() => auth.setDiscordCoverSource('none')} />
-                        {t('settings.discordCoverNone')}
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                        <input type="radio" name="discordCoverSource" value="server" checked={auth.discordCoverSource === 'server'} onChange={() => auth.setDiscordCoverSource('server')} />
-                        {t('settings.discordCoverServer')}
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                        <input type="radio" name="discordCoverSource" value="apple" checked={auth.discordCoverSource === 'apple'} onChange={() => auth.setDiscordCoverSource('apple')} />
-                        {t('settings.discordCoverApple')}
-                      </label>
-                    </div>
+                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverNone')}</div>
+                    <label className="toggle-switch" aria-label={t('settings.discordCoverNone')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.discordCoverSource === 'none'}
+                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'none' : 'server')}
+                      />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverServer')}</div>
+                    <label className="toggle-switch" aria-label={t('settings.discordCoverServer')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.discordCoverSource === 'server'}
+                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'server' : 'none')}
+                      />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverApple')}</div>
+                    <label className="toggle-switch" aria-label={t('settings.discordCoverApple')}>
+                      <input
+                        type="checkbox"
+                        checked={auth.discordCoverSource === 'apple'}
+                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'apple' : 'none')}
+                      />
+                      <span className="toggle-track" />
+                    </label>
                   </div>
                   <div className="settings-section-divider" />
                   <div style={{ paddingTop: 8 }}>
@@ -2833,7 +2847,7 @@ export default function Settings() {
                         type="text"
                         value={auth.discordTemplateDetails}
                         onChange={e => auth.setDiscordTemplateDetails(e.target.value)}
-                        placeholder="{artist} - {title}"
+                        placeholder="{artist}"
                       />
                     </div>
                     <div className="form-group" style={{ marginBottom: '0.75rem' }}>
@@ -2843,7 +2857,7 @@ export default function Settings() {
                         type="text"
                         value={auth.discordTemplateState}
                         onChange={e => auth.setDiscordTemplateState(e.target.value)}
-                        placeholder="{album}"
+                        placeholder="{title}"
                       />
                     </div>
                     <div className="form-group">
