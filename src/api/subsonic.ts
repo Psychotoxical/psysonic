@@ -1053,6 +1053,23 @@ export function buildDownloadUrl(id: string): string {
   return `${baseUrl}/rest/download.view?${p.toString()}`;
 }
 
+// ─── Album Info (public image URLs from Last.fm/MusicBrainz) ──
+export interface AlbumInfo {
+  largeImageUrl?: string;
+  mediumImageUrl?: string;
+  smallImageUrl?: string;
+  notes?: string;
+}
+
+export async function getAlbumInfo2(albumId: string): Promise<AlbumInfo | null> {
+  try {
+    const data = await api<{ albumInfo: AlbumInfo }>('getAlbumInfo2.view', { id: albumId });
+    return data.albumInfo ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Playlists ────────────────────────────────────────────────
 export async function getPlaylists(includeOrbit = false): Promise<SubsonicPlaylist[]> {
   const data = await api<{ playlists: { playlist: SubsonicPlaylist[] } }>('getPlaylists.view', { _t: Date.now() });

@@ -2804,15 +2804,23 @@ export default function Settings() {
               {auth.discordRichPresence && (
                 <>
                   <div className="settings-section-divider" />
-                  <div className="settings-toggle-row">
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.discordAppleCovers')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordAppleCoversDesc')}</div>
+                  <div style={{ padding: '8px 0' }}>
+                    <div style={{ fontWeight: 500, marginBottom: 4 }}>{t('settings.discordCoverSource')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('settings.discordCoverSourceDesc')}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="radio" name="discordCoverSource" value="none" checked={auth.discordCoverSource === 'none'} onChange={() => auth.setDiscordCoverSource('none')} />
+                        {t('settings.discordCoverNone')}
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="radio" name="discordCoverSource" value="server" checked={auth.discordCoverSource === 'server'} onChange={() => auth.setDiscordCoverSource('server')} />
+                        {t('settings.discordCoverServer')}
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="radio" name="discordCoverSource" value="apple" checked={auth.discordCoverSource === 'apple'} onChange={() => auth.setDiscordCoverSource('apple')} />
+                        {t('settings.discordCoverApple')}
+                      </label>
                     </div>
-                    <label className="toggle-switch" aria-label={t('settings.discordAppleCovers')}>
-                      <input type="checkbox" checked={auth.enableAppleMusicCoversDiscord} onChange={e => auth.setEnableAppleMusicCoversDiscord(e.target.checked)} />
-                      <span className="toggle-track" />
-                    </label>
                   </div>
                   <div className="settings-section-divider" />
                   <div style={{ paddingTop: 8 }}>

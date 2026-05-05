@@ -26,6 +26,7 @@ export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thic
 export type LoggingMode = 'off' | 'normal' | 'debug';
 export type NormalizationEngine = 'off' | 'replaygain' | 'loudness';
 export type AnimationMode = 'full' | 'reduced' | 'static';
+export type DiscordCoverSource = 'none' | 'apple' | 'server';
 
 /** Integrated-loudness target presets (Settings + analysis). */
 export type LoudnessLufsPreset = -16 | -14 | -12 | -10;
@@ -136,7 +137,7 @@ interface AuthState {
    *  touch Orbit can hide it so the header stays uncluttered. */
   showOrbitTrigger: boolean;
   discordRichPresence: boolean;
-  enableAppleMusicCoversDiscord: boolean;
+  discordCoverSource: DiscordCoverSource;
   /** Opt-in: fetch upcoming tour dates from Bandsintown for the Now-Playing info panel. */
   enableBandsintown: boolean;
   discordTemplateDetails: string;
@@ -311,7 +312,7 @@ interface AuthState {
   setMinimizeToTray: (v: boolean) => void;
   setShowOrbitTrigger: (v: boolean) => void;
   setDiscordRichPresence: (v: boolean) => void;
-  setEnableAppleMusicCoversDiscord: (v: boolean) => void;
+  setDiscordCoverSource: (v: DiscordCoverSource) => void;
   setEnableBandsintown: (v: boolean) => void;
   setDiscordTemplateDetails: (v: string) => void;
   setDiscordTemplateState: (v: string) => void;
@@ -448,7 +449,7 @@ export const useAuthStore = create<AuthState>()(
       minimizeToTray: false,
       showOrbitTrigger: true,
       discordRichPresence: false,
-      enableAppleMusicCoversDiscord: false,
+      discordCoverSource: 'none',
       enableBandsintown: false,
       discordTemplateDetails: '{artist} - {title}',
       discordTemplateState: '{album}',
@@ -611,7 +612,7 @@ export const useAuthStore = create<AuthState>()(
       setMinimizeToTray: (v) => set({ minimizeToTray: v }),
       setShowOrbitTrigger: (v) => set({ showOrbitTrigger: v }),
       setDiscordRichPresence: (v) => set({ discordRichPresence: v }),
-      setEnableAppleMusicCoversDiscord: (v) => set({ enableAppleMusicCoversDiscord: v }),
+      setDiscordCoverSource: (v) => set({ discordCoverSource: v }),
       setEnableBandsintown: (v) => set({ enableBandsintown: v }),
       setDiscordTemplateDetails: (v) => set({ discordTemplateDetails: v }),
       setDiscordTemplateState: (v) => set({ discordTemplateState: v }),
@@ -864,6 +865,13 @@ export const useAuthStore = create<AuthState>()(
                   )
                 : DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB);
 
+        // Migrate enableAppleMusicCoversDiscord boolean → discordCoverSource enum.
+        let discordCoverSourceMigrated: { discordCoverSource?: DiscordCoverSource } = {};
+        const legacyAppleCovers = (state as { enableAppleMusicCoversDiscord?: unknown }).enableAppleMusicCoversDiscord;
+        if (legacyAppleCovers === true && (!state.discordCoverSource || state.discordCoverSource === 'none')) {
+          discordCoverSourceMigrated = { discordCoverSource: 'apple' };
+        }
+
         useAuthStore.setState({
           mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
           mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),
@@ -880,6 +888,7 @@ export const useAuthStore = create<AuthState>()(
           ...wheelSmoothOneTime,
           ...seekbarStyleMigrated,
           ...animationModeMigrated,
+          ...discordCoverSourceMigrated,
         });
       },
     }

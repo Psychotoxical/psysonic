@@ -739,8 +739,11 @@ export const ruTranslation = {
     discordRichPresence: 'Статус в Discord',
     discordRichPresenceDesc:
       'Показывать текущий трек в профиле и статусе Discord. Нужен запущенный клиент Discord.',
-    discordAppleCovers: 'Загружать обложки через Apple Music для Discord',
-    discordAppleCoversDesc: 'Отправляет имя исполнителя и альбома в Apple Music API для поиска обложки для профиля Discord. По умолчанию отключено из соображений конфиденциальности.',
+    discordCoverSource: 'Источник обложки',
+    discordCoverSourceDesc: 'Откуда загружать обложку альбома для профиля Discord.',
+    discordCoverNone: 'Нет (только иконка приложения)',
+    discordCoverServer: 'Сервер (через информацию об альбоме)',
+    discordCoverApple: 'Apple Music',
     discordOptions: 'Расширенные параметры Discord',
     discordTemplates: 'Пользовательские шаблоны текста',
     discordTemplatesDesc: 'Настройте, какая информация отображается в профиле Discord. Переменные: {title}, {artist}, {album}',
