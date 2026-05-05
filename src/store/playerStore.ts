@@ -2632,10 +2632,17 @@ export const usePlayerStore = create<PlayerState>()(
             track,
             hotPromoteSid,
             authState.hotCacheDownloadDir || null,
-          ).then(() => {
-            if (playGeneration !== gen) return;
-            runPlayTrackBody();
-          });
+          )
+            .then(() => {
+              if (playGeneration !== gen) return;
+              runPlayTrackBody();
+            })
+            .catch((err: unknown) => {
+              if (playGeneration !== gen) return;
+              setDeferHotCachePrefetch(false);
+              console.error('[psysonic] same-track hot promote / play body failed:', err);
+              set({ isPlaying: false });
+            });
         } else {
           runPlayTrackBody();
         }
