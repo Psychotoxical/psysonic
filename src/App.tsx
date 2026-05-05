@@ -15,38 +15,39 @@ import { WindowVisibilityProvider } from './hooks/useWindowVisibility';
 import LiveSearch from './components/LiveSearch';
 import NowPlayingDropdown from './components/NowPlayingDropdown';
 import QueuePanel from './components/QueuePanel';
-// Eager — main browsing flow, loaded on first paint
-import Home from './pages/Home';
-import Albums from './pages/Albums';
-import Artists from './pages/Artists';
-import ArtistDetail from './pages/ArtistDetail';
-import NewReleases from './pages/NewReleases';
-import Favorites from './pages/Favorites';
-import RandomMix from './pages/RandomMix';
-import RandomLanding from './pages/RandomLanding';
-import Login from './pages/Login';
-import AlbumDetail from './pages/AlbumDetail';
-import MostPlayed from './pages/MostPlayed';
-import RandomAlbums from './pages/RandomAlbums';
-import LuckyMixPage from './pages/LuckyMix';
-import SearchResults from './pages/SearchResults';
-import Playlists from './pages/Playlists';
-import PlaylistDetail from './pages/PlaylistDetail';
-import NowPlayingPage from './pages/NowPlaying';
 
-// Lazy — visited rarely or on-demand. Each becomes its own chunk so the
-// initial bundle stays smaller and these pages don't block first paint.
-const Settings       = lazy(() => import('./pages/Settings'));
-const Statistics     = lazy(() => import('./pages/Statistics'));
-const Help           = lazy(() => import('./pages/Help'));
-const WhatsNew       = lazy(() => import('./pages/WhatsNew'));
-const DeviceSync     = lazy(() => import('./pages/DeviceSync'));
+// Route-level lazy loading: keeps the non-page graph (shell, player, stores) in
+// the entry chunk; each page is fetched when its route is first visited.
+const Home = lazy(() => import('./pages/Home'));
+const Albums = lazy(() => import('./pages/Albums'));
+const Artists = lazy(() => import('./pages/Artists'));
+const ArtistDetail = lazy(() => import('./pages/ArtistDetail'));
+const NewReleases = lazy(() => import('./pages/NewReleases'));
+const Favorites = lazy(() => import('./pages/Favorites'));
+const RandomMix = lazy(() => import('./pages/RandomMix'));
+const RandomLanding = lazy(() => import('./pages/RandomLanding'));
+const Login = lazy(() => import('./pages/Login'));
+const AlbumDetail = lazy(() => import('./pages/AlbumDetail'));
+const MostPlayed = lazy(() => import('./pages/MostPlayed'));
+const RandomAlbums = lazy(() => import('./pages/RandomAlbums'));
+const LuckyMixPage = lazy(() => import('./pages/LuckyMix'));
+const SearchResults = lazy(() => import('./pages/SearchResults'));
+const Playlists = lazy(() => import('./pages/Playlists'));
+const PlaylistDetail = lazy(() => import('./pages/PlaylistDetail'));
+const NowPlayingPage = lazy(() => import('./pages/NowPlaying'));
+const Tracks = lazy(() => import('./pages/Tracks'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Statistics = lazy(() => import('./pages/Statistics'));
+const Help = lazy(() => import('./pages/Help'));
+const WhatsNew = lazy(() => import('./pages/WhatsNew'));
+const DeviceSync = lazy(() => import('./pages/DeviceSync'));
 const OfflineLibrary = lazy(() => import('./pages/OfflineLibrary'));
-const LabelAlbums    = lazy(() => import('./pages/LabelAlbums'));
+const LabelAlbums = lazy(() => import('./pages/LabelAlbums'));
 const AdvancedSearch = lazy(() => import('./pages/AdvancedSearch'));
-const FolderBrowser  = lazy(() => import('./pages/FolderBrowser'));
-const InternetRadio  = lazy(() => import('./pages/InternetRadio'));
-const Tracks         = lazy(() => import('./pages/Tracks'));
+const FolderBrowser = lazy(() => import('./pages/FolderBrowser'));
+const InternetRadio = lazy(() => import('./pages/InternetRadio'));
+const Genres = lazy(() => import('./pages/Genres'));
+const GenreDetail = lazy(() => import('./pages/GenreDetail'));
 import MiniPlayer from './components/MiniPlayer';
 import { initMiniPlayerBridgeOnMain } from './utils/miniPlayerBridge';
 import FullscreenPlayer from './components/FullscreenPlayer';
@@ -63,8 +64,6 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID } from './constants/appScroll';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import LastfmIndicator from './components/LastfmIndicator';
 import OfflineBanner from './components/OfflineBanner';
-import Genres from './pages/Genres';
-import GenreDetail from './pages/GenreDetail';
 import ExportPickerModal from './components/ExportPickerModal';
 import AppUpdater from './components/AppUpdater';
 import TitleBar from './components/TitleBar';
@@ -1402,19 +1401,21 @@ export default function App() {
       <BrowserRouter>
         <PasteClipboardHandler />
         <TauriEventBridge />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/*"
-            element={
-              <RequireAuth>
-                <DragDropProvider>
-                  <AppShell />
-                </DragDropProvider>
-              </RequireAuth>
-            }
-          />
-        </Routes>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <DragDropProvider>
+                    <AppShell />
+                  </DragDropProvider>
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </Suspense>
         {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
         <ZipDownloadOverlay />
       </BrowserRouter>

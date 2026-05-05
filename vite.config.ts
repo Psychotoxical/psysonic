@@ -27,7 +27,6 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome109" : "safari16",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
-    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
         // Vendor chunks isolate dependencies that change rarely from app code,
