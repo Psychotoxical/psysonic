@@ -5,13 +5,13 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
-use rodio::Sink;
+use rodio::Player;
 use tauri::{AppHandle, Manager};
 
 use super::state::{ChainedInfo, PreloadedTrack};
 
 pub struct AudioEngine {
-    pub stream_handle: Arc<std::sync::Mutex<rodio::OutputStreamHandle>>,
+    pub stream_handle: Arc<std::sync::Mutex<Arc<rodio::MixerDeviceSink>>>,
     /// Sample rate the output stream was last opened at (updated on every re-open).
     pub stream_sample_rate: Arc<AtomicU32>,
     /// The rate the device was opened at on cold start — used to restore the
@@ -19,7 +19,7 @@ pub struct AudioEngine {
     pub device_default_rate: u32,
     /// Sends `(desired_rate, is_hi_res, device_name, reply_tx)` to the audio-stream
     /// thread to re-open the output device. `device_name = None` → system default.
-    pub stream_reopen_tx: std::sync::mpsc::SyncSender<(u32, bool, Option<String>, std::sync::mpsc::SyncSender<rodio::OutputStreamHandle>)>,
+    pub stream_reopen_tx: std::sync::mpsc::SyncSender<(u32, bool, Option<String>, std::sync::mpsc::SyncSender<Arc<rodio::MixerDeviceSink>>)>,
     /// User-selected output device name (None = follow system default).
     pub selected_device: Arc<Mutex<Option<String>>>,
     pub current: Arc<Mutex<AudioCurrent>>,
@@ -40,7 +40,7 @@ pub struct AudioEngine {
     pub(crate) current_is_seekable: Arc<AtomicBool>,
     pub crossfade_enabled: Arc<AtomicBool>,
     pub crossfade_secs: Arc<AtomicU32>,
-    pub fading_out_sink: Arc<Mutex<Option<Arc<Sink>>>>,
+    pub fading_out_sink: Arc<Mutex<Option<Arc<Player>>>>,
     /// When true, audio_play chains sources to the existing Sink instead of
     /// creating a new one, achieving sample-accurate gapless transitions.
     pub gapless_enabled: Arc<AtomicBool>,
@@ -82,7 +82,7 @@ pub struct AudioEngine {
     /// Secondary sink dedicated to track previews. Runs on the same `OutputStream`
     /// as the main sink (rodio mixes both internally) so we don't open a second
     /// device handle — important on ALSA-exclusive hardware.
-    pub(crate) preview_sink: Arc<Mutex<Option<Arc<Sink>>>>,
+    pub(crate) preview_sink: Arc<Mutex<Option<Arc<Player>>>>,
     /// Cancel token for the active preview. Bumped on every `audio_preview_play`
     /// and `audio_preview_stop` so that orphan timer/progress tasks bail out.
     pub(crate) preview_gen: Arc<AtomicU64>,
@@ -95,7 +95,7 @@ pub struct AudioEngine {
 }
 
 pub struct AudioCurrent {
-    pub sink: Option<Arc<Sink>>,
+    pub sink: Option<Arc<Player>>,
     pub duration_secs: f64,
     pub seek_offset: f64,
     pub play_started: Option<Instant>,
@@ -133,8 +133,8 @@ impl AudioCurrent {
 ///   3. Device default.
 ///   4. System default (last resort).
 ///
-/// Returns `(OutputStream, OutputStreamHandle, actual_sample_rate)`.
-fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32) -> (rodio::OutputStream, rodio::OutputStreamHandle, u32) {
+/// Returns `(stream_handle, actual_sample_rate)`.
+fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32) -> (Arc<rodio::MixerDeviceSink>, u32) {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
 
     // Suppress ALSA stderr noise while enumerating devices on Unix.
@@ -163,7 +163,13 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
     // `find_by_name` returns None and we drop through to `default_output_device`
     // unchanged — no regression.
     let find_by_name = |name: &str| -> Option<_> {
-        host.output_devices().ok()?.find(|d| d.name().ok().as_deref() == Some(name))
+        host.output_devices().ok()?.find(|d| {
+            d.description()
+                .ok()
+                .map(|desc| desc.name().to_string())
+                .as_deref()
+                == Some(name)
+        })
     };
 
     let device = device_name
@@ -184,64 +190,60 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                 // 1. Exact rate match — prefer more channels (stereo > mono).
                 let exact = configs.iter()
                     .filter(|c| {
-                        c.min_sample_rate().0 <= desired_rate
-                            && desired_rate <= c.max_sample_rate().0
+                        c.min_sample_rate() <= desired_rate
+                            && desired_rate <= c.max_sample_rate()
                     })
                     .max_by_key(|c| c.channels());
 
-                if let Some(cfg) = exact {
-                    let config = cfg.clone()
-                        .with_sample_rate(rodio::cpal::SampleRate(desired_rate));
-                    if let Ok((stream, handle)) =
-                        rodio::OutputStream::try_from_device_config(&device, config)
+                if exact.is_some() {
+                    if let Ok(handle) = rodio::DeviceSinkBuilder::from_device(device.clone())
+                        .and_then(|b| b.with_sample_rate(std::num::NonZeroU32::new(desired_rate).unwrap_or(std::num::NonZeroU32::MIN)).open_stream())
                     {
                         crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (exact)", desired_rate);
-                        return (stream, handle, desired_rate);
+                        return (Arc::new(handle), desired_rate);
                     }
                 }
 
                 // 2. No exact match — use the highest supported rate.
                 let best = configs.iter()
-                    .max_by_key(|c| c.max_sample_rate().0);
+                    .max_by_key(|c| c.max_sample_rate());
 
                 if let Some(cfg) = best {
-                    let rate = cfg.max_sample_rate().0;
-                    let config = cfg.clone()
-                        .with_sample_rate(rodio::cpal::SampleRate(rate));
-                    if let Ok((stream, handle)) =
-                        rodio::OutputStream::try_from_device_config(&device, config)
+                    let rate = cfg.max_sample_rate();
+                    if let Ok(handle) = rodio::DeviceSinkBuilder::from_device(device.clone())
+                        .and_then(|b| b.with_sample_rate(std::num::NonZeroU32::new(rate).unwrap_or(std::num::NonZeroU32::MIN)).open_stream())
                     {
                         crate::app_eprintln!(
                             "[psysonic] audio stream opened at {} Hz (highest, wanted {})",
                             rate, desired_rate
                         );
-                        return (stream, handle, rate);
+                        return (Arc::new(handle), rate);
                     }
                 }
             }
         }
 
         // 3. Device default.
-        if let Ok((stream, handle)) = rodio::OutputStream::try_from_device(&device) {
+        if let Ok(handle) = rodio::DeviceSinkBuilder::from_device(device.clone()).and_then(|b| b.open_stream()) {
             let rate = device
                 .default_output_config()
-                .map(|c| c.sample_rate().0)
+                .map(|c| c.sample_rate())
                 .unwrap_or(44100);
             crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (device default)", rate);
-            return (stream, handle, rate);
+            return (Arc::new(handle), rate);
         }
     }
 
     // 4. Last resort: system default.
     crate::app_eprintln!("[psysonic] audio stream falling back to system default");
-    let (stream, handle) = rodio::OutputStream::try_default()
+    let handle = rodio::DeviceSinkBuilder::open_default_sink()
         .expect("cannot open any audio output device");
     let rate = rodio::cpal::default_host()
         .default_output_device()
         .and_then(|d| d.default_output_config().ok())
-        .map(|c| c.sample_rate().0)
+        .map(|c| c.sample_rate())
         .unwrap_or(44100);
-    (stream, handle, rate)
+    (Arc::new(handle), rate)
 }
 
 pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
@@ -254,12 +256,12 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
     }
 
     // Channels: main thread ←→ audio-stream thread.
-    //   init_tx/rx : (OutputStreamHandle, actual_rate) sent once at startup.
+    //   init_tx/rx : (Arc<rodio::MixerDeviceSink>, actual_rate) sent once at startup.
     //   reopen_tx/rx: (desired_rate, reply_tx) — triggers a stream re-open.
     let (init_tx, init_rx) =
-        std::sync::mpsc::sync_channel::<(rodio::OutputStreamHandle, u32)>(0);
+        std::sync::mpsc::sync_channel::<(Arc<rodio::MixerDeviceSink>, u32)>(0);
     let (reopen_tx, reopen_rx) =
-        std::sync::mpsc::sync_channel::<(u32, bool, Option<String>, std::sync::mpsc::SyncSender<rodio::OutputStreamHandle>)>(4);
+        std::sync::mpsc::sync_channel::<(u32, bool, Option<String>, std::sync::mpsc::SyncSender<Arc<rodio::MixerDeviceSink>>)>(4);
 
     let thread = std::thread::Builder::new()
         .name("psysonic-audio-stream".into())
@@ -280,7 +282,8 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             // Thread priority is kept at default during standard-mode playback.
             // It is escalated to Max only when a Hi-Res stream reopen is requested,
             // to prevent PipeWire underruns at high quantum sizes (8192 frames).
-            let (mut _stream, handle, rate) = open_stream_for_device_and_rate(None, 0);
+            let (mut _stream, rate) = open_stream_for_device_and_rate(None, 0);
+            let handle = _stream.clone();
             init_tx.send((handle, rate)).ok();
 
             // Keep the stream alive and handle sample-rate / device-switch requests.
@@ -310,7 +313,8 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
                     std::env::set_var("PULSE_LATENCY_MSEC", latency_ms.to_string());
                 }
 
-                let (new_stream, new_handle, _actual) = open_stream_for_device_and_rate(device_name.as_deref(), desired_rate);
+                let (new_stream, _actual) = open_stream_for_device_and_rate(device_name.as_deref(), desired_rate);
+                let new_handle = new_stream.clone();
                 _stream = new_stream;
                 reply_tx.send(new_handle).ok();
             }

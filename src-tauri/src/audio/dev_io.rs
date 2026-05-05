@@ -33,7 +33,10 @@ pub(crate) fn enumerate_output_device_names() -> Vec<String> {
     with_suppressed_alsa_stderr(|| {
         let host = rodio::cpal::default_host();
         host.output_devices()
-            .map(|iter| iter.filter_map(|d| d.name().ok()).collect())
+            .map(|iter| {
+                iter.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string()))
+                    .collect()
+            })
             .unwrap_or_default()
     })
 }

@@ -24,26 +24,35 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
-    target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
+    target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome109" : "safari16",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
         // Vendor chunks isolate dependencies that change rarely from app code,
         // so a normal app update doesn't invalidate the cached vendor bundles
         // (helps especially with the Tauri updater pulling deltas).
-        manualChunks: {
-          react: ["react", "react-dom", "react-router-dom"],
-          tauri: [
-            "@tauri-apps/api",
-            "@tauri-apps/plugin-shell",
-            "@tauri-apps/plugin-dialog",
-            "@tauri-apps/plugin-fs",
-            "@tauri-apps/plugin-process",
-            "@tauri-apps/plugin-store",
-            "@tauri-apps/plugin-updater",
-          ],
-          i18n: ["i18next", "react-i18next"],
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-router-dom/")) {
+            return "react";
+          }
+          if (
+            id.includes("/@tauri-apps/api/") ||
+            id.includes("/@tauri-apps/plugin-shell/") ||
+            id.includes("/@tauri-apps/plugin-dialog/") ||
+            id.includes("/@tauri-apps/plugin-fs/") ||
+            id.includes("/@tauri-apps/plugin-process/") ||
+            id.includes("/@tauri-apps/plugin-store/") ||
+            id.includes("/@tauri-apps/plugin-updater/")
+          ) {
+            return "tauri";
+          }
+          if (id.includes("/i18next/") || id.includes("/react-i18next/")) {
+            return "i18n";
+          }
+          return undefined;
         },
       },
     },

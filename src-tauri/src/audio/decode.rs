@@ -104,7 +104,7 @@ pub(crate) struct SizedDecoder {
     current_frame_offset: usize,
     format: Box<dyn FormatReader>,
     total_duration: Option<Time>,
-    buffer: SampleBuffer<i16>,
+    buffer: SampleBuffer<f32>,
     spec: SignalSpec,
     /// Counts consecutive DecodeErrors in the hot-path. Reset to 0 on every
     /// successfully decoded frame. Used to detect fully undecodable streams.
@@ -297,9 +297,9 @@ impl SizedDecoder {
     }
 
     #[inline]
-    fn make_buffer(decoded: AudioBufferRef, spec: &SignalSpec) -> SampleBuffer<i16> {
+    fn make_buffer(decoded: AudioBufferRef, spec: &SignalSpec) -> SampleBuffer<f32> {
         let duration = units::Duration::from(decoded.capacity() as u64);
-        let mut buffer = SampleBuffer::<i16>::new(duration, *spec);
+        let mut buffer = SampleBuffer::<f32>::new(duration, *spec);
         buffer.copy_interleaved_ref(decoded);
         buffer
     }
@@ -338,10 +338,10 @@ impl SizedDecoder {
 }
 
 impl Iterator for SizedDecoder {
-    type Item = i16;
+    type Item = f32;
 
     #[inline]
-    fn next(&mut self) -> Option<i16> {
+    fn next(&mut self) -> Option<f32> {
         if self.current_frame_offset >= self.buffer.len() {
             // Loop until a decodable packet is found or the stream ends.
             // DecodeErrors (e.g. MP3 "invalid main_data offset") are non-fatal:
@@ -392,18 +392,19 @@ impl Iterator for SizedDecoder {
 
 impl Source for SizedDecoder {
     #[inline]
-    fn current_frame_len(&self) -> Option<usize> {
+    fn current_span_len(&self) -> Option<usize> {
         Some(self.buffer.samples().len())
     }
 
     #[inline]
-    fn channels(&self) -> u16 {
-        self.spec.channels.count() as u16
+    fn channels(&self) -> rodio::ChannelCount {
+        std::num::NonZeroU16::new(self.spec.channels.count() as u16)
+            .unwrap_or(std::num::NonZeroU16::MIN)
     }
 
     #[inline]
-    fn sample_rate(&self) -> u32 {
-        self.spec.rate
+    fn sample_rate(&self) -> rodio::SampleRate {
+        std::num::NonZeroU32::new(self.spec.rate).unwrap_or(std::num::NonZeroU32::MIN)
     }
 
     #[inline]
@@ -432,18 +433,18 @@ impl Source for SizedDecoder {
             pos.as_secs_f64().into()
         };
 
-        let to_skip = self.current_frame_offset % self.channels() as usize;
+        let to_skip = self.current_frame_offset % self.channels().get() as usize;
 
         let seek_res = self
             .format
             .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: None })
             .map_err(|e| rodio::source::SeekError::Other(
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                std::sync::Arc::new(std::io::Error::other(e.to_string()))
             ))?;
 
         self.refine_position(seek_res)
             .map_err(|e| rodio::source::SeekError::Other(
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
+                std::sync::Arc::new(std::io::Error::other(e))
             ))?;
 
         self.current_frame_offset += to_skip;
@@ -573,35 +574,47 @@ pub(crate) fn build_source(
     // then resample to the canonical target rate if needed.
     let dyn_src: DynSource = if gapless.delay_samples > 0 || gapless.total_valid_samples.is_some() {
         let delay_dur = Duration::from_secs_f64(
-            gapless.delay_samples as f64 / sample_rate as f64
+            gapless.delay_samples as f64 / sample_rate.get() as f64
         );
-        let base = decoder.convert_samples::<f32>().skip_duration(delay_dur);
+        let base = decoder.skip_duration(delay_dur);
 
         if let Some(total) = gapless.total_valid_samples {
-            let valid_dur = Duration::from_secs_f64(total as f64 / sample_rate as f64);
+            let valid_dur = Duration::from_secs_f64(total as f64 / sample_rate.get() as f64);
             let trimmed = base.take_duration(valid_dur);
-            if target_rate > 0 && sample_rate != target_rate {
-                DynSource::new(UniformSourceIterator::new(trimmed, channels, target_rate))
+            if target_rate > 0 && sample_rate.get() != target_rate {
+                DynSource::new(UniformSourceIterator::new(
+                    trimmed,
+                    channels,
+                    std::num::NonZeroU32::new(target_rate).unwrap_or(std::num::NonZeroU32::MIN),
+                ))
             } else {
                 DynSource::new(trimmed)
             }
         } else {
-            if target_rate > 0 && sample_rate != target_rate {
-                DynSource::new(UniformSourceIterator::new(base, channels, target_rate))
+            if target_rate > 0 && sample_rate.get() != target_rate {
+                DynSource::new(UniformSourceIterator::new(
+                    base,
+                    channels,
+                    std::num::NonZeroU32::new(target_rate).unwrap_or(std::num::NonZeroU32::MIN),
+                ))
             } else {
                 DynSource::new(base)
             }
         }
     } else {
-        let converted = decoder.convert_samples::<f32>();
-        if target_rate > 0 && sample_rate != target_rate {
-            DynSource::new(UniformSourceIterator::new(converted, channels, target_rate))
+        let converted = decoder;
+        if target_rate > 0 && sample_rate.get() != target_rate {
+            DynSource::new(UniformSourceIterator::new(
+                converted,
+                channels,
+                std::num::NonZeroU32::new(target_rate).unwrap_or(std::num::NonZeroU32::MIN),
+            ))
         } else {
             DynSource::new(converted)
         }
     };
 
-    let output_rate = if target_rate > 0 && sample_rate != target_rate { target_rate } else { sample_rate };
+    let output_rate = if target_rate > 0 && sample_rate.get() != target_rate { target_rate } else { sample_rate.get() };
 
     let fadeout_trigger = Arc::new(AtomicBool::new(false));
     let fadeout_samples = Arc::new(AtomicU64::new(0));
@@ -617,7 +630,7 @@ pub(crate) fn build_source(
         source: boosted,
         duration_secs: effective_dur,
         output_rate,
-        output_channels: channels,
+        output_channels: channels.get(),
         fadeout_trigger,
         fadeout_samples,
     })
@@ -650,17 +663,21 @@ pub(crate) fn build_streaming_source(
             .unwrap_or(duration_hint)
     };
 
-    let converted = decoder.convert_samples::<f32>();
-    let dyn_src: DynSource = if target_rate > 0 && sample_rate != target_rate {
-        DynSource::new(UniformSourceIterator::new(converted, channels, target_rate))
+    let converted = decoder;
+    let dyn_src: DynSource = if target_rate > 0 && sample_rate.get() != target_rate {
+        DynSource::new(UniformSourceIterator::new(
+            converted,
+            channels,
+            std::num::NonZeroU32::new(target_rate).unwrap_or(std::num::NonZeroU32::MIN),
+        ))
     } else {
         DynSource::new(converted)
     };
 
-    let output_rate = if target_rate > 0 && sample_rate != target_rate {
+    let output_rate = if target_rate > 0 && sample_rate.get() != target_rate {
         target_rate
     } else {
-        sample_rate
+        sample_rate.get()
     };
 
     let fadeout_trigger = Arc::new(AtomicBool::new(false));
@@ -677,7 +694,7 @@ pub(crate) fn build_streaming_source(
         source: boosted,
         duration_secs: effective_dur,
         output_rate,
-        output_channels: channels,
+        output_channels: channels.get(),
         fadeout_trigger,
         fadeout_samples,
     })

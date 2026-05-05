@@ -1,5 +1,6 @@
 //! Poll default output device and pinned-device presence; reopen stream when needed.
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::Emitter;
@@ -21,7 +22,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
             use rodio::cpal::traits::{DeviceTrait, HostTrait};
             rodio::cpal::default_host()
                 .default_output_device()
-                .and_then(|d| d.name().ok())
+                .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()))
         }).await.unwrap_or(None);
 
         // macOS/Windows: consecutive polls where a pinned device is absent from cpal's list.
@@ -48,10 +49,15 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     StderrGuard(saved)
                 };
                 let host = rodio::cpal::default_host();
-                let default = host.default_output_device().and_then(|d| d.name().ok());
+                let default = host
+                    .default_output_device()
+                    .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()));
                 let available: Vec<String> = host
                     .output_devices()
-                    .map(|iter| iter.filter_map(|d| d.name().ok()).collect())
+                    .map(|iter| {
+                        iter.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 (default, available)
             }).await.unwrap_or((None, vec![]));
@@ -94,7 +100,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     let reopen_tx2 = reopen_tx.clone();
                     let new_handle = tauri::async_runtime::spawn_blocking(move || {
                         let (reply_tx, reply_rx) =
-                            std::sync::mpsc::sync_channel::<rodio::OutputStreamHandle>(0);
+                            std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
                         if reopen_tx2.send((rate, false, None, reply_tx)).is_err() {
                             return None;
                         }
@@ -131,7 +137,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
             let reopen_tx2 = reopen_tx.clone();
             let new_handle = tauri::async_runtime::spawn_blocking(move || {
                 let (reply_tx, reply_rx) =
-                    std::sync::mpsc::sync_channel::<rodio::OutputStreamHandle>(0);
+                    std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
                 if reopen_tx2.send((rate, false, None, reply_tx)).is_err() {
                     return None;
                 }

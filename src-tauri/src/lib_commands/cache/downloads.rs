@@ -252,16 +252,18 @@ pub(crate) fn get_embedded_lyrics(path: String) -> Option<String> {
 
     // ── FLAC / Vorbis / Opus / M4A: generic lofty tag API ────────────────────
     // Vorbis SYNCEDLYRICS stores a complete LRC string in a plain comment field.
-    // It is not a known lofty ItemKey, so access it via ItemKey::Unknown.
+    // In newer lofty versions, construct dynamic keys via ItemKey::from_key.
     let tagged = probe.read().ok()?;
     for tag in tagged.tags() {
-        if let Some(lrc) = tag.get_string(&ItemKey::Unknown("SYNCEDLYRICS".to_owned())) {
-            let lrc = lrc.trim();
-            if !lrc.is_empty() {
-                return Some(lrc.to_owned());
+        if let Some(sync_key) = ItemKey::from_key(tag.tag_type(), "SYNCEDLYRICS") {
+            if let Some(lrc) = tag.get_string(sync_key) {
+                let lrc = lrc.trim();
+                if !lrc.is_empty() {
+                    return Some(lrc.to_owned());
+                }
             }
         }
-        if let Some(plain) = tag.get_string(&ItemKey::Lyrics) {
+        if let Some(plain) = tag.get_string(ItemKey::Lyrics) {
             let plain = plain.trim();
             if !plain.is_empty() {
                 return Some(plain.to_owned());

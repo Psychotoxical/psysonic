@@ -215,14 +215,7 @@ fn cache_and_return(
 /// logged so the renderer's terminal output shows exactly where the
 /// connection breaks. Release builds stay completely silent.
 fn try_connect() -> Option<DiscordIpcClient> {
-    let mut client = match DiscordIpcClient::new(DISCORD_APP_ID) {
-        Ok(c) => c,
-        Err(_e) => {
-            #[cfg(debug_assertions)]
-            crate::app_eprintln!("[discord] new() failed (app_id={}): {}", DISCORD_APP_ID, _e);
-            return None;
-        }
-    };
+    let mut client = DiscordIpcClient::new(DISCORD_APP_ID);
     if let Err(_e) = client.connect() {
         #[cfg(debug_assertions)]
         crate::app_eprintln!("[discord] connect() failed: {} (Discord desktop running?)", _e);

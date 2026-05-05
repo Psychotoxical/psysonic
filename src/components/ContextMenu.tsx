@@ -277,9 +277,7 @@ function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId }: { albumIds
   }, [albumIds]);
 
   const handleAddWithToast = async (pl: SubsonicPlaylist, songIds: string[]) => {
-    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');
-    const { usePlaylistStore } = await import('../store/playlistStore');
-    const { showToast } = await import('../utils/toast');
+    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');    const { showToast } = await import('../utils/toast');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
@@ -341,9 +339,7 @@ function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId }: { albumIds
   };
 
   const handleCreateWithToast = async (songIds: string[]) => {
-    const { createPlaylist } = await import('../api/subsonic');
-    const { usePlaylistStore } = await import('../store/playlistStore');
-    const { showToast } = await import('../utils/toast');
+    const { createPlaylist } = await import('../api/subsonic');    const { showToast } = await import('../utils/toast');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
@@ -408,9 +404,7 @@ function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId }: { albumIds
       try {
         const { createPlaylist } = await import('../api/subsonic');
         const pl = await createPlaylist(name, songIds);
-        if (pl?.id) {
-          const { usePlaylistStore } = await import('../store/playlistStore');
-          usePlaylistStore.getState().touchPlaylist(pl.id);
+        if (pl?.id) {          usePlaylistStore.getState().touchPlaylist(pl.id);
           showToast(
             t('playlists.createAndAddSuccess', { count: songIds.length, playlist: pl.name || name }),
             3000,
@@ -521,9 +515,7 @@ function MultiArtistToPlaylistSubmenu({ artistIds, onDone, triggerId }: { artist
   }, [artistIds]);
 
   const handleAddWithToast = async (pl: SubsonicPlaylist, songIds: string[]) => {
-    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');
-    const { usePlaylistStore } = await import('../store/playlistStore');
-    const { showToast } = await import('../utils/toast');
+    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');    const { showToast } = await import('../utils/toast');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
@@ -627,9 +619,7 @@ function MultiArtistToPlaylistSubmenu({ artistIds, onDone, triggerId }: { artist
       try {
         const { createPlaylist } = await import('../api/subsonic');
         const pl = await createPlaylist(name, songIds);
-        if (pl?.id) {
-          const { usePlaylistStore } = await import('../store/playlistStore');
-          usePlaylistStore.getState().touchPlaylist(pl.id);
+        if (pl?.id) {          usePlaylistStore.getState().touchPlaylist(pl.id);
           showToast(
             t('playlists.createAndAddSuccess', { count: songIds.length, playlist: pl.name || name }),
             3000,
@@ -761,9 +751,7 @@ function SinglePlaylistToPlaylistSubmenu({ playlist, onDone, triggerId }: { play
   };
 
   const handleAddToNewPlaylist = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');
-    const { usePlaylistStore } = await import('../store/playlistStore');
-    const { showToast } = await import('../utils/toast');
+    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');    const { showToast } = await import('../utils/toast');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
@@ -781,9 +769,7 @@ function SinglePlaylistToPlaylistSubmenu({ playlist, onDone, triggerId }: { play
   };
 
   const handleAdd = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');
-    const { usePlaylistStore } = await import('../store/playlistStore');
-    const { showToast } = await import('../utils/toast');
+    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');    const { showToast } = await import('../utils/toast');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
@@ -909,9 +895,7 @@ function MultiPlaylistToPlaylistSubmenu({ playlists, onDone, triggerId }: { play
   };
 
   const handleMergeToNewPlaylist = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');
-    const { usePlaylistStore } = await import('../store/playlistStore');
-    const { showToast } = await import('../utils/toast');
+    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');    const { showToast } = await import('../utils/toast');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
@@ -940,9 +924,7 @@ function MultiPlaylistToPlaylistSubmenu({ playlists, onDone, triggerId }: { play
   };
 
   const handleMerge = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');
-    const { usePlaylistStore } = await import('../store/playlistStore');
-    const { showToast } = await import('../utils/toast');
+    const { getPlaylist, updatePlaylist } = await import('../api/subsonic');    const { showToast } = await import('../utils/toast');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
@@ -1672,9 +1654,7 @@ export default function ContextMenu() {
               </div>
               {playlistId && playlistSongIndex !== undefined && (
                 <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
-                  const { getPlaylist, updatePlaylist } = await import('../api/subsonic');
-                  const { usePlaylistStore } = await import('../store/playlistStore');
-                  const { showToast } = await import('../utils/toast');
+                  const { getPlaylist, updatePlaylist } = await import('../api/subsonic');                  const { showToast } = await import('../utils/toast');
                   const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
                   try {
                     const { songs } = await getPlaylist(playlistId);
@@ -1930,9 +1910,7 @@ export default function ContextMenu() {
               <div className="context-menu-divider" />
               <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
                 const { showToast } = await import('../utils/toast');
-                const { deletePlaylist } = await import('../api/subsonic');
-                const { usePlaylistStore } = await import('../store/playlistStore');
-                const { removeId } = usePlaylistStore.getState();
+                const { deletePlaylist } = await import('../api/subsonic');                const { removeId } = usePlaylistStore.getState();
                 try {
                   await deletePlaylist(playlist.id);
                   removeId(playlist.id);
@@ -2144,9 +2122,7 @@ export default function ContextMenu() {
                 )}
               </div>
               <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
-                const { showToast } = await import('../utils/toast');
-                const { usePlaylistStore } = await import('../store/playlistStore');
-                const { deletePlaylist } = await import('../api/subsonic');
+                const { showToast } = await import('../utils/toast');                const { deletePlaylist } = await import('../api/subsonic');
                 const { removeId } = usePlaylistStore.getState();
                 const deletedIds: string[] = [];
                 for (const pl of selectedPlaylists) {

@@ -3,7 +3,8 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rodio::{Sink, Source};
+use rodio::Player;
+use rodio::Source;
 use tauri::{AppHandle, Emitter, State};
 
 use super::decode::SizedDecoder;
@@ -184,7 +185,7 @@ pub async fn audio_preview_play(
     // starts). Symphonia FLAC without SEEKTABLE may fail try_seek; preview
     // then plays from 0, which is acceptable.
     // No EQ / no crossfade / no ReplayGain — preview stays simple.
-    let mut source = decoder.convert_samples::<f32>();
+    let mut source = decoder;
     if start_sec > 0.5 {
         let _ = source.try_seek(Duration::from_secs_f64(start_sec));
     }
@@ -193,10 +194,7 @@ pub async fn audio_preview_play(
     let source = PriorityBoostSource::new(source);
 
     // ── Build secondary sink on the existing OutputStream ────────────────────
-    let sink = Arc::new(
-        Sink::try_new(&*state.stream_handle.lock().unwrap())
-            .map_err(|e| format!("preview: sink new: {e}"))?,
-    );
+    let sink = Arc::new(Player::connect_new(state.stream_handle.lock().unwrap().mixer()));
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(source);
 

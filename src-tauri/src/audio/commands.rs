@@ -4,8 +4,10 @@ use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
-use ringbuf::{HeapConsumer, HeapRb};
-use rodio::{Sink, Source};
+use ringbuf::{HeapCons, HeapRb};
+use ringbuf::traits::Split;
+use rodio::Player;
+use rodio::Source;
 use symphonia::core::io::MediaSource;
 use tauri::{AppHandle, Emitter, State};
 
@@ -360,9 +362,9 @@ pub async fn audio_play(
                     cache_id_for_tasks.clone(),
                 ));
 
-                let (_new_cons_tx, new_cons_rx) = std::sync::mpsc::channel::<HeapConsumer<u8>>();
+                let (_new_cons_tx, new_cons_rx) = std::sync::mpsc::channel::<HeapCons<u8>>();
                 let reader = AudioStreamReader {
-                    cons,
+                    cons: Mutex::new(cons),
                     new_cons_rx: Mutex::new(new_cons_rx),
                     deadline: std::time::Instant::now()
                         + Duration::from_secs(RADIO_READ_TIMEOUT_SECS),
@@ -570,7 +572,7 @@ pub async fn audio_play(
         };
         let needs_switch = target_rate > 0 && target_rate != current_stream_rate;
         if needs_switch {
-            let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<rodio::OutputStreamHandle>(0);
+            let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
             let dev = state.selected_device.lock().unwrap().clone();
             if state.stream_reopen_tx.send((target_rate, hi_res_enabled, dev, reply_tx)).is_ok() {
                 match reply_rx.recv_timeout(std::time::Duration::from_secs(5)) {
@@ -596,7 +598,7 @@ pub async fn audio_play(
         }
     }
 
-    let sink = Arc::new(Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?);
+    let sink = Arc::new(Player::connect_new(state.stream_handle.lock().unwrap().mixer()));
     sink.set_volume(effective_volume);
 
     // ── Sink pre-fill for hi-res tracks ──────────────────────────────────────
@@ -636,8 +638,8 @@ pub async fn audio_play(
             let ch = source.channels();
             let sr = source.sample_rate();
             // 500 ms in whole frames, then expand to interleaved samples.
-            let frames = (sr / 2) as usize;
-            let total_samples = frames.saturating_mul(ch as usize);
+            let frames = (sr.get() / 2) as usize;
+            let total_samples = frames.saturating_mul(ch.get() as usize);
             let silence = rodio::buffer::SamplesBuffer::new(ch, sr, vec![0f32; total_samples]);
             sink.append(silence);
         }
@@ -1604,7 +1606,7 @@ pub async fn audio_play_radio(
     let rb = HeapRb::<u8>::new(RADIO_BUF_CAPACITY);
     let (prod, cons) = rb.split();
 
-    let (new_cons_tx, new_cons_rx) = std::sync::mpsc::channel::<HeapConsumer<u8>>();
+    let (new_cons_tx, new_cons_rx) = std::sync::mpsc::channel::<HeapCons<u8>>();
     let flags = Arc::new(RadioSharedFlags {
         is_paused:      AtomicBool::new(false),
         is_hard_paused: AtomicBool::new(false),
@@ -1632,7 +1634,7 @@ pub async fn audio_play_radio(
 
     // ── Build Symphonia decoder in a blocking thread ──────────────────────────
     let reader = AudioStreamReader {
-        cons,
+        cons: Mutex::new(cons),
         new_cons_rx: Mutex::new(new_cons_rx),
         deadline: std::time::Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS),
         gen_arc:  state.generation.clone(),
@@ -1661,7 +1663,7 @@ pub async fn audio_play_radio(
     state.samples_played.store(0, Ordering::Relaxed);
 
     // Radio: no gapless trim, no ReplayGain, 5 ms fade-in to suppress click.
-    let dyn_src   = DynSource::new(decoder.convert_samples::<f32>());
+    let dyn_src   = DynSource::new(decoder);
     let eq_src    = EqSource::new(dyn_src, state.eq_gains.clone(),
                                   state.eq_enabled.clone(), state.eq_pre_gain.clone());
     let fade_in   = EqualPowerFadeIn::new(eq_src, Duration::from_millis(5));
@@ -1672,7 +1674,7 @@ pub async fn audio_play_radio(
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
-    let sink = Arc::new(Sink::try_new(&*state.stream_handle.lock().unwrap()).map_err(|e| e.to_string())?);
+    let sink = Arc::new(Player::connect_new(state.stream_handle.lock().unwrap().mixer()));
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(boosted);
 
@@ -1692,8 +1694,8 @@ pub async fn audio_play_radio(
 
     *state.current_playback_url.lock().unwrap() = Some(url.clone());
 
-    state.current_sample_rate.store(sample_rate, Ordering::Relaxed);
-    state.current_channels.store(channels as u32, Ordering::Relaxed);
+    state.current_sample_rate.store(sample_rate.get(), Ordering::Relaxed);
+    state.current_channels.store(channels.get() as u32, Ordering::Relaxed);
 
     app.emit("audio:playing", 0.0f64).ok();
 
@@ -1764,7 +1766,8 @@ pub fn audio_default_output_device_name() -> Option<String> {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
     with_suppressed_alsa_stderr(|| {
         let host = rodio::cpal::default_host();
-        host.default_output_device().and_then(|d| d.name().ok())
+        host.default_output_device()
+            .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()))
     })
 }
 
@@ -1779,7 +1782,7 @@ pub async fn audio_set_device(
     *state.selected_device.lock().unwrap() = device_name.clone();
 
     let rate = state.stream_sample_rate.load(Ordering::Relaxed);
-    let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<rodio::OutputStreamHandle>(0);
+    let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
     state.stream_reopen_tx
         .send((rate, false, device_name, reply_tx))
         .map_err(|e| e.to_string())?;

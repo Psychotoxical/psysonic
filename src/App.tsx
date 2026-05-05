@@ -1316,7 +1316,7 @@ export default function App() {
       else if (e.key === 'psysonic_font') useFontStore.persist.rehydrate();
       else if (e.key === 'psysonic_keybindings') useKeybindingsStore.persist.rehydrate();
       else if (e.key === 'psysonic_language' && e.newValue) {
-        import('./i18n').then(m => m.default.changeLanguage(e.newValue!));
+        i18n.changeLanguage(e.newValue);
       }
     };
     window.addEventListener('storage', onStorage);

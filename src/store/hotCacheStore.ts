@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { isHotCachePreviousTrackUnderGrace } from '../utils/hotCacheGate';
 import type { Track } from './playerStore';
 import { emitAnalysisStorageChanged } from './analysisSync';
+import { useAuthStore } from './authStore';
 
 /** How many queue slots after the current index are eviction-protected (1 = current + next only). */
 export const HOT_CACHE_PROTECT_AFTER_CURRENT = 1;
@@ -67,17 +68,13 @@ function evictionReasonForTier(tier: number): string {
   return labels[tier] ?? `tier-${tier}`;
 }
 
-/** Settings → Logging → Debug, same as `emitNormalizationDebug` / lucky-mix. Dynamic `authStore` import avoids a static cycle (auth → player → hot-cache). */
+/** Settings → Logging → Debug, same as `emitNormalizationDebug` / lucky-mix. */
 function hotCacheFrontendDebug(payload: Record<string, unknown>): void {
-  void import('./authStore')
-    .then(({ useAuthStore }) => {
-      if (useAuthStore.getState().loggingMode !== 'debug') return;
-      return invoke('frontend_debug_log', {
-        scope: 'hot-cache',
-        message: JSON.stringify(payload),
-      });
-    })
-    .catch(() => {});
+  if (useAuthStore.getState().loggingMode !== 'debug') return;
+  void invoke('frontend_debug_log', {
+    scope: 'hot-cache',
+    message: JSON.stringify(payload),
+  }).catch(() => {});
 }
 
 export const useHotCacheStore = create<HotCacheState>()(

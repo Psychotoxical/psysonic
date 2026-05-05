@@ -30,38 +30,39 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rodio = { version = "0.19", default-features = false, features = ["symphonia-all"] }
+rodio = { version = "0.22", default-features = false, features = ["playback", "symphonia-all"] }
 symphonia = { version = "0.5", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "adpcm"] }
-reqwest = { version = "0.12", default-features = false, features = ["stream", "json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking"] }
+reqwest = { version = "0.13", default-features = false, features = ["stream", "json", "multipart", "query", "form", "rustls", "blocking"] }
 futures-util = "0.3"
-md5 = "0.7"
+md5 = "0.8"
 tokio = { version = "1", features = ["rt", "time", "sync"] }
-biquad = "0.4"
-ringbuf = "0.3"
+biquad = "0.6"
+ringbuf = "0.5"
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] }
-discord-rich-presence = "0.2"
+discord-rich-presence = "1.1"
 url = "2"
-thread-priority = "1"
-lofty = "0.22"
-sysinfo = { version = "0.33", default-features = false, features = ["disk"] }
+thread-priority = "3"
+lofty = "0.24"
+sysinfo = { version = "0.38", default-features = false, features = ["disk"] }
 id3 = "1.16.4"
-symphonia-adapter-libopus = "0.2.7"
-rusqlite = { version = "0.37", features = ["bundled"] }
+symphonia-adapter-libopus = "0.2.9"
+rusqlite = { version = "0.39", features = ["bundled"] }
 ebur128 = "0.1"
+dasp_sample = "0.11.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus = { version = "5.9", default-features = false, features = ["blocking-api"] }
+zbus = { version = "5.15", default-features = false, features = ["blocking-api"] }
 # Match wry/tauri’s WebKitGTK stack — used only to turn off kinetic wheel scrolling.
 webkit2gtk = { version = "2.0", default-features = false, features = ["v2_40"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics",
     "Win32_Graphics_Gdi",
@@ -80,12 +81,3 @@ windows = { version = "0.58", features = [
 #   of failing the entire probe
 symphonia-format-isomp4 = { path = "patches/symphonia-format-isomp4" }
 
-# Local patch for cpal's CoreAudio backend on macOS:
-# - Forces IOType::DefaultOutput for all output streams so that macOS never
-#   triggers the TCC microphone-permission prompt. Upstream cpal uses
-#   IOType::HalOutput when the user pins a non-default device, which routes
-#   through AUHAL — that component is flagged as input-capable and triggers
-#   the mic consent dialog on first launch / after each update.
-# - Tradeoff: output-device selection is a no-op on macOS (stream follows
-#   system default). Surfaced in the Settings UI.
-cpal = { path = "patches/cpal-0.15.3" }

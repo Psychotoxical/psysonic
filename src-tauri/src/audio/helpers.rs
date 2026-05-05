@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use rodio::Sink;
+use rodio::Player;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -529,7 +529,7 @@ pub(crate) fn loudness_ui_current_gain_db(gain_linear: f32) -> Option<f32> {
     gain_linear_to_db(gain_linear)
 }
 
-pub(crate) fn ramp_sink_volume(sink: Arc<Sink>, from: f32, to: f32) {
+pub(crate) fn ramp_sink_volume(sink: Arc<Player>, from: f32, to: f32) {
     let from = from.clamp(0.0, 1.0);
     let to = to.clamp(0.0, 1.0);
     if (to - from).abs() < 0.002 {
