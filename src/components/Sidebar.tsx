@@ -39,6 +39,26 @@ const NEW_RELEASES_UNREAD_STORAGE_PREFIX = 'psy_new_releases_unread_seen_v1';
 const NEW_RELEASES_UNREAD_SAMPLE_SIZE = 80;
 const NEW_RELEASES_UNREAD_POLL_MS = 2 * 60 * 1000;
 const NEW_RELEASES_RESET_DELAY_MS = 5_000;
+/** Max album ids persisted per server/scope; cap must not drop the latest "newest" batch when marking read. */
+const NEW_RELEASES_SEEN_MAX_IDS = 500;
+
+/** Merge previous seen IDs with the current `getAlbumList(newest)` sample: newest batch is kept in full first, then older seen until `maxIds` (localStorage budget). */
+function mergeSeenNewReleaseIdsCap(prevSeen: string[], newestBatch: string[], maxIds: number): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of newestBatch) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  for (const id of prevSeen) {
+    if (out.length >= maxIds) break;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
 
 function isSmartPlaylistName(name: string): boolean {
   return (name ?? '').toLowerCase().startsWith(SMART_PREFIX);
@@ -197,7 +217,7 @@ export default function Sidebar({
   );
 
   const writeSeenNewReleaseIdsByKey = useCallback((key: string, ids: string[]) => {
-    const normalized = Array.from(new Set(ids.filter(Boolean))).slice(0, 500);
+    const normalized = Array.from(new Set(ids.filter(Boolean))).slice(0, NEW_RELEASES_SEEN_MAX_IDS);
     localStorage.setItem(key, JSON.stringify(normalized));
   }, []);
 
@@ -238,11 +258,16 @@ export default function Sidebar({
       }
 
       if (markAsSeen) {
-        writeSeenNewReleaseIds([...seenIds, ...newestIds]);
+        // Prepend the live newest sample so a full `seenIds` list + slice(500)
+        // cannot silently discard freshly "read" albums (fixes badge coming back).
+        writeSeenNewReleaseIds(mergeSeenNewReleaseIdsCap(seenIds, newestIds, NEW_RELEASES_SEEN_MAX_IDS));
         // Keep server-wide baseline in sync so scope fallback never resurrects
         // already-viewed items after opening the New Releases page.
         const allScopeSeen = readSeenNewReleaseIdsByKey(newReleasesSeenAllScopeStorageKey);
-        writeSeenNewReleaseIdsByKey(newReleasesSeenAllScopeStorageKey, [...allScopeSeen, ...newestIds]);
+        writeSeenNewReleaseIdsByKey(
+          newReleasesSeenAllScopeStorageKey,
+          mergeSeenNewReleaseIdsCap(allScopeSeen, newestIds, NEW_RELEASES_SEEN_MAX_IDS),
+        );
         if (isCurrent()) setNewReleasesUnreadCount(0);
         return;
       }
