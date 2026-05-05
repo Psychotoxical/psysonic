@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, Fragment } from 'react';
+import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, search, setRating, SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo, buildCoverArtUrl, coverArtCacheKey, star, unstar, uploadArtistImage } from '../api/subsonic';
 import AlbumCard from '../components/AlbumCard';
@@ -445,6 +445,23 @@ export default function ArtistDetail() {
   const coverId = artist.coverArt || artist.id;
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
+  const artistCover300Src = useMemo(
+    () => (coverId ? buildCoverArtUrl(coverId, 300) : ''),
+    [coverId],
+  );
+  const artistCover300Key = useMemo(
+    () => (coverId ? coverArtCacheKey(coverId, 300) : ''),
+    [coverId],
+  );
+  const artistCover2000Src = useMemo(
+    () => (coverId ? buildCoverArtUrl(coverId, 2000) : ''),
+    [coverId],
+  );
+  const artistCover80FallbackSrc = useMemo(
+    () => (coverId ? buildCoverArtUrl(coverId, 80) : ''),
+    [coverId],
+  );
+
   const serverSimilarArtists: SubsonicArtist[] = (info?.similarArtist ?? []).map(sa => ({
     id: sa.id,
     name: sa.name,
@@ -489,7 +506,7 @@ export default function ArtistDetail() {
 
       {lightboxOpen && (
         <CoverLightbox
-          src={buildCoverArtUrl(coverId, 2000)}
+          src={artistCover2000Src}
           alt={artist.name}
           onClose={() => setLightboxOpen(false)}
         />
@@ -512,8 +529,8 @@ export default function ArtistDetail() {
             >
               <CachedImage
                 key={coverRevision}
-                src={buildCoverArtUrl(coverId, 300)}
-                cacheKey={coverArtCacheKey(coverId, 300)}
+                src={artistCover300Src}
+                cacheKey={artistCover300Key}
                 alt={artist.name}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onLoad={e => extractCoverColors(e.currentTarget.src).then(({ accent }) => { if (accent) setAvatarGlow(accent); })}
@@ -667,7 +684,7 @@ export default function ArtistDetail() {
               <div className="np-artist-bio-row">
                 {(info?.largeImageUrl || coverId) && (
                   <img
-                    src={info?.largeImageUrl || buildCoverArtUrl(coverId, 80)}
+                    src={info?.largeImageUrl || artistCover80FallbackSrc}
                     alt={artist.name}
                     className="np-artist-thumb"
                     onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}

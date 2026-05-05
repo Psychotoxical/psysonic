@@ -34,12 +34,20 @@ function nameInitial(name: string): string {
 
 function ArtistCardAvatar({ artist, showImages }: { artist: SubsonicArtist; showImages: boolean }) {
   const color = nameColor(artist.name);
-  if (showImages && artist.coverArt) {
+  const coverId = artist.coverArt || artist.id;
+  const { coverSrc, coverKey } = useMemo(
+    () => ({
+      coverSrc: coverId ? buildCoverArtUrl(coverId, 300) : '',
+      coverKey: coverId ? coverArtCacheKey(coverId, 300) : '',
+    }),
+    [coverId],
+  );
+  if (showImages && coverId) {
     return (
       <div className="artist-card-avatar">
         <CachedImage
-          src={buildCoverArtUrl(artist.coverArt, 300)}
-          cacheKey={coverArtCacheKey(artist.coverArt, 300)}
+          src={coverSrc}
+          cacheKey={coverKey}
           alt={artist.name}
         />
       </div>
@@ -54,12 +62,20 @@ function ArtistCardAvatar({ artist, showImages }: { artist: SubsonicArtist; show
 
 function ArtistRowAvatar({ artist, showImages }: { artist: SubsonicArtist; showImages: boolean }) {
   const color = nameColor(artist.name);
-  if (showImages && artist.coverArt) {
+  const coverId = artist.coverArt || artist.id;
+  const { coverSrc, coverKey } = useMemo(
+    () => ({
+      coverSrc: coverId ? buildCoverArtUrl(coverId, 64) : '',
+      coverKey: coverId ? coverArtCacheKey(coverId, 64) : '',
+    }),
+    [coverId],
+  );
+  if (showImages && coverId) {
     return (
       <div className="artist-avatar">
         <CachedImage
-          src={buildCoverArtUrl(artist.coverArt, 64)}
-          cacheKey={coverArtCacheKey(artist.coverArt, 64)}
+          src={coverSrc}
+          cacheKey={coverKey}
           alt={artist.name}
           style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
         />

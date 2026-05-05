@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { acquireUrl, getCachedBlob, releaseUrl } from '../utils/imageCache';
 
 interface CachedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -17,7 +18,12 @@ interface CachedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
  *   loading immediately.  Pass false for CSS background-image consumers that
  *   should only see a stable blob URL (prevents a double crossfade).
  */
-export function useCachedUrl(fetchUrl: string, cacheKey: string, fallbackToFetch = true): string {
+export function useCachedUrl(
+  fetchUrl: string,
+  cacheKey: string,
+  fallbackToFetch = true,
+  getPriority?: () => number,
+): string {
   // Synchronously acquire on first render when the blob is already hot. This
   // makes the very first <img src> a blob URL, avoiding a fetchUrl→blobUrl
   // swap that would trigger a redundant network request and decode pass.
@@ -25,6 +31,9 @@ export function useCachedUrl(fetchUrl: string, cacheKey: string, fallbackToFetch
   // Tracks whichever cacheKey we currently hold a refcount on, so we know
   // exactly what to release on cleanup or when keys change.
   const ownedKeyRef = useRef<string | null>(resolved ? cacheKey : null);
+
+  const getPriorityRef = useRef(getPriority);
+  getPriorityRef.current = getPriority;
 
   useEffect(() => {
     const release = () => {
@@ -57,7 +66,7 @@ export function useCachedUrl(fetchUrl: string, cacheKey: string, fallbackToFetch
     // Slow path: fetch (or read from IDB), then acquire.
     setResolved('');
     const controller = new AbortController();
-    getCachedBlob(fetchUrl, cacheKey, controller.signal).then(blob => {
+    getCachedBlob(fetchUrl, cacheKey, controller.signal, () => getPriorityRef.current?.() ?? 0).then(blob => {
       if (controller.signal.aborted || !blob) return;
       const url = acquireUrl(cacheKey);
       if (!url) return;
@@ -74,26 +83,53 @@ export function useCachedUrl(fetchUrl: string, cacheKey: string, fallbackToFetch
 }
 
 export default function CachedImage({ src, cacheKey, style, onLoad, onError, ...props }: CachedImageProps) {
-  const [inView, setInView] = useState(false);
   const [fallbackSrc, setFallbackSrc] = useState<string | undefined>(undefined);
   const imgRef = useRef<HTMLImageElement>(null);
+  /**
+   * Drives disk/network waiter ordering only. We intentionally do **not** gate
+   * `useCachedUrl` on intersection — relying on IO to “arm” loading proved brittle
+   * (custom scroll roots, content-visibility, horizontal rails) and led to blank covers.
+   */
+  const priorityRef = useRef(0);
+  const getViewportImagePriority = useCallback(() => priorityRef.current, []);
 
   useEffect(() => {
     const el = imgRef.current;
     if (!el) return;
+    const root =
+      typeof document !== 'undefined'
+        ? (document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as Element | null)
+        : null;
+    const updateFromEntry = (entry: IntersectionObserverEntry) => {
+      if (entry.isIntersecting) {
+        const r = entry.boundingClientRect;
+        const rootEl = entry.rootBounds;
+        const vh = (rootEl?.height ?? window.innerHeight) || 1;
+        const originTop = rootEl?.top ?? 0;
+        const vc = originTop + vh * 0.5;
+        const cy = r.top + r.height * 0.5;
+        const dist = Math.abs(cy - vc);
+        priorityRef.current = entry.intersectionRatio * 1e7 - dist * 1e3;
+      } else {
+        priorityRef.current = -1e12;
+      }
+    };
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setInView(true); observer.disconnect(); } },
-      { rootMargin: '300px' }, // start fetching 300px before entering viewport
+      entries => { for (const e of entries) updateFromEntry(e); },
+      {
+        root: root ?? undefined,
+        rootMargin: '300px',
+        threshold: [0, 0.02, 0.1, 0.25, 0.5, 0.75, 1],
+      },
     );
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  // Pass empty string when not yet in view so useCachedUrl skips the fetch entirely.
-  // fallbackToFetch=false: avoid the fetchUrl→blobUrl src swap, which causes the browser
-  // to start a server fetch, then abort it when we replace src with the blob URL —
-  // visible in DevTools as a flood of "Pending / 0 B" requests on Chromium/WebView2.
-  const resolvedSrc = useCachedUrl(inView ? src : '', cacheKey, false);
+  // Same as Hero/PlayerBar: show the salted fetch URL while IndexedDB/network resolves,
+  // then swap to the shared blob URL — avoids an <img> with no src and opacity stuck at 0.
+  // Priority still applies to the slow path inside getCachedBlob.
+  const resolvedSrc = useCachedUrl(src, cacheKey, true, getViewportImagePriority);
   const [loaded, setLoaded] = useState(false);
 
   // Reset only when the logical image changes (cacheKey), not on fetchUrl→blobUrl

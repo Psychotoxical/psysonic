@@ -3,8 +3,19 @@ import { useAuthStore } from '../store/authStore';
 const DB_NAME = 'psysonic-img-cache';
 const STORE_NAME = 'images';
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-const MAX_BLOB_CACHE = 200; // hot in-memory blob entries (LRU)
-const MAX_CONCURRENT_FETCHES = 5;
+/** In-memory blobs — scrolling large grids used to thrash at 200 and re-hit IndexedDB for “cold” keys that still had a live shared object URL. */
+const MAX_BLOB_CACHE = 600; // hot in-memory blob entries (LRU)
+/** Shared pool for IndexedDB reads + network fetches — avoids IDB stampede and matches “visible first” scheduling. */
+const MAX_CONCURRENT_DISK_NET_LOADS = 6;
+
+type LoadWaiter = {
+  getPriority: () => number;
+  resolve: (granted: boolean) => void;
+};
+const loadWaiters: LoadWaiter[] = [];
+
+/** One in-flight read per logical image — avoids duplicate IndexedDB transactions when many cells mount together. */
+const inflightBlobGets = new Map<string, Promise<Blob | null>>();
 
 // In-memory blob cache: cacheKey → Blob (insertion-order = LRU approximation).
 // Only the Map entry is dropped on overflow — the underlying Blob is freed by
@@ -32,21 +43,34 @@ function purgeUrlEntry(cacheKey: string): void {
  * Returns a shared object URL for the cached blob of `cacheKey`, or null if
  * not currently in memory. Pair every successful call with releaseUrl().
  * Subsequent acquires reuse the same URL and just bump the refcount.
+ *
+ * IMPORTANT: the Blob can be LRU-evicted from `blobCache` while `urlEntries`
+ * still holds a valid object URL (another `<img>` still references it). We
+ * must reuse that URL — otherwise callers fall through to IndexedDB / network
+ * again and scrolling janks even when data was already resolved once.
  */
 export function acquireUrl(cacheKey: string): string | null {
   const blob = blobCache.get(cacheKey);
-  if (!blob) return null;
-  rememberBlob(cacheKey, blob); // refresh LRU position
-  let entry = urlEntries.get(cacheKey);
-  if (!entry) {
-    entry = { url: URL.createObjectURL(blob), refs: 0, revokeTimer: null };
-    urlEntries.set(cacheKey, entry);
-  } else if (entry.revokeTimer) {
-    clearTimeout(entry.revokeTimer);
-    entry.revokeTimer = null;
+  if (blob) {
+    rememberBlob(cacheKey, blob); // refresh LRU position
   }
-  entry.refs++;
-  return entry.url;
+
+  const entry = urlEntries.get(cacheKey);
+  if (entry) {
+    if (entry.revokeTimer) {
+      clearTimeout(entry.revokeTimer);
+      entry.revokeTimer = null;
+    }
+    entry.refs++;
+    return entry.url;
+  }
+
+  if (!blob) return null;
+
+  const newEntry: UrlEntry = { url: URL.createObjectURL(blob), refs: 0, revokeTimer: null };
+  urlEntries.set(cacheKey, newEntry);
+  newEntry.refs++;
+  return newEntry.url;
 }
 
 /** Decrements the refcount; revokes (after grace delay) when it reaches zero. */
@@ -61,34 +85,73 @@ export function releaseUrl(cacheKey: string): void {
   }, URL_REVOKE_DELAY_MS);
 }
 
-let activeFetches = 0;
-const fetchQueue: Array<() => void> = [];
+let activeDiskNetLoads = 0;
 
-function acquireFetchSlot(signal?: AbortSignal): Promise<boolean> {
+function removeLoadWaiter(waiter: LoadWaiter): void {
+  const i = loadWaiters.indexOf(waiter);
+  if (i !== -1) loadWaiters.splice(i, 1);
+}
+
+/**
+ * Grants a slot for one “slow” step (IndexedDB read or `fetch`). When oversubscribed,
+ * waiters are ranked by `getPriority()` whenever a slot frees — higher = nearer /
+ * more visible, so scrolling continuously reshuffles who runs next without a FIFO bias.
+ */
+function acquireDiskNetSlot(signal?: AbortSignal, getPriority?: () => number): Promise<boolean> {
   if (signal?.aborted) return Promise.resolve(false);
-  if (activeFetches < MAX_CONCURRENT_FETCHES) {
-    activeFetches++;
+  if (activeDiskNetLoads < MAX_CONCURRENT_DISK_NET_LOADS) {
+    activeDiskNetLoads++;
     return Promise.resolve(true);
   }
   return new Promise<boolean>(resolve => {
-    const onGrant = () => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve(true);
-    };
+    let waiter: LoadWaiter;
     const onAbort = () => {
-      const idx = fetchQueue.indexOf(onGrant);
-      if (idx !== -1) fetchQueue.splice(idx, 1);
+      signal?.removeEventListener('abort', onAbort);
+      removeLoadWaiter(waiter);
       resolve(false);
     };
-    fetchQueue.push(onGrant);
+    waiter = {
+      getPriority: getPriority ?? (() => 0),
+      resolve: (granted: boolean) => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve(granted);
+      },
+    };
+    loadWaiters.push(waiter);
     signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 
-function releaseFetchSlot(): void {
-  activeFetches--;
-  const next = fetchQueue.shift();
-  if (next) { activeFetches++; next(); }
+function pickHighestPriorityWaiterIndex(): number {
+  if (loadWaiters.length === 0) return -1;
+  let best = 0;
+  let bestP = safePriority(loadWaiters[0].getPriority);
+  for (let i = 1; i < loadWaiters.length; i++) {
+    const p = safePriority(loadWaiters[i].getPriority);
+    if (p > bestP) {
+      bestP = p;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function safePriority(fn: () => number): number {
+  try {
+    return fn();
+  } catch {
+    return 0;
+  }
+}
+
+function releaseDiskNetSlot(): void {
+  activeDiskNetLoads = Math.max(0, activeDiskNetLoads - 1);
+  if (activeDiskNetLoads >= MAX_CONCURRENT_DISK_NET_LOADS) return;
+  const idx = pickHighestPriorityWaiterIndex();
+  if (idx === -1) return;
+  const [w] = loadWaiters.splice(idx, 1);
+  activeDiskNetLoads++;
+  w.resolve(true);
 }
 
 function rememberBlob(key: string, blob: Blob): void {
@@ -210,6 +273,7 @@ export async function getImageCacheSize(): Promise<number> {
 export async function invalidateCacheKey(cacheKey: string): Promise<void> {
   blobCache.delete(cacheKey);
   purgeUrlEntry(cacheKey);
+  inflightBlobGets.delete(cacheKey);
   try {
     const database = await openDB();
     await new Promise<void>(resolve => {
@@ -231,6 +295,7 @@ export async function invalidateCoverArt(entityId: string): Promise<void> {
 
 export async function clearImageCache(): Promise<void> {
   blobCache.clear();
+  inflightBlobGets.clear();
   for (const key of Array.from(urlEntries.keys())) purgeUrlEntry(key);
   try {
     const database = await openDB();
@@ -253,8 +318,14 @@ export async function clearImageCache(): Promise<void> {
  * @param fetchUrl  The actual URL to fetch from (may contain ephemeral auth params).
  * @param cacheKey  A stable key that identifies the image across sessions.
  * @param signal    Optional AbortSignal — aborts queue-waiting and in-flight fetches.
+ * @param getPriority  Called whenever a wait slot is about to be granted — higher = load sooner.
  */
-export async function getCachedBlob(fetchUrl: string, cacheKey: string, signal?: AbortSignal): Promise<Blob | null> {
+export async function getCachedBlob(
+  fetchUrl: string,
+  cacheKey: string,
+  signal?: AbortSignal,
+  getPriority?: () => number,
+): Promise<Blob | null> {
   if (!fetchUrl || signal?.aborted) return null;
 
   const memHit = blobCache.get(cacheKey);
@@ -263,29 +334,37 @@ export async function getCachedBlob(fetchUrl: string, cacheKey: string, signal?:
     return memHit;
   }
 
-  const idbHit = await getBlobFromIDB(cacheKey);
-  if (signal?.aborted) return null;
-  if (idbHit) {
-    rememberBlob(cacheKey, idbHit);
-    return idbHit;
-  }
+  const existing = inflightBlobGets.get(cacheKey);
+  if (existing) return existing;
 
-  const acquired = await acquireFetchSlot(signal);
-  if (!acquired || signal?.aborted) {
-    if (acquired) releaseFetchSlot();
-    return null;
-  }
-  try {
-    const resp = await fetch(fetchUrl, { signal });
-    if (!resp.ok) return null;
-    const newBlob = await resp.blob();
-    if (signal?.aborted) return null;
-    putBlob(cacheKey, newBlob); // fire-and-forget
-    rememberBlob(cacheKey, newBlob);
-    return newBlob;
-  } catch {
-    return null;
-  } finally {
-    releaseFetchSlot();
-  }
+  const run = (async () => {
+    const acquired = await acquireDiskNetSlot(signal, getPriority);
+    if (!acquired || signal?.aborted) {
+      if (acquired) releaseDiskNetSlot();
+      return null;
+    }
+    try {
+      const idbHit = await getBlobFromIDB(cacheKey);
+      if (idbHit) {
+        rememberBlob(cacheKey, idbHit);
+        return idbHit;
+      }
+
+      const resp = await fetch(fetchUrl, { signal });
+      if (!resp.ok) return null;
+      const newBlob = await resp.blob();
+      if (signal?.aborted) return null;
+      putBlob(cacheKey, newBlob); // fire-and-forget
+      rememberBlob(cacheKey, newBlob);
+      return newBlob;
+    } catch {
+      return null;
+    } finally {
+      releaseDiskNetSlot();
+    }
+  })();
+
+  inflightBlobGets.set(cacheKey, run);
+  run.finally(() => inflightBlobGets.delete(cacheKey));
+  return run;
 }
