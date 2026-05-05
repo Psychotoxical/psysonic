@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New optional toggle in Settings → Audio → Playback ("Preserve Play Next order"). When on, multiple "Play Next" insertions **queue up behind each other** instead of the latest one bumping earlier picks down. Default off — existing behaviour unchanged.
 * Side-benefit: single-song "Play Next" now goes through the unified `enqueueAt` path and gets undo + server-sync support that the album path already had.
 
+### Library — "favorites only" filter on Albums, Artists and Advanced Search
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by [@lilgringo](https://github.com/lilgringo), PR [#466](https://github.com/Psychotoxical/psysonic/pull/466)**
+
+* New star-toggle button in the toolbars of **Albums**, **Artists** and **Advanced Search** that flips the visible list to favourites-only.
+* Filter state is ephemeral per page (not persisted) so users don't come back to a half-empty library and wonder where their content went.
+* Reads star state live from in-memory overrides — toggling a favourite from a context menu updates the visible list immediately, no refetch.
+
 ## Changed
 
 ### Dependencies — npm / Cargo refresh and rodio 0.22
