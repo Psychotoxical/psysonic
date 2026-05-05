@@ -37,9 +37,19 @@ export async function downscaleCoverBlob(
 
     if (signal?.aborted) return null;
 
-    return await new Promise<Blob | null>(resolve =>
-      canvas.toBlob(b => resolve(b ?? null), 'image/jpeg', 0.88),
-    );
+    return await new Promise<Blob | null>(resolve => {
+      if (signal?.aborted) {
+        resolve(null);
+        return;
+      }
+      const finish = (b: Blob | null) => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve(signal?.aborted ? null : b);
+      };
+      const onAbort = () => finish(null);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      canvas.toBlob(b => finish(b ?? null), 'image/jpeg', 0.88);
+    });
   } catch {
     return null;
   } finally {

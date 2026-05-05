@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { COVER_ART_REGISTERED_SIZES } from './coverArtRegisteredSizes';
 import { downscaleCoverBlob } from './coverBlobDownscale';
 
 const DB_NAME = 'psysonic-img-cache';
@@ -187,20 +188,53 @@ function openDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+function entryBlobIfFresh(entry: { timestamp: number; blob: Blob } | undefined): Blob | null {
+  return entry && Date.now() - entry.timestamp < MAX_AGE_MS ? entry.blob : null;
+}
+
 async function getBlobFromIDB(key: string): Promise<Blob | null> {
   try {
     const database = await openDB();
     return new Promise(resolve => {
       const req = database.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key);
-      req.onsuccess = () => {
-        const entry = req.result;
-        resolve(entry && Date.now() - entry.timestamp < MAX_AGE_MS ? entry.blob : null);
-      };
+      req.onsuccess = () => resolve(entryBlobIfFresh(req.result));
       req.onerror = () => resolve(null);
     });
   } catch {
     return null;
   }
+}
+
+/** Several `get`s in one read transaction — avoids N separate transactions when probing sibling covers. */
+async function mapBlobsFromIDB(keys: readonly string[]): Promise<Map<string, Blob | null>> {
+  const map = new Map<string, Blob | null>();
+  for (const key of keys) map.set(key, null);
+  if (keys.length === 0) return map;
+  try {
+    const database = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = database.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      let pending = keys.length;
+      tx.onerror = () => reject(tx.error ?? new Error('idb'));
+      tx.onabort = () => reject(new Error('idb abort'));
+      const step = (): void => {
+        pending--;
+        if (pending === 0) resolve();
+      };
+      for (const key of keys) {
+        const req = store.get(key);
+        req.onsuccess = () => {
+          map.set(key, entryBlobIfFresh(req.result));
+          step();
+        };
+        req.onerror = () => step();
+      }
+    });
+  } catch {
+    for (const key of keys) map.set(key, null);
+  }
+  return map;
 }
 
 async function evictDiskIfNeeded(maxBytes: number): Promise<void> {
@@ -300,12 +334,8 @@ export async function invalidateCacheKey(cacheKey: string): Promise<void> {
   }
 }
 
-/** Every `coverArtCacheKey(_, size)` size used in the UI — sibling probe + `invalidateCoverArt` must see them all. */
-const COVER_ART_CACHE_SIZES = [
-  40, 48, 64, 80, 96, 128, 200, 256, 300, 400, 500, 600, 800, 2000,
-] as const;
 /** Prefer larger blobs as provisional placeholders — downscaled in `<img>` for sharpness. */
-const COVER_ART_CACHE_SIZES_DESC = [...COVER_ART_CACHE_SIZES].sort((a, b) => b - a);
+const COVER_ART_CACHE_SIZES_DESC = [...COVER_ART_REGISTERED_SIZES].sort((a, b) => b - a);
 
 function parseCoverCacheKey(cacheKey: string): { stem: string; size: number } | null {
   const colon = cacheKey.lastIndexOf(':');
@@ -328,11 +358,11 @@ function probeSiblingCoverBlobInMemory(stem: string, excludedSize: number): Blob
 }
 
 async function probeSiblingCoverBlobFromIDB(stem: string, excludedSize: number): Promise<Blob | null> {
-  const keys = COVER_ART_CACHE_SIZES_DESC
-    .filter(sz => sz !== excludedSize)
-    .map(sz => `${stem}:${sz}`);
-  const blobs = await Promise.all(keys.map(k => getBlobFromIDB(k)));
-  for (const b of blobs) {
+  const keys = COVER_ART_CACHE_SIZES_DESC.filter(sz => sz !== excludedSize).map(sz => `${stem}:${sz}`);
+  if (keys.length === 0) return null;
+  const blobs = await mapBlobsFromIDB(keys);
+  for (const key of keys) {
+    const b = blobs.get(key);
     if (b) return b;
   }
   return null;
@@ -459,7 +489,7 @@ function scheduleSiblingVersusNetworkRace(
 export async function invalidateCoverArt(entityId: string): Promise<void> {
   const serverId = useAuthStore.getState().getActiveServer()?.id ?? '_';
   await Promise.all(
-    COVER_ART_CACHE_SIZES.map(size =>
+    COVER_ART_REGISTERED_SIZES.map(size =>
       invalidateCacheKey(`${serverId}:cover:${entityId}:${size}`),
     ),
   );
