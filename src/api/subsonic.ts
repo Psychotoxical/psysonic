@@ -75,6 +75,8 @@ export interface SubsonicAlbum {
   userRating?: number;
   /** OpenSubsonic: true when the album is tagged as a compilation. */
   isCompilation?: boolean;
+  /** OpenSubsonic: release types from MusicBrainz tags (e.g. "Album", "EP", "Single", "Compilation", "Live"). */
+  releaseTypes?: string[];
 }
 
 /** OpenSubsonic `artists` / `albumArtists` entries on a child song (may include `userRating`). */

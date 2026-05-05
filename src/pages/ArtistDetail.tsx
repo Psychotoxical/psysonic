@@ -459,6 +459,21 @@ export default function ArtistDetail() {
     [coverId],
   );
 
+  const groupedAlbums = useMemo(() => {
+    if (albums.length === 0) return [];
+    const defaultLabel = t('artistDetail.album');
+    const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    const groups = new Map<string, SubsonicAlbum[]>();
+    for (const album of albums) {
+      const label = album.releaseTypes?.length ? album.releaseTypes.map(titleCase).join(' · ') : defaultLabel;
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label)!.push(album);
+    }
+    return groups.size === 1 && groups.has(defaultLabel)
+      ? [[defaultLabel, albums] as const]
+      : [...groups.entries()];
+  }, [albums, t]);
+
   useEffect(() => {
     setHeaderCoverFailed(false);
   }, [coverId, coverRevision, id]);
@@ -858,9 +873,21 @@ export default function ArtistDetail() {
                 {t('artistDetail.albumsBy', { name: artist.name })}
               </h2>
               {albums.length > 0 ? (
-                <div className="album-grid-wrap album-grid-wrap--artist">
-                  {albums.map((a, i) => <AlbumCard key={`${a.id}-${i}`} album={a} />)}
-                </div>
+                groupedAlbums.length === 1 ? (
+                  <div className="album-grid-wrap album-grid-wrap--artist">
+                    {albums.map((a, i) => <AlbumCard key={`${a.id}-${i}`} album={a} />)}
+                  </div>
+                ) : groupedAlbums.map(([label, group]) => (
+                  <div key={label} style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem' }}>
+                      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{label}</h3>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-card)', borderRadius: 10, padding: '1px 8px' }}>{group.length}</span>
+                    </div>
+                    <div className="album-grid-wrap album-grid-wrap--artist">
+                      {group.map((a, i) => <AlbumCard key={`${a.id}-${i}`} album={a} />)}
+                    </div>
+                  </div>
+                ))
               ) : (
                 <p style={{ color: 'var(--text-muted)' }}>{t('artistDetail.noAlbums')}</p>
               )}
