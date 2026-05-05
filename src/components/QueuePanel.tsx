@@ -395,7 +395,6 @@ function QueuePanelHostOrSolo() {
   const crossfadeBtnRef = useRef<HTMLButtonElement>(null);
   const crossfadePopoverRef = useRef<HTMLDivElement>(null);
   const reanalyzeLoudnessForTrack = usePlayerStore(s => s.reanalyzeLoudnessForTrack);
-  const isStorePlaying = usePlayerStore(s => s.isPlaying);
   const authLoudnessTargetLufs = useAuthStore(s => s.loudnessTargetLufs);
   const setLoudnessTargetLufs = useAuthStore(s => s.setLoudnessTargetLufs);
   const loudnessPreAnalysisAttenuationDb = useAuthStore(s => s.loudnessPreAnalysisAttenuationDb);
@@ -1092,15 +1091,9 @@ function QueuePanelHostOrSolo() {
                 }}
                 style={dragStyle}
               >
-                {isPlaying && (
-                  <div className={`eq-bars${isStorePlaying ? '' : ' paused'}`} style={{ marginRight: '8px', flexShrink: 0 }}>
-                    <div className="eq-bar" />
-                    <div className="eq-bar" />
-                    <div className="eq-bar" />
-                  </div>
-                )}
                 <div className="queue-item-info">
                   <div className="queue-item-title truncate" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {isPlaying && <Play size={10} fill="currentColor" style={{ flexShrink: 0 }} />}
                     <span className="truncate">{track.title}</span>
                   </div>
                   <div className="queue-item-artist truncate">{track.artist}</div>
