@@ -57,6 +57,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Heavier app **routes** are loaded **lazily** so the initial JS bundle stays smaller (`App.tsx` and related entry wiring).
 * Restored **default Vite `chunkSizeWarningLimit`** behaviour so oversized chunks are reported again during production builds (`vite.config.ts`).
 
+### UI — cover cache, mainstage rails, and smoother virtual lists
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#468](https://github.com/Psychotoxical/psysonic/pull/468)**
+
+* **Image cache:** **Network fetches** share a small concurrency pool; **IndexedDB** hits are no longer queued behind remote downloads. **Debounced** disk eviction avoids hammering storage during fast cover scrolling. Related **shared blob URL** / hot-path fixes for thumbnails.
+* **Mainstage & rails:** **Horizontal rows** use **reworked artwork windowing** (higher initial budgets, extra slack ahead of the viewport, **no budget reset** when “load more” extends the list). **Duplicate album/song IDs** from the API are **deduped** for stable React reconciliation. **CachedImage** handles **already-decoded / cache-hit** images cleanly; rail **Album / song cards** load covers **eagerly** to reduce **blank art** while scrubbing sideways.
+* **Virtualised lists:** **Albums**, **Artists** (list mode), and the **Tracks** virtual song browser **derive** **TanStack Virtual `overscan`** from the **measured scroll viewport** (~ **one screen** of extra rows above and below) instead of a tiny fixed cushion.
+* **Library & chrome:** assorted **scroll / layout** improvements on **Artist detail**, **Playlists**, **Most played**; smaller touch-ups to **Mini player**, **Live search**, **Album header**, and **dynamic colour** extraction used by player / album surfaces.
+
 ## Fixed
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
