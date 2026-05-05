@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.46.0] - 2026-05-05
 
+## Added
+
+### Discord — album cover art from your own server
+
+**By [@Sayykii](https://github.com/Sayykii), PR [#462](https://github.com/Psychotoxical/psysonic/pull/462)**
+
+* Discord Rich Presence can now show **album artwork from your own server** via the Subsonic `getAlbumInfo2` endpoint (requires the server to be publicly reachable).
+* New cover-source picker under Discord Rich Presence settings: **None** (app icon only), **Server**, or **Apple Music**. Mutually exclusive.
+* Fresh installs default to **Server** for opt-in-friendly cover art with no third-party data leak. Existing users keep their previous Apple-covers preference via migration.
+
 ## Changed
 
 ### Dependencies — npm / Cargo refresh and rodio 0.22

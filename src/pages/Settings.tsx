@@ -270,6 +270,13 @@ const CONTRIBUTORS = [
     ],
   },
   {
+    github: 'Sayykii',
+    since: '1.46.0',
+    contributions: [
+      'Discord Rich Presence: cover art from your own server (Subsonic getAlbumInfo2) with three-way picker — none / server / Apple Music (PR #462)',
+    ],
+  },
+  {
     github: 'Psychotoxical',
     since: '1.0.0',
     contributions: [
