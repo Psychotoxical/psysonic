@@ -1512,12 +1512,13 @@ function handleAudioEnded() {
     void (async () => {
       if (repeatMode === 'one' && currentTrack) {
         const authState = useAuthStore.getState();
-        if (authState.hotCacheEnabled && authState.activeServerId) {
-          // Same-track replay never hit `playTrack`'s prev→promote path; flush
+        const repeatPromoteSid = authState.activeServerId;
+        if (authState.hotCacheEnabled && repeatPromoteSid) {
+          // Same-track repeat never hit `playTrack`'s prev→promote path; flush
           // Rust `stream_completed_cache` to disk so `resolvePlaybackUrl` uses local.
           await promoteCompletedStreamToHotCache(
             currentTrack,
-            authState.activeServerId,
+            repeatPromoteSid,
             authState.hotCacheDownloadDir || null,
           );
         }
@@ -2538,13 +2539,15 @@ export const usePlayerStore = create<PlayerState>()(
             prevTrack
             && !sameQueueTrackId(prevTrack.id, track.id)
             && authStateNow.hotCacheEnabled
-            && authStateNow.activeServerId
           ) {
-            void promoteCompletedStreamToHotCache(
-              prevTrack,
-              authStateNow.activeServerId,
-              authStateNow.hotCacheDownloadDir || null,
-            );
+            const prevPromoteSid = authStateNow.activeServerId;
+            if (prevPromoteSid) {
+              void promoteCompletedStreamToHotCache(
+                prevTrack,
+                prevPromoteSid,
+                authStateNow.hotCacheDownloadDir || null,
+              );
+            }
           }
           void refreshWaveformForTrack(track.id);
           void refreshLoudnessForTrack(track.id);
@@ -2623,10 +2626,11 @@ export const usePlayerStore = create<PlayerState>()(
           touchHotCacheOnPlayback(track.id, authStateNow.activeServerId ?? '');
         };
 
-        if (needSameTrackHotPromote) {
+        const hotPromoteSid = authState.activeServerId;
+        if (needSameTrackHotPromote && hotPromoteSid) {
           void promoteCompletedStreamToHotCache(
             track,
-            authState.activeServerId,
+            hotPromoteSid,
             authState.hotCacheDownloadDir || null,
           ).then(() => {
             if (playGeneration !== gen) return;
@@ -2770,10 +2774,11 @@ export const usePlayerStore = create<PlayerState>()(
 
           void (async () => {
             const authHot = useAuthStore.getState();
-            if (authHot.hotCacheEnabled && authHot.activeServerId) {
+            const resumePromoteSid = authHot.activeServerId;
+            if (authHot.hotCacheEnabled && resumePromoteSid) {
               await promoteCompletedStreamToHotCache(
                 currentTrack,
-                authHot.activeServerId,
+                resumePromoteSid,
                 authHot.hotCacheDownloadDir || null,
               );
             }
