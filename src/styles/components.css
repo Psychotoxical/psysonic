@@ -3848,6 +3848,60 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   }
 }
 
+.help-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  width: 280px;
+  max-width: 100%;
+  transition: border-color var(--transition-fast);
+}
+
+.help-search:focus-within {
+  border-color: var(--accent);
+}
+
+.help-search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.help-search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 2px 0;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.help-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.help-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.help-search-clear:hover {
+  color: var(--text-primary);
+}
+
 .help-list {
   display: flex;
   flex-direction: column;
