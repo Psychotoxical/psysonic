@@ -9,11 +9,13 @@ import { ndListAlbumsByArtistRole } from '../api/navidromeBrowse';
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';
-import { ArrowLeft, Users, ExternalLink, Heart, Feather } from 'lucide-react';
+import { ArrowLeft, Users, ExternalLink, Heart, Feather, Share2 } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
+import { copyEntityShareLink } from '../utils/copyEntityShareLink';
+import { showToast } from '../utils/toast';
 
 /** Strip dangerous tags/attributes from server-provided HTML. Mirrors the
  *  ArtistDetail sanitiser — kept inline because it's a 10-liner not worth a
@@ -59,7 +61,6 @@ export default function ComposerDetail() {
     if (!id) return;
     let cancelled = false;
     setLoading(true);
-    setInfo(null);
     Promise.all([
       getArtist(id).catch(() => null),
       ndListAlbumsByArtistRole(id, 'composer', 0, 500).catch(err => {
@@ -81,9 +82,14 @@ export default function ComposerDetail() {
   // Bio + Last.fm image — Last.fm matches by name, so well-known composers
   // (Bach, Mozart, Chopin) hit; obscure ones get an empty bio. Failure is
   // silent — we just show the initial-letter avatar instead.
+  // Bio is library-independent (Last.fm is global), so this effect tracks
+  // [id] only — keeping the bio visible across music-library scope changes.
+  // The info reset lives here, not in the load effect, or a scope bump would
+  // wipe the bio without re-fetching it.
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    setInfo(null);
     getArtistInfo(id, { similarArtistCount: 0 })
       .then(i => { if (!cancelled) setInfo(i ?? null); })
       .catch(() => { if (!cancelled) setInfo(null); });
@@ -120,6 +126,17 @@ export default function ComposerDetail() {
     setTimeout(() => setOpenedLink(null), 2500);
   };
 
+  const handleShareComposer = async () => {
+    if (!id || !artist) return;
+    try {
+      const ok = await copyEntityShareLink('composer', artist.id);
+      if (ok) showToast(t('contextMenu.shareCopied'));
+      else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+    } catch {
+      showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+    }
+  };
+
   if (loading) {
     return (
       <div className="content-body" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -128,7 +145,10 @@ export default function ComposerDetail() {
     );
   }
 
-  if (!artist) {
+  // Real not-found only when neither metadata nor works came back. If getArtist
+  // failed but ndListAlbumsByArtistRole succeeded, render a degraded header so
+  // a flaky Subsonic endpoint doesn't hide the works the user came here for.
+  if (!artist && albums.length === 0) {
     return (
       <div className="content-body">
         <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
@@ -138,12 +158,15 @@ export default function ComposerDetail() {
     );
   }
 
-  const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
+  const displayName = artist?.name || t('composerDetail.unknownComposer');
+  const wikiUrl = artist?.name
+    ? `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`
+    : '';
   // Header image source can be either Last.fm (artist-info path) or the Subsonic
   // cover-art endpoint. Cache key must mirror the actual URL or we'd alias both
   // entries under a single Subsonic key, polluting the cache between servers.
   const headerImageSrc = info?.largeImageUrl || coverSrc;
-  const headerImageCacheKey = info?.largeImageUrl
+  const headerImageCacheKey = info?.largeImageUrl && artist
     ? `lastfm:artist:${artist.id}:large`
     : coverKey;
 
@@ -157,7 +180,7 @@ export default function ComposerDetail() {
         <ArrowLeft size={16} /> <span>{t('composerDetail.back')}</span>
       </button>
 
-      {lightboxOpen && (
+      {lightboxOpen && artist && (
         <CoverLightbox
           src={info?.largeImageUrl || coverLargeSrc}
           alt={artist.name}
@@ -167,7 +190,7 @@ export default function ComposerDetail() {
 
       <div className="artist-detail-header">
         <div className="artist-detail-avatar" style={{ position: 'relative' }}>
-          {headerImageSrc && !headerCoverFailed ? (
+          {headerImageSrc && !headerCoverFailed && artist ? (
             <button
               className="artist-detail-avatar-btn"
               onClick={() => setLightboxOpen(true)}
@@ -188,7 +211,7 @@ export default function ComposerDetail() {
 
         <div className="artist-detail-meta">
           <h1 className="page-title" style={{ fontSize: '3rem', marginBottom: '0.25rem' }}>
-            {artist.name}
+            {displayName}
           </h1>
           <div style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Users size={14} />
@@ -196,22 +219,38 @@ export default function ComposerDetail() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <div className="artist-detail-links">
-              <button className="artist-ext-link" onClick={() => openLink(wikiUrl, 'wiki')}>
-                <ExternalLink size={14} />
-                {openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}
-              </button>
-            </div>
+            {wikiUrl && (
+              <div className="artist-detail-links">
+                <button className="artist-ext-link" onClick={() => openLink(wikiUrl, 'wiki')}>
+                  <ExternalLink size={14} />
+                  {openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}
+                </button>
+              </div>
+            )}
 
-            <button
-              className="artist-ext-link"
-              onClick={toggleStar}
-              data-tooltip={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
-              style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
-            >
-              <Heart size={14} fill={isStarred ? 'currentColor' : 'none'} />
-              {t('artistDetail.favorite')}
-            </button>
+            {artist && (
+              <button
+                className="artist-ext-link"
+                onClick={toggleStar}
+                data-tooltip={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
+                style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
+              >
+                <Heart size={14} fill={isStarred ? 'currentColor' : 'none'} />
+                {t('artistDetail.favorite')}
+              </button>
+            )}
+
+            {artist && (
+              <button
+                type="button"
+                className="artist-ext-link"
+                onClick={handleShareComposer}
+                aria-label={t('composerDetail.shareComposer')}
+                data-tooltip={t('composerDetail.shareComposer')}
+              >
+                <Share2 size={14} />
+              </button>
+            )}
           </div>
         </div>
       </div>

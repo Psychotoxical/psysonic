@@ -169,9 +169,11 @@ export const nbTranslation = {
     trackUnavailable: 'Fant ikke dette sporet på serveren.',
     albumUnavailable: 'Fant ikke dette albumet på serveren.',
     artistUnavailable: 'Fant ikke denne artisten på serveren.',
+    composerUnavailable: 'Fant ikke denne komponisten på serveren.',
     openedTrack: 'Spiller delt spor.',
     openedAlbum: 'Åpner delt album.',
     openedArtist: 'Åpner delt artist.',
+    openedComposer: 'Åpner delt komponist.',
     openedQueue_one: 'Spiller {{count}} spor fra delingslenken.',
     openedQueue_other: 'Spiller {{count}} spor fra delingslenken.',
     openedQueuePartial:
@@ -448,6 +450,8 @@ export const nbTranslation = {
     noWorks: 'Ingen verker funnet.',
     workCount_one: '{{count}} verk',
     workCount_other: '{{count}} verker',
+    shareComposer: 'Del komponist',
+    unknownComposer: 'Komponist',
   },
   login: {
     subtitle: 'Din Navidrome-mediaspiller',

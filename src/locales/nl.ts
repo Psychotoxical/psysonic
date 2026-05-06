@@ -168,9 +168,11 @@ export const nlTranslation = {
     trackUnavailable: 'Dit nummer is niet op de server gevonden.',
     albumUnavailable: 'Dit album is niet op de server gevonden.',
     artistUnavailable: 'Deze artiest is niet op de server gevonden.',
+    composerUnavailable: 'Deze componist is niet op de server gevonden.',
     openedTrack: 'Gedeeld nummer wordt afgespeeld.',
     openedAlbum: 'Gedeeld album wordt geopend.',
     openedArtist: 'Gedeelde artiest wordt geopend.',
+    openedComposer: 'Gedeelde componist wordt geopend.',
     openedQueue_one: '{{count}} nummer van deellink wordt afgespeeld.',
     openedQueue_other: '{{count}} nummers van deellink worden afgespeeld.',
     openedQueuePartial:
@@ -447,6 +449,8 @@ export const nlTranslation = {
     noWorks: 'Geen werken gevonden.',
     workCount_one: '{{count}} werk',
     workCount_other: '{{count}} werken',
+    shareComposer: 'Componist delen',
+    unknownComposer: 'Componist',
   },
   login: {
     subtitle: 'Jouw Navidrome-desktopspeler',

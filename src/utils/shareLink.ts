@@ -3,7 +3,7 @@ import type { ServerProfile } from '../store/authStore';
 /** Library share (track / album / artist / queue). Same naming family as `psysonic1-` server invites. */
 export const PSYSONIC_SHARE_PREFIX = 'psysonic2-';
 
-export type EntityShareKind = 'track' | 'album' | 'artist';
+export type EntityShareKind = 'track' | 'album' | 'artist' | 'composer';
 
 /** Entity / queue shares — what {@link applySharePastePayload} dispatches on. */
 export type EntitySharePayloadV1 =
@@ -40,7 +40,7 @@ function base64UrlToUtf8(s: string): string {
 }
 
 function isEntityKind(k: unknown): k is EntityShareKind {
-  return k === 'track' || k === 'album' || k === 'artist';
+  return k === 'track' || k === 'album' || k === 'artist' || k === 'composer';
 }
 
 export function encodeSharePayload(payload: SharePayloadV1): string {

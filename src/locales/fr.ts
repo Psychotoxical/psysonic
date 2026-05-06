@@ -169,9 +169,11 @@ export const frTranslation = {
     trackUnavailable: 'Ce morceau est introuvable sur le serveur.',
     albumUnavailable: 'Cet album est introuvable sur le serveur.',
     artistUnavailable: 'Cet artiste est introuvable sur le serveur.',
+    composerUnavailable: 'Ce compositeur est introuvable sur le serveur.',
     openedTrack: 'Lecture du morceau partagé.',
     openedAlbum: 'Ouverture de l’album partagé.',
     openedArtist: 'Ouverture de l’artiste partagé.',
+    openedComposer: 'Ouverture du compositeur partagé.',
     openedQueue_one: 'Lecture de {{count}} morceau depuis le lien de partage.',
     openedQueue_other: 'Lecture de {{count}} morceaux depuis le lien de partage.',
     openedQueuePartial:
@@ -448,6 +450,8 @@ export const frTranslation = {
     noWorks: 'Aucune œuvre trouvée.',
     workCount_one: '{{count}} œuvre',
     workCount_other: '{{count}} œuvres',
+    shareComposer: 'Partager le compositeur',
+    unknownComposer: 'Compositeur',
   },
   login: {
     subtitle: 'Votre lecteur de bureau Navidrome',

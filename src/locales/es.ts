@@ -170,9 +170,11 @@ export const esTranslation = {
     trackUnavailable: 'No se encontró esta canción en el servidor.',
     albumUnavailable: 'No se encontró este álbum en el servidor.',
     artistUnavailable: 'No se encontró este artista en el servidor.',
+    composerUnavailable: 'No se encontró este compositor en el servidor.',
     openedTrack: 'Reproduciendo la canción compartida.',
     openedAlbum: 'Abriendo el álbum compartido.',
     openedArtist: 'Abriendo el artista compartido.',
+    openedComposer: 'Abriendo el compositor compartido.',
     openedQueue_one: 'Reproduciendo {{count}} pista del enlace para compartir.',
     openedQueue_other: 'Reproduciendo {{count}} pistas del enlace para compartir.',
     openedQueuePartial:
@@ -450,6 +452,8 @@ export const esTranslation = {
     noWorks: 'No se encontraron obras.',
     workCount_one: '{{count}} obra',
     workCount_other: '{{count}} obras',
+    shareComposer: 'Compartir compositor',
+    unknownComposer: 'Compositor',
   },
   login: {
     subtitle: 'Tu Reproductor Navidrome para Escritorio',

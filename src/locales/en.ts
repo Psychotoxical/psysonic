@@ -171,9 +171,11 @@ export const enTranslation = {
     trackUnavailable: 'This track was not found on the server.',
     albumUnavailable: 'This album was not found on the server.',
     artistUnavailable: 'This artist was not found on the server.',
+    composerUnavailable: 'This composer was not found on the server.',
     openedTrack: 'Playing shared track.',
     openedAlbum: 'Opening shared album.',
     openedArtist: 'Opening shared artist.',
+    openedComposer: 'Opening shared composer.',
     openedQueue_one: 'Playing {{count}} track from the share link.',
     openedQueue_other: 'Playing {{count}} tracks from the share link.',
     openedQueuePartial:
@@ -450,6 +452,8 @@ export const enTranslation = {
     noWorks: 'No works found.',
     workCount_one: '{{count}} work',
     workCount_other: '{{count}} works',
+    shareComposer: 'Share composer',
+    unknownComposer: 'Composer',
   },
   login: {
     subtitle: 'Your Navidrome Desktop Player',

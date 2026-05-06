@@ -72,6 +72,21 @@ export async function applySharePastePayload(
       return;
     }
 
+    if (payload.k === 'composer') {
+      // Same id space as artists (Subsonic / Navidrome use one id pool for
+      // every participant role), so getArtist still validates the entity —
+      // the difference is which view we navigate to.
+      try {
+        await getArtist(payload.id);
+      } catch {
+        showToast(t('sharePaste.composerUnavailable'), 5000, 'error');
+        return;
+      }
+      navigate(`/composer/${payload.id}`);
+      showToast(t('sharePaste.openedComposer'), 3000, 'info');
+      return;
+    }
+
     if (payload.k === 'queue') {
       const { ids } = payload;
       if (ids.length === 0) {
