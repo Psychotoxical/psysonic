@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playerStore';
+import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore, type SeekbarStyle } from '../store/authStore';
 import { bumpPerfCounter } from '../utils/perfTelemetry';
 function fmt(s: number): string {
@@ -961,6 +962,8 @@ export default function WaveformSeek({ trackId }: Props) {
 
   const seek         = usePlayerStore(s => s.seek);
   const isPlaying    = usePlayerStore(s => s.isPlaying);
+  /** Track preview pauses the main sink in Rust; `isPlaying` stays true so the bar must not extrapolate. */
+  const previewFreezesMainSeekbar = usePreviewStore(s => s.previewingId != null);
   const waveformBins = usePlayerStore(s => s.waveformBins);
   const duration     = usePlayerStore(s => s.currentTrack?.duration ?? 0);
   const seekbarStyle = useAuthStore(s => s.seekbarStyle);
@@ -1193,7 +1196,7 @@ export default function WaveformSeek({ trackId }: Props) {
 
   // Smoothly advance progress between sparse transport ticks.
   useEffect(() => {
-    if (!isPlaying || duration <= 0 || !isFinite(duration)) return;
+    if (!isPlaying || previewFreezesMainSeekbar || duration <= 0 || !isFinite(duration)) return;
     let rafId: number | null = null;
     let lastPaintAt = 0;
     const tick = (now: number) => {
@@ -1249,7 +1252,7 @@ export default function WaveformSeek({ trackId }: Props) {
     return () => {
       if (rafId != null) cancelAnimationFrame(rafId);
     };
-  }, [duration, isPlaying]);
+  }, [duration, isPlaying, previewFreezesMainSeekbar]);
 
   // Resize observer.
   useEffect(() => {
