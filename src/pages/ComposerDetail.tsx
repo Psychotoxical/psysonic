@@ -165,9 +165,12 @@ export default function ComposerDetail() {
   // Header image source can be either Last.fm (artist-info path) or the Subsonic
   // cover-art endpoint. Cache key must mirror the actual URL or we'd alias both
   // entries under a single Subsonic key, polluting the cache between servers.
+  // The Last.fm key is derived from the route id (same id namespace as the
+  // SubsonicArtist record) so it stays stable even when getArtist failed and
+  // we still render a Last.fm avatar from the bio fetch alone.
   const headerImageSrc = info?.largeImageUrl || coverSrc;
-  const headerImageCacheKey = info?.largeImageUrl && artist
-    ? `lastfm:artist:${artist.id}:large`
+  const headerImageCacheKey = info?.largeImageUrl
+    ? `lastfm:artist:${id}:large`
     : coverKey;
 
   return (
