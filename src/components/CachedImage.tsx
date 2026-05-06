@@ -234,7 +234,7 @@ export default function CachedImage({
     <img
       ref={imgRef}
       src={finalSrc}
-      style={{ ...style, opacity: loaded ? 1 : 0, transition: 'opacity 0.15s ease', ...fallbackStyle }}
+      style={{ ...style, opacity: loaded ? 1 : 0, ...fallbackStyle }}
       onLoad={e => { setLoaded(true); onLoad?.(e); }}
       onError={handleError}
       {...props}

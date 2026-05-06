@@ -3899,7 +3899,6 @@ select.input.input:focus {
 }
 
 .card:hover {
-  transform: translateY(-2px);
   box-shadow: inset 0 0 0 1px var(--border), var(--shadow-md);
 }
 
