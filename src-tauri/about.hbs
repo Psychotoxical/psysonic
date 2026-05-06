@@ -1,0 +1,26 @@
+{{!--
+    cargo-about template — emits JSON grouped by license. The Node generator
+    (scripts/generate-licenses.mjs) flattens this into a per-crate list and
+    merges it with the npm license data into the final public/licenses.json.
+--}}
+{
+  "licenses": [
+    {{#each licenses}}
+    {
+      "id": "{{id}}",
+      "name": "{{name}}",
+      "text": {{json text}},
+      "used_by": [
+        {{#each used_by}}
+        {
+          "name": "{{crate.name}}",
+          "version": "{{crate.version}}",
+          "repository": {{json crate.repository}},
+          "description": {{json crate.description}}
+        }{{#unless @last}},{{/unless}}
+        {{/each}}
+      ]
+    }{{#unless @last}},{{/unless}}
+    {{/each}}
+  ]
+}

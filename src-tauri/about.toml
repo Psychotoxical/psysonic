@@ -1,0 +1,42 @@
+# cargo-about config — controls which licenses are allowed in the dependency
+# tree and how the licenses listing is generated. Permissive list: anything
+# the Rust ecosystem commonly publishes under, plus a few exceptions.
+#
+# Run via `npm run licenses:generate` (which calls `cargo about generate`).
+
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "0BSD",
+    "CC0-1.0",
+    "Unlicense",
+    "OpenSSL",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+]
+
+# Skip the build host's own platform-pinning; we want a list across all targets
+# we ship binaries for so the Linux user sees Linux-only deps too, etc.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+]
+
+# Show transitive deps (we want everything in the binary) but skip dev-deps
+# (test-only crates aren't in the shipped artifact).
+ignore-build-dependencies = false
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+filter-noassertion = false
+workarounds = ["ring"]
