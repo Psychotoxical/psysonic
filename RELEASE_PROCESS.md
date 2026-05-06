@@ -41,6 +41,11 @@ Rules:
 
 1. Merge ready PRs into `main`.
 2. Confirm CI is green on `main`.
+3. Refresh the bundled Open-Source-Licenses data (maintainer-only, run locally):
+   - Requires `cargo-about` (one-time install: `cargo install cargo-about --features cli`).
+   - Run directly: `node scripts/generate-licenses.mjs` from the repo root.
+   - Inspect the diff on `src/data/licenses.json` (size + entry count delta should be plausible).
+   - Commit on `main` if the file changed. No npm script wrapper exists on purpose — adding one to `package.json` would trigger the `nix-npm-deps-hash-sync` workflow on every push. Contributors consume the committed JSON as-is.
 
 ### Step B: Promote to RC (`next`)
 
