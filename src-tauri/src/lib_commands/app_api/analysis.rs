@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashSet;
 
 #[tauri::command]
 pub(crate) fn analysis_get_waveform(
@@ -173,4 +174,71 @@ pub(crate) fn analysis_enqueue_seed_from_url(
         AnalysisBackfillEnqueueKind::DuplicateSkipped | AnalysisBackfillEnqueueKind::RunningSkipped => {}
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AnalysisPrunePendingResult {
+    pub keep_count: usize,
+    pub http_removed: usize,
+    pub cpu_removed_jobs: usize,
+    pub cpu_removed_waiters: usize,
+}
+
+/// Prunes pending analysis work for tracks no longer present in the playback queue.
+///
+/// Keeps currently-running jobs untouched; only queued (not-yet-started) jobs are removed.
+#[tauri::command]
+pub(crate) fn analysis_prune_pending_to_track_ids(
+    track_ids: Vec<String>,
+) -> Result<AnalysisPrunePendingResult, String> {
+    let mut normalized: Vec<String> = Vec::with_capacity(track_ids.len());
+    let mut seen = HashSet::new();
+    for raw in track_ids {
+        let tid = raw.trim();
+        if tid.is_empty() {
+            continue;
+        }
+        if seen.insert(tid.to_string()) {
+            normalized.push(tid.to_string());
+        }
+    }
+    let keep_track_ids: HashSet<&str> = normalized.iter().map(|s| s.as_str()).collect();
+
+    let http_removed = if let Some(shared) = ANALYSIS_BACKFILL.get() {
+        let mut st = shared
+            .state
+            .lock()
+            .map_err(|_| "analysis backfill lock poisoned".to_string())?;
+        st.prune_queued_not_in(&keep_track_ids)
+    } else {
+        0
+    };
+
+    let (cpu_removed_jobs, cpu_removed_waiters) = if let Some(shared) = ANALYSIS_CPU_SEED.get() {
+        let mut st = shared
+            .state
+            .lock()
+            .map_err(|_| "analysis cpu-seed lock poisoned".to_string())?;
+        st.prune_queued_not_in(&keep_track_ids)
+    } else {
+        (0, 0)
+    };
+
+    if http_removed > 0 || cpu_removed_jobs > 0 {
+        crate::app_deprintln!(
+            "[analysis] pruned pending queues keep={} removed_http={} removed_cpu_jobs={} removed_cpu_waiters={}",
+            keep_track_ids.len(),
+            http_removed,
+            cpu_removed_jobs,
+            cpu_removed_waiters
+        );
+    }
+
+    Ok(AnalysisPrunePendingResult {
+        keep_count: keep_track_ids.len(),
+        http_removed,
+        cpu_removed_jobs,
+        cpu_removed_waiters,
+    })
 }

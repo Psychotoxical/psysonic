@@ -73,6 +73,56 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let graceEvictTimer: ReturnType<typeof setTimeout> | null = null;
 const pendingQueue: PrefetchJob[] = [];
 let workerRunning = false;
+let analysisPruneTimer: ReturnType<typeof setTimeout> | null = null;
+let lastAnalysisPruneSig = '';
+const ANALYSIS_PRUNE_DEBOUNCE_MS = 1200;
+
+type AnalysisPrunePendingResult = {
+  keepCount: number;
+  httpRemoved: number;
+  cpuRemovedJobs: number;
+  cpuRemovedWaiters: number;
+};
+
+function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
+  const { queue, currentTrack } = usePlayerStore.getState();
+  const keepTrackIds: string[] = [];
+  const seen = new Set<string>();
+  const pushId = (id: string | undefined | null) => {
+    if (!id) return;
+    const tid = id.trim();
+    if (!tid || seen.has(tid)) return;
+    seen.add(tid);
+    keepTrackIds.push(tid);
+  };
+  pushId(currentTrack?.id);
+  for (const track of queue) {
+    pushId(track.id);
+    if (keepTrackIds.length >= 1000) break;
+  }
+  const sig = JSON.stringify(keepTrackIds);
+  if (sig === lastAnalysisPruneSig) return;
+  lastAnalysisPruneSig = sig;
+  if (analysisPruneTimer) {
+    clearTimeout(analysisPruneTimer);
+    analysisPruneTimer = null;
+  }
+  analysisPruneTimer = setTimeout(() => {
+    analysisPruneTimer = null;
+    void invoke<AnalysisPrunePendingResult>('analysis_prune_pending_to_track_ids', { trackIds: keepTrackIds })
+      .then(result => {
+        if (!result) return;
+        hotCacheFrontendDebug({
+          event: 'analysis-prune',
+          keepCount: result.keepCount,
+          removedHttp: result.httpRemoved,
+          removedCpuJobs: result.cpuRemovedJobs,
+          removedCpuWaiters: result.cpuRemovedWaiters,
+        });
+      })
+      .catch(() => {});
+  }, ANALYSIS_PRUNE_DEBOUNCE_MS);
+}
 
 function debounceMs(): number {
   const s = useAuthStore.getState().hotCacheDebounceSec;
@@ -332,6 +382,7 @@ export function initHotCachePrefetch(): () => void {
     const onlyIndexMoved = q === lastQueueRef && i !== lastQueueIndex;
     lastQueueRef = q;
     lastQueueIndex = i;
+    scheduleAnalysisQueuePruneFromPlaybackQueue();
     if (onlyIndexMoved && i > prevIdx && prevIdx >= 0 && Array.isArray(prevQ)) {
       const left = (prevQ as Track[])[prevIdx];
       const a = useAuthStore.getState();
@@ -393,6 +444,7 @@ export function initHotCachePrefetch(): () => void {
   });
 
   void replanNow();
+  scheduleAnalysisQueuePruneFromPlaybackQueue();
 
   return () => {
     unsubPlayer();
@@ -401,6 +453,9 @@ export function initHotCachePrefetch(): () => void {
     debounceTimer = null;
     if (graceEvictTimer) clearTimeout(graceEvictTimer);
     graceEvictTimer = null;
+    if (analysisPruneTimer) clearTimeout(analysisPruneTimer);
+    analysisPruneTimer = null;
+    lastAnalysisPruneSig = '';
     pendingQueue.length = 0;
     clearHotCachePreviousGrace();
   };

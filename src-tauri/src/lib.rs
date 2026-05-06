@@ -10,7 +10,7 @@ mod lib_commands;
 #[cfg(target_os = "windows")]
 mod taskbar_win;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -126,6 +126,13 @@ impl AnalysisBackfillQueueState {
             self.deque.push_back((tid, url));
             AnalysisBackfillEnqueueKind::NewBack
         }
+    }
+
+    fn prune_queued_not_in(&mut self, keep_track_ids: &HashSet<&str>) -> usize {
+        let before = self.deque.len();
+        self.deque
+            .retain(|(track_id, _)| keep_track_ids.contains(track_id.as_str()));
+        before.saturating_sub(self.deque.len())
     }
 }
 
@@ -299,6 +306,27 @@ impl AnalysisCpuSeedQueueState {
             AnalysisCpuSeedEnqueueKind::NewBack
         };
         (kind, done_rx)
+    }
+
+    fn prune_queued_not_in(&mut self, keep_track_ids: &HashSet<&str>) -> (usize, usize) {
+        let mut kept = VecDeque::with_capacity(self.deque.len());
+        let mut removed_jobs = 0usize;
+        let mut removed_waiters = 0usize;
+        while let Some(job) = self.deque.pop_front() {
+            if keep_track_ids.contains(job.track_id.as_str()) {
+                kept.push_back(job);
+                continue;
+            }
+            removed_jobs += 1;
+            removed_waiters += job.waiters.len();
+            for tx in job.waiters {
+                let _ = tx.send(Err(
+                    "cpu-seed pruned: track no longer in playback queue".to_string(),
+                ));
+            }
+        }
+        self.deque = kept;
+        (removed_jobs, removed_waiters)
     }
 }
 
@@ -920,6 +948,7 @@ pub fn run() {
             analysis_delete_loudness_for_track,
             analysis_delete_all_waveforms,
             analysis_enqueue_seed_from_url,
+            analysis_prune_pending_to_track_ids,
             download_track_offline,
             delete_offline_track,
             get_offline_cache_size,
