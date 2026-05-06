@@ -179,6 +179,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The **Playlists** icon in the collapsed sidebar was **off-centre** and had a **wider hover background** than every other item, because it still rendered through the expanded-mode wrapper (with `padding-right` and a `flex: 1` main link to fit the expand-toggle). Collapsed mode now reuses the **standard nav-link path** — same hitbox, same alignment as Artists, Albums, Favorites, etc.
 
+### Tracklist — drop now-playing pulse + EQ-bar animations
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#488](https://github.com/Psychotoxical/psysonic/pull/488)**
+
+* The currently-playing track in any tracklist (**AlbumDetail**, **ArtistDetail**, **PlaylistDetail**, **Favorites**, **RandomMix**) ran an **`opacity` pulse** on the entire row plus three **`transform` keyframe** EQ-bar siblings — both compositor properties, but on **WebKitGTK without compositing** (Linux + NVIDIA proprietary + `WEBKIT_DISABLE_COMPOSITING_MODE=1`) every animated row falls back to a full **software repaint** of the subtree per frame. On AlbumDetail the combined cost held the WebProcess at **~80 % CPU** for the duration of playback; CPU dropped immediately on pause/stop.
+* `.track-row.active` keeps the **accent-tinted background** but no longer pulses. The "now playing" indicator becomes a single Lucide **`AudioLines` icon** (one SVG per active row instead of three animated spans). Cleanup: dead `track-pulse` + `eq-bounce` keyframes and a duplicate, shadowed `.eq-bar` block in `theme.css`.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
