@@ -930,6 +930,8 @@ pub fn run() {
             nd_delete_user,
             nd_list_libraries,
             nd_list_songs,
+            nd_list_artists_by_role,
+            nd_list_albums_by_artist_role,
             nd_set_user_libraries,
             nd_list_playlists,
             nd_create_playlist,

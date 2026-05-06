@@ -1,0 +1,244 @@
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  getArtist, getArtistInfo, star, unstar,
+  SubsonicArtist, SubsonicAlbum, SubsonicArtistInfo,
+  buildCoverArtUrl, coverArtCacheKey,
+} from '../api/subsonic';
+import { ndListAlbumsByArtistRole } from '../api/navidromeBrowse';
+import AlbumCard from '../components/AlbumCard';
+import CachedImage from '../components/CachedImage';
+import CoverLightbox from '../components/CoverLightbox';
+import { ArrowLeft, Users, ExternalLink, Heart, Feather } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-shell';
+import { usePlayerStore } from '../store/playerStore';
+import { useTranslation } from 'react-i18next';
+
+/** Strip dangerous tags/attributes from server-provided HTML. Mirrors the
+ *  ArtistDetail sanitiser — kept inline because it's a 10-liner not worth a
+ *  separate util module. */
+function sanitizeHtml(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, select, base, meta, link').forEach(el => el.remove());
+  doc.querySelectorAll('*').forEach(el => {
+    Array.from(el.attributes).forEach(attr => {
+      const name = attr.name.toLowerCase();
+      const val = attr.value.toLowerCase().trim();
+      if (name.startsWith('on') || (name === 'href' && (val.startsWith('javascript:') || val.startsWith('data:'))) || (name === 'src' && (val.startsWith('javascript:') || val.startsWith('data:')))) {
+        el.removeAttribute(attr.name);
+      }
+    });
+  });
+  return doc.body.innerHTML;
+}
+
+export default function ComposerDetail() {
+  const { t } = useTranslation();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [artist, setArtist] = useState<SubsonicArtist | null>(null);
+  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
+  const [info, setInfo] = useState<SubsonicArtistInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isStarred, setIsStarred] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [headerCoverFailed, setHeaderCoverFailed] = useState(false);
+  const [openedLink, setOpenedLink] = useState<string | null>(null);
+
+  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
+
+  // Subsonic `getArtist.view` only follows AlbumArtist relations, so for a
+  // composer-only credit it returns the right name + bio but zero albums.
+  // Native API `/api/album?_filters={"role_composer_id":"<id>"}` is the only
+  // endpoint that walks the participants graph for non-AlbumArtist roles.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    setInfo(null);
+    Promise.all([
+      getArtist(id).catch(() => null),
+      ndListAlbumsByArtistRole(id, 'composer', 0, 500).catch(err => {
+        console.warn('[psysonic] composer albums load failed:', err);
+        return [] as SubsonicAlbum[];
+      }),
+    ]).then(([artistData, composerAlbums]) => {
+      if (cancelled) return;
+      if (artistData) {
+        setArtist(artistData.artist);
+        setIsStarred(!!artistData.artist.starred);
+      }
+      setAlbums(composerAlbums);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  // Bio + Last.fm image — Last.fm matches by name, so well-known composers
+  // (Bach, Mozart, Chopin) hit; obscure ones get an empty bio. Failure is
+  // silent — we just show the initial-letter avatar instead.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    getArtistInfo(id, { similarArtistCount: 0 })
+      .then(i => { if (!cancelled) setInfo(i ?? null); })
+      .catch(() => { if (!cancelled) setInfo(null); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  useEffect(() => {
+    setHeaderCoverFailed(false);
+  }, [id]);
+
+  const coverId = artist?.coverArt || artist?.id || '';
+  const coverSrc = useMemo(() => coverId ? buildCoverArtUrl(coverId, 300) : '', [coverId]);
+  const coverKey = useMemo(() => coverId ? coverArtCacheKey(coverId, 300) : '', [coverId]);
+  const coverLargeSrc = useMemo(() => coverId ? buildCoverArtUrl(coverId, 2000) : '', [coverId]);
+
+  const toggleStar = async () => {
+    if (!artist) return;
+    const next = !isStarred;
+    setIsStarred(next);
+    setStarredOverride(artist.id, next);
+    try {
+      if (next) await star(artist.id, 'artist');
+      else await unstar(artist.id, 'artist');
+    } catch (err) {
+      console.warn('[psysonic] composer star failed:', err);
+      setIsStarred(!next);
+      setStarredOverride(artist.id, !next);
+    }
+  };
+
+  const openLink = (url: string, key: string) => {
+    setOpenedLink(key);
+    open(url).catch(() => {});
+    setTimeout(() => setOpenedLink(null), 1500);
+  };
+
+  if (loading) {
+    return (
+      <div className="content-body" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  if (!artist) {
+    return (
+      <div className="content-body">
+        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
+          {t('composerDetail.notFound')}
+        </div>
+      </div>
+    );
+  }
+
+  const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
+  const headerImageSrc = info?.largeImageUrl || coverSrc;
+
+  return (
+    <div className="content-body animate-fade-in">
+      <button
+        className="btn btn-ghost"
+        onClick={() => navigate(-1)}
+        style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+      >
+        <ArrowLeft size={16} /> <span>{t('composerDetail.back')}</span>
+      </button>
+
+      {lightboxOpen && (
+        <CoverLightbox
+          src={info?.largeImageUrl || coverLargeSrc}
+          alt={artist.name}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+
+      <div className="artist-detail-header">
+        <div className="artist-detail-avatar" style={{ position: 'relative' }}>
+          {headerImageSrc && !headerCoverFailed ? (
+            <button
+              className="artist-detail-avatar-btn"
+              onClick={() => setLightboxOpen(true)}
+              aria-label={artist.name}
+            >
+              <CachedImage
+                src={headerImageSrc}
+                cacheKey={coverKey}
+                alt={artist.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={() => setHeaderCoverFailed(true)}
+              />
+            </button>
+          ) : (
+            <Feather size={64} color="var(--text-muted)" />
+          )}
+        </div>
+
+        <div className="artist-detail-meta">
+          <h1 className="page-title" style={{ fontSize: '3rem', marginBottom: '0.25rem' }}>
+            {artist.name}
+          </h1>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Users size={14} />
+            <span>{t('composerDetail.workCount', { count: albums.length })}</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div className="artist-detail-links">
+              <button className="artist-ext-link" onClick={() => openLink(wikiUrl, 'wiki')}>
+                <ExternalLink size={14} />
+                {openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}
+              </button>
+            </div>
+
+            <button
+              className="artist-ext-link"
+              onClick={toggleStar}
+              data-tooltip={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
+              style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
+            >
+              <Heart size={14} fill={isStarred ? 'currentColor' : 'none'} />
+              {t('artistDetail.favorite')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {info?.biography && (
+        <div className="np-info-card artist-bio-card" style={{ marginTop: '2rem' }}>
+          <div className="np-card-header">
+            <h3 className="np-card-title">{t('composerDetail.about')}</h3>
+          </div>
+          <div className="np-artist-bio-row">
+            <div className="np-bio-wrap">
+              <div
+                className={`np-bio-text${bioExpanded ? ' expanded' : ''}`}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(info.biography) }}
+              />
+              <button className="np-bio-toggle" onClick={() => setBioExpanded(v => !v)}>
+                {bioExpanded ? t('nowPlaying.showLess') : t('nowPlaying.readMore')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <h2 className="section-title" style={{ marginTop: '2rem', marginBottom: '1rem' }}>
+        {t('composerDetail.works')}
+      </h2>
+      {albums.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+          {t('composerDetail.noWorks')}
+        </div>
+      ) : (
+        <div className="album-grid-wrap">
+          {albums.map((a, i) => <AlbumCard key={`${a.id}-${i}`} album={a} />)}
+        </div>
+      )}
+    </div>
+  );
+}

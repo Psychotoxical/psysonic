@@ -22,6 +22,8 @@ const Home = lazy(() => import('./pages/Home'));
 const Albums = lazy(() => import('./pages/Albums'));
 const Artists = lazy(() => import('./pages/Artists'));
 const ArtistDetail = lazy(() => import('./pages/ArtistDetail'));
+const Composers = lazy(() => import('./pages/Composers'));
+const ComposerDetail = lazy(() => import('./pages/ComposerDetail'));
 const NewReleases = lazy(() => import('./pages/NewReleases'));
 const Favorites = lazy(() => import('./pages/Favorites'));
 const RandomMix = lazy(() => import('./pages/RandomMix'));
@@ -672,6 +674,8 @@ function AppShell() {
                   <Route path="/album/:id" element={<AlbumDetail />} />
                   <Route path="/artists" element={<Artists />} />
                   <Route path="/artist/:id" element={<ArtistDetail />} />
+                  <Route path="/composers" element={<Composers />} />
+                  <Route path="/composer/:id" element={<ComposerDetail />} />
                   <Route path="/new-releases" element={<NewReleases />} />
                   <Route path="/favorites" element={<Favorites />} />
                   <Route path="/random/mix" element={<RandomMix />} />

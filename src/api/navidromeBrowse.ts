@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
 import { ndLogin } from './navidromeAdmin';
-import type { SubsonicSong } from './subsonic';
+import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from './subsonic';
 
 /** Server-keyed Bearer token cache. Cheap to keep — Navidrome tokens are long-lived. */
 let cachedToken: { serverUrl: string; token: string } | null = null;
@@ -118,6 +118,132 @@ export async function ndListSongs(
     songsCache.set(cacheKey, { data, expiresAt: Date.now() + cacheMs });
   }
   return data;
+}
+
+function mapNdArtist(o: Record<string, unknown>, role?: string): SubsonicArtist {
+  // Top-level `albumCount` aggregates every role the person holds. The
+  // role-scoped count lives in `stats[role].albumCount` (verified empirically
+  // 2026-05-06 — Navidrome exposes it as `albumCount`/`songCount`/`size`,
+  // not the abbreviated `a`/`s`/… some refactor docs claim).
+  const starredFlag = !!o.starred;
+  const starredAt = typeof o.starredAt === 'string' ? o.starredAt : undefined;
+  let albumCount: number | undefined;
+  if (role && o.stats && typeof o.stats === 'object') {
+    const roleStats = (o.stats as Record<string, unknown>)[role];
+    if (roleStats && typeof roleStats === 'object') {
+      albumCount = asNumber((roleStats as Record<string, unknown>).albumCount);
+    }
+  }
+  return {
+    id: asString(o.id),
+    name: asString(o.name),
+    albumCount,
+    starred: starredFlag ? (starredAt ?? 'true') : undefined,
+    userRating: asNumber(o.rating),
+  };
+}
+
+function mapNdAlbum(o: Record<string, unknown>): SubsonicAlbum {
+  const id = asString(o.id);
+  const starredFlag = !!o.starred;
+  const starredAt = typeof o.starredAt === 'string' ? o.starredAt : undefined;
+  return {
+    id,
+    name: asString(o.name),
+    artist: asString(o.albumArtist) || asString(o.artist),
+    artistId: asString(o.albumArtistId) || asString(o.artistId),
+    coverArt: asString(o.coverArtId) || asString(o.embedArtPath) || id || undefined,
+    songCount: asNumber(o.songCount) ?? 0,
+    duration: asNumber(o.duration) ?? 0,
+    year: asNumber(o.maxYear) ?? asNumber(o.year),
+    genre: typeof o.genre === 'string' ? o.genre : undefined,
+    starred: starredFlag ? (starredAt ?? 'true') : undefined,
+    userRating: asNumber(o.rating),
+    isCompilation: o.compilation === true,
+  };
+}
+
+export type NdArtistRole = 'composer' | 'conductor' | 'lyricist' | 'arranger'
+  | 'producer' | 'director' | 'engineer' | 'mixer' | 'remixer' | 'djmixer'
+  | 'performer' | 'maincredit' | 'artist' | 'albumartist';
+
+export type NdArtistSort = 'name' | 'album_count' | 'song_count' | 'size';
+
+/**
+ * Paginated list of artists holding the given participant role on at least one
+ * track — the canonical Navidrome path for "Browse by Composer/Conductor/etc."
+ * Requires Navidrome 0.55.0+ (uses `library_artist.stats`). Throws on auth or
+ * unsupported-server errors; caller should treat that as a capability miss.
+ */
+export async function ndListArtistsByRole(
+  role: NdArtistRole,
+  start: number,
+  end: number,
+  sort: NdArtistSort = 'name',
+  order: 'ASC' | 'DESC' = 'ASC',
+): Promise<SubsonicArtist[]> {
+  const baseUrl = useAuthStore.getState().getBaseUrl();
+  if (!baseUrl) throw new Error('No server configured');
+
+  const callOnce = async (token: string): Promise<unknown> =>
+    invoke<unknown>('nd_list_artists_by_role', {
+      serverUrl: baseUrl, token, role, sort, order, start, end,
+    });
+
+  let token = await getToken();
+  let raw: unknown;
+  try {
+    raw = await callOnce(token);
+  } catch (err) {
+    const msg = String(err);
+    if (msg.includes('401') || msg.includes('403')) {
+      token = await getToken(true);
+      raw = await callOnce(token);
+    } else {
+      throw err;
+    }
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw.map(a => mapNdArtist(a as Record<string, unknown>, role));
+}
+
+/**
+ * Paginated list of albums in which `artistId` holds the given participant role.
+ * Subsonic `getArtist.view` only walks AlbumArtist relations, so composer-only
+ * (or conductor-only, …) credits are unreachable through it. Navidrome's native
+ * filter `role_<role>_id` covers every role from `model.AllRoles`.
+ */
+export async function ndListAlbumsByArtistRole(
+  artistId: string,
+  role: NdArtistRole,
+  start: number,
+  end: number,
+  sort: 'name' | 'max_year' | 'recently_added' | 'play_count' = 'name',
+  order: 'ASC' | 'DESC' = 'ASC',
+): Promise<SubsonicAlbum[]> {
+  const baseUrl = useAuthStore.getState().getBaseUrl();
+  if (!baseUrl) throw new Error('No server configured');
+
+  const callOnce = async (token: string): Promise<unknown> =>
+    invoke<unknown>('nd_list_albums_by_artist_role', {
+      serverUrl: baseUrl, token, artistId, role, sort, order, start, end,
+    });
+
+  let token = await getToken();
+  let raw: unknown;
+  try {
+    raw = await callOnce(token);
+  } catch (err) {
+    const msg = String(err);
+    if (msg.includes('401') || msg.includes('403')) {
+      token = await getToken(true);
+      raw = await callOnce(token);
+    } else {
+      throw err;
+    }
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw.map(a => mapNdAlbum(a as Record<string, unknown>));
 }
 
 /** Drop the cached token AND the songs cache — call when the active server changes. */

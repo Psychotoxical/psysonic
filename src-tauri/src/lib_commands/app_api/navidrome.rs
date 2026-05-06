@@ -154,7 +154,12 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<reqwest::Response, reqwest::Error>>,
 {
-    const BACKOFFS_MS: [u64; 1] = [500];
+    // Reverse-proxies in front of Navidrome (Caddy/nginx + Cloudflare etc.)
+    // sometimes drop a TLS handshake mid-stream when their keep-alive pool
+    // churns. One 500 ms retry isn't always enough — exponential backoff
+    // across 4 attempts gives the upstream pool time to settle without
+    // making the user-visible wait worse for the common single-failure case.
+    const BACKOFFS_MS: [u64; 3] = [300, 800, 1800];
     let mut last: Option<reqwest::Error> = None;
     for attempt in 0..=BACKOFFS_MS.len() {
         if attempt > 0 {
@@ -350,6 +355,81 @@ pub(crate) async fn nd_list_songs(
     let resp = nd_retry(|| {
         nd_http_client()
             .get(&url)
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .send()
+    }).await?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>().await.map_err(nd_err)
+}
+
+/// GET `/api/artist?_filters={"role":"<role>"}&_sort=...&_order=...&_start=...&_end=...`
+/// — paginated list of artists that have at least one credit in the given role.
+/// Navidrome 0.55.0+ (uses `library_artist.stats` JSON aggregate). Available to any
+/// authenticated user. Returns raw JSON array.
+#[tauri::command]
+pub(crate) async fn nd_list_artists_by_role(
+    server_url: String,
+    token: String,
+    role: String,
+    sort: String,
+    order: String,
+    start: u32,
+    end: u32,
+) -> Result<serde_json::Value, String> {
+    let filters = format!("{{\"role\":\"{}\"}}", role);
+    let start_s = start.to_string();
+    let end_s = end.to_string();
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .get(format!("{}/api/artist", server_url))
+            .query(&[
+                ("_filters", filters.as_str()),
+                ("_sort", sort.as_str()),
+                ("_order", order.as_str()),
+                ("_start", start_s.as_str()),
+                ("_end", end_s.as_str()),
+            ])
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .send()
+    }).await?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>().await.map_err(nd_err)
+}
+
+/// GET `/api/album?_filters={"role_<role>_id":"<artistId>"}&_sort=...&_order=...&_start=...&_end=...`
+/// — paginated list of albums in which `artist_id` holds the given participant role.
+/// Subsonic `getArtist.view` only walks AlbumArtist relations, so composer-only
+/// (or conductor-only, lyricist-only, …) credits are unreachable there. Navidrome
+/// generates `role_<role>_id` filters dynamically from `model.AllRoles`.
+#[tauri::command]
+pub(crate) async fn nd_list_albums_by_artist_role(
+    server_url: String,
+    token: String,
+    artist_id: String,
+    role: String,
+    sort: String,
+    order: String,
+    start: u32,
+    end: u32,
+) -> Result<serde_json::Value, String> {
+    let filter_key = format!("role_{}_id", role);
+    let filters = format!("{{\"{}\":\"{}\"}}", filter_key, artist_id);
+    let start_s = start.to_string();
+    let end_s = end.to_string();
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .get(format!("{}/api/album", server_url))
+            .query(&[
+                ("_filters", filters.as_str()),
+                ("_sort", sort.as_str()),
+                ("_order", order.as_str()),
+                ("_start", start_s.as_str()),
+                ("_end", end_s.as_str()),
+            ])
             .header("X-ND-Authorization", format!("Bearer {}", token))
             .send()
     }).await?;
