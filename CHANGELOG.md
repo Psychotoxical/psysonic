@@ -132,6 +132,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **False-positive mitigation:** the watchdog now arms only after a long poll gap (sleep/resume-like condition) and logs arm/clear/trigger decisions, reducing unexpected stream reopens during normal playback.
 * **Card hover stability:** removed vertical lift on album/artist/base cards to avoid pointer-edge pulsation, kept artwork zoom smooth, and dropped per-card GPU layer hints that could regress software-composited Linux paths.
 
+### Analysis queue control — prune stale backfill jobs and cap warmup window
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#480](https://github.com/Psychotoxical/psysonic/pull/480)**
+
+* Added a queue-prune path for pending analysis work so stale `http_backfill` / `cpu_seed` jobs are dropped when tracks leave the active playback queue.
+* Limited loudness backfill warmup to the current track plus the next 5 tracks, reducing runaway analysis scheduling from large bulk queue updates.
+* Added debug counters for prune results to make queue-pressure behavior visible during diagnostics.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
