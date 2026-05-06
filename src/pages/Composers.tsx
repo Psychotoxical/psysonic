@@ -284,7 +284,7 @@ export default function Composers() {
               onClick={() => navigate(`/composer/${artist.id}`)}
               onContextMenu={(e) => {
                 e.preventDefault();
-                openContextMenu(e.clientX, e.clientY, artist, 'artist');
+                openContextMenu(e.clientX, e.clientY, artist, 'artist', undefined, undefined, undefined, 'composer');
               }}
             >
               <div className="composer-card-name">{artist.name}</div>
@@ -312,7 +312,7 @@ export default function Composers() {
                       onClick={() => navigate(`/composer/${artist.id}`)}
                       onContextMenu={(e) => {
                         e.preventDefault();
-                        openContextMenu(e.clientX, e.clientY, artist, 'artist');
+                        openContextMenu(e.clientX, e.clientY, artist, 'artist', undefined, undefined, undefined, 'composer');
                       }}
                       id={`composer-${artist.id}`}
                     >
@@ -376,7 +376,7 @@ export default function Composers() {
                       onClick={() => navigate(`/composer/${artist.id}`)}
                       onContextMenu={(e) => {
                         e.preventDefault();
-                        openContextMenu(e.clientX, e.clientY, artist, 'artist');
+                        openContextMenu(e.clientX, e.clientY, artist, 'artist', undefined, undefined, undefined, 'composer');
                       }}
                       id={`composer-${artist.id}`}
                     >

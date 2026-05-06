@@ -1178,7 +1178,7 @@ export default function ContextMenu() {
     };
   }, [pendingSubmenuKeyboardFocus, playlistSubmenuOpen, getMenuNavItems, focusMenuItemAt]);
 
-  const { type, item, queueIndex, playlistId, playlistSongIndex } = contextMenu;
+  const { type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride } = contextMenu;
 
   const isStarred = (id: string, itemStarred?: string) =>
     id in starredOverrides ? starredOverrides[id] : !!itemStarred;
@@ -2001,7 +2001,7 @@ export default function ContextMenu() {
                   <ArtistToPlaylistSubmenu artistId={artist.id} triggerId={`artist:${artist.id}`} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
                 )}
               </div>
-              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('artist', artist.id))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink(shareKindOverride ?? 'artist', artist.id))}>
                 <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               <div className="context-menu-divider" />

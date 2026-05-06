@@ -324,8 +324,12 @@ interface PlayerState {
     queueIndex?: number;
     playlistId?: string;
     playlistSongIndex?: number;
+    /** Overrides the EntityShareKind for the "Share" action — used by Composers
+     *  list/grid to copy a `composer` link from the otherwise artist-typed
+     *  context menu, so paste lands on /composer/:id instead of /artist/:id. */
+    shareKindOverride?: 'track' | 'album' | 'artist' | 'composer';
   };
-  openContextMenu: (x: number, y: number, item: any, type: 'song' | 'favorite-song' | 'album' | 'artist' | 'queue-item' | 'album-song' | 'playlist' | 'multi-album' | 'multi-artist' | 'multi-playlist', queueIndex?: number, playlistId?: string, playlistSongIndex?: number) => void;
+  openContextMenu: (x: number, y: number, item: any, type: 'song' | 'favorite-song' | 'album' | 'artist' | 'queue-item' | 'album-song' | 'playlist' | 'multi-album' | 'multi-artist' | 'multi-playlist', queueIndex?: number, playlistId?: string, playlistSongIndex?: number, shareKindOverride?: 'track' | 'album' | 'artist' | 'composer') => void;
   closeContextMenu: () => void;
 
   songInfoModal: { isOpen: boolean; songId: string | null };
@@ -2305,8 +2309,8 @@ export const usePlayerStore = create<PlayerState>()(
       repeatMode: 'off',
       contextMenu: { isOpen: false, x: 0, y: 0, item: null, type: null },
 
-      openContextMenu: (x, y, item, type, queueIndex, playlistId, playlistSongIndex) => set({
-        contextMenu: { isOpen: true, x, y, item, type, queueIndex, playlistId, playlistSongIndex },
+      openContextMenu: (x, y, item, type, queueIndex, playlistId, playlistSongIndex, shareKindOverride) => set({
+        contextMenu: { isOpen: true, x, y, item, type, queueIndex, playlistId, playlistSongIndex, shareKindOverride },
       }),
       closeContextMenu: () => set(state => ({
         contextMenu: { ...state.contextMenu, isOpen: false },
