@@ -33,6 +33,9 @@ pub fn register_post_sleep_audio_recovery(app: tauri::AppHandle) {
     power_notify_win::register(app);
     #[cfg(target_os = "linux")]
     power_notify_linux::register(app);
+    // macOS intentionally falls through for now: we only ship native resume hooks
+    // where we have verified regressions (Windows WASAPI, Linux logind/PipeWire).
+    // macOS currently relies on the generic device watcher path.
     #[cfg(all(
         not(target_os = "windows"),
         not(target_os = "linux")

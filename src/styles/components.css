@@ -223,15 +223,12 @@
   height: 100%;
   object-fit: cover;
   transform-origin: center center;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transform: translateZ(0) scale(1);
-  will-change: transform;
+  transform: scale(1);
   transition: opacity 0.15s ease, transform 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .album-card:hover .album-card-cover img {
-  transform: translateZ(0) scale(1.02);
+  transform: scale(1.02);
 }
 
 .album-card-cover-placeholder {
@@ -276,15 +273,12 @@
   height: 100%;
   object-fit: cover;
   transform-origin: center center;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transform: translateZ(0) scale(1);
-  will-change: transform;
+  transform: scale(1);
   transition: opacity 0.15s ease, transform 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .artist-card:hover .artist-card-avatar img {
-  transform: translateZ(0) scale(1.02);
+  transform: scale(1.02);
 }
 
 .artist-card-avatar-initial {
