@@ -861,7 +861,7 @@ export default function Sidebar({
               }
             : {};
 
-          return item.to === '/playlists' ? (
+          return item.to === '/playlists' && !isCollapsed ? (
             <div
               key={item.to}
               className={`sidebar-playlists-wrapper${rowClass ? ` ${rowClass}` : ''}`}
@@ -872,25 +872,21 @@ export default function Sidebar({
                 <NavLink
                   to={item.to}
                   className={({ isActive }) => `nav-link sidebar-playlists-main-link ${isActive ? 'active' : ''}`}
-                  data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
-                  data-tooltip-pos="bottom"
                 >
-                  <item.icon size={isCollapsed ? 22 : 18} />
-                  {!isCollapsed && <span>{t(item.labelKey)}</span>}
+                  <item.icon size={18} />
+                  <span>{t(item.labelKey)}</span>
                 </NavLink>
-                {!isCollapsed && (
-                  <button
-                    className={`sidebar-playlists-toggle ${playlistsExpanded ? 'expanded' : ''}`}
-                    onClick={() => setPlaylistsExpanded(!playlistsExpanded)}
-                    aria-expanded={playlistsExpanded}
-                    aria-label={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
-                    data-tooltip={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                )}
+                <button
+                  className={`sidebar-playlists-toggle ${playlistsExpanded ? 'expanded' : ''}`}
+                  onClick={() => setPlaylistsExpanded(!playlistsExpanded)}
+                  aria-expanded={playlistsExpanded}
+                  aria-label={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
+                  data-tooltip={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
+                >
+                  <ChevronRight size={14} />
+                </button>
               </div>
-              {!isCollapsed && playlistsExpanded && (
+              {playlistsExpanded && (
                 <div className="sidebar-playlists-list">
                   {playlistsLoading ? (
                     <div className="sidebar-playlists-loading">
@@ -904,8 +900,6 @@ export default function Sidebar({
                         key={pl.id}
                         to={`/playlists/${pl.id}`}
                         className={({ isActive }) => `nav-link sidebar-playlist-item ${isActive ? 'active' : ''}`}
-                        data-tooltip={isCollapsed ? displayPlaylistName(pl.name) : undefined}
-                        data-tooltip-pos="bottom"
                       >
                         {isSmartPlaylistName(pl.name) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
                         <span>{displayPlaylistName(pl.name)}</span>
