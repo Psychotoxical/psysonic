@@ -2067,8 +2067,6 @@ export default function Settings() {
         };
         auth.setSubsonicServerIdentity(id, identity);
         scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity);
-        auth.setActiveServer(id);
-        auth.setLoggedIn(true);
         setConnStatus(s => ({ ...s, [id]: 'ok' }));
       } else {
         setConnStatus(s => ({ ...s, [tempId]: 'error' }));
