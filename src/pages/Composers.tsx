@@ -43,15 +43,11 @@ function nameInitial(name: string): string {
   return alnum ?? '?';
 }
 
-// Composer libraries usually don't carry artwork (classical tag conventions),
-// so the default is the coloured initial-letter avatar. Servers that *do*
-// have composer photos (Last.fm sync, manual upload) can opt in via the
-// Images toggle in the toolbar — separate from the Artists toggle since the
-// hit rate is very different.
-// Composer libraries carry no useful imagery (classical tag conventions),
-// and Navidromes Listen-Endpoint returns no image URLs anyway. The grid is
-// text-only — large name + participation count. The list view still renders
-// a coloured initial circle so it doesn't collapse to a line of bare names.
+// Composer libraries don't carry useful imagery (classical tagging conventions
+// rarely populate cover/photo fields, and Navidrome's role-listing endpoint
+// returns no image URLs anyway). The grid is text-only — large name plus
+// participation count. The list view still draws a coloured initial circle so
+// it doesn't collapse to a row of bare names.
 function ComposerRowAvatar({ artist }: { artist: SubsonicArtist }) {
   const color = nameColor(artist.name);
   return (

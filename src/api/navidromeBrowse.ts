@@ -21,6 +21,16 @@ function asString(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : (typeof v === 'number' ? String(v) : fallback);
 }
 
+/** Active library scope for the current server, or null when "all libraries" is selected.
+ *  Mirrors the Subsonic `musicFolderId` we pipe through `libraryFilterParams()` — Navidrome
+ *  uses the same id space, so the same value is valid for the native API's `library_id` filter. */
+function currentLibraryId(): string | null {
+  const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
+  if (!activeServerId) return null;
+  const f = musicLibraryFilterByServer[activeServerId];
+  return !f || f === 'all' ? null : f;
+}
+
 function asNumber(v: unknown): number | undefined {
   return typeof v === 'number' && isFinite(v) ? v : undefined;
 }
@@ -185,9 +195,10 @@ export async function ndListArtistsByRole(
   const baseUrl = useAuthStore.getState().getBaseUrl();
   if (!baseUrl) throw new Error('No server configured');
 
+  const libraryId = currentLibraryId();
   const callOnce = async (token: string): Promise<unknown> =>
     invoke<unknown>('nd_list_artists_by_role', {
-      serverUrl: baseUrl, token, role, sort, order, start, end,
+      serverUrl: baseUrl, token, role, sort, order, start, end, libraryId,
     });
 
   let token = await getToken();
@@ -224,9 +235,10 @@ export async function ndListAlbumsByArtistRole(
   const baseUrl = useAuthStore.getState().getBaseUrl();
   if (!baseUrl) throw new Error('No server configured');
 
+  const libraryId = currentLibraryId();
   const callOnce = async (token: string): Promise<unknown> =>
     invoke<unknown>('nd_list_albums_by_artist_role', {
-      serverUrl: baseUrl, token, artistId, role, sort, order, start, end,
+      serverUrl: baseUrl, token, artistId, role, sort, order, start, end, libraryId,
     });
 
   let token = await getToken();

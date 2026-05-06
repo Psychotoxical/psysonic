@@ -12,6 +12,7 @@ import CoverLightbox from '../components/CoverLightbox';
 import { ArrowLeft, Users, ExternalLink, Heart, Feather } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 
 /** Strip dangerous tags/attributes from server-provided HTML. Mirrors the
@@ -48,6 +49,7 @@ export default function ComposerDetail() {
   const [openedLink, setOpenedLink] = useState<string | null>(null);
 
   const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   // Subsonic `getArtist.view` only follows AlbumArtist relations, so for a
   // composer-only credit it returns the right name + bio but zero albums.
@@ -74,7 +76,7 @@ export default function ComposerDetail() {
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, musicLibraryFilterVersion]);
 
   // Bio + Last.fm image — Last.fm matches by name, so well-known composers
   // (Bach, Mozart, Chopin) hit; obscure ones get an empty bio. Failure is
@@ -115,7 +117,7 @@ export default function ComposerDetail() {
   const openLink = (url: string, key: string) => {
     setOpenedLink(key);
     open(url).catch(() => {});
-    setTimeout(() => setOpenedLink(null), 1500);
+    setTimeout(() => setOpenedLink(null), 2500);
   };
 
   if (loading) {
@@ -137,7 +139,13 @@ export default function ComposerDetail() {
   }
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
+  // Header image source can be either Last.fm (artist-info path) or the Subsonic
+  // cover-art endpoint. Cache key must mirror the actual URL or we'd alias both
+  // entries under a single Subsonic key, polluting the cache between servers.
   const headerImageSrc = info?.largeImageUrl || coverSrc;
+  const headerImageCacheKey = info?.largeImageUrl
+    ? `lastfm:artist:${artist.id}:large`
+    : coverKey;
 
   return (
     <div className="content-body animate-fade-in">
@@ -167,7 +175,7 @@ export default function ComposerDetail() {
             >
               <CachedImage
                 src={headerImageSrc}
-                cacheKey={coverKey}
+                cacheKey={headerImageCacheKey}
                 alt={artist.name}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={() => setHeaderCoverFailed(true)}

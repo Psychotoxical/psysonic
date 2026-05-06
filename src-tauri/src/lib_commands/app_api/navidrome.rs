@@ -364,6 +364,23 @@ pub(crate) async fn nd_list_songs(
     resp.json::<serde_json::Value>().await.map_err(nd_err)
 }
 
+/// Build the `_filters` JSON for native-API list calls. Optionally narrows the
+/// query to a single library — `library_id` is the same scope key the Navidrome
+/// web UI sends, and it matches the Subsonic `musicFolderId` we store per server.
+fn nd_build_filters(seed: serde_json::Map<String, serde_json::Value>, library_id: Option<&str>) -> String {
+    let mut obj = seed;
+    if let Some(lib) = library_id {
+        // Navidrome stores library ids as i64; our state holds them as strings
+        // (Subsonic musicFolderId). Send numeric when parseable, fall back to
+        // string for safety against future non-numeric ids.
+        let val = lib.parse::<i64>()
+            .map(|n| serde_json::Value::Number(n.into()))
+            .unwrap_or_else(|_| serde_json::Value::String(lib.to_string()));
+        obj.insert("library_id".to_string(), val);
+    }
+    serde_json::Value::Object(obj).to_string()
+}
+
 /// GET `/api/artist?_filters={"role":"<role>"}&_sort=...&_order=...&_start=...&_end=...`
 /// — paginated list of artists that have at least one credit in the given role.
 /// Navidrome 0.55.0+ (uses `library_artist.stats` JSON aggregate). Available to any
@@ -377,8 +394,11 @@ pub(crate) async fn nd_list_artists_by_role(
     order: String,
     start: u32,
     end: u32,
+    library_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let filters = format!("{{\"role\":\"{}\"}}", role);
+    let mut seed = serde_json::Map::new();
+    seed.insert("role".to_string(), serde_json::Value::String(role.clone()));
+    let filters = nd_build_filters(seed, library_id.as_deref());
     let start_s = start.to_string();
     let end_s = end.to_string();
     let resp = nd_retry(|| {
@@ -415,9 +435,12 @@ pub(crate) async fn nd_list_albums_by_artist_role(
     order: String,
     start: u32,
     end: u32,
+    library_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let filter_key = format!("role_{}_id", role);
-    let filters = format!("{{\"{}\":\"{}\"}}", filter_key, artist_id);
+    let mut seed = serde_json::Map::new();
+    seed.insert(filter_key, serde_json::Value::String(artist_id.clone()));
+    let filters = nd_build_filters(seed, library_id.as_deref());
     let start_s = start.to_string();
     let end_s = end.to_string();
     let resp = nd_retry(|| {
