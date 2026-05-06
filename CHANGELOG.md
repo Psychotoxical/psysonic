@@ -108,6 +108,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Double-click** on the tray icon opens (or focuses) the main window without a spurious **context-menu** interaction; tray module import cleanup.
 
+### Playback stability — preview seekbar, sleep/wake recovery, and card-hover jitter
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#476](https://github.com/Psychotoxical/psysonic/pull/476)**
+
+* **Preview seekbar:** while Rust preview playback pauses the main sink, the main seekbar no longer extrapolates forward, and preview end no longer causes a brief forward jump before snapping back.
+* **Sleep/wake audio recovery:** added post-sleep output reopen hooks for **Windows** (power notifications) and **Linux** (logind `PrepareForSleep` wake signal), plus a guarded fallback watchdog path and richer runtime diagnostics.
+* **False-positive mitigation:** the watchdog now arms only after a long poll gap (sleep/resume-like condition) and logs arm/clear/trigger decisions, reducing unexpected stream reopens during normal playback.
+* **Card hover stability:** removed vertical lift on album/artist/base cards to avoid pointer-edge pulsation, kept artwork zoom smooth, and dropped per-card GPU layer hints that could regress software-composited Linux paths.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
