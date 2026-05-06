@@ -98,6 +98,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * When you add a new server from **Settings → Servers**, the new entry now appears in the server picker but **your current active server stays active** — playback, queue and library view are no longer interrupted.
 * The login screen on `/login` is unchanged: signing in there still selects the chosen server.
 
+### Most Played — quick actions, real context menu, prominent plays badge
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by nzxl, PR [#482](https://github.com/Psychotoxical/psysonic/pull/482)**
+
+* Each album row now shows always-visible **Play** and **Enqueue** quick-action buttons, reusing the same flows as `AlbumCard` (Play kicks the fade-out replace-and-play, Enqueue appends the album's songs to the queue end).
+* **Right-click** on an album row now opens the standard album context menu (Play / Add to queue / Play next / Add to playlist / Go to artist) instead of firing a hidden direct-play action; right-click on a Top Artists card opens the artist context menu.
+* The **play count** moved from a small right-aligned column to a localized **pill right next to the album title** — `11 plays` (en), `11× gespielt` (de) — since the play count is the central datum on this page.
+
 ## Fixed
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
