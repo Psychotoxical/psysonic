@@ -1196,7 +1196,6 @@ function collectLoudnessBackfillWindowTrackIds(queue: Track[], queueIndex: numbe
 }
 
 function prefetchLoudnessForEnqueuedTracks(
-  _incoming: Track[],
   mergedQueue: Track[],
   queueIndex: number,
 ) {
@@ -3228,7 +3227,7 @@ export const usePlayerStore = create<PlayerState>()(
                 ...state.queue.slice(firstAutoIdx),
               ];
           syncQueueToServer(newQueue, state.currentTrack, state.currentTime);
-          prefetchLoudnessForEnqueuedTracks(tracks, newQueue, state.queueIndex);
+          prefetchLoudnessForEnqueuedTracks(newQueue, state.queueIndex);
           return { queue: newQueue };
         });
       },
@@ -3277,7 +3276,7 @@ export const usePlayerStore = create<PlayerState>()(
             ? state.queueIndex + tracks.length
             : state.queueIndex;
           syncQueueToServer(newQueue, state.currentTrack, state.currentTime);
-          prefetchLoudnessForEnqueuedTracks(tracks, newQueue, newQueueIndex);
+          prefetchLoudnessForEnqueuedTracks(newQueue, newQueueIndex);
           return { queue: newQueue, queueIndex: newQueueIndex };
         });
       },
