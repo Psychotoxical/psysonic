@@ -894,10 +894,10 @@ export default function ArtistDetail() {
                     {albums.map((a, i) => <AlbumCard key={`${a.id}-${i}`} album={a} />)}
                   </div>
                 ) : groupedAlbums.map(([label, group]) => (
-                  <div key={label} style={{ marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem' }}>
-                      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{label}</h3>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-card)', borderRadius: 10, padding: '1px 8px' }}>{group.length}</span>
+                  <div key={label} className="artist-release-group">
+                    <div className="artist-release-group__header">
+                      <h3>{label}</h3>
+                      <span className="artist-release-group__count">{group.length}</span>
                     </div>
                     <div className="album-grid-wrap album-grid-wrap--artist">
                       {group.map((a, i) => <AlbumCard key={`${a.id}-${i}`} album={a} />)}
