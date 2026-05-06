@@ -6,7 +6,7 @@ import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
   GripVertical, PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Upload, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
-  Users, UserPlus, Shield, Wand2, Search
+  Users, UserPlus, Shield, Wand2, Search, Scale
 } from 'lucide-react';
 import i18n from '../i18n';
 import { exportBackup, importBackup } from '../utils/backup';
@@ -22,6 +22,7 @@ import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, Las
 import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
 import SettingsSubSection from '../components/SettingsSubSection';
+import LicensesPanel from '../components/LicensesPanel';
 import { AboutPsysonicBrandHeader } from '../components/AboutPsysonicLol';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
@@ -439,6 +440,7 @@ const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'system',         titleKey: 'settings.loggingTitle',             keywords: 'log logs diagnostic debug verbose' },
   { tab: 'system',         titleKey: 'settings.aboutTitle',               keywords: 'about version update changelog release notes' },
   { tab: 'system',         titleKey: 'settings.aboutContributorsLabel',   keywords: 'contributors credits maintainers' },
+  { tab: 'system',         titleKey: 'licenses.title',                    keywords: 'licenses license open source attribution copyright third party dependencies oss' },
 ];
 
 // Substring-first, Fuzzy-Fallback (alle Query-Zeichen in Reihenfolge im
@@ -4572,6 +4574,13 @@ export default function Settings() {
                 </details>
               ))}
             </div>
+          </SettingsSubSection>
+
+          <SettingsSubSection
+            title={t('licenses.title')}
+            icon={<Scale size={16} />}
+          >
+            <LicensesPanel />
           </SettingsSubSection>
 
         </>
