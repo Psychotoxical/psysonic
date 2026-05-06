@@ -426,6 +426,11 @@
   contain-intrinsic-size: 0 240px;
 }
 
+.album-grid .artist-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 240px;
+}
+
 .album-card-more {
   flex: 0 0 clamp(140px, 15vw, 180px);
   display: flex;
