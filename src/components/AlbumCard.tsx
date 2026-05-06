@@ -15,7 +15,7 @@ interface AlbumCardProps {
   album: SubsonicAlbum;
   selected?: boolean;
   selectionMode?: boolean;
-  onToggleSelect?: (id: string) => void;
+  onToggleSelect?: (id: string, opts?: { shiftKey?: boolean }) => void;
   showRating?: boolean;
   selectedAlbums?: SubsonicAlbum[];
   disableArtwork?: boolean;
@@ -54,15 +54,15 @@ function AlbumCard({
   const psyDrag = useDragDrop();
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
 
-  const handleClick = () => {
-    if (selectionMode) { onToggleSelect?.(album.id); return; }
+  const handleClick = (opts?: { shiftKey?: boolean }) => {
+    if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
     navigate(`/album/${album.id}`);
   };
 
   return (
     <div
       className={`album-card card${selectionMode ? ' album-card--selectable' : ''}${selected ? ' album-card--selected' : ''}`}
-      onClick={handleClick}
+      onClick={e => handleClick({ shiftKey: e.shiftKey })}
       role="button"
       tabIndex={0}
       aria-label={`${album.name} von ${album.artist}`}

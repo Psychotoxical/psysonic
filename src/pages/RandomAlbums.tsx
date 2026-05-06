@@ -12,6 +12,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
 import { showToast } from '../utils/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
+import { useRangeSelection } from '../hooks/useRangeSelection';
 
 const ALBUM_COUNT = 30;
 /** Extra pool when mix rating filter is on so we can still fill the grid after filtering. */
@@ -53,13 +54,10 @@ export default function RandomAlbums() {
   const filtered = selectedGenres.length > 0;
 
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(albums);
 
-  const toggleSelectionMode = () => { setSelectionMode(v => !v); setSelectedIds(new Set()); };
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  }, []);
-  const clearSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+  const toggleSelectionMode = () => { setSelectionMode(v => !v); resetSelection(); };
+  const clearSelection = () => { setSelectionMode(false); resetSelection(); };
   const selectedAlbums = albums.filter(a => selectedIds.has(a.id));
 
   const handleDownloadZips = async () => {

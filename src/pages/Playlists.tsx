@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
 import { showToast } from '../utils/toast';
 import { ndCreateSmartPlaylist, ndGetSmartPlaylist, ndListSmartPlaylists, ndUpdateSmartPlaylist } from '../api/navidromeSmart';
+import { useRangeSelection } from '../hooks/useRangeSelection';
 
 function formatDuration(seconds: number): string {
   return formatHumanHoursMinutes(seconds);
@@ -225,7 +226,7 @@ export default function Playlists() {
 
   // ── Multi-selection ──────────────────────────────────────────────────────
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(playlists);
   const isNavidromeServer = Boolean(
     activeServerId &&
     (subsonicIdentityByServer[activeServerId]?.type ?? '').toLowerCase() === 'navidrome',
@@ -233,20 +234,12 @@ export default function Playlists() {
 
   const toggleSelectionMode = () => {
     setSelectionMode(v => !v);
-    setSelectedIds(new Set());
+    resetSelection();
   };
-
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
 
   const clearSelection = () => {
     setSelectionMode(false);
-    setSelectedIds(new Set());
+    resetSelection();
   };
 
   const selectedPlaylists = playlists.filter(p => selectedIds.has(p.id));
@@ -902,9 +895,9 @@ export default function Playlists() {
             <div
               key={pl.id}
               className={`album-card${selectionMode && selectedIds.has(pl.id) ? ' selected' : ''}`}
-              onClick={() => {
+              onClick={(e) => {
                 if (selectionMode) {
-                  toggleSelect(pl.id);
+                  toggleSelect(pl.id, { shiftKey: e.shiftKey });
                 } else {
                   navigate(`/playlists/${pl.id}`);
                 }

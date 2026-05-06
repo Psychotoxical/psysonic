@@ -20,6 +20,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
 import { usePerfProbeFlags } from '../utils/perfFlags';
+import { useRangeSelection } from '../hooks/useRangeSelection';
 
 const ALBUM_GRID_GAP_PX = 16; // matches --space-4
 const ALBUM_GRID_MIN_CARD_PX = 140;
@@ -63,26 +64,9 @@ export default function Albums() {
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // ── Multi-selection ──────────────────────────────────────────────────────
+  // selectedIds + toggleSelect come from useRangeSelection (declared after
+  // `visibleAlbums` so Shift-click range expansion follows the visible order).
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  const toggleSelectionMode = () => {
-    setSelectionMode(v => !v);
-    setSelectedIds(new Set());
-  };
-
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const clearSelection = () => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  };
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const visibleAlbums = useMemo(() => {
@@ -94,6 +78,18 @@ export default function Albums() {
     }
     return out;
   }, [albums, compFilter, starredOnly, starredOverrides]);
+
+  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(visibleAlbums);
+
+  const toggleSelectionMode = () => {
+    setSelectionMode(v => !v);
+    resetSelection();
+  };
+
+  const clearSelection = () => {
+    setSelectionMode(false);
+    resetSelection();
+  };
 
   const albumGridWrapRef = useRef<HTMLDivElement>(null);
   const [albumGridCols, setAlbumGridCols] = useState(4);
