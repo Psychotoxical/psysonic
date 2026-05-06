@@ -72,5 +72,7 @@ pub fn register(app: AppHandle) {
     }
 
     crate::app_eprintln!("[psysonic] Windows power suspend/resume notifications registered for audio");
-    std::mem::forget(registration);
+    // `registration` is an opaque handle returned by Win32 API. It does not own
+    // Rust resources, so dropping the local copy is fine; callback context is
+    // intentionally leaked above for process-lifetime notifications.
 }

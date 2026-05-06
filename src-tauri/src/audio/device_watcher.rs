@@ -1,7 +1,7 @@
 //! Poll default output device and pinned-device presence; reopen stream when needed.
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::Emitter;
 use tauri::Manager;
@@ -91,15 +91,32 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
         let mut pinned_miss_count: u32 = 0;
         // Fallback recovery when OS sleep/resume notifications are missed: if playback is
         // "running" but sample counter is flat for too long, reopen output stream.
+        // To avoid false positives during normal playback, arm this watchdog only
+        // after a suspiciously long poll gap (e.g. process resumed after sleep).
         let mut last_samples_seen: u64 = 0;
-        let mut stalled_since: Option<std::time::Instant> = None;
-        let mut last_stall_recover_at: Option<std::time::Instant> = None;
+        let mut stalled_since: Option<Instant> = None;
+        let mut last_stall_recover_at: Option<Instant> = None;
+        let mut last_poll_at = Instant::now();
+        let mut watchdog_armed_until: Option<Instant> = None;
 
         loop {
             tokio::time::sleep(Duration::from_secs(3)).await;
+            let now = Instant::now();
+            let poll_gap = now.saturating_duration_since(last_poll_at);
+            last_poll_at = now;
+            if poll_gap >= Duration::from_secs(15) {
+                let armed_until = now + Duration::from_secs(120);
+                watchdog_armed_until = Some(armed_until);
+                crate::app_eprintln!(
+                    "[psysonic] device-watcher: watchdog armed for 120s (poll gap {:?}, likely sleep/resume)",
+                    poll_gap
+                );
+            }
+            let watchdog_armed = watchdog_armed_until.is_some_and(|until| now < until);
 
             // ── Fallback stall detector (works even if sleep/resume signal was missed) ──
             let mut should_recover_stall = false;
+            let mut stall_for = Duration::ZERO;
             {
                 let samples_now = samples_played.load(Ordering::Relaxed);
                 let cur = current.lock().unwrap();
@@ -108,16 +125,35 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     .as_ref()
                     .is_some_and(|s| !s.is_paused() && !s.empty());
 
-                if !active || samples_now != last_samples_seen {
+                if !watchdog_armed {
+                    if stalled_since.take().is_some() {
+                        crate::app_eprintln!(
+                            "[psysonic] device-watcher: watchdog disarmed, clearing stall candidate"
+                        );
+                    }
+                    last_samples_seen = samples_now;
+                } else if !active || samples_now != last_samples_seen {
+                    if stalled_since.take().is_some() {
+                        crate::app_eprintln!(
+                            "[psysonic] device-watcher: stall candidate cleared (active={active}, samples_delta={})",
+                            samples_now as i128 - last_samples_seen as i128
+                        );
+                    }
                     stalled_since = None;
                     last_samples_seen = samples_now;
                 } else {
-                    let since = stalled_since.get_or_insert_with(std::time::Instant::now);
-                    let stalled_for = since.elapsed();
+                    let since = stalled_since.get_or_insert_with(Instant::now);
+                    if since.elapsed() < Duration::from_millis(100) {
+                        crate::app_eprintln!(
+                            "[psysonic] device-watcher: stall candidate started (samples={}, active={active})",
+                            samples_now
+                        );
+                    }
+                    stall_for = since.elapsed();
                     let cooldown_ok = last_stall_recover_at
                         .map(|t| t.elapsed() >= Duration::from_secs(20))
                         .unwrap_or(true);
-                    if stalled_for >= Duration::from_secs(8) && cooldown_ok {
+                    if stall_for >= Duration::from_secs(8) && cooldown_ok {
                         should_recover_stall = true;
                     }
                 }
@@ -125,13 +161,20 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
 
             if should_recover_stall {
                 let pinned = selected_device.lock().unwrap().clone();
+                let samples_now = samples_played.load(Ordering::Relaxed);
                 crate::app_eprintln!(
-                    "[psysonic] device-watcher: output appears stalled (samples flat) — reopening stream"
+                    "[psysonic] device-watcher: output stalled for {:?} (samples={}) — reopening stream, pinned={:?}",
+                    stall_for,
+                    samples_now,
+                    pinned
                 );
                 if reopen_output_stream(&app, pinned, ReopenNotify::DeviceChanged).await {
-                    last_stall_recover_at = Some(std::time::Instant::now());
+                    last_stall_recover_at = Some(Instant::now());
                     stalled_since = None;
                     last_samples_seen = samples_played.load(Ordering::Relaxed);
+                    crate::app_eprintln!(
+                        "[psysonic] device-watcher: stalled-output recovery succeeded"
+                    );
                 } else {
                     crate::app_eprintln!(
                         "[psysonic] device-watcher: stalled-output reopen timed out"
