@@ -83,6 +83,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **`downscaleCoverBlob`** respects **AbortSignal** through **`canvas.toBlob`**.
 * **`CachedImage`:** **`fetchQueueBias`** gives **artist** search thumbs **higher network-slot priority** than **album** thumbs when the pool is saturated; **`observeRootMargin`** defaults **wider** so **priority** updates **earlier** ahead of the scroll viewport.
 
+### Settings — adding a server no longer switches to it
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#475](https://github.com/Psychotoxical/psysonic/pull/475)**
+
+* When you add a new server from **Settings → Servers**, the new entry now appears in the server picker but **your current active server stays active** — playback, queue and library view are no longer interrupted.
+* The login screen on `/login` is unchanged: signing in there still selects the chosen server.
+
 ## Fixed
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
