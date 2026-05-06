@@ -114,14 +114,17 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
   {
     group: 'COMMUNITY',
     themes: [
-      { id: 'amber-night', label: 'Amber Night', bg: '#1a1410', card: '#201a12', accent: '#d4a96a' },
-      { id: 'amoled-black-pure', label: 'AMOLED Black Pure', bg: '#000000', card: '#000000', accent: '#ffffff' },
-      { id: 'ice-blue', label: 'Ice Blue', bg: '#0e1d28', card: '#132430', accent: '#7dd3e8' },
+      { id: 'amoled-black-pure', label: 'AMOLED Black Pure', bg: '#000000', card: '#050505', accent: '#ffffff' },
+      { id: 'obsidian-black', label: 'Obsidian Black', bg: '#070706', card: '#11110f', accent: '#dfddd8' },
+      { id: 'carbon-grey', label: 'Carbon Grey', bg: '#0f0f10', card: '#18181b', accent: '#b4bcc8' },
       { id: 'midnight-blue', label: 'Midnight Blue', bg: '#0d1420', card: '#111a28', accent: '#60a5fa' },
-      { id: 'monochrome', label: 'Monochrome Dark', bg: '#161616', card: '#1c1c1c', accent: '#c0c0c0' },
-      { id: 'phosphor-green', label: 'Phosphor Green', bg: '#0d1a0d', card: '#111f11', accent: '#4ade80' },
-      { id: 'rose-dark', label: 'Rose Dark', bg: '#1a0d14', card: '#20111a', accent: '#f472b6' },
       { id: 'sepia-dark', label: 'Sepia Dark', bg: '#1e1a14', card: '#252018', accent: '#c8b89a' },
+      { id: 'volcanic-dark', label: 'Volcanic Dark', bg: '#1b1512', card: '#231b17', accent: '#c97a56' },
+      { id: 'deep-forest', label: 'Deep Forest', bg: '#141c17', card: '#19231d', accent: '#6aa37c' },
+      { id: 'violet-haze', label: 'Violet Haze', bg: '#12101d', card: '#171425', accent: '#b4a0ff' },
+      { id: 'copper-oxide', label: 'Copper Oxide', bg: '#101a18', card: '#131f1c', accent: '#45b8b0' },
+      { id: 'sakura-night', label: 'Sakura Night', bg: '#1c1218', card: '#241821', accent: '#d8a6bc' },
+      { id: 'obsidian-gold', label: 'Obsidian Gold', bg: '#0f0d09', card: '#15120d', accent: '#c9a227' }
     ],
   },
   {
