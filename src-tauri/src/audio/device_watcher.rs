@@ -4,18 +4,79 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::Emitter;
+use tauri::Manager;
 
 use super::engine::AudioEngine;
 #[cfg(not(target_os = "linux"))]
 use super::dev_io::output_enumeration_includes_pinned;
 
+/// What to tell the frontend after a successful stream reopen.
+pub(crate) enum ReopenNotify {
+    /// Normal path — same as `audio_set_device`.
+    DeviceChanged,
+    /// Pinned device unplugged (Windows/macOS only); Rust cleared the pin — clear Settings + restart playback.
+    #[cfg(not(target_os = "linux"))]
+    DeviceReset,
+}
+
+/// Opens a new CPAL/rodio output stream with the given rate and device name (same path as
+/// manual device switch). Used by the device watcher and Windows suspend/resume notifications.
+pub(crate) async fn reopen_output_stream(
+    app: &tauri::AppHandle,
+    device_name: Option<String>,
+    notify: ReopenNotify,
+) -> bool {
+    let Some(engine) = app.try_state::<AudioEngine>() else {
+        return false;
+    };
+
+    let rate = engine.stream_sample_rate.load(Ordering::Relaxed);
+    let reopen_tx = engine.stream_reopen_tx.clone();
+    let stream_handle = engine.stream_handle.clone();
+    let current = engine.current.clone();
+    let fading_out = engine.fading_out_sink.clone();
+
+    let new_handle = tauri::async_runtime::spawn_blocking(move || {
+        let (reply_tx, reply_rx) =
+            std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
+        if reopen_tx
+            .send((rate, false, device_name, reply_tx))
+            .is_err()
+        {
+            return None;
+        }
+        reply_rx.recv_timeout(Duration::from_secs(5)).ok()
+    })
+    .await
+    .unwrap_or(None);
+
+    let Some(handle) = new_handle else {
+        return false;
+    };
+
+    *stream_handle.lock().unwrap() = handle;
+    if let Some(s) = current.lock().unwrap().sink.take() {
+        s.stop();
+    }
+    if let Some(s) = fading_out.lock().unwrap().take() {
+        s.stop();
+    }
+    match notify {
+        ReopenNotify::DeviceChanged => {
+            app.emit("audio:device-changed", ()).ok();
+        }
+        #[cfg(not(target_os = "linux"))]
+        ReopenNotify::DeviceReset => {
+            app.emit("audio:device-reset", ()).ok();
+        }
+    }
+    true
+}
+
 pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
-    let reopen_tx       = engine.stream_reopen_tx.clone();
-    let stream_handle   = engine.stream_handle.clone();
-    let stream_rate     = engine.stream_sample_rate.clone();
-    let current         = engine.current.clone();
-    let fading_out      = engine.fading_out_sink.clone();
     let selected_device = engine.selected_device.clone();
+    let samples_played = engine.samples_played.clone();
+    let current = engine.current.clone();
 
     tauri::async_runtime::spawn(async move {
         let mut last_default: Option<String> = tauri::async_runtime::spawn_blocking(|| {
@@ -28,9 +89,55 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
         // macOS/Windows: consecutive polls where a pinned device is absent from cpal's list.
         #[cfg(not(target_os = "linux"))]
         let mut pinned_miss_count: u32 = 0;
+        // Fallback recovery when OS sleep/resume notifications are missed: if playback is
+        // "running" but sample counter is flat for too long, reopen output stream.
+        let mut last_samples_seen: u64 = 0;
+        let mut stalled_since: Option<std::time::Instant> = None;
+        let mut last_stall_recover_at: Option<std::time::Instant> = None;
 
         loop {
             tokio::time::sleep(Duration::from_secs(3)).await;
+
+            // ── Fallback stall detector (works even if sleep/resume signal was missed) ──
+            let mut should_recover_stall = false;
+            {
+                let samples_now = samples_played.load(Ordering::Relaxed);
+                let cur = current.lock().unwrap();
+                let active = cur
+                    .sink
+                    .as_ref()
+                    .is_some_and(|s| !s.is_paused() && !s.empty());
+
+                if !active || samples_now != last_samples_seen {
+                    stalled_since = None;
+                    last_samples_seen = samples_now;
+                } else {
+                    let since = stalled_since.get_or_insert_with(std::time::Instant::now);
+                    let stalled_for = since.elapsed();
+                    let cooldown_ok = last_stall_recover_at
+                        .map(|t| t.elapsed() >= Duration::from_secs(20))
+                        .unwrap_or(true);
+                    if stalled_for >= Duration::from_secs(8) && cooldown_ok {
+                        should_recover_stall = true;
+                    }
+                }
+            }
+
+            if should_recover_stall {
+                let pinned = selected_device.lock().unwrap().clone();
+                crate::app_eprintln!(
+                    "[psysonic] device-watcher: output appears stalled (samples flat) — reopening stream"
+                );
+                if reopen_output_stream(&app, pinned, ReopenNotify::DeviceChanged).await {
+                    last_stall_recover_at = Some(std::time::Instant::now());
+                    stalled_since = None;
+                    last_samples_seen = samples_played.load(Ordering::Relaxed);
+                } else {
+                    crate::app_eprintln!(
+                        "[psysonic] device-watcher: stalled-output reopen timed out"
+                    );
+                }
+            }
 
             // Enumerate all available output devices and the current default.
             // Suppress stderr on Unix to avoid ALSA probing noise (JACK, OSS, dmix).
@@ -96,22 +203,9 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
 
                     tokio::time::sleep(Duration::from_millis(500)).await;
 
-                    let rate = stream_rate.load(Ordering::Relaxed);
-                    let reopen_tx2 = reopen_tx.clone();
-                    let new_handle = tauri::async_runtime::spawn_blocking(move || {
-                        let (reply_tx, reply_rx) =
-                            std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
-                        if reopen_tx2.send((rate, false, None, reply_tx)).is_err() {
-                            return None;
-                        }
-                        reply_rx.recv_timeout(Duration::from_secs(5)).ok()
-                    }).await.unwrap_or(None);
-
-                    if let Some(handle) = new_handle {
-                        *stream_handle.lock().unwrap() = handle;
-                        if let Some(s) = current.lock().unwrap().sink.take() { s.stop(); }
-                        if let Some(s) = fading_out.lock().unwrap().take()   { s.stop(); }
-                        app.emit("audio:device-reset", ()).ok();
+                    let reopened = reopen_output_stream(&app, None, ReopenNotify::DeviceReset).await;
+                    if !reopened {
+                        crate::app_eprintln!("[psysonic] device-watcher: stream reopen timed out (pinned disconnect)");
                     }
 
                     last_default = current_default;
@@ -133,26 +227,9 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
             // Debounce: give the OS time to finish configuring the new device.
             tokio::time::sleep(Duration::from_millis(500)).await;
 
-            let rate = stream_rate.load(Ordering::Relaxed);
-            let reopen_tx2 = reopen_tx.clone();
-            let new_handle = tauri::async_runtime::spawn_blocking(move || {
-                let (reply_tx, reply_rx) =
-                    std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
-                if reopen_tx2.send((rate, false, None, reply_tx)).is_err() {
-                    return None;
-                }
-                reply_rx.recv_timeout(Duration::from_secs(5)).ok()
-            }).await.unwrap_or(None);
-
-            let Some(handle) = new_handle else {
+            if !reopen_output_stream(&app, None, ReopenNotify::DeviceChanged).await {
                 crate::app_eprintln!("[psysonic] device-watcher: stream reopen timed out");
-                continue;
-            };
-
-            *stream_handle.lock().unwrap() = handle;
-            if let Some(s) = current.lock().unwrap().sink.take() { s.stop(); }
-            if let Some(s) = fading_out.lock().unwrap().take()   { s.stop(); }
-            app.emit("audio:device-changed", ()).ok();
+            }
         }
     });
 }

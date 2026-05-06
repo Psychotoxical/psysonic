@@ -768,6 +768,9 @@ pub fn run() {
                 audio::start_device_watcher(&engine, app.handle().clone());
             }
 
+            // ── Reopen output after system sleep/resume (WASAPI / PipeWire etc.)
+            audio::register_post_sleep_audio_recovery(app.handle().clone());
+
             // ── Pre-create mini player window (Windows) ──────────────────
             // Creating the second WebView2 webview lazily from an invoke
             // handler on Windows reliably stalls the Tauri event loop —
