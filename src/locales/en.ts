@@ -266,6 +266,16 @@ export const enTranslation = {
     offlineDownloading: 'Caching… ({{done}}/{{total}} albums)',
     uploadImage: 'Upload artist image',
     uploadImageError: 'Failed to upload image',
+    releaseTypes: {
+      album: 'Album',
+      ep: 'EP',
+      single: 'Single',
+      compilation: 'Compilation',
+      live: 'Live',
+      soundtrack: 'Soundtrack',
+      remix: 'Remix',
+      other: 'Other',
+    },
   },
   favorites: {
     title: 'Favorites',

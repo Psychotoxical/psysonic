@@ -461,11 +461,15 @@ export default function ArtistDetail() {
 
   const groupedAlbums = useMemo(() => {
     if (albums.length === 0) return [];
-    const defaultLabel = t('artistDetail.album');
+    const defaultLabel = t('artistDetail.releaseTypes.album');
     const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    const translateType = (tag: string) =>
+      t(`artistDetail.releaseTypes.${tag.toLowerCase()}`, { defaultValue: titleCase(tag) });
     const groups = new Map<string, SubsonicAlbum[]>();
     for (const album of albums) {
-      const label = album.releaseTypes?.length ? album.releaseTypes.map(titleCase).join(' · ') : defaultLabel;
+      const label = album.releaseTypes?.length
+        ? album.releaseTypes.map(translateType).join(' · ')
+        : defaultLabel;
       if (!groups.has(label)) groups.set(label, []);
       groups.get(label)!.push(album);
     }
