@@ -46,7 +46,12 @@ export const frTranslation = {
     loadMore: 'Charger plus',
     discoverMore: 'Découvrir plus',
     discoverArtists: 'Découvrir des artistes',
-    discoverArtistsMore: 'Tous les artistes'
+    discoverArtistsMore: 'Tous les artistes',
+    becauseYouLike: 'Parce que tu as écouté…',
+    becauseYouLikeFor: 'Parce que tu as écouté {{artist}}',
+    similarTo: 'Similaire à {{artist}}',
+    becauseYouLikeTracks_one: '{{count}} titre',
+    becauseYouLikeTracks_other: '{{count}} titres'
   },
   hero: {
     eyebrow: 'Album en vedette',

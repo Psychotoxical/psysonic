@@ -46,7 +46,12 @@ export const zhTranslation = {
     loadMore: '加载更多',
     discoverMore: '发现更多',
     discoverArtists: '发现艺术家',
-    discoverArtistsMore: '全部艺术家'
+    discoverArtistsMore: '全部艺术家',
+    becauseYouLike: '因为你听过…',
+    becauseYouLikeFor: '因为你听过 {{artist}}',
+    similarTo: '类似 {{artist}}',
+    becauseYouLikeTracks_one: '{{count}} 首',
+    becauseYouLikeTracks_other: '{{count}} 首'
   },
   hero: {
     eyebrow: '精选专辑',

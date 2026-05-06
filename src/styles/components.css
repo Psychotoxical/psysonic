@@ -13902,3 +13902,125 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
   color: var(--text-muted, #888);
   letter-spacing: 0.02em;
 }
+
+/* Because-you-like rail — performance-conscious by design.
+   No filter/blur/transform animations (WebKitGTK / software-compositing friendly). */
+.because-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1rem;
+}
+.because-card {
+  display: flex;
+  align-items: stretch;
+  gap: 1.25rem;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  min-height: 220px;
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--accent) 25%, transparent) inset;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.because-card:hover {
+  background: var(--bg-hover, var(--bg-card));
+  border-color: var(--accent, var(--border-subtle));
+}
+.because-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.because-card-cover-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  width: 200px;
+  height: 200px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-input, rgba(0, 0, 0, 0.15));
+}
+.because-card-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.because-card-cover-placeholder {
+  display: block;
+}
+.because-card:hover .album-card-play-overlay {
+  opacity: 1;
+}
+.because-card-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.25rem 0;
+}
+.because-card-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.because-card-similar {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent, var(--text-muted, #888));
+  font-weight: 700;
+}
+.because-card-title {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary, inherit);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.because-card-artist {
+  font-size: 15px;
+  color: var(--text-secondary, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.because-card-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.because-card-pill {
+  padding: 2px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-secondary, inherit);
+  white-space: nowrap;
+}
+.because-card-pill-type {
+  border-color: color-mix(in srgb, var(--accent, currentColor) 50%, transparent);
+  color: var(--accent, var(--text-secondary, inherit));
+}
+.because-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 12px;
+  color: var(--text-muted, #888);
+}
+.because-card-meta > span:not(:last-child)::after {
+  content: '·';
+  margin-left: 0.75rem;
+  opacity: 0.5;
+}

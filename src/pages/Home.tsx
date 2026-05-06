@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Hero from '../components/Hero';
 import AlbumRow from '../components/AlbumRow';
 import SongRail from '../components/SongRail';
+import BecauseYouLikeRail from '../components/BecauseYouLikeRail';
 import { getAlbumList, getArtists, getRandomSongs, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -167,6 +168,12 @@ export default function Home() {
     isVisible('mostPlayed') &&
     mostPlayed.length > 0 &&
     reserveArtworkRow();
+  const becauseYouLikeArtworkEnabled =
+    !homeRailArtworkDisabled &&
+    !homeAlbumRowsDisabled &&
+    isVisible('becauseYouLike') &&
+    mostPlayed.length > 0 &&
+    reserveArtworkRow();
 
   const homeLiteArtworkFx = perfFlags.disableHomeArtworkFx;
   const homeFlatArtworkClip = perfFlags.disableHomeArtworkClip;
@@ -192,6 +199,12 @@ export default function Home() {
                 artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
                 windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                 initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
+              />
+            )}
+            {!homeAlbumRowsDisabled && isVisible('becauseYouLike') && mostPlayed.length > 0 && (
+              <BecauseYouLikeRail
+                mostPlayed={mostPlayed}
+                disableArtwork={!becauseYouLikeArtworkEnabled}
               />
             )}
             {!homeAlbumRowsDisabled && isVisible('discover') && (

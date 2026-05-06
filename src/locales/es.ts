@@ -47,7 +47,12 @@ export const esTranslation = {
     loadMore: 'Cargar Más',
     discoverMore: 'Descubrir Más',
     discoverArtists: 'Descubrir Artistas',
-    discoverArtistsMore: 'Todos los Artistas'
+    discoverArtistsMore: 'Todos los Artistas',
+    becauseYouLike: 'Porque escuchaste…',
+    becauseYouLikeFor: 'Porque escuchaste a {{artist}}',
+    similarTo: 'Similar a {{artist}}',
+    becauseYouLikeTracks_one: '{{count}} canción',
+    becauseYouLikeTracks_other: '{{count}} canciones'
   },
   hero: {
     eyebrow: 'Álbum Destacado',

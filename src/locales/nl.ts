@@ -46,7 +46,12 @@ export const nlTranslation = {
     loadMore: 'Meer laden',
     discoverMore: 'Meer ontdekken',
     discoverArtists: 'Artiesten ontdekken',
-    discoverArtistsMore: 'Alle artiesten'
+    discoverArtistsMore: 'Alle artiesten',
+    becauseYouLike: 'Omdat je hebt geluisterd…',
+    becauseYouLikeFor: 'Omdat je naar {{artist}} hebt geluisterd',
+    similarTo: 'Lijkt op {{artist}}',
+    becauseYouLikeTracks_one: '{{count}} nummer',
+    becauseYouLikeTracks_other: '{{count}} nummers'
   },
   hero: {
     eyebrow: 'Uitgelicht album',

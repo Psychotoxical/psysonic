@@ -46,7 +46,12 @@ export const nbTranslation = {
     loadMore: 'Last inn flere',
     discoverMore: 'Oppdag flere',
     discoverArtists: 'Oppdag artister',
-    discoverArtistsMore: 'Alle artister'
+    discoverArtistsMore: 'Alle artister',
+    becauseYouLike: 'Fordi du har hørt…',
+    becauseYouLikeFor: 'Fordi du har hørt på {{artist}}',
+    similarTo: 'Likt {{artist}}',
+    becauseYouLikeTracks_one: '{{count}} spor',
+    becauseYouLikeTracks_other: '{{count}} spor'
   },
   hero: {
     eyebrow: 'Utvalgt album',

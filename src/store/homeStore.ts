@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type HomeSectionId = 'hero' | 'recent' | 'discover' | 'discoverSongs' | 'discoverArtists' | 'recentlyPlayed' | 'starred' | 'mostPlayed';
+export type HomeSectionId = 'hero' | 'recent' | 'discover' | 'becauseYouLike' | 'discoverSongs' | 'discoverArtists' | 'recentlyPlayed' | 'starred' | 'mostPlayed';
 
 export interface HomeSectionConfig {
   id: HomeSectionId;
@@ -11,6 +11,7 @@ export interface HomeSectionConfig {
 export const DEFAULT_HOME_SECTIONS: HomeSectionConfig[] = [
   { id: 'hero',            visible: true },
   { id: 'recent',          visible: true },
+  { id: 'becauseYouLike',  visible: true },
   { id: 'discover',        visible: true },
   { id: 'discoverSongs',   visible: true },
   { id: 'discoverArtists', visible: true },

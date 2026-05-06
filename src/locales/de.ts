@@ -46,7 +46,12 @@ export const deTranslation = {
     loadMore: 'Mehr laden',
     discoverMore: 'Mehr entdecken',
     discoverArtists: 'Künstler entdecken',
-    discoverArtistsMore: 'Alle Künstler'
+    discoverArtistsMore: 'Alle Künstler',
+    becauseYouLike: 'Weil du gehört hast…',
+    becauseYouLikeFor: 'Weil du {{artist}} gehört hast',
+    similarTo: 'Ähnlich wie {{artist}}',
+    becauseYouLikeTracks_one: '{{count}} Titel',
+    becauseYouLikeTracks_other: '{{count}} Titel'
   },
   hero: {
     eyebrow: 'Album des Augenblicks',
