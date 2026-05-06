@@ -461,21 +461,33 @@ export default function ArtistDetail() {
 
   const groupedAlbums = useMemo(() => {
     if (albums.length === 0) return [];
-    const defaultLabel = t('artistDetail.releaseTypes.album');
+    const RELEASE_TYPE_ORDER = ['album', 'ep', 'single', 'compilation', 'live', 'soundtrack', 'remix', 'other'];
+    const defaultKey = 'album';
     const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
     const translateType = (tag: string) =>
-      t(`artistDetail.releaseTypes.${tag.toLowerCase()}`, { defaultValue: titleCase(tag) });
+      t(`artistDetail.releaseTypes.${tag}`, { defaultValue: titleCase(tag) });
+
     const groups = new Map<string, SubsonicAlbum[]>();
     for (const album of albums) {
-      const label = album.releaseTypes?.length
-        ? album.releaseTypes.map(translateType).join(' · ')
-        : defaultLabel;
-      if (!groups.has(label)) groups.set(label, []);
-      groups.get(label)!.push(album);
+      const key = album.releaseTypes?.length
+        ? album.releaseTypes.map(r => r.toLowerCase()).join(' · ')
+        : defaultKey;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(album);
     }
-    return groups.size === 1 && groups.has(defaultLabel)
-      ? [[defaultLabel, albums] as const]
-      : [...groups.entries()];
+
+    if (groups.size === 1 && groups.has(defaultKey)) {
+      return [[translateType(defaultKey), albums] as const];
+    }
+
+    const sortKey = (key: string) => {
+      const idx = RELEASE_TYPE_ORDER.indexOf(key.split(' · ')[0]);
+      return idx >= 0 ? idx : RELEASE_TYPE_ORDER.length;
+    };
+
+    return [...groups.entries()]
+      .sort((a, b) => sortKey(a[0]) - sortKey(b[0]) || a[0].localeCompare(b[0]))
+      .map(([key, group]) => [key.split(' · ').map(translateType).join(' · '), group] as const);
   }, [albums, t]);
 
   useEffect(() => {
