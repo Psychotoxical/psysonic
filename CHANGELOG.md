@@ -140,6 +140,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Limited loudness backfill warmup to the current track plus the next 5 tracks, reducing runaway analysis scheduling from large bulk queue updates.
 * Added debug counters for prune results to make queue-pressure behavior visible during diagnostics.
 
+### Sidebar — Playlists icon and hover hitbox in collapsed mode
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#481](https://github.com/Psychotoxical/psysonic/pull/481)**
+
+* The **Playlists** icon in the collapsed sidebar was **off-centre** and had a **wider hover background** than every other item, because it still rendered through the expanded-mode wrapper (with `padding-right` and a `flex: 1` main link to fit the expand-toggle). Collapsed mode now reuses the **standard nav-link path** — same hitbox, same alignment as Artists, Albums, Favorites, etc.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
