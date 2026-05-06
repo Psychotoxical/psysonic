@@ -180,26 +180,26 @@ export default function ComposerDetail() {
         <ArrowLeft size={16} /> <span>{t('composerDetail.back')}</span>
       </button>
 
-      {lightboxOpen && artist && (
+      {lightboxOpen && headerImageSrc && (
         <CoverLightbox
           src={info?.largeImageUrl || coverLargeSrc}
-          alt={artist.name}
+          alt={displayName}
           onClose={() => setLightboxOpen(false)}
         />
       )}
 
       <div className="artist-detail-header">
         <div className="artist-detail-avatar" style={{ position: 'relative' }}>
-          {headerImageSrc && !headerCoverFailed && artist ? (
+          {headerImageSrc && !headerCoverFailed ? (
             <button
               className="artist-detail-avatar-btn"
               onClick={() => setLightboxOpen(true)}
-              aria-label={artist.name}
+              aria-label={displayName}
             >
               <CachedImage
                 src={headerImageSrc}
                 cacheKey={headerImageCacheKey}
-                alt={artist.name}
+                alt={displayName}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={() => setHeaderCoverFailed(true)}
               />
