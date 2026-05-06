@@ -56,6 +56,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Falls back to the previous flat list when the server doesn't return `releaseTypes` or all albums share the default Album type — no behaviour change for non-OpenSubsonic servers.
 * Section headers are localised in all 8 supported languages.
 
+### Library — Browse by Composer
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by mmourez ([issue #465](https://github.com/Psychotoxical/psysonic/issues/465)), PR [#487](https://github.com/Psychotoxical/psysonic/pull/487)**
+
+* New **Composers** library section listing every artist credited as composer on at least one track, with a detail page showing all works they hold in that role. Aimed at classical-music libraries where the recording artist is the orchestra and the composer tag carries Bach / Mozart / Chopin.
+* Uses Navidrome's native API (`/api/artist?_filters={"role":"composer"}` for the listing, `/api/album?_filters={"role_composer_id":"…"}` for the works) — Subsonic `getArtist` only walks AlbumArtist relations and returns zero albums for composer-only credits, so the native path is the only one that works. Requires **Navidrome 0.55+**; older / pure-Subsonic servers see a one-line capability banner.
+* Music-folder scope is honoured: role queries pass Navidrome's `library_id` filter so per-folder browsing matches the Albums / Artists pages. Bio + Last.fm portrait stay stable across scope changes.
+* **Composers are a first-class share entity.** `psysonic2-` links with `k=composer` paste to `/composer/:id`; the Share button on the detail page and the right-click menu both copy a `composer` link.
+* Sidebar entry is **off by default** (classical-music use case is a niche) — toggle in Settings → Sidebar.
+
 ## Changed
 
 ### Dependencies — npm / Cargo refresh and rodio 0.22
