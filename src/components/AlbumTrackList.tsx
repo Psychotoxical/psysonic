@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, ChevronRight, Heart, ChevronDown, Check, RotateCcw, Square } from 'lucide-react';
+import { Play, ChevronRight, Heart, ChevronDown, Check, RotateCcw, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { SubsonicSong } from '../api/subsonic';
 import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
@@ -136,7 +136,7 @@ const TrackRow = React.memo(function TrackRow({
             />
             {isActive && isPlaying ? (
               <span className="track-num-eq">
-                <div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div>
+                <AudioLines className="eq-bars" size={14} />
               </span>
             ) : (
               <span className="track-num-number">{song.track ?? '—'}</span>
@@ -541,7 +541,7 @@ export default function AlbumTrackList({
                   <div className="tracklist-mobile-main">
                     {isActive && isPlaying ? (
                       <span className="tracklist-mobile-eq">
-                        <div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div>
+                        <AudioLines className="eq-bars" size={14} />
                       </span>
                     ) : (
                       <span className="tracklist-mobile-num">{song.track ?? ''}</span>

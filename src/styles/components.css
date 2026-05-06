@@ -2007,24 +2007,10 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 
 .track-row.active {
   background: var(--accent-dim);
-  animation: track-pulse 3s ease-in-out infinite;
 }
 
 .track-row.active:hover {
   background: var(--accent-dim);
-  animation: none;
-}
-
-@keyframes track-pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.6;
-  }
 }
 
 .track-row>* {
@@ -2111,56 +2097,14 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   color: var(--accent);
 }
 
-/* Equalizer bars — shown for the currently playing track */
+/* "Now playing" indicator — Lucide AudioLines icon coloured with the active
+ * accent. Was an animated three-bar transform setup; the per-frame opacity +
+ * scaleY repaints fell back to software composite on WebKitGTK without
+ * compositing (NVIDIA proprietary + WEBKIT_DISABLE_COMPOSITING_MODE=1) and
+ * pegged the WebProcess at ~80% CPU on AlbumDetail with a long tracklist. */
 .eq-bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
-  width: 14px;
-  height: 13px;
-}
-
-.eq-bar {
-  flex: 1;
-  height: 100%;
-  background: var(--accent);
-  border-radius: 1px;
-  transform-origin: bottom;
-  transform: scaleY(0.25);
-  animation: eq-bounce 1.1s ease-in-out infinite;
-}
-
-.eq-bar:nth-child(1) {
-  animation-delay: 0s;
-  animation-duration: 1.0s;
-}
-
-.eq-bar:nth-child(2) {
-  animation-delay: 0.18s;
-  animation-duration: 1.3s;
-}
-
-.eq-bar:nth-child(3) {
-  animation-delay: 0.35s;
-  animation-duration: 0.9s;
-}
-
-/* Pause EQ bars animation when playback is paused */
-.eq-bars.paused .eq-bar {
-  animation-play-state: paused;
-}
-
-@keyframes eq-bounce {
-
-  0%,
-  100% {
-    transform: scaleY(0.25);
-  }
-
-  50% {
-    transform: scaleY(1);
-  }
+  color: var(--accent);
+  display: block;
 }
 
 /* CD / Disc separator */

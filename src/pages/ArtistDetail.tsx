@@ -4,7 +4,7 @@ import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, sear
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';
-import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2, AudioLines } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { open } from '@tauri-apps/plugin-shell';
@@ -794,7 +794,7 @@ export default function ArtistDetail() {
                      >
                 <div className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}>
                   {currentTrack?.id === song.id && isPlaying ? (
-                    <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                    <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
                   ) : (
                     <span className="track-num-number">{idx + 1}</span>
                   )}

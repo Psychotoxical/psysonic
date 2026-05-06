@@ -11,7 +11,7 @@ import {
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import StarRating from '../components/StarRating';
-import { Cast, ChevronDown, ChevronLeft, ChevronRight, Check, Heart, ListPlus, Play, Square, Star, Users, X, SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { Cast, ChevronDown, ChevronLeft, ChevronRight, Check, Heart, ListPlus, Play, Square, Star, Users, X, SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw, AudioLines } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { unstar } from '../api/subsonic';
@@ -675,7 +675,7 @@ export default function Favorites() {
                             <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}>
                               <span className={`bulk-check${isSelected ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`} onClick={e => { e.stopPropagation(); toggleSelect(song.id, i, e.shiftKey); }} />
                               {currentTrack?.id === song.id && isPlaying ? (
-                                <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                                <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
                               ) : (
                                 <span className="track-num-number">{i + 1}</span>
                               )}

@@ -3,7 +3,7 @@ import { getGenres, SubsonicSong, SubsonicGenre, star, unstar } from '../api/sub
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore, RANDOM_MIX_SIZE_OPTIONS } from '../store/authStore';
-import { Play, RefreshCw, ChevronDown, ChevronRight, ChevronUp, Heart, Square } from 'lucide-react';
+import { Play, RefreshCw, ChevronDown, ChevronRight, ChevronUp, Heart, Square, AudioLines } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -491,7 +491,7 @@ export default function RandomMix() {
                   >
                     <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`}>
                       {isCurrentTrack && isPlaying ? (
-                        <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                        <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
                       ) : (
                         <span className="track-num-number">{idx + 1}</span>
                       )}
@@ -623,7 +623,7 @@ export default function RandomMix() {
               >
                 <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`}>
                   {isCurrentTrack && isPlaying ? (
-                    <span className="track-num-eq"><div className="eq-bars"><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /></div></span>
+                    <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
                   ) : (
                     <span className="track-num-number">{idx + 1}</span>
                   )}
