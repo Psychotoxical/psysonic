@@ -263,6 +263,16 @@ export const nlTranslation = {
     offlineDownloading: 'Cachen… ({{done}}/{{total}} albums)',
     uploadImage: 'Artiestafbeelding uploaden',
     uploadImageError: 'Uploaden van afbeelding mislukt',
+    releaseTypes: {
+      album: 'Album',
+      ep: 'EP',
+      single: 'Single',
+      compilation: 'Compilatie',
+      live: 'Live',
+      soundtrack: 'Soundtrack',
+      remix: 'Remix',
+      other: 'Overig',
+    },
   },
   favorites: {
     title: 'Favorieten',

@@ -264,6 +264,16 @@ export const frTranslation = {
     offlineDownloading: 'En cache… ({{done}}/{{total}} albums)',
     uploadImage: "Téléverser l'image de l'artiste",
     uploadImageError: "Échec du téléversement de l'image",
+    releaseTypes: {
+      album: 'Album',
+      ep: 'EP',
+      single: 'Single',
+      compilation: 'Compilation',
+      live: 'Live',
+      soundtrack: 'Bande originale',
+      remix: 'Remix',
+      other: 'Autre',
+    },
   },
   favorites: {
     title: 'Favoris',

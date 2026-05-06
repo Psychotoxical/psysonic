@@ -265,6 +265,16 @@ export const esTranslation = {
     offlineDownloading: 'Descargando… ({{done}}/{{total}} álbumes)',
     uploadImage: 'Subir imagen del artista',
     uploadImageError: 'Error al subir imagen',
+    releaseTypes: {
+      album: 'Álbum',
+      ep: 'EP',
+      single: 'Single',
+      compilation: 'Recopilación',
+      live: 'En vivo',
+      soundtrack: 'Banda sonora',
+      remix: 'Remix',
+      other: 'Otro',
+    },
   },
   favorites: {
     title: 'Favoritos',

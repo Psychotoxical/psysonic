@@ -277,6 +277,16 @@ export const ruTranslation = {
     offlineDownloading: 'Кэширование… ({{done}} из {{total}} альбомов)',
     uploadImage: 'Загрузить фото исполнителя',
     uploadImageError: 'Не удалось загрузить изображение',
+    releaseTypes: {
+      album: 'Альбом',
+      ep: 'EP',
+      single: 'Сингл',
+      compilation: 'Сборник',
+      live: 'Концерт',
+      soundtrack: 'Саундтрек',
+      remix: 'Ремикс',
+      other: 'Другое',
+    },
   },
   favorites: {
     title: 'Избранное',

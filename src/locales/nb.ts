@@ -264,6 +264,16 @@ export const nbTranslation = {
     offlineDownloading: 'Bufrer… ({{done}}/{{total}} album)',
     uploadImage: 'Last opp artistbilde',
     uploadImageError: 'Kunne ikke laste opp bildet',
+    releaseTypes: {
+      album: 'Album',
+      ep: 'EP',
+      single: 'Single',
+      compilation: 'Samling',
+      live: 'Live',
+      soundtrack: 'Filmmusikk',
+      remix: 'Remiks',
+      other: 'Annet',
+    },
   },
   favorites: {
     title: 'Favoritter',

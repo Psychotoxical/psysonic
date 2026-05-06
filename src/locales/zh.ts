@@ -262,6 +262,16 @@ export const zhTranslation = {
     offlineDownloading: '正在缓存… ({{done}}/{{total}} 张专辑)',
     uploadImage: '上传艺术家图片',
     uploadImageError: '图片上传失败',
+    releaseTypes: {
+      album: '专辑',
+      ep: 'EP',
+      single: '单曲',
+      compilation: '合辑',
+      live: '现场',
+      soundtrack: '原声带',
+      remix: '混音',
+      other: '其他',
+    },
   },
   favorites: {
     title: '收藏夹',
