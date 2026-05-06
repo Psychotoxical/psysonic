@@ -1195,6 +1195,21 @@ export default function WaveformSeek({ trackId }: Props) {
   }, [seekbarStyle, animationMode]);
 
   // Smoothly advance progress between sparse transport ticks.
+  // Preview pauses main sink in Rust while UI `isPlaying` may still be true.
+  // When preview ends, interpolation must restart from "now", otherwise the
+  // old anchor timestamp adds preview duration and causes a one-frame jump.
+  useEffect(() => {
+    progressAnchorRef.current = {
+      progress: progressRef.current,
+      atMs: performance.now(),
+    };
+    const quantizedOrRaw = isBarQuantizedSeekStyle(styleRef.current)
+      ? quantizeProgressByBars(progressRef.current)
+      : progressRef.current;
+    visualTargetProgressRef.current = quantizedOrRaw;
+    // Keep current visual position as-is; only reset timing anchor.
+  }, [previewFreezesMainSeekbar]);
+
   useEffect(() => {
     if (!isPlaying || previewFreezesMainSeekbar || duration <= 0 || !isFinite(duration)) return;
     let rafId: number | null = null;
