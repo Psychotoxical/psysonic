@@ -276,6 +276,7 @@ const CONTRIBUTORS = [
     since: '1.46.0',
     contributions: [
       'Discord Rich Presence: cover art from your own server (Subsonic getAlbumInfo2) with three-way picker — none / server / Apple Music (PR #462)',
+      'Artist page: group albums by OpenSubsonic releaseTypes (Album / EP / Single / Compilation / Live / Soundtrack / Remix) with deterministic order and i18n section headers in all 8 locales (PR #471)',
     ],
   },
   {

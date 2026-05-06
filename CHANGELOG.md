@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Live search** and the **mobile search overlay** now load **artist images** for rows in the **Artists** section via the same **`getCoverArt` / image-cache path** as album art (**`coverArt`** when present, otherwise the **artist id** where the server supports it), with a **fallback icon** when art is missing or fails.
 * **Mobile** artist hits use a **round** thumbnail next to **square** album art so the two result types read clearly at a glance.
 
+### Artist page — group albums by release type
+
+**By [@Sayykii](https://github.com/Sayykii), PR [#471](https://github.com/Psychotoxical/psysonic/pull/471)**
+
+* Albums on the artist page can now be **grouped into sections** by their OpenSubsonic `releaseTypes` (Album, EP, Single, Compilation, Live, Soundtrack, Remix). Section order is deterministic across languages, with unknown types appended at the end.
+* Falls back to the previous flat list when the server doesn't return `releaseTypes` or all albums share the default Album type — no behaviour change for non-OpenSubsonic servers.
+* Section headers are localised in all 8 supported languages.
+
 ## Changed
 
 ### Dependencies — npm / Cargo refresh and rodio 0.22
