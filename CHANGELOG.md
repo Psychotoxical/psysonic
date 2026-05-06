@@ -106,6 +106,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Right-click** on an album row now opens the standard album context menu (Play / Add to queue / Play next / Add to playlist / Go to artist) instead of firing a hidden direct-play action; right-click on a Top Artists card opens the artist context menu.
 * The **play count** moved from a small right-aligned column to a localized **pill right next to the album title** — `11 plays` (en), `11× gespielt` (de) — since the play count is the central datum on this page.
 
+### Multi-select — Shift+Click range selection on grid pages
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#484](https://github.com/Psychotoxical/psysonic/pull/484)**
+
+* In multi-select mode on **Albums**, **Random Albums**, **New Releases** and **Playlists**, holding **Shift** while clicking a second card now selects every item between the anchor (last clicked) and the click target — the standard OS-level pattern. Range expansion follows the user-visible order, so filters and sort affect what gets included.
+* Plain click still toggles a single item and moves the anchor to it; behaviour without Shift is unchanged.
+
 ## Fixed
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
