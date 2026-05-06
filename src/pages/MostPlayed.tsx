@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound } from 'lucide-react';
-import { getAlbumList, SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
+import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound, Play, ListPlus } from 'lucide-react';
+import { getAlbumList, getAlbum, SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
+import { usePlayerStore, songToTrack } from '../store/playerStore';
 import CachedImage from '../components/CachedImage';
 import { playAlbum } from '../utils/playAlbum';
 import { useTranslation } from 'react-i18next';
@@ -59,6 +60,17 @@ export default function MostPlayed() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const openContextMenu = usePlayerStore(s => s.openContextMenu);
+  const enqueue = usePlayerStore(s => s.enqueue);
+
+  const handleEnqueueAlbum = useCallback(async (albumId: string) => {
+    try {
+      const data = await getAlbum(albumId);
+      enqueue(data.songs.map(songToTrack));
+    } catch {
+      // Network failure — silent (toast would be too noisy for a hover action).
+    }
+  }, [enqueue]);
 
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,6 +151,10 @@ export default function MostPlayed() {
                 key={artist.id}
                 className="mp-artist-card"
                 onClick={() => navigate(`/artist/${artist.id}`)}
+                onContextMenu={e => {
+                  e.preventDefault();
+                  openContextMenu(e.clientX, e.clientY, artist, 'artist');
+                }}
               >
                 <span className="mp-rank">{i + 1}</span>
                 {artist.coverArt ? (
@@ -172,7 +188,10 @@ export default function MostPlayed() {
                   key={album.id}
                   className="mp-album-row"
                   onClick={() => navigate(`/album/${album.id}`)}
-                  onContextMenu={e => { e.preventDefault(); playAlbum(album.id); }}
+                  onContextMenu={e => {
+                    e.preventDefault();
+                    openContextMenu(e.clientX, e.clientY, album, 'album');
+                  }}
                 >
                   <span className="mp-album-rank">{sortAsc ? withPlays.length - i : i + 1}</span>
                   {album.coverArt ? (
@@ -181,7 +200,13 @@ export default function MostPlayed() {
                     <div className="mp-album-cover mp-album-cover--placeholder" />
                   )}
                   <div className="mp-album-meta">
-                    <span className="mp-album-name truncate">{album.name}</span>
+                    <div className="mp-album-name-row">
+                      <span className="mp-album-name truncate">{album.name}</span>
+                      <span className="mp-album-plays-pill">
+                        <Play size={11} fill="currentColor" />
+                        {t('mostPlayed.plays', { n: (album.playCount ?? 0).toLocaleString() })}
+                      </span>
+                    </div>
                     <span
                       className="mp-album-artist truncate track-artist-link"
                       onClick={e => { e.stopPropagation(); navigate(`/artist/${album.artistId}`); }}
@@ -189,8 +214,27 @@ export default function MostPlayed() {
                       {album.artist}
                     </span>
                   </div>
+                  <div className="mp-album-actions">
+                    <button
+                      className="mp-album-action-btn"
+                      onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
+                      data-tooltip={t('hero.playAlbum')}
+                      data-tooltip-pos="top"
+                      aria-label={t('hero.playAlbum')}
+                    >
+                      <Play size={14} fill="currentColor" />
+                    </button>
+                    <button
+                      className="mp-album-action-btn"
+                      onClick={e => { e.stopPropagation(); void handleEnqueueAlbum(album.id); }}
+                      data-tooltip={t('contextMenu.enqueueAlbum')}
+                      data-tooltip-pos="top"
+                      aria-label={t('contextMenu.enqueueAlbum')}
+                    >
+                      <ListPlus size={14} />
+                    </button>
+                  </div>
                   {album.year && <span className="mp-album-year">{album.year}</span>}
-                  <span className="mp-album-plays">{(album.playCount ?? 0).toLocaleString()}</span>
                 </div>
               ))}
             </div>

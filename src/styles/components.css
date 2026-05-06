@@ -9318,6 +9318,53 @@ html.no-compositing .fs-seekbar-played {
   transition: background var(--transition-fast);
 }
 
+.mp-album-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.mp-album-plays-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.mp-album-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.mp-album-action-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.mp-album-action-btn:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
 .mp-album-row:hover {
   background: var(--bg-hover);
 }
@@ -9365,16 +9412,6 @@ html.no-compositing .fs-seekbar-played {
   color: var(--text-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-
-.mp-album-plays {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  min-width: 36px;
-  text-align: right;
 }
 
 .mp-load-more {
