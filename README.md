@@ -185,6 +185,16 @@ GNU GPL v3.0
 
 ---
 
+## Forks and Attribution
+
+Psysonic is GPLv3 software. You are free to fork, modify, and redistribute it under the terms of that license.
+
+If you distribute a modified or rebranded version, please clearly state that it is based on Psysonic and preserve attribution to the original project.
+
+Features such as Orbit were originally designed and implemented in Psysonic. Forks must not present original Psysonic work as their own independent creation.
+
+---
+
 <div align="center">
 
 ## Stop using boring music clients.
