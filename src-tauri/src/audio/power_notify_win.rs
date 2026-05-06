@@ -42,12 +42,16 @@ unsafe extern "system" fn power_suspend_resume_callback(
 }
 
 pub fn register(app: AppHandle) {
+    // Intentionally leaked for process lifetime: Win32 callback receives this pointer
+    // on each suspend/resume notification and may outlive this function scope.
     let app_leak = Box::into_raw(Box::new(app));
 
     let params = Box::new(DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS {
         Callback: Some(power_suspend_resume_callback),
         Context: app_leak as *mut c_void,
     });
+    // Intentionally leaked for process lifetime: the power subsystem keeps the
+    // subscribe-parameters pointer after successful registration.
     let params_ptr = Box::into_raw(params);
 
     let mut registration: *mut c_void = std::ptr::null_mut();
