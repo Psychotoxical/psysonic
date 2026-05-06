@@ -401,6 +401,12 @@
   contain-intrinsic-size: 0 220px;
 }
 
+/* Same wrap as Albums grid; defer layout/paint for off-screen artist tiles (helps scroll on WebKit/Linux). */
+.album-grid-wrap > .artist-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 220px;
+}
+
 
 @media (min-width: 1024px) {
   .album-grid-wrap {

@@ -60,6 +60,8 @@ export default function OverlayScrollArea({
   const perfFlags = usePerfProbeFlags();
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  /** Coalesce burst scroll events to one thumb update per animation frame. */
+  const scrollRecomputeRafRef = useRef(0);
   const [meta, setMeta] = useState({ thumbH: 0, thumbT: 0, visible: false });
 
   const recompute = useCallback(() => {
@@ -69,6 +71,21 @@ export default function OverlayScrollArea({
     const trackH =
       rail && rail.clientHeight > 0 ? rail.clientHeight : undefined;
     setMeta(computeOverlayScrollbarThumbMeta(vp, trackH));
+  }, []);
+
+  const scheduleScrollRecompute = useCallback(() => {
+    if (scrollRecomputeRafRef.current !== 0) return;
+    scrollRecomputeRafRef.current = requestAnimationFrame(() => {
+      scrollRecomputeRafRef.current = 0;
+      recompute();
+    });
+  }, [recompute]);
+
+  useEffect(() => () => {
+    if (scrollRecomputeRafRef.current !== 0) {
+      cancelAnimationFrame(scrollRecomputeRafRef.current);
+      scrollRecomputeRafRef.current = 0;
+    }
   }, []);
 
   const measureKey = JSON.stringify(measureDeps ?? []);
@@ -138,7 +155,7 @@ export default function OverlayScrollArea({
         id={viewportId}
         ref={setViewportNode}
         className={viewportClass}
-        onScroll={perfFlags.disableOverlayScrollbars ? undefined : recompute}
+        onScroll={perfFlags.disableOverlayScrollbars ? undefined : scheduleScrollRecompute}
         onWheel={viewportOnWheel}
         onTouchMove={viewportOnTouchMove}
       >
