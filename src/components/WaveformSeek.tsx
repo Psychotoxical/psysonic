@@ -1212,6 +1212,22 @@ export default function WaveformSeek({ trackId }: Props) {
 
   useEffect(() => {
     if (!isPlaying || previewFreezesMainSeekbar || duration <= 0 || !isFinite(duration)) return;
+    // This effect is torn down while paused, so `progressAnchorRef.atMs` is not refreshed.
+    // On resume the first `tick` would add the entire pause duration to `elapsedSec` and
+    // overshoot the playhead until the next transport heartbeat corrects it.
+    const snap = getPlaybackProgressSnapshot();
+    const raw = snap.progress;
+    progressRef.current = raw;
+    progressAnchorRef.current = {
+      progress: raw,
+      atMs: performance.now(),
+    };
+    const resumeVisual = isBarQuantizedSeekStyle(styleRef.current)
+      ? quantizeProgressByBars(raw)
+      : raw;
+    visualTargetProgressRef.current = resumeVisual;
+    visualProgressRef.current = resumeVisual;
+
     let rafId: number | null = null;
     let lastPaintAt = 0;
     const tick = (now: number) => {
