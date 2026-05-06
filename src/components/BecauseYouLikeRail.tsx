@@ -12,9 +12,10 @@ import {
 } from '../api/subsonic';
 import CachedImage from './CachedImage';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playAlbum';
 
-const ANCHOR_KEY = 'psysonic_because_anchor_id';
+const ANCHOR_KEY_PREFIX = 'psysonic_because_anchor:';
 const TOP_ARTIST_POOL = 8;
 const SIMILAR_FETCH = 12;
 const SIMILAR_PICK = 6;
@@ -60,10 +61,21 @@ function formatAlbumDuration(seconds: number, t: (key: string, opts?: Record<str
   return t('common.durationMinutesOnly', { minutes: totalMin });
 }
 
-function rotateAnchor(pool: Anchor[]): Anchor | null {
+/** Anchor rotation memory is **per-server** — server A and server B keep
+ *  independent rotation state, so switching servers doesn't snap the anchor
+ *  back to the first artist of the new pool just because the previous server's
+ *  anchor id was unknown there. */
+function anchorKey(serverId: string | null): string | null {
+  return serverId ? `${ANCHOR_KEY_PREFIX}${serverId}` : null;
+}
+
+function rotateAnchor(pool: Anchor[], serverId: string | null): Anchor | null {
   if (pool.length === 0) return null;
+  const key = anchorKey(serverId);
   let lastId: string | null = null;
-  try { lastId = localStorage.getItem(ANCHOR_KEY); } catch { /* ignore */ }
+  if (key) {
+    try { lastId = localStorage.getItem(key); } catch { /* ignore */ }
+  }
   if (!lastId) return pool[0];
   const idx = pool.findIndex(a => a.id === lastId);
   if (idx < 0) return pool[0];
@@ -72,17 +84,21 @@ function rotateAnchor(pool: Anchor[]): Anchor | null {
 
 export default function BecauseYouLikeRail({ mostPlayed, disableArtwork = false }: Props) {
   const { t } = useTranslation();
+  const activeServerId = useAuthStore(s => s.activeServerId);
   const pool = useMemo(() => buildAnchorPool(mostPlayed, TOP_ARTIST_POOL), [mostPlayed]);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [recs, setRecs] = useState<SubsonicAlbum[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    const next = rotateAnchor(pool);
+    const next = rotateAnchor(pool, activeServerId);
     setAnchor(next);
     setRecs([]);
     if (!next) return;
-    try { localStorage.setItem(ANCHOR_KEY, next.id); } catch { /* ignore */ }
+    const key = anchorKey(activeServerId);
+    if (key) {
+      try { localStorage.setItem(key, next.id); } catch { /* ignore */ }
+    }
 
     (async () => {
       try {
@@ -109,7 +125,7 @@ export default function BecauseYouLikeRail({ mostPlayed, disableArtwork = false 
     })();
 
     return () => { cancelled = true; };
-  }, [pool]);
+  }, [pool, activeServerId]);
 
   if (!anchor || recs.length === 0) return null;
 

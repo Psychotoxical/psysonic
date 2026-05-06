@@ -53,6 +53,8 @@ export const ruTranslation = {
     becauseYouLikeFor: 'Потому что вы слушали {{artist}}',
     similarTo: 'Похоже на {{artist}}',
     becauseYouLikeTracks_one: '{{count}} трек',
+    becauseYouLikeTracks_few: '{{count}} трека',
+    becauseYouLikeTracks_many: '{{count}} треков',
     becauseYouLikeTracks_other: '{{count}} треков',
   },
   hero: {

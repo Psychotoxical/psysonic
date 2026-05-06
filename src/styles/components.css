@@ -13907,7 +13907,7 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
    No filter/blur/transform animations (WebKitGTK / software-compositing friendly). */
 .because-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 1rem;
 }
 .because-card {
