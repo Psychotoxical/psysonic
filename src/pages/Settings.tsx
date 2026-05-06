@@ -367,6 +367,7 @@ const CONTRIBUTORS = [
       'Queue: optional "Preserve Play Next order" toggle — multiple Play Next inserts queue up behind each other instead of latest-on-top (PR #464)',
       'Library: "favorites only" filter on Albums, Artists and Advanced Search — toolbar toggle reading star overrides live (PR #466)',
       'Settings: keep current active server when adding a new one — no more auto-switch interrupting playback or library context (PR #475)',
+      'Help page: full rewrite with 45 focused entries across 10 themed sections (Getting Started / Playback & Queue / Audio Tools / Library & Discovery / Lyrics / Sharing & Social / Personalization / Power User / Offline & Sync / Integrations & Troubleshooting), in-page live search with case-insensitive substring matching and auto-expand on hits, translated to all 8 locales (PR #485)',
     ],
   },
 ] as const;

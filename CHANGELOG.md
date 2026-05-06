@@ -113,6 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * In multi-select mode on **Albums**, **Random Albums**, **New Releases** and **Playlists**, holding **Shift** while clicking a second card now selects every item between the anchor (last clicked) and the click target — the standard OS-level pattern. Range expansion follows the user-visible order, so filters and sort affect what gets included.
 * Plain click still toggles a single item and moves the anchor to it; behaviour without Shift is unchanged.
 
+### Help — full rewrite with live search and 10 cleanly-themed sections
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#485](https://github.com/Psychotoxical/psysonic/pull/485)**
+
+* Help page rebuilt from scratch: dropped entries the UI itself answers, consolidated natural groupings, and added entries for features that didn't exist yet when the original Q/A list was written (**Orbit**, **Magic Strings**, **LUFS**, **Mini Player**, **Smart Playlists**, **Track Preview**, **Search**, **Statistics**, **Tracks** hub, **Genre Browser**, **Discord**, **Bandsintown**, **Multi-select**, **Sidebar/Home/Artist customization**, **Sleep Timer**, **Open Source Licenses**). 45 focused entries across **10 themed sections**.
+* New **live in-page search**: case-insensitive substring across every Q+A, sections without hits collapse out, matches auto-expand so the answer is visible without clicking. × button clears the query.
+* Translated to all **8 supported locales** (en, de, fr, nl, zh, nb, ru, es). Russian and Chinese are at machine-translation quality and would benefit from a polish pass by the original locale maintainers.
+
 ## Fixed
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
