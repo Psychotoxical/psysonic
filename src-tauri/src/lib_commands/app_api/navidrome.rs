@@ -619,3 +619,37 @@ pub(crate) async fn nd_delete_playlist(
     }
     Ok(())
 }
+
+/// GET `/api/song/{id}` and return the absolute filesystem `path` field.
+///
+/// Subsonic `getSong.view` returns at most a relative path (`Artist/Album/track.flac`),
+/// or nothing at all on Navidrome. The Navidrome native API exposes the absolute
+/// path the server stores the file at — same source Feishin and the Navidrome web
+/// client use for their "show file location" feature. Logs in fresh (no token
+/// cache yet); the call is occasional (Song Info modal open) so the extra
+/// roundtrip is acceptable.
+///
+/// Returns `Ok(None)` when the response has no `path` field — Navidrome can omit
+/// it for non-admin users on some configurations.
+#[tauri::command]
+pub(crate) async fn nd_get_song_path(
+    server_url: String,
+    username: String,
+    password: String,
+    id: String,
+) -> Result<Option<String>, String> {
+    let token = navidrome_token(&server_url, &username, &password).await?;
+    let url = format!("{}/api/song/{}", server_url, id);
+    let resp = nd_retry(|| {
+        nd_http_client()
+            .get(&url)
+            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .send()
+    })
+    .await?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let data: serde_json::Value = resp.json().await.map_err(nd_err)?;
+    Ok(data["path"].as_str().map(|s| s.to_string()).filter(|s| !s.is_empty()))
+}

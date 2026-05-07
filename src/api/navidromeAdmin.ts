@@ -107,3 +107,27 @@ export async function ndUpdateUser(
 export async function ndDeleteUser(serverUrl: string, token: string, id: string): Promise<void> {
   await invoke('nd_delete_user', { serverUrl, token, id });
 }
+
+/**
+ * Fetch the absolute filesystem path of a song from Navidrome's native API.
+ * Subsonic `getSong.view` only returns a relative path (or none on Navidrome);
+ * the native `/api/song/:id` endpoint returns the absolute path the server
+ * stores the file at, the same way Feishin and the Navidrome web client get it.
+ *
+ * Returns `null` when the server doesn't expose the field (non-admin on some
+ * Navidrome configurations) or when the call fails — the Song Info modal then
+ * falls back to whatever the Subsonic response had.
+ */
+export async function ndGetSongPath(
+  serverUrl: string,
+  username: string,
+  password: string,
+  id: string,
+): Promise<string | null> {
+  try {
+    const raw = await invoke<string | null>('nd_get_song_path', { serverUrl, username, password, id });
+    return raw && raw.length > 0 ? raw : null;
+  } catch {
+    return null;
+  }
+}

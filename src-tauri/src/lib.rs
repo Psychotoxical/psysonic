@@ -946,6 +946,7 @@ pub fn run() {
             nd_update_playlist,
             nd_get_playlist,
             nd_delete_playlist,
+            nd_get_song_path,
             search_radio_browser,
             get_top_radio_stations,
             fetch_url_bytes,

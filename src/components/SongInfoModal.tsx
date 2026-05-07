@@ -4,6 +4,8 @@ import { X } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getSong, SubsonicSong } from '../api/subsonic';
+import { ndGetSongPath } from '../api/navidromeAdmin';
+import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { copyTextToClipboard } from '../utils/serverMagicString';
 import { showToast } from '../utils/toast';
@@ -62,17 +64,39 @@ export default function SongInfoModal() {
   );
   const [song, setSong] = useState<SubsonicSong | null>(null);
   const [loading, setLoading] = useState(false);
+  // Absolute filesystem path resolved via Navidrome's native API in parallel
+  // with the Subsonic getSong call. Subsonic only ever returns a relative
+  // path (or none on Navidrome); the native endpoint is what Feishin and the
+  // Navidrome web client use to surface the full server-side location.
+  const [absolutePath, setAbsolutePath] = useState<string | null>(null);
 
   useEffect(() => {
     if (!songInfoModal.isOpen || !songInfoModal.songId) {
       setSong(null);
+      setAbsolutePath(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    getSong(songInfoModal.songId).then(s => {
+    setAbsolutePath(null);
+    const songId = songInfoModal.songId;
+    getSong(songId).then(s => {
       if (!cancelled) { setSong(s); setLoading(false); }
     });
+    // Try the native API in parallel; only when the active server is Navidrome
+    // and we have credentials. Failures are silent — modal falls back to
+    // whatever the Subsonic `path` field carried (typically nothing).
+    const auth = useAuthStore.getState();
+    const sid = auth.activeServerId;
+    const profile = sid ? auth.servers.find(p => p.id === sid) : null;
+    const identity = sid ? auth.subsonicServerIdentityByServer[sid] : undefined;
+    const isNavidrome = identity?.type?.trim().toLowerCase() === 'navidrome';
+    if (isNavidrome && profile?.url && profile.username && profile.password) {
+      const serverUrl = (profile.url.startsWith('http') ? profile.url : `http://${profile.url}`).replace(/\/$/, '');
+      ndGetSongPath(serverUrl, profile.username, profile.password, songId).then(p => {
+        if (!cancelled && p) setAbsolutePath(p);
+      });
+    }
     return () => { cancelled = true; };
   }, [songInfoModal.isOpen, songInfoModal.songId]);
 
@@ -139,10 +163,10 @@ export default function SongInfoModal() {
                 <Row label={t('songInfo.channels')} value={channels} />
                 <Row label={t('songInfo.fileSize')} value={formatSize(song.size)} />
 
-                {song.path && (
+                {(absolutePath || song.path) && (
                   <>
                     <Divider />
-                    <Row label={t('songInfo.path')} value={<span className="song-info-path">{song.path}</span>} />
+                    <Row label={t('songInfo.path')} value={<span className="song-info-path">{absolutePath ?? song.path}</span>} />
                   </>
                 )}
 
