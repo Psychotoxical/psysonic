@@ -1063,7 +1063,9 @@ function QueuePanelHostOrSolo() {
                 className={`queue-item ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === 'queue-item' && contextMenu.queueIndex === idx ? 'context-active' : ''}`}
                 onClick={() => {
                   suppressNextAutoScrollRef.current = true;
-                  playTrack(track, queue);
+                  // Pass the row index so a click on a duplicate track lands on
+                  // *this* slot, not the first occurrence (issue #500).
+                  playTrack(track, queue, undefined, undefined, idx);
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();

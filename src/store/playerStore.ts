@@ -235,8 +235,14 @@ interface PlayerState {
 
   playRadio: (station: InternetRadioStation) => void;
   /** `_orbitConfirmed` is an internal bypass flag — callers outside the
-   *  orbit bulk-gate should leave it `undefined`. */
-  playTrack: (track: Track, queue?: Track[], manual?: boolean, _orbitConfirmed?: boolean) => void;
+   *  orbit bulk-gate should leave it `undefined`.
+   *  `targetQueueIndex` lets callers that already know the exact target
+   *  position (next()/previous()/queue-row click) bypass the `findIndex`
+   *  by-id fallback, which otherwise resolves to the *first* occurrence
+   *  and breaks navigation when the same track appears multiple times in
+   *  the queue (issue #500). Ignored if out of range or if the track id
+   *  at that position doesn't match. */
+  playTrack: (track: Track, queue?: Track[], manual?: boolean, _orbitConfirmed?: boolean, targetQueueIndex?: number) => void;
   /** Queue becomes `[track]` only; if already on this track, does not restart `audio_play`. */
   reseedQueueForInstantMix: (track: Track) => void;
   pause: () => void;
@@ -409,6 +415,13 @@ let radioFetching = false;
 // Artist ID used to start the current radio session — persists across track
 // advances so proactive loading works even when songs lack artistId.
 let currentRadioArtistId: string | null = null;
+// Track ids the current radio session has already enqueued — *including*
+// entries that were trimmed off the front of the queue when it grew too long
+// (`HISTORY_KEEP` in next()'s top-up path). Without this the queue's own
+// id-set wasn't enough to dedupe: a song played 8 tracks ago is gone from
+// the queue and the next Last.fm/topSongs response could re-add it. Reset
+// on `setRadioArtistId(other)` and on `clearQueue()`. Issue #500.
+let radioSessionSeenIds = new Set<string>();
 let cachedLoudnessGainByTrackId: Record<string, number> = {};
 let stableLoudnessGainByTrackId: Record<string, true> = {};
 let lastNormalizationUiUpdateAtMs = 0;
@@ -1538,7 +1551,7 @@ function handleAudioEnded() {
     return;
   }
 
-  const { repeatMode, currentTrack, queue } = usePlayerStore.getState();
+  const { repeatMode, currentTrack, queue, queueIndex } = usePlayerStore.getState();
   isAudioPaused = false;
   usePlayerStore.setState({
     isPlaying: false,
@@ -1560,7 +1573,8 @@ function handleAudioEnded() {
             authState.hotCacheDownloadDir || null,
           );
         }
-        usePlayerStore.getState().playTrack(currentTrack, queue, false);
+        // Pin to the current slot — the track may appear elsewhere in the queue.
+        usePlayerStore.getState().playTrack(currentTrack, queue, false, false, queueIndex);
       } else {
         usePlayerStore.getState().next(false);
       }
@@ -2466,7 +2480,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── playTrack ────────────────────────────────────────────────────────────
-      playTrack: (track, queue, manual = true, _orbitConfirmed = false) => {
+      playTrack: (track, queue, manual = true, _orbitConfirmed = false, targetQueueIndex) => {
         // Orbit bulk-gate: only gate when the `queue` argument *replaces*
         // the current queue (Play All / Play Album / Play Playlist / Hero
         // play buttons). Navigation calls — queue-row click, next(),
@@ -2527,7 +2541,18 @@ export const usePlayerStore = create<PlayerState>()(
           seekFallbackVisualTarget = null;
         }
         const newQueue = queue ?? state.queue;
-        const idx = newQueue.findIndex(t => sameQueueTrackId(t.id, track.id));
+        // Prefer an explicit target index from the caller (next/previous/queue-row
+        // click already know the exact slot). `findIndex` returns the *first*
+        // matching id, which jumps backwards when the queue contains the same
+        // track twice — breaking radio playback (issue #500).
+        const explicitIdxValid =
+          typeof targetQueueIndex === 'number'
+          && targetQueueIndex >= 0
+          && targetQueueIndex < newQueue.length
+          && sameQueueTrackId(newQueue[targetQueueIndex]?.id, track.id);
+        const idx = explicitIdxValid
+          ? (targetQueueIndex as number)
+          : newQueue.findIndex(t => sameQueueTrackId(t.id, track.id));
         if (manual) {
           pushQueueUndoFromGetter(get);
         }
@@ -2985,7 +3010,7 @@ export const usePlayerStore = create<PlayerState>()(
         applySkipStarOnManualNext(currentTrack, manual);
         const nextIdx = queueIndex + 1;
         if (nextIdx < queue.length) {
-          get().playTrack(queue[nextIdx], queue, manual);
+          get().playTrack(queue[nextIdx], queue, manual, false, nextIdx);
           // Proactively top up auto-added tracks when ≤ 2 remain ahead,
           // so the queue never runs dry without a visible loading pause.
           const { infiniteQueueEnabled } = useAuthStore.getState();
@@ -3014,17 +3039,25 @@ export const usePlayerStore = create<PlayerState>()(
                 Promise.all([getSimilarSongs2(artistId), getTopSongs(artistName)])
                   .then(([similar, top]) => {
                     const existingIds = new Set(get().queue.map(t => t.id));
-                    const fresh: Track[] = [...top, ...similar]
-                      .map(songToTrack)
-                      .filter(t => !existingIds.has(t.id))
-                      .slice(0, 10)
-                      .map(t => ({ ...t, radioAdded: true as const }));
+                    // Lead with similar (other artists) for variety; top tracks
+                    // of the upcoming artist are only a fallback when similar
+                    // is empty. Single-pass loop dedupes against the live queue,
+                    // the session seen-set, and intra-batch overlap (issue #500).
+                    const sourceList = similar.length > 0 ? similar : top;
+                    const fresh: Track[] = [];
+                    for (const raw of sourceList) {
+                      if (fresh.length >= 10) break;
+                      const t = songToTrack(raw);
+                      if (existingIds.has(t.id) || radioSessionSeenIds.has(t.id)) continue;
+                      radioSessionSeenIds.add(t.id);
+                      fresh.push({ ...t, radioAdded: true as const });
+                    }
                     if (fresh.length > 0) {
                       // Trim played tracks from the front to keep the queue bounded.
                       // Without trimming the queue grows unboundedly, making every
                       // Zustand persist write larger and causing UI freezes over time.
                       // Keep the last HISTORY_KEEP played tracks so the user can still
-                      // navigate backwards a few songs.
+                      // navigate backwards a few songs. Trimmed ids stay in the seen-set.
                       const HISTORY_KEEP = 5;
                       set(state => {
                         const trimStart = Math.max(0, state.queueIndex - HISTORY_KEEP);
@@ -3041,7 +3074,7 @@ export const usePlayerStore = create<PlayerState>()(
             }
           }
         } else if (repeatMode === 'all' && queue.length > 0) {
-          get().playTrack(queue[0], queue, manual);
+          get().playTrack(queue[0], queue, manual, false, 0);
         } else {
           // Queue exhausted. Check radio first (independent of infinite queue setting),
           // then infinite queue, then stop.
@@ -3053,15 +3086,21 @@ export const usePlayerStore = create<PlayerState>()(
                 .then(([similar, top]) => {
                   radioFetching = false;
                   const existingIds = new Set(get().queue.map(t => t.id));
-                  const fresh: Track[] = [...top, ...similar]
-                    .map(songToTrack)
-                    .filter(t => !existingIds.has(t.id))
-                    .slice(0, 10)
-                    .map(t => ({ ...t, radioAdded: true as const }));
+                  // Same source preference + dedup contract as the proactive
+                  // top-up: similar first, top only as a fallback (issue #500).
+                  const sourceList = similar.length > 0 ? similar : top;
+                  const fresh: Track[] = [];
+                  for (const raw of sourceList) {
+                    if (fresh.length >= 10) break;
+                    const t = songToTrack(raw);
+                    if (existingIds.has(t.id) || radioSessionSeenIds.has(t.id)) continue;
+                    radioSessionSeenIds.add(t.id);
+                    fresh.push({ ...t, radioAdded: true as const });
+                  }
                   if (fresh.length > 0) {
                     const currentQueue = get().queue;
                     const newQueue = [...currentQueue, ...fresh];
-                    get().playTrack(fresh[0], newQueue, false);
+                    get().playTrack(fresh[0], newQueue, false, false, currentQueue.length);
                   } else {
                     invoke('audio_stop').catch(console.error);
                     isAudioPaused = false;
@@ -3124,7 +3163,7 @@ export const usePlayerStore = create<PlayerState>()(
           return;
         }
         const prevIdx = queueIndex - 1;
-        if (prevIdx >= 0) get().playTrack(queue[prevIdx], queue);
+        if (prevIdx >= 0) get().playTrack(queue[prevIdx], queue, true, false, prevIdx);
       },
 
       // ── seek ─────────────────────────────────────────────────────────────────
@@ -3236,23 +3275,56 @@ export const usePlayerStore = create<PlayerState>()(
         });
       },
 
-      setRadioArtistId: (artistId) => { currentRadioArtistId = artistId; },
+      setRadioArtistId: (artistId) => {
+        if (artistId !== currentRadioArtistId) {
+          radioSessionSeenIds = new Set();
+        }
+        currentRadioArtistId = artistId;
+      },
 
       enqueueRadio: (tracks, artistId) => {
-        if (artistId) currentRadioArtistId = artistId;
+        if (artistId !== undefined) {
+          if (artistId !== currentRadioArtistId) {
+            radioSessionSeenIds = new Set();
+          }
+          currentRadioArtistId = artistId;
+        }
         pushQueueUndoFromGetter(get);
         set(state => {
           // Drop all upcoming (not yet played) radio tracks — clicking "Start Radio"
           // again replaces the pending radio batch instead of stacking on top.
           const beforeAndCurrent = state.queue.slice(0, state.queueIndex + 1);
           const upcoming = state.queue.slice(state.queueIndex + 1).filter(t => !t.radioAdded);
+          // Tracks about to leave the queue here. Callers like ContextMenu.startRadio
+          // pass the previous pending radio back in `tracks` to merge with new
+          // similars — the seen-set must not block those re-introductions.
+          const droppedRadioIds = state.queue
+            .slice(state.queueIndex + 1)
+            .filter(t => t.radioAdded)
+            .map(t => t.id);
+          for (const id of droppedRadioIds) radioSessionSeenIds.delete(id);
+          // Capture surviving queue ids in the seen-set so the next radio top-up
+          // can dedupe against the seed track + already-queued non-radio items.
+          for (const t of beforeAndCurrent) radioSessionSeenIds.add(t.id);
+          for (const t of upcoming) radioSessionSeenIds.add(t.id);
+          // Drop incoming tracks already seen earlier this session AND
+          // intra-batch duplicates (top + similar Last.fm responses commonly
+          // overlap). The seen-set is mutated inside the loop so a repeated
+          // id later in `tracks` is rejected by the same pass that admitted
+          // the first occurrence (issue #500).
+          const dedupedTracks: Track[] = [];
+          for (const t of tracks) {
+            if (radioSessionSeenIds.has(t.id)) continue;
+            radioSessionSeenIds.add(t.id);
+            dedupedTracks.push(t);
+          }
           // Insert new radio tracks before any autoAdded tracks in the upcoming section.
           const firstAutoIdx = upcoming.findIndex(t => t.autoAdded);
           const merged = firstAutoIdx === -1
-            ? [...upcoming, ...tracks]
+            ? [...upcoming, ...dedupedTracks]
             : [
                 ...upcoming.slice(0, firstAutoIdx),
-                ...tracks,
+                ...dedupedTracks,
                 ...upcoming.slice(firstAutoIdx),
               ];
           const newQueue = [...beforeAndCurrent, ...merged];
@@ -3307,6 +3379,8 @@ export const usePlayerStore = create<PlayerState>()(
         isAudioPaused = false;
         clearSeekFallbackRetry();
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
+        radioSessionSeenIds = new Set();
+        currentRadioArtistId = null;
         set({ queue: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
         syncQueueToServer([], null, 0);
       },

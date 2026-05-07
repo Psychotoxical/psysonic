@@ -1391,19 +1391,20 @@ export default function ContextMenu() {
       }
       // Load radio queue in background — enqueueRadio replaces any pending radio
       // tracks so clicking "Start Radio" again never stacks duplicate batches.
-      // Shuffle so the follow-up tracks feel fresh instead of always being the
-      // same "Top 5" in the same order every time.
+      // Lead with similar songs (other artists) so the listener doesn't get a
+      // wall of the seed artist's own top tracks before anything else plays.
+      // Top tracks stay as a fallback for setups without Last.fm / small
+      // libraries where similar comes back empty (issue #500).
       try {
         const [similar, top] = await Promise.all([getSimilarSongs2(artistId), getTopSongs(artistName)]);
-        // Keep artist top songs and similar-by-artist in two blocks (each shuffled), not one blended pile —
-        // otherwise this feels the same as Instant Mix (track-based similar only).
-        const topTracks = shuffleArray(
-          top.map(songToTrack).filter(t => t.id !== seedTrack.id).map(t => ({ ...t, radioAdded: true as const }))
-        );
         const similarTracks = shuffleArray(
           similar.map(songToTrack).filter(t => t.id !== seedTrack.id).map(t => ({ ...t, radioAdded: true as const }))
         );
-        const radioTracks = [...topTracks, ...similarTracks];
+        const radioTracks = similarTracks.length > 0
+          ? similarTracks
+          : shuffleArray(
+              top.map(songToTrack).filter(t => t.id !== seedTrack.id).map(t => ({ ...t, radioAdded: true as const }))
+            );
         if (radioTracks.length > 0) usePlayerStore.getState().enqueueRadio(radioTracks, artistId);
       } catch (e) {
         console.error('Failed to load radio queue', e);
@@ -2142,7 +2143,7 @@ export default function ContextMenu() {
           const song = item as Track;
           return (
             <>
-              <div className="context-menu-item" onClick={() => handleAction(() => playTrack(song, queue))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => playTrack(song, queue, undefined, undefined, contextMenu.queueIndex))}>
                 <Play size={14} /> {t('contextMenu.playNow')}
               </div>
               <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(() => {
