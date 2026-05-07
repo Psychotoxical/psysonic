@@ -577,6 +577,7 @@ export const frTranslation = {
     languageNb: 'Norvégien',
     languageRu: 'Russe',
     font: 'Police',
+    fontHintOpenDyslexic: 'Adapté à la dyslexie · sans prise en charge RU/ZH',
     theme: 'Thème',
     appearance: 'Apparence',
     servers: 'Serveurs',

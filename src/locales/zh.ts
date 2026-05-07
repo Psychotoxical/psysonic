@@ -571,6 +571,7 @@ export const zhTranslation = {
     languageNb: '挪威',
     languageRu: '俄语',
     font: '字体',
+    fontHintOpenDyslexic: '阅读障碍友好 · 不支持俄文/中文',
     theme: '主题',
     appearance: '外观',
     servers: '服务器',

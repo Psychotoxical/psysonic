@@ -590,6 +590,7 @@ export const enTranslation = {
     languageRu: 'Russian',
     languageEs: 'Spanish',
     font: 'Font',
+    fontHintOpenDyslexic: 'Dyslexia-friendly · no RU/ZH support',
     theme: 'Theme',
     appearance: 'Appearance',
     servers: 'Servers',

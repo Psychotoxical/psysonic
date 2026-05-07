@@ -24,6 +24,12 @@
 @import '@fontsource-variable/jetbrains-mono/wght-italic.css';
 @import '@fontsource-variable/golos-text';
 @import '@fontsource-variable/unbounded';
+/* OpenDyslexic — non-variable font with discrete weights/styles. Latin only,
+   no Cyrillic / no CJK. Selected via Settings as a dyslexia-friendly option. */
+@import '@fontsource/opendyslexic/400.css';
+@import '@fontsource/opendyslexic/700.css';
+@import '@fontsource/opendyslexic/400-italic.css';
+@import '@fontsource/opendyslexic/700-italic.css';
 
 /* ─── Catppuccin Mocha Variables ─── */
 :root,
@@ -6514,6 +6520,11 @@ input[type="range"]:hover::-webkit-slider-thumb {
 [data-font='unbounded'] {
   --font-sans: 'Unbounded Variable', system-ui, sans-serif;
   --font-display: 'Unbounded Variable', sans-serif;
+}
+
+[data-font='opendyslexic'] {
+  --font-sans: 'OpenDyslexic', system-ui, sans-serif;
+  --font-display: 'OpenDyslexic', sans-serif;
 }
 
 /* ─────────────────────────────────────────────────────────────

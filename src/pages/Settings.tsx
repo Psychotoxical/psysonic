@@ -3832,6 +3832,7 @@ export default function Settings() {
                     { id: 'jetbrains-mono',    label: 'JetBrains Mono' },
                     { id: 'golos-text',        label: 'Golos Text' },
                     { id: 'unbounded',         label: 'Unbounded' },
+                    { id: 'opendyslexic',      label: 'OpenDyslexic' },
                   ] as { id: FontId; label: string }[]).find(f => f.id === fontStore.font)?.label ?? fontStore.font
                 }</span>
                 <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: fontPickerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
@@ -3854,15 +3855,25 @@ export default function Settings() {
                       { id: 'jetbrains-mono',    label: 'JetBrains Mono',    stack: "'JetBrains Mono Variable', monospace" },
                       { id: 'golos-text',        label: 'Golos Text',        stack: "'Golos Text Variable', sans-serif" },
                       { id: 'unbounded',         label: 'Unbounded',         stack: "'Unbounded Variable', sans-serif" },
-                    ] as { id: FontId; label: string; stack: string }[]
+                      { id: 'opendyslexic',      label: 'OpenDyslexic',      stack: "'OpenDyslexic', sans-serif", hint: t('settings.fontHintOpenDyslexic') },
+                    ] as { id: FontId; label: string; stack: string; hint?: string }[]
                   ).map(f => (
                     <button
                       key={f.id}
                       className={`btn ${fontStore.font === f.id ? 'btn-primary' : 'btn-ghost'}`}
-                      style={{ justifyContent: 'flex-start', fontFamily: f.stack }}
+                      style={{
+                        justifyContent: 'flex-start',
+                        fontFamily: f.stack,
+                        ...(f.hint ? { flexDirection: 'column', alignItems: 'flex-start', gap: '2px', paddingTop: '8px', paddingBottom: '8px' } : null),
+                      }}
                       onClick={() => { fontStore.setFont(f.id); setFontPickerOpen(false); }}
                     >
-                      {f.label}
+                      <span>{f.label}</span>
+                      {f.hint && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>
+                          {f.hint}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

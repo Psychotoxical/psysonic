@@ -611,6 +611,7 @@ export const ruTranslation = {
     languageRu: 'Русский',
     languageRu2: 'Русский 2',
     font: 'Шрифт',
+    fontHintOpenDyslexic: 'Подходит для дислексии · без поддержки RU/ZH',
     theme: 'Тема',
     appearance: 'Оформление',
     servers: 'Серверы',

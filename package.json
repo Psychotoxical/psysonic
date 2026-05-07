@@ -26,6 +26,7 @@
     "@fontsource-variable/rubik": "^5.2.8",
     "@fontsource-variable/space-grotesk": "^5.2.10",
     "@fontsource-variable/unbounded": "^5.2.8",
+    "@fontsource/opendyslexic": "^5.2.5",
     "@tanstack/react-virtual": "^3.13.24",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
