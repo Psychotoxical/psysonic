@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Settings — OpenDyslexic font option for dyslexic readers
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#507](https://github.com/Psychotoxical/psysonic/pull/507)**
+
+* Next step on the accessibility track after the colour-side work (WCAG contrast audits across every theme, dedicated colour-vision-deficiency theme variants for protanopia / deuteranopia / tritanopia): a dyslexia-friendly **OpenDyslexic** font option in the existing font picker.
+* OpenDyslexic uses a heavier weighted baseline and asymmetric glyph shapes — `b`/`d`, `p`/`q` never mirror, italics are differentiated forms rather than slanted regulars — which many dyslexic readers find easier to track than a typical sans.
+* Bundled locally via `@fontsource/opendyslexic` (SIL OFL, freely redistributable). No CDN dependency. The Settings picker grew an optional **subtitle** field on font entries so the OpenDyslexic row carries a "dyslexia-friendly · no RU/ZH support" hint without cluttering the other 14 fonts.
+* **Latin + Latin-extended only.** Cyrillic and CJK locales (RU, ZH) fall back to the system font when OpenDyslexic is selected; the subtitle calls that out upfront. Subtitle text is translated in all 8 locales.
+
 ### Lossless Albums — rail on Home + dedicated page + sidebar entry
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#506](https://github.com/Psychotoxical/psysonic/pull/506)**
