@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Lossless Albums — rail on Home + dedicated page + sidebar entry
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#506](https://github.com/Psychotoxical/psysonic/pull/506)**
+
+* New **Lossless Albums** browse mode: a rail under "Most Played" on Home and a dedicated infinite-scroll **`/lossless-albums`** page with full Albums-page header parity (selection mode + Enqueue / Add Offline / Download ZIPs).
+* Detection walks Navidrome's native `/api/song?_sort=bit_depth&_order=DESC` and dedupes to album ids along the way, stopping when the cursor crosses into lossy or runs out. Restricted to containers that are **always lossless** (`flac`, `wav`, `aiff`/`aif`, `dsf`/`dff`, `ape`, `wv`, `shn`, `tta`) — `m4a` and `wma` are intentionally excluded because they can carry both lossless and lossy codecs and Navidrome's `codec` field isn't reliable enough to disambiguate.
+* Streaming load: albums stream into the page progressively as each internal fetch completes (`onProgress` callback) instead of blocking on the full `loadMore`.
+* New sidebar entry **Lossless** (Gem icon), visible by default.
+* i18n coverage across all 8 locales for the new strings (sidebar / home / page subtitle / empty / unsupported). RU and ZH are machine-translation quality, flagged for a polish pass.
+
 ### Song Info — absolute file path on Navidrome servers
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), suggested by volcs0, PR [#504](https://github.com/Psychotoxical/psysonic/pull/504)**
