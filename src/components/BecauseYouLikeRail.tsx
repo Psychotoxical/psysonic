@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ListPlus } from 'lucide-react';
+import { Play, ListPlus, Music } from 'lucide-react';
 import {
   SubsonicAlbum,
   buildCoverArtUrl,
@@ -211,7 +211,9 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
             loading="lazy"
           />
         ) : (
-          <div className="because-card-cover because-card-cover-placeholder" aria-hidden="true" />
+          <div className="because-card-cover because-card-cover-placeholder" aria-hidden="true">
+            <Music size={42} strokeWidth={1.5} />
+          </div>
         )}
         <div className="album-card-play-overlay">
           <button

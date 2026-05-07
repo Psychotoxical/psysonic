@@ -13962,8 +13962,8 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
 .because-card-cover-wrap {
   position: relative;
   flex: 0 0 auto;
-  width: 200px;
-  height: 200px;
+  width: 160px;
+  height: 160px;
   border-radius: 6px;
   overflow: hidden;
   background: var(--bg-input, rgba(0, 0, 0, 0.15));
@@ -13975,7 +13975,10 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
   display: block;
 }
 .because-card-cover-placeholder {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--text-primary) 30%, transparent);
 }
 .because-card:hover .album-card-play-overlay {
   opacity: 1;
@@ -14044,10 +14047,14 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
 .because-card-meta {
   align-self: center;
   justify-content: center;
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  font-size: 12px;
+  row-gap: 0;
+  column-gap: 0.4rem;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  width: max-content;
+  max-width: 100%;
   color: var(--text-primary, var(--text-secondary, inherit));
   background: color-mix(in srgb, var(--text-primary) 14%, transparent);
   padding: 3px 10px;
@@ -14056,6 +14063,6 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
 }
 .because-card-meta > span:not(:last-child)::after {
   content: '·';
-  margin-left: 0.75rem;
+  margin-left: 0.4rem;
   opacity: 0.5;
 }
