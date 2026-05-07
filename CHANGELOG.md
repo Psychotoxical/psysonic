@@ -68,11 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Home — "Because you listened" recommendation rail
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#489](https://github.com/Psychotoxical/psysonic/pull/489)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#489](https://github.com/Psychotoxical/psysonic/pull/489), [#493](https://github.com/Psychotoxical/psysonic/pull/493)**
 
-* New Home rail that surfaces albums **similar to one of your most-played artists** — Spotify-style "Because you listened to …" recommendations.
-* Anchor artist is rotated **round-robin** between Home opens through the top **8** entries in Most Played (so the rail does not get stuck on the same name). `getArtistInfo` returns up to **12** similar artists; the rail randomly samples **6** of them and surfaces **3** albums (one random per matching artist) that exist on your server.
-* Anchor rotation is **per-server**: switching servers keeps independent rotation state instead of aliasing one server's anchor id onto the next server's pool.
+* New Home rail that surfaces albums **similar to one of your favourite artists** — Spotify-style "Because you listened to …" recommendations.
+* Anchor pool round-robin merges **Most Played**, **Recently Played** and **Favorites** (deduped per artist), so the per-mount rotation lands on a different listening *mode* each visit instead of walking only the top-played list. Pool size **12** lets the cursor visit all three sources before wrapping. Within each anchor, `getArtistInfo` returns up to **12** similar artists; the rail randomly samples **6** of them and surfaces **3** albums (one random per matching artist) that exist on your server.
+* Anchor rotation is **per-server**: switching servers keeps independent rotation state instead of aliasing one server's anchor id onto the next server's pool. The rail also renders on fresh servers that have no frequent-play history yet, as long as they have starred or recently played items. Zero extra API calls — all three seed lists are already in the Home initial fetch.
+* **Responsive layout:** **3** cards in one row on 2K-class screens, **2** cards in one row at 1080p (the orphan third card on a second row is hidden via container query), and all **3** stacked vertically on truly narrow / mobile widths.
 * Toggleable in the Home customizer like every other rail; respects the existing performance flags ("Disable rail artwork", "Disable Home album rows").
 
 ## Changed
@@ -147,13 +148,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Removed five themes that overlapped or felt strenuous on the eyes: **Amber Night**, **Ice Blue**, **Monochrome**, **Phosphor Green**, **Rose Dark**.
 * Added eight new dark themes covering the colour families people most commonly ask for: **Obsidian Black**, **Carbon Grey**, **Volcanic Dark**, **Forest Green**, **Violet Haze**, **Copper Oxide**, **Sakura Night**, **Obsidian Gold**.
 * Light polish on the existing **AMOLED Black Pure** surface variables so card surfaces no longer collapse onto a pure-black background that read as a single flat slab.
-
-### Home — Because-you-listened seed pool and orphan-card layout
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#493](https://github.com/Psychotoxical/psysonic/pull/493)**
-
-* The anchor pool now round-robin merges **Most Played**, **Recently Played** and **Favorites** (deduped per artist) instead of walking only the top-played list, so the per-mount rotation lands on a different listening *mode* each visit. Pool size **8 → 12** to let the cursor visit all three sources before wrapping. Visibility guard widened so the rail still renders when a fresh server has no frequent-play data yet but starred or recent items exist. Zero new API calls — all three lists are already in the Home initial fetch.
-* On **1080p** / narrow windows the third card no longer drops to a second row alone — a container query hides it inside the 2-column auto-fit band. The full **3-up** row stays on 2K-class screens, and on truly narrow viewports (single column) all three cards stack vertically as expected.
 
 ## Fixed
 
