@@ -372,6 +372,7 @@ const CONTRIBUTORS = [
       'Library: Browse by Composer — native-API role listing for classical libraries, library-scoped queries, composer as a first-class share entity (PR #487)',
       'Home: "Because you listened" recommendation rail — Last.fm-anchored similar-artist surfacing with round-robin anchor rotation per server (PR #489)',
       'Song Info: absolute file path on Navidrome via native /api/song/{id} — Subsonic only ever returned a relative path (or none on Navidrome), the native endpoint surfaces the full server-side location (PR #504)',
+      'Home: Lossless Albums rail + dedicated /lossless-albums page with infinite scroll and header parity (selection mode, enqueue, offline, download ZIPs), streaming load via per-fetch onProgress, sidebar entry default visible, detection via Navidrome native bit_depth-sorted song cursor with always-lossless suffix allowlist (PR #506)',
     ],
   },
 ] as const;
