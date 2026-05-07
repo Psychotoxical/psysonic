@@ -15,11 +15,30 @@ import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playAlbum';
 
-const ANCHOR_KEY_PREFIX = 'psysonic_because_anchor:';
-const TOP_ARTIST_POOL = 12;
-const SIMILAR_FETCH = 12;
+const ANCHOR_HISTORY_KEY_PREFIX = 'psysonic_because_anchor_history:';
+const PICKS_HISTORY_KEY_PREFIX = 'psysonic_because_picks:';
+/** Legacy single-anchor key from the round-robin era. The history-key prefix
+ *  is `..._anchor_history:` so the colon-suffixed legacy prefix below cannot
+ *  match the new keys — safe to strip on module load. */
+const LEGACY_ANCHOR_KEY_PREFIX = 'psysonic_because_anchor:';
+
+(() => {
+  try {
+    const stale: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(LEGACY_ANCHOR_KEY_PREFIX)) stale.push(k);
+    }
+    stale.forEach(k => { try { localStorage.removeItem(k); } catch { /* ignore */ } });
+  } catch { /* ignore */ }
+})();
+const TOP_ARTIST_POOL = 20;
+const ANCHOR_MAX_TRIES = 4;
+const ANCHOR_COOLDOWN = 5;
+const SIMILAR_FETCH = 25;
 const SIMILAR_PICK = 6;
 const SHOW_COUNT = 3;
+const PICKS_HISTORY_SIZE = 30;
 const COVER_SIZE = 300;
 
 function shuffle<T>(arr: T[]): T[] {
@@ -71,25 +90,25 @@ function formatAlbumDuration(seconds: number, t: (key: string, opts?: Record<str
   return t('common.durationMinutesOnly', { minutes: totalMin });
 }
 
-/** Anchor rotation memory is **per-server** — server A and server B keep
- *  independent rotation state, so switching servers doesn't snap the anchor
- *  back to the first artist of the new pool just because the previous server's
- *  anchor id was unknown there. */
-function anchorKey(serverId: string | null): string | null {
-  return serverId ? `${ANCHOR_KEY_PREFIX}${serverId}` : null;
+/** Both rotation memories are **per-server** — server A and server B keep
+ *  independent state, so switching servers doesn't snap the anchor cooldown
+ *  or the recently-shown-album buffer onto the new server's content. */
+function anchorHistoryKey(serverId: string | null): string | null {
+  return serverId ? `${ANCHOR_HISTORY_KEY_PREFIX}${serverId}` : null;
 }
-
-function rotateAnchor(pool: Anchor[], serverId: string | null): Anchor | null {
-  if (pool.length === 0) return null;
-  const key = anchorKey(serverId);
-  let lastId: string | null = null;
-  if (key) {
-    try { lastId = localStorage.getItem(key); } catch { /* ignore */ }
+function picksHistoryKey(serverId: string | null): string | null {
+  return serverId ? `${PICKS_HISTORY_KEY_PREFIX}${serverId}` : null;
+}
+function readJsonArray(key: string | null): string[] {
+  if (!key) return [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
   }
-  if (!lastId) return pool[0];
-  const idx = pool.findIndex(a => a.id === lastId);
-  if (idx < 0) return pool[0];
-  return pool[(idx + 1) % pool.length];
 }
 
 export default function BecauseYouLikeRail({
@@ -109,36 +128,80 @@ export default function BecauseYouLikeRail({
 
   useEffect(() => {
     let cancelled = false;
-    const next = rotateAnchor(pool, activeServerId);
-    setAnchor(next);
-    setRecs([]);
-    if (!next) return;
-    const key = anchorKey(activeServerId);
-    if (key) {
-      try { localStorage.setItem(key, next.id); } catch { /* ignore */ }
+    if (pool.length === 0) {
+      setAnchor(null);
+      setRecs([]);
+      return;
     }
 
+    const anchorHistKey = anchorHistoryKey(activeServerId);
+    const picksHistKey = picksHistoryKey(activeServerId);
+    const anchorHistory = readJsonArray(anchorHistKey);
+    const picksHistory = readJsonArray(picksHistKey);
+
+    /** Cooldown caps at half the pool size so a small library doesn't soft-lock
+     *  itself out (a server with 4 anchor-eligible artists shouldn't be told
+     *  "the last 5 are forbidden"). */
+    const cooldown = Math.min(ANCHOR_COOLDOWN, Math.max(0, Math.floor(pool.length / 2)));
+    const recentAnchors = new Set(anchorHistory.slice(-cooldown));
+    const eligibleRaw = pool.filter(a => !recentAnchors.has(a.id));
+    const eligible = eligibleRaw.length > 0 ? eligibleRaw : pool.slice();
+    const candidates = shuffle(eligible);
+    const recentPicks = new Set(picksHistory);
+
     (async () => {
-      try {
-        const info = await getArtistInfo(next.id, { similarArtistCount: SIMILAR_FETCH });
-        const similar = (info.similarArtist ?? []).filter(s => s.id);
-        if (similar.length === 0) return;
+      const tries = Math.min(ANCHOR_MAX_TRIES, candidates.length);
+      /** Random pick (with cooldown) replaces deterministic round-robin so the
+       *  same anchor doesn't surface every pool.length mounts. The retry loop
+       *  still walks forward through the shuffled `candidates` list when the
+       *  current pick is a dud (no Last.fm similar artists, or no library
+       *  matches). On success: append the chosen anchor + chosen album ids to
+       *  their respective ring buffers so future mounts see different stuff. */
+      for (let i = 0; i < tries; i++) {
+        if (cancelled) return;
+        const candidate = candidates[i];
+        try {
+          const info = await getArtistInfo(candidate.id, { similarArtistCount: SIMILAR_FETCH });
+          if (cancelled) return;
+          const similar = (info.similarArtist ?? []).filter(s => s.id);
+          if (similar.length === 0) continue;
 
-        const candidates = shuffle(similar).slice(0, SIMILAR_PICK);
-        const results = await Promise.all(
-          candidates.map(s => getArtist(s.id).catch(() => null))
-        );
+          const sampled = shuffle(similar).slice(0, SIMILAR_PICK);
+          const results = await Promise.all(
+            sampled.map(s => getArtist(s.id).catch(() => null))
+          );
+          if (cancelled) return;
 
-        const picks: SubsonicAlbum[] = [];
-        for (const r of results) {
-          if (!r || r.albums.length === 0) continue;
-          const album = r.albums[Math.floor(Math.random() * r.albums.length)];
-          picks.push(album);
-          if (picks.length >= SHOW_COUNT) break;
+          const picks: SubsonicAlbum[] = [];
+          for (const r of results) {
+            if (!r || r.albums.length === 0) continue;
+            /** Prefer an album not in the recently-shown buffer; fall back to
+             *  *any* album when the artist's whole catalogue is in the buffer
+             *  so the slot isn't lost. */
+            const fresh = r.albums.filter(a => !recentPicks.has(a.id));
+            const choice = fresh.length > 0 ? fresh : r.albums;
+            const album = choice[Math.floor(Math.random() * choice.length)];
+            picks.push(album);
+            if (picks.length >= SHOW_COUNT) break;
+          }
+          if (picks.length === 0) continue;
+
+          const newAnchorHistory = [...anchorHistory, candidate.id].slice(-ANCHOR_COOLDOWN);
+          const newPicksHistory = [...picksHistory, ...picks.map(p => p.id)].slice(-PICKS_HISTORY_SIZE);
+          try {
+            if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(newAnchorHistory));
+            if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(newPicksHistory));
+          } catch { /* ignore */ }
+          setAnchor(candidate);
+          setRecs(picks);
+          return;
+        } catch {
+          /* network / server error — try next anchor */
         }
-        if (!cancelled) setRecs(picks);
-      } catch {
-        /* ignore */
+      }
+      if (!cancelled) {
+        setAnchor(null);
+        setRecs([]);
       }
     })();
 
