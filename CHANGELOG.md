@@ -66,6 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Composers are a first-class share entity.** `psysonic2-` links with `k=composer` paste to `/composer/:id`; the Share button on the detail page and the right-click menu both copy a `composer` link.
 * Sidebar entry is **off by default** (classical-music use case is a niche) — toggle in Settings → Sidebar.
 
+### Home — "Because you listened" recommendation rail
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#489](https://github.com/Psychotoxical/psysonic/pull/489)**
+
+* New Home rail that surfaces albums **similar to one of your most-played artists** — Spotify-style "Because you listened to …" recommendations.
+* Anchor artist is rotated **round-robin** between Home opens through the top **8** entries in Most Played (so the rail does not get stuck on the same name). `getArtistInfo` returns up to **12** similar artists; the rail randomly samples **6** of them and surfaces **3** albums (one random per matching artist) that exist on your server.
+* Anchor rotation is **per-server**: switching servers keeps independent rotation state instead of aliasing one server's anchor id onto the next server's pool.
+* Toggleable in the Home customizer like every other rail; respects the existing performance flags ("Disable rail artwork", "Disable Home album rows").
+
 ## Changed
 
 ### Dependencies — npm / Cargo refresh and rodio 0.22
