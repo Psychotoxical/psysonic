@@ -196,6 +196,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Security — Tauri patch for IPC origin-confusion (GHSA-7gmj-67g7-phm9)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#509](https://github.com/Psychotoxical/psysonic/pull/509)**
+
+* Bumped Tauri **2.11.0 → 2.11.1** to pick up the upstream patch for [GHSA-7gmj-67g7-phm9](https://github.com/advisories/GHSA-7gmj-67g7-phm9) — older Tauri versions had an **origin-confusion** bug that could let a remote-origin page loaded inside the webview invoke local-only IPC commands. Severity **medium**. Psysonic exposes a number of file-system and credential-bearing IPC commands (downloads, Navidrome native API, audio engine), so closing the gate is worth the bump.
+* Lockfile-only refresh; `Cargo.toml` was already unlocked at `tauri = "2"`. Full Tauri family (build / codegen / macros / runtime / runtime-wry / utils) bumped together at matching patch level.
+
 ### Hot cache, HTTP streaming replay, and queue source indicator
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
