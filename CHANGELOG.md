@@ -213,6 +213,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The currently-playing track in any tracklist (**AlbumDetail**, **ArtistDetail**, **PlaylistDetail**, **Favorites**, **RandomMix**) ran an **`opacity` pulse** on the entire row plus three **`transform` keyframe** EQ-bar siblings — both compositor properties, but on **WebKitGTK without compositing** (Linux + NVIDIA proprietary + `WEBKIT_DISABLE_COMPOSITING_MODE=1`) every animated row falls back to a full **software repaint** of the subtree per frame. On AlbumDetail the combined cost held the WebProcess at **~80 % CPU** for the duration of playback; CPU dropped immediately on pause/stop.
 * `.track-row.active` keeps the **accent-tinted background** but no longer pulses. The "now playing" indicator becomes a single Lucide **`AudioLines` icon** (one SVG per active row instead of three animated spans). Cleanup: dead `track-pulse` + `eq-bounce` keyframes and a duplicate, shadowed `.eq-bar` block in `theme.css`.
 
+### Track preview — volume slider ignored during preview
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#502](https://github.com/Psychotoxical/psysonic/pull/502)**
+
+* The Rust **preview sink** had its volume set **once at preview start** and was never updated afterwards — `audio_set_volume` only ramps the **main sink**. Slider drags during preview therefore had no audible effect on the preview level.
+* With **loudness normalization** on (default `-4.5 dB` pre-analysis attenuation), even a 100 % slider produced `1.0 × 0.596 × 0.891 ≈ 53 %` at the speaker, matching the reporter's "fixed at around 50 %" observation.
+* New `audio_preview_set_volume` command and a `playerStore` subscription in the frontend keep the preview sink in lock-step with the slider while a preview is in flight (settings tweaks during preview are intentionally not synced — preview windows are short).
+
 ### Tray — broken navigation after restoring via desktop / start-menu shortcut
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#501](https://github.com/Psychotoxical/psysonic/pull/501)**
