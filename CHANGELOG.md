@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Player Bar — album context menu on song title right-click
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#512](https://github.com/Psychotoxical/psysonic/pull/512)**
+
+* Right-clicking the **track title** in the player bar now opens the same album context menu that album cards expose — open, play next, enqueue, go to artist, favorite, rate, share, download, add to playlist.
+* Mirrors the existing left-click on the title (which already navigates to the album) and is suppressed during radio playback and previews.
+
 ### Settings — OpenDyslexic font option for dyslexic readers
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#507](https://github.com/Psychotoxical/psysonic/pull/507)**
