@@ -44,6 +44,23 @@ export function getScheduledTheme(state: Pick<ThemeState, 'enableThemeScheduler'
   return isDay ? state.themeDay : state.themeNight;
 }
 
+/** Themes removed in PR #490 (community theme redesign). Each key maps to the
+ *  closest surviving palette so persisted state from older builds doesn't land
+ *  on a non-existent `data-theme` attribute and silently fall back to :root. */
+const REMOVED_THEME_REMAP: Record<string, string> = {
+  'amber-night':    'obsidian-gold',   // warm gold/amber dark family
+  'ice-blue':       'carbon-grey',     // cool neutral dark (no surviving cyan)
+  'monochrome':     'carbon-grey',     // neutral grey dark
+  'phosphor-green': 'deep-forest',     // green dark family
+  'rose-dark':      'sakura-night',    // pink/rose dark family
+};
+
+function remapTheme(value: unknown): unknown {
+  return typeof value === 'string' && value in REMOVED_THEME_REMAP
+    ? REMOVED_THEME_REMAP[value]
+    : value;
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
@@ -74,6 +91,17 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'psysonic_theme',
+      version: 1,
+      migrate: (persistedState, _version) => {
+        if (!persistedState || typeof persistedState !== 'object') return persistedState;
+        const s = persistedState as Record<string, unknown>;
+        return {
+          ...s,
+          theme:      remapTheme(s.theme),
+          themeDay:   remapTheme(s.themeDay),
+          themeNight: remapTheme(s.themeNight),
+        };
+      },
     }
   )
 );
