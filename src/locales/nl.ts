@@ -25,6 +25,7 @@ export const nlTranslation = {
     tracks: 'Nummers',
     playlists: 'Playlists',
     mostPlayed: 'Meest gespeeld',
+    losslessAlbums: 'Lossless',
     radio: 'Internetradio',
     folderBrowser: 'Mappenverkenner',
     deviceSync: 'Apparaatsync',
@@ -41,6 +42,7 @@ export const nlTranslation = {
     recent: 'Recent toegevoegd',
     mostPlayed: 'Meest gespeeld',
     recentlyPlayed: 'Recent afgespeeld',
+    losslessAlbums: 'Lossless-albums',
     discover: 'Ontdekken',
     discoverSongs: 'Nummers ontdekken',
     loadMore: 'Meer laden',
@@ -1471,6 +1473,11 @@ export const nlTranslation = {
     noArtists: 'Alle artiesten gefilterd.',
     filterCompilations: 'Compilatie-artiesten verbergen (Various Artists, Soundtracks, etc.)',
     filterCompilationsShort: 'Compilaties verbergen',
+  },
+  losslessAlbums: {
+    empty: 'Nog geen lossless-albums in deze bibliotheek.',
+    unsupported: 'Deze server biedt geen metadata om lossless-albums te vinden.',
+    slowFetchHint: 'Laadt langzamer dan andere albumpagina\'s — Psysonic doorloopt de volledige songcatalogus op kwaliteit.',
   },
   radio: {
     title: 'Internetradio',

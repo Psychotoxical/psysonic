@@ -1,20 +1,55 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import { ndListLosslessAlbumsPage } from '../api/navidromeBrowse';
-import type { SubsonicAlbum } from '../api/subsonic';
+import { getAlbum, type SubsonicAlbum, buildDownloadUrl } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
+import { useOfflineStore } from '../store/offlineStore';
+import { useDownloadModalStore } from '../store/downloadModalStore';
+import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { useZipDownloadStore } from '../store/zipDownloadStore';
+import { useRangeSelection } from '../hooks/useRangeSelection';
+import { usePerfProbeFlags } from '../utils/perfFlags';
+import { showToast } from '../utils/toast';
+import { invoke } from '@tauri-apps/api/core';
+import { join } from '@tauri-apps/api/path';
+import { CheckSquare2, Download, HardDriveDownload, ListPlus } from 'lucide-react';
 
-const PAGE_TARGET_ALBUMS = 24;
+/** Per-loadMore budget — tuned for snappy initial paint over completeness.
+ *  100 songs ≈ 500 KB response (Navidrome's /api/song carries lyrics/tags/
+ *  participants and ignores `_fields`); 2 internal pages = ~1 MB worst case
+ *  per loadMore, much faster than the rail's 5×200 = 1000-song budget. The
+ *  page makes up for the smaller batch by triggering a fresh loadMore on
+ *  scroll, so the user sees albums sooner instead of waiting on a fat call. */
+const PAGE_TARGET_ALBUMS = 12;
+const PAGE_SONGS_PER_FETCH = 100;
+const PAGE_MAX_FETCHES_PER_LOAD = 2;
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
+}
 
 export default function LosslessAlbums() {
   const { t } = useTranslation();
+  const perfFlags = usePerfProbeFlags();
+  const auth = useAuthStore();
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
+  const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
+  const enqueue = usePlayerStore(s => s.enqueue);
 
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [unsupported, setUnsupported] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+
+  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(albums);
+  const selectedAlbums = albums.filter(a => selectedIds.has(a.id));
+
+  const toggleSelectionMode = () => { setSelectionMode(v => !v); resetSelection(); };
+  const clearSelection = () => { setSelectionMode(false); resetSelection(); };
 
   /** Pagination cursor + dedupe set, kept across loadMore calls so each page
    *  resumes the song-stream walk where the previous one left off. Reset to
@@ -39,9 +74,13 @@ export default function LosslessAlbums() {
         startSongOffset: songCursor.current,
         seenAlbumIds: seenIds.current,
         targetNewAlbums: PAGE_TARGET_ALBUMS,
+        songsPerPage: PAGE_SONGS_PER_FETCH,
+        maxPagesPerCall: PAGE_MAX_FETCHES_PER_LOAD,
+        onProgress: (newEntries) => {
+          setAlbums(prev => [...prev, ...newEntries.map(e => e.album)]);
+        },
       });
       songCursor.current = page.nextSongOffset;
-      setAlbums(prev => [...prev, ...page.entries.map(e => e.album)]);
       setHasMore(!page.done);
     } catch {
       setUnsupported(true);
@@ -52,10 +91,6 @@ export default function LosslessAlbums() {
     }
   }, []);
 
-  /** Reset state and trigger the initial load on server change. The async
-   *  block carries a local `cancelled` flag because React StrictMode in dev
-   *  double-invokes effects — without the flag, the first invocation's result
-   *  would land in state alongside the second, doubling every album. */
   useEffect(() => {
     let cancelled = false;
 
@@ -74,10 +109,15 @@ export default function LosslessAlbums() {
           startSongOffset: 0,
           seenAlbumIds: seenIds.current,
           targetNewAlbums: PAGE_TARGET_ALBUMS,
+          songsPerPage: PAGE_SONGS_PER_FETCH,
+          maxPagesPerCall: PAGE_MAX_FETCHES_PER_LOAD,
+          onProgress: (newEntries) => {
+            if (cancelled) return;
+            setAlbums(prev => [...prev, ...newEntries.map(e => e.album)]);
+          },
         });
         if (cancelled) return;
         songCursor.current = page.nextSongOffset;
-        setAlbums(page.entries.map(e => e.album));
         setHasMore(!page.done);
       } catch {
         if (cancelled) return;
@@ -94,11 +134,6 @@ export default function LosslessAlbums() {
 
   useEffect(() => {
     if (!hasMore) return;
-    /** Sentinel only renders once `albums.length > 0` (the spinner takes its
-     *  spot during the initial load), so the observer effect must re-run when
-     *  that transition happens — otherwise the ref is null on first attempt
-     *  and never reconnects, leaving infinite-scroll dead after the first
-     *  page. Both `loading` and `albums.length` cover the relevant transitions. */
     const node = observerTarget.current;
     if (!node) return;
     const obs = new IntersectionObserver(
@@ -109,13 +144,105 @@ export default function LosslessAlbums() {
     return () => obs.disconnect();
   }, [hasMore, loadMore, loading, albums.length]);
 
+  const handleEnqueueSelected = async () => {
+    if (selectedAlbums.length === 0) return;
+    try {
+      const results = await Promise.all(selectedAlbums.map(a => getAlbum(a.id).catch(() => null)));
+      const tracks = results.flatMap(r => r ? r.songs.map(songToTrack) : []);
+      if (tracks.length > 0) {
+        enqueue(tracks);
+        showToast(t('albums.enqueueQueued', { count: selectedAlbums.length }), 2500, 'info');
+      }
+    } finally {
+      clearSelection();
+    }
+  };
+
+  const handleAddOffline = async () => {
+    if (selectedAlbums.length === 0) return;
+    let queued = 0;
+    for (const album of selectedAlbums) {
+      try {
+        const detail = await getAlbum(album.id);
+        downloadAlbum(album.id, album.name, album.artist, album.coverArt, album.year, detail.songs, serverId);
+        queued++;
+      } catch {
+        showToast(t('albums.offlineFailed', { name: album.name }), 3000, 'error');
+      }
+    }
+    if (queued > 0) showToast(t('albums.offlineQueuing', { count: queued }), 3000, 'info');
+    clearSelection();
+  };
+
+  const handleDownloadZips = async () => {
+    if (selectedAlbums.length === 0) return;
+    const folder = auth.downloadFolder || await requestDownloadFolder();
+    if (!folder) return;
+    const { start, complete, fail } = useZipDownloadStore.getState();
+    clearSelection();
+    for (const album of selectedAlbums) {
+      const downloadId = crypto.randomUUID();
+      const filename = `${sanitizeFilename(album.name)}.zip`;
+      const destPath = await join(folder, filename);
+      const url = buildDownloadUrl(album.id);
+      start(downloadId, filename);
+      try {
+        await invoke('download_zip', { id: downloadId, url, destPath });
+        complete(downloadId);
+      } catch (e) {
+        fail(downloadId);
+        console.error('ZIP download failed for', album.name, e);
+        showToast(t('albums.downloadZipFailed', { name: album.name }), 4000, 'error');
+      }
+    }
+  };
+
   return (
     <div className="content-body animate-fade-in">
-      <div className="page-sticky-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>
-          {t('home.losslessAlbums')}
-        </h1>
-      </div>
+      {!perfFlags.disableMainstageStickyHeader && (
+        <div className="page-sticky-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0 }}>
+            <h1 className="page-title" style={{ marginBottom: 0 }}>
+              {selectionMode && selectedIds.size > 0
+                ? t('albums.selectionCount', { count: selectedIds.size })
+                : t('home.losslessAlbums')}
+            </h1>
+            {!(selectionMode && selectedIds.size > 0) && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
+                {t('losslessAlbums.slowFetchHint')}
+              </p>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {selectionMode && selectedIds.size > 0 && (
+              <>
+                <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
+                  <ListPlus size={15} />
+                  {t('albums.enqueueSelected', { count: selectedIds.size })}
+                </button>
+                <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
+                  <HardDriveDownload size={15} />
+                  {t('albums.addOffline')}
+                </button>
+                <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
+                  <Download size={15} />
+                  {t('albums.downloadZips')}
+                </button>
+              </>
+            )}
+            <button
+              className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
+              onClick={toggleSelectionMode}
+              data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
+              data-tooltip-pos="bottom"
+              style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+            >
+              <CheckSquare2 size={15} />
+              {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {unsupported ? (
         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
@@ -133,7 +260,14 @@ export default function LosslessAlbums() {
         <>
           <div className="album-grid-wrap">
             {albums.map(a => (
-              <AlbumCard key={a.id} album={a} />
+              <AlbumCard
+                key={a.id}
+                album={a}
+                selectionMode={selectionMode}
+                selected={selectedIds.has(a.id)}
+                onToggleSelect={toggleSelect}
+                selectedAlbums={selectedAlbums}
+              />
             ))}
           </div>
           <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>

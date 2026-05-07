@@ -25,6 +25,7 @@ export const nbTranslation = {
     tracks: 'Spor',
     playlists: 'Spillelister',
     mostPlayed: 'Mest spilt',
+    losslessAlbums: 'Lossless',
     radio: 'Internettradio',
     folderBrowser: 'Mappeleser',
     deviceSync: 'Enhetssynk',
@@ -41,6 +42,7 @@ export const nbTranslation = {
     recent: 'Nylig lagt til',
     mostPlayed: 'Mest spilt',
     recentlyPlayed: 'Nylig spilt',
+    losslessAlbums: 'Lossless-album',
     discover: 'Oppdag',
     discoverSongs: 'Oppdag spor',
     loadMore: 'Last inn flere',
@@ -1430,6 +1432,11 @@ export const nbTranslation = {
     noArtists: 'Alle artister filtrert bort.',
     filterCompilations: 'Skjul kompilasjonsartister (Various Artists, Soundtracks, etc.)',
     filterCompilationsShort: 'Skjul kompilasjoner',
+  },
+  losslessAlbums: {
+    empty: 'Ingen lossless-album i dette biblioteket ennå.',
+    unsupported: 'Denne serveren eksponerer ikke metadata som trengs for å finne lossless-album.',
+    slowFetchHint: 'Lastes saktere enn andre albumsider — Psysonic går gjennom hele sangkatalogen etter kvalitet.',
   },
   smartPlaylists: {
     sectionBasic: '1. Grunnleggende',

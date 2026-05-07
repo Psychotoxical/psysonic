@@ -25,6 +25,7 @@ export const zhTranslation = {
     tracks: '曲目',
     playlists: '播放列表',
     mostPlayed: '最常播放',
+    losslessAlbums: '无损',
     radio: '网络电台',
     folderBrowser: '文件夹浏览器',
     deviceSync: '设备同步',
@@ -41,6 +42,7 @@ export const zhTranslation = {
     recent: '最近添加',
     mostPlayed: '最常播放',
     recentlyPlayed: '最近播放',
+    losslessAlbums: '无损专辑',
     discover: '发现',
     discoverSongs: '发现曲目',
     loadMore: '加载更多',
@@ -1464,6 +1466,11 @@ export const zhTranslation = {
     noArtists: '所有艺术家已过滤。',
     filterCompilations: '隐藏合辑艺术家（Various Artists、原声带等）',
     filterCompilationsShort: '隐藏合辑',
+  },
+  losslessAlbums: {
+    empty: '此媒体库中还没有无损专辑。',
+    unsupported: '此服务器未公开查找无损专辑所需的元数据。',
+    slowFetchHint: '加载比其他专辑页面慢 — Psysonic 按音质遍历整个歌曲目录。',
   },
   radio: {
     title: '网络电台',

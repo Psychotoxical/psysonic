@@ -26,6 +26,7 @@ export const esTranslation = {
     tracks: 'Canciones',
     playlists: 'Listas de Reproducción',
     mostPlayed: 'Más Reproducidos',
+    losslessAlbums: 'Sin Pérdidas',
     radio: 'Radio por Internet',
     folderBrowser: 'Explorar Carpetas',
     deviceSync: 'Sincronizar dispositivo',
@@ -42,6 +43,7 @@ export const esTranslation = {
     recent: 'Agregados Recientemente',
     mostPlayed: 'Más Reproducidos',
     recentlyPlayed: 'Reproducidos Recientemente',
+    losslessAlbums: 'Álbumes sin Pérdidas',
     discover: 'Descubrir',
     discoverSongs: 'Descubrir canciones',
     loadMore: 'Cargar Más',
@@ -1477,6 +1479,11 @@ export const esTranslation = {
     noArtists: 'Todos los artistas filtrados.',
     filterCompilations: 'Ocultar artistas de compilaciones (Various Artists, Soundtracks, etc.)',
     filterCompilationsShort: 'Ocultar compilaciones',
+  },
+  losslessAlbums: {
+    empty: 'Aún no hay álbumes sin pérdidas en esta biblioteca.',
+    unsupported: 'Este servidor no expone los metadatos necesarios para encontrar álbumes sin pérdidas.',
+    slowFetchHint: 'Carga más lento que otras páginas de álbumes — Psysonic recorre todo el catálogo de canciones por calidad.',
   },
   radio: {
     title: 'Radio por Internet',

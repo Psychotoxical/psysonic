@@ -27,6 +27,7 @@ export const ruTranslation = {
     playlists: 'Плейлисты',
     smartPlaylists: 'Смарт-плейлисты',
     mostPlayed: 'Популярное',
+    losslessAlbums: 'Lossless',
     radio: 'Онлайн-радио',
     folderBrowser: 'Браузер папок',
     deviceSync: 'Синхронизация устройства',
@@ -43,6 +44,7 @@ export const ruTranslation = {
     recent: 'Недавно добавлено',
     mostPlayed: 'Популярное',
     recentlyPlayed: 'Недавно проиграно',
+    losslessAlbums: 'Lossless-альбомы',
     discover: 'Обзор',
     discoverSongs: 'Открыть треки',
     loadMore: 'Ещё',
@@ -1535,6 +1537,11 @@ export const ruTranslation = {
     noArtists: 'Все исполнители отфильтрованы.',
     filterCompilations: 'Скрыть исполнителей сборников (Various Artists, Soundtracks и др.)',
     filterCompilationsShort: 'Скрыть сборники',
+  },
+  losslessAlbums: {
+    empty: 'В этой библиотеке пока нет lossless-альбомов.',
+    unsupported: 'Этот сервер не предоставляет метаданные, необходимые для поиска lossless-альбомов.',
+    slowFetchHint: 'Загружается медленнее других страниц альбомов — Psysonic проходит весь каталог песен по качеству.',
   },
   radio: {
     title: 'Онлайн-радио',

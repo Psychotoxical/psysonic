@@ -274,6 +274,12 @@ export interface NdLosslessPageRequest {
   /** Mutated as the call walks; keep one Set across calls so repeated invocations
    *  return only albums you haven't seen yet. */
   seenAlbumIds?: Set<string>;
+  /** Fires once per internal fetch with the entries discovered in that fetch.
+   *  Lets a paginated UI render albums progressively while the rest of the
+   *  call is still running — the song endpoint returns ~1 MB per 200-song
+   *  fetch, so a single `loadMore` that internally pages 5× otherwise stalls
+   *  the spinner for several seconds before any album appears. */
+  onProgress?: (entries: NdLosslessAlbumEntry[]) => void;
 }
 
 export interface NdLosslessPage {
@@ -356,6 +362,7 @@ export async function ndListLosslessAlbumsPage(req: NdLosslessPageRequest): Prom
     if (songs.length === 0) { done = true; break; }
 
     let belowThreshold = false;
+    const pageEntries: NdLosslessAlbumEntry[] = [];
     for (const item of songs) {
       if (typeof item !== 'object' || item === null) continue;
       const o = item as Record<string, unknown>;
@@ -378,7 +385,12 @@ export async function ndListLosslessAlbumsPage(req: NdLosslessPageRequest): Prom
         year: asNumber(o.year),
         genre: typeof o.genre === 'string' ? o.genre : undefined,
       };
-      entries.push({ album, bitDepth, sampleRate: asNumber(o.sampleRate) ?? 0 });
+      pageEntries.push({ album, bitDepth, sampleRate: asNumber(o.sampleRate) ?? 0 });
+    }
+
+    if (pageEntries.length > 0) {
+      entries.push(...pageEntries);
+      req.onProgress?.(pageEntries);
     }
 
     songOffset += songs.length;

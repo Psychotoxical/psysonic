@@ -25,6 +25,7 @@ export const deTranslation = {
     tracks: 'Titel',
     playlists: 'Playlists',
     mostPlayed: 'Meistgehört',
+    losslessAlbums: 'Lossless',
     radio: 'Internetradio',
     folderBrowser: 'Ordner-Browser',
     deviceSync: 'Gerätesync',
@@ -41,6 +42,7 @@ export const deTranslation = {
     recent: 'Zuletzt hinzugefügt',
     mostPlayed: 'Meistgehört',
     recentlyPlayed: 'Kürzlich gespielt',
+    losslessAlbums: 'Lossless-Alben',
     discover: 'Entdecken',
     discoverSongs: 'Titel entdecken',
     loadMore: 'Mehr laden',
@@ -1512,6 +1514,11 @@ export const deTranslation = {
     noArtists: 'Alle Künstler herausgefiltert.',
     filterCompilations: 'Sampler-Künstler ausblenden (Various Artists, Soundtracks usw.)',
     filterCompilationsShort: 'Sampler ausblenden',
+  },
+  losslessAlbums: {
+    empty: 'Noch keine Lossless-Alben in dieser Bibliothek.',
+    unsupported: 'Dieser Server liefert keine Metadaten, mit denen sich Lossless-Alben erkennen lassen.',
+    slowFetchHint: 'Lädt langsamer als andere Album-Seiten — Psysonic geht den gesamten Songkatalog nach Qualität durch.',
   },
   radio: {
     title: 'Internetradio',
