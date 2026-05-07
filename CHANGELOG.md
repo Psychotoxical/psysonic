@@ -105,6 +105,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 
+### Settings — collapse-by-default cleanup, font picker without dropdown, OpenDyslexic at top
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#508](https://github.com/Psychotoxical/psysonic/pull/508)**
+
+* Every Settings sub-section now boots **collapsed**. Audio Device, Lyrics Sources, Last.fm, Sidebar, Random Mix, Offline Dir, Theme, Keybindings and Language used to auto-expand on first render — each tab felt like a wall of controls before the user had even looked for something specific. Click the section header to open what you actually need.
+* **ThemePicker** no longer auto-expands the group containing the active theme. The blue dot in the group header already surfaces which group holds it.
+* **Font picker** lost its inner dropdown button. Opening the Font sub-section now reveals the full font list directly; one click sets the font.
+* **OpenDyslexic** moves to the top of the font list so dyslexic readers don't scroll past 14 sans-serifs to find their option.
+
 ### Dependencies — npm / Cargo refresh and rodio 0.22
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
