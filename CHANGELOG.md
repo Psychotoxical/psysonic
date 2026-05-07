@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), suggested by volcs0, PR [#504](https://github.com/Psychotoxical/psysonic/pull/504)**
 
-* The **Path** row in the Song Info dialog now shows the **absolute server-side filesystem path** of a track on Navidrome servers — same source Feishin and the Navidrome web client use. Subsonic's `getSong` only ever returned a relative path (or nothing at all on Navidrome), which is why the row was effectively empty before. A new native-API call (`/api/song/{id}`) runs in parallel with `getSong`; on non-Navidrome servers the dialog falls back to whatever the Subsonic response carried.
+* The **Path** row in the Song Info dialog now shows the **absolute server-side filesystem path** of a track on Navidrome servers. Subsonic's `getSong` only ever returned a relative path (or nothing at all on Navidrome), which is why the row was effectively empty before. A new native-API call (`/api/song/{id}`) runs in parallel with `getSong`; on non-Navidrome servers the dialog falls back to whatever the Subsonic response carried.
 
 
 

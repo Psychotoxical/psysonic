@@ -371,6 +371,7 @@ const CONTRIBUTORS = [
       'Help page: full rewrite with 45 focused entries across 10 themed sections (Getting Started / Playback & Queue / Audio Tools / Library & Discovery / Lyrics / Sharing & Social / Personalization / Power User / Offline & Sync / Integrations & Troubleshooting), in-page live search with case-insensitive substring matching and auto-expand on hits, translated to all 8 locales (PR #485)',
       'Library: Browse by Composer — native-API role listing for classical libraries, library-scoped queries, composer as a first-class share entity (PR #487)',
       'Home: "Because you listened" recommendation rail — Last.fm-anchored similar-artist surfacing with round-robin anchor rotation per server (PR #489)',
+      'Song Info: absolute file path on Navidrome via native /api/song/{id} — Subsonic only ever returned a relative path (or none on Navidrome), the native endpoint surfaces the full server-side location (PR #504)',
     ],
   },
 ] as const;
