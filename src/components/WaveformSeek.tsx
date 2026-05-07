@@ -967,14 +967,11 @@ export default function WaveformSeek({ trackId }: Props) {
   const waveformBins = usePlayerStore(s => s.waveformBins);
   const duration     = usePlayerStore(s => s.currentTrack?.duration ?? 0);
   const seekbarStyle = useAuthStore(s => s.seekbarStyle);
-  const animationMode = useAuthStore(s => s.animationMode);
 
   // Ref so the subscription callback (closed over at mount) can read the
   // current style without stale-closure issues.
   const styleRef = useRef(seekbarStyle);
   styleRef.current = seekbarStyle;
-  const animationModeRef = useRef(animationMode);
-  animationModeRef.current = animationMode;
 
   useEffect(() => {
     if (!trackId) {
@@ -1096,10 +1093,8 @@ export default function WaveformSeek({ trackId }: Props) {
         visualProgressRef.current = visualTargetProgressRef.current;
       }
       // Static styles always redraw on progress; animated styles let the rAF
-      // loop drive paints. In `static` animation mode we skip the rAF loop
-      // entirely, so animated styles also need to repaint here on every tick.
-      const drawNow =
-        !ANIMATED_STYLES.has(styleRef.current) || animationModeRef.current === 'static';
+      // loop drive paints.
+      const drawNow = !ANIMATED_STYLES.has(styleRef.current);
       if (drawNow) {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -1137,28 +1132,14 @@ export default function WaveformSeek({ trackId }: Props) {
     duration,
   ]);
 
-  // rAF loop — animated styles only, and only in `full`/`reduced` mode.
-  // In `static` mode the loop is skipped entirely; the imperative progress
-  // subscription (~2 Hz audio heartbeat) handles repaints, so the seekbar
-  // updates a couple of times per second with no wave animation.
+  // rAF loop — animated styles only.
   useEffect(() => {
     if (!ANIMATED_STYLES.has(seekbarStyle)) return;
-    if (animationMode === 'static') {
-      // Repaint once on entry so the canvas reflects current progress
-      // without any wave morph and stays put until the next heartbeat.
-      const canvas = canvasRef.current;
-      if (canvas) {
-        animStateRef.current = makeAnimState();
-        drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
-      }
-      return;
-    }
     const canvas = canvasRef.current;
     if (!canvas) return;
     animStateRef.current = makeAnimState();
     let rafId: number | null = null;
     let pollId: number | null = null;
-    let skip = false;
     const stop = () => {
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
@@ -1177,22 +1158,13 @@ export default function WaveformSeek({ trackId }: Props) {
         }, 400);
         return;
       }
-      // 30 fps cap in `reduced` mode: skip every other rAF, advance
-      // animation time by a doubled delta so wave speed stays the same.
-      const isReduced = animationModeRef.current === 'reduced';
-      if (isReduced && skip) {
-        skip = false;
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-      skip = isReduced;
-      animStateRef.current.time += isReduced ? 0.032 : 0.016;
+      animStateRef.current.time += 0.016;
       drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
       rafId = requestAnimationFrame(tick);
     };
     tick();
     return () => stop();
-  }, [seekbarStyle, animationMode]);
+  }, [seekbarStyle]);
 
   // Smoothly advance progress between sparse transport ticks.
   // Preview pauses main sink in Rust while UI `isPlaying` may still be true.
@@ -1267,8 +1239,7 @@ export default function WaveformSeek({ trackId }: Props) {
           : currentVisual + delta * smoothing;
         visualProgressRef.current = nextVisualProgress;
         progressRef.current = nextVisualProgress;
-        const needsDirectDraw =
-          !ANIMATED_STYLES.has(styleRef.current) || animationModeRef.current === 'static';
+        const needsDirectDraw = !ANIMATED_STYLES.has(styleRef.current);
         if (needsDirectDraw && now - lastPaintAt >= INTERPOLATION_PAINT_MIN_MS) {
           const canvas = canvasRef.current;
           if (canvas) {

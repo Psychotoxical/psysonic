@@ -3922,43 +3922,6 @@ export default function Settings() {
                   />
                 ))}
               </div>
-              <div className="settings-norm-block" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                <div className="settings-norm-field">
-                  <div className="settings-norm-row">
-                    <span className="settings-norm-label">{t('settings.animationMode')}</span>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <button
-                        className={`btn ${auth.animationMode === 'full' ? 'btn-primary' : 'btn-ghost'}`}
-                        style={{ fontSize: 12, padding: '4px 14px' }}
-                        onClick={() => auth.setAnimationMode('full')}
-                      >
-                        {t('settings.animationModeFull')}
-                      </button>
-                      <button
-                        className={`btn ${auth.animationMode === 'reduced' ? 'btn-primary' : 'btn-ghost'}`}
-                        style={{ fontSize: 12, padding: '4px 14px' }}
-                        onClick={() => auth.setAnimationMode('reduced')}
-                      >
-                        {t('settings.animationModeReduced')}
-                      </button>
-                      <button
-                        className={`btn ${auth.animationMode === 'static' ? 'btn-primary' : 'btn-ghost'}`}
-                        style={{ fontSize: 12, padding: '4px 14px' }}
-                        onClick={() => auth.setAnimationMode('static')}
-                      >
-                        {t('settings.animationModeStatic')}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="settings-norm-help">
-                    {auth.animationMode === 'reduced'
-                      ? t('settings.animationModeReducedHint')
-                      : auth.animationMode === 'static'
-                        ? t('settings.animationModeStaticHint')
-                        : t('settings.animationModeDesc')}
-                  </div>
-                </div>
-              </div>
             </div>
           </SettingsSubSection>
 
