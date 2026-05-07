@@ -1677,7 +1677,6 @@ export default function Settings() {
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [fontPickerOpen, setFontPickerOpen] = useState(false);
   const [ndAdminAuth, setNdAdminAuth] = useState<{ token: string; serverUrl: string; username: string } | null>(null);
   const [ndAuthChecked, setNdAuthChecked] = useState(false);
   const addServerInviteAnchorRef = useRef<HTMLDivElement>(null);
@@ -2269,7 +2268,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.audioOutputDevice')}
             icon={<AudioLines size={16} />}
-            defaultOpen
           >
             <div className="settings-card">
               {IS_MACOS ? (
@@ -2698,7 +2696,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.lyricsSourcesTitle')}
             icon={<Music2 size={16} />}
-            defaultOpen
           >
             <LyricsSourcesCustomizer />
           </SettingsSubSection>
@@ -2759,7 +2756,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.lfmTitle')}
             icon={<LastfmIcon size={16} />}
-            defaultOpen
           >
             <div className="settings-card">
               {auth.lastfmSessionKey ? (
@@ -2958,7 +2954,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.sidebarTitle')}
             icon={<PanelLeft size={16} />}
-            defaultOpen
             action={
               <button
                 type="button"
@@ -3022,7 +3017,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.randomMixTitle')}
             icon={<Shuffle size={16} />}
-            defaultOpen
           >
             <div className="settings-card">
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
@@ -3235,7 +3229,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.offlineDirTitle')}
             icon={<Download size={16} />}
-            defaultOpen
           >
             <div className="settings-card">
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
@@ -3561,7 +3554,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.theme')}
             icon={<Palette size={16} />}
-            defaultOpen
           >
             <div className="settings-card">
               {theme.enableThemeScheduler && (
@@ -3812,73 +3804,47 @@ export default function Settings() {
             icon={<Type size={16} />}
           >
             <div className="settings-card">
-              <button
-                className="btn btn-ghost"
-                style={{ justifyContent: 'space-between', width: '100%', fontFamily: 'var(--font-sans)' }}
-                onClick={() => setFontPickerOpen(o => !o)}
-              >
-                <span>{
-                  ([
-                    { id: 'inter',             label: 'Inter' },
-                    { id: 'outfit',            label: 'Outfit' },
-                    { id: 'dm-sans',           label: 'DM Sans' },
-                    { id: 'nunito',            label: 'Nunito' },
-                    { id: 'rubik',             label: 'Rubik' },
-                    { id: 'space-grotesk',     label: 'Space Grotesk' },
-                    { id: 'figtree',           label: 'Figtree' },
-                    { id: 'manrope',           label: 'Manrope' },
-                    { id: 'plus-jakarta-sans', label: 'Plus Jakarta Sans' },
-                    { id: 'lexend',            label: 'Lexend' },
-                    { id: 'geist',             label: 'Geist' },
-                    { id: 'jetbrains-mono',    label: 'JetBrains Mono' },
-                    { id: 'golos-text',        label: 'Golos Text' },
-                    { id: 'unbounded',         label: 'Unbounded' },
-                    { id: 'opendyslexic',      label: 'OpenDyslexic' },
-                  ] as { id: FontId; label: string }[]).find(f => f.id === fontStore.font)?.label ?? fontStore.font
-                }</span>
-                <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: fontPickerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-              </button>
-              {fontPickerOpen && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-                  {(
-                    [
-                      { id: 'inter',             label: 'Inter',             stack: "'Inter Variable', sans-serif" },
-                      { id: 'outfit',            label: 'Outfit',            stack: "'Outfit Variable', sans-serif" },
-                      { id: 'dm-sans',           label: 'DM Sans',           stack: "'DM Sans Variable', sans-serif" },
-                      { id: 'nunito',            label: 'Nunito',            stack: "'Nunito Variable', sans-serif" },
-                      { id: 'rubik',             label: 'Rubik',             stack: "'Rubik Variable', sans-serif" },
-                      { id: 'space-grotesk',     label: 'Space Grotesk',     stack: "'Space Grotesk Variable', sans-serif" },
-                      { id: 'figtree',           label: 'Figtree',           stack: "'Figtree Variable', sans-serif" },
-                      { id: 'manrope',           label: 'Manrope',           stack: "'Manrope Variable', sans-serif" },
-                      { id: 'plus-jakarta-sans', label: 'Plus Jakarta Sans', stack: "'Plus Jakarta Sans Variable', sans-serif" },
-                      { id: 'lexend',            label: 'Lexend',            stack: "'Lexend Variable', sans-serif" },
-                      { id: 'geist',             label: 'Geist',             stack: "'Geist Variable', sans-serif" },
-                      { id: 'jetbrains-mono',    label: 'JetBrains Mono',    stack: "'JetBrains Mono Variable', monospace" },
-                      { id: 'golos-text',        label: 'Golos Text',        stack: "'Golos Text Variable', sans-serif" },
-                      { id: 'unbounded',         label: 'Unbounded',         stack: "'Unbounded Variable', sans-serif" },
-                      { id: 'opendyslexic',      label: 'OpenDyslexic',      stack: "'OpenDyslexic', sans-serif", hint: t('settings.fontHintOpenDyslexic') },
-                    ] as { id: FontId; label: string; stack: string; hint?: string }[]
-                  ).map(f => (
-                    <button
-                      key={f.id}
-                      className={`btn ${fontStore.font === f.id ? 'btn-primary' : 'btn-ghost'}`}
-                      style={{
-                        justifyContent: 'flex-start',
-                        fontFamily: f.stack,
-                        ...(f.hint ? { flexDirection: 'column', alignItems: 'flex-start', gap: '2px', paddingTop: '8px', paddingBottom: '8px' } : null),
-                      }}
-                      onClick={() => { fontStore.setFont(f.id); setFontPickerOpen(false); }}
-                    >
-                      <span>{f.label}</span>
-                      {f.hint && (
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>
-                          {f.hint}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(
+                  [
+                    // Accessibility-first: OpenDyslexic at the top so dyslexic
+                    // readers don't have to scroll past 14 sans-serifs to find it.
+                    { id: 'opendyslexic',      label: 'OpenDyslexic',      stack: "'OpenDyslexic', sans-serif", hint: t('settings.fontHintOpenDyslexic') },
+                    { id: 'inter',             label: 'Inter',             stack: "'Inter Variable', sans-serif" },
+                    { id: 'outfit',            label: 'Outfit',            stack: "'Outfit Variable', sans-serif" },
+                    { id: 'dm-sans',           label: 'DM Sans',           stack: "'DM Sans Variable', sans-serif" },
+                    { id: 'nunito',            label: 'Nunito',            stack: "'Nunito Variable', sans-serif" },
+                    { id: 'rubik',             label: 'Rubik',             stack: "'Rubik Variable', sans-serif" },
+                    { id: 'space-grotesk',     label: 'Space Grotesk',     stack: "'Space Grotesk Variable', sans-serif" },
+                    { id: 'figtree',           label: 'Figtree',           stack: "'Figtree Variable', sans-serif" },
+                    { id: 'manrope',           label: 'Manrope',           stack: "'Manrope Variable', sans-serif" },
+                    { id: 'plus-jakarta-sans', label: 'Plus Jakarta Sans', stack: "'Plus Jakarta Sans Variable', sans-serif" },
+                    { id: 'lexend',            label: 'Lexend',            stack: "'Lexend Variable', sans-serif" },
+                    { id: 'geist',             label: 'Geist',             stack: "'Geist Variable', sans-serif" },
+                    { id: 'jetbrains-mono',    label: 'JetBrains Mono',    stack: "'JetBrains Mono Variable', monospace" },
+                    { id: 'golos-text',        label: 'Golos Text',        stack: "'Golos Text Variable', sans-serif" },
+                    { id: 'unbounded',         label: 'Unbounded',         stack: "'Unbounded Variable', sans-serif" },
+                  ] as { id: FontId; label: string; stack: string; hint?: string }[]
+                ).map(f => (
+                  <button
+                    key={f.id}
+                    className={`btn ${fontStore.font === f.id ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{
+                      justifyContent: 'flex-start',
+                      fontFamily: f.stack,
+                      ...(f.hint ? { flexDirection: 'column', alignItems: 'flex-start', gap: '2px', paddingTop: '8px', paddingBottom: '8px' } : null),
+                    }}
+                    onClick={() => fontStore.setFont(f.id)}
+                  >
+                    <span>{f.label}</span>
+                    {f.hint && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>
+                        {f.hint}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </SettingsSubSection>
 
@@ -3948,7 +3914,6 @@ export default function Settings() {
         <SettingsSubSection
           title={t('settings.inputKeybindingsTitle')}
           icon={<Keyboard size={16} />}
-          defaultOpen
           action={
             <button
               type="button"
@@ -4320,7 +4285,6 @@ export default function Settings() {
           <SettingsSubSection
             title={t('settings.language')}
             icon={<Globe size={16} />}
-            defaultOpen
           >
             <div className="settings-card">
               <div className="form-group" style={{ maxWidth: '300px' }}>

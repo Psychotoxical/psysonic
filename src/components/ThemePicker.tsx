@@ -180,8 +180,10 @@ interface Props {
 }
 
 export default function ThemePicker({ value, onChange }: Props) {
-  const initialOpen = THEME_GROUPS.find(g => g.themes.some(t => t.id === value))?.group ?? THEME_GROUPS[0].group;
-  const [openGroup, setOpenGroup] = useState<string | null>(initialOpen);
+  // All groups collapsed on first render. The blue dot in the header surfaces
+  // which group holds the active theme, so auto-expanding it on mount just
+  // adds visual noise to a screen that already has a long sub-section list.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const toggle = (group: string) => setOpenGroup(prev => prev === group ? null : group);
 
