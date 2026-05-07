@@ -10,7 +10,7 @@ import {
   getArtist,
   getArtistInfo,
 } from '../api/subsonic';
-import CachedImage from './CachedImage';
+import CachedImage, { useCachedUrl } from './CachedImage';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playAlbum';
@@ -168,6 +168,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
     () => (album.coverArt ? coverArtCacheKey(album.coverArt, COVER_SIZE) : ''),
     [album.coverArt],
   );
+  const bgResolved = useCachedUrl(coverUrl, coverKey);
 
   const handleOpen = () => navigate(`/album/${album.id}`);
   const handlePlay = (e: React.MouseEvent) => {
@@ -193,6 +194,13 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
       onKeyDown={e => { if (e.key === 'Enter') handleOpen(); }}
       aria-label={`${album.name} – ${album.artist}`}
     >
+      {!disableArtwork && bgResolved && (
+        <div
+          className="because-card-bg"
+          style={{ backgroundImage: `url(${bgResolved})` }}
+          aria-hidden="true"
+        />
+      )}
       <div className="because-card-cover-wrap">
         {!disableArtwork && coverUrl ? (
           <CachedImage
