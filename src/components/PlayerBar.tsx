@@ -10,7 +10,7 @@ import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress 
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { buildCoverArtUrl, coverArtCacheKey, star, unstar, setRating } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey, star, unstar, setRating, SubsonicAlbum } from '../api/subsonic';
 import CachedImage from './CachedImage';
 import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';
@@ -84,6 +84,7 @@ export default function PlayerBar() {
     isQueueVisible, toggleQueue,
     starredOverrides, setStarredOverride,
     userRatingOverrides, setUserRatingOverride,
+    openContextMenu,
   } = usePlayerStore(useShallow(s => ({
     currentTrack: s.currentTrack,
     currentRadio: s.currentRadio,
@@ -105,6 +106,7 @@ export default function PlayerBar() {
     setStarredOverride: s.setStarredOverride,
     userRatingOverrides: s.userRatingOverrides,
     setUserRatingOverride: s.setUserRatingOverride,
+    openContextMenu: s.openContextMenu,
   })));
   const { lastfmSessionKey } = useAuthStore();
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
@@ -382,6 +384,21 @@ export default function PlayerBar() {
             className="player-track-name"
             style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.albumId ? 'pointer' : 'default' }}
             onClick={() => !isRadio && !showPreviewMeta && currentTrack?.albumId && navigate(`/album/${currentTrack.albumId}`)}
+            onContextMenu={!isRadio && !showPreviewMeta && currentTrack?.albumId
+              ? (e) => {
+                  e.preventDefault();
+                  const album: SubsonicAlbum = {
+                    id: currentTrack.albumId,
+                    name: currentTrack.album,
+                    artist: currentTrack.artist,
+                    artistId: currentTrack.artistId ?? '',
+                    coverArt: currentTrack.coverArt,
+                    songCount: 0,
+                    duration: 0,
+                  };
+                  openContextMenu(e.clientX, e.clientY, album, 'album');
+                }
+              : undefined}
           />
           <MarqueeText
             text={isRadio

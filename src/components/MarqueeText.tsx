@@ -6,9 +6,10 @@ interface Props {
   className?: string;
   style?: React.CSSProperties;
   onClick?: () => void;
+  onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-export default function MarqueeText({ text, className, style, onClick }: Props) {
+export default function MarqueeText({ text, className, style, onClick, onContextMenu }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [scrollAmount, setScrollAmount] = useState(0);
@@ -40,6 +41,7 @@ export default function MarqueeText({ text, className, style, onClick }: Props) 
       className={`marquee-wrap${className ? ` ${className}` : ''}`}
       style={style}
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       <span
         ref={textRef}
