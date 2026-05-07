@@ -213,6 +213,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The currently-playing track in any tracklist (**AlbumDetail**, **ArtistDetail**, **PlaylistDetail**, **Favorites**, **RandomMix**) ran an **`opacity` pulse** on the entire row plus three **`transform` keyframe** EQ-bar siblings — both compositor properties, but on **WebKitGTK without compositing** (Linux + NVIDIA proprietary + `WEBKIT_DISABLE_COMPOSITING_MODE=1`) every animated row falls back to a full **software repaint** of the subtree per frame. On AlbumDetail the combined cost held the WebProcess at **~80 % CPU** for the duration of playback; CPU dropped immediately on pause/stop.
 * `.track-row.active` keeps the **accent-tinted background** but no longer pulses. The "now playing" indicator becomes a single Lucide **`AudioLines` icon** (one SVG per active row instead of three animated spans). Cleanup: dead `track-pulse` + `eq-bounce` keyframes and a duplicate, shadowed `.eq-bar` block in `theme.css`.
 
+### Tray — broken navigation after restoring via desktop / start-menu shortcut
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#501](https://github.com/Psychotoxical/psysonic/pull/501)**
+
+* When the main window was closed to the tray and then re-opened via the **desktop / start-menu shortcut** (instead of the tray icon), the window came back but the **next navigation rendered a blank page**. Restoring via the **tray icon** worked correctly.
+* Root cause: closing to the tray injects a "pause rendering" snippet that sets `data-psy-native-hidden="true"` on `<html>` and pauses every CSS animation. The tray-icon restore path injects the matching "resume rendering" snippet before showing the window — the second-launch restore path (handled by the **single-instance plugin**) was **missing that step**, so route wrappers using `.animate-fade-in` (`animation: fadeIn … both`, starts at `opacity: 0`) stayed frozen invisible.
+* Fix: mirror the tray-icon restore path and resume rendering before `show()` in the single-instance callback. Both restore paths are now consistent.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
