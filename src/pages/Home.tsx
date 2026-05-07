@@ -168,11 +168,13 @@ export default function Home() {
     isVisible('mostPlayed') &&
     mostPlayed.length > 0 &&
     reserveArtworkRow();
+  const becauseYouLikeHasSeed =
+    mostPlayed.length > 0 || recentlyPlayed.length > 0 || starred.length > 0;
   const becauseYouLikeArtworkEnabled =
     !homeRailArtworkDisabled &&
     !homeAlbumRowsDisabled &&
     isVisible('becauseYouLike') &&
-    mostPlayed.length > 0 &&
+    becauseYouLikeHasSeed &&
     reserveArtworkRow();
 
   const homeLiteArtworkFx = perfFlags.disableHomeArtworkFx;
@@ -201,9 +203,11 @@ export default function Home() {
                 initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
               />
             )}
-            {!homeAlbumRowsDisabled && isVisible('becauseYouLike') && mostPlayed.length > 0 && (
+            {!homeAlbumRowsDisabled && isVisible('becauseYouLike') && becauseYouLikeHasSeed && (
               <BecauseYouLikeRail
                 mostPlayed={mostPlayed}
+                recentlyPlayed={recentlyPlayed}
+                starred={starred}
                 disableArtwork={!becauseYouLikeArtworkEnabled}
               />
             )}

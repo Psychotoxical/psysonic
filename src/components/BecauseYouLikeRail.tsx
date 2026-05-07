@@ -16,7 +16,7 @@ import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playAlbum';
 
 const ANCHOR_KEY_PREFIX = 'psysonic_because_anchor:';
-const TOP_ARTIST_POOL = 8;
+const TOP_ARTIST_POOL = 12;
 const SIMILAR_FETCH = 12;
 const SIMILAR_PICK = 6;
 const SHOW_COUNT = 3;
@@ -38,17 +38,27 @@ interface Anchor {
 
 interface Props {
   mostPlayed: SubsonicAlbum[];
+  recentlyPlayed?: SubsonicAlbum[];
+  starred?: SubsonicAlbum[];
   disableArtwork?: boolean;
 }
 
-function buildAnchorPool(albums: SubsonicAlbum[], limit: number): Anchor[] {
+/** Round-robin merge of multiple album sources, dedup by artistId.
+ *  Cycling sources (most-played, recently-played, starred) means the per-mount
+ *  rotation cursor visits a different listening *mode* each visit instead of
+ *  walking only down the top-played list. */
+function buildAnchorPool(sources: SubsonicAlbum[][], limit: number): Anchor[] {
   const seen = new Set<string>();
   const out: Anchor[] = [];
-  for (const a of albums) {
-    if (!a.artistId || seen.has(a.artistId)) continue;
-    seen.add(a.artistId);
-    out.push({ id: a.artistId, name: a.artist });
-    if (out.length >= limit) break;
+  const maxLen = sources.reduce((m, s) => Math.max(m, s.length), 0);
+  for (let i = 0; i < maxLen && out.length < limit; i++) {
+    for (const src of sources) {
+      if (out.length >= limit) break;
+      const a = src[i];
+      if (!a || !a.artistId || seen.has(a.artistId)) continue;
+      seen.add(a.artistId);
+      out.push({ id: a.artistId, name: a.artist });
+    }
   }
   return out;
 }
@@ -82,10 +92,18 @@ function rotateAnchor(pool: Anchor[], serverId: string | null): Anchor | null {
   return pool[(idx + 1) % pool.length];
 }
 
-export default function BecauseYouLikeRail({ mostPlayed, disableArtwork = false }: Props) {
+export default function BecauseYouLikeRail({
+  mostPlayed,
+  recentlyPlayed,
+  starred,
+  disableArtwork = false,
+}: Props) {
   const { t } = useTranslation();
   const activeServerId = useAuthStore(s => s.activeServerId);
-  const pool = useMemo(() => buildAnchorPool(mostPlayed, TOP_ARTIST_POOL), [mostPlayed]);
+  const pool = useMemo(
+    () => buildAnchorPool([mostPlayed, recentlyPlayed ?? [], starred ?? []], TOP_ARTIST_POOL),
+    [mostPlayed, recentlyPlayed, starred],
+  );
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [recs, setRecs] = useState<SubsonicAlbum[]>([]);
 
