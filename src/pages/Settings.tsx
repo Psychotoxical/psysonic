@@ -254,6 +254,7 @@ const CONTRIBUTORS = [
       'Artist page: continue playback when starting top songs (PR #220)',
       'Floating player bar: scroll-padding fix (PR #221)',
       'Queue Panel — position counter, tri-state duration toggle (total/remaining/ETA), persistent Now Playing collapse, animated EQ indicator (PR #419)',
+      'Community themes — redesign pass: removed 5 overlapping / eye-straining palettes, added 8 new dark themes (Obsidian Black, Carbon Grey, Volcanic Dark, Forest Green, Violet Haze, Copper Oxide, Sakura Night, Obsidian Gold) (PR #490)',
     ],
   },
   {

@@ -140,6 +140,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New **live in-page search**: case-insensitive substring across every Q+A, sections without hits collapse out, matches auto-expand so the answer is visible without clicking. × button clears the query.
 * Translated to all **8 supported locales** (en, de, fr, nl, zh, nb, ru, es). Russian and Chinese are at machine-translation quality and would benefit from a polish pass by the original locale maintainers.
 
+### Community themes — redesign pass
+
+**By [@kveld9](https://github.com/kveld9), PR [#490](https://github.com/Psychotoxical/psysonic/pull/490)**
+
+* Removed five themes that overlapped or felt strenuous on the eyes: **Amber Night**, **Ice Blue**, **Monochrome**, **Phosphor Green**, **Rose Dark**.
+* Added eight new dark themes covering the colour families people most commonly ask for: **Obsidian Black**, **Carbon Grey**, **Volcanic Dark**, **Forest Green**, **Violet Haze**, **Copper Oxide**, **Sakura Night**, **Obsidian Gold**.
+* Light polish on the existing **AMOLED Black Pure** surface variables so card surfaces no longer collapse onto a pure-black background that read as a single flat slab.
+
 ## Fixed
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
