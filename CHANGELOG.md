@@ -121,6 +121,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Font picker** lost its inner dropdown button. Opening the Font sub-section now reveals the full font list directly; one click sets the font.
 * **OpenDyslexic** moves to the top of the font list so dyslexic readers don't scroll past 14 sans-serifs to find their option.
 
+### Settings — language picker uses endonyms
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by cucadmuh, PR [#514](https://github.com/Psychotoxical/psysonic/pull/514)**
+
+* The Settings language picker now shows each language **written in itself** — `English`, `Deutsch`, `Español`, `Français`, `Nederlands`, `Norsk`, `Русский`, `中文` — same eight labels in every locale instead of translating each name into the current UI language.
+* A native speaker can recognise their own language regardless of which UI language is currently active; same convention used by Wikipedia and most OS-level language pickers.
+* Filled in `languageEs` for the six locales (de/fr/nl/nb/ru/zh) where it was missing — the Spanish entry was previously falling back to `'Spanish'` from `en.ts` on every non-EN/non-ES UI.
+
 ### Dependencies — npm / Cargo refresh and rodio 0.22
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#463](https://github.com/Psychotoxical/psysonic/pull/463)**
