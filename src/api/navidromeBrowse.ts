@@ -64,7 +64,7 @@ function mapNdSong(o: Record<string, unknown>): SubsonicSong {
   };
 }
 
-export type NdSongSort = 'title' | 'artist' | 'album' | 'recently_added' | 'play_count' | 'rating';
+export type NdSongSort = 'title' | 'artist' | 'album' | 'recently_added' | 'play_count' | 'rating' | 'sample_rate' | 'bit_depth';
 
 /** Optional opt-in cache for `ndListSongs` — keyed by call signature + active server. */
 type SongsCacheEntry = { data: SubsonicSong[]; expiresAt: number };
@@ -256,6 +256,138 @@ export async function ndListAlbumsByArtistRole(
   }
   if (!Array.isArray(raw)) return [];
   return raw.map(a => mapNdAlbum(a as Record<string, unknown>));
+}
+
+export interface NdLosslessAlbumEntry {
+  album: SubsonicAlbum;
+  sampleRate: number;
+  bitDepth: number;
+}
+
+export interface NdLosslessPageRequest {
+  /** Resume the song-cursor from a previous call. Default 0 (start fresh). */
+  startSongOffset?: number;
+  songsPerPage?: number;
+  maxPagesPerCall?: number;
+  /** Stop once this many *new* unique album ids are collected this call. */
+  targetNewAlbums: number;
+  /** Mutated as the call walks; keep one Set across calls so repeated invocations
+   *  return only albums you haven't seen yet. */
+  seenAlbumIds?: Set<string>;
+}
+
+export interface NdLosslessPage {
+  entries: NdLosslessAlbumEntry[];
+  /** True when the song stream entered lossy territory or the server ran
+   *  out of rows — caller should stop paginating. */
+  done: boolean;
+  /** Pass back as `startSongOffset` on the next call to continue the walk. */
+  nextSongOffset: number;
+}
+
+/**
+ * Fetch a page of lossless albums. Walks the native API's `_sort=bit_depth`
+ * song stream (descending) so all 24/32-bit tracks come first, then 16-bit,
+ * then lossy formats which report `bit_depth: 0`. Dedupes to unique album
+ * ids on the way down and stops as soon as the stream crosses into lossy
+ * territory. `_filters` has no operators usable on quality columns so a
+ * sort + walk is the only path.
+ *
+ * Pages through the song stream internally up to `maxPagesPerCall` so albums
+ * with many tracks (compilations, big lossless box sets) don't soak up a
+ * single fetch window and starve the rest. Stops the internal pagination
+ * once `targetNewAlbums` unique ids are collected this call, the song stream
+ * crosses into lossy, the server returns a short page, or the per-call cap
+ * is hit.
+ *
+ * Stateful pagination (the dedicated Lossless page) reuses the returned
+ * `nextSongOffset` and a long-lived `seenAlbumIds` Set on subsequent calls.
+ * Single-shot pagination (the Home rail) just calls once and ignores the
+ * resume hooks. Returns empty page on Subsonic-only servers — caller treats
+ * that as a silent capability miss.
+ */
+/** File-extension allowlist of containers that are *only* lossless. Skips
+ *  ambiguous wrappers (m4a/m4b — could be ALAC or AAC, codec field is often
+ *  empty in Navidrome responses; wma — could be WMA Lossless or WMA Standard)
+ *  because they require a codec check we can't reliably perform. */
+const LOSSLESS_SUFFIXES = new Set(['flac', 'wav', 'wave', 'aiff', 'aif', 'dsf', 'dff', 'ape', 'wv', 'shn', 'tta']);
+
+export async function ndListLosslessAlbumsPage(req: NdLosslessPageRequest): Promise<NdLosslessPage> {
+  const PAGE_SIZE = req.songsPerPage ?? 200;
+  const MAX_PAGES = req.maxPagesPerCall ?? 5;
+  const targetAlbums = req.targetNewAlbums;
+  const seen = req.seenAlbumIds ?? new Set<string>();
+  let songOffset = req.startSongOffset ?? 0;
+
+  const baseUrl = useAuthStore.getState().getBaseUrl();
+  if (!baseUrl) throw new Error('No server configured');
+
+  const fetchPage = async (start: number, end: number): Promise<unknown[]> => {
+    const callOnce = async (token: string): Promise<unknown> =>
+      invoke<unknown>('nd_list_songs', {
+        serverUrl: baseUrl,
+        token,
+        sort: 'bit_depth',
+        order: 'DESC',
+        start,
+        end,
+      });
+
+    let token = await getToken();
+    try {
+      const raw = await callOnce(token);
+      return Array.isArray(raw) ? raw : [];
+    } catch (err) {
+      const msg = String(err);
+      if (msg.includes('401') || msg.includes('403')) {
+        token = await getToken(true);
+        const raw = await callOnce(token);
+        return Array.isArray(raw) ? raw : [];
+      }
+      throw err;
+    }
+  };
+
+  const entries: NdLosslessAlbumEntry[] = [];
+  let done = false;
+
+  for (let p = 0; p < MAX_PAGES; p++) {
+    const songs = await fetchPage(songOffset, songOffset + PAGE_SIZE);
+    if (songs.length === 0) { done = true; break; }
+
+    let belowThreshold = false;
+    for (const item of songs) {
+      if (typeof item !== 'object' || item === null) continue;
+      const o = item as Record<string, unknown>;
+      const bitDepth = asNumber(o.bitDepth) ?? 0;
+      if (bitDepth <= 0) { belowThreshold = true; break; }
+      const suffix = (typeof o.suffix === 'string' ? o.suffix : '').toLowerCase();
+      if (!LOSSLESS_SUFFIXES.has(suffix)) continue;
+      const albumId = asString(o.albumId);
+      if (!albumId || seen.has(albumId)) continue;
+      seen.add(albumId);
+
+      const album: SubsonicAlbum = {
+        id: albumId,
+        name: asString(o.album),
+        artist: asString(o.albumArtist) || asString(o.artist),
+        artistId: asString(o.albumArtistId) || asString(o.artistId),
+        coverArt: asString(o.coverArtId) || albumId,
+        songCount: 0,
+        duration: 0,
+        year: asNumber(o.year),
+        genre: typeof o.genre === 'string' ? o.genre : undefined,
+      };
+      entries.push({ album, bitDepth, sampleRate: asNumber(o.sampleRate) ?? 0 });
+    }
+
+    songOffset += songs.length;
+    if (belowThreshold) { done = true; break; }
+    if (songs.length < PAGE_SIZE) { done = true; break; }
+    if (entries.length >= targetAlbums) break;
+  }
+
+  return { entries, done, nextSongOffset: songOffset };
 }
 
 /** Drop the cached token AND the songs cache — call when the active server changes. */

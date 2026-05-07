@@ -4588,6 +4588,7 @@ function HomeCustomizer() {
     recentlyPlayed:  t('home.recentlyPlayed'),
     starred:         t('home.starred'),
     mostPlayed:      t('home.mostPlayed'),
+    losslessAlbums:  t('home.losslessAlbums'),
   };
 
   return (

@@ -43,6 +43,7 @@ export const enTranslation = {
     recent: 'Recently Added',
     mostPlayed: 'Most Played',
     recentlyPlayed: 'Recently Played',
+    losslessAlbums: 'Lossless Albums',
     discover: 'Discover',
     discoverSongs: 'Discover Songs',
     loadMore: 'Load More',
@@ -1518,6 +1519,10 @@ export const enTranslation = {
     noArtists: 'All artists filtered out.',
     filterCompilations: 'Hide compilation artists (Various Artists, Soundtracks, etc.)',
     filterCompilationsShort: 'Hide compilations',
+  },
+  losslessAlbums: {
+    empty: 'No lossless albums in this library yet.',
+    unsupported: 'This server does not expose the metadata needed to find lossless albums.',
   },
   radio: {
     title: 'Internet Radio',

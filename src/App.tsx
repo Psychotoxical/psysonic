@@ -31,6 +31,7 @@ const RandomLanding = lazy(() => import('./pages/RandomLanding'));
 const Login = lazy(() => import('./pages/Login'));
 const AlbumDetail = lazy(() => import('./pages/AlbumDetail'));
 const MostPlayed = lazy(() => import('./pages/MostPlayed'));
+const LosslessAlbums = lazy(() => import('./pages/LosslessAlbums'));
 const RandomAlbums = lazy(() => import('./pages/RandomAlbums'));
 const LuckyMixPage = lazy(() => import('./pages/LuckyMix'));
 const SearchResults = lazy(() => import('./pages/SearchResults'));
@@ -685,6 +686,7 @@ function AppShell() {
                   <Route path="/search/advanced" element={<AdvancedSearch />} />
                   <Route path="/statistics" element={<Statistics />} />
                   <Route path="/most-played" element={<MostPlayed />} />
+                  <Route path="/lossless-albums" element={<LosslessAlbums />} />
                   <Route path="/now-playing" element={isMobile ? <MobilePlayerView /> : <NowPlayingPage />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/whats-new" element={<WhatsNew />} />
