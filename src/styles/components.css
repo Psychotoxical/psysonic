@@ -13905,10 +13905,23 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
 
 /* Because-you-like rail — performance-conscious by design.
    No filter/blur/transform animations (WebKitGTK / software-compositing friendly). */
+.because-you-like-rail {
+  container-type: inline-size;
+}
 .because-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 1rem;
+}
+/* Hide the 3rd card only inside the 2-column range, so:
+     >= 1052px (3 cols)  -> 3 cards in one row
+     696-1051px (2 cols) -> 2 cards in one row, orphan dropped
+     <  696px  (1 col)   -> 3 cards stacked, orphan welcome
+   Math: 3*340 + 2*16 = 1052 (3-col cutoff), 2*340 + 1*16 = 696 (2-col cutoff). */
+@container (min-width: 696px) and (max-width: 1051px) {
+  .because-card-grid > :nth-child(n+3) {
+    display: none;
+  }
 }
 .because-card {
   position: relative;
