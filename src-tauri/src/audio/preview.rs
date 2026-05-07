@@ -286,6 +286,18 @@ pub fn audio_preview_stop_silent(app: AppHandle, state: State<'_, AudioEngine>) 
     preview_stop_inner(&app, &state, false);
 }
 
+/// Update the preview sink volume while a preview is in flight. Mirrors
+/// `audio_set_volume` for the main sink. The frontend already folds in any
+/// LUFS pre-analysis attenuation before calling, just like it does at preview
+/// start, so the engine just clamps and applies the master headroom. No-op
+/// when no preview is active.
+#[tauri::command]
+pub fn audio_preview_set_volume(volume: f32, state: State<'_, AudioEngine>) {
+    if let Some(sink) = state.preview_sink.lock().unwrap().as_ref() {
+        sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
+    }
+}
+
 pub(crate) fn preview_stop_inner(app: &AppHandle, state: &AudioEngine, resume_main: bool) {
     state.preview_gen.fetch_add(1, Ordering::SeqCst);
     let sink = state.preview_sink.lock().unwrap().take();

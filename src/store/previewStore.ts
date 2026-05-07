@@ -44,6 +44,25 @@ interface PreviewState {
 
 const PREVIEW_VOLUME_MATCH = true;
 
+/**
+ * Effective preview volume to send to the Rust engine.
+ *
+ * Mirrors the main sink's audible level: takes the player's slider value and,
+ * when loudness normalization is active, folds in the LUFS pre-analysis
+ * attenuation the engine applies to the main sink (the engine has no view of
+ * preview-specific gain, so we pre-multiply here). Master headroom is added on
+ * the Rust side.
+ */
+function computePreviewVolume(): number {
+  const auth = useAuthStore.getState();
+  let volume = usePlayerStore.getState().volume;
+  if (PREVIEW_VOLUME_MATCH && auth.normalizationEngine === 'loudness') {
+    const preDbAtt = Math.min(0, auth.loudnessPreAnalysisAttenuationDb ?? -4.5);
+    volume = volume * Math.pow(10, preDbAtt / 20);
+  }
+  return Math.max(0, Math.min(1, volume));
+}
+
 export const usePreviewStore = create<PreviewState>((set, get) => ({
   previewingId: null,
   previewingTrack: null,
@@ -70,18 +89,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       ? trackDuration * startRatio
       : 0;
 
-    // Match the main player's effective volume so preview doesn't blast at
-    // unattenuated level. LUFS pre-analysis attenuation is folded into base
-    // volume by the audio engine for the main sink; we mirror by reading the
-    // player volume + applying the same headroom multiplier conceptually.
-    let volume = usePlayerStore.getState().volume;
-    if (PREVIEW_VOLUME_MATCH) {
-      if (auth.normalizationEngine === 'loudness') {
-        const preDbAtt = Math.min(0, auth.loudnessPreAnalysisAttenuationDb ?? -4.5);
-        volume = volume * Math.pow(10, preDbAtt / 20);
-      }
-    }
-
     set({
       previewingId: song.id,
       previewingTrack: { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt },
@@ -96,7 +103,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         url,
         startSec,
         durationSec: previewDuration,
-        volume: Math.max(0, Math.min(1, volume)),
+        volume: computePreviewVolume(),
       });
     } catch (e) {
       // Roll back optimistic state on failure.
@@ -139,3 +146,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     set({ previewingId: null, previewingTrack: null, elapsed: 0, audioStarted: false });
   },
 }));
+
+// Keep the preview sink in sync with player volume slider movements while a
+// preview is in flight. Without this the Rust preview Sink stays at whatever
+// level was set at `audio_preview_play` — slider drags only ramp the main
+// sink. Auth/normalization changes during preview are intentionally ignored
+// (preview is short and the case is rare).
+usePlayerStore.subscribe((state, prev) => {
+  if (state.volume === prev.volume) return;
+  if (!usePreviewStore.getState().previewingId) return;
+  invoke('audio_preview_set_volume', { volume: computePreviewVolume() }).catch(() => {});
+});

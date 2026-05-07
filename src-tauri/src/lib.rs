@@ -915,6 +915,7 @@ pub fn run() {
             audio::preview::audio_preview_play,
             audio::preview::audio_preview_stop,
             audio::preview::audio_preview_stop_silent,
+            audio::preview::audio_preview_set_volume,
             audio::commands::audio_set_crossfade,
             audio::commands::audio_set_gapless,
             audio::commands::audio_set_normalization,
