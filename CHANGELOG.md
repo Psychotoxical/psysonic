@@ -148,6 +148,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added eight new dark themes covering the colour families people most commonly ask for: **Obsidian Black**, **Carbon Grey**, **Volcanic Dark**, **Forest Green**, **Violet Haze**, **Copper Oxide**, **Sakura Night**, **Obsidian Gold**.
 * Light polish on the existing **AMOLED Black Pure** surface variables so card surfaces no longer collapse onto a pure-black background that read as a single flat slab.
 
+### Home — Because-you-listened seed pool and orphan-card layout
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#493](https://github.com/Psychotoxical/psysonic/pull/493)**
+
+* The anchor pool now round-robin merges **Most Played**, **Recently Played** and **Favorites** (deduped per artist) instead of walking only the top-played list, so the per-mount rotation lands on a different listening *mode* each visit. Pool size **8 → 12** to let the cursor visit all three sources before wrapping. Visibility guard widened so the rail still renders when a fresh server has no frequent-play data yet but starred or recent items exist. Zero new API calls — all three lists are already in the Home initial fetch.
+* On **1080p** / narrow windows the third card no longer drops to a second row alone — a container query hides it inside the 2-column auto-fit band. The full **3-up** row stays on 2K-class screens, and on truly narrow viewports (single column) all three cards stack vertically as expected.
+
 ## Fixed
 
 ### Hot cache, HTTP streaming replay, and queue source indicator
