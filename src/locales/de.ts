@@ -587,7 +587,7 @@ export const deTranslation = {
     languageNb: 'Norwegisch',
     languageRu: 'Russisch',
     font: 'Schriftart',
-    fontHintOpenDyslexic: 'Legasthenie-freundlich · keine RU/ZH-Unterstützung',
+    fontHintOpenDyslexic: 'Legasthenie-freundlich · keine Chinesisch-Unterstützung',
     theme: 'Design',
     appearance: 'Darstellung',
     servers: 'Server',

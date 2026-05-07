@@ -580,7 +580,7 @@ export const esTranslation = {
     languageRu: 'Ruso',
     languageEs: 'Español',
     font: 'Fuente',
-    fontHintOpenDyslexic: 'Compatible con dislexia · sin soporte RU/ZH',
+    fontHintOpenDyslexic: 'Compatible con dislexia · sin soporte para chino',
     theme: 'Tema',
     appearance: 'Apariencia',
     servers: 'Servidores',
