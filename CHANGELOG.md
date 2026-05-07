@@ -213,6 +213,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The currently-playing track in any tracklist (**AlbumDetail**, **ArtistDetail**, **PlaylistDetail**, **Favorites**, **RandomMix**) ran an **`opacity` pulse** on the entire row plus three **`transform` keyframe** EQ-bar siblings — both compositor properties, but on **WebKitGTK without compositing** (Linux + NVIDIA proprietary + `WEBKIT_DISABLE_COMPOSITING_MODE=1`) every animated row falls back to a full **software repaint** of the subtree per frame. On AlbumDetail the combined cost held the WebProcess at **~80 % CPU** for the duration of playback; CPU dropped immediately on pause/stop.
 * `.track-row.active` keeps the **accent-tinted background** but no longer pulses. The "now playing" indicator becomes a single Lucide **`AudioLines` icon** (one SVG per active row instead of three animated spans). Cleanup: dead `track-pulse` + `eq-bounce` keyframes and a duplicate, shadowed `.eq-bar` block in `theme.css`.
 
+### Radio — queue navigation, dedup, and similar-first variety
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#503](https://github.com/Psychotoxical/psysonic/pull/503)**
+
+* **Queue navigation through duplicates**: `playTrack` re-resolved the active slot via `findIndex(... .id === ...)`, which returns the **first** matching id. Reaching a track's second occurrence snapped `queueIndex` back to the earlier slot — highlight visibly jumped and the next auto-advance played the wrong follow-up. `next()`, `previous()`, the `audio:ended` repeat-one path, queue-row click and the queue-item Play Now now pass an explicit target index through `playTrack`.
+* **Queue duplicates**: `enqueueRadio` didn't dedupe incoming tracks; the `next()` top-up deduped against the live queue but trimmed the played tail down to **5 history entries**, so songs heard a few advances ago could be re-added by a later Last.fm / topSongs response; and the `.filter(...)` pass admitted intra-batch repeats (top + similar overlap is common) because it read the dedup set before mutating it. A radio-session-scoped seen-set, reset on artist change and `clearQueue`, closes all three paths.
+* **Variety**: Starting Radio on a track no longer queues five top tracks of the seed artist before any similar-artist material plays. The seed path and both top-up paths lead with similar songs and only fall back to top tracks when similar comes back empty (no Last.fm / small library).
+
 ### Track preview — volume slider ignored during preview
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), reported by netherguy4, PR [#502](https://github.com/Psychotoxical/psysonic/pull/502)**
