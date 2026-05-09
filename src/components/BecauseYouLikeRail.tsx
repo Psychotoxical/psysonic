@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Music } from 'lucide-react';
@@ -14,6 +14,7 @@ import CachedImage, { useCachedUrl } from './CachedImage';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playAlbum';
+import AlbumRow from './AlbumRow';
 
 const ANCHOR_HISTORY_KEY_PREFIX = 'psysonic_because_anchor_history:';
 const PICKS_HISTORY_KEY_PREFIX = 'psysonic_because_picks:';
@@ -125,6 +126,24 @@ export default function BecauseYouLikeRail({
   );
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [recs, setRecs] = useState<SubsonicAlbum[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [narrow, setNarrow] = useState(false);
+
+  // 696px ≙ exactly 2 BecauseCards side-by-side (2*340 + 16 gap). Below that
+  // the hero-style cards stretch full-width and dwarf the rest of the page,
+  // so we swap in a standard AlbumRow which is already perf-tuned for narrow
+  // rails (artwork budget, viewport windowing, scroll-paging).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setNarrow(entry.contentRect.width < 696);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,26 +227,36 @@ export default function BecauseYouLikeRail({
     return () => { cancelled = true; };
   }, [pool, activeServerId]);
 
-  if (!anchor || recs.length === 0) return null;
+  if (!anchor || recs.length === 0) {
+    return <div ref={containerRef} />;
+  }
+
+  const sectionTitle = t('home.becauseYouLikeFor', { artist: anchor.name });
 
   return (
-    <section className="album-row-section because-you-like-rail">
-      <div className="album-row-header">
-        <h2 className="section-title" style={{ marginBottom: 0 }}>
-          {t('home.becauseYouLikeFor', { artist: anchor.name })}
-        </h2>
-      </div>
-      <div className="because-card-grid">
-        {recs.map(album => (
-          <BecauseCard
-            key={album.id}
-            album={album}
-            anchor={anchor.name}
-            disableArtwork={disableArtwork}
-          />
-        ))}
-      </div>
-    </section>
+    <div ref={containerRef}>
+      {narrow ? (
+        <AlbumRow title={sectionTitle} albums={recs} disableArtwork={disableArtwork} />
+      ) : (
+        <section className="album-row-section because-you-like-rail">
+          <div className="album-row-header">
+            <h2 className="section-title" style={{ marginBottom: 0 }}>
+              {sectionTitle}
+            </h2>
+          </div>
+          <div className="because-card-grid">
+            {recs.map(album => (
+              <BecauseCard
+                key={album.id}
+                album={album}
+                anchor={anchor.name}
+                disableArtwork={disableArtwork}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
 
