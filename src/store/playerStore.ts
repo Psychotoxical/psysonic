@@ -412,6 +412,20 @@ let playGeneration = 0;
 let infiniteQueueFetching = false;
 // Guard against concurrent radio top-up fetches.
 let radioFetching = false;
+
+/** True when the user is part of an Orbit session (any role, any phase
+ *  short of `idle` / `error` / `ended`). Used by `next()` and its async
+ *  fallback callbacks to suppress local queue-extension paths (radio
+ *  top-up, infinite-queue, queue-exhausted refill) — those would either
+ *  pop the orbitBulkGuard modal or silently inject tracks the host
+ *  didn't pick. The helper is also called inside in-flight `.then()`
+ *  callbacks so a fetch scheduled just before the user joined Orbit
+ *  doesn't fire a `playTrack` after the join. */
+function isInOrbitSession(): boolean {
+  const o = useOrbitStore.getState();
+  if (o.role !== 'host' && o.role !== 'guest') return false;
+  return o.phase === 'active' || o.phase === 'joining' || o.phase === 'starting';
+}
 // Artist ID used to start the current radio session — persists across track
 // advances so proactive loading works even when songs lack artistId.
 let currentRadioArtistId: string | null = null;
@@ -3013,13 +3027,20 @@ export const usePlayerStore = create<PlayerState>()(
           get().playTrack(queue[nextIdx], queue, manual, false, nextIdx);
           // Proactively top up auto-added tracks when ≤ 2 remain ahead,
           // so the queue never runs dry without a visible loading pause.
+          // Skipped while in Orbit — the host's queue is the source of
+          // truth there, and any silent local extension would either
+          // drift this client off the host or pop the bulk-add modal at
+          // the next track-end fallback.
           const { infiniteQueueEnabled } = useAuthStore.getState();
-          if (infiniteQueueEnabled && repeatMode === 'off' && !infiniteQueueFetching) {
+          if (infiniteQueueEnabled && repeatMode === 'off' && !infiniteQueueFetching && !isInOrbitSession()) {
             const remainingAuto = queue.slice(nextIdx + 1).filter(t => t.autoAdded).length;
             if (remainingAuto <= 2) {
               infiniteQueueFetching = true;
               const existingIds = new Set(get().queue.map(t => t.id));
               buildInfiniteQueueCandidates(currentTrack, existingIds, 5).then(newTracks => {
+                // Re-check at resolution time — the user may have joined
+                // an Orbit session between scheduling and resolving.
+                if (isInOrbitSession()) return;
                 if (newTracks.length > 0) {
                   set(state => ({ queue: [...state.queue, ...newTracks] }));
                 }
@@ -3076,14 +3097,15 @@ export const usePlayerStore = create<PlayerState>()(
         } else if (repeatMode === 'all' && queue.length > 0) {
           get().playTrack(queue[0], queue, manual, false, 0);
         } else {
-          // ── Orbit guest short-circuit ──
+          // ── Orbit short-circuit ──
           // The host owns the shared queue. The radio / infinite-queue
           // fallbacks below would either pop the orbitBulkGuard modal (with a
           // 6-track add) or silently inject unrelated tracks into the local
           // player and drift the guest off the host. Stop instead and let the
           // next pull tick in `useOrbitGuest` sync to the host's next track.
-          const orbit = useOrbitStore.getState();
-          if (orbit.role === 'guest' && orbit.phase === 'active') {
+          // Covers any active orbit phase (`active` / `joining` / `starting`)
+          // so a fetch scheduled mid-join doesn't slip through.
+          if (isInOrbitSession()) {
             invoke('audio_stop').catch(console.error);
             isAudioPaused = false;
             set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
@@ -3098,6 +3120,14 @@ export const usePlayerStore = create<PlayerState>()(
               Promise.all([getSimilarSongs2(artistId), getTopSongs(currentTrack.artist)])
                 .then(([similar, top]) => {
                   radioFetching = false;
+                  // The user may have joined an Orbit session while this
+                  // fetch was in flight — bail without touching the queue.
+                  if (isInOrbitSession()) {
+                    invoke('audio_stop').catch(console.error);
+                    isAudioPaused = false;
+                    set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+                    return;
+                  }
                   const existingIds = new Set(get().queue.map(t => t.id));
                   // Same source preference + dedup contract as the proactive
                   // top-up: similar first, top only as a fallback (issue #500).
@@ -3136,6 +3166,14 @@ export const usePlayerStore = create<PlayerState>()(
             const existingIds = new Set(get().queue.map(t => t.id));
             buildInfiniteQueueCandidates(currentTrack, existingIds, 5).then(newTracks => {
               infiniteQueueFetching = false;
+              // The user may have joined an Orbit session while this
+              // fetch was in flight — bail without invoking playTrack.
+              if (isInOrbitSession()) {
+                invoke('audio_stop').catch(console.error);
+                isAudioPaused = false;
+                set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+                return;
+              }
               if (newTracks.length === 0) {
                 invoke('audio_stop').catch(console.error);
                 isAudioPaused = false;

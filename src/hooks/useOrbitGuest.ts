@@ -103,16 +103,22 @@ export function useOrbitGuest(): void {
 
         player.playTrack(track, [track]);
 
-        // Poll until the engine has the track loaded; fall back to a blind
-        // apply after 2 s so a stuck load doesn't leave us spinning forever.
+        // Poll until the engine actually reports the track playing — the
+        // earlier "blind apply at deadline" path could fire a seek into a
+        // not-yet-ready engine, where the seek silently no-ops and the
+        // guest plays from 0 while believing they're synced (the visible
+        // 50 % jump-on-Catch-Up symptom). Wait for `p.isPlaying === true`
+        // up to 5 s, then give up and let the outer pull tick retry —
+        // the syncToHost-failed path keeps `lastAppliedRef` null so the
+        // 500 ms fast-poll in `tick` will try again immediately.
         return await new Promise<boolean>(resolve => {
-          const deadline = Date.now() + 2000;
+          const deadline = Date.now() + 5000;
           const poll = () => {
             if (cancelled) { resolve(false); return; }
             const p = usePlayerStore.getState();
             const trackReady = p.currentTrack?.id === trackId;
             if (trackReady && p.isPlaying) { resolve(applyMirror()); return; }
-            if (Date.now() >= deadline) { resolve(applyMirror()); return; }
+            if (Date.now() >= deadline) { resolve(false); return; }
             window.setTimeout(poll, 100);
           };
           window.setTimeout(poll, 100);
