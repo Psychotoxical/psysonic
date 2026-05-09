@@ -3076,6 +3076,19 @@ export const usePlayerStore = create<PlayerState>()(
         } else if (repeatMode === 'all' && queue.length > 0) {
           get().playTrack(queue[0], queue, manual, false, 0);
         } else {
+          // ── Orbit guest short-circuit ──
+          // The host owns the shared queue. The radio / infinite-queue
+          // fallbacks below would either pop the orbitBulkGuard modal (with a
+          // 6-track add) or silently inject unrelated tracks into the local
+          // player and drift the guest off the host. Stop instead and let the
+          // next pull tick in `useOrbitGuest` sync to the host's next track.
+          const orbit = useOrbitStore.getState();
+          if (orbit.role === 'guest' && orbit.phase === 'active') {
+            invoke('audio_stop').catch(console.error);
+            isAudioPaused = false;
+            set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+            return;
+          }
           // Queue exhausted. Check radio first (independent of infinite queue setting),
           // then infinite queue, then stop.
           if (currentTrack?.radioAdded && !radioFetching) {
