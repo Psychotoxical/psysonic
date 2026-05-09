@@ -232,7 +232,30 @@ export function useOrbitGuest(): void {
         last,
       }));
 
-      if (!last) {
+      // Engine-recovery: detect a silent `audio_play` failure after our
+      // optimistic `isPlaying: true` mark. `playTrack` flips the store
+      // flag synchronously before the Tauri call resolves, so the
+      // post-playTrack poll sees `isPlaying === true` even when the
+      // engine never actually started; if `audio_play` later rejects,
+      // the catch handler sets `isPlaying: false`. Without this check
+      // the divergence-detection branches all pass (last/host both
+      // think we're playing) and the guest stays stuck silent. Reset
+      // `lastAppliedRef` so the next iteration re-runs initial-sync.
+      if (
+        last
+        && last.isPlaying
+        && !player.isPlaying
+        && hostPlaying
+        && last.trackId === hostTrackId
+        && last.trackId === player.currentTrack?.id
+      ) {
+        pushOrbitEvent('engine-recovery', 'engine fell back to paused while host plays — re-syncing');
+        lastAppliedRef.current = null;
+      }
+
+      // Re-read after the recovery check above may have reset it.
+      const currentLast = lastAppliedRef.current;
+      if (!currentLast) {
         // Initial sync: only record `last` *after* syncToHost actually
         // landed. If the first attempt loses the race (engine not ready,
         // stale audio state, network blip), a retry ticker below will try
@@ -248,7 +271,7 @@ export function useOrbitGuest(): void {
           pushOrbitEvent('initial-sync', 'host has no current track yet, anchor only');
           lastAppliedRef.current = { trackId: null, isPlaying: hostPlaying };
         }
-      } else if (last.trackId !== hostTrackId) {
+      } else if (currentLast.trackId !== hostTrackId) {
         // Distinguish "user manually paused" (true divergence) from "track
         // ended naturally" (NOT divergence — guest just needs the host's
         // next track loaded). Both leave `player.isPlaying === false`, but
@@ -257,18 +280,18 @@ export function useOrbitGuest(): void {
         // `currentTime` somewhere mid-track. The 0-position discriminator
         // separates them.
         const naturalEnd = !player.isPlaying
-          && player.currentTrack?.id === last.trackId
+          && player.currentTrack?.id === currentLast.trackId
           && (player.currentTime ?? 0) < 0.5;
-        const diverged = !naturalEnd && player.isPlaying !== last.isPlaying;
+        const diverged = !naturalEnd && player.isPlaying !== currentLast.isPlaying;
         if (diverged) {
           // Guest is running their own show (typically: paused while host
           // kept going). Do not load/start the host's new track — just
           // track the host state so the catch-up prompt stays accurate.
           pushOrbitEvent('track-change',
-            `host: ${last.trackId} → ${hostTrackId} BUT guest diverged (player.isPlaying=${player.isPlaying} ≠ last.isPlaying=${last.isPlaying}) — NOT loading new track`);
+            `host: ${currentLast.trackId} → ${hostTrackId} BUT guest diverged (player.isPlaying=${player.isPlaying} ≠ last.isPlaying=${currentLast.isPlaying}) — NOT loading new track`);
           lastAppliedRef.current = { trackId: hostTrackId, isPlaying: hostPlaying };
         } else if (hostTrackId) {
-          pushOrbitEvent('track-change', `host: ${last.trackId} → ${hostTrackId}, guest in sync, following`);
+          pushOrbitEvent('track-change', `host: ${currentLast.trackId} → ${hostTrackId}, guest in sync, following`);
           void syncToHost(hostTrackId, state);
           lastAppliedRef.current = { trackId: hostTrackId, isPlaying: hostPlaying };
         } else {
@@ -276,20 +299,20 @@ export function useOrbitGuest(): void {
           if (player.isPlaying) player.pause();
           lastAppliedRef.current = { trackId: hostTrackId, isPlaying: hostPlaying };
         }
-      } else if (last.isPlaying !== hostPlaying) {
+      } else if (currentLast.isPlaying !== hostPlaying) {
         // Only mirror when the guest hasn't diverged. We compare against the
         // *last applied* host state, not the new one — divergence means the
         // local player no longer matches what we last pushed in.
-        const localMatchesLast = player.isPlaying === last.isPlaying;
+        const localMatchesLast = player.isPlaying === currentLast.isPlaying;
         pushOrbitEvent('play-pause-flip',
-          `host: ${last.isPlaying} → ${hostPlaying}, guest matches last=${localMatchesLast} (will ${localMatchesLast ? 'mirror' : 'skip'})`);
+          `host: ${currentLast.isPlaying} → ${hostPlaying}, guest matches last=${localMatchesLast} (will ${localMatchesLast ? 'mirror' : 'skip'})`);
         if (localMatchesLast) {
           if (hostPlaying) player.resume();
           else             player.pause();
         }
         // Either way, advance the anchor so we don't keep retrying the same
         // flip every tick.
-        lastAppliedRef.current = { trackId: last.trackId, isPlaying: hostPlaying };
+        lastAppliedRef.current = { trackId: currentLast.trackId, isPlaying: hostPlaying };
       }
     };
 
