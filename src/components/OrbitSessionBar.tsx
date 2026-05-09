@@ -88,7 +88,13 @@ export default function OrbitSessionBar() {
   const overSinceRef = useRef<number | null>(null);
   const underSinceRef = useRef<number | null>(null);
   useEffect(() => {
-    if (role !== 'guest' || !state || !state.isPlaying || !state.currentTrack) {
+    // Note: `state.isPlaying` is *not* a gate. A guest who joined while
+    // the host was paused still benefits from Catch Up if their sync to
+    // the host's paused position failed — the only signal that matters
+    // is "is there drift between us and the host's last reported state".
+    // `computeOrbitDriftMs` correctly stops time-extrapolation when the
+    // host is paused, so the formula holds in both states.
+    if (role !== 'guest' || !state || !state.currentTrack) {
       overSinceRef.current = null;
       underSinceRef.current = null;
       setShowCatchUp(false);
@@ -175,9 +181,24 @@ export default function OrbitSessionBar() {
       const player = usePlayerStore.getState();
       const fraction = targetSec / Math.max(1, track.duration);
       if (player.currentTrack?.id === trackId) {
+        // `player.seek` debounces the underlying `audio_seek` invoke via
+        // `setTimeout(0)`, while `pause`/`resume` fire their invokes
+        // synchronously. Calling them back-to-back races on the Tauri
+        // command queue: pause/resume can arrive at the engine before
+        // the seek does, leaving the engine paused at the *old*
+        // position with the seek queued behind it — when the user
+        // hits play later the engine resumes from the pre-Catch-Up
+        // spot and the waveform jumps back. Defer the play-state
+        // mirror by one short tick so the seek lands first.
         player.seek(fraction);
-        if (hostPlaying && !player.isPlaying) player.resume();
-        else if (!hostPlaying && player.isPlaying) player.pause();
+        if (hostPlaying !== player.isPlaying) {
+          window.setTimeout(() => {
+            const p = usePlayerStore.getState();
+            if (p.currentTrack?.id !== trackId) return;
+            if (hostPlaying && !p.isPlaying) p.resume();
+            else if (!hostPlaying && p.isPlaying) p.pause();
+          }, 200);
+        }
       } else {
         // Different track: play + seek once the engine reports the track
         // loaded. The previous 400 ms blind delay was too short for an
