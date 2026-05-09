@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, RefreshCw, Shuffle, Settings2, Share2, HelpCircle } from 'lucide-react';
+import { X, RefreshCw, Shuffle, Settings2, Share2, HelpCircle, Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import { useHelpModalStore } from '../store/helpModalStore';
@@ -16,6 +16,7 @@ import OrbitParticipantsPopover from './OrbitParticipantsPopover';
 import OrbitExitModal from './OrbitExitModal';
 import OrbitSettingsPopover from './OrbitSettingsPopover';
 import OrbitSharePopover from './OrbitSharePopover';
+import OrbitDiagnosticsPopover from './OrbitDiagnosticsPopover';
 import ConfirmModal from './ConfirmModal';
 
 /**
@@ -49,10 +50,12 @@ export default function OrbitSessionBar() {
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [diagOpen, setDiagOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const peopleBtnRef = useRef<HTMLButtonElement>(null);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const shareBtnRef = useRef<HTMLButtonElement>(null);
+  const diagBtnRef = useRef<HTMLButtonElement>(null);
 
   // Second-level tick just for the shuffle countdown + drift readout —
   // the store itself only ticks at 2.5 s which is too coarse for a smooth
@@ -210,6 +213,18 @@ export default function OrbitSessionBar() {
           </button>
         )}
         <button
+          ref={diagBtnRef}
+          type="button"
+          className="orbit-bar__settings"
+          onClick={() => setDiagOpen(v => !v)}
+          data-tooltip={t('orbit.diag.openTooltip')}
+          aria-haspopup="dialog"
+          aria-expanded={diagOpen || undefined}
+          aria-label={t('orbit.diag.openTooltip')}
+        >
+          <Activity size={14} />
+        </button>
+        <button
           type="button"
           className="orbit-bar__settings"
           onClick={() => useHelpModalStore.getState().open()}
@@ -245,6 +260,12 @@ export default function OrbitSessionBar() {
         <OrbitSharePopover
           anchorRef={shareBtnRef}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+      {diagOpen && (
+        <OrbitDiagnosticsPopover
+          anchorRef={diagBtnRef}
+          onClose={() => setDiagOpen(false)}
         />
       )}
       <OrbitExitModal />

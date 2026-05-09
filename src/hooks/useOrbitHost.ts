@@ -19,6 +19,7 @@ import {
 } from '../api/orbit';
 import { showToast } from '../utils/toast';
 import i18n from '../i18n';
+import { pushOrbitEvent } from '../utils/orbitDiag';
 
 /**
  * Orbit — host-side tick hook.
@@ -137,7 +138,17 @@ export function useOrbitHost(): void {
       try {
         await writeOrbitState(sessionPlaylistId, next);
         lastPushedAtRef.current = Date.now();
-      } catch { /* best-effort; next tick retries */ }
+        pushOrbitEvent('host:push', JSON.stringify({
+          track: next.currentTrack?.trackId ?? null,
+          playing: next.isPlaying,
+          posMs: next.positionMs,
+          queueLen: next.playQueueTotal ?? next.playQueue?.length ?? 0,
+          guests: next.participants.length,
+        }));
+      } catch (e) {
+        pushOrbitEvent('host:push', `WRITE FAILED: ${String(e)}`);
+        /* best-effort; next tick retries */
+      }
     };
 
     /**

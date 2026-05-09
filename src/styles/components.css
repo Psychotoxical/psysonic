@@ -13323,6 +13323,104 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 
+/* ── Diagnostics popover ──────────────────────────────────────────────── */
+.orbit-diag-pop {
+  width: 920px;
+  max-width: calc(100vw - 24px);
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.1));
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.orbit-diag-pop__head {
+  padding: 2px 4px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+.orbit-diag-pop__live {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 10px;
+  font-size: 12px;
+  padding: 0 4px;
+}
+.orbit-diag-pop__live-row {
+  display: contents;
+}
+.orbit-diag-pop__live-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.orbit-diag-pop__mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.orbit-diag-pop__log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.orbit-diag-pop__btn-row {
+  display: flex;
+  gap: 6px;
+}
+.orbit-diag-pop__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.orbit-diag-pop__btn:hover {
+  background: var(--bg-hover, var(--bg-input));
+  border-color: var(--accent);
+}
+.orbit-diag-pop__log {
+  width: 100%;
+  height: 220px;
+  resize: vertical;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  line-height: 1.45;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  white-space: pre;
+  overflow: auto;
+}
+.orbit-diag-pop__hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  padding: 0 4px;
+  font-style: italic;
+}
+
 .orbit-settings-pop__head {
   padding: 2px 4px 12px;
   font-size: 10.5px;

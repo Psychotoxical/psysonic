@@ -8,6 +8,7 @@ import {
   writeOrbitHeartbeat,
 } from '../utils/orbit';
 import { orbitOutboxPlaylistName, estimateLivePosition, type OrbitState } from '../api/orbit';
+import { pushOrbitEvent } from '../utils/orbitDiag';
 
 /**
  * Orbit — guest-side tick hook.
@@ -130,6 +131,7 @@ export function useOrbitGuest(): void {
         // explicit `state.ended` branch does; the store still holds the last
         // known state so the modal can render the host + session name copy.
         // Outbox cleanup runs from the modal's OK handler via leaveOrbitSession.
+        pushOrbitEvent('pull', 'state read returned null — playlist gone, ending session');
         useOrbitStore.getState().setPhase('ended');
         return;
       }
@@ -203,6 +205,12 @@ export function useOrbitGuest(): void {
       const hostPlaying  = state.isPlaying;
       const last = lastAppliedRef.current;
 
+      pushOrbitEvent('pull', JSON.stringify({
+        host: { track: hostTrackId, playing: hostPlaying, posMs: state.positionMs, posAt: state.positionAt },
+        guest: { track: player.currentTrack?.id ?? null, playing: player.isPlaying, posSec: Math.round(player.currentTime ?? 0) },
+        last,
+      }));
+
       if (!last) {
         // Initial sync: only record `last` *after* syncToHost actually
         // landed. If the first attempt loses the race (engine not ready,
@@ -211,9 +219,12 @@ export function useOrbitGuest(): void {
         // failed sync set `last` anyway and the guest was stuck on their
         // pre-join state until they clicked Catch Up.
         if (hostTrackId) {
+          pushOrbitEvent('initial-sync', `attempting initial sync to ${hostTrackId} (hostPlaying=${hostPlaying})`);
           const ok = await syncToHost(hostTrackId, state);
+          pushOrbitEvent('initial-sync', `result: ${ok ? 'success' : 'failed (will retry)'}`);
           if (ok) lastAppliedRef.current = { trackId: hostTrackId, isPlaying: hostPlaying };
         } else {
+          pushOrbitEvent('initial-sync', 'host has no current track yet, anchor only');
           lastAppliedRef.current = { trackId: null, isPlaying: hostPlaying };
         }
       } else if (last.trackId !== hostTrackId) {
@@ -222,11 +233,15 @@ export function useOrbitGuest(): void {
           // Guest is running their own show (typically: paused while host
           // kept going). Do not load/start the host's new track — just
           // track the host state so the catch-up prompt stays accurate.
+          pushOrbitEvent('track-change',
+            `host: ${last.trackId} → ${hostTrackId} BUT guest diverged (player.isPlaying=${player.isPlaying} ≠ last.isPlaying=${last.isPlaying}) — NOT loading new track`);
           lastAppliedRef.current = { trackId: hostTrackId, isPlaying: hostPlaying };
         } else if (hostTrackId) {
+          pushOrbitEvent('track-change', `host: ${last.trackId} → ${hostTrackId}, guest in sync, following`);
           void syncToHost(hostTrackId, state);
           lastAppliedRef.current = { trackId: hostTrackId, isPlaying: hostPlaying };
         } else {
+          pushOrbitEvent('track-change', `host cleared current track, pausing guest`);
           if (player.isPlaying) player.pause();
           lastAppliedRef.current = { trackId: hostTrackId, isPlaying: hostPlaying };
         }
@@ -234,7 +249,10 @@ export function useOrbitGuest(): void {
         // Only mirror when the guest hasn't diverged. We compare against the
         // *last applied* host state, not the new one — divergence means the
         // local player no longer matches what we last pushed in.
-        if (player.isPlaying === last.isPlaying) {
+        const localMatchesLast = player.isPlaying === last.isPlaying;
+        pushOrbitEvent('play-pause-flip',
+          `host: ${last.isPlaying} → ${hostPlaying}, guest matches last=${localMatchesLast} (will ${localMatchesLast ? 'mirror' : 'skip'})`);
+        if (localMatchesLast) {
           if (hostPlaying) player.resume();
           else             player.pause();
         }
