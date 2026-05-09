@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Orbit — in-app diagnostics popover with copyable event log
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), prompted by reports from nzxl + RavingGrob, PR [#524](https://github.com/Psychotoxical/psysonic/pull/524)**
+
+* New **Activity-icon** button in the Orbit session bar opens a diagnostics popover. Live mini-display (role, host vs. guest track, position, drift, state-age) updates once a second; below it, a scrolling **event log textarea** is fed by a 200-entry in-memory ring buffer.
+* **Copy** + **Clear** buttons. Copy drops formatted `[ISO] [scope] body` lines on the clipboard — paste straight into a Discord bug report.
+* Instrumentation lands at every previously-silent decision point in the guest tick (`initial-sync`, `track-change` followed / diverged, `play-pause-flip`) plus host state pushes, so the "stopped after the first song" Orbit symptom is now diagnosable from the buffer alone.
+* Events are also bridged to the existing `frontend_debug_log` command when **Settings → Logging** is on Debug, so power users still get the same data in `psysonic-logs-*.log` for offline triage.
+* i18n: full `orbit.diag.*` namespace across all 8 locales (EN + DE native; ES / FR / NB / NL / RU / ZH first-pass, polish welcome).
+
 ### Player Bar — album context menu on song title right-click
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#512](https://github.com/Psychotoxical/psysonic/pull/512)**
