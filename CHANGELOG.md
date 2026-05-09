@@ -211,6 +211,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Home — Because-you-listened rail compact in narrow layouts
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#520](https://github.com/Psychotoxical/psysonic/pull/520)**
+
+* When the rail container drops below the 2-card threshold (≈ 696 px — sidebar + queue both open, mini, etc.), the home **Because-you-listened** section now switches to the standard `AlbumRow` layout instead of stretching the hero-style cards to full width. The narrow path inherits the rail's existing perf tuning (artwork budget, viewport windowing, scroll paging).
+* Wide layouts (>= 696 px) keep the existing 3-up hero cards with the "Similar to X" pill, album metadata, and album release-type pills — full-screen view is unchanged.
+* Detection runs through a single `ResizeObserver` on the rail wrapper. The wide path adds zero extra renders.
+
 ### Security — Tauri patch for IPC origin-confusion (GHSA-7gmj-67g7-phm9)
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#509](https://github.com/Psychotoxical/psysonic/pull/509)**
