@@ -70,7 +70,7 @@ export default function PlayerBar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [eqOpen, setEqOpen] = useState(false);
-  const [showVolPct, setShowVolPct] = useState(() => useThemeStore.getState().showRemainingTime);
+  const [showVolPct, setShowVolPct] = useState(false);
   const [localShowRemaining, setLocalShowRemaining] = useState(() => useThemeStore.getState().showRemainingTime);
   const premuteVolumeRef = useRef(1);
   const showLyrics   = useLyricsStore(s => s.showLyrics);
@@ -665,6 +665,16 @@ export default function PlayerBar() {
           {utilityMenuMode === 'full' && (
             <div className="player-overflow-menu-row">
               <button
+                className={`player-overflow-menu-btn${eqOpen ? ' active' : ''}`}
+                onClick={() => {
+                  setEqOpen(v => !v);
+                  setUtilityMenuOpen(false);
+                }}
+              >
+                <SlidersVertical size={14} />
+                {t('player.equalizer')}
+              </button>
+              <button
                 className="player-overflow-menu-btn"
                 onClick={() => {
                   invoke('open_mini_player').catch(() => {});
@@ -759,8 +769,6 @@ export default function PlayerBar() {
         document.body
       )}
 
-    </footer>
-
       {/* EQ Popup — rendered via portal to avoid backdrop-filter containing-block issue */}
       {eqOpen && createPortal(
         <>
@@ -778,6 +786,7 @@ export default function PlayerBar() {
         document.body
       )}
 
+    </footer>
     <PlaybackDelayModal open={delayModalOpen} onClose={() => setDelayModalOpen(false)} anchorRef={transportAnchorRef} />
     </>
   );
