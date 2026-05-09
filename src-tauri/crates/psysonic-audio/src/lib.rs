@@ -20,6 +20,7 @@ pub mod radio_commands;
 pub mod transport_commands;
 mod device_watcher;
 mod engine;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 mod power_resume;
 #[cfg(target_os = "windows")]
 mod power_notify_win;
