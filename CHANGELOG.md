@@ -221,6 +221,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Orbit — three interlocking guest playback bugs
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by nzxl + RavingGrob, PR [#525](https://github.com/Psychotoxical/psysonic/pull/525)**
+
+* **Guest now stops cleanly on queue exhaustion instead of trying to refill** — the player's standard radio / infinite-queue / repeat-all fallback paths short-circuit while the local role is `guest` in an active Orbit. The infinite-queue branch was calling `playTrack` with a 6-track queue, which tripped the bulk-add guard and popped a "Add 6 tracks to the Orbit queue?" modal — freezing playback and offering to inject unrelated tracks into the host's shared queue. As a side benefit, the deferred-promise race (the same callback firing again *after* Catch Up replaced the queue) can no longer pop the modal a second time.
+* **Natural track-end no longer reads as "the guest manually paused"** — the divergence check in the guest pull tick now distinguishes the two via the player's `currentTime` (which `handleAudioEnded` resets to 0, while a real pause leaves it mid-track). Without the discriminator, the guest sat silent on every host-driven track change that arrived in the 0–2.5 s window after the guest's own track had ended.
+* **Catch Up now polls the audio engine until it's ready before seeking**, replacing the previous fixed 400 ms timeout. On HTTP-streamed cold-start over a transcontinental link the engine often wasn't ready in 400 ms, so the seek silently no-oped and playback restarted at 0:00 — making Catch Up feel broken on exactly the high-latency setups where guests need it most.
+
 ### Context menu — render above the floating player bar
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), reported by Prymz, PR [#522](https://github.com/Psychotoxical/psysonic/pull/522)**
