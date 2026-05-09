@@ -11,7 +11,7 @@ import { useOrbitStore } from '../store/orbitStore';
 import OrbitGuestQueue from './OrbitGuestQueue';
 import OrbitQueueHead from './OrbitQueueHead';
 import HostApprovalQueue from './HostApprovalQueue';
-import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, MoveRight, Radio, HardDrive, ChevronDown, Info, Share2 } from 'lucide-react';
+import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, Radio, HardDrive, ChevronDown, Info, Share2 } from 'lucide-react';
 import { buildCoverArtUrl, coverArtCacheKey, getAlbum, getPlaylists, getPlaylist, updatePlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCachedUrl } from './CachedImage';
@@ -367,16 +367,9 @@ function QueuePanelHostOrSolo() {
   const normalizationTargetLufs = usePlayerStore(s => s.normalizationTargetLufs);
   const normalizationEngineLive = usePlayerStore(s => s.normalizationEngineLive);
 
-  const crossfadeEnabled = useAuthStore(s => s.crossfadeEnabled);
-  const crossfadeSecs = useAuthStore(s => s.crossfadeSecs);
-  const gaplessEnabled = useAuthStore(s => s.gaplessEnabled);
   const infiniteQueueEnabled = useAuthStore(s => s.infiniteQueueEnabled);
-  const setCrossfadeEnabled = useAuthStore(s => s.setCrossfadeEnabled);
-  const setCrossfadeSecs = useAuthStore(s => s.setCrossfadeSecs);
-  const setGaplessEnabled = useAuthStore(s => s.setGaplessEnabled);
   const setInfiniteQueueEnabled = useAuthStore(s => s.setInfiniteQueueEnabled);
   const normalizationEngine = useAuthStore(s => s.normalizationEngine);
-  const replayGainMode = useAuthStore(s => s.replayGainMode);
 
   const activeTab  = useLyricsStore(s => s.activeTab);
   const setTab     = useLyricsStore(s => s.setTab);
@@ -385,32 +378,16 @@ function QueuePanelHostOrSolo() {
   const isNowPlayingCollapsed = useAuthStore(s => s.queueNowPlayingCollapsed);
   const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
   const [durationMode, setDurationMode] = useState<DurationMode>('total');
-  const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
   const [lufsTgtOpen, setLufsTgtOpen] = useState(false);
   const [lufsTgtPopStyle, setLufsTgtPopStyle] = useState<React.CSSProperties>({});
   const lufsTgtBtnRef = useRef<HTMLButtonElement>(null);
   const lufsTgtMenuRef = useRef<HTMLDivElement>(null);
   const expandReplayGain = useThemeStore(s => s.expandReplayGain);
   const setExpandReplayGain = useThemeStore(s => s.setExpandReplayGain);
-  const crossfadeBtnRef = useRef<HTMLButtonElement>(null);
-  const crossfadePopoverRef = useRef<HTMLDivElement>(null);
   const reanalyzeLoudnessForTrack = usePlayerStore(s => s.reanalyzeLoudnessForTrack);
   const authLoudnessTargetLufs = useAuthStore(s => s.loudnessTargetLufs);
   const setLoudnessTargetLufs = useAuthStore(s => s.setLoudnessTargetLufs);
   const loudnessPreAnalysisAttenuationDb = useAuthStore(s => s.loudnessPreAnalysisAttenuationDb);
-
-  useEffect(() => {
-    if (!showCrossfadePopover) return;
-    const handle = (e: MouseEvent) => {
-      if (
-        crossfadeBtnRef.current?.contains(e.target as Node) ||
-        crossfadePopoverRef.current?.contains(e.target as Node)
-      ) return;
-      setShowCrossfadePopover(false);
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [showCrossfadePopover]);
 
   useEffect(() => {
     if (!lufsTgtOpen) return;
@@ -924,9 +901,6 @@ function QueuePanelHostOrSolo() {
       {activeTab === 'queue' ? (<>
         {!isNowPlayingCollapsed && (
           <div className="queue-toolbar">
-            <button className="queue-round-btn" onClick={() => shuffleQueue()} disabled={queue.length < 2} data-tooltip={t('queue.shuffle')} aria-label={t('queue.shuffle')}>
-              <Shuffle size={13} />
-            </button>
             <button
               className={`queue-round-btn${saveState === 'saved' ? ' active' : ''}`}
               onClick={handleSave}
@@ -947,62 +921,7 @@ function QueuePanelHostOrSolo() {
             >
               <Share2 size={13} />
             </button>
-            <button className="queue-round-btn" onClick={handleClear} data-tooltip={t('queue.clear')} aria-label={t('queue.clear')}>
-              <Trash2 size={13} />
-            </button>
             <div className="queue-toolbar-sep" />
-            <button
-              className={`queue-round-btn${gaplessEnabled ? ' active' : ''}`}
-              onClick={() => { setCrossfadeEnabled(false); setShowCrossfadePopover(false); setGaplessEnabled(!gaplessEnabled); }}
-              data-tooltip={t('queue.gapless')}
-              aria-label={t('queue.gapless')}
-            >
-              <MoveRight size={13} />
-            </button>
-            <div style={{ position: 'relative' }}>
-              <button
-                ref={crossfadeBtnRef}
-                className={`queue-round-btn${crossfadeEnabled || showCrossfadePopover ? ' active' : ''}`}
-                onClick={() => {
-                  if (crossfadeEnabled) {
-                    setCrossfadeEnabled(false);
-                    setShowCrossfadePopover(false);
-                  } else {
-                    setGaplessEnabled(false);
-                    setCrossfadeEnabled(true);
-                    setShowCrossfadePopover(true);
-                  }
-                }}
-                data-tooltip={showCrossfadePopover ? undefined : t('queue.crossfade')}
-                aria-label={t('queue.crossfade')}
-              >
-                <Waves size={13} />
-              </button>
-              {showCrossfadePopover && (
-                <div className="crossfade-popover" ref={crossfadePopoverRef}>
-                  <div className="crossfade-popover-label">
-                    <Waves size={11} />
-                    {t('queue.crossfade')}
-                    <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.1}
-                    max={10}
-                    step={0.1}
-                    value={crossfadeSecs}
-                    onChange={e => {
-                      setCrossfadeSecs(parseFloat(e.target.value));
-                      setCrossfadeEnabled(true);
-                    }}
-                    className="crossfade-popover-slider"
-                  />
-                  <div className="crossfade-popover-range">
-                    <span>0.1s</span><span>10s</span>
-                  </div>
-                </div>
-              )}
-            </div>
             <button
               className={`queue-round-btn${infiniteQueueEnabled ? ' active' : ''}`}
               onClick={() => setInfiniteQueueEnabled(!infiniteQueueEnabled)}
@@ -1010,6 +929,12 @@ function QueuePanelHostOrSolo() {
               aria-label={t('queue.infiniteQueue')}
             >
               <Infinity size={13} />
+            </button>
+            <button className="queue-round-btn" onClick={() => shuffleQueue()} disabled={queue.length < 2} data-tooltip={t('queue.shuffle')} aria-label={t('queue.shuffle')}>
+              <Shuffle size={13} />
+            </button>
+            <button className="queue-round-btn" onClick={handleClear} data-tooltip={t('queue.clear')} aria-label={t('queue.clear')}>
+              <Trash2 size={13} />
             </button>
           </div>
         )}
