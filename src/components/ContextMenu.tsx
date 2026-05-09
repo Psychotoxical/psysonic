@@ -1519,7 +1519,7 @@ export default function ContextMenu() {
       <div
         ref={menuRef}
         className="context-menu animate-fade-in"
-        style={{ left: coords.x, top: coords.y, zIndex: 999 }}
+        style={{ left: coords.x, top: coords.y }}
         tabIndex={-1}
         onKeyDown={onMenuKeyDown}
       >
