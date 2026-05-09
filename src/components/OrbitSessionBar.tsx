@@ -66,18 +66,31 @@ export default function OrbitSessionBar() {
     return () => window.clearInterval(id);
   }, [state, phase]);
 
-  // ── Catch Up button visibility — debounced ────────────────────────────
+  // ── Catch Up button visibility — debounced + hysteresis ───────────────
   // The raw drift signal is noisy: guest's `currentTime` updates in coarse
   // ~5 s chunks while host's position is extrapolated linearly via
-  // `(nowMs - posAt)`, so the diff swings ±5 s every tick on a normal
-  // session even when both sides are perfectly synced. Without debounce
-  // the button flickered in and out and (worse) shifted the bar height.
-  // Require ≥ 3 s of sustained over-threshold drift before showing.
+  // `(nowMs - posAt)`, so the diff swings between ~1 s and ~8 s every
+  // tick on a normal session even when both sides are perfectly synced.
+  // Two-stage filter:
+  //   - **Hidden → shown**: drift must stay over the show-threshold (3 s)
+  //     for 3 s of wall-clock. Filters out brief over-threshold blips.
+  //   - **Shown → hidden**: drift must stay under the hide-threshold
+  //     (1 s) for 1 s of wall-clock. Once visible, the button persists
+  //     through the 1–3 s "drift back to small" valleys that come from
+  //     guest's currentTime catching up in chunks; otherwise the button
+  //     would vanish too fast to actually click on a high-latency
+  //     session where genuine drift fluctuates around 5–8 s.
+  const SHOW_THRESHOLD_MS = CATCH_UP_DRIFT_THRESHOLD_MS;
+  const HIDE_THRESHOLD_MS = 1_000;
+  const SHOW_DEBOUNCE_MS = 3_000;
+  const HIDE_DEBOUNCE_MS = 1_000;
   const [showCatchUp, setShowCatchUp] = useState(false);
   const overSinceRef = useRef<number | null>(null);
+  const underSinceRef = useRef<number | null>(null);
   useEffect(() => {
     if (role !== 'guest' || !state || !state.isPlaying || !state.currentTrack) {
       overSinceRef.current = null;
+      underSinceRef.current = null;
       setShowCatchUp(false);
       return;
     }
@@ -86,15 +99,34 @@ export default function OrbitSessionBar() {
     const driftMs = player.currentTrack?.id === state.currentTrack.trackId
       ? computeOrbitDriftMs(state, localPositionMs, nowMs)
       : null;
-    const isOver = driftMs == null || Math.abs(driftMs) > CATCH_UP_DRIFT_THRESHOLD_MS;
-    if (isOver) {
-      if (overSinceRef.current === null) overSinceRef.current = Date.now();
-      if (Date.now() - overSinceRef.current >= 3000) setShowCatchUp(true);
-    } else {
+    const absDrift = driftMs == null ? Infinity : Math.abs(driftMs);
+    if (showCatchUp) {
+      // Currently visible — only hide once drift has been clearly small
+      // for the full hide-debounce window.
       overSinceRef.current = null;
-      setShowCatchUp(false);
+      if (absDrift < HIDE_THRESHOLD_MS) {
+        if (underSinceRef.current === null) underSinceRef.current = Date.now();
+        if (Date.now() - underSinceRef.current >= HIDE_DEBOUNCE_MS) {
+          setShowCatchUp(false);
+          underSinceRef.current = null;
+        }
+      } else {
+        underSinceRef.current = null;
+      }
+    } else {
+      // Currently hidden — only show after sustained over-threshold drift.
+      underSinceRef.current = null;
+      if (absDrift > SHOW_THRESHOLD_MS) {
+        if (overSinceRef.current === null) overSinceRef.current = Date.now();
+        if (Date.now() - overSinceRef.current >= SHOW_DEBOUNCE_MS) {
+          setShowCatchUp(true);
+          overSinceRef.current = null;
+        }
+      } else {
+        overSinceRef.current = null;
+      }
     }
-  }, [role, state, nowMs]);
+  }, [role, state, nowMs, showCatchUp]);
 
   // Bar is visible while active, ended (pre-ack), or explicitly kicked / soft-removed.
   const shouldShowBar = !!state && (
