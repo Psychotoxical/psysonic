@@ -91,8 +91,20 @@ export function useOrbitGuest(): void {
           const p = usePlayerStore.getState();
           if (cancelled || p.currentTrack?.id !== trackId) return false;
           p.seek(calcFraction());
-          if (hostState.isPlaying && !p.isPlaying) p.resume();
-          else if (!hostState.isPlaying && p.isPlaying) p.pause();
+          // Defer the play-state mirror so the seek's `audio_seek` invoke
+          // arrives at the engine before pause/resume. `player.seek` is
+          // debounced via setTimeout(0); `pause`/`resume` fire their
+          // invokes synchronously — without the delay the play-state
+          // change can race ahead of the seek and leave the engine in
+          // the wrong position.
+          if (hostState.isPlaying !== p.isPlaying) {
+            window.setTimeout(() => {
+              const fresh = usePlayerStore.getState();
+              if (cancelled || fresh.currentTrack?.id !== trackId) return;
+              if (hostState.isPlaying && !fresh.isPlaying) fresh.resume();
+              else if (!hostState.isPlaying && fresh.isPlaying) fresh.pause();
+            }, 200);
+          }
           return true;
         };
 
@@ -132,7 +144,21 @@ export function useOrbitGuest(): void {
             if (cancelled) { resolve(false); return; }
             const p = usePlayerStore.getState();
             const trackReady = p.currentTrack?.id === trackId;
-            if (trackReady && p.isPlaying) { resolve(applyMirror()); return; }
+            // Wait for the engine to *actually* be playing, not just for
+            // `isPlaying = true` (which `playTrack` flips synchronously
+            // before the audio engine has produced a single sample).
+            // Also require `currentTime > 0.1` — once audio has flowed
+            // past the cold-start barrier, the engine is genuinely
+            // playing and a `seek` will commit. Without this check the
+            // seek inside `applyMirror` lands on a not-yet-ready engine,
+            // silently no-ops, and the engine's first progress events
+            // overwrite the optimistic store position — the visible
+            // symptom on join is "the waveform shows the host's live
+            // position for a second, then snaps back to 0:00".
+            const enginePlaying = trackReady
+              && p.isPlaying
+              && (p.currentTime ?? 0) > 0.1;
+            if (enginePlaying) { resolve(applyMirror()); return; }
             if (Date.now() >= deadline) { resolve(false); return; }
             window.setTimeout(poll, 100);
           };
