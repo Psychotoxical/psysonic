@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { buildStreamUrl } from '../api/subsonic';
 import { usePlayerStore } from './playerStore';
 import { useAuthStore, type TrackPreviewLocation } from './authStore';
+import { useOrbitStore } from './orbitStore';
 
 /** Minimal track info needed to surface the preview in the player bar UI. */
 export interface PreviewingTrack {
@@ -74,6 +75,16 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     const auth = useAuthStore.getState();
     if (!auth.trackPreviewsEnabled) return;
     if (!auth.trackPreviewLocations[location]) return;
+
+    // Block preview during any Orbit session — the preview path runs
+    // through the same Rust audio engine as the shared playback, and a
+    // preview started by a guest would yank the host's track out from
+    // under them. UI buttons are hidden via `[data-orbit-active]` CSS;
+    // this guards keyboard shortcuts / programmatic callers.
+    const orbit = useOrbitStore.getState();
+    const inOrbit = (orbit.role === 'host' || orbit.role === 'guest')
+      && (orbit.phase === 'active' || orbit.phase === 'joining' || orbit.phase === 'starting');
+    if (inOrbit) return;
 
     const current = get().previewingId;
     if (current === song.id) {

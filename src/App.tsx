@@ -186,6 +186,22 @@ function AppShell() {
   useOrbitHost();
   useOrbitGuest();
 
+  // Body-level marker so global CSS can hide controls that don't make sense
+  // in an Orbit session (e.g. track preview — the preview engine and the
+  // shared playback would step on each other). Active for any role + any
+  // pre-`active` phase so the marker covers the whole join lifecycle.
+  const orbitRole = useOrbitStore(s => s.role);
+  const orbitPhase = useOrbitStore(s => s.phase);
+  useEffect(() => {
+    const inOrbit = (orbitRole === 'host' || orbitRole === 'guest')
+      && (orbitPhase === 'active' || orbitPhase === 'joining' || orbitPhase === 'starting');
+    if (inOrbit) {
+      document.documentElement.setAttribute('data-orbit-active', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-orbit-active');
+    }
+  }, [orbitRole, orbitPhase]);
+
   useEffect(() => {
     if (!IS_LINUX) return;
     invoke<boolean>('is_tiling_wm_cmd').then(setIsTilingWm).catch(() => {});

@@ -1907,6 +1907,14 @@
   transition: opacity var(--transition-fast), color var(--transition-fast);
 }
 
+/* Hide track preview controls inside an active Orbit session — preview
+   playback shares the audio engine with the orbit-driven main player and
+   the two would step on each other. The defensive guard in
+   `previewStore.startPreview` catches keyboard / programmatic callers. */
+[data-orbit-active] .playlist-suggestion-preview-btn {
+  display: none;
+}
+
 .playlist-suggestions .track-row:hover .playlist-suggestion-preview-btn,
 .playlist-suggestion-preview-btn:hover,
 .playlist-suggestion-preview-btn.is-previewing {

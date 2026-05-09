@@ -150,6 +150,7 @@ const TrackRow = React.memo(function TrackRow({
               type="button"
               className="playlist-suggestion-play-btn"
               onClick={e => { e.stopPropagation(); onPlaySong(song); }}
+              onDoubleClick={onDoubleClickSong ? e => { e.stopPropagation(); onDoubleClickSong(song); } : undefined}
               data-tooltip={t('common.play')}
               aria-label={t('common.play')}
             >
