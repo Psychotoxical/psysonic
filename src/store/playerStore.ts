@@ -2523,6 +2523,34 @@ export const usePlayerStore = create<PlayerState>()(
           }
         }
 
+        // Orbit-host single-track protection. The host's `playerStore.queue`
+        // *is* the shared Orbit queue. A `playTrack(track, [track])` call
+        // (e.g. OfflineLibrary's "Play this album" on a single-track album,
+        // or any other surface that explicitly passes a 1-track replacement
+        // queue) would otherwise blow away every guest suggestion + every
+        // upcoming track. Re-route to append + jump so the queue survives.
+        // Guest stays unguarded — a guest clicking Play locally is choosing
+        // to opt out of host-sync, which is the existing "guest is running
+        // their own show" path. `useOrbitGuest`'s `syncToHost` is also a
+        // guest-only call site, so it's never intercepted here.
+        if (!_orbitConfirmed && queue && queue.length === 1) {
+          const orbitRole = useOrbitStore.getState().role;
+          if (orbitRole === 'host') {
+            const current = get().queue;
+            const currentTrackId = current[get().queueIndex]?.id;
+            if (track.id !== currentTrackId) {
+              const existsAt = current.findIndex(t => sameQueueTrackId(t.id, track.id));
+              if (existsAt >= 0) {
+                get().playTrack(track, current, manual, true, existsAt);
+              } else {
+                const newQueue = [...current, track];
+                get().playTrack(track, newQueue, manual, true, newQueue.length - 1);
+              }
+              return;
+            }
+          }
+        }
+
         // Ghost-command guard: if a gapless switch happened within 500 ms,
         // this playTrack call is likely a stale IPC echo — suppress it.
         if (Date.now() - lastGaplessSwitchTime < 500) {
