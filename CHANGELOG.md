@@ -211,6 +211,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Context menu — render above the floating player bar
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Prymz, PR [#522](https://github.com/Psychotoxical/psysonic/pull/522)**
+
+* The main context menu wrapper carried an inline `zIndex: 999` that overrode the stylesheet's `z-index: 10000`, and the floating player bar sits at `z-index: 1000`. Right-clicking a track near the bottom of the screen with the floating bar enabled cut off the bottom of the menu (issue [#521](https://github.com/Psychotoxical/psysonic/issues/521)).
+* Inline override removed; the stylesheet rule wins so the menu always paints above the floating bar. Submenus inherit the parent menu's stacking context and follow.
+
 ### Home — Because-you-listened rail compact in narrow layouts
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#520](https://github.com/Psychotoxical/psysonic/pull/520)**
