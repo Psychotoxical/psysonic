@@ -12579,12 +12579,18 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  /* Match the 26 px height of the other bar icon-buttons (.orbit-bar__settings)
+     so the bar's vertical layout is stable whether or not catch-up is showing.
+     The button used to be ~32 px tall, so it pushed the bar height up when it
+     flickered in/out — visually annoying on a high-latency setup where the
+     trigger fires intermittently. */
+  height: 26px;
+  padding: 0 12px;
   border-radius: 999px;
   background: var(--accent);
   border: 1px solid var(--accent);
   color: #fff;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
   cursor: pointer;

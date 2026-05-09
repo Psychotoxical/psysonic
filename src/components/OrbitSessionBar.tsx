@@ -66,6 +66,36 @@ export default function OrbitSessionBar() {
     return () => window.clearInterval(id);
   }, [state, phase]);
 
+  // ── Catch Up button visibility — debounced ────────────────────────────
+  // The raw drift signal is noisy: guest's `currentTime` updates in coarse
+  // ~5 s chunks while host's position is extrapolated linearly via
+  // `(nowMs - posAt)`, so the diff swings ±5 s every tick on a normal
+  // session even when both sides are perfectly synced. Without debounce
+  // the button flickered in and out and (worse) shifted the bar height.
+  // Require ≥ 3 s of sustained over-threshold drift before showing.
+  const [showCatchUp, setShowCatchUp] = useState(false);
+  const overSinceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (role !== 'guest' || !state || !state.isPlaying || !state.currentTrack) {
+      overSinceRef.current = null;
+      setShowCatchUp(false);
+      return;
+    }
+    const player = usePlayerStore.getState();
+    const localPositionMs = Math.round((player.currentTime ?? 0) * 1000);
+    const driftMs = player.currentTrack?.id === state.currentTrack.trackId
+      ? computeOrbitDriftMs(state, localPositionMs, nowMs)
+      : null;
+    const isOver = driftMs == null || Math.abs(driftMs) > CATCH_UP_DRIFT_THRESHOLD_MS;
+    if (isOver) {
+      if (overSinceRef.current === null) overSinceRef.current = Date.now();
+      if (Date.now() - overSinceRef.current >= 3000) setShowCatchUp(true);
+    } else {
+      overSinceRef.current = null;
+      setShowCatchUp(false);
+    }
+  }, [role, state, nowMs]);
+
   // Bar is visible while active, ended (pre-ack), or explicitly kicked / soft-removed.
   const shouldShowBar = !!state && (
     phase === 'active'
@@ -77,17 +107,6 @@ export default function OrbitSessionBar() {
   );
 
   const untilShuffle = Math.max(0, (state.lastShuffle + effectiveShuffleIntervalMs(state)) - nowMs);
-
-  // Guest-only: detect drift from the host's estimated live position.
-  const guestPlayback = usePlayerStore.getState();
-  const localPositionMs = Math.round((guestPlayback.currentTime ?? 0) * 1000);
-  const driftMs = role === 'guest' && state.currentTrack && guestPlayback.currentTrack?.id === state.currentTrack.trackId
-    ? computeOrbitDriftMs(state, localPositionMs, nowMs)
-    : null;
-  const showCatchUp = role === 'guest'
-    && state.isPlaying
-    && state.currentTrack
-    && (driftMs == null || Math.abs(driftMs) > CATCH_UP_DRIFT_THRESHOLD_MS);
 
   const performExit = async () => {
     try {
