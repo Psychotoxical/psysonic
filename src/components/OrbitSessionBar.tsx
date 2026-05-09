@@ -128,14 +128,25 @@ export default function OrbitSessionBar() {
         if (hostPlaying && !player.isPlaying) player.resume();
         else if (!hostPlaying && player.isPlaying) player.pause();
       } else {
-        // Different track: play + seek on next tick once engine is ready.
+        // Different track: play + seek once the engine reports the track
+        // loaded. The previous 400 ms blind delay was too short for an
+        // HTTP-streamed cold-start on a transcontinental link, so the seek
+        // would silently no-op and playback started at 0:00 — making Catch
+        // Up effectively useless on the very latency where it matters most.
+        // Mirrors the poll-until-ready pattern used by `syncToHost`.
         player.playTrack(track, [track]);
-        window.setTimeout(() => {
+        const deadline = Date.now() + 4000;
+        const poll = () => {
           const p = usePlayerStore.getState();
-          if (p.currentTrack?.id !== trackId) return;
-          p.seek(fraction);
-          if (!hostPlaying && p.isPlaying) p.pause();
-        }, 400);
+          if (p.currentTrack?.id !== trackId) return; // user changed tracks
+          if (p.isPlaying || Date.now() >= deadline) {
+            p.seek(fraction);
+            if (!hostPlaying && p.isPlaying) p.pause();
+            return;
+          }
+          window.setTimeout(poll, 100);
+        };
+        window.setTimeout(poll, 100);
       }
     } catch {
       // silent — if the track is gone from the host's library, nothing we can do.
