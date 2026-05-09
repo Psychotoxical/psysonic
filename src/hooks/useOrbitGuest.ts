@@ -228,7 +228,17 @@ export function useOrbitGuest(): void {
           lastAppliedRef.current = { trackId: null, isPlaying: hostPlaying };
         }
       } else if (last.trackId !== hostTrackId) {
-        const diverged = player.isPlaying !== last.isPlaying;
+        // Distinguish "user manually paused" (true divergence) from "track
+        // ended naturally" (NOT divergence — guest just needs the host's
+        // next track loaded). Both leave `player.isPlaying === false`, but
+        // `handleAudioEnded` keeps `currentTrack` pinned to the just-ended
+        // track and resets `currentTime` to 0; a manual pause leaves
+        // `currentTime` somewhere mid-track. The 0-position discriminator
+        // separates them.
+        const naturalEnd = !player.isPlaying
+          && player.currentTrack?.id === last.trackId
+          && (player.currentTime ?? 0) < 0.5;
+        const diverged = !naturalEnd && player.isPlaying !== last.isPlaying;
         if (diverged) {
           // Guest is running their own show (typically: paused while host
           // kept going). Do not load/start the host's new track — just
