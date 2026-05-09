@@ -87,7 +87,7 @@ body:
         - AUR — psysonic-bin
         - .deb (Linux)
         - .rpm (Linux)
-        - Cachix / Nix
+        - flakes
         - .dmg (macOS)
         - .msi installer (Windows)
         - Built from source
