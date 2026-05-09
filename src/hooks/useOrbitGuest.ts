@@ -97,7 +97,22 @@ export function useOrbitGuest(): void {
         };
 
         const player = usePlayerStore.getState();
-        if (player.currentTrack?.id === trackId) {
+        const sameTrack = player.currentTrack?.id === trackId;
+        // Take the cheap path only when the engine is actually in the
+        // state the host expects. If the track is loaded but the engine
+        // never reported `isPlaying === true` (slow cold-start, audio-
+        // device warmup), this branch used to fire `seek` + `resume`
+        // into a stuck engine — the seek silently no-oped and `resume`
+        // can't restart a track that never started. Result: guest sees
+        // "synced" but hears nothing until the next host-driven track
+        // change kicks a fresh `playTrack`. Falling through to a fresh
+        // `playTrack` here re-initialises the engine instead.
+        if (sameTrack && player.isPlaying === hostState.isPlaying) {
+          return applyMirror();
+        }
+        if (sameTrack && player.isPlaying && !hostState.isPlaying) {
+          // We're playing but host is paused — pause locally without
+          // re-loading the track.
           return applyMirror();
         }
 
