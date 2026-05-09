@@ -1,0 +1,16 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage questions / general help
+    url: https://discord.gg/AMnDRErm4u
+    about: |
+      Have a question, need help connecting to your server, or not sure if a behaviour is
+      a bug? Please ask in the Discord community first — the issue tracker is reserved for
+      confirmed bugs and feature requests.
+  - name: Telegram community
+    url: https://t.me/+GLBx1_xeH28xYTJi
+    about: Alternative chat channel for usage questions and general discussion.
+  - name: AUR packaging issues
+    url: https://aur.archlinux.org/packages/psysonic
+    about: |
+      For problems specific to the AUR `psysonic` or `psysonic-bin` packages (build failures,
+      dependency mismatches, AUR metadata), please comment on the AUR page first.

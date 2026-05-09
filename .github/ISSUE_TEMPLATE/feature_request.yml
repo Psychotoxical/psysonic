@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a new feature or improvement
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. A short description of the use case is more
+        valuable than a fully-specified solution — the implementation usually shifts during
+        review, but the underlying need stays the same.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the use case?
+      description: |
+        What are you trying to do that's currently hard or impossible? Describe the workflow
+        or situation, not the proposed solution.
+      placeholder: |
+        e.g. When I'm on a long flight I want to keep listening to my offline-cached tracks,
+        but if I open Psysonic without an internet connection it shows the connection
+        screen instead of letting me into the player.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you imagine this working? Sketches, UI ideas, command names — anything goes.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried, or other approaches that didn't fit.
+
+  - type: textarea
+    id: anything_else
+    attributes:
+      label: Anything else
+      description: Links to related issues, similar requests, screenshots, etc.

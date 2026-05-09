@@ -1,0 +1,138 @@
+name: Bug report
+description: Something is broken or behaves incorrectly
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much as you can — the more
+        precise the report, the faster it can be reproduced and fixed.
+
+        **Before opening an issue:** if you're not sure whether the problem is on the Psysonic side
+        or on your Subsonic-compatible server, please ask in the [Discord](https://discord.gg/AMnDRErm4u)
+        or [Telegram](https://t.me/+GLBx1_xeH28xYTJi) community first.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What's wrong?
+      description: A short description of the problem (one or two sentences).
+      placeholder: e.g. The volume slider jumps back to 100 % every time I switch tracks.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, minimal steps that lead to the problem.
+      placeholder: |
+        1. Open Psysonic and connect to my Navidrome server.
+        2. Start playback of any track.
+        3. Drag the volume slider to ~30 %.
+        4. Press the next button.
+        5. Volume slider has snapped back to 100 %.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happens?
+      description: Include any error toast or popup text exactly as shown.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Psysonic version
+      description: |
+        Exact version string from `Settings → About` (e.g. `1.45.2` or `1.46.0-dev`).
+      placeholder: 1.45.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other (please describe in "Anything else")
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_source
+    attributes:
+      label: Install source
+      description: How did you install Psysonic?
+      options:
+        - AUR — psysonic
+        - AUR — psysonic-bin
+        - .deb (Linux)
+        - .rpm (Linux)
+        - Cachix / Nix
+        - .dmg (macOS)
+        - .msi installer (Windows)
+        - Built from source
+        - Other (please describe in "Anything else")
+
+  - type: dropdown
+    id: server
+    attributes:
+      label: Subsonic-compatible server
+      options:
+        - Navidrome
+        - Gonic
+        - Airsonic
+        - LMS
+        - Other Subsonic-compatible server
+        - Not sure / not relevant
+
+  - type: input
+    id: server_version
+    attributes:
+      label: Server version
+      description: If your server has a version string, paste it here. Skip if the bug is clearly UI-side.
+      placeholder: e.g. Navidrome 0.55.0
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        How to grab logs:
+          1. `Settings → Logging → Debug` (enables verbose logging)
+          2. Reproduce the bug
+          3. `Settings → Logging → Export logs` and attach the resulting file or paste the relevant section below.
+
+        Logs help a lot, especially for playback / streaming / sync bugs.
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / video
+      description: Drag-and-drop is supported. Optional but appreciated for UI bugs.
+
+  - type: textarea
+    id: anything_else
+    attributes:
+      label: Anything else
+      description: Distro / WM / GPU driver, Tauri-specific quirks, theme, anything that might be relevant.
