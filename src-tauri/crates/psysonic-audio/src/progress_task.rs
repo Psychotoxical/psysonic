@@ -8,11 +8,36 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 
 use super::engine::AudioCurrent;
 use super::helpers::{ramp_sink_volume, ProgressPayload, MASTER_HEADROOM};
 use super::state::ChainedInfo;
+
+/// Sink for the three progress events the task emits. Production wraps an
+/// `AppHandle<R>` (any Tauri runtime) via the blanket impl below; tests pass
+/// a `MockProgressEmitter` that records every call.
+///
+/// Pulled out of `spawn_progress_task` so the timer-driven loop can be
+/// exercised against a mock emitter under `#[tokio::test(start_paused = true)]`
+/// without a live Tauri app.
+pub trait ProgressEmitter: Send + Sync + 'static {
+    fn emit_progress(&self, payload: ProgressPayload);
+    fn emit_track_switched(&self, duration_secs: f64);
+    fn emit_ended(&self);
+}
+
+impl<R: Runtime> ProgressEmitter for AppHandle<R> {
+    fn emit_progress(&self, payload: ProgressPayload) {
+        let _ = Emitter::emit(self, "audio:progress", payload);
+    }
+    fn emit_track_switched(&self, duration_secs: f64) {
+        let _ = Emitter::emit(self, "audio:track_switched", duration_secs);
+    }
+    fn emit_ended(&self) {
+        let _ = Emitter::emit(self, "audio:ended", ());
+    }
+}
 
 /// Spawns the per-generation progress + ended-detection task.
 ///
@@ -28,7 +53,7 @@ use super::state::ChainedInfo;
 ///   • Immediate `audio:track_switched` event at decoder boundary
 ///   • `audio:ended` only fires when no chained successor exists
 #[allow(clippy::too_many_arguments)]
-pub(super) fn spawn_progress_task(
+pub(super) fn spawn_progress_task<E: ProgressEmitter>(
     gen: u64,
     gen_counter: Arc<AtomicU64>,
     current_arc: Arc<Mutex<AudioCurrent>>,
@@ -36,7 +61,7 @@ pub(super) fn spawn_progress_task(
     crossfade_enabled_arc: Arc<AtomicBool>,
     crossfade_secs_arc: Arc<AtomicU32>,
     initial_done: Arc<AtomicBool>,
-    app: AppHandle,
+    emitter: E,
     samples_played: Arc<AtomicU64>,
     sample_rate_arc: Arc<AtomicU32>,
     channels_arc: Arc<AtomicU32>,
@@ -91,7 +116,7 @@ pub(super) fn spawn_progress_task(
                 if cur_dur <= 0.0 {
                     crate::app_eprintln!("[radio] current_done fired → emitting audio:ended (dur=0)");
                     gen_counter.fetch_add(1, Ordering::SeqCst);
-                    app.emit("audio:ended", ()).ok();
+                    emitter.emit_ended();
                     break;
                 }
 
@@ -137,7 +162,7 @@ pub(super) fn spawn_progress_task(
 
                     // Emit the new track_switched event — this is immediate,
                     // not delayed by 500 ms like the old audio:playing was.
-                    app.emit("audio:track_switched", info.duration_secs).ok();
+                    emitter.emit_track_switched(info.duration_secs);
                     near_end_ticks = 0;
                     continue;
                 }
@@ -177,7 +202,7 @@ pub(super) fn spawn_progress_task(
                 || now.duration_since(last_progress_emit_at) >= Duration::from_millis(PROGRESS_EMIT_MIN_MS)
                 || (pos - last_progress_emit_pos).abs() >= PROGRESS_EMIT_MIN_DELTA_SECS;
             if should_emit_progress {
-                app.emit("audio:progress", ProgressPayload { current_time: pos, duration: dur }).ok();
+                emitter.emit_progress(ProgressPayload { current_time: pos, duration: dur });
                 last_progress_emit_at = now;
                 last_progress_emit_pos = pos;
                 last_progress_emit_paused = is_paused;
@@ -205,7 +230,7 @@ pub(super) fn spawn_progress_task(
                         continue;
                     }
                     gen_counter.fetch_add(1, Ordering::SeqCst);
-                    app.emit("audio:ended", ()).ok();
+                    emitter.emit_ended();
                     break;
                 }
             } else {
@@ -213,4 +238,225 @@ pub(super) fn spawn_progress_task(
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// In-memory `ProgressEmitter` that records every event for assertion.
+    #[derive(Default)]
+    struct MockEmitter {
+        progress: Mutex<Vec<ProgressPayload>>,
+        track_switched: Mutex<Vec<f64>>,
+        ended: std::sync::atomic::AtomicUsize,
+    }
+
+    impl MockEmitter {
+        fn progress_count(&self) -> usize {
+            self.progress.lock().unwrap().len()
+        }
+        fn ended_count(&self) -> usize {
+            self.ended.load(Ordering::SeqCst)
+        }
+        fn track_switched_count(&self) -> usize {
+            self.track_switched.lock().unwrap().len()
+        }
+    }
+
+    impl ProgressEmitter for Arc<MockEmitter> {
+        fn emit_progress(&self, payload: ProgressPayload) {
+            self.progress.lock().unwrap().push(payload);
+        }
+        fn emit_track_switched(&self, duration_secs: f64) {
+            self.track_switched.lock().unwrap().push(duration_secs);
+        }
+        fn emit_ended(&self) {
+            self.ended.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// Bundle of every Arc<…> the spawn function needs, with sane defaults.
+    struct TaskHarness {
+        gen: u64,
+        gen_counter: Arc<AtomicU64>,
+        current: Arc<Mutex<AudioCurrent>>,
+        chained: Arc<Mutex<Option<ChainedInfo>>>,
+        crossfade_enabled: Arc<AtomicBool>,
+        crossfade_secs: Arc<AtomicU32>,
+        done: Arc<AtomicBool>,
+        samples_played: Arc<AtomicU64>,
+        sample_rate: Arc<AtomicU32>,
+        channels: Arc<AtomicU32>,
+        gapless_switch_at: Arc<AtomicU64>,
+        playback_url: Arc<Mutex<Option<String>>>,
+    }
+
+    impl TaskHarness {
+        fn new(duration_secs: f64) -> Self {
+            let current = AudioCurrent {
+                sink: None,
+                duration_secs,
+                seek_offset: 0.0,
+                play_started: None,
+                paused_at: None,
+                replay_gain_linear: 1.0,
+                base_volume: 1.0,
+                fadeout_trigger: None,
+                fadeout_samples: None,
+            };
+            Self {
+                gen: 1,
+                gen_counter: Arc::new(AtomicU64::new(1)),
+                current: Arc::new(Mutex::new(current)),
+                chained: Arc::new(Mutex::new(None)),
+                crossfade_enabled: Arc::new(AtomicBool::new(false)),
+                crossfade_secs: Arc::new(AtomicU32::new(0f32.to_bits())),
+                done: Arc::new(AtomicBool::new(false)),
+                samples_played: Arc::new(AtomicU64::new(0)),
+                sample_rate: Arc::new(AtomicU32::new(44_100)),
+                channels: Arc::new(AtomicU32::new(2)),
+                gapless_switch_at: Arc::new(AtomicU64::new(0)),
+                playback_url: Arc::new(Mutex::new(None)),
+            }
+        }
+
+        fn spawn_with(&self, emitter: Arc<MockEmitter>) {
+            spawn_progress_task(
+                self.gen,
+                self.gen_counter.clone(),
+                self.current.clone(),
+                self.chained.clone(),
+                self.crossfade_enabled.clone(),
+                self.crossfade_secs.clone(),
+                self.done.clone(),
+                emitter,
+                self.samples_played.clone(),
+                self.sample_rate.clone(),
+                self.channels.clone(),
+                self.gapless_switch_at.clone(),
+                self.playback_url.clone(),
+            );
+        }
+    }
+
+    // ── tests ─────────────────────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn task_breaks_immediately_when_generation_already_changed() {
+        let h = TaskHarness::new(120.0);
+        // Bump the generation BEFORE spawn — the first 100 ms tick will see
+        // the mismatch and exit the loop without emitting anything.
+        h.gen_counter.store(99, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(emitter.progress_count(), 0);
+        assert_eq!(emitter.ended_count(), 0);
+        assert_eq!(emitter.track_switched_count(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn radio_with_dur_zero_emits_ended_when_done_flag_flips() {
+        // Radio streams have duration_secs == 0; the "done" flag is the only
+        // exhaustion signal. Loop must emit audio:ended and bump the
+        // generation counter.
+        //
+        // Multi-thread runtime with real time — start_paused under
+        // current_thread doesn't reliably drive the spawned task's loop body
+        // after tokio::time::advance, even with repeated yields. Real 100 ms
+        // sleeps are tolerable because the test only waits one tick.
+        let h = TaskHarness::new(0.0);
+        h.done.store(true, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(emitter.ended_count(), 1, "audio:ended must fire");
+        assert_eq!(emitter.progress_count(), 0, "no progress emit before exhaustion");
+        assert!(
+            h.gen_counter.load(Ordering::SeqCst) > h.gen,
+            "generation counter must bump so following commands see the new gen"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn task_emits_progress_payload_with_duration_after_first_tick() {
+        let h = TaskHarness::new(120.0);
+        // 5 s of playback at 44.1 kHz × 2 ch.
+        let played = (5.0 * 44_100.0 * 2.0) as u64;
+        h.samples_played.store(played, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let first_payload = {
+            let payloads = emitter.progress.lock().unwrap();
+            assert!(!payloads.is_empty(), "first tick must emit progress");
+            payloads[0].clone()
+        };
+        assert_eq!(first_payload.duration, 120.0, "duration_secs propagates verbatim");
+        // current_time is computed from samples_played but possibly trimmed by
+        // platform output latency — accept anything in [0, duration].
+        assert!(first_payload.current_time >= 0.0 && first_payload.current_time <= 120.0);
+
+        // Stop the task so the test runtime can end.
+        h.gen_counter.store(99, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn done_with_chained_info_swaps_to_chain_and_emits_track_switched() {
+        let h = TaskHarness::new(120.0);
+        // Mark current source exhausted AND queue a chained successor.
+        h.done.store(true, Ordering::SeqCst);
+        let chain_url = "psysonic-local:///next/track.flac".to_string();
+        let chained_done = Arc::new(AtomicBool::new(false));
+        let chained_samples = Arc::new(AtomicU64::new(0));
+        *h.chained.lock().unwrap() = Some(ChainedInfo {
+            url: chain_url.clone(),
+            raw_bytes: Arc::new(Vec::new()),
+            duration_secs: 200.0,
+            replay_gain_linear: 1.0,
+            base_volume: 1.0,
+            source_done: chained_done,
+            sample_counter: chained_samples,
+        });
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(
+            emitter.track_switched_count(),
+            1,
+            "audio:track_switched must fire on gapless transition"
+        );
+        let switched_dur = emitter.track_switched.lock().unwrap()[0];
+        assert_eq!(switched_dur, 200.0, "duration of the chained track");
+
+        assert_eq!(
+            emitter.ended_count(),
+            0,
+            "audio:ended must NOT fire when a chain is present"
+        );
+        assert_eq!(
+            *h.playback_url.lock().unwrap(),
+            Some(chain_url),
+            "current_playback_url updated to the chained URL"
+        );
+        assert!(
+            h.gapless_switch_at.load(Ordering::SeqCst) > 0,
+            "gapless_switch_at timestamp recorded for ghost-command guard"
+        );
+
+        // Stop the task.
+        h.gen_counter.store(99, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
 }

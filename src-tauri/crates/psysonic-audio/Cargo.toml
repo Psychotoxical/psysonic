@@ -42,5 +42,5 @@ windows = { version = "0.62", features = [
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
-tokio = { version = "1", features = ["rt", "time", "sync", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["rt", "time", "sync", "macros", "rt-multi-thread", "test-util"] }
 wiremock = { workspace = true }
