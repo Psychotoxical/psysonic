@@ -172,7 +172,7 @@ fn derive_waveform_bins(bytes: &[u8], bin_count: usize) -> Vec<u8> {
         let end = ((i + 1) * bytes.len() / bin_count).max(start + 1).min(bytes.len());
         let mut peak: u8 = 0;
         for &b in &bytes[start..end] {
-            let centered = if b >= 128 { b - 128 } else { 128 - b };
+            let centered = b.abs_diff(128);
             if centered > peak {
                 peak = centered;
             }
@@ -259,11 +259,7 @@ fn count_mono_frames_from_audio_bytes(bytes: &[u8]) -> Option<(u64, Option<u64>)
 
     let mut total: u64 = 0;
     let mut loop_i: u32 = 0;
-    loop {
-        let packet = match format.next_packet() {
-            Ok(packet) => packet,
-            Err(_) => break,
-        };
+    while let Ok(packet) = format.next_packet() {
         if packet.track_id() != track_id {
             continue;
         }
@@ -281,12 +277,12 @@ fn count_mono_frames_from_audio_bytes(bytes: &[u8]) -> Option<(u64, Option<u64>)
         let mut samples = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
         samples.copy_interleaved_ref(decoded);
         let n = samples.samples().len();
-        if n < n_ch || n % n_ch != 0 {
+        if n < n_ch || !n.is_multiple_of(n_ch) {
             continue;
         }
         total += (n / n_ch) as u64;
         loop_i = loop_i.wrapping_add(1);
-        if loop_i % 128 == 0 {
+        if loop_i.is_multiple_of(128) {
             std::thread::yield_now();
         }
     }
@@ -350,11 +346,7 @@ fn decode_scan_pcm(
     }
     let bin_grid_frames = decoded_frames.max(1);
 
-    loop {
-        let packet = match format.next_packet() {
-            Ok(packet) => packet,
-            Err(_) => break,
-        };
+    while let Ok(packet) = format.next_packet() {
         if packet.track_id() != track_id {
             continue;
         }
@@ -394,7 +386,7 @@ fn decode_scan_pcm(
         let mut samples = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
         samples.copy_interleaved_ref(decoded);
         let slice = samples.samples();
-        if slice.len() < n_ch || slice.len() % n_ch != 0 {
+        if slice.len() < n_ch || !slice.len().is_multiple_of(n_ch) {
             continue;
         }
         let frames = slice.len() / n_ch;
@@ -436,7 +428,7 @@ fn decode_scan_pcm(
         }
 
         loop_i = loop_i.wrapping_add(1);
-        if loop_i % 128 == 0 {
+        if loop_i.is_multiple_of(128) {
             std::thread::yield_now();
         }
     }

@@ -149,10 +149,16 @@ impl MediaSource for RangedHttpSource {
     fn byte_len(&self) -> Option<u64> { Some(self.total_size) }
 }
 
+/// Slot used to coordinate "ranged playback seeds on completion → defer HTTP
+/// backfill for that track" between [`ranged_download_task`] and the analysis
+/// runtime; the inner `(track_id, deadline_unix_ms)` describes the active hold.
+pub(crate) type LoudnessSeedHold = Arc<Mutex<Option<(String, u64)>>>;
+
 /// Linear downloader for `RangedHttpSource`: fills the pre-allocated buffer
 /// from offset 0 to total_size. Reconnects via HTTP Range from the current
 /// `downloaded` offset on transient errors. On completion (full track) the
 /// data is promoted to `stream_completed_cache` for fast replay.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn ranged_download_task(
     gen: u64,
     gen_arc: Arc<AtomicU64>,
@@ -171,7 +177,7 @@ pub(crate) async fn ranged_download_task(
     cache_track_id: Option<String>,
     // When `Some`, ranged playback seeds on completion — defer HTTP backfill for that
     // track; `None` for large files where ranged skips seed (needs backfill).
-    loudness_seed_hold: Option<Arc<Mutex<Option<(String, u64)>>>>,
+    loudness_seed_hold: Option<LoudnessSeedHold>,
 ) {
     let _ranged_loudness_hold_clear = match (loudness_seed_hold.as_ref(), cache_track_id.as_ref()) {
         (Some(slot), Some(tid)) => {

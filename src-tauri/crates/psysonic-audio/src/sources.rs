@@ -55,6 +55,7 @@ impl<S: Source<Item = f32>> EqSource<S> {
         }
     }
 
+    #[allow(clippy::needless_range_loop)]
     fn refresh_if_needed(&mut self) {
         for band in 0..10 {
             let gain_db = f32::from_bits(self.gains[band].load(Ordering::Relaxed));
@@ -82,7 +83,7 @@ impl<S: Source<Item = f32>> Iterator for EqSource<S> {
     fn next(&mut self) -> Option<f32> {
         let sample = self.inner.next()?;
 
-        if self.sample_counter % EQ_CHECK_INTERVAL == 0 {
+        if self.sample_counter.is_multiple_of(EQ_CHECK_INTERVAL) {
             self.refresh_if_needed();
         }
         self.sample_counter = self.sample_counter.wrapping_add(1);
@@ -111,6 +112,7 @@ impl<S: Source<Item = f32>> Source for EqSource<S> {
     fn sample_rate(&self) -> rodio::SampleRate { self.sample_rate }
     fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
 
+    #[allow(clippy::needless_range_loop)]
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         // Reset biquad filter state to avoid glitches after seek.
         for band in 0..10 {

@@ -61,7 +61,7 @@ pub(crate) fn mpris_set_metadata(
     use souvlaki::MediaMetadata;
     use std::time::Duration;
 
-    let duration = duration_secs.map(|s| Duration::from_secs_f64(s));
+    let duration = duration_secs.map(Duration::from_secs_f64);
     let mut guard = controls.lock().unwrap();
     let Some(ctrl) = guard.as_mut() else { return Ok(()); };
     ctrl.set_metadata(MediaMetadata {

@@ -189,7 +189,7 @@ pub async fn audio_preview_play(
     if start_sec > 0.5 {
         let _ = source.try_seek(Duration::from_secs_f64(start_sec));
     }
-    let dur = Duration::from_secs_f64(duration_sec.max(1.0).min(120.0));
+    let dur = Duration::from_secs_f64(duration_sec.clamp(1.0, 120.0));
     let source = source.take_duration(dur);
     let source = PriorityBoostSource::new(source);
 

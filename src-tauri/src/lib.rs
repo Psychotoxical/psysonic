@@ -98,7 +98,7 @@ pub fn run() {
         .setup(|app| {
             // ── Analysis cache (SQLite) ───────────────────────────────────
             {
-                let cache = analysis_cache::AnalysisCache::init(&app.handle())
+                let cache = analysis_cache::AnalysisCache::init(app.handle())
                     .map_err(|e| format!("analysis cache init failed: {e}"))?;
                 app.manage(cache);
             }
@@ -179,7 +179,7 @@ pub fn run() {
                         use tauri::Manager;
                         let h = app.get_webview_window("main")
                             .and_then(|w| w.hwnd().ok())
-                            .map(|h| h.0 as *mut std::ffi::c_void);
+                            .map(|h| h.0);
                         if h.is_none() {
                             crate::app_eprintln!("[Psysonic] Could not get HWND — Windows media controls disabled");
                             return None;

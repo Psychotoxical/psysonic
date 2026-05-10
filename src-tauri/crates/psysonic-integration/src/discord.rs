@@ -1,11 +1,11 @@
-/// Discord Rich Presence integration.
-///
-/// Album artwork is fetched from the iTunes Search API and passed directly to
-/// Discord via the large_image URL field. This avoids the need to pre-upload
-/// assets to the Discord Developer Portal.
-///
-/// The commands silently no-op when Discord is not running or the App ID is wrong,
-/// so the app always starts cleanly regardless of Discord availability.
+//! Discord Rich Presence integration.
+//!
+//! Album artwork is fetched from the iTunes Search API and passed directly to
+//! Discord via the large_image URL field. This avoids the need to pre-upload
+//! assets to the Discord Developer Portal.
+//!
+//! The commands silently no-op when Discord is not running or the App ID is wrong,
+//! so the app always starts cleanly regardless of Discord availability.
 
 use discord_rich_presence::{
     activity::{Activity, ActivityType, Assets, Timestamps},
@@ -46,6 +46,12 @@ impl DiscordState {
                 .build()
                 .unwrap_or_else(|_| Client::new()),
         }
+    }
+}
+
+impl Default for DiscordState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -162,7 +168,7 @@ fn search_with_url(
         // This handles cases like "The Beatles" vs "Beatles" or album subtitle differences
         let artist_match = norm_artist == result_artist
             || norm_artist.contains(&result_artist)
-            || result_artist.contains(&norm_artist)
+            || result_artist.contains(norm_artist)
             || words_overlap(norm_artist, &result_artist);
 
         let album_match = norm_album == collection
@@ -252,6 +258,7 @@ fn apply_template(template: &str, title: &str, artist: &str, album: Option<&str>
 /// - `large_text_template`: template string for the large image tooltip. Default: "{album}".
 ///   Supported placeholders: {title}, {artist}, {album}
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn discord_update_presence(
     state: tauri::State<'_, DiscordState>,
     title: String,

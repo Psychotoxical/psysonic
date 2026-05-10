@@ -22,6 +22,7 @@ pub fn audio_set_volume(volume: f32, state: State<'_, AudioEngine>) {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn audio_update_replay_gain(
     volume: f32,
     replay_gain_db: Option<f32>,

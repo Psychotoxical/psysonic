@@ -18,6 +18,7 @@ use tauri::AppHandle;
 use super::super::state::PreloadedTrack;
 use super::{TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES};
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn track_download_task(
     gen: u64,
     gen_arc: Arc<AtomicU64>,

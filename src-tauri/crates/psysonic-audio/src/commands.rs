@@ -31,6 +31,7 @@ use super::state::{ChainedInfo, PreloadedTrack};
 /// `stream_format_suffix`: Subsonic `song.suffix` (e.g. m4a); `stream.view` URLs have no
 /// file extension, so this helps pick a Symphonia `format_hint` for ranged HTTP.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn audio_play(
     url: String,
     volume: f32,
@@ -417,6 +418,7 @@ pub async fn audio_play(
 /// audio_play() checks chained_info.url on arrival: if it matches, it returns
 /// immediately without touching the Sink (pure no-op on the audio path).
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn audio_chain_preload(
     url: String,
     volume: f32,
@@ -458,26 +460,24 @@ pub async fn audio_chain_preload(
         };
         if let Some(d) = cached {
             d
+        } else if let Some(path) = url.strip_prefix("psysonic-local://") {
+            tokio::fs::read(path).await.map_err(|e| e.to_string())?
         } else {
-            if let Some(path) = url.strip_prefix("psysonic-local://") {
-                tokio::fs::read(path).await.map_err(|e| e.to_string())?
-            } else {
-                let resp = audio_http_client(&state).get(&url).send().await
-                    .map_err(|e| e.to_string())?;
-                if !resp.status().is_success() {
-                    return Ok(()); // silently fail — audio_play will retry
-                }
-                let hint = resp.content_length().unwrap_or(0) as usize;
-                let mut stream = resp.bytes_stream();
-                let mut buf = Vec::with_capacity(hint);
-                while let Some(chunk) = stream.next().await {
-                    if state.generation.load(Ordering::SeqCst) != snapshot_gen {
-                        return Ok(()); // superseded by manual skip — abort download
-                    }
-                    buf.extend_from_slice(&chunk.map_err(|e| e.to_string())?);
-                }
-                buf
+            let resp = audio_http_client(&state).get(&url).send().await
+                .map_err(|e| e.to_string())?;
+            if !resp.status().is_success() {
+                return Ok(()); // silently fail — audio_play will retry
             }
+            let hint = resp.content_length().unwrap_or(0) as usize;
+            let mut stream = resp.bytes_stream();
+            let mut buf = Vec::with_capacity(hint);
+            while let Some(chunk) = stream.next().await {
+                if state.generation.load(Ordering::SeqCst) != snapshot_gen {
+                    return Ok(()); // superseded by manual skip — abort download
+                }
+                buf.extend_from_slice(&chunk.map_err(|e| e.to_string())?);
+            }
+            buf
         }
     };
 

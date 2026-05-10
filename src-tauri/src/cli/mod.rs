@@ -233,22 +233,6 @@ pub fn run_tail_and_exit(args: &[String]) -> ! {
     std::process::exit(0);
 }
 
-/// Wait for the webview to write `psysonic-cli-library.json` after `cli:library-list`.
-
-
-
-
-
-
-/// Wait for `psysonic-cli-servers.json` after `cli:server-list`.
-
-
-
-/// Wait for `psysonic-cli-search.json` after `cli:search`.
-
-
-
-
 /// Print snapshot and `exit`. Used from `main` before `run()`.
 pub fn run_info_and_exit(args: &[String]) -> ! {
     let json_out = wants_info_json(args);
@@ -307,7 +291,7 @@ pub fn handle_cli_on_primary_instance<R: Runtime>(app: &AppHandle<R>, argv: &[St
         }
         Some(CliCommand::AudioDeviceList) => {
             if let Some(engine) = app.try_state::<crate::audio::AudioEngine>() {
-                let _ = write_audio_device_cli_response(&*engine);
+                let _ = write_audio_device_cli_response(engine.inner());
             }
             true
         }
@@ -376,7 +360,7 @@ pub fn spawn_deferred_cli_argv_handler<R: Runtime>(app: &AppHandle<R>) {
             }
             CliCommand::AudioDeviceList => {
                 if let Some(engine) = handle.try_state::<crate::audio::AudioEngine>() {
-                    let _ = write_audio_device_cli_response(&*engine);
+                    let _ = write_audio_device_cli_response(engine.inner());
                 }
                 let text = std::fs::read_to_string(cli_audio_device_response_path())
                     .unwrap_or_else(|_| "{}".into());

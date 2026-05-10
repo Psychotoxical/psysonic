@@ -122,19 +122,31 @@ unsafe fn make_buttons(
     let mask  = THUMBBUTTONMASK(THB_ICON.0 | THB_TOOLTIP.0 | THB_FLAGS.0);
     let flags = THUMBBUTTONFLAGS(0); // THBF_ENABLED
 
-    let mut prev = THUMBBUTTON::default();
-    prev.dwMask  = mask; prev.iId = BTN_PREV;
-    prev.hIcon   = h_prev; prev.dwFlags = flags;
+    let mut prev = THUMBBUTTON {
+        dwMask: mask,
+        iId: BTN_PREV,
+        hIcon: h_prev,
+        dwFlags: flags,
+        ..Default::default()
+    };
     copy_tip(&mut prev.szTip, "Previous");
 
-    let mut play = THUMBBUTTON::default();
-    play.dwMask  = mask; play.iId = BTN_PLAY;
-    play.hIcon   = h_play; play.dwFlags = flags;
+    let mut play = THUMBBUTTON {
+        dwMask: mask,
+        iId: BTN_PLAY,
+        hIcon: h_play,
+        dwFlags: flags,
+        ..Default::default()
+    };
     copy_tip(&mut play.szTip, "Play");
 
-    let mut next = THUMBBUTTON::default();
-    next.dwMask  = mask; next.iId = BTN_NEXT;
-    next.hIcon   = h_next; next.dwFlags = flags;
+    let mut next = THUMBBUTTON {
+        dwMask: mask,
+        iId: BTN_NEXT,
+        hIcon: h_next,
+        dwFlags: flags,
+        ..Default::default()
+    };
     copy_tip(&mut next.szTip, "Next");
 
     [prev, play, next]
@@ -157,7 +169,7 @@ unsafe extern "system" fn subclass_proc(
     if msg == WM_COMMAND {
         let hi = (wparam.0 >> 16) as u32;
         let lo = (wparam.0 & 0xFFFF) as u32;
-        if hi == THBN_CLICKED as u32 {
+        if hi == THBN_CLICKED {
             if data != 0 {
                 let state = &*(data as *const SubclassData);
                 let _ = match lo {
@@ -222,8 +234,8 @@ pub fn init(app: &AppHandle, hwnd_raw: isize) {
         HICON_PAUSE.store(h_pause.0 as isize, Ordering::SeqCst);
         HICON_NEXT .store(h_next .0 as isize, Ordering::SeqCst);
 
-        let mut buttons = make_buttons(h_prev, h_play, h_next);
-        if let Err(e) = taskbar.ThumbBarAddButtons(hwnd, &mut buttons) {
+        let buttons = make_buttons(h_prev, h_play, h_next);
+        if let Err(e) = taskbar.ThumbBarAddButtons(hwnd, &buttons) {
             crate::app_eprintln!("[psysonic] taskbar: ThumbBarAddButtons failed: {e}");
             return;
         }
@@ -259,15 +271,17 @@ pub fn update_taskbar_icon(is_playing: bool) {
         let taskbar = &*(taskbar_raw as *const ITaskbarList3);
         let hwnd    = HWND(hwnd_raw as *mut _);
 
-        let mut btn = THUMBBUTTON::default();
-        btn.dwMask  = THUMBBUTTONMASK(THB_ICON.0 | THB_TOOLTIP.0 | THB_FLAGS.0);
-        btn.iId     = BTN_PLAY;
-        btn.hIcon   = HICON(icon_raw as *mut _);
-        btn.dwFlags = THUMBBUTTONFLAGS(0);
+        let mut btn = THUMBBUTTON {
+            dwMask: THUMBBUTTONMASK(THB_ICON.0 | THB_TOOLTIP.0 | THB_FLAGS.0),
+            iId: BTN_PLAY,
+            hIcon: HICON(icon_raw as *mut _),
+            dwFlags: THUMBBUTTONFLAGS(0),
+            ..Default::default()
+        };
         copy_tip(&mut btn.szTip, if is_playing { "Pause" } else { "Play" });
 
-        let mut btns = [btn];
-        if let Err(e) = taskbar.ThumbBarUpdateButtons(hwnd, &mut btns) {
+        let btns = [btn];
+        if let Err(e) = taskbar.ThumbBarUpdateButtons(hwnd, &btns) {
             crate::app_deprintln!("[psysonic] taskbar: ThumbBarUpdateButtons failed: {e}");
             let _ = e;
         }

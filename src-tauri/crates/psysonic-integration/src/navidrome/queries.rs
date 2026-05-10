@@ -53,6 +53,7 @@ fn nd_build_filters(seed: serde_json::Map<String, serde_json::Value>, library_id
 /// Navidrome 0.55.0+ (uses `library_artist.stats` JSON aggregate). Available to any
 /// authenticated user. Returns raw JSON array.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn nd_list_artists_by_role(
     server_url: String,
     token: String,
@@ -93,6 +94,7 @@ pub async fn nd_list_artists_by_role(
 /// (or conductor-only, lyricist-only, …) credits are unreachable there. Navidrome
 /// generates `role_<role>_id` filters dynamically from `model.AllRoles`.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn nd_list_albums_by_artist_role(
     server_url: String,
     token: String,

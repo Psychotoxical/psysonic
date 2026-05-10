@@ -363,7 +363,7 @@ impl Iterator for SizedDecoder {
                         self.consecutive_decode_errors += 1;
                         // Log sparingly: first drop, then every 10th to avoid spam.
                         if self.consecutive_decode_errors == 1
-                            || self.consecutive_decode_errors % 10 == 0
+                            || self.consecutive_decode_errors.is_multiple_of(10)
                         {
                             crate::app_deprintln!(
                                 "[psysonic] dropped corrupt frame #{}: {msg}",
@@ -462,15 +462,10 @@ impl Source for SizedDecoder {
 // Parsing strategy: scan raw bytes for the ASCII marker, then extract the
 // first whitespace-separated hex tokens after it.
 
+#[derive(Default)]
 pub(crate) struct GaplessInfo {
     delay_samples: u64,
     total_valid_samples: Option<u64>,
-}
-
-impl Default for GaplessInfo {
-    fn default() -> Self {
-        Self { delay_samples: 0, total_valid_samples: None }
-    }
 }
 
 pub(crate) fn find_subsequence(data: &[u8], needle: &[u8]) -> Option<usize> {
@@ -508,7 +503,7 @@ pub(crate) fn parse_gapless_info(data: &[u8]) -> GaplessInfo {
     let padding = u64::from_str_radix(parts.get(2).unwrap_or(&"0"), 16).unwrap_or(0);
     let total_raw = parts.get(3).and_then(|s| u64::from_str_radix(s, 16).ok());
 
-    let total_valid = total_raw.map(|t| t).filter(|&t| t > 0).or_else(|| {
+    let total_valid = total_raw.filter(|&t| t > 0).or_else(|| {
         // Derive from delay + padding if total not available:
         // Not possible without knowing total encoded samples, so just use None.
         let _ = padding;
@@ -518,9 +513,12 @@ pub(crate) fn parse_gapless_info(data: &[u8]) -> GaplessInfo {
     GaplessInfo { delay_samples: delay, total_valid_samples: total_valid }
 }
 
+pub(crate) type BuiltSourceStack =
+    PriorityBoostSource<CountingSource<NotifyingSource<TriggeredFadeOut<EqualPowerFadeIn<EqSource<DynSource>>>>>>;
+
 /// Result of build_source: the fully-wrapped source plus metadata and control Arcs.
 pub(crate) struct BuiltSource {
-    pub(crate) source: PriorityBoostSource<CountingSource<NotifyingSource<TriggeredFadeOut<EqualPowerFadeIn<EqSource<DynSource>>>>>>,
+    pub(crate) source: BuiltSourceStack,
     pub(crate) duration_secs: f64,
     pub(crate) output_rate: u32,
     pub(crate) output_channels: u16,
@@ -541,6 +539,7 @@ pub(crate) struct BuiltSource {
 /// `sample_counter`: atomic counter incremented per sample for drift-free position.
 /// `target_rate`: canonical output sample rate for resampling (0 = no resampling).
 /// `format_hint`: optional file extension (e.g. "flac", "mp3") to help symphonia probe.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_source(
     data: Vec<u8>,
     duration_hint: f64,
@@ -590,16 +589,14 @@ pub(crate) fn build_source(
             } else {
                 DynSource::new(trimmed)
             }
+        } else if target_rate > 0 && sample_rate.get() != target_rate {
+            DynSource::new(UniformSourceIterator::new(
+                base,
+                channels,
+                std::num::NonZeroU32::new(target_rate).unwrap_or(std::num::NonZeroU32::MIN),
+            ))
         } else {
-            if target_rate > 0 && sample_rate.get() != target_rate {
-                DynSource::new(UniformSourceIterator::new(
-                    base,
-                    channels,
-                    std::num::NonZeroU32::new(target_rate).unwrap_or(std::num::NonZeroU32::MIN),
-                ))
-            } else {
-                DynSource::new(base)
-            }
+            DynSource::new(base)
         }
     } else {
         let converted = decoder;
@@ -639,6 +636,7 @@ pub(crate) fn build_source(
 /// Streaming variant of `build_source`: uses a live `SizedDecoder` source
 /// (non-seekable) and skips iTunSMPB parsing, but preserves the same EQ/fade/
 /// counting wrappers and output metadata.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_streaming_source(
     decoder: SizedDecoder,
     duration_hint: f64,

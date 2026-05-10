@@ -9,6 +9,7 @@
 //! N = 0 → no metadata this block.  Metadata bytes are stripped so only
 //! pure audio reaches the ring buffer and Symphonia never sees text bytes.
 
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum IcyState {
     /// Forwarding audio bytes; `remaining` counts down to the next boundary.
     ReadingAudio { remaining: usize },

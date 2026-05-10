@@ -185,8 +185,8 @@ pub async fn calculate_sync_payload(
                 if let Ok(re) = cli.get(&url).query(&query).send().await {
                    if let Ok(js) = re.json::<serde_json::Value>().await {
                        if let Some(root) = js.get("subsonic-response").and_then(|r| r.get("artist")).and_then(|a| a.get("album")) {
-                          let arr = root.as_array().map(|a| a.clone()).unwrap_or_else(|| {
-                              root.as_object().map(|o| vec![serde_json::Value::Object(o.clone())]).unwrap_or_else(|| vec![])
+                          let arr = root.as_array().cloned().unwrap_or_else(|| {
+                              root.as_object().map(|o| vec![serde_json::Value::Object(o.clone())]).unwrap_or_default()
                           });
                           for al in arr {
                               if let Some(aid) = al.get("id").and_then(|i| i.as_str()) {
@@ -359,7 +359,7 @@ pub async fn sync_batch_to_device(
         if dest_str.starts_with(&drive.mount_point) {
             // Buffer of ~10 MB padding boundary natively mapped
             if expected_bytes > drive.available_space.saturating_sub(10_000_000) {
-                return Err(format!("NOT_ENOUGH_SPACE"));
+                return Err("NOT_ENOUGH_SPACE".to_string());
             }
             break;
         }
@@ -521,11 +521,9 @@ pub async fn delete_device_files(paths: Vec<String>) -> Result<u32, String> {
     let mut deleted: u32 = 0;
     for path in &paths {
         let p = std::path::PathBuf::from(path);
-        if p.exists() {
-            if tokio::fs::remove_file(&p).await.is_ok() {
-                deleted += 1;
-                prune_empty_parents(&p, 2).await;
-            }
+        if p.exists() && tokio::fs::remove_file(&p).await.is_ok() {
+            deleted += 1;
+            prune_empty_parents(&p, 2).await;
         }
     }
     Ok(deleted)

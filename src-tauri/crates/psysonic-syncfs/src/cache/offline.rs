@@ -99,7 +99,7 @@ pub async fn get_offline_cache_size(custom_dir: Option<String>, app: tauri::AppH
 
     if let Some(cd) = custom_dir {
         let custom = std::path::PathBuf::from(cd);
-        if custom != std::path::PathBuf::from("") {
+        if custom != std::path::Path::new("") {
             total += super::fs_utils::dir_size_recursive(&custom);
         }
     }

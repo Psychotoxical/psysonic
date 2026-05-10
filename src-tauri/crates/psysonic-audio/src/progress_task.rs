@@ -27,6 +27,7 @@ use super::state::ChainedInfo;
 ///   • Position from atomic sample counter (no wall-clock drift)
 ///   • Immediate `audio:track_switched` event at decoder boundary
 ///   • `audio:ended` only fires when no chained successor exists
+#[allow(clippy::too_many_arguments)]
 pub(super) fn spawn_progress_task(
     gen: u64,
     gen_counter: Arc<AtomicU64>,
@@ -172,13 +173,9 @@ pub(super) fn spawn_progress_task(
             let pos = (pos_raw - progress_latency).max(0.0);
 
             let now = Instant::now();
-            let should_emit_progress = if is_paused != last_progress_emit_paused {
-                true
-            } else if now.duration_since(last_progress_emit_at) >= Duration::from_millis(PROGRESS_EMIT_MIN_MS) {
-                true
-            } else {
-                (pos - last_progress_emit_pos).abs() >= PROGRESS_EMIT_MIN_DELTA_SECS
-            };
+            let should_emit_progress = is_paused != last_progress_emit_paused
+                || now.duration_since(last_progress_emit_at) >= Duration::from_millis(PROGRESS_EMIT_MIN_MS)
+                || (pos - last_progress_emit_pos).abs() >= PROGRESS_EMIT_MIN_DELTA_SECS;
             if should_emit_progress {
                 app.emit("audio:progress", ProgressPayload { current_time: pos, duration: dur }).ok();
                 last_progress_emit_at = now;

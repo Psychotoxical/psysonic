@@ -81,6 +81,7 @@ pub async fn nd_create_user(
 
 /// PUT `/api/user/{id}` — update a user. Pass an empty `password` to leave it unchanged.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn nd_update_user(
     server_url: String,
     token: String,

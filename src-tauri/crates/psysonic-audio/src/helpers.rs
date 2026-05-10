@@ -43,7 +43,7 @@ pub(crate) fn emit_partial_loudness_from_bytes(
     };
     let gain_db = (-(mb * 0.7)).max(floor_db).min(0.0);
     let track_key = playback_identity(url).unwrap_or_else(|| url.to_string());
-    if !partial_loudness_should_emit(&track_key, gain_db as f32) {
+    if !partial_loudness_should_emit(&track_key, gain_db) {
         crate::app_deprintln!(
             "[normalization] partial-loudness skip reason=delta-below-threshold gain_db={:.2} threshold_db={:.2} track_id={:?}",
             gain_db,
@@ -63,7 +63,7 @@ pub(crate) fn emit_partial_loudness_from_bytes(
         "analysis:loudness-partial",
         PartialLoudnessPayload {
             track_id: playback_identity(url),
-            gain_db: gain_db as f32,
+            gain_db,
             target_lufs,
             is_partial: true,
         },
@@ -551,7 +551,7 @@ pub(crate) async fn fetch_data(
         return Ok(Some(data));
     }
 
-    let response = crate::engine::audio_http_client(&state).get(url).send().await.map_err(|e| e.to_string())?;
+    let response = crate::engine::audio_http_client(state).get(url).send().await.map_err(|e| e.to_string())?;
     let status = response.status();
     let ct = response.headers()
         .get(reqwest::header::CONTENT_TYPE)

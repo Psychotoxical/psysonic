@@ -7,7 +7,7 @@
 //! - Timeout:       after `RADIO_READ_TIMEOUT_SECS` with no data → `TimedOut`.
 //! - Generation:    if `gen_arc` != `self.gen` → `Ok(0)` (EOF; new track started).
 //! - Reconnect:     `audio_resume` sends a fresh `HeapCons` via `new_cons_rx`.
-//!                  On the next read() we drain the channel (keep latest) and swap.
+//!   On the next read() we drain the channel (keep latest) and swap.
 
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

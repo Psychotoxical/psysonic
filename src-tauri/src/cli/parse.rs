@@ -75,8 +75,7 @@ fn parse_registry_action_id(line: &str) -> Option<String> {
     if !trimmed.ends_with('{') {
         return None;
     }
-    if trimmed.starts_with('\'') {
-        let rest = &trimmed[1..];
+    if let Some(rest) = trimmed.strip_prefix('\'') {
         let end = rest.find('\'')?;
         let id = &rest[..end];
         let tail = rest[end + 1..].trim_start();

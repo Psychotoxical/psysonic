@@ -233,19 +233,21 @@ pub enum AnalysisCpuSeedEnqueueKind {
     MergedQueued,
 }
 
+type SeedDoneSender =
+    tokio::sync::oneshot::Sender<Result<analysis_cache::SeedFromBytesOutcome, String>>;
+type RunningSeedJob = (String, Arc<Mutex<Vec<SeedDoneSender>>>);
+
 struct AnalysisCpuSeedJob {
     track_id: String,
     bytes: Vec<u8>,
-    waiters: Vec<tokio::sync::oneshot::Sender<Result<analysis_cache::SeedFromBytesOutcome, String>>>,
+    waiters: Vec<SeedDoneSender>,
 }
 
+#[derive(Default)]
 struct AnalysisCpuSeedQueueState {
     deque: VecDeque<AnalysisCpuSeedJob>,
     /// Decode in progress — same-id callers wait here for the same outcome.
-    running: Option<(
-        String,
-        Arc<Mutex<Vec<tokio::sync::oneshot::Sender<Result<analysis_cache::SeedFromBytesOutcome, String>>>>>,
-    )>,
+    running: Option<RunningSeedJob>,
 }
 
 impl AnalysisCpuSeedQueueState {
@@ -325,15 +327,6 @@ impl AnalysisCpuSeedQueueState {
 struct AnalysisCpuSeedShared {
     state: Mutex<AnalysisCpuSeedQueueState>,
     wake_tx: tokio::sync::mpsc::UnboundedSender<()>,
-}
-
-impl Default for AnalysisCpuSeedQueueState {
-    fn default() -> Self {
-        Self {
-            deque: VecDeque::new(),
-            running: None,
-        }
-    }
 }
 
 impl AnalysisCpuSeedShared {

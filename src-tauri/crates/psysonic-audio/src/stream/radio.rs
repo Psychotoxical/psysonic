@@ -43,6 +43,7 @@ impl Drop for RadioLiveState {
     fn drop(&mut self) { self.task.abort(); }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn radio_download_task(
     gen: u64,
     gen_arc: Arc<AtomicU64>,

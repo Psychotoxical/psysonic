@@ -10,6 +10,11 @@ use tauri::{AppHandle, Manager};
 
 use super::state::{ChainedInfo, PreloadedTrack};
 
+/// Reply channel handed back to the audio-stream thread once a re-open finishes.
+pub type StreamReopenReply = std::sync::mpsc::SyncSender<Arc<rodio::MixerDeviceSink>>;
+/// Stream-thread re-open request: `(desired_rate, is_hi_res, device_name, reply_tx)`.
+pub type StreamReopenRequest = (u32, bool, Option<String>, StreamReopenReply);
+
 pub struct AudioEngine {
     pub stream_handle: Arc<std::sync::Mutex<Arc<rodio::MixerDeviceSink>>>,
     /// Sample rate the output stream was last opened at (updated on every re-open).
@@ -19,7 +24,7 @@ pub struct AudioEngine {
     pub device_default_rate: u32,
     /// Sends `(desired_rate, is_hi_res, device_name, reply_tx)` to the audio-stream
     /// thread to re-open the output device. `device_name = None` → system default.
-    pub stream_reopen_tx: std::sync::mpsc::SyncSender<(u32, bool, Option<String>, std::sync::mpsc::SyncSender<Arc<rodio::MixerDeviceSink>>)>,
+    pub stream_reopen_tx: std::sync::mpsc::SyncSender<StreamReopenRequest>,
     /// User-selected output device name (None = follow system default).
     pub selected_device: Arc<Mutex<Option<String>>>,
     pub current: Arc<Mutex<AudioCurrent>>,
