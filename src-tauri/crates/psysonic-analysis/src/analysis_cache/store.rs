@@ -90,6 +90,17 @@ impl AnalysisCache {
         Ok(Self { conn: Mutex::new(conn) })
     }
 
+    /// Test-only constructor that opens an in-memory SQLite database with the
+    /// production schema applied. WAL pragma is skipped — `:memory:` databases
+    /// don't support journal-mode changes.
+    #[cfg(test)]
+    pub(crate) fn open_in_memory() -> Self {
+        let conn = Connection::open_in_memory().expect("in-memory connection");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("pragma foreign_keys");
+        migrate_schema(&conn).expect("schema migration");
+        Self { conn: Mutex::new(conn) }
+    }
+
     /// Remove all `loudness_cache` rows for this logical track (bare id and `stream:` variant).
     pub fn delete_loudness_for_track_id(&self, track_id: &str) -> Result<u64, String> {
         if track_id.trim().is_empty() {
@@ -424,4 +435,312 @@ fn migrate_schema(conn: &Connection) -> rusqlite::Result<()> {
         "#,
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(track_id: &str) -> TrackKey {
+        TrackKey {
+            track_id: track_id.to_string(),
+            md5_16kb: "deadbeef".to_string(),
+        }
+    }
+
+    fn waveform(bin_count: i64, is_partial: bool) -> WaveformEntry {
+        WaveformEntry {
+            bins: vec![0u8; (bin_count as usize) * 2],
+            bin_count,
+            is_partial,
+            known_until_sec: 12.5,
+            duration_sec: 60.0,
+            updated_at: 1_700_000_000,
+        }
+    }
+
+    fn loudness(target_lufs: f64) -> LoudnessEntry {
+        LoudnessEntry {
+            integrated_lufs: -14.2,
+            true_peak: -1.0,
+            recommended_gain_db: -0.8,
+            target_lufs,
+            updated_at: 1_700_000_000,
+        }
+    }
+
+    // ── track_id_cache_variants (private helper) ──────────────────────────────
+
+    #[test]
+    fn variants_for_bare_id_includes_stream_prefix() {
+        let v = track_id_cache_variants("abc");
+        assert_eq!(v, vec!["abc".to_string(), "stream:abc".to_string()]);
+    }
+
+    #[test]
+    fn variants_for_stream_prefixed_id_includes_bare() {
+        let v = track_id_cache_variants("stream:abc");
+        assert_eq!(v, vec!["stream:abc".to_string(), "abc".to_string()]);
+    }
+
+    #[test]
+    fn variants_for_empty_bare_after_stream_drops_extra_entry() {
+        let v = track_id_cache_variants("stream:");
+        assert_eq!(v, vec!["stream:".to_string()]);
+    }
+
+    // ── waveform_cache_blob_len_ok (private helper) ───────────────────────────
+
+    #[test]
+    fn blob_len_ok_rejects_non_positive_bin_count() {
+        assert!(!waveform_cache_blob_len_ok(&[], 0));
+        assert!(!waveform_cache_blob_len_ok(&[], -1));
+    }
+
+    #[test]
+    fn blob_len_ok_requires_exactly_two_bytes_per_bin() {
+        assert!(waveform_cache_blob_len_ok(&[0u8; 8], 4));
+        assert!(!waveform_cache_blob_len_ok(&[0u8; 7], 4));
+        assert!(!waveform_cache_blob_len_ok(&[0u8; 9], 4));
+    }
+
+    // ── schema initialisation ─────────────────────────────────────────────────
+
+    #[test]
+    fn open_in_memory_creates_all_tables() {
+        let cache = AnalysisCache::open_in_memory();
+        let conn = cache.conn.lock().unwrap();
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap()
+            .query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(tables, vec!["analysis_track", "loudness_cache", "waveform_cache"]);
+    }
+
+    // ── waveform roundtrip ────────────────────────────────────────────────────
+
+    #[test]
+    fn get_waveform_returns_none_without_analysis_track_row() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+        // The JOIN against `analysis_track` requires a matching row; without
+        // `touch_track_status` first, the lookup must miss.
+        assert!(cache.get_waveform(&k).unwrap().is_none());
+    }
+
+    #[test]
+    fn waveform_roundtrip_preserves_all_fields() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+        let entry = WaveformEntry {
+            bins: (0u8..16).collect(),
+            bin_count: 8,
+            is_partial: true,
+            known_until_sec: 4.5,
+            duration_sec: 33.0,
+            updated_at: 1_700_000_001,
+        };
+        cache.upsert_waveform(&k, &entry).unwrap();
+        let got = cache.get_waveform(&k).unwrap().expect("waveform present");
+        assert_eq!(got.bins, entry.bins);
+        assert_eq!(got.bin_count, 8);
+        assert!(got.is_partial);
+        assert_eq!(got.known_until_sec, 4.5);
+        assert_eq!(got.duration_sec, 33.0);
+        assert_eq!(got.updated_at, 1_700_000_001);
+    }
+
+    #[test]
+    fn waveform_upsert_overwrites_existing_row() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+        cache.upsert_waveform(&k, &waveform(4, true)).unwrap();
+        let updated = WaveformEntry {
+            bins: vec![0xAAu8; 8],
+            bin_count: 4,
+            is_partial: false,
+            known_until_sec: 60.0,
+            duration_sec: 60.0,
+            updated_at: 1_700_000_999,
+        };
+        cache.upsert_waveform(&k, &updated).unwrap();
+        let got = cache.get_waveform(&k).unwrap().expect("waveform present");
+        assert!(!got.is_partial, "second upsert should overwrite is_partial");
+        assert_eq!(got.bins, vec![0xAAu8; 8]);
+        assert_eq!(got.updated_at, 1_700_000_999);
+    }
+
+    #[test]
+    fn waveform_with_inconsistent_blob_length_is_filtered_out() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+        // Manually upsert an entry where bins.len() doesn't match 2 * bin_count.
+        let bad = WaveformEntry {
+            bins: vec![0u8; 5], // expected 2*4 = 8
+            bin_count: 4,
+            is_partial: false,
+            known_until_sec: 0.0,
+            duration_sec: 0.0,
+            updated_at: 1_700_000_000,
+        };
+        cache.upsert_waveform(&k, &bad).unwrap();
+        // Direct JOIN finds the row, but get_waveform filters by length.
+        assert!(cache.get_waveform(&k).unwrap().is_none());
+    }
+
+    // ── loudness roundtrip ────────────────────────────────────────────────────
+
+    #[test]
+    fn loudness_roundtrip_records_existence() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+        assert!(!cache.loudness_row_exists_for_key(&k).unwrap());
+        cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
+        assert!(cache.loudness_row_exists_for_key(&k).unwrap());
+    }
+
+    #[test]
+    fn loudness_primary_key_includes_target_lufs() {
+        // Two rows with same (track_id, md5_16kb) but different target_lufs must coexist.
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+        cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
+        cache.upsert_loudness(&k, &loudness(-10.0)).unwrap();
+        let conn = cache.conn.lock().unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM loudness_cache WHERE track_id = ?1",
+                params!["abc"],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    // ── id-variant lookups ────────────────────────────────────────────────────
+
+    #[test]
+    fn get_latest_waveform_finds_row_under_other_variant() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("stream:abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+        cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+        // Insert under stream:abc, look up with bare abc.
+        let got = cache.get_latest_waveform_for_track("abc").unwrap();
+        assert!(got.is_some(), "bare-id lookup must find stream-prefixed row");
+    }
+
+    #[test]
+    fn get_latest_loudness_finds_row_under_other_variant() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+        cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
+        let got = cache.get_latest_loudness_for_track("stream:abc").unwrap();
+        assert!(got.is_some(), "stream-prefixed lookup must find bare row");
+    }
+
+    // ── cpu_seed_redundant_for_track ──────────────────────────────────────────
+
+    #[test]
+    fn cpu_seed_redundant_requires_both_waveform_and_loudness() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "ok").unwrap();
+
+        assert!(!cache.cpu_seed_redundant_for_track("abc").unwrap());
+
+        cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+        assert!(
+            !cache.cpu_seed_redundant_for_track("abc").unwrap(),
+            "waveform alone is not enough"
+        );
+
+        cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
+        assert!(cache.cpu_seed_redundant_for_track("abc").unwrap());
+    }
+
+    // ── deletes ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn delete_loudness_clears_both_id_variants() {
+        let cache = AnalysisCache::open_in_memory();
+        let bare = key("abc");
+        let prefixed = key("stream:abc");
+        cache.touch_track_status(&bare, "ok").unwrap();
+        cache.touch_track_status(&prefixed, "ok").unwrap();
+        cache.upsert_loudness(&bare, &loudness(-14.0)).unwrap();
+        cache.upsert_loudness(&prefixed, &loudness(-14.0)).unwrap();
+
+        let deleted = cache.delete_loudness_for_track_id("abc").unwrap();
+        assert_eq!(deleted, 2, "delete must remove both bare and stream:abc rows");
+        assert!(!cache.loudness_row_exists_for_key(&bare).unwrap());
+        assert!(!cache.loudness_row_exists_for_key(&prefixed).unwrap());
+    }
+
+    #[test]
+    fn delete_waveform_clears_both_id_variants() {
+        let cache = AnalysisCache::open_in_memory();
+        let bare = key("abc");
+        let prefixed = key("stream:abc");
+        cache.touch_track_status(&bare, "ok").unwrap();
+        cache.touch_track_status(&prefixed, "ok").unwrap();
+        cache.upsert_waveform(&bare, &waveform(4, false)).unwrap();
+        cache.upsert_waveform(&prefixed, &waveform(4, false)).unwrap();
+
+        let deleted = cache.delete_waveform_for_track_id("abc").unwrap();
+        assert_eq!(deleted, 2);
+        assert!(cache.get_waveform(&bare).unwrap().is_none());
+        assert!(cache.get_waveform(&prefixed).unwrap().is_none());
+    }
+
+    #[test]
+    fn delete_with_empty_or_whitespace_track_id_is_noop() {
+        let cache = AnalysisCache::open_in_memory();
+        assert_eq!(cache.delete_waveform_for_track_id("").unwrap(), 0);
+        assert_eq!(cache.delete_waveform_for_track_id("   ").unwrap(), 0);
+        assert_eq!(cache.delete_loudness_for_track_id("").unwrap(), 0);
+        assert_eq!(cache.delete_loudness_for_track_id("   ").unwrap(), 0);
+    }
+
+    #[test]
+    fn delete_all_waveforms_removes_every_row() {
+        let cache = AnalysisCache::open_in_memory();
+        for tid in ["a", "b", "c"] {
+            let k = key(tid);
+            cache.touch_track_status(&k, "ok").unwrap();
+            cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+        }
+        let deleted = cache.delete_all_waveforms().unwrap();
+        assert_eq!(deleted, 3);
+        for tid in ["a", "b", "c"] {
+            assert!(cache.get_waveform(&key(tid)).unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn touch_track_status_upserts_status_field() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "queued").unwrap();
+        cache.touch_track_status(&k, "done").unwrap();
+        let conn = cache.conn.lock().unwrap();
+        let status: String = conn
+            .query_row(
+                "SELECT status FROM analysis_track WHERE track_id = ?1 AND md5_16kb = ?2",
+                params!["abc", "deadbeef"],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "done");
+    }
 }
