@@ -525,3 +525,197 @@ pub async fn submit_analysis_cpu_seed(
     }
     Ok(outcome)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── AnalysisBackfillQueueState ────────────────────────────────────────────
+
+    #[test]
+    fn backfill_default_state_has_empty_deque_and_no_in_progress() {
+        let s = AnalysisBackfillQueueState::default();
+        assert!(s.deque.is_empty());
+        assert!(s.in_progress.is_none());
+    }
+
+    #[test]
+    fn backfill_is_reserved_checks_both_deque_and_in_progress() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.deque.push_back(("queued".into(), "u".into()));
+        s.in_progress = Some("active".into());
+        assert!(s.is_reserved("queued"));
+        assert!(s.is_reserved("active"));
+        assert!(!s.is_reserved("other"));
+    }
+
+    #[test]
+    fn backfill_try_pop_next_promotes_head_to_in_progress() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.deque.push_back(("a".into(), "ua".into()));
+        s.deque.push_back(("b".into(), "ub".into()));
+        let popped = s.try_pop_next().unwrap();
+        assert_eq!(popped.0, "a");
+        assert_eq!(s.in_progress.as_deref(), Some("a"));
+        assert_eq!(s.deque.len(), 1);
+    }
+
+    #[test]
+    fn backfill_try_pop_next_returns_none_for_empty_deque() {
+        let mut s = AnalysisBackfillQueueState::default();
+        assert!(s.try_pop_next().is_none());
+        assert!(s.in_progress.is_none());
+    }
+
+    #[test]
+    fn backfill_finish_job_only_clears_when_id_matches() {
+        let mut s = AnalysisBackfillQueueState {
+            in_progress: Some("active".into()),
+            ..Default::default()
+        };
+        s.finish_job("other");
+        assert_eq!(s.in_progress.as_deref(), Some("active"));
+        s.finish_job("active");
+        assert!(s.in_progress.is_none());
+    }
+
+    #[test]
+    fn backfill_enqueue_low_priority_appends_to_back() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.deque.push_back(("first".into(), "u".into()));
+        let kind = s.enqueue("second".into(), "u2".into(), false);
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewBack);
+        assert_eq!(s.deque.back().unwrap().0, "second");
+    }
+
+    #[test]
+    fn backfill_enqueue_high_priority_pushes_to_front() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.deque.push_back(("old".into(), "u".into()));
+        let kind = s.enqueue("hot".into(), "u2".into(), true);
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewFront);
+        assert_eq!(s.deque.front().unwrap().0, "hot");
+    }
+
+    #[test]
+    fn backfill_enqueue_returns_duplicate_skipped_for_low_prio_dup() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.deque.push_back(("dup".into(), "u".into()));
+        let kind = s.enqueue("dup".into(), "u2".into(), false);
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::DuplicateSkipped);
+        assert_eq!(s.deque.len(), 1);
+    }
+
+    #[test]
+    fn backfill_enqueue_returns_running_skipped_for_high_prio_active_track() {
+        let mut s = AnalysisBackfillQueueState {
+            in_progress: Some("active".into()),
+            ..Default::default()
+        };
+        let kind = s.enqueue("active".into(), "u".into(), true);
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::RunningSkipped);
+    }
+
+    #[test]
+    fn backfill_enqueue_high_prio_dup_in_deque_reorders_to_front_with_new_url() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.deque.push_back(("a".into(), "u_a".into()));
+        s.deque.push_back(("dup".into(), "old_url".into()));
+        s.deque.push_back(("c".into(), "u_c".into()));
+        let kind = s.enqueue("dup".into(), "fresh_url".into(), true);
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::ReorderedFront);
+        assert_eq!(s.deque.front().unwrap(), &("dup".to_string(), "fresh_url".to_string()));
+        assert_eq!(s.deque.iter().filter(|(t, _)| t == "dup").count(), 1, "no duplicate left behind");
+    }
+
+    #[test]
+    fn backfill_prune_queued_not_in_drops_unkept_entries() {
+        let mut s = AnalysisBackfillQueueState::default();
+        for tid in ["a", "b", "c", "d"] {
+            s.deque.push_back((tid.into(), "u".into()));
+        }
+        let keep: HashSet<&str> = ["a", "c"].iter().copied().collect();
+        let removed = s.prune_queued_not_in(&keep);
+        assert_eq!(removed, 2);
+        let remaining: Vec<&str> = s.deque.iter().map(|(t, _)| t.as_str()).collect();
+        assert_eq!(remaining, vec!["a", "c"]);
+    }
+
+    // ── AnalysisCpuSeedQueueState ─────────────────────────────────────────────
+
+    #[test]
+    fn cpu_seed_enqueue_low_prio_appends_to_back() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (kind, _rx) = s.enqueue("a".into(), vec![], false);
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewBack);
+        assert_eq!(s.deque.len(), 1);
+    }
+
+    #[test]
+    fn cpu_seed_enqueue_high_prio_pushes_to_front() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (_, _r1) = s.enqueue("first".into(), vec![], false);
+        let (kind, _r2) = s.enqueue("hot".into(), vec![], true);
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewFront);
+        assert_eq!(s.deque.front().unwrap().track_id, "hot");
+    }
+
+    #[test]
+    fn cpu_seed_enqueue_existing_low_prio_merges_at_back() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (_, _r1) = s.enqueue("dup".into(), vec![1, 2, 3], false);
+        let (kind, _r2) = s.enqueue("dup".into(), vec![4, 5, 6], false);
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::MergedQueued);
+        assert_eq!(s.deque.len(), 1);
+        assert_eq!(s.deque[0].bytes, vec![4, 5, 6], "fresh bytes overwrite");
+        assert_eq!(s.deque[0].waiters.len(), 2, "both waiters attached");
+    }
+
+    #[test]
+    fn cpu_seed_enqueue_existing_high_prio_reorders_to_front() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (_, _r1) = s.enqueue("first".into(), vec![], false);
+        let (_, _r2) = s.enqueue("dup".into(), vec![], false);
+        let (kind, _r3) = s.enqueue("dup".into(), vec![], true);
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::ReorderedFront);
+        assert_eq!(s.deque.front().unwrap().track_id, "dup");
+    }
+
+    #[test]
+    fn cpu_seed_enqueue_running_id_attaches_as_follower() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let followers = Arc::new(Mutex::new(Vec::new()));
+        s.running = Some(("active".into(), followers.clone()));
+        let (kind, _rx) = s.enqueue("active".into(), vec![], false);
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::RunningFollower);
+        assert_eq!(followers.lock().unwrap().len(), 1, "follower channel attached");
+        assert_eq!(s.deque.len(), 0, "follower does not occupy a queue slot");
+    }
+
+    #[test]
+    fn cpu_seed_prune_returns_removed_jobs_and_waiter_count() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (_, _r1) = s.enqueue("a".into(), vec![], false);
+        let (_, _r2) = s.enqueue("b".into(), vec![], false);
+        let (_, _r3) = s.enqueue("a".into(), vec![], false); // merged: 2 waiters on a
+        let (_, _r4) = s.enqueue("c".into(), vec![], false);
+
+        let keep: HashSet<&str> = ["a"].iter().copied().collect();
+        let (removed_jobs, removed_waiters) = s.prune_queued_not_in(&keep);
+        assert_eq!(removed_jobs, 2, "b and c removed");
+        assert_eq!(removed_waiters, 2, "one waiter on b + one on c");
+        let remaining: Vec<&str> = s.deque.iter().map(|j| j.track_id.as_str()).collect();
+        assert_eq!(remaining, vec!["a"]);
+    }
+
+    #[test]
+    fn cpu_seed_prune_sends_err_to_dropped_waiters() {
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (_, rx) = s.enqueue("doomed".into(), vec![], false);
+        let keep: HashSet<&str> = HashSet::new();
+        let _ = s.prune_queued_not_in(&keep);
+        // After pruning, the waiter receives the cancellation Err.
+        let result = rx.blocking_recv().expect("sender side should have closed cleanly");
+        assert!(result.is_err(), "pruned job must yield Err, got {result:?}");
+    }
+}

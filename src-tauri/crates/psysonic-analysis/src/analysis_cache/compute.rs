@@ -490,3 +490,127 @@ fn decode_scan_pcm(
 
     Some(PcmScanResult { bins, loudness })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn approx_f64(a: f64, b: f64, eps: f64) {
+        assert!((a - b).abs() < eps, "expected {b}, got {a}");
+    }
+
+    // ── recommended_gain_for_target ───────────────────────────────────────────
+
+    #[test]
+    fn recommended_gain_is_target_minus_integrated_when_no_peak() {
+        approx_f64(recommended_gain_for_target(-14.0, 0.0, -10.0), 4.0, 1e-9);
+        approx_f64(recommended_gain_for_target(-23.0, 0.0, -14.0), 9.0, 1e-9);
+    }
+
+    #[test]
+    fn recommended_gain_caps_to_avoid_clipping_when_true_peak_is_high() {
+        // true_peak = 1.0 (0 dBTP) → max_gain_db = -1.0 - 0 = -1.0
+        // target - integrated = -10 - (-14) = 4.0, but capped to -1.0.
+        let g = recommended_gain_for_target(-14.0, 1.0, -10.0);
+        approx_f64(g, -1.0, 1e-6);
+    }
+
+    #[test]
+    fn recommended_gain_clamps_to_plus_minus_24() {
+        let huge_up = recommended_gain_for_target(-100.0, 0.0, 100.0);
+        let huge_down = recommended_gain_for_target(100.0, 0.0, -100.0);
+        assert_eq!(huge_up, 24.0);
+        assert_eq!(huge_down, -24.0);
+    }
+
+    // ── md5_first_16kb ────────────────────────────────────────────────────────
+
+    #[test]
+    fn md5_of_empty_bytes_matches_md5_empty() {
+        // md5 of "" = d41d8cd98f00b204e9800998ecf8427e
+        assert_eq!(md5_first_16kb(&[]), "d41d8cd98f00b204e9800998ecf8427e");
+    }
+
+    #[test]
+    fn md5_uses_full_data_when_under_16kb() {
+        let data = b"hello world";
+        let direct = format!("{:x}", md5::compute(data));
+        assert_eq!(md5_first_16kb(data), direct);
+    }
+
+    #[test]
+    fn md5_truncates_to_first_16kb() {
+        let mut data = vec![0xAAu8; 16 * 1024];
+        let prefix_only = format!("{:x}", md5::compute(&data));
+        // Append distinguishing bytes past 16 KB; the digest must not change.
+        data.extend_from_slice(b"---should be ignored by md5_first_16kb---");
+        assert_eq!(md5_first_16kb(&data), prefix_only);
+    }
+
+    // ── derive_waveform_bins ──────────────────────────────────────────────────
+
+    #[test]
+    fn derive_waveform_returns_empty_for_zero_bin_count() {
+        assert_eq!(derive_waveform_bins(&[1u8, 2, 3, 4], 0), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn derive_waveform_returns_empty_for_empty_bytes() {
+        assert_eq!(derive_waveform_bins(&[], 4), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn derive_waveform_silence_at_midpoint_yields_zero_bins() {
+        // 128 is the unsigned-PCM midpoint: abs_diff(128) == 0 for every sample.
+        let silence = vec![128u8; 64];
+        let out = derive_waveform_bins(&silence, 8);
+        assert!(out.iter().all(|&b| b == 0), "silence must produce all-zero bins, got {out:?}");
+    }
+
+    #[test]
+    fn derive_waveform_doubles_the_bin_buffer() {
+        // The function returns peak_half twice (peak followed by mean-abs placeholder).
+        let bytes = vec![0u8; 32];
+        let out = derive_waveform_bins(&bytes, 4);
+        assert_eq!(out.len(), 8, "output must be 2 * bin_count");
+        assert_eq!(&out[..4], &out[4..]);
+    }
+
+    #[test]
+    fn derive_waveform_reaches_max_for_extreme_amplitude() {
+        // Extreme deviation from 128 → centered = 127 (when input is 0 or 255).
+        // (127/127)^0.5 = 1.0 → 255 in u8.
+        let bytes = vec![0u8; 16];
+        let out = derive_waveform_bins(&bytes, 4);
+        assert!(out.iter().all(|&b| b == 255), "max amplitude must yield 255 bins");
+    }
+
+    // ── normalize_peak_bins ───────────────────────────────────────────────────
+
+    #[test]
+    fn normalize_peak_returns_empty_for_empty_input() {
+        assert_eq!(normalize_peak_bins(&[]), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn normalize_peak_uniform_input_collapses_to_base_offset() {
+        // p5 == p99 → range collapses to 1e-8 floor; t = (x - p5)/range = 0 for all.
+        // shaped = 0; out = 8 (base offset).
+        let bins = vec![0.5f32; 16];
+        let out = normalize_peak_bins(&bins);
+        assert_eq!(out.len(), 16);
+        assert!(out.iter().all(|&b| b == 8), "got {out:?}");
+    }
+
+    #[test]
+    fn normalize_peak_monotonic_input_yields_increasing_output() {
+        // Strictly increasing input must produce non-decreasing output.
+        let bins: Vec<f32> = (0..100).map(|i| i as f32 / 100.0).collect();
+        let out = normalize_peak_bins(&bins);
+        for win in out.windows(2) {
+            assert!(win[0] <= win[1], "non-monotonic output around {:?}", win);
+        }
+        // Output range ⊆ [8, 255].
+        assert!(out.iter().all(|&b| (8..=255).contains(&b)));
+    }
+}

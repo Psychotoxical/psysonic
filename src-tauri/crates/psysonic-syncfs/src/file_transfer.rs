@@ -55,3 +55,26 @@ pub async fn finalize_streamed_download(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subsonic_http_client_builds_with_short_timeout() {
+        assert!(subsonic_http_client(Duration::from_secs(1)).is_ok());
+    }
+
+    #[test]
+    fn subsonic_http_client_builds_with_long_timeout() {
+        // The 5-minute timeout used by sync_track_to_device must construct successfully.
+        assert!(subsonic_http_client(Duration::from_secs(300)).is_ok());
+    }
+
+    #[test]
+    fn subsonic_http_client_builds_with_zero_timeout() {
+        // zero is a valid Duration — reqwest treats it as "no timeout effectively".
+        // The constructor must not reject it.
+        assert!(subsonic_http_client(Duration::from_secs(0)).is_ok());
+    }
+}
