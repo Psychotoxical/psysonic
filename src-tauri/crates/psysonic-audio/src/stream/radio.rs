@@ -43,6 +43,29 @@ impl Drop for RadioLiveState {
     fn drop(&mut self) { self.task.abort(); }
 }
 
+/// Pure: extract the `icy-metaint` header value from a HeaderMap. Returns
+/// `None` when the header is absent, non-ASCII, or doesn't parse as `usize`.
+pub(crate) fn parse_icy_metaint_from_headers(
+    headers: &reqwest::header::HeaderMap,
+) -> Option<usize> {
+    headers
+        .get("icy-metaint")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse().ok())
+}
+
+/// Pure: should the radio download task disconnect because the consumer has
+/// been stuck on a full ring buffer for too long while paused?
+pub(crate) fn should_hard_pause(
+    is_paused: bool,
+    stall_since: Option<std::time::Instant>,
+    now: std::time::Instant,
+    threshold: Duration,
+) -> bool {
+    is_paused
+        && stall_since.is_some_and(|since| now.duration_since(since) >= threshold)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn radio_download_task(
     gen: u64,
@@ -97,11 +120,7 @@ pub(crate) async fn radio_download_task(
         };
 
         // Parse ICY metaint from each response (consistent across reconnects).
-        let metaint: Option<usize> = response
-            .headers()
-            .get("icy-metaint")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok());
+        let metaint = parse_icy_metaint_from_headers(response.headers());
         let mut icy = metaint.map(IcyInterceptor::new);
 
         let mut byte_stream = response.bytes_stream();
@@ -113,21 +132,28 @@ pub(crate) async fn radio_download_task(
 
             // ── Back-pressure + hard-pause detection ──────────────────────────
             if prod.is_full() {
-                if flags.is_paused.load(Ordering::Relaxed) {
-                    let since = stall_since.get_or_insert(std::time::Instant::now());
-                    if since.elapsed() >= Duration::from_secs(RADIO_HARD_PAUSE_SECS) {
-                        let fill_pct = ((1.0
-                            - prod.vacant_len() as f32 / RADIO_BUF_CAPACITY as f32)
-                            * 100.0) as u32;
-                        crate::app_eprintln!(
-                            "[radio] hard pause: {fill_pct}% full, \
-                             paused >{RADIO_HARD_PAUSE_SECS}s → disconnecting"
-                        );
-                        flags.is_hard_paused.store(true, Ordering::Release);
-                        return; // Drop HeapProd → TCP connection released.
-                    }
+                let now = std::time::Instant::now();
+                let is_paused = flags.is_paused.load(Ordering::Relaxed);
+                if is_paused {
+                    stall_since.get_or_insert(now);
                 } else {
                     stall_since = None;
+                }
+                if should_hard_pause(
+                    is_paused,
+                    stall_since,
+                    now,
+                    Duration::from_secs(RADIO_HARD_PAUSE_SECS),
+                ) {
+                    let fill_pct = ((1.0
+                        - prod.vacant_len() as f32 / RADIO_BUF_CAPACITY as f32)
+                        * 100.0) as u32;
+                    crate::app_eprintln!(
+                        "[radio] hard pause: {fill_pct}% full, \
+                         paused >{RADIO_HARD_PAUSE_SECS}s → disconnecting"
+                    );
+                    flags.is_hard_paused.store(true, Ordering::Release);
+                    return; // Drop HeapProd → TCP connection released.
                 }
                 tokio::time::sleep(Duration::from_millis(50)).await;
                 continue 'inner;
@@ -185,4 +211,100 @@ pub(crate) async fn radio_download_task(
     } // 'outer
 
     crate::app_eprintln!("[radio] download task done ({bytes_total} B total)");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── parse_icy_metaint_from_headers ────────────────────────────────────────
+
+    fn make_headers(pairs: &[(&str, &str)]) -> reqwest::header::HeaderMap {
+        let mut h = reqwest::header::HeaderMap::new();
+        for (k, v) in pairs {
+            h.insert(
+                reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                reqwest::header::HeaderValue::from_str(v).unwrap(),
+            );
+        }
+        h
+    }
+
+    #[test]
+    fn icy_metaint_parses_valid_integer() {
+        let h = make_headers(&[("icy-metaint", "16384")]);
+        assert_eq!(parse_icy_metaint_from_headers(&h), Some(16384));
+    }
+
+    #[test]
+    fn icy_metaint_returns_none_when_header_absent() {
+        let h = make_headers(&[]);
+        assert!(parse_icy_metaint_from_headers(&h).is_none());
+    }
+
+    #[test]
+    fn icy_metaint_returns_none_for_non_numeric_value() {
+        let h = make_headers(&[("icy-metaint", "not-a-number")]);
+        assert!(parse_icy_metaint_from_headers(&h).is_none());
+    }
+
+    #[test]
+    fn icy_metaint_returns_none_for_empty_string() {
+        let h = make_headers(&[("icy-metaint", "")]);
+        assert!(parse_icy_metaint_from_headers(&h).is_none());
+    }
+
+    // ── should_hard_pause ─────────────────────────────────────────────────────
+
+    #[test]
+    fn hard_pause_false_when_not_paused() {
+        let now = std::time::Instant::now();
+        let stalled = now - Duration::from_secs(60);
+        // Not paused → never disconnect even after long stalls.
+        assert!(!should_hard_pause(false, Some(stalled), now, Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn hard_pause_false_when_no_stall_recorded() {
+        let now = std::time::Instant::now();
+        // No stall recorded → no disconnect even when paused.
+        assert!(!should_hard_pause(true, None, now, Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn hard_pause_false_when_stall_below_threshold() {
+        let now = std::time::Instant::now();
+        let stalled_recent = now - Duration::from_secs(2);
+        assert!(!should_hard_pause(
+            true,
+            Some(stalled_recent),
+            now,
+            Duration::from_secs(5)
+        ));
+    }
+
+    #[test]
+    fn hard_pause_true_when_paused_and_stall_at_or_past_threshold() {
+        let now = std::time::Instant::now();
+        let stalled_long = now - Duration::from_secs(10);
+        assert!(should_hard_pause(
+            true,
+            Some(stalled_long),
+            now,
+            Duration::from_secs(5)
+        ));
+    }
+
+    #[test]
+    fn hard_pause_inclusive_at_exact_threshold() {
+        let now = std::time::Instant::now();
+        let stalled_exact = now - Duration::from_secs(5);
+        // `>= threshold` — exactly at threshold counts.
+        assert!(should_hard_pause(
+            true,
+            Some(stalled_exact),
+            now,
+            Duration::from_secs(5)
+        ));
+    }
 }
