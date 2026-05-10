@@ -74,3 +74,112 @@ pub(crate) fn partial_loudness_should_emit(track_key: &str, gain_db: f32) -> boo
     guard.insert(track_key.to_string(), gain_db);
     true
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn payload(engine: &str, gain: Option<f32>, target: f32) -> NormalizationStatePayload {
+        NormalizationStatePayload {
+            engine: engine.to_string(),
+            current_gain_db: gain,
+            target_lufs: target,
+        }
+    }
+
+    // ── norm_state_changed ────────────────────────────────────────────────────
+
+    #[test]
+    fn norm_state_unchanged_for_identical_payloads() {
+        let p = payload("loudness", Some(-3.0), -14.0);
+        assert!(!norm_state_changed(&p, &p.clone()));
+    }
+
+    #[test]
+    fn norm_state_changes_when_engine_differs() {
+        let a = payload("off", Some(0.0), -14.0);
+        let b = payload("loudness", Some(0.0), -14.0);
+        assert!(norm_state_changed(&a, &b));
+    }
+
+    #[test]
+    fn norm_state_ignores_micro_target_lufs_drift_below_two_centibels() {
+        let a = payload("loudness", Some(-3.0), -14.0);
+        let b = payload("loudness", Some(-3.0), -14.01);
+        assert!(!norm_state_changed(&a, &b));
+    }
+
+    #[test]
+    fn norm_state_changes_when_target_lufs_moves_at_least_2_centibels() {
+        let a = payload("loudness", Some(-3.0), -14.0);
+        let b = payload("loudness", Some(-3.0), -13.97);
+        assert!(norm_state_changed(&a, &b));
+    }
+
+    #[test]
+    fn norm_state_ignores_micro_gain_drift_below_5_centibels() {
+        let a = payload("loudness", Some(-3.00), -14.0);
+        let b = payload("loudness", Some(-3.04), -14.0);
+        assert!(!norm_state_changed(&a, &b));
+    }
+
+    #[test]
+    fn norm_state_changes_when_gain_moves_at_least_5_centibels() {
+        let a = payload("loudness", Some(-3.00), -14.0);
+        let b = payload("loudness", Some(-3.06), -14.0);
+        assert!(norm_state_changed(&a, &b));
+    }
+
+    #[test]
+    fn norm_state_changes_when_gain_appears_or_disappears() {
+        let a = payload("loudness", None, -14.0);
+        let b = payload("loudness", Some(-3.0), -14.0);
+        assert!(norm_state_changed(&a, &b));
+        assert!(norm_state_changed(&b, &a));
+    }
+
+    #[test]
+    fn norm_state_unchanged_when_both_gains_none() {
+        let a = payload("off", None, -14.0);
+        let b = payload("off", None, -14.0);
+        assert!(!norm_state_changed(&a, &b));
+    }
+
+    // ── partial_loudness_should_emit ──────────────────────────────────────────
+    //
+    // Note: this function reads/writes a process-global static map. Tests share
+    // that state, so each test uses a unique track-key to avoid cross-test
+    // pollution. (Don't run tests in parallel that share keys.)
+
+    #[test]
+    fn partial_loudness_emits_on_first_call_for_a_track_key() {
+        let key = "test-emits-first-call";
+        assert!(partial_loudness_should_emit(key, -3.0));
+    }
+
+    #[test]
+    fn partial_loudness_suppresses_micro_drift_below_threshold() {
+        let key = "test-emits-micro-drift";
+        assert!(partial_loudness_should_emit(key, -3.0));
+        assert!(
+            !partial_loudness_should_emit(key, -3.05),
+            "delta < 0.1 dB is suppressed"
+        );
+    }
+
+    #[test]
+    fn partial_loudness_emits_again_when_threshold_is_crossed() {
+        let key = "test-emits-after-threshold";
+        assert!(partial_loudness_should_emit(key, -3.0));
+        assert!(partial_loudness_should_emit(key, -3.5), "delta >= 0.1 dB re-emits");
+    }
+
+    #[test]
+    fn partial_loudness_treats_each_track_key_independently() {
+        assert!(partial_loudness_should_emit("track-A-independent", -3.0));
+        assert!(
+            partial_loudness_should_emit("track-B-independent", -3.0),
+            "different track keys do not share suppression state"
+        );
+    }
+}
