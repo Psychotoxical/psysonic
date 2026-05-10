@@ -58,7 +58,12 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
   coverage:
-    name: cargo llvm-cov (baseline + hot-path soft gate)
+    name: cargo llvm-cov (baseline + hot-path file gate)
+    # Layered: the gate script exits 1 when any hot-path file drops below
+    # threshold (see scripts/check-hot-path-coverage.sh) — the failure is
+    # visible in the PR's checks panel. `continue-on-error: true` keeps it
+    # from BLOCKING merges. Drop continue-on-error to flip the gate to a
+    # PR-blocker once we've watched a few PRs run cleanly.
     runs-on: ubuntu-24.04
     continue-on-error: true
     steps:

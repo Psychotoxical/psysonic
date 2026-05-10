@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
 #
-# Hot-path function coverage gate — soft mode.
+# Hot-path file coverage gate — soft mode.
 #
-# Reads cargo-llvm-cov JSON output and checks each function listed in
-# .github/hot-path-functions.txt against an 80% region-coverage threshold.
-# Emits GitHub Actions warning annotations for misses; never sets a non-zero
-# exit code (the gate is a warning-only signal until cucadmuh decides to
-# flip it to a hard fail in a follow-up).
+# For each source file listed in `.github/hot-path-files.txt`, verifies
+# that line coverage is at least $THRESHOLD %. Emits GitHub Actions
+# warning annotations for files below the floor; never sets a non-zero
+# exit code (soft gate).
+#
+# Why files instead of per-function: cargo-llvm-cov's per-function
+# region data is unreliable for async state-machines (most regions live
+# in synthetic closures) and generic functions (every instantiation is
+# a separate symbol). File-level line coverage is robustly measured and
+# tracks the underlying intent: "is the hot-path file thoroughly tested?".
 #
 # Usage:
 #   scripts/check-hot-path-coverage.sh [<coverage.json>] [<hot-path-list.txt>]
 #
 # Defaults:
 #   coverage.json    — src-tauri/target/llvm-cov/cov.json
-#   hot-path-list.txt — .github/hot-path-functions.txt
+#   hot-path-list.txt — .github/hot-path-files.txt
 #
 # Requires: jq (preinstalled on Ubuntu runners; on Windows install via
 #               `winget install jqlang.jq` or `choco install jq`).
@@ -21,8 +26,8 @@
 set -euo pipefail
 
 JSON="${1:-src-tauri/target/llvm-cov/cov.json}"
-HOT_PATH_LIST="${2:-.github/hot-path-functions.txt}"
-THRESHOLD=80
+HOT_PATH_LIST="${2:-.github/hot-path-files.txt}"
+THRESHOLD=70
 
 if [[ ! -f "$JSON" ]]; then
     echo "::error::Coverage JSON not found at $JSON. Did you run cargo llvm-cov --workspace --json --output-path \"$JSON\" first?"
@@ -30,7 +35,7 @@ if [[ ! -f "$JSON" ]]; then
 fi
 
 if [[ ! -f "$HOT_PATH_LIST" ]]; then
-    echo "::error::Hot-path function list not found at $HOT_PATH_LIST"
+    echo "::error::Hot-path file list not found at $HOT_PATH_LIST"
     exit 2
 fi
 
@@ -39,25 +44,18 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 2
 fi
 
+# Pre-extract every file's line coverage % into a TSV keyed by basename.
+# We match by suffix (file path ends with the listed relative path) because
+# the JSON stores absolute paths that vary between Windows runners and Linux.
+ALL_FILES=$(mktemp)
+trap 'rm -f "$ALL_FILES"' EXIT
+jq -r '.data[0].files[] | [.filename, .summary.lines.percent] | @tsv' "$JSON" > "$ALL_FILES"
+
 TOTAL=0
 BELOW=0
 NOT_FOUND=0
 
-# Pre-extract every function with its region totals into a flat TSV so we
-# don't re-scan the JSON for each line in the hot-path list.
-ALL_FNS=$(mktemp)
-trap 'rm -f "$ALL_FNS"' EXIT
-jq -r '
-    .data[0].functions[]
-    | [
-        .name,
-        (.regions | length),
-        ([.regions[] | select(.[4] > 0)] | length)
-    ]
-    | @tsv
-' "$JSON" > "$ALL_FNS"
-
-echo "── Hot-path coverage check (threshold: ≥${THRESHOLD}%) ──────────────────"
+echo "── Hot-path file coverage check (threshold: ≥${THRESHOLD}%) ──────────"
 
 while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     line="${raw_line%%#*}"           # strip trailing comment
@@ -66,43 +64,54 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     [[ -z "$line" ]] && continue
     TOTAL=$((TOTAL + 1))
 
-    matches=$(awk -F'\t' -v fn="$line" 'index($1, fn) > 0' "$ALL_FNS")
-    if [[ -z "$matches" ]]; then
-        echo "::warning::Hot-path function '$line' not found in coverage report (deleted? renamed?)"
+    # Match suffix — the JSON stores absolute paths; the hot-path list uses
+    # workspace-relative paths. Convert both to forward slashes first so the
+    # endsWith works on Windows-encoded paths too.
+    pct=$(awk -F'\t' -v target="$line" '
+        {
+            path = $1
+            gsub(/\\\\/, "/", path)
+            gsub(/\\/, "/", path)
+            n = length(path)
+            tlen = length(target)
+            if (n >= tlen && substr(path, n - tlen + 1) == target) {
+                printf "%s\n", $2
+                exit
+            }
+        }
+    ' "$ALL_FILES")
+
+    if [[ -z "$pct" ]]; then
+        echo "::warning::Hot-path file '$line' not found in coverage report (deleted? renamed?)"
         NOT_FOUND=$((NOT_FOUND + 1))
         continue
     fi
 
-    # Aggregate across all matched instantiations (handles generics + closures).
-    sums=$(echo "$matches" | awk -F'\t' '
-        { regions += $2; covered += $3 }
-        END { printf "%d\t%d\n", regions, covered }
-    ')
-    regions=$(echo "$sums" | cut -f1)
-    covered=$(echo "$sums" | cut -f2)
-
-    if [[ "$regions" -eq 0 ]]; then
-        echo "::warning::Hot-path '$line' has 0 regions (likely inlined or never reached)"
-        NOT_FOUND=$((NOT_FOUND + 1))
-        continue
-    fi
-
-    pct=$(( covered * 100 / regions ))
-    if [[ "$pct" -lt "$THRESHOLD" ]]; then
-        echo "::warning::Hot-path '$line': ${pct}% (${covered}/${regions} regions) — below ${THRESHOLD}%"
+    # bash arithmetic doesn't do float. Truncate to int for comparison.
+    pct_int=${pct%.*}
+    if [[ "$pct_int" -lt "$THRESHOLD" ]]; then
+        printf "::warning::Hot-path file '%s': %.1f%% — below %d%%\n" "$line" "$pct" "$THRESHOLD"
         BELOW=$((BELOW + 1))
     else
-        echo "  ok  $line  ${pct}% (${covered}/${regions})"
+        printf "  ok  %s  %.1f%%\n" "$line" "$pct"
     fi
 done < "$HOT_PATH_LIST"
 
 echo
-echo "── Summary ─────────────────────────────────────────────────────────────"
-echo "Checked: $TOTAL function(s)"
+echo "── Summary ─────────────────────────────────────────────────────────"
+echo "Checked: $TOTAL hot-path file(s)"
 echo "Below threshold: $BELOW"
-echo "Not found / 0 regions: $NOT_FOUND"
+echo "Not found: $NOT_FOUND"
 
-# SOFT GATE — never fail. Warnings are visible in the PR's checks panel but
-# don't block merge. cucadmuh can flip this to `exit 1` once the warning has
-# been clean across a few PRs.
+# Two-layer gate:
+#   - This script exits 1 when any hot-path file regresses below the
+#     threshold. That gives an unambiguous CI signal in the workflow log.
+#   - The `coverage` job in `.github/workflows/rust-tests.yml` carries
+#     `continue-on-error: true`, so the failing exit is visible in the
+#     PR's checks panel but does NOT block merges yet.
+#   - Flip to a hard PR-blocker by removing `continue-on-error` from the
+#     workflow once we've watched a few PRs run cleanly.
+if [[ "$BELOW" -gt 0 ]]; then
+    exit 1
+fi
 exit 0

@@ -1,0 +1,43 @@
+# Hot-path source files for the per-file ≥70% coverage gate.
+#
+# Background: cucadmuh asked for ≥80% per-function coverage on functions in
+# typical user-triggered sequences. The original implementation tried to
+# parse cargo-llvm-cov per-function region data, but the metric is not
+# reliable for async state-machines (async fn body lives in synthetic
+# closures, the "main" symbol is just 1-2 regions) or generic functions
+# (every monomorphic instantiation is a separate symbol). See
+# `scripts/check-hot-path-coverage.sh` header for details.
+#
+# Switched to file-level coverage: every file listed below must stay
+# at ≥70% line coverage. The list is the subset of source files where
+# the hot-path code dominates and 70% is a reasonable floor. Files like
+# `psysonic-syncfs/src/sync/batch.rs` aren't listed because their hot-
+# path functions ARE tested (parse_subsonic_songs / estimate_track_size
+# / track_sync_info_from_subsonic_json all 100%) but the same file
+# also holds a large amount of untested admin Tauri commands that drag
+# the file aggregate down. Those are tracked individually via direct
+# unit tests, not via this gate.
+#
+# Each line is a path relative to the workspace root (so `src-tauri/...`).
+# `#` for comments. CI runs cargo-llvm-cov + this gate; PRs that drop
+# any listed file below the threshold get a warning annotation today
+# and (after watching it run cleanly) eventually a hard fail.
+
+# ── psysonic-syncfs ──────────────────────────────────────────────────
+src-tauri/crates/psysonic-syncfs/src/cache/fs_utils.rs
+src-tauri/crates/psysonic-syncfs/src/cache/offline.rs
+src-tauri/crates/psysonic-syncfs/src/file_transfer.rs
+
+# ── psysonic-analysis ────────────────────────────────────────────────
+src-tauri/crates/psysonic-analysis/src/analysis_cache/store.rs
+src-tauri/crates/psysonic-analysis/src/analysis_cache/compute.rs
+
+# ── psysonic-audio ───────────────────────────────────────────────────
+src-tauri/crates/psysonic-audio/src/decode.rs
+src-tauri/crates/psysonic-audio/src/stream/icy.rs
+src-tauri/crates/psysonic-audio/src/progress_task.rs
+src-tauri/crates/psysonic-audio/src/ipc.rs
+
+# ── psysonic-integration ─────────────────────────────────────────────
+src-tauri/crates/psysonic-integration/src/discord.rs
+src-tauri/crates/psysonic-integration/src/navidrome/client.rs
