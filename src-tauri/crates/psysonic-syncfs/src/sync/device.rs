@@ -320,6 +320,37 @@ pub fn build_track_path(track: &TrackSyncInfo) -> String {
     relative
 }
 
+/// AppHandle-free download primitive used by [`sync_track_to_device`]. Streams
+/// the response body to `dest_path` (via a `.part` file) when the file isn't
+/// already there.
+///
+/// Returns:
+/// - `Ok(false)` — pre-existing file, skipped.
+/// - `Ok(true)` — fresh download landed at `dest_path`.
+/// - `Err(_)` — HTTP non-success or stream/rename failure.
+pub(crate) async fn sync_download_one_track(
+    dest_path: &std::path::Path,
+    suffix: &str,
+    url: &str,
+    client: &reqwest::Client,
+) -> Result<bool, String> {
+    if dest_path.exists() {
+        return Ok(false);
+    }
+    if let Some(parent) = dest_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    let response = client.get(url).send().await.map_err(|e| e.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status().as_u16()));
+    }
+    let part_path = dest_path.with_extension(format!("{}.part", suffix));
+    finalize_streamed_download(response, dest_path, &part_path).await?;
+    Ok(true)
+}
+
 /// Downloads a single track to a USB/SD device using the configured filename template.
 /// Emits `device:sync:progress` events with `{ jobId, trackId, status, path? }`.
 #[tauri::command]
@@ -334,42 +365,27 @@ pub async fn sync_track_to_device(
     let dest_path = std::path::Path::new(&dest_dir).join(&file_name);
     let path_str = dest_path.to_string_lossy().to_string();
 
-    if dest_path.exists() {
-        let _ = app.emit("device:sync:progress", serde_json::json!({
-            "jobId": job_id, "trackId": track.id, "status": "skipped", "path": path_str,
-        }));
-        return Ok(SyncTrackResult { path: path_str, skipped: true });
-    }
-
-    if let Some(parent) = dest_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
     let client = subsonic_http_client(std::time::Duration::from_secs(300))?;
-
-    let response = client.get(&track.url).send().await.map_err(|e| e.to_string())?;
-    if !response.status().is_success() {
-        let msg = format!("HTTP {}", response.status().as_u16());
-        let _ = app.emit("device:sync:progress", serde_json::json!({
-            "jobId": job_id, "trackId": track.id, "status": "error", "error": msg,
-        }));
-        return Err(msg);
+    match sync_download_one_track(&dest_path, &track.suffix, &track.url, &client).await {
+        Ok(false) => {
+            let _ = app.emit("device:sync:progress", serde_json::json!({
+                "jobId": job_id, "trackId": track.id, "status": "skipped", "path": path_str,
+            }));
+            Ok(SyncTrackResult { path: path_str, skipped: true })
+        }
+        Ok(true) => {
+            let _ = app.emit("device:sync:progress", serde_json::json!({
+                "jobId": job_id, "trackId": track.id, "status": "done", "path": path_str,
+            }));
+            Ok(SyncTrackResult { path: path_str, skipped: false })
+        }
+        Err(e) => {
+            let _ = app.emit("device:sync:progress", serde_json::json!({
+                "jobId": job_id, "trackId": track.id, "status": "error", "error": e,
+            }));
+            Err(e)
+        }
     }
-
-    let part_path = dest_path.with_extension(format!("{}.part", track.suffix));
-    if let Err(e) = finalize_streamed_download(response, &dest_path, &part_path).await {
-        let _ = app.emit("device:sync:progress", serde_json::json!({
-            "jobId": job_id, "trackId": track.id, "status": "error", "error": e,
-        }));
-        return Err(e);
-    }
-
-    let _ = app.emit("device:sync:progress", serde_json::json!({
-        "jobId": job_id, "trackId": track.id, "status": "done", "path": path_str,
-    }));
-    Ok(SyncTrackResult { path: path_str, skipped: false })
 }
 
 /// Computes the expected file paths for a batch of tracks under the fixed schema.
@@ -618,5 +634,89 @@ mod tests {
         // sanitize_path_component had failed to replace it.
         assert!(!build_track_path(&t).contains('\\'));
         assert!(build_track_path(&t).contains('/'));
+    }
+
+    // ── sync_download_one_track ──────────────────────────────────────────────
+
+    use crate::file_transfer::subsonic_http_client;
+    use wiremock::matchers::{method, path as wm_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sync_download_writes_track_file_for_200_response() {
+        let server = MockServer::start().await;
+        let body = b"flac body".to_vec();
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("Album").join("01 - track.flac");
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let url = format!("{}/track", server.uri());
+        let downloaded = sync_download_one_track(&dest, "flac", &url, &client)
+            .await
+            .unwrap();
+        assert!(downloaded, "fresh download must report Ok(true)");
+        assert_eq!(std::fs::read(&dest).unwrap(), body);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sync_download_returns_false_when_file_already_exists() {
+        let server = MockServer::start().await;
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("track.mp3");
+        std::fs::write(&dest, b"already there").unwrap();
+
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let url = format!("{}/should-not-be-hit", server.uri());
+        let downloaded = sync_download_one_track(&dest, "mp3", &url, &client)
+            .await
+            .unwrap();
+        assert!(!downloaded, "pre-existing file must be reported as skipped");
+        assert_eq!(std::fs::read(&dest).unwrap(), b"already there");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sync_download_returns_err_for_non_success_status() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/missing"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("track.opus");
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let url = format!("{}/missing", server.uri());
+        let err = sync_download_one_track(&dest, "opus", &url, &client)
+            .await
+            .unwrap_err();
+        assert!(err.contains("HTTP 403"));
+        assert!(!dest.exists(), "no track file must be created on error");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sync_download_creates_missing_parent_directories() {
+        let server = MockServer::start().await;
+        let body = b"x".to_vec();
+        Mock::given(method("GET"))
+            .and(wm_path("/t"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("a").join("b").join("c").join("track.mp3");
+        assert!(!dest.parent().unwrap().exists());
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let url = format!("{}/t", server.uri());
+        sync_download_one_track(&dest, "mp3", &url, &client)
+            .await
+            .unwrap();
+        assert!(dest.exists());
     }
 }

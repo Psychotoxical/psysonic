@@ -260,6 +260,49 @@ fn apply_template(template: &str, title: &str, artist: &str, album: Option<&str>
         .replace("{album}", album_text)
 }
 
+/// Bundled output of [`compute_discord_text_fields`].
+pub(crate) struct DiscordTextFields {
+    pub details: String,
+    pub state: String,
+    pub large_text: String,
+}
+
+/// Pure helper: resolve all three configurable Discord text fields, applying
+/// the supplied templates (or falling back to documented defaults).
+pub(crate) fn compute_discord_text_fields(
+    title: &str,
+    artist: &str,
+    album: Option<&str>,
+    details_template: Option<&str>,
+    state_template: Option<&str>,
+    large_text_template: Option<&str>,
+) -> DiscordTextFields {
+    let details = apply_template(
+        details_template.unwrap_or("{artist} - {title}"),
+        title,
+        artist,
+        album,
+    );
+    let state = apply_template(state_template.unwrap_or("{album}"), title, artist, album);
+    let large_text = apply_template(
+        large_text_template.unwrap_or("{album}"),
+        title,
+        artist,
+        album,
+    );
+    DiscordTextFields {
+        details,
+        state,
+        large_text,
+    }
+}
+
+/// Pure helper: compute the Unix-timestamp `start` field that Discord uses
+/// to show "X minutes elapsed" when `elapsed_secs` is supplied.
+pub(crate) fn compute_discord_start_timestamp(elapsed_secs: f64, now_unix_secs: i64) -> i64 {
+    now_unix_secs - elapsed_secs.floor() as i64
+}
+
 /// Update the Discord Rich Presence activity.
 ///
 /// - `is_playing`: true = playing (timer shown), false = paused (no timer, state shows "Paused").
@@ -327,25 +370,24 @@ pub async fn discord_update_presence(
 
     let client = guard.as_mut().unwrap();
 
-    // Apply templates for the three configurable text fields.
-    let details_str = details_template.as_deref().unwrap_or("{artist} - {title}");
-    let details_text = apply_template(details_str, &title, &artist, album.as_deref());
-
-    let state_str = state_template.as_deref().unwrap_or("{album}");
-    let state_text = apply_template(state_str, &title, &artist, album.as_deref());
-
-    let large_text_str = large_text_template.as_deref().unwrap_or("{album}");
-    let large_text = apply_template(large_text_str, &title, &artist, album.as_deref());
+    let texts = compute_discord_text_fields(
+        &title,
+        &artist,
+        album.as_deref(),
+        details_template.as_deref(),
+        state_template.as_deref(),
+        large_text_template.as_deref(),
+    );
 
     let assets = if let Some(ref url) = artwork_url {
         Assets::new()
             .large_image(url.as_str())
-            .large_text(&large_text)
+            .large_text(&texts.large_text)
     } else {
         // Fallback to default Psysonic icon
         Assets::new()
             .large_image("psysonic")
-            .large_text(&large_text)
+            .large_text(&texts.large_text)
     };
 
     // When paused: clear activity completely to avoid any timer issues
@@ -362,16 +404,15 @@ pub async fn discord_update_presence(
     // Only reach here when playing
     let activity = Activity::new()
         .activity_type(ActivityType::Listening)
-        .details(&details_text)
-        .state(&state_text)
+        .details(&texts.details)
+        .state(&texts.state)
         .assets(assets)
         .timestamps(if let Some(elapsed) = elapsed_secs {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs() as i64;
-            let start = now - elapsed.floor() as i64;
-            Timestamps::new().start(start)
+            Timestamps::new().start(compute_discord_start_timestamp(elapsed, now))
         } else {
             Timestamps::new()
         });
@@ -384,8 +425,8 @@ pub async fn discord_update_presence(
         #[cfg(debug_assertions)]
         crate::app_eprintln!(
             "[discord] activity sent: \"{}\" / \"{}\"",
-            details_text,
-            state_text
+            texts.details,
+            texts.state
         );
     }
 
@@ -498,6 +539,74 @@ mod tests {
     fn apply_template_repeats_replacement_for_repeated_placeholder() {
         let out = apply_template("{artist} / {artist}", "t", "AC/DC", None);
         assert_eq!(out, "AC/DC / AC/DC");
+    }
+
+    // ── compute_discord_text_fields ──────────────────────────────────────────
+
+    #[test]
+    fn text_fields_use_documented_defaults_when_templates_are_none() {
+        let f = compute_discord_text_fields("Song", "Artist", Some("Album"), None, None, None);
+        assert_eq!(f.details, "Artist - Song");
+        assert_eq!(f.state, "Album");
+        assert_eq!(f.large_text, "Album");
+    }
+
+    #[test]
+    fn text_fields_apply_supplied_templates_overriding_defaults() {
+        let f = compute_discord_text_fields(
+            "Song",
+            "Artist",
+            Some("Album"),
+            Some("{title} | {album}"),
+            Some("by {artist}"),
+            Some("{album} ({artist})"),
+        );
+        assert_eq!(f.details, "Song | Album");
+        assert_eq!(f.state, "by Artist");
+        assert_eq!(f.large_text, "Album (Artist)");
+    }
+
+    #[test]
+    fn text_fields_substitute_empty_for_missing_album() {
+        let f = compute_discord_text_fields("Song", "Artist", None, None, None, None);
+        // {album} placeholder → empty, but the surrounding template stays.
+        assert_eq!(f.details, "Artist - Song");
+        assert_eq!(f.state, "");
+        assert_eq!(f.large_text, "");
+    }
+
+    #[test]
+    fn text_fields_handle_unicode_and_special_characters() {
+        let f = compute_discord_text_fields(
+            "Bohemian Rhapsody",
+            "Queen",
+            Some("A Night at the Opera"),
+            Some("{artist} – {title}"),
+            None,
+            None,
+        );
+        assert_eq!(f.details, "Queen – Bohemian Rhapsody");
+    }
+
+    // ── compute_discord_start_timestamp ──────────────────────────────────────
+
+    #[test]
+    fn start_timestamp_subtracts_floor_of_elapsed() {
+        // elapsed=42.7 → floor=42; start = now - 42
+        assert_eq!(compute_discord_start_timestamp(42.7, 1_700_000_000), 1_699_999_958);
+    }
+
+    #[test]
+    fn start_timestamp_for_zero_elapsed_equals_now() {
+        assert_eq!(compute_discord_start_timestamp(0.0, 1_700_000_000), 1_700_000_000);
+    }
+
+    #[test]
+    fn start_timestamp_handles_fractional_seconds_via_floor() {
+        // 0.999 → floor 0 (same as just-started)
+        assert_eq!(compute_discord_start_timestamp(0.999, 1_700_000_000), 1_700_000_000);
+        // 1.0001 → floor 1
+        assert_eq!(compute_discord_start_timestamp(1.0001, 1_700_000_000), 1_699_999_999);
     }
 
     // ── cache_and_return ──────────────────────────────────────────────────────

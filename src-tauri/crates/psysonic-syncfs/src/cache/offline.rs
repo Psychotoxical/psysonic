@@ -74,6 +74,26 @@ pub(crate) async fn download_track_to_cache_dir(
     Ok(file_path)
 }
 
+/// AppHandle-free resolver for the offline-cache directory: checks the
+/// optional user-supplied volume root for accessibility, otherwise falls
+/// back to the app-data root supplied by the caller. Returns the
+/// per-server subdirectory path, but does NOT create it.
+pub(crate) fn resolve_offline_cache_dir(
+    custom_dir: Option<&str>,
+    server_id: &str,
+    default_root: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    if let Some(cd) = custom_dir.filter(|s| !s.is_empty()) {
+        let base = std::path::PathBuf::from(cd);
+        if !base.exists() {
+            return Err("VOLUME_NOT_FOUND".to_string());
+        }
+        Ok(base.join(server_id))
+    } else {
+        Ok(default_root.join(server_id))
+    }
+}
+
 /// Downloads a single track to the app's offline cache directory.
 /// Returns the absolute file path so TypeScript can store it and later
 /// construct a `psysonic-local://<path>` URL for the audio engine.
@@ -87,21 +107,12 @@ pub async fn download_track_offline(
     dl_sem: tauri::State<'_, DownloadSemaphore>,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
-    // Determine base cache directory.
-    let cache_dir = if let Some(ref cd) = custom_dir {
-        let base = std::path::PathBuf::from(cd);
-        // Check that the volume/directory is still accessible.
-        if !base.exists() {
-            return Err("VOLUME_NOT_FOUND".to_string());
-        }
-        base.join(&server_id)
-    } else {
-        app.path()
-            .app_data_dir()
-            .map_err(|e| e.to_string())?
-            .join("psysonic-offline")
-            .join(&server_id)
-    };
+    let default_root = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("psysonic-offline");
+    let cache_dir = resolve_offline_cache_dir(custom_dir.as_deref(), &server_id, &default_root)?;
 
     let file_path = cache_dir.join(format!("{}.{}", track_id, suffix));
     let path_str = file_path.to_string_lossy().to_string();
@@ -372,6 +383,48 @@ mod tests {
         std::fs::write(&file, b"").unwrap();
         let bytes = read_seed_bytes_if_needed(None, "any", &file).await;
         assert!(bytes.is_none(), "empty file must not trigger seeding");
+    }
+
+    // ── resolve_offline_cache_dir ────────────────────────────────────────────
+
+    #[test]
+    fn resolve_cache_dir_uses_default_root_when_no_custom_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let resolved = resolve_offline_cache_dir(None, "server-A", dir.path()).unwrap();
+        assert_eq!(resolved, dir.path().join("server-A"));
+    }
+
+    #[test]
+    fn resolve_cache_dir_uses_default_root_when_custom_dir_is_empty_string() {
+        let dir = tempfile::tempdir().unwrap();
+        // Empty custom_dir is treated as None — Frank's frontend may pass "".
+        let resolved = resolve_offline_cache_dir(Some(""), "server-A", dir.path()).unwrap();
+        assert_eq!(resolved, dir.path().join("server-A"));
+    }
+
+    #[test]
+    fn resolve_cache_dir_joins_server_id_under_existing_custom_volume() {
+        let dir = tempfile::tempdir().unwrap();
+        let resolved = resolve_offline_cache_dir(
+            Some(&dir.path().to_string_lossy()),
+            "server-B",
+            std::path::Path::new("/should/not/be/used"),
+        )
+        .unwrap();
+        assert_eq!(resolved, dir.path().join("server-B"));
+    }
+
+    #[test]
+    fn resolve_cache_dir_returns_volume_not_found_for_missing_custom_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let phantom = dir.path().join("never-existed");
+        let err = resolve_offline_cache_dir(
+            Some(&phantom.to_string_lossy()),
+            "server-A",
+            std::path::Path::new("/unused"),
+        )
+        .unwrap_err();
+        assert_eq!(err, "VOLUME_NOT_FOUND");
     }
 }
 
