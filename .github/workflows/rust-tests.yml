@@ -86,6 +86,7 @@ jobs:
       - name: generate workspace coverage (lcov + json)
         working-directory: src-tauri
         run: |
+          mkdir -p target/llvm-cov
           cargo llvm-cov --workspace --lcov --output-path lcov.info
           cargo llvm-cov --workspace --json --output-path target/llvm-cov/cov.json
       - name: hot-path function coverage soft gate
