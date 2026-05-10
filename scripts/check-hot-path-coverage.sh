@@ -24,6 +24,7 @@
 #               `winget install jqlang.jq` or `choco install jq`).
 
 set -euo pipefail
+export LC_ALL=C
 
 JSON="${1:-src-tauri/target/llvm-cov/cov.json}"
 HOT_PATH_LIST="${2:-.github/hot-path-files.txt}"

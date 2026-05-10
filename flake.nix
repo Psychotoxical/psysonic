@@ -55,6 +55,10 @@
             nodejs_22
             rustc
             cargo
+            clippy
+            cargo-llvm-cov
+            llvmPackages.llvm
+            jq
             cmake
             pkg-config
             openssl
@@ -81,6 +85,8 @@
             export LD_LIBRARY_PATH="${pkgs.libayatana-appindicator}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
             export GST_PLUGIN_PATH="${gstPluginPath}''${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}"
             export GIO_EXTRA_MODULES="${pkgs.glib-networking}/lib/gio/modules''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"
+            export LLVM_COV="${pkgs.llvmPackages.llvm}/bin/llvm-cov"
+            export LLVM_PROFDATA="${pkgs.llvmPackages.llvm}/bin/llvm-profdata"
             export GDK_BACKEND=x11
             export WEBKIT_DISABLE_COMPOSITING_MODE=1
             export WEBKIT_DISABLE_DMABUF_RENDERER=1
