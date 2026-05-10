@@ -1,6 +1,4 @@
 //! `AudioEngine` / `AudioCurrent`, stream thread, and HTTP client refresh.
-#[cfg(unix)]
-use libc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -150,7 +148,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
             fn drop(&mut self) { unsafe { libc::dup2(self.0, 2); libc::close(self.0); } }
         }
         let saved = libc::dup(2);
-        let devnull = libc::open(b"/dev/null\0".as_ptr() as *const libc::c_char, libc::O_WRONLY);
+        let devnull = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
         libc::dup2(devnull, 2);
         libc::close(devnull);
         StderrGuard(saved)

@@ -1,6 +1,4 @@
 //! Output device enumeration with suppressed ALSA stderr noise.
-#[cfg(unix)]
-use libc;
 // `rodio::cpal` is referenced from the included body.
 
 /// ALSA probes noisy plugins during device queries — suppress stderr on Unix.
@@ -14,7 +12,7 @@ pub(crate) fn with_suppressed_alsa_stderr<R>(f: impl FnOnce() -> R) -> R {
     }
     let _guard = unsafe {
         let saved = libc::dup(2);
-        let devnull = libc::open(b"/dev/null\0".as_ptr() as *const libc::c_char, libc::O_WRONLY);
+        let devnull = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
         libc::dup2(devnull, 2);
         libc::close(devnull);
         StderrGuard(saved)
@@ -51,7 +49,7 @@ pub(crate) fn linux_alsa_sink_fingerprint(name: &str) -> Option<(String, String,
     ];
     let colon = name.find(':')?;
     let iface = name[..colon].to_ascii_lowercase();
-    if !IFACES.iter().any(|&i| i == iface.as_str()) {
+    if !IFACES.contains(&iface.as_str()) {
         return None;
     }
     let card = name.split("CARD=").nth(1)?.split(',').next()?.to_string();
