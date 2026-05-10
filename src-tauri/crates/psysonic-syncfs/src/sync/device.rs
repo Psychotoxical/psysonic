@@ -385,3 +385,238 @@ pub fn compute_sync_paths(tracks: Vec<TrackSyncInfo>, dest_dir: String) -> Vec<S
             .to_string()
     }).collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn track(builder: impl FnOnce(&mut TrackSyncInfo)) -> TrackSyncInfo {
+        let mut t = TrackSyncInfo {
+            id: "t1".into(),
+            url: "http://example/stream".into(),
+            suffix: "flac".into(),
+            artist: "Artist".into(),
+            album_artist: "AlbumArtist".into(),
+            album: "Album".into(),
+            title: "Title".into(),
+            track_number: Some(1),
+            duration: Some(180),
+            playlist_name: None,
+            playlist_index: None,
+        };
+        builder(&mut t);
+        t
+    }
+
+    /// Normalize Windows backslashes so assertions can be written with `/`.
+    /// `build_track_path` only emits `\` as the OS path separator on Windows;
+    /// any `\` that appears inside a name component is already replaced with
+    /// `_` by `sanitize_path_component`.
+    fn norm(p: String) -> String {
+        p.replace('\\', "/")
+    }
+
+    // ── sanitize_path_component ──────────────────────────────────────────────
+
+    #[test]
+    fn sanitize_replaces_each_invalid_char_with_underscore() {
+        assert_eq!(sanitize_path_component("a/b\\c:d*e?f\"g<h>i|j"), "a_b_c_d_e_f_g_h_i_j");
+    }
+
+    #[test]
+    fn sanitize_collapses_does_not_merge_acdc_with_ac_slash_dc() {
+        // Important: AC/DC must NOT collapse to ACDC (which equals plain "ACDC").
+        // It becomes AC_DC so the two artists stay distinguishable on disk.
+        assert_eq!(sanitize_path_component("AC/DC"), "AC_DC");
+        assert_ne!(sanitize_path_component("AC/DC"), sanitize_path_component("ACDC"));
+    }
+
+    #[test]
+    fn sanitize_replaces_control_characters() {
+        assert_eq!(sanitize_path_component("a\nb\tc\0d"), "a_b_c_d");
+    }
+
+    #[test]
+    fn sanitize_trims_leading_and_trailing_dots_and_spaces() {
+        assert_eq!(sanitize_path_component("  ..hello..  "), "hello");
+        assert_eq!(sanitize_path_component(".."), "");
+        assert_eq!(sanitize_path_component("   "), "");
+    }
+
+    #[test]
+    fn sanitize_keeps_inner_dots_and_spaces() {
+        assert_eq!(sanitize_path_component("Pink Floyd - The Wall"), "Pink Floyd - The Wall");
+        assert_eq!(sanitize_path_component("01.intro"), "01.intro");
+    }
+
+    #[test]
+    fn sanitize_preserves_unicode() {
+        assert_eq!(sanitize_path_component("Sigur Rós — Ágætis byrjun"), "Sigur Rós — Ágætis byrjun");
+        assert_eq!(sanitize_path_component("坂本龍一"), "坂本龍一");
+    }
+
+    // ── sanitize_or ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn sanitize_or_uses_fallback_for_empty_input() {
+        assert_eq!(sanitize_or("", "Unknown Artist"), "Unknown Artist");
+    }
+
+    #[test]
+    fn sanitize_or_uses_fallback_when_sanitize_collapses_to_empty() {
+        assert_eq!(sanitize_or("...", "Unknown Album"), "Unknown Album");
+        assert_eq!(sanitize_or("   ", "Unknown Album"), "Unknown Album");
+    }
+
+    #[test]
+    fn sanitize_or_returns_sanitized_when_non_empty() {
+        assert_eq!(sanitize_or("Pink Floyd", "fallback"), "Pink Floyd");
+        assert_eq!(sanitize_or("AC/DC", "fallback"), "AC_DC");
+    }
+
+    // ── build_track_path: album tree ─────────────────────────────────────────
+
+    #[test]
+    fn album_path_uses_album_artist_album_tracknum_title() {
+        let t = track(|t| {
+            t.album_artist = "Pink Floyd".into();
+            t.album = "The Wall".into();
+            t.title = "Comfortably Numb".into();
+            t.track_number = Some(7);
+        });
+        assert_eq!(norm(build_track_path(&t)), "Pink Floyd/The Wall/07 - Comfortably Numb");
+    }
+
+    #[test]
+    fn album_path_pads_track_number_to_two_digits() {
+        let t = track(|t| {
+            t.track_number = Some(3);
+        });
+        assert!(norm(build_track_path(&t)).contains("/03 - "));
+    }
+
+    #[test]
+    fn album_path_uses_zero_zero_when_track_number_missing() {
+        let t = track(|t| {
+            t.track_number = None;
+        });
+        assert!(norm(build_track_path(&t)).contains("/00 - "));
+    }
+
+    #[test]
+    fn album_path_falls_back_when_album_artist_missing() {
+        let t = track(|t| {
+            t.album_artist = "".into();
+        });
+        assert!(norm(build_track_path(&t)).starts_with("Unknown Artist/"));
+    }
+
+    #[test]
+    fn album_path_falls_back_when_album_missing() {
+        let t = track(|t| {
+            t.album = "".into();
+        });
+        assert!(norm(build_track_path(&t)).contains("/Unknown Album/"));
+    }
+
+    #[test]
+    fn album_path_falls_back_when_title_missing() {
+        let t = track(|t| {
+            t.title = "".into();
+        });
+        assert!(norm(build_track_path(&t)).ends_with(" - Unknown Title"));
+    }
+
+    #[test]
+    fn album_path_sanitizes_each_component_independently() {
+        let t = track(|t| {
+            t.album_artist = "AC/DC".into();
+            t.album = "Back: in/Black".into();
+            t.title = "T.N.T.*".into();
+            t.track_number = Some(2);
+        });
+        assert_eq!(norm(build_track_path(&t)), "AC_DC/Back_ in_Black/02 - T.N.T._");
+    }
+
+    // ── build_track_path: playlist tree ──────────────────────────────────────
+
+    #[test]
+    fn playlist_path_uses_track_artist_not_album_artist() {
+        // Track-Artist in the playlist filename — useful label on a mixed playlist folder.
+        let t = track(|t| {
+            t.artist = "Roger Waters".into();
+            t.album_artist = "Pink Floyd".into();
+            t.title = "The Tide Is Turning".into();
+            t.playlist_name = Some("Mix".into());
+            t.playlist_index = Some(5);
+        });
+        assert_eq!(norm(build_track_path(&t)), "Playlists/Mix/05 - Roger Waters - The Tide Is Turning");
+    }
+
+    #[test]
+    fn playlist_path_pads_index_to_two_digits() {
+        let t = track(|t| {
+            t.playlist_name = Some("P".into());
+            t.playlist_index = Some(7);
+        });
+        assert!(norm(build_track_path(&t)).contains("/07 - "));
+    }
+
+    #[test]
+    fn playlist_path_falls_back_when_playlist_name_missing_string() {
+        let t = track(|t| {
+            t.playlist_name = Some("".into());
+            t.playlist_index = Some(1);
+        });
+        assert!(norm(build_track_path(&t)).starts_with("Playlists/Unnamed Playlist/"));
+    }
+
+    #[test]
+    fn playlist_path_falls_back_when_track_artist_missing() {
+        let t = track(|t| {
+            t.artist = "".into();
+            t.playlist_name = Some("Mix".into());
+            t.playlist_index = Some(1);
+        });
+        assert!(norm(build_track_path(&t)).contains(" - Unknown Artist - "));
+    }
+
+    #[test]
+    fn playlist_path_requires_both_name_and_index() {
+        // playlist_name without playlist_index → falls through to album-tree.
+        let t = track(|t| {
+            t.playlist_name = Some("Mix".into());
+            t.playlist_index = None;
+        });
+        let p = norm(build_track_path(&t));
+        assert!(!p.starts_with("Playlists/"), "got {p}");
+
+        // playlist_index without playlist_name → also album-tree.
+        let t2 = track(|t| {
+            t.playlist_name = None;
+            t.playlist_index = Some(1);
+        });
+        let p2 = norm(build_track_path(&t2));
+        assert!(!p2.starts_with("Playlists/"), "got {p2}");
+    }
+
+    // ── cross-OS separator ───────────────────────────────────────────────────
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn windows_path_uses_backslash_separator() {
+        let t = track(|_| {});
+        // No forward slashes anywhere on Windows — the OS separator is `\`.
+        assert!(!build_track_path(&t).contains('/'));
+    }
+
+    #[test]
+    #[cfg(not(target_os = "windows"))]
+    fn unix_path_uses_forward_slash_separator() {
+        let t = track(|_| {});
+        // No backslashes anywhere on non-Windows — `\` would only appear if
+        // sanitize_path_component had failed to replace it.
+        assert!(!build_track_path(&t).contains('\\'));
+        assert!(build_track_path(&t).contains('/'));
+    }
+}
