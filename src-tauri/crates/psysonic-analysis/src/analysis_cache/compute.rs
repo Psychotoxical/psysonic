@@ -43,7 +43,6 @@ pub fn seed_from_bytes_execute(
     track_id: &str,
     bytes: &[u8],
 ) -> Result<SeedFromBytesOutcome, String> {
-    let started = Instant::now();
     let Some(cache) = app.try_state::<AnalysisCache>() else {
         crate::app_deprintln!(
             "[analysis][waveform] build skip track_id={} reason=no_analysis_cache bytes={}",
@@ -52,6 +51,19 @@ pub fn seed_from_bytes_execute(
         );
         return Ok(SeedFromBytesOutcome::SkippedNoAnalysisCache);
     };
+    seed_from_bytes_into_cache(&cache, track_id, bytes)
+}
+
+/// AppHandle-free entry point for [`seed_from_bytes_execute`]: takes the cache
+/// directly, runs the same Symphonia → waveform → EBU R128 pipeline, and
+/// upserts the rows. Called from `seed_from_bytes_execute` in production and
+/// from tests against an in-memory cache.
+pub fn seed_from_bytes_into_cache(
+    cache: &AnalysisCache,
+    track_id: &str,
+    bytes: &[u8],
+) -> Result<SeedFromBytesOutcome, String> {
+    let started = Instant::now();
     let key = TrackKey {
         track_id: track_id.to_string(),
         md5_16kb: md5_first_16kb(bytes),
@@ -612,5 +624,169 @@ mod tests {
         }
         // Output range ⊆ [8, 255].
         assert!(out.iter().all(|&b| (8..=255).contains(&b)));
+    }
+
+    // ── End-to-end: WAV decode → waveform + loudness pipeline ────────────────
+    //
+    // Symphonia's PCM/WAV decoder is the cheapest format we can feed end-to-end
+    // without committing a binary fixture. Every test here generates a tiny
+    // mono 16-bit-PCM WAV (~150 KB for 1.5 s @ 44.1 kHz) at runtime, hands the
+    // bytes to the real seed pipeline, and asserts on the cached rows.
+
+    /// Build a mono signed-16-bit-PCM WAV from a sample buffer at `sample_rate`.
+    /// Produces a buffer ready to be probed by Symphonia's WAV format reader.
+    fn build_mono_pcm16_wav(samples: &[i16], sample_rate: u32) -> Vec<u8> {
+        let num_channels: u16 = 1;
+        let bits_per_sample: u16 = 16;
+        let byte_rate = sample_rate * (bits_per_sample as u32 / 8) * num_channels as u32;
+        let block_align = num_channels * (bits_per_sample / 8);
+        let data_size = (samples.len() * 2) as u32;
+        let riff_size = 36 + data_size;
+
+        let mut out = Vec::with_capacity(44 + data_size as usize);
+        out.extend_from_slice(b"RIFF");
+        out.extend_from_slice(&riff_size.to_le_bytes());
+        out.extend_from_slice(b"WAVE");
+        // fmt chunk
+        out.extend_from_slice(b"fmt ");
+        out.extend_from_slice(&16u32.to_le_bytes()); // sub-chunk size
+        out.extend_from_slice(&1u16.to_le_bytes()); // PCM format tag
+        out.extend_from_slice(&num_channels.to_le_bytes());
+        out.extend_from_slice(&sample_rate.to_le_bytes());
+        out.extend_from_slice(&byte_rate.to_le_bytes());
+        out.extend_from_slice(&block_align.to_le_bytes());
+        out.extend_from_slice(&bits_per_sample.to_le_bytes());
+        // data chunk
+        out.extend_from_slice(b"data");
+        out.extend_from_slice(&data_size.to_le_bytes());
+        for s in samples {
+            out.extend_from_slice(&s.to_le_bytes());
+        }
+        out
+    }
+
+    /// Generate a 1-second 440 Hz sine wave at -6 dBFS as a Vec<i16>.
+    fn sine_440_at_minus_6db(sample_rate: u32, secs: f32) -> Vec<i16> {
+        let n = (sample_rate as f32 * secs) as usize;
+        let amplitude: f32 = 0.5 * i16::MAX as f32; // -6 dBFS
+        (0..n)
+            .map(|i| {
+                let t = i as f32 / sample_rate as f32;
+                let v = (2.0 * std::f32::consts::PI * 440.0 * t).sin() * amplitude;
+                v as i16
+            })
+            .collect()
+    }
+
+    #[test]
+    fn count_mono_frames_returns_decoded_length_for_synthetic_wav() {
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let (frames, _hint) = count_mono_frames_from_audio_bytes(&wav)
+            .expect("WAV decode must succeed");
+        // 1 second × 44.1 kHz mono = 44 100 frames; allow ±1 packet tolerance.
+        assert!(
+            (43_900..=44_300).contains(&frames),
+            "expected ~44100 frames, got {frames}"
+        );
+    }
+
+    #[test]
+    fn count_mono_frames_returns_none_for_garbage_bytes() {
+        assert!(count_mono_frames_from_audio_bytes(b"not an audio file").is_none());
+    }
+
+    #[test]
+    fn count_mono_frames_returns_none_for_empty_bytes() {
+        assert!(count_mono_frames_from_audio_bytes(&[]).is_none());
+    }
+
+    #[test]
+    fn analyze_loudness_and_waveform_returns_loudness_for_synthetic_sine() {
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
+        let result = analyze_loudness_and_waveform(&wav, -14.0, 100)
+            .expect("WAV decode must succeed");
+        let (integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins) = result;
+        assert_eq!(bins.len(), 200, "bins layout is peak_u8 + mean_u8 = 2 * bin_count");
+        assert_eq!(target_lufs, -14.0);
+        // -6 dBFS sine ≈ -9 LUFS integrated for 1.5 s. EBU R128 needs >=400 ms
+        // of audio; we have 1.5 s so the measurement is valid.
+        assert!(
+            (-30.0..0.0).contains(&integrated_lufs),
+            "integrated LUFS must be in a sane range, got {integrated_lufs}"
+        );
+        // True peak for -6 dBFS sine ≈ 0.5 linear amplitude.
+        assert!(
+            (0.4..=0.6).contains(&true_peak),
+            "true peak must reflect -6 dBFS amplitude, got {true_peak}"
+        );
+        // Recommended gain pushes the track toward the target LUFS,
+        // capped per `recommended_gain_for_target`.
+        assert!(recommended_gain_db.is_finite());
+        assert!((-24.0..=24.0).contains(&recommended_gain_db));
+    }
+
+    #[test]
+    fn analyze_loudness_returns_none_for_zero_bin_count() {
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 0.5), 44_100);
+        assert!(analyze_loudness_and_waveform(&wav, -14.0, 0).is_none());
+    }
+
+    #[test]
+    fn analyze_loudness_returns_none_for_empty_bytes() {
+        assert!(analyze_loudness_and_waveform(&[], -14.0, 100).is_none());
+    }
+
+    #[test]
+    fn seed_from_bytes_into_cache_upserts_waveform_and_loudness_for_wav() {
+        let cache = AnalysisCache::open_in_memory();
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
+        let outcome = seed_from_bytes_into_cache(&cache, "wav-track", &wav).unwrap();
+        assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
+
+        // Both a waveform AND a loudness row must exist after a successful
+        // PCM decode + EBU R128 analysis.
+        let key = TrackKey {
+            track_id: "wav-track".to_string(),
+            md5_16kb: md5_first_16kb(&wav),
+        };
+        let waveform = cache.get_waveform(&key).unwrap().expect("waveform cached");
+        assert_eq!(waveform.bin_count, 500);
+        assert_eq!(waveform.bins.len(), 1000, "bins are 2 * bin_count");
+        assert!(cache.loudness_row_exists_for_key(&key).unwrap());
+    }
+
+    #[test]
+    fn seed_from_bytes_into_cache_returns_skipped_on_second_call() {
+        let cache = AnalysisCache::open_in_memory();
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let first = seed_from_bytes_into_cache(&cache, "wav-track-2", &wav).unwrap();
+        assert_eq!(first, SeedFromBytesOutcome::Upserted);
+        let second = seed_from_bytes_into_cache(&cache, "wav-track-2", &wav).unwrap();
+        assert_eq!(
+            second,
+            SeedFromBytesOutcome::SkippedWaveformCacheHit,
+            "second seed sees cache + loudness rows and short-circuits"
+        );
+    }
+
+    #[test]
+    fn seed_from_bytes_into_cache_falls_back_to_byte_envelope_for_undecodable_input() {
+        let cache = AnalysisCache::open_in_memory();
+        // Garbage bytes — Symphonia probe fails, the pipeline falls back to
+        // `derive_waveform_bins` (no loudness row gets cached).
+        let bytes = vec![0xAAu8; 8 * 1024];
+        let outcome = seed_from_bytes_into_cache(&cache, "garbage", &bytes).unwrap();
+        assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
+
+        let key = TrackKey {
+            track_id: "garbage".to_string(),
+            md5_16kb: md5_first_16kb(&bytes),
+        };
+        let waveform = cache.get_waveform(&key).unwrap().expect("byte-envelope waveform cached");
+        assert_eq!(waveform.bin_count, 500);
+        assert!(
+            !cache.loudness_row_exists_for_key(&key).unwrap(),
+            "byte-envelope fallback must not cache loudness"
+        );
     }
 }
