@@ -123,8 +123,22 @@ pub async fn fetch_subsonic_songs(
     ];
     let res = client.get(&url).query(&query).send().await.map_err(|e| e.to_string())?;
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    
-    let root = json.get("subsonic-response").ok_or("No subsonic-response".to_string())?;
+    parse_subsonic_songs(&json, endpoint)
+}
+
+/// Pure response-shape extraction for `getAlbum.view` / `getPlaylist.view` —
+/// pulled out of [`fetch_subsonic_songs`] so it can be tested without an HTTP
+/// roundtrip. Subsonic returns the song list either as an array (multiple
+/// tracks) or as a single object (one track); both shapes are normalised to a
+/// `Vec`. Other endpoints return an empty `Vec` rather than an error so the
+/// caller can fan out across endpoint types without special-casing.
+pub fn parse_subsonic_songs(
+    json: &serde_json::Value,
+    endpoint: &str,
+) -> Result<Vec<serde_json::Value>, String> {
+    let root = json
+        .get("subsonic-response")
+        .ok_or_else(|| "No subsonic-response".to_string())?;
     let songs = if endpoint == "getAlbum.view" {
         root.get("album").and_then(|a| a.get("song"))
     } else if endpoint == "getPlaylist.view" {
@@ -532,12 +546,26 @@ pub async fn delete_device_files(paths: Vec<String>) -> Result<u32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn write_file(path: &std::path::Path, contents: &[u8]) {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).unwrap();
         }
         std::fs::write(path, contents).unwrap();
+    }
+
+    fn fake_auth(base_url: String) -> SubsonicAuthPayload {
+        SubsonicAuthPayload {
+            base_url,
+            u: "user".into(),
+            t: "abc".into(),
+            s: "salt".into(),
+            v: "1.16.1".into(),
+            c: "psysonic".into(),
+            f: "json".into(),
+        }
     }
 
     // ── prune_empty_parents ───────────────────────────────────────────────────
@@ -642,5 +670,152 @@ mod tests {
     async fn delete_device_files_returns_zero_for_empty_input() {
         let result = delete_device_files(vec![]).await.unwrap();
         assert_eq!(result, 0);
+    }
+
+    // ── parse_subsonic_songs (pure) ───────────────────────────────────────────
+
+    #[test]
+    fn parse_returns_err_when_subsonic_response_missing() {
+        let json = serde_json::json!({});
+        let err = parse_subsonic_songs(&json, "getAlbum.view").unwrap_err();
+        assert!(err.contains("No subsonic-response"));
+    }
+
+    #[test]
+    fn parse_returns_empty_for_unknown_endpoint() {
+        let json = serde_json::json!({
+            "subsonic-response": { "status": "ok" }
+        });
+        let songs = parse_subsonic_songs(&json, "getOther.view").unwrap();
+        assert!(songs.is_empty());
+    }
+
+    #[test]
+    fn parse_album_extracts_song_array() {
+        let json = serde_json::json!({
+            "subsonic-response": {
+                "album": {
+                    "song": [
+                        { "id": "1", "title": "First" },
+                        { "id": "2", "title": "Second" }
+                    ]
+                }
+            }
+        });
+        let songs = parse_subsonic_songs(&json, "getAlbum.view").unwrap();
+        assert_eq!(songs.len(), 2);
+        assert_eq!(songs[0].get("id").unwrap(), "1");
+    }
+
+    #[test]
+    fn parse_album_normalises_single_song_object_to_vec() {
+        // Some Subsonic servers return a single song as an object instead of a 1-element array.
+        let json = serde_json::json!({
+            "subsonic-response": {
+                "album": { "song": { "id": "only", "title": "Solo" } }
+            }
+        });
+        let songs = parse_subsonic_songs(&json, "getAlbum.view").unwrap();
+        assert_eq!(songs.len(), 1);
+        assert_eq!(songs[0].get("id").unwrap(), "only");
+    }
+
+    #[test]
+    fn parse_playlist_extracts_entry_array() {
+        let json = serde_json::json!({
+            "subsonic-response": {
+                "playlist": {
+                    "entry": [{ "id": "p1" }, { "id": "p2" }, { "id": "p3" }]
+                }
+            }
+        });
+        let songs = parse_subsonic_songs(&json, "getPlaylist.view").unwrap();
+        assert_eq!(songs.len(), 3);
+    }
+
+    #[test]
+    fn parse_returns_empty_when_album_has_no_songs() {
+        let json = serde_json::json!({
+            "subsonic-response": {
+                "album": { "id": "empty-album" }
+            }
+        });
+        let songs = parse_subsonic_songs(&json, "getAlbum.view").unwrap();
+        assert!(songs.is_empty());
+    }
+
+    // ── fetch_subsonic_songs against wiremock ─────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fetch_subsonic_songs_roundtrips_album_via_wiremock() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/getAlbum.view"))
+            .and(query_param("u", "user"))
+            .and(query_param("id", "album-42"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "subsonic-response": {
+                    "album": {
+                        "song": [
+                            { "id": "t1", "title": "Track 1" },
+                            { "id": "t2", "title": "Track 2" }
+                        ]
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = crate::file_transfer::subsonic_http_client(std::time::Duration::from_secs(5))
+            .unwrap();
+        let auth = fake_auth(server.uri());
+        let songs = fetch_subsonic_songs(&client, &auth, "getAlbum.view", "album-42")
+            .await
+            .unwrap();
+        assert_eq!(songs.len(), 2);
+        assert_eq!(songs[0].get("id").unwrap(), "t1");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fetch_subsonic_songs_returns_empty_on_404() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/getAlbum.view"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let client = crate::file_transfer::subsonic_http_client(std::time::Duration::from_secs(5))
+            .unwrap();
+        let auth = fake_auth(server.uri());
+        let result = fetch_subsonic_songs(&client, &auth, "getAlbum.view", "missing").await;
+        // 404 with HTML/empty body fails the JSON parse, surfacing as an Err — we
+        // just assert the function does not panic and propagates an error string.
+        assert!(result.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fetch_subsonic_songs_handles_single_song_object_shape() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/getPlaylist.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "subsonic-response": {
+                    "playlist": {
+                        "entry": { "id": "only", "title": "Lonely" }
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = crate::file_transfer::subsonic_http_client(std::time::Duration::from_secs(5))
+            .unwrap();
+        let auth = fake_auth(server.uri());
+        let songs = fetch_subsonic_songs(&client, &auth, "getPlaylist.view", "p1")
+            .await
+            .unwrap();
+        assert_eq!(songs.len(), 1, "single-object response normalised to 1-element vec");
+        assert_eq!(songs[0].get("id").unwrap(), "only");
     }
 }

@@ -26,4 +26,5 @@ id3 = "1.16.4"
 
 [dev-dependencies]
 tempfile = { workspace = true }
-tokio = { version = "1", features = ["rt", "time", "sync", "macros", "fs"] }
+tokio = { version = "1", features = ["rt", "time", "sync", "macros", "fs", "rt-multi-thread"] }
+wiremock = { workspace = true }
