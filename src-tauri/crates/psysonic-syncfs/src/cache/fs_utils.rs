@@ -51,3 +51,51 @@ pub fn prune_empty_dirs_up_to(start_dir: &Path, boundary: &Path) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dir_size_recursive_returns_zero_for_missing_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("does-not-exist");
+        assert_eq!(dir_size_recursive(&missing), 0);
+    }
+
+    #[test]
+    fn dir_size_recursive_returns_zero_for_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(dir_size_recursive(dir.path()), 0);
+    }
+
+    #[test]
+    fn dir_size_recursive_sums_files_across_subdirs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.bin"), b"hello").unwrap();
+        let sub = dir.path().join("nested");
+        std::fs::create_dir(&sub).unwrap();
+        std::fs::write(sub.join("b.bin"), b"world!!").unwrap();
+        assert_eq!(dir_size_recursive(dir.path()), 5 + 7);
+    }
+
+    #[test]
+    fn prune_empty_dirs_up_to_is_noop_when_start_equals_boundary() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path();
+        prune_empty_dirs_up_to(path, path);
+        assert!(path.exists(), "boundary dir must never be removed");
+    }
+
+    #[test]
+    fn prune_empty_dirs_up_to_stops_at_non_empty_parent() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join("parent");
+        let child = parent.join("child");
+        std::fs::create_dir_all(&child).unwrap();
+        std::fs::write(parent.join("keepme.txt"), b"x").unwrap();
+        prune_empty_dirs_up_to(&child, root.path());
+        assert!(!child.exists(), "empty leaf should be pruned");
+        assert!(parent.exists(), "non-empty parent must stay");
+    }
+}

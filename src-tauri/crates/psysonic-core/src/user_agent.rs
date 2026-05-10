@@ -24,3 +24,24 @@ pub fn subsonic_wire_user_agent() -> String {
         .map(|ua| ua.clone())
         .unwrap_or_else(|_| default_subsonic_wire_user_agent())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_user_agent_starts_with_psysonic_slash() {
+        let ua = default_subsonic_wire_user_agent();
+        assert!(ua.starts_with("psysonic/"), "got {ua:?}");
+        assert!(
+            ua.len() > "psysonic/".len(),
+            "version suffix missing: {ua:?}"
+        );
+    }
+
+    #[test]
+    fn runtime_user_agent_returns_default_until_overridden() {
+        let ua = subsonic_wire_user_agent();
+        assert_eq!(ua, default_subsonic_wire_user_agent());
+    }
+}

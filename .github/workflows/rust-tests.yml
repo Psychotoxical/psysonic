@@ -1,0 +1,88 @@
+name: rust-tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src-tauri/**'
+      - '.github/workflows/rust-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src-tauri/**'
+      - '.github/workflows/rust-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: cargo test --workspace
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libasound2-dev cmake
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo test --workspace
+        working-directory: src-tauri
+        run: cargo test --workspace --all-targets
+
+  clippy:
+    name: cargo clippy --workspace
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libasound2-dev cmake
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo clippy --workspace
+        working-directory: src-tauri
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  coverage:
+    name: cargo llvm-cov (baseline, no fail threshold)
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libasound2-dev cmake
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: generate workspace coverage (lcov)
+        working-directory: src-tauri
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage-lcov
+          path: src-tauri/lcov.info
+          if-no-files-found: error

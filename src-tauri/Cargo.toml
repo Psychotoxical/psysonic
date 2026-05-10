@@ -7,6 +7,12 @@ version = "1.46.0-dev"
 edition = "2021"
 rust-version = "1.89"
 
+[workspace.dependencies]
+tempfile = "3"
+wiremock = "0.6"
+mockall = "0.13"
+proptest = "1"
+
 [package]
 name = "psysonic"
 version.workspace = true

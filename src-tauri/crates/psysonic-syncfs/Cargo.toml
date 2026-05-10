@@ -23,3 +23,6 @@ url = "2"
 md5 = "0.8"
 lofty = "0.24"
 id3 = "1.16.4"
+
+[dev-dependencies]
+tempfile = { workspace = true }
