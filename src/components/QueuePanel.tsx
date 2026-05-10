@@ -29,6 +29,7 @@ import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
 import OverlayScrollArea from './OverlayScrollArea';
 import { useLuckyMixStore } from '../store/luckyMixStore';
+import { useQueueToolbarStore, QueueToolbarButtonId } from '../store/queueToolbarStore';
 import { loudnessGainPlaceholderUntilCacheDb } from '../utils/loudnessPlaceholder';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
 
@@ -384,6 +385,7 @@ function QueuePanelHostOrSolo() {
 
   const isNowPlayingCollapsed = useAuthStore(s => s.queueNowPlayingCollapsed);
   const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
+  const toolbarButtons = useQueueToolbarStore(s => s.buttons);
   const [durationMode, setDurationMode] = useState<DurationMode>('total');
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
   const [lufsTgtOpen, setLufsTgtOpen] = useState(false);
@@ -922,95 +924,132 @@ function QueuePanelHostOrSolo() {
       )}
 
       {activeTab === 'queue' ? (<>
-        {!isNowPlayingCollapsed && (
+        {!isNowPlayingCollapsed && toolbarButtons.some(b => b.visible && b.id !== 'separator') && (
           <div className="queue-toolbar">
-            <button className="queue-round-btn" onClick={() => shuffleQueue()} disabled={queue.length < 2} data-tooltip={t('queue.shuffle')} aria-label={t('queue.shuffle')}>
-              <Shuffle size={13} />
-            </button>
-            <button
-              className={`queue-round-btn${saveState === 'saved' ? ' active' : ''}`}
-              onClick={handleSave}
-              disabled={saveState === 'saving'}
-              data-tooltip={activePlaylist ? `${t('queue.updatePlaylist')}: ${activePlaylist.name}` : t('queue.savePlaylist')}
-              aria-label={t('queue.savePlaylist')}
-            >
-              {saveState === 'saved' ? <Check size={13} /> : <Save size={13} />}
-            </button>
-            <button className="queue-round-btn" onClick={handleLoad} data-tooltip={t('queue.loadPlaylist')} aria-label={t('queue.loadPlaylist')}>
-              <FolderOpen size={13} />
-            </button>
-            <button
-              className="queue-round-btn"
-              onClick={() => void handleCopyQueueShare()}
-              data-tooltip={t('queue.shareQueue')}
-              aria-label={t('queue.shareQueue')}
-            >
-              <Share2 size={13} />
-            </button>
-            <button className="queue-round-btn" onClick={handleClear} data-tooltip={t('queue.clear')} aria-label={t('queue.clear')}>
-              <Trash2 size={13} />
-            </button>
-            <div className="queue-toolbar-sep" />
-            <button
-              className={`queue-round-btn${gaplessEnabled ? ' active' : ''}`}
-              onClick={() => { setCrossfadeEnabled(false); setShowCrossfadePopover(false); setGaplessEnabled(!gaplessEnabled); }}
-              data-tooltip={t('queue.gapless')}
-              aria-label={t('queue.gapless')}
-            >
-              <MoveRight size={13} />
-            </button>
-            <div style={{ position: 'relative' }}>
-              <button
-                ref={crossfadeBtnRef}
-                className={`queue-round-btn${crossfadeEnabled || showCrossfadePopover ? ' active' : ''}`}
-                onClick={() => {
-                  if (crossfadeEnabled) {
-                    setCrossfadeEnabled(false);
-                    setShowCrossfadePopover(false);
-                  } else {
-                    setGaplessEnabled(false);
-                    setCrossfadeEnabled(true);
-                    setShowCrossfadePopover(true);
-                  }
-                }}
-                data-tooltip={showCrossfadePopover ? undefined : t('queue.crossfade')}
-                aria-label={t('queue.crossfade')}
-              >
-                <Waves size={13} />
-              </button>
-              {showCrossfadePopover && (
-                <div className="crossfade-popover" ref={crossfadePopoverRef}>
-                  <div className="crossfade-popover-label">
-                    <Waves size={11} />
-                    {t('queue.crossfade')}
-                    <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.1}
-                    max={10}
-                    step={0.1}
-                    value={crossfadeSecs}
-                    onChange={e => {
-                      setCrossfadeSecs(parseFloat(e.target.value));
-                      setCrossfadeEnabled(true);
-                    }}
-                    className="crossfade-popover-slider"
-                  />
-                  <div className="crossfade-popover-range">
-                    <span>0.1s</span><span>10s</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <button
-              className={`queue-round-btn${infiniteQueueEnabled ? ' active' : ''}`}
-              onClick={() => setInfiniteQueueEnabled(!infiniteQueueEnabled)}
-              data-tooltip={t('queue.infiniteQueue')}
-              aria-label={t('queue.infiniteQueue')}
-            >
-              <Infinity size={13} />
-            </button>
+            {toolbarButtons.map((btn, idx) => {
+              if (!btn.visible) return null;
+
+              switch (btn.id as QueueToolbarButtonId) {
+                case 'shuffle':
+                  return (
+                    <button key={btn.id} className="queue-round-btn" onClick={() => shuffleQueue()} disabled={queue.length < 2} data-tooltip={t('queue.shuffle')} aria-label={t('queue.shuffle')}>
+                      <Shuffle size={13} />
+                    </button>
+                  );
+                case 'save':
+                  return (
+                    <button
+                      key={btn.id}
+                      className={`queue-round-btn${saveState === 'saved' ? ' active' : ''}`}
+                      onClick={handleSave}
+                      disabled={saveState === 'saving'}
+                      data-tooltip={activePlaylist ? `${t('queue.updatePlaylist')}: ${activePlaylist.name}` : t('queue.savePlaylist')}
+                      aria-label={t('queue.savePlaylist')}
+                    >
+                      {saveState === 'saved' ? <Check size={13} /> : <Save size={13} />}
+                    </button>
+                  );
+                case 'load':
+                  return (
+                    <button key={btn.id} className="queue-round-btn" onClick={handleLoad} data-tooltip={t('queue.loadPlaylist')} aria-label={t('queue.loadPlaylist')}>
+                      <FolderOpen size={13} />
+                    </button>
+                  );
+                case 'share':
+                  return (
+                    <button
+                      key={btn.id}
+                      className="queue-round-btn"
+                      onClick={() => void handleCopyQueueShare()}
+                      data-tooltip={t('queue.shareQueue')}
+                      aria-label={t('queue.shareQueue')}
+                    >
+                      <Share2 size={13} />
+                    </button>
+                  );
+                case 'clear':
+                  return (
+                    <button key={btn.id} className="queue-round-btn" onClick={handleClear} data-tooltip={t('queue.clear')} aria-label={t('queue.clear')}>
+                      <Trash2 size={13} />
+                    </button>
+                  );
+                case 'separator':
+                  return <div key={btn.id} className="queue-toolbar-sep" />;
+                case 'gapless':
+                  return (
+                    <button
+                      key={btn.id}
+                      className={`queue-round-btn${gaplessEnabled ? ' active' : ''}`}
+                      onClick={() => { setCrossfadeEnabled(false); setShowCrossfadePopover(false); setGaplessEnabled(!gaplessEnabled); }}
+                      data-tooltip={t('queue.gapless')}
+                      aria-label={t('queue.gapless')}
+                    >
+                      <MoveRight size={13} />
+                    </button>
+                  );
+                case 'crossfade':
+                  return (
+                    <div key={btn.id} style={{ position: 'relative' }}>
+                      <button
+                        ref={crossfadeBtnRef}
+                        className={`queue-round-btn${crossfadeEnabled || showCrossfadePopover ? ' active' : ''}`}
+                        onClick={() => {
+                          if (crossfadeEnabled) {
+                            setCrossfadeEnabled(false);
+                            setShowCrossfadePopover(false);
+                          } else {
+                            setGaplessEnabled(false);
+                            setCrossfadeEnabled(true);
+                            setShowCrossfadePopover(true);
+                          }
+                        }}
+                        data-tooltip={showCrossfadePopover ? undefined : t('queue.crossfade')}
+                        aria-label={t('queue.crossfade')}
+                      >
+                        <Waves size={13} />
+                      </button>
+                      {showCrossfadePopover && (
+                        <div className="crossfade-popover" ref={crossfadePopoverRef}>
+                          <div className="crossfade-popover-label">
+                            <Waves size={11} />
+                            {t('queue.crossfade')}
+                            <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0.1}
+                            max={10}
+                            step={0.1}
+                            value={crossfadeSecs}
+                            onChange={e => {
+                              setCrossfadeSecs(parseFloat(e.target.value));
+                              setCrossfadeEnabled(true);
+                            }}
+                            className="crossfade-popover-slider"
+                          />
+                          <div className="crossfade-popover-range">
+                            <span>0.1s</span><span>10s</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                case 'infinite':
+                  return (
+                    <button
+                      key={btn.id}
+                      className={`queue-round-btn${infiniteQueueEnabled ? ' active' : ''}`}
+                      onClick={() => setInfiniteQueueEnabled(!infiniteQueueEnabled)}
+                      data-tooltip={t('queue.infiniteQueue')}
+                      aria-label={t('queue.infiniteQueue')}
+                    >
+                      <Infinity size={13} />
+                    </button>
+                  );
+                default:
+                  return null;
+              }
+            })}
           </div>
         )}
 
