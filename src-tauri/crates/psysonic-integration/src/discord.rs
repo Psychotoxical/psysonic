@@ -84,12 +84,30 @@ fn normalize(s: &str) -> String {
 ///
 /// Takes explicit `client` and `cache` so this can be called from inside
 /// `tokio::task::spawn_blocking` without needing a reference to `DiscordState`.
+/// iTunes Search API endpoint. Lifted to a constant so [`search_itunes_artwork_with_base`]
+/// can be redirected at a wiremock instance in tests.
+const ITUNES_SEARCH_URL: &str = "https://itunes.apple.com/search";
+
 fn search_itunes_artwork(
     client: &Client,
     cache: &Mutex<HashMap<String, ArtworkCacheEntry>>,
     artist: &str,
     album: &str,
     title: &str,
+) -> Option<String> {
+    search_itunes_artwork_with_base(client, cache, artist, album, title, ITUNES_SEARCH_URL)
+}
+
+/// Test-friendly variant of [`search_itunes_artwork`] that takes the search
+/// endpoint as a parameter. Production calls always go through the wrapper
+/// above, which pins the iTunes URL.
+fn search_itunes_artwork_with_base(
+    client: &Client,
+    cache: &Mutex<HashMap<String, ArtworkCacheEntry>>,
+    artist: &str,
+    album: &str,
+    title: &str,
+    base_url: &str,
 ) -> Option<String> {
     let cache_key = format!("{}|{}", artist, album);
 
@@ -108,7 +126,7 @@ fn search_itunes_artwork(
     let norm_title = normalize(title);
 
     // Strategy 1: exact match search — "artist" "album"
-    let mut url = url::Url::parse("https://itunes.apple.com/search").ok()?;
+    let mut url = url::Url::parse(base_url).ok()?;
     url.query_pairs_mut()
         .append_pair("term", &format!("\"{}\" \"{}\"", artist, album))
         .append_pair("media", "music")
@@ -121,7 +139,7 @@ fn search_itunes_artwork(
     }
 
     // Strategy 2: relaxed search — artist album (no quotes)
-    let mut url = url::Url::parse("https://itunes.apple.com/search").ok()?;
+    let mut url = url::Url::parse(base_url).ok()?;
     url.query_pairs_mut()
         .append_pair("term", &format!("{} {}", artist, album))
         .append_pair("media", "music")
@@ -135,7 +153,7 @@ fn search_itunes_artwork(
 
     // Strategy 3: search by track title — artist + title (for singles/rare albums)
     if !title.is_empty() {
-        let mut url = url::Url::parse("https://itunes.apple.com/search").ok()?;
+        let mut url = url::Url::parse(base_url).ok()?;
         url.query_pairs_mut()
             .append_pair("term", &format!("{} {}", artist, title))
             .append_pair("media", "music")
@@ -585,6 +603,155 @@ mod tests {
         .unwrap();
 
         assert!(result.is_none());
+    }
+
+    // ── search_itunes_artwork_with_base — full strategy ladder + cache ──────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn artwork_with_base_returns_cached_url_without_network() {
+        // No mock — if the function tries to hit the network it'll fail with
+        // a transport error rather than the cached value.
+        let server = MockServer::start().await;
+        let cache: Mutex<HashMap<String, ArtworkCacheEntry>> = Mutex::new(HashMap::new());
+        cache.lock().unwrap().insert(
+            "Pink Floyd|The Wall".to_string(),
+            ArtworkCacheEntry {
+                url: "https://cached/600x600.jpg".to_string(),
+                fetched_at: Instant::now(),
+            },
+        );
+
+        let server_uri = server.uri();
+        let result = tokio::task::spawn_blocking(move || {
+            let url = format!("{server_uri}/search");
+            search_itunes_artwork_with_base(
+                &itunes_blocking_client(),
+                &cache,
+                "Pink Floyd",
+                "The Wall",
+                "Comfortably Numb",
+                &url,
+            )
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(result, Some("https://cached/600x600.jpg".to_string()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn artwork_with_base_uses_strategy_1_when_exact_match_succeeds() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": [
+                    {
+                        "collectionName": "The Wall",
+                        "artistName": "Pink Floyd",
+                        "artworkUrl100": "https://itunes/strategy1/100x100.jpg"
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let server_uri = server.uri();
+        let cache: Mutex<HashMap<String, ArtworkCacheEntry>> = Mutex::new(HashMap::new());
+        let result = tokio::task::spawn_blocking(move || {
+            let url = format!("{server_uri}/search");
+            search_itunes_artwork_with_base(
+                &itunes_blocking_client(),
+                &cache,
+                "Pink Floyd",
+                "The Wall",
+                "Comfortably Numb",
+                &url,
+            )
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(
+            result,
+            Some("https://itunes/strategy1/600x600.jpg".to_string()),
+            "first matching strategy returns immediately + caches"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn artwork_with_base_returns_none_when_no_strategy_matches() {
+        let server = MockServer::start().await;
+        // Server always returns empty results — every strategy misses.
+        Mock::given(method("GET"))
+            .and(wm_path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": []
+            })))
+            .mount(&server)
+            .await;
+
+        let server_uri = server.uri();
+        let cache: Mutex<HashMap<String, ArtworkCacheEntry>> = Mutex::new(HashMap::new());
+        let result = tokio::task::spawn_blocking(move || {
+            let url = format!("{server_uri}/search");
+            search_itunes_artwork_with_base(
+                &itunes_blocking_client(),
+                &cache,
+                "Unknown",
+                "Album",
+                "Title",
+                &url,
+            )
+        })
+        .await
+        .unwrap();
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn artwork_with_base_caches_successful_lookup_for_subsequent_calls() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": [
+                    {
+                        "collectionName": "Album",
+                        "artistName": "Artist",
+                        "artworkUrl100": "https://itunes/cached/100x100.jpg"
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let server_uri = server.uri();
+        let cache: Arc<Mutex<HashMap<String, ArtworkCacheEntry>>> =
+            Arc::new(Mutex::new(HashMap::new()));
+        let cache_clone = Arc::clone(&cache);
+        let _first = tokio::task::spawn_blocking(move || {
+            let url = format!("{server_uri}/search");
+            search_itunes_artwork_with_base(
+                &itunes_blocking_client(),
+                &cache_clone,
+                "Artist",
+                "Album",
+                "T",
+                &url,
+            )
+        })
+        .await
+        .unwrap();
+
+        // After first lookup, cache must hold the resolved URL.
+        let entry_url = cache.lock().unwrap().get("Artist|Album").map(|e| e.url.clone());
+        assert_eq!(
+            entry_url,
+            Some("https://itunes/cached/600x600.jpg".to_string()),
+            "successful lookup must populate the artwork cache",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

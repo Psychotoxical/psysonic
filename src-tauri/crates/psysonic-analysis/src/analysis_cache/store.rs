@@ -90,11 +90,16 @@ impl AnalysisCache {
         Ok(Self { conn: Mutex::new(conn) })
     }
 
-    /// Test-only constructor that opens an in-memory SQLite database with the
-    /// production schema applied. WAL pragma is skipped — `:memory:` databases
-    /// don't support journal-mode changes.
-    #[cfg(test)]
-    pub(crate) fn open_in_memory() -> Self {
+    /// Builds an in-memory SQLite database with the production schema applied.
+    /// Intended for tests in this crate and any downstream crate that needs an
+    /// `AnalysisCache` without an `AppHandle`. WAL pragma is skipped — `:memory:`
+    /// databases don't support journal-mode changes; the test surface doesn't
+    /// need durability.
+    ///
+    /// Lives outside `#[cfg(test)]` so cross-crate test harnesses can call it
+    /// without a `test-support` Cargo feature dance. Production code does not
+    /// use it.
+    pub fn open_in_memory() -> Self {
         let conn = Connection::open_in_memory().expect("in-memory connection");
         conn.pragma_update(None, "foreign_keys", "ON").expect("pragma foreign_keys");
         migrate_schema(&conn).expect("schema migration");

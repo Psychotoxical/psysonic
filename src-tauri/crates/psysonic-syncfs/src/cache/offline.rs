@@ -13,19 +13,35 @@ pub async fn enqueue_analysis_seed_from_file(
     track_id: &str,
     file_path: &std::path::Path,
 ) {
-    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+    let cache = app.try_state::<analysis_cache::AnalysisCache>();
+    let cache_ref: Option<&analysis_cache::AnalysisCache> = cache.as_ref().map(|s| s.inner());
+    let Some(bytes) = read_seed_bytes_if_needed(cache_ref, track_id, file_path).await else {
+        return;
+    };
+    let _ = enqueue_analysis_seed(app, track_id, &bytes).await;
+}
+
+/// AppHandle-free decision: returns the file bytes when seeding is required
+/// (cache miss or no cache attached), or `None` when the cache says seeding is
+/// redundant, the file can't be read, or the file is empty.
+///
+/// Pulled out of [`enqueue_analysis_seed_from_file`] so tests can drive every
+/// branch with `AnalysisCache::open_in_memory()` plus a `tempfile::TempDir`.
+pub(crate) async fn read_seed_bytes_if_needed(
+    cache: Option<&analysis_cache::AnalysisCache>,
+    track_id: &str,
+    file_path: &std::path::Path,
+) -> Option<Vec<u8>> {
+    if let Some(cache) = cache {
         if cache.cpu_seed_redundant_for_track(track_id).unwrap_or(false) {
-            return;
+            return None;
         }
     }
-    let bytes = match tokio::fs::read(file_path).await {
-        Ok(v) => v,
-        Err(_) => return,
-    };
+    let bytes = tokio::fs::read(file_path).await.ok()?;
     if bytes.is_empty() {
-        return;
+        return None;
     }
-    let _ = enqueue_analysis_seed(app, track_id, &bytes).await;
+    Some(bytes)
 }
 
 /// AppHandle-free download primitive: ensures `cache_dir` exists, returns
@@ -263,6 +279,99 @@ mod tests {
         assert!(!album.exists(), "empty leaf pruned");
         assert!(server_dir.exists(), "non-empty parent preserved");
         assert!(sibling.exists());
+    }
+
+    // ── read_seed_bytes_if_needed (AppHandle-free) ──────────────────────────
+
+    use psysonic_analysis::analysis_cache::{
+        AnalysisCache, LoudnessEntry, TrackKey, WaveformEntry,
+    };
+
+    fn populate_redundant_seed_rows(cache: &AnalysisCache, track_id: &str) {
+        // cpu_seed_redundant_for_track returns true when both waveform AND
+        // loudness rows exist for the current algo version.
+        let key = TrackKey {
+            track_id: track_id.to_string(),
+            md5_16kb: "deadbeef".to_string(),
+        };
+        cache.touch_track_status(&key, "ready").unwrap();
+        cache
+            .upsert_waveform(
+                &key,
+                &WaveformEntry {
+                    bins: vec![0u8; 1000], // 2 * 500
+                    bin_count: 500,
+                    is_partial: false,
+                    known_until_sec: 0.0,
+                    duration_sec: 0.0,
+                    updated_at: 1_700_000_000,
+                },
+            )
+            .unwrap();
+        cache
+            .upsert_loudness(
+                &key,
+                &LoudnessEntry {
+                    integrated_lufs: -14.0,
+                    true_peak: 1.0,
+                    recommended_gain_db: 0.0,
+                    target_lufs: -14.0,
+                    updated_at: 1_700_000_000,
+                },
+            )
+            .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn read_seed_bytes_returns_bytes_when_no_cache_attached() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("track.mp3");
+        std::fs::write(&file, b"audio data").unwrap();
+        let bytes = read_seed_bytes_if_needed(None, "anything", &file).await;
+        assert_eq!(bytes.as_deref(), Some(b"audio data".as_slice()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn read_seed_bytes_returns_bytes_when_cache_has_no_rows_for_track() {
+        let cache = AnalysisCache::open_in_memory();
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("track.flac");
+        std::fs::write(&file, b"some bytes").unwrap();
+        let bytes = read_seed_bytes_if_needed(Some(&cache), "fresh-track", &file).await;
+        assert_eq!(bytes.as_deref(), Some(b"some bytes".as_slice()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn read_seed_bytes_returns_none_when_cache_says_redundant() {
+        let cache = AnalysisCache::open_in_memory();
+        populate_redundant_seed_rows(&cache, "redundant-track");
+
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("track.mp3");
+        std::fs::write(&file, b"would-be-decoded bytes").unwrap();
+
+        let bytes = read_seed_bytes_if_needed(Some(&cache), "redundant-track", &file).await;
+        assert!(
+            bytes.is_none(),
+            "redundant-cache short-circuit must skip the file read entirely"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn read_seed_bytes_returns_none_for_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let phantom = dir.path().join("never-written.mp3");
+        let bytes = read_seed_bytes_if_needed(None, "any", &phantom).await;
+        assert!(bytes.is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn read_seed_bytes_returns_none_for_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("empty.flac");
+        std::fs::write(&file, b"").unwrap();
+        let bytes = read_seed_bytes_if_needed(None, "any", &file).await;
+        assert!(bytes.is_none(), "empty file must not trigger seeding");
     }
 }
 

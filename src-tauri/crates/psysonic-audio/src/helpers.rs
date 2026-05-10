@@ -345,11 +345,28 @@ pub(crate) fn resolve_loudness_gain_from_cache_impl(
         }
         return None;
     };
+    resolve_loudness_gain_with_cache(cache.inner(), &track_id, target_lufs, opts)
+}
+
+/// AppHandle-free core of [`resolve_loudness_gain_from_cache_impl`]. Looks up
+/// the latest loudness row for `track_id` in `cache` and returns the
+/// recommended gain in dB, or `None` for any miss / non-finite / error case.
+/// Pulled out so tests can drive every branch via `AnalysisCache::open_in_memory()`.
+///
+/// `opts.touch_waveform` keeps parity with production behaviour: when binding
+/// a track, we also touch `get_latest_waveform_for_track` so the SQLite
+/// connection's row cache is warm for the next IPC tick.
+pub(crate) fn resolve_loudness_gain_with_cache(
+    cache: &psysonic_analysis::analysis_cache::AnalysisCache,
+    track_id: &str,
+    target_lufs: f32,
+    opts: ResolveLoudnessCacheOpts,
+) -> Option<f32> {
     if opts.touch_waveform {
         // Bind / preload: verify waveform context exists alongside loudness lookup.
-        let _ = cache.get_latest_waveform_for_track(&track_id);
+        let _ = cache.get_latest_waveform_for_track(track_id);
     }
-    match cache.get_latest_loudness_for_track(&track_id) {
+    match cache.get_latest_loudness_for_track(track_id) {
         Ok(Some(row)) if row.integrated_lufs.is_finite() => {
             let recommended = psysonic_analysis::analysis_cache::recommended_gain_for_target(
                 row.integrated_lufs,
@@ -1168,5 +1185,116 @@ mod tests {
     fn linear_to_db_rejects_non_finite() {
         assert!(gain_linear_to_db(f32::NAN).is_none());
         assert!(gain_linear_to_db(f32::INFINITY).is_none());
+    }
+
+    // ── resolve_loudness_gain_with_cache (AppHandle-free) ────────────────────
+
+    use psysonic_analysis::analysis_cache::{AnalysisCache, LoudnessEntry, TrackKey};
+
+    fn upsert_loudness_row(cache: &AnalysisCache, track_id: &str, integrated: f64, target: f64) {
+        let k = TrackKey {
+            track_id: track_id.to_string(),
+            md5_16kb: "deadbeef".to_string(),
+        };
+        cache.touch_track_status(&k, "ready").unwrap();
+        cache
+            .upsert_loudness(
+                &k,
+                &LoudnessEntry {
+                    integrated_lufs: integrated,
+                    true_peak: 0.5,
+                    recommended_gain_db: 0.0,
+                    target_lufs: target,
+                    updated_at: 1_700_000_000,
+                },
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn resolve_with_cache_returns_none_for_missing_loudness() {
+        let cache = AnalysisCache::open_in_memory();
+        let g = resolve_loudness_gain_with_cache(
+            &cache,
+            "no-such-track",
+            -14.0,
+            ResolveLoudnessCacheOpts::default(),
+        );
+        assert!(g.is_none());
+    }
+
+    #[test]
+    fn resolve_with_cache_returns_recommended_gain_for_existing_row() {
+        let cache = AnalysisCache::open_in_memory();
+        // Track at -23 LUFS, target -14 → recommended gain capped by true-peak (0.5 ≈ -6 dB).
+        upsert_loudness_row(&cache, "abc", -23.0, -14.0);
+        let g = resolve_loudness_gain_with_cache(
+            &cache,
+            "abc",
+            -14.0,
+            ResolveLoudnessCacheOpts::default(),
+        )
+        .expect("loudness row → Some(gain_db)");
+        assert!(g.is_finite());
+        // Target - integrated = +9, but true-peak guard caps it: max = -1 - 20*log10(0.5) ≈ +5.
+        assert!((-1.0..=10.0).contains(&g), "gain_db = {g}");
+    }
+
+    // (NaN-roundtrip through SQLite is platform-dependent — rusqlite often
+    // serialises f64::NAN as NULL, which fails column-decode rather than
+    // round-tripping a non-finite value. The `.is_finite()` guard inside
+    // `resolve_loudness_gain_with_cache` is defensive code that protects
+    // against in-memory corruption; not directly testable via the cache API.)
+
+    #[test]
+    fn resolve_with_cache_finds_row_under_other_id_variant() {
+        let cache = AnalysisCache::open_in_memory();
+        // Insert under stream:abc, look up with bare abc — get_latest_*_for_track
+        // walks both id variants.
+        upsert_loudness_row(&cache, "stream:abc", -16.0, -14.0);
+        let g = resolve_loudness_gain_with_cache(
+            &cache,
+            "abc",
+            -14.0,
+            ResolveLoudnessCacheOpts::default(),
+        );
+        assert!(g.is_some(), "bare-id lookup must find stream-prefixed row");
+    }
+
+    #[test]
+    fn resolve_with_cache_respects_target_lufs_for_recommended_gain() {
+        let cache = AnalysisCache::open_in_memory();
+        upsert_loudness_row(&cache, "abc", -20.0, -14.0);
+        let g_quiet = resolve_loudness_gain_with_cache(
+            &cache,
+            "abc",
+            -20.0,
+            ResolveLoudnessCacheOpts::default(),
+        )
+        .unwrap();
+        let g_loud = resolve_loudness_gain_with_cache(
+            &cache,
+            "abc",
+            -10.0,
+            ResolveLoudnessCacheOpts::default(),
+        )
+        .unwrap();
+        assert!(
+            g_loud > g_quiet,
+            "higher target_lufs must yield higher recommended gain (quiet={g_quiet}, loud={g_loud})"
+        );
+    }
+
+    #[test]
+    fn resolve_with_cache_touch_waveform_false_does_not_panic() {
+        // Smoke: opts.touch_waveform=false must not cause an SQL error or panic.
+        let cache = AnalysisCache::open_in_memory();
+        upsert_loudness_row(&cache, "abc", -20.0, -14.0);
+        let opts = ResolveLoudnessCacheOpts {
+            touch_waveform: false,
+            log_soft_misses: false,
+        };
+        let g = resolve_loudness_gain_with_cache(&cache, "abc", -14.0, opts);
+        assert!(g.is_some());
     }
 }
