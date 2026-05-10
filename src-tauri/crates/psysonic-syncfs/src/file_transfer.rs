@@ -59,6 +59,8 @@ pub async fn finalize_streamed_download(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path as wm_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn subsonic_http_client_builds_with_short_timeout() {
@@ -76,5 +78,117 @@ mod tests {
         // zero is a valid Duration — reqwest treats it as "no timeout effectively".
         // The constructor must not reject it.
         assert!(subsonic_http_client(Duration::from_secs(0)).is_ok());
+    }
+
+    // ── stream_to_file ────────────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stream_to_file_writes_full_response_body() {
+        let server = MockServer::start().await;
+        let body = b"hello psysonic test bytes".to_vec();
+        Mock::given(method("GET"))
+            .and(wm_path("/track.flac"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("track.flac");
+        let response = reqwest::get(format!("{}/track.flac", server.uri()))
+            .await
+            .unwrap();
+        stream_to_file(response, &dest).await.unwrap();
+
+        let written = std::fs::read(&dest).unwrap();
+        assert_eq!(written, body);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stream_to_file_creates_empty_file_for_empty_body() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/empty"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(Vec::<u8>::new()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("empty.bin");
+        let response = reqwest::get(format!("{}/empty", server.uri()))
+            .await
+            .unwrap();
+        stream_to_file(response, &dest).await.unwrap();
+        assert!(dest.exists());
+        assert_eq!(std::fs::metadata(&dest).unwrap().len(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stream_to_file_returns_err_when_dest_directory_missing() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/x"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"x".to_vec()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("missing-subdir").join("x.bin");
+        let response = reqwest::get(format!("{}/x", server.uri()))
+            .await
+            .unwrap();
+        let result = stream_to_file(response, &dest).await;
+        assert!(result.is_err(), "create on missing parent dir must err");
+    }
+
+    // ── finalize_streamed_download ────────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn finalize_renames_part_to_dest_on_success() {
+        let server = MockServer::start().await;
+        let body = b"final body content".to_vec();
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("track.flac");
+        let part = dest.with_extension("flac.part");
+        let response = reqwest::get(format!("{}/track", server.uri()))
+            .await
+            .unwrap();
+
+        finalize_streamed_download(response, &dest, &part).await.unwrap();
+        assert!(dest.exists(), "dest file must exist after success");
+        assert!(!part.exists(), "part file must not linger");
+        assert_eq!(std::fs::read(&dest).unwrap(), body);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn finalize_cleans_up_part_when_rename_fails() {
+        // Pre-create the dest as a directory — rename(file -> existing-dir)
+        // fails on every supported OS (renaming a file over a directory is
+        // not allowed, even when the dir is empty).
+        let server = MockServer::start().await;
+        let body = b"some content".to_vec();
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("blocker");
+        std::fs::create_dir(&dest).unwrap(); // dest is a dir → rename should fail
+        let part = dir.path().join("blocker.part");
+        let response = reqwest::get(format!("{}/track", server.uri()))
+            .await
+            .unwrap();
+
+        let result = finalize_streamed_download(response, &dest, &part).await;
+        assert!(result.is_err(), "rename onto existing directory must fail");
+        assert!(!part.exists(), "part file must be cleaned up after rename failure");
+        assert!(dest.is_dir(), "the blocker directory itself stays untouched");
     }
 }
