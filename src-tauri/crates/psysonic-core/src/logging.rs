@@ -5,8 +5,6 @@
 //! per-runtime log file. Live mode toggling at runtime via
 //! `set_logging_mode_from_str("off"|"normal"|"debug")`.
 
-#[cfg(unix)]
-use libc;
 use std::collections::VecDeque;
 use std::io::Write;
 use std::sync::{Mutex, OnceLock};

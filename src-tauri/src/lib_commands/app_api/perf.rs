@@ -94,13 +94,13 @@ pub(crate) fn performance_cpu_snapshot() -> PerformanceCpuSnapshot {
             .filter(|(_, comm, ppid, _)| comm.starts_with("WebKitWebProces") && *ppid == self_pid)
             .map(|(_, _, _, ticks)| *ticks)
             .sum::<u64>();
-        return PerformanceCpuSnapshot {
+        PerformanceCpuSnapshot {
             supported: true,
             total_jiffies,
             app_jiffies,
             webkit_jiffies,
             logical_cpus,
-        };
+        }
     }
     #[cfg(not(target_os = "linux"))]
     {
