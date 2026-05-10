@@ -207,3 +207,57 @@ pub async fn nd_get_song_path(
     let data: serde_json::Value = resp.json().await.map_err(nd_err)?;
     Ok(data["path"].as_str().map(|s| s.to_string()).filter(|s| !s.is_empty()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_json_object(s: &str) -> serde_json::Map<String, serde_json::Value> {
+        let v: serde_json::Value = serde_json::from_str(s).expect("valid JSON");
+        v.as_object().expect("object").clone()
+    }
+
+    #[test]
+    fn build_filters_emits_seed_unchanged_when_library_id_none() {
+        let mut seed = serde_json::Map::new();
+        seed.insert("role".to_string(), serde_json::Value::String("composer".to_string()));
+        let out = nd_build_filters(seed, None);
+        let parsed = parse_json_object(&out);
+        assert_eq!(parsed.get("role").unwrap(), "composer");
+        assert!(!parsed.contains_key("library_id"));
+    }
+
+    #[test]
+    fn build_filters_inserts_numeric_library_id_when_parseable() {
+        let seed = serde_json::Map::new();
+        let out = nd_build_filters(seed, Some("42"));
+        let parsed = parse_json_object(&out);
+        let lib = parsed.get("library_id").expect("library_id present");
+        assert_eq!(lib.as_i64(), Some(42), "numeric library_id stored as Number");
+    }
+
+    #[test]
+    fn build_filters_falls_back_to_string_for_non_numeric_library_id() {
+        let seed = serde_json::Map::new();
+        let out = nd_build_filters(seed, Some("abc-123"));
+        let parsed = parse_json_object(&out);
+        let lib = parsed.get("library_id").expect("library_id present");
+        assert_eq!(lib.as_str(), Some("abc-123"));
+        assert!(lib.as_i64().is_none());
+    }
+
+    #[test]
+    fn build_filters_preserves_existing_seed_keys_alongside_library_id() {
+        let mut seed = serde_json::Map::new();
+        seed.insert("role".to_string(), serde_json::Value::String("conductor".to_string()));
+        seed.insert(
+            "role_lyricist_id".to_string(),
+            serde_json::Value::String("artist-7".to_string()),
+        );
+        let out = nd_build_filters(seed, Some("3"));
+        let parsed = parse_json_object(&out);
+        assert_eq!(parsed.get("role").unwrap(), "conductor");
+        assert_eq!(parsed.get("role_lyricist_id").unwrap(), "artist-7");
+        assert_eq!(parsed.get("library_id").unwrap().as_i64(), Some(3));
+    }
+}

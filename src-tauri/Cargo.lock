@@ -3792,6 +3792,7 @@ dependencies = [
  "tauri",
  "tokio",
  "url",
+ "wiremock",
 ]
 
 [[package]]

@@ -17,3 +17,7 @@ futures-util = "0.3"
 discord-rich-presence = "1.1"
 url = "2"
 md5 = "0.8"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "time", "sync", "macros", "rt-multi-thread", "test-util"] }
+wiremock = { workspace = true }

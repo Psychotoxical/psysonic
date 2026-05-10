@@ -104,3 +104,176 @@ pub fn nd_http_client() -> reqwest::Client {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use wiremock::matchers::{method, path as wm_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // ── nd_http_client ────────────────────────────────────────────────────────
+
+    #[test]
+    fn nd_http_client_builds_without_panicking() {
+        // Don't try to inspect — just verify the builder + fallback returns a Client.
+        let _client = nd_http_client();
+    }
+
+    // ── nd_err ────────────────────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn nd_err_flattens_into_a_single_string() {
+        // Provoke a transport error by hitting an unbound port — the error chain
+        // typically is "error sending request | tcp connect error | refused".
+        let client = reqwest::Client::new();
+        let err = client
+            .get("http://127.0.0.1:1") // port 1 is reserved, never bound
+            .send()
+            .await
+            .expect_err("connect must fail");
+        let flattened = nd_err(err);
+        // The flattened string contains at least the top message.
+        assert!(!flattened.is_empty());
+        // The chain joiner appears zero or more times depending on the OS — we
+        // just verify the function doesn't panic and returns something readable.
+    }
+
+    // ── nd_retry — uses a synthetic Future, not reqwest, for determinism ──────
+
+    /// Build a reqwest::Error of the connect kind by attempting an immediate
+    /// connect to a known-closed port. Reused by the retry tests so we get
+    /// errors classified as `is_connect()`.
+    async fn synthetic_connect_error() -> reqwest::Error {
+        reqwest::Client::new()
+            .get("http://127.0.0.1:1")
+            .timeout(std::time::Duration::from_millis(50))
+            .send()
+            .await
+            .expect_err("connect must fail")
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn nd_retry_returns_immediately_when_first_attempt_succeeds() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/ok"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+            .mount(&server)
+            .await;
+
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_c = attempts.clone();
+        let url = format!("{}/ok", server.uri());
+        let resp = nd_retry(move || {
+            attempts_c.fetch_add(1, Ordering::SeqCst);
+            let url = url.clone();
+            async move { reqwest::Client::new().get(&url).send().await }
+        })
+        .await
+        .expect("first try should win");
+        assert_eq!(resp.status(), 200);
+        assert_eq!(attempts.load(Ordering::SeqCst), 1, "no retries");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn nd_retry_does_not_retry_status_level_errors() {
+        // 404 is a status-level error (the future returned Ok(resp) with status 404).
+        // Even though the response is "bad", the body is intact; nd_retry must
+        // return immediately without retrying.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/missing"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_c = attempts.clone();
+        let url = format!("{}/missing", server.uri());
+        let resp = nd_retry(move || {
+            attempts_c.fetch_add(1, Ordering::SeqCst);
+            let url = url.clone();
+            async move { reqwest::Client::new().get(&url).send().await }
+        })
+        .await
+        .expect("status errors come back as Ok(resp)");
+        assert_eq!(resp.status(), 404);
+        assert_eq!(attempts.load(Ordering::SeqCst), 1, "404 must not trigger a retry");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn nd_retry_returns_err_when_all_attempts_fail() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_c = attempts.clone();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            nd_retry(move || {
+                attempts_c.fetch_add(1, Ordering::SeqCst);
+                async {
+                    let err = synthetic_connect_error().await;
+                    Err(err)
+                }
+            }),
+        )
+        .await
+        .expect("should not exceed 10s — backoffs total ~3s");
+        assert!(result.is_err(), "all attempts failed → Err");
+        // 1 initial + 3 retries (BACKOFFS_MS has 3 entries) = 4 total.
+        assert_eq!(attempts.load(Ordering::SeqCst), 4);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn nd_retry_returns_immediately_on_non_transient_error() {
+        // Builder error (URL parse) is neither connect nor timeout → return immediately.
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_c = attempts.clone();
+        let result = nd_retry(move || {
+            attempts_c.fetch_add(1, Ordering::SeqCst);
+            async {
+                // reqwest treats malformed URLs as builder errors, neither
+                // is_connect() nor is_timeout() — so nd_retry must surface
+                // immediately without retrying.
+                reqwest::Client::new().get("not-a-valid-url").send().await
+            }
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 1, "non-transient error must not retry");
+    }
+
+    // ── navidrome_token via wiremock ──────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn navidrome_token_returns_token_from_login_response() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(wm_path("/auth/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "abc.def.ghi",
+                "userId": "u1",
+                "isAdmin": true,
+            })))
+            .mount(&server)
+            .await;
+
+        let token = navidrome_token(&server.uri(), "user", "pw").await.unwrap();
+        assert_eq!(token, "abc.def.ghi");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn navidrome_token_errors_when_response_omits_token() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(wm_path("/auth/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "error": "invalid credentials"
+            })))
+            .mount(&server)
+            .await;
+
+        let err = navidrome_token(&server.uri(), "user", "wrong").await.unwrap_err();
+        assert!(err.contains("no token"), "got {err}");
+    }
+}

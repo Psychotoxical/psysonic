@@ -390,3 +390,234 @@ pub fn discord_clear_presence(state: tauri::State<DiscordState>) -> Result<(), S
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path as wm_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // ── normalize ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn normalize_lowercases_and_collapses_whitespace() {
+        assert_eq!(normalize("  Pink   FLOYD  "), "pink floyd");
+        assert_eq!(normalize("The\tBeatles\n"), "the beatles");
+    }
+
+    #[test]
+    fn normalize_returns_empty_for_pure_whitespace() {
+        assert_eq!(normalize(""), "");
+        assert_eq!(normalize("   "), "");
+    }
+
+    #[test]
+    fn normalize_preserves_unicode_letters() {
+        assert_eq!(normalize("Sigur Rós"), "sigur rós");
+        assert_eq!(normalize("Mötley Crüe"), "mötley crüe");
+    }
+
+    // ── words_overlap ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn words_overlap_returns_false_for_empty_inputs() {
+        assert!(!words_overlap("", "anything"));
+        assert!(!words_overlap("anything", ""));
+        assert!(!words_overlap("", ""));
+    }
+
+    #[test]
+    fn words_overlap_returns_true_for_full_match() {
+        assert!(words_overlap("a b c", "a b c"));
+    }
+
+    #[test]
+    fn words_overlap_meets_50_percent_threshold() {
+        // "a b" vs "a c" — 1 of 2 words overlap → 50% (just meets ceil-half).
+        assert!(words_overlap("a b", "a c"));
+    }
+
+    #[test]
+    fn words_overlap_below_threshold_returns_false() {
+        // 1 of 4 words overlap = 25%.
+        assert!(!words_overlap("a b c d", "a x y z"));
+    }
+
+    #[test]
+    fn words_overlap_handles_asymmetric_lengths() {
+        // "the beatles" (2 words) vs "the beatles greatest hits" (4 words):
+        // 2 common, min_len = 2 → threshold = 1+0 = 1, so true.
+        assert!(words_overlap("the beatles", "the beatles greatest hits"));
+    }
+
+    // ── apply_template ────────────────────────────────────────────────────────
+
+    #[test]
+    fn apply_template_replaces_all_placeholders() {
+        let out = apply_template(
+            "{artist} - {title} ({album})",
+            "Comfortably Numb",
+            "Pink Floyd",
+            Some("The Wall"),
+        );
+        assert_eq!(out, "Pink Floyd - Comfortably Numb (The Wall)");
+    }
+
+    #[test]
+    fn apply_template_substitutes_empty_for_missing_album() {
+        let out = apply_template("{album}", "t", "a", None);
+        assert_eq!(out, "");
+    }
+
+    #[test]
+    fn apply_template_leaves_unknown_placeholders_untouched() {
+        // Only {title}, {artist}, {album} are supported — {year} stays literal.
+        let out = apply_template("{title} ({year})", "t", "a", None);
+        assert_eq!(out, "t ({year})");
+    }
+
+    #[test]
+    fn apply_template_repeats_replacement_for_repeated_placeholder() {
+        let out = apply_template("{artist} / {artist}", "t", "AC/DC", None);
+        assert_eq!(out, "AC/DC / AC/DC");
+    }
+
+    // ── cache_and_return ──────────────────────────────────────────────────────
+
+    #[test]
+    fn cache_and_return_inserts_entry_with_url() {
+        let cache: Mutex<HashMap<String, ArtworkCacheEntry>> = Mutex::new(HashMap::new());
+        cache_and_return(&cache, "key".to_string(), "https://example/600x600.jpg");
+        let g = cache.lock().unwrap();
+        let entry = g.get("key").expect("entry inserted");
+        assert_eq!(entry.url, "https://example/600x600.jpg");
+        // fetched_at is set to now() — sanity-check it's recent.
+        assert!(entry.fetched_at.elapsed() < std::time::Duration::from_secs(1));
+    }
+
+    // ── search_with_url against wiremock ──────────────────────────────────────
+
+    fn itunes_blocking_client() -> Client {
+        // Mirror the production builder used by DiscordState.
+        Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn search_with_url_returns_600x600_when_artist_and_album_match() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": [
+                    {
+                        "collectionName": "The Wall",
+                        "artistName": "Pink Floyd",
+                        "artworkUrl100": "https://is1-ssl.mzstatic.com/100x100bb.jpg"
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let server_uri = server.uri();
+        let result = tokio::task::spawn_blocking(move || {
+            let url = url::Url::parse(&format!("{server_uri}/search")).unwrap();
+            search_with_url(&itunes_blocking_client(), url, "pink floyd", "the wall")
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(
+            result,
+            Some("https://is1-ssl.mzstatic.com/600x600bb.jpg".to_string()),
+            "100x100 must be replaced with 600x600"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn search_with_url_returns_none_when_no_results_match() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": [
+                    {
+                        "collectionName": "Some Other Album",
+                        "artistName": "Different Artist",
+                        "artworkUrl100": "https://x/100x100.jpg"
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let server_uri = server.uri();
+        let result = tokio::task::spawn_blocking(move || {
+            let url = url::Url::parse(&format!("{server_uri}/search")).unwrap();
+            search_with_url(&itunes_blocking_client(), url, "pink floyd", "the wall")
+        })
+        .await
+        .unwrap();
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn search_with_url_returns_none_for_empty_results() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": []
+            })))
+            .mount(&server)
+            .await;
+
+        let server_uri = server.uri();
+        let result = tokio::task::spawn_blocking(move || {
+            let url = url::Url::parse(&format!("{server_uri}/search")).unwrap();
+            search_with_url(&itunes_blocking_client(), url, "x", "y")
+        })
+        .await
+        .unwrap();
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn search_with_url_uses_words_overlap_for_fuzzy_artist_match() {
+        // Server returns "The Beatles" but our normalised query is just "beatles" —
+        // contains() catches it, but this exercises the words_overlap branch by
+        // using artist names where neither contains the other and only word overlap
+        // matches.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": [
+                    {
+                        "collectionName": "Help",
+                        "artistName": "The Fab Four Beatles",
+                        "artworkUrl100": "https://x/100x100.jpg"
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let server_uri = server.uri();
+        let result = tokio::task::spawn_blocking(move || {
+            let url = url::Url::parse(&format!("{server_uri}/search")).unwrap();
+            // "fab beatles" vs "the fab four beatles" — word overlap = 2 of 2,
+            // 50% threshold met, contains() also catches "beatles".
+            search_with_url(&itunes_blocking_client(), url, "fab beatles", "help")
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(result, Some("https://x/600x600.jpg".to_string()));
+    }
+}
