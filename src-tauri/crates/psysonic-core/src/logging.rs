@@ -146,7 +146,7 @@ pub fn log_timestamp_local() -> String {
                 return format!("{}.{:03}", date, millis);
             }
             let tz = CStr::from_ptr(tz_buf.as_ptr()).to_string_lossy();
-            return format!("{}.{:03} {}", date, millis, tz);
+            format!("{}.{:03} {}", date, millis, tz)
         }
     }
 
