@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight } from 'lucide-react';
+import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight, ListPlus, Link2 } from 'lucide-react';
 import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey, type SubsonicArtist } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
 import { showToast } from '../utils/toast';
+import {
+  activateShareSearchServer,
+  enqueueShareSearchPayload,
+} from '../utils/enqueueShareSearchPayload';
+import { parseShareSearchText, sharePayloadTotal } from '../utils/shareSearch';
+import { useShareSearchPreview } from '../hooks/useShareSearchPreview';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
 const MAX_RECENT = 6;
@@ -62,8 +68,21 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecent);
+  const [shareQueueBusy, setShareQueueBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const shareMatch = useMemo(() => parseShareSearchText(query), [query]);
+  const {
+    shareTrackSong,
+    shareTrackResolving,
+    shareTrackUnavailable,
+    shareAlbum,
+    shareAlbumResolving,
+    shareAlbumUnavailable,
+    shareArtist,
+    shareArtistResolving,
+    shareArtistUnavailable,
+  } = useShareSearchPreview(shareMatch);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -83,7 +102,14 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     [musicLibraryFilterVersion]
   );
 
-  useEffect(() => { doSearch(query); }, [query, doSearch]);
+  useEffect(() => {
+    if (shareMatch) {
+      setResults(null);
+      setLoading(false);
+      return;
+    }
+    doSearch(query);
+  }, [query, doSearch, shareMatch]);
 
   const commit = (q: string) => {
     if (q.trim()) setRecentSearches(prev => saveRecent(q, prev));
@@ -91,12 +117,32 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
 
   const goTo = (path: string) => { commit(query); navigate(path); onClose(); };
   const goCategory = (path: string) => { navigate(path); onClose(); };
+  const openShareAlbum = () => {
+    if (shareMatch?.type !== 'album' || !shareAlbum) return;
+    if (!activateShareSearchServer(shareMatch.payload.srv, t)) return;
+    navigate(`/album/${shareAlbum.id}`);
+    onClose();
+  };
+  const openShareArtist = () => {
+    if (shareMatch?.type !== 'artist' || !shareArtist) return;
+    if (!activateShareSearchServer(shareMatch.payload.srv, t)) return;
+    navigate(`/artist/${shareArtist.id}`);
+    onClose();
+  };
   const enqueueSong = (song: SearchResults['songs'][number]) => {
     commit(query);
     const track = songToTrack(song);
     enqueue([track]);
     showToast(t('search.addedToQueueToast', { title: track.title }), 2200, 'info');
     onClose();
+  };
+  const enqueueShareMatch = async () => {
+    if (shareMatch?.type !== 'queueable' || shareQueueBusy) return;
+    if (shareMatch.payload.k === 'track' && (!shareTrackSong || shareTrackResolving)) return;
+    setShareQueueBusy(true);
+    const ok = await enqueueShareSearchPayload(shareMatch.payload, t);
+    setShareQueueBusy(false);
+    if (ok) onClose();
   };
   const useRecent = (term: string) => {
     setQuery(term);
@@ -200,14 +246,180 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
         )}
 
         {/* ── No results ── */}
-        {!loading && query && !hasResults && (
+        {!loading && query && !hasResults && !shareMatch && (
           <div className="mobile-search-noresults">
             {t('search.noResults', { query })}
           </div>
         )}
 
+        {/* ── Share link ── */}
+        {shareMatch && (
+          <div className="mobile-search-section">
+            <div className="mobile-search-section-label">{t('search.shareLink')}</div>
+            {shareMatch.type === 'artist' ? (
+              shareArtistResolving ? (
+                <div className="mobile-search-item mobile-search-item--muted">
+                  <div className="mobile-search-avatar mobile-search-avatar--circle">
+                    <Users size={20} />
+                  </div>
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">{t('common.loading')}</span>
+                    <span className="mobile-search-item-sub">{t('search.artists')}</span>
+                  </div>
+                </div>
+              ) : shareArtist ? (
+                <button className="mobile-search-item" onClick={openShareArtist}>
+                  <MobileSearchArtistThumb artist={shareArtist} />
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">{shareArtist.name}</span>
+                    <span className="mobile-search-item-sub">{t('search.artists')}</span>
+                  </div>
+                  <ChevronRight size={16} className="mobile-search-item-chevron" />
+                </button>
+              ) : (
+                <div className="mobile-search-item mobile-search-item--muted">
+                  <div className="mobile-search-avatar">
+                    <Link2 size={20} />
+                  </div>
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">
+                      {shareArtistUnavailable ? t('sharePaste.artistUnavailable') : t('sharePaste.genericError')}
+                    </span>
+                    <span className="mobile-search-item-sub">{t('search.shareUnsupportedSub')}</span>
+                  </div>
+                </div>
+              )
+            ) : shareMatch.type === 'album' ? (
+              shareAlbumResolving ? (
+                <div className="mobile-search-item mobile-search-item--muted">
+                  <div className="mobile-search-avatar">
+                    <Disc3 size={20} />
+                  </div>
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">{t('common.loading')}</span>
+                    <span className="mobile-search-item-sub">{t('search.album')}</span>
+                  </div>
+                </div>
+              ) : shareAlbum ? (
+                <button className="mobile-search-item" onClick={openShareAlbum}>
+                  {shareAlbum.coverArt ? (
+                    <CachedImage
+                      className="mobile-search-thumb"
+                      src={buildCoverArtUrl(shareAlbum.coverArt, 80)}
+                      cacheKey={coverArtCacheKey(shareAlbum.coverArt, 80)}
+                      alt=""
+                    />
+                  ) : (
+                    <div className="mobile-search-avatar">
+                      <Disc3 size={20} />
+                    </div>
+                  )}
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">{shareAlbum.name}</span>
+                    <span className="mobile-search-item-sub">{shareAlbum.artist}</span>
+                  </div>
+                  <ChevronRight size={16} className="mobile-search-item-chevron" />
+                </button>
+              ) : (
+                <div className="mobile-search-item mobile-search-item--muted">
+                  <div className="mobile-search-avatar">
+                    <Link2 size={20} />
+                  </div>
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">
+                      {shareAlbumUnavailable ? t('sharePaste.albumUnavailable') : t('sharePaste.genericError')}
+                    </span>
+                    <span className="mobile-search-item-sub">{t('search.shareUnsupportedSub')}</span>
+                  </div>
+                </div>
+              )
+            ) : shareMatch.type === 'queueable' && shareMatch.payload.k === 'track' ? (
+              shareTrackResolving ? (
+                <div className="mobile-search-item mobile-search-item--muted">
+                  <div className="mobile-search-avatar">
+                    <Music size={20} />
+                  </div>
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">{t('common.loading')}</span>
+                    <span className="mobile-search-item-sub">{t('search.shareTrackTitle')}</span>
+                  </div>
+                </div>
+              ) : shareTrackSong ? (
+                <button
+                  className="mobile-search-item"
+                  onClick={() => void enqueueShareMatch()}
+                  disabled={shareQueueBusy}
+                >
+                  {shareTrackSong.coverArt ? (
+                    <CachedImage
+                      className="mobile-search-thumb"
+                      src={buildCoverArtUrl(shareTrackSong.coverArt, 80)}
+                      cacheKey={coverArtCacheKey(shareTrackSong.coverArt, 80)}
+                      alt=""
+                    />
+                  ) : (
+                    <div className="mobile-search-avatar">
+                      <Music size={20} />
+                    </div>
+                  )}
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">{shareTrackSong.title}</span>
+                    <span className="mobile-search-item-sub">
+                      {shareQueueBusy
+                        ? t('search.shareQueueing')
+                        : `${shareTrackSong.artist}${shareTrackSong.album ? ` · ${shareTrackSong.album}` : ''}`}
+                    </span>
+                  </div>
+                </button>
+              ) : (
+                <div className="mobile-search-item mobile-search-item--muted">
+                  <div className="mobile-search-avatar">
+                    <Link2 size={20} />
+                  </div>
+                  <div className="mobile-search-item-info">
+                    <span className="mobile-search-item-title">
+                      {shareTrackUnavailable ? t('sharePaste.trackUnavailable') : t('sharePaste.genericError')}
+                    </span>
+                    <span className="mobile-search-item-sub">{t('search.shareUnsupportedSub')}</span>
+                  </div>
+                </div>
+              )
+            ) : shareMatch.type === 'queueable' ? (
+              <button
+                className="mobile-search-item"
+                onClick={() => void enqueueShareMatch()}
+                disabled={shareQueueBusy}
+              >
+                <div className="mobile-search-avatar">
+                  <ListPlus size={20} />
+                </div>
+                <div className="mobile-search-item-info">
+                  <span className="mobile-search-item-title">
+                    {shareMatch.payload.k === 'track'
+                      ? t('search.shareTrackTitle')
+                      : t('search.shareQueueTitle', { count: sharePayloadTotal(shareMatch.payload) })}
+                  </span>
+                  <span className="mobile-search-item-sub">
+                    {shareQueueBusy ? t('search.shareQueueing') : t('search.shareQueueAction')}
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <div className="mobile-search-item mobile-search-item--muted">
+                <div className="mobile-search-avatar">
+                  <Link2 size={20} />
+                </div>
+                <div className="mobile-search-item-info">
+                  <span className="mobile-search-item-title">{t('search.shareUnsupportedTitle')}</span>
+                  <span className="mobile-search-item-sub">{t('search.shareUnsupportedSub')}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Results ── */}
-        {hasResults && (
+        {hasResults && !shareMatch && (
           <>
             {results!.artists.length > 0 && (
               <div className="mobile-search-section">

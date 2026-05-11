@@ -537,10 +537,47 @@ export async function getSong(id: string): Promise<SubsonicSong | null> {
   }
 }
 
+export async function getSongWithCredentials(
+  serverUrl: string,
+  username: string,
+  password: string,
+  id: string,
+): Promise<SubsonicSong | null> {
+  try {
+    const data = await apiWithCredentials<{ song: SubsonicSong }>(
+      serverUrl,
+      username,
+      password,
+      'getSong.view',
+      { id },
+    );
+    return data.song ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
   const data = await api<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>('getAlbum.view', { id });
   const { song, ...album } = data.album;
   return { album, songs: song ?? [] };
+}
+
+export async function getAlbumWithCredentials(
+  serverUrl: string,
+  username: string,
+  password: string,
+  id: string,
+): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
+  const data = await apiWithCredentials<{ album: SubsonicAlbum & { song?: SubsonicSong | SubsonicSong[] } }>(
+    serverUrl,
+    username,
+    password,
+    'getAlbum.view',
+    { id },
+  );
+  const { song, ...album } = data.album;
+  return { album, songs: !song ? [] : Array.isArray(song) ? song : [song] };
 }
 
 const MIX_RATING_PREFETCH_CONCURRENCY = 8;
@@ -813,6 +850,23 @@ export async function getArtist(id: string): Promise<{ artist: SubsonicArtist; a
   const data = await api<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>('getArtist.view', { id });
   const { album, ...artist } = data.artist;
   return { artist, albums: album ?? [] };
+}
+
+export async function getArtistWithCredentials(
+  serverUrl: string,
+  username: string,
+  password: string,
+  id: string,
+): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
+  const data = await apiWithCredentials<{ artist: SubsonicArtist & { album?: SubsonicAlbum | SubsonicAlbum[] } }>(
+    serverUrl,
+    username,
+    password,
+    'getArtist.view',
+    { id },
+  );
+  const { album, ...artist } = data.artist;
+  return { artist, albums: !album ? [] : Array.isArray(album) ? album : [album] };
 }
 
 export async function getArtistInfo(id: string, options?: { similarArtistCount?: number }): Promise<SubsonicArtistInfo> {

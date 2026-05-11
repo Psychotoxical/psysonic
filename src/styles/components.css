@@ -911,6 +911,15 @@
   background: var(--bg-hover);
 }
 
+.search-result-item:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.search-result-item--muted {
+  cursor: default;
+}
+
 .search-result-icon {
   width: 32px;
   height: 32px;
@@ -8997,6 +9006,15 @@ html.no-compositing .fs-seekbar-played {
 
 .mobile-search-item:active {
   background: var(--bg-hover);
+}
+
+.mobile-search-item:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.mobile-search-item--muted {
+  cursor: default;
 }
 
 .mobile-search-thumb {

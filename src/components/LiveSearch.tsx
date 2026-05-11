@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Disc3, Users, Music, TextSearch } from 'lucide-react';
+import { Search, Disc3, Users, Music, TextSearch, ListPlus, Link2 } from 'lucide-react';
 import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey, type SubsonicArtist } from '../api/subsonic';
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
 import { showToast } from '../utils/toast';
+import {
+  activateShareSearchServer,
+  enqueueShareSearchPayload,
+} from '../utils/enqueueShareSearchPayload';
+import { parseShareSearchText, sharePayloadTotal } from '../utils/shareSearch';
+import { useShareSearchPreview } from '../hooks/useShareSearchPreview';
 
 function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
   let timer: ReturnType<typeof setTimeout>;
@@ -51,6 +57,7 @@ export default function LiveSearch() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isFocused, setIsFocused] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [shareQueueBusy, setShareQueueBusy] = useState(false);
   const navigate = useNavigate();
   const enqueue = usePlayerStore(state => state.enqueue);
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
@@ -63,6 +70,18 @@ export default function LiveSearch() {
   const collapsedRef = useRef(false);
   const compactHeaderControlsRef = useRef(false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const shareMatch = useMemo(() => parseShareSearchText(query), [query]);
+  const {
+    shareTrackSong,
+    shareTrackResolving,
+    shareTrackUnavailable,
+    shareAlbum,
+    shareAlbumResolving,
+    shareAlbumUnavailable,
+    shareArtist,
+    shareArtistResolving,
+    shareArtistUnavailable,
+  } = useShareSearchPreview(shareMatch);
 
   const doSearch = useCallback(
     debounce(async (q: string) => {
@@ -79,7 +98,16 @@ export default function LiveSearch() {
     [musicLibraryFilterVersion]
   );
 
-  useEffect(() => { doSearch(query); setActiveIndex(-1); }, [query, doSearch]);
+  useEffect(() => {
+    setActiveIndex(-1);
+    if (shareMatch) {
+      setResults(null);
+      setLoading(false);
+      setOpen(query.trim().length > 0);
+      return;
+    }
+    doSearch(query);
+  }, [query, doSearch, shareMatch]);
 
   const isSearchActive = isFocused || open || query.trim().length > 0;
 
@@ -199,10 +227,48 @@ export default function LiveSearch() {
     return () => document.removeEventListener('mousedown', handler);
   }, [ctxIsOpen]);
 
-  const hasResults = results && (results.artists.length || results.albums.length || results.songs.length);
+  const hasResults = shareMatch || (results && (results.artists.length || results.albums.length || results.songs.length));
+  const canQueueShareMatch = shareMatch?.type === 'queueable'
+    && (shareMatch.payload.k === 'queue' || (!!shareTrackSong && !shareTrackResolving));
+  const canOpenShareAlbum = shareMatch?.type === 'album' && !!shareAlbum && !shareAlbumResolving;
+  const canOpenShareArtist = shareMatch?.type === 'artist' && !!shareArtist && !shareArtistResolving;
+
+  const openShareAlbum = useCallback(() => {
+    if (shareMatch?.type !== 'album' || !shareAlbum) return;
+    if (!activateShareSearchServer(shareMatch.payload.srv, t)) return;
+    navigate(`/album/${shareAlbum.id}`);
+    setOpen(false);
+    setQuery('');
+  }, [navigate, shareAlbum, shareMatch, t]);
+
+  const openShareArtist = useCallback(() => {
+    if (shareMatch?.type !== 'artist' || !shareArtist) return;
+    if (!activateShareSearchServer(shareMatch.payload.srv, t)) return;
+    navigate(`/artist/${shareArtist.id}`);
+    setOpen(false);
+    setQuery('');
+  }, [navigate, shareArtist, shareMatch, t]);
+
+  const enqueueShareMatch = useCallback(async () => {
+    if (shareMatch?.type !== 'queueable' || shareQueueBusy) return;
+    if (shareMatch.payload.k === 'track' && (!shareTrackSong || shareTrackResolving)) return;
+    setShareQueueBusy(true);
+    const ok = await enqueueShareSearchPayload(shareMatch.payload, t);
+    setShareQueueBusy(false);
+    if (ok) {
+      setOpen(false);
+      setQuery('');
+    }
+  }, [shareMatch, shareQueueBusy, shareTrackResolving, shareTrackSong, t]);
 
   // Flat list of all navigable items for keyboard nav
-  const flatItems = results ? [
+  const flatItems = canQueueShareMatch ? [
+    { id: 'share-link', action: () => { void enqueueShareMatch(); } },
+  ] : canOpenShareAlbum ? [
+    { id: 'share-album', action: openShareAlbum },
+  ] : canOpenShareArtist ? [
+    { id: 'share-artist', action: openShareArtist },
+  ] : results ? [
     ...(results.artists.map(a => ({ id: a.id, action: () => { navigate(`/artist/${a.id}`); setOpen(false); setQuery(''); } }))),
     ...(results.albums.map(a => ({ id: a.id, action: () => { navigate(`/album/${a.id}`); setOpen(false); setQuery(''); } }))),
    ...(results.songs.map(s => ({ id: s.id, action: () => {
@@ -214,6 +280,21 @@ export default function LiveSearch() {
   ] : [];
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (shareMatch) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (canQueueShareMatch) void enqueueShareMatch();
+        else if (canOpenShareAlbum) openShareAlbum();
+        else if (canOpenShareArtist) openShareArtist();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIndex(canQueueShareMatch || canOpenShareAlbum || canOpenShareArtist ? 0 : -1);
+      } else if (e.key === 'Escape') {
+        setOpen(false);
+        setActiveIndex(-1);
+      }
+      return;
+    }
     if (!open || !flatItems.length) {
       if (e.key === 'Enter' && query.trim()) { setOpen(false); navigate(`/search?q=${encodeURIComponent(query.trim())}`); }
       return;
@@ -272,7 +353,7 @@ export default function LiveSearch() {
           onChange={e => setQuery(e.target.value)}
           onFocus={() => {
             setIsFocused(true);
-            if (results) setOpen(true);
+            if (results || shareMatch) setOpen(true);
           }}
           onBlur={() => setIsFocused(false)}
           onKeyDown={handleKeyDown}
@@ -309,7 +390,169 @@ export default function LiveSearch() {
             <div className="search-empty">{t('search.noResults', { query })}</div>
           )}
 
+          {shareMatch && (
+            <div className="search-section">
+              <div className="search-section-label"><Link2 size={12} /> {t('search.shareLink')}</div>
+              {shareMatch.type === 'artist' ? (
+                shareArtistResolving ? (
+                  <div className="search-result-item search-result-item--muted">
+                    <div className="search-result-icon"><Users size={14} /></div>
+                    <div>
+                      <div className="search-result-name">{t('common.loading')}</div>
+                      <div className="search-result-sub">{t('search.artists')}</div>
+                    </div>
+                  </div>
+                ) : shareArtist ? (
+                  <button
+                    className={`search-result-item${activeIndex === 0 ? ' active' : ''}`}
+                    onClick={openShareArtist}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (shareMatch?.type !== 'artist' || !activateShareSearchServer(shareMatch.payload.srv, t)) return;
+                      openContextMenu(e.clientX, e.clientY, shareArtist, 'artist');
+                    }}
+                    role="option"
+                    aria-selected={activeIndex === 0}
+                  >
+                    <LiveSearchArtistThumb artist={shareArtist} />
+                    <div>
+                      <div className="search-result-name">{shareArtist.name}</div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="search-result-item search-result-item--muted">
+                    <div className="search-result-icon"><Link2 size={14} /></div>
+                    <div>
+                      <div className="search-result-name">
+                        {shareArtistUnavailable ? t('sharePaste.artistUnavailable') : t('sharePaste.genericError')}
+                      </div>
+                      <div className="search-result-sub">{t('search.shareUnsupportedSub')}</div>
+                    </div>
+                  </div>
+                )
+              ) : shareMatch.type === 'album' ? (
+                shareAlbumResolving ? (
+                  <div className="search-result-item search-result-item--muted">
+                    <div className="search-result-icon"><Disc3 size={14} /></div>
+                    <div>
+                      <div className="search-result-name">{t('common.loading')}</div>
+                      <div className="search-result-sub">{t('search.album')}</div>
+                    </div>
+                  </div>
+                ) : shareAlbum ? (
+                  <button
+                    className={`search-result-item${activeIndex === 0 ? ' active' : ''}`}
+                    onClick={openShareAlbum}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (shareMatch?.type !== 'album' || !activateShareSearchServer(shareMatch.payload.srv, t)) return;
+                      openContextMenu(e.clientX, e.clientY, shareAlbum, 'album');
+                    }}
+                    role="option"
+                    aria-selected={activeIndex === 0}
+                  >
+                    {shareAlbum.coverArt ? (
+                      <LiveSearchAlbumThumb coverArt={shareAlbum.coverArt} />
+                    ) : (
+                      <div className="search-result-icon"><Disc3 size={14} /></div>
+                    )}
+                    <div>
+                      <div className="search-result-name">{shareAlbum.name}</div>
+                      <div className="search-result-sub">{shareAlbum.artist}</div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="search-result-item search-result-item--muted">
+                    <div className="search-result-icon"><Link2 size={14} /></div>
+                    <div>
+                      <div className="search-result-name">
+                        {shareAlbumUnavailable ? t('sharePaste.albumUnavailable') : t('sharePaste.genericError')}
+                      </div>
+                      <div className="search-result-sub">{t('search.shareUnsupportedSub')}</div>
+                    </div>
+                  </div>
+                )
+              ) : shareMatch.type === 'queueable' && shareMatch.payload.k === 'track' ? (
+                shareTrackResolving ? (
+                  <div className="search-result-item search-result-item--muted">
+                    <div className="search-result-icon"><Music size={14} /></div>
+                    <div>
+                      <div className="search-result-name">{t('common.loading')}</div>
+                      <div className="search-result-sub">{t('search.shareTrackTitle')}</div>
+                    </div>
+                  </div>
+                ) : shareTrackSong ? (
+                  <button
+                    className={`search-result-item${activeIndex === 0 ? ' active' : ''}`}
+                    onClick={() => void enqueueShareMatch()}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (shareMatch?.type !== 'queueable' || !activateShareSearchServer(shareMatch.payload.srv, t)) return;
+                      openContextMenu(e.clientX, e.clientY, songToTrack(shareTrackSong), 'song');
+                    }}
+                    disabled={shareQueueBusy}
+                    role="option"
+                    aria-selected={activeIndex === 0}
+                  >
+                    {shareTrackSong.coverArt ? (
+                      <LiveSearchAlbumThumb coverArt={shareTrackSong.coverArt} />
+                    ) : (
+                      <div className="search-result-icon"><Music size={14} /></div>
+                    )}
+                    <div>
+                      <div className="search-result-name">{shareTrackSong.title}</div>
+                      <div className="search-result-sub">
+                        {shareQueueBusy
+                          ? t('search.shareQueueing')
+                          : `${shareTrackSong.artist}${shareTrackSong.album ? ` · ${shareTrackSong.album}` : ''}`}
+                      </div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="search-result-item search-result-item--muted">
+                    <div className="search-result-icon"><Link2 size={14} /></div>
+                    <div>
+                      <div className="search-result-name">
+                        {shareTrackUnavailable ? t('sharePaste.trackUnavailable') : t('sharePaste.genericError')}
+                      </div>
+                      <div className="search-result-sub">{t('search.shareUnsupportedSub')}</div>
+                    </div>
+                  </div>
+                )
+              ) : shareMatch.type === 'queueable' ? (
+                <button
+                  className={`search-result-item${activeIndex === 0 ? ' active' : ''}`}
+                  onClick={() => void enqueueShareMatch()}
+                  disabled={shareQueueBusy}
+                  role="option"
+                  aria-selected={activeIndex === 0}
+                >
+                  <div className="search-result-icon"><ListPlus size={14} /></div>
+                  <div>
+                    <div className="search-result-name">
+                      {shareMatch.payload.k === 'track'
+                        ? t('search.shareTrackTitle')
+                        : t('search.shareQueueTitle', { count: sharePayloadTotal(shareMatch.payload) })}
+                    </div>
+                    <div className="search-result-sub">
+                      {shareQueueBusy ? t('search.shareQueueing') : t('search.shareQueueAction')}
+                    </div>
+                  </div>
+                </button>
+              ) : (
+                <div className="search-result-item search-result-item--muted">
+                  <div className="search-result-icon"><Link2 size={14} /></div>
+                  <div>
+                    <div className="search-result-name">{t('search.shareUnsupportedTitle')}</div>
+                    <div className="search-result-sub">{t('search.shareUnsupportedSub')}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {(() => {
+            if (shareMatch) return null;
             let idx = 0;
             return <>
               {results?.artists.length ? (
