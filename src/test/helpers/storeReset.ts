@@ -20,7 +20,7 @@
  *   // or for cross-store tests:
  *   beforeEach(resetAllStores);
  */
-import { usePlayerStore } from '@/store/playerStore';
+import { usePlayerStore, _resetQueueUndoStacksForTest } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { usePreviewStore } from '@/store/previewStore';
 import { useOrbitStore } from '@/store/orbitStore';
@@ -32,6 +32,8 @@ const INITIAL_ORBIT_STATE = useOrbitStore.getState();
 
 export function resetPlayerStore(): void {
   usePlayerStore.setState(INITIAL_PLAYER_STATE, true);
+  // Module-scoped queue undo/redo stacks live outside the Zustand state.
+  _resetQueueUndoStacksForTest();
 }
 
 export function resetAuthStore(): void {

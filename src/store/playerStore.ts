@@ -457,6 +457,12 @@ type QueueUndoSnapshot = {
 const queueUndoStack: QueueUndoSnapshot[] = [];
 const queueRedoStack: QueueUndoSnapshot[] = [];
 
+/** Test-only: clears module-scoped undo/redo stacks so each test starts clean. */
+export function _resetQueueUndoStacksForTest(): void {
+  queueUndoStack.length = 0;
+  queueRedoStack.length = 0;
+}
+
 /** QueuePanel registers a reader so undo snapshots capture list scroll position. */
 let queueListScrollTopReader: (() => number | undefined) | null = null;
 
