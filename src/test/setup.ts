@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { installBrowserMocks, resetBrowserMocks } from './mocks/browser';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Node 25 ships a native `localStorage` global that is broken on this
@@ -65,6 +66,10 @@ function installStorage(globalKey: 'localStorage' | 'sessionStorage', store: Sto
 installStorage('localStorage', memLocal);
 installStorage('sessionStorage', memSession);
 
+// Install jsdom-gap browser API mocks (ResizeObserver / IntersectionObserver /
+// matchMedia / clipboard / object URLs) so components don't crash on import.
+installBrowserMocks();
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Global Tauri mocks.
 //
@@ -92,6 +97,10 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('@tauri-apps/plugin-shell', () => ({
   open: vi.fn(async () => {}),
 }));
+
+beforeEach(() => {
+  resetBrowserMocks();
+});
 
 afterEach(() => {
   cleanup();

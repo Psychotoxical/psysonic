@@ -69,6 +69,17 @@ export function emitTauriEvent(event: string, payload: unknown): void {
   for (const cb of eventListeners.get(event) ?? []) cb(payload);
 }
 
+/**
+ * How many `listen()` callbacks are currently registered for `<event>`.
+ *
+ * Use for regression tests of listener lifecycle — e.g. re-initializing a
+ * store should not double-register `audio:progress` handlers. See
+ * `feedback_global_shortcut_double_fire` for the canonical motivating bug.
+ */
+export function tauriMockListenerCount(event: string): number {
+  return eventListeners.get(event)?.length ?? 0;
+}
+
 /** Clear all handlers + listeners + call counts. Wired to `beforeEach` below. */
 export function resetTauriMocks(): void {
   invokeHandlers.clear();

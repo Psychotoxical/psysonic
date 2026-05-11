@@ -19,6 +19,13 @@ export default defineConfig({
       'dist/**',
       'src-tauri/**',
     ],
+    // Process isolation. Fake timers + module-level mocks + Zustand globals
+    // collide unpredictably across files inside a shared worker — forks +
+    // isolate gives each file a fresh module graph. ~20% slower locally,
+    // worth it well before the suite hits 30 files. See the pre-refactor
+    // testing plan (2026-05-11) §3 for the decision context.
+    pool: 'forks',
+    isolate: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],
