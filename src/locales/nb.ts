@@ -825,6 +825,8 @@ export const nbTranslation = {
     artistLayoutTitle: 'Artistsidens seksjoner',
     artistLayoutDesc: 'Dra for å omorganisere, veksle for å skjule individuelle seksjoner av artistsiden. Seksjoner uten data hoppes over automatisk.',
     artistLayoutReset: 'Tilbakestill til standard',
+    playlistLayoutTitle: 'Sideoppsett for spilleliste',
+    playlistLayoutDesc: 'Vis eller skjul individuelle elementer på spillelistesiden.',
     artistLayoutBio: 'Artistbiografi',
     artistLayoutTopTracks: 'Toppspor',
     artistLayoutSimilar: 'Lignende artister',

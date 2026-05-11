@@ -53,6 +53,7 @@ import {
   effectiveLoudnessPreAnalysisAttenuationDb,
 } from '../utils/loudnessPreAnalysisSlider';
 import { useArtistLayoutStore, type ArtistSectionId, type ArtistSectionConfig } from '../store/artistLayoutStore';
+import { usePlaylistLayoutStore } from '../store/playlistLayoutStore';
 import { useHomeStore, HomeSectionId } from '../store/homeStore';
 import { useDragDrop, useDragSource } from '../contexts/DragDropContext';
 import { ALL_NAV_ITEMS } from '../config/navItems';
@@ -2993,6 +2994,25 @@ export default function Settings() {
           </SettingsSubSection>
 
           <SettingsSubSection
+            title={t('settings.playlistLayoutTitle')}
+            icon={<ListMusic size={16} />}
+            action={
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
+                onClick={() => usePlaylistLayoutStore.getState().reset()}
+                data-tooltip={t('settings.sidebarReset')}
+                aria-label={t('settings.sidebarReset')}
+              >
+                <RotateCcw size={14} />
+              </button>
+            }
+          >
+            <PlaylistLayoutCustomizer />
+          </SettingsSubSection>
+
+          <SettingsSubSection
             title={t('settings.homeCustomizerTitle')}
             icon={<LayoutGrid size={16} />}
             action={
@@ -5216,6 +5236,47 @@ function ArtistLayoutCustomizer() {
               <span style={{ flex: 1, fontSize: 14, opacity: section.visible ? 1 : 0.45 }}>{label}</span>
               <label className="toggle-switch" aria-label={label}>
                 <input type="checkbox" checked={section.visible} onChange={() => toggleSection(section.id)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function PlaylistLayoutCustomizer() {
+  const { t } = useTranslation();
+  const config = usePlaylistLayoutStore(s => s.config);
+  const updateConfig = usePlaylistLayoutStore(s => s.updateConfig);
+
+  const toggle = (key: keyof typeof config) => {
+    updateConfig(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const ITEMS = [
+    { id: 'showAddSongs', labelKey: 'playlists.addSongs' },
+    { id: 'showImportCsv', labelKey: 'playlists.importCSV' },
+    { id: 'showDownloadZip', labelKey: 'playlists.downloadZip' },
+    { id: 'showOfflineCache', labelKey: 'playlists.cacheOffline' },
+    { id: 'showSuggestions', labelKey: 'playlists.suggestions' },
+  ] as const;
+
+  return (
+    <>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+        {t('settings.playlistLayoutDesc')}
+      </p>
+      <div className="settings-card" style={{ padding: '4px 0' }}>
+        {ITEMS.map((item) => {
+          const isChecked = config[item.id as keyof typeof config];
+          const label = t(item.labelKey);
+          return (
+            <div key={item.id} className="sidebar-customizer-row">
+              <span style={{ flex: 1, fontSize: 14, opacity: isChecked ? 1 : 0.45 }}>{label}</span>
+              <label className="toggle-switch" aria-label={label}>
+                <input type="checkbox" checked={isChecked} onChange={() => toggle(item.id as keyof typeof config)} />
                 <span className="toggle-track" />
               </label>
             </div>

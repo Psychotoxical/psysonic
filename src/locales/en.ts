@@ -843,6 +843,8 @@ export const enTranslation = {
     artistLayoutTitle: 'Artist page sections',
     artistLayoutDesc: 'Drag to reorder, toggle to hide individual sections of the artist page. Sections without data are skipped automatically.',
     artistLayoutReset: 'Reset to default',
+    playlistLayoutTitle: 'Playlist page layout',
+    playlistLayoutDesc: 'Toggle individual elements on the playlist page.',
     artistLayoutBio: 'Artist biography',
     artistLayoutTopTracks: 'Top tracks',
     artistLayoutSimilar: 'Similar artists',

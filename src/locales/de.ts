@@ -838,6 +838,8 @@ export const deTranslation = {
     artistLayoutTitle: 'Künstlerseiten-Abschnitte',
     artistLayoutDesc: 'Per Drag & Drop neu anordnen, einzelne Abschnitte der Künstlerseite ein- oder ausblenden. Abschnitte ohne Daten werden automatisch übersprungen.',
     artistLayoutReset: 'Zurücksetzen',
+    playlistLayoutTitle: 'Playlist-Seitenlayout',
+    playlistLayoutDesc: 'Einzelne Elemente auf der Playlist-Seite ein-/ausblenden.',
     artistLayoutBio: 'Künstler-Biografie',
     artistLayoutTopTracks: 'Top-Tracks',
     artistLayoutSimilar: 'Ähnliche Künstler*innen',

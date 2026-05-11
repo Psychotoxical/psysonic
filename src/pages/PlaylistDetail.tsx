@@ -12,6 +12,7 @@ import {
 import { usePlayerStore, songToTrack } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';
+import { usePlaylistLayoutStore } from '../store/playlistLayoutStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
@@ -260,6 +261,7 @@ export default function PlaylistDetail() {
   );
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
+  const { config: layoutConfig } = usePlaylistLayoutStore();
   const { startDrag, isDragging } = useDragDrop();
   const downloadPlaylist = useOfflineStore(s => s.downloadPlaylist);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
@@ -1256,23 +1258,27 @@ export default function PlaylistDetail() {
                     <ListPlus size={16} />
                   </button>
                 </div>
-                <button
-                  className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
-                  onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
-                >
-                  <Search size={16} /> {t('playlists.addSongs')}
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  onClick={handleImportCsv}
-                  disabled={csvImporting}
-                  data-tooltip={t('playlists.importCSVTooltip')}
-                >
-                  {csvImporting ? <Loader2 size={16} className="spin-slow" /> : <FileUp size={16} />}
-                  {t('playlists.importCSV')}
-                </button>
+                {layoutConfig.showAddSongs && (
+                  <button
+                    className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
+                    onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
+                  >
+                    <Search size={16} /> {t('playlists.addSongs')}
+                  </button>
+                )}
+                {layoutConfig.showImportCsv && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={handleImportCsv}
+                    disabled={csvImporting}
+                    data-tooltip={t('playlists.importCSVTooltip')}
+                  >
+                    {csvImporting ? <Loader2 size={16} className="spin-slow" /> : <FileUp size={16} />}
+                    {t('playlists.importCSV')}
+                  </button>
+                )}
                 {/* search close resets selection */}
-                {songs.length > 0 && (
+                {layoutConfig.showDownloadZip && songs.length > 0 && (
                   activeZip && !activeZip.done && !activeZip.error ? (
                     <div className="download-progress-wrap">
                       <Download size={14} />
@@ -1287,7 +1293,7 @@ export default function PlaylistDetail() {
                     </button>
                   )
                 )}
-                {songs.length > 0 && id && (
+                {layoutConfig.showOfflineCache && songs.length > 0 && id && (
                   <button
                     className={`btn btn-ghost${isCached ? ' btn-danger' : ''}`}
                     disabled={isDownloading}
@@ -1781,7 +1787,8 @@ export default function PlaylistDetail() {
       </div>
 
       {/* ── Suggestions ── */}
-      <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">
+      {layoutConfig.showSuggestions && (
+        <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">
         <div className="playlist-suggestions-header">
           <div className="playlist-suggestions-title">
             <h2 className="section-title" style={{ marginBottom: 0 }}>{t('playlists.suggestions')}</h2>
@@ -1912,6 +1919,7 @@ export default function PlaylistDetail() {
           </>
         )}
       </div>
+      )}
 
       {editingMeta && playlist && (
         <PlaylistEditModal

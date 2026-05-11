@@ -875,6 +875,8 @@ export const ruTranslation = {
     artistLayoutTitle: 'Разделы страницы исполнителя',
     artistLayoutDesc: 'Перетаскивайте, чтобы изменить порядок, переключайте, чтобы скрыть отдельные разделы страницы исполнителя. Разделы без данных пропускаются автоматически.',
     artistLayoutReset: 'Сбросить',
+    playlistLayoutTitle: 'Макет страницы плейлиста',
+    playlistLayoutDesc: 'Скрыть или показать отдельные элементы на странице плейлиста.',
     artistLayoutBio: 'Биография исполнителя',
     artistLayoutTopTracks: 'Топ-треки',
     artistLayoutSimilar: 'Похожие исполнители',

@@ -830,6 +830,8 @@ export const esTranslation = {
     artistLayoutTitle: 'Secciones de la página del artista',
     artistLayoutDesc: 'Arrastra para reordenar, alterna para ocultar secciones individuales de la página del artista. Las secciones sin datos se omiten automáticamente.',
     artistLayoutReset: 'Restablecer a predeterminado',
+    playlistLayoutTitle: 'Diseño de la página de playlists',
+    playlistLayoutDesc: 'Ocultar o mostrar elementos individuales en la página de playlists.',
     artistLayoutBio: 'Biografía del artista',
     artistLayoutTopTracks: 'Mejores pistas',
     artistLayoutSimilar: 'Artistas similares',

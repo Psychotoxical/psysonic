@@ -826,6 +826,8 @@ export const frTranslation = {
     artistLayoutTitle: 'Sections de la page artiste',
     artistLayoutDesc: 'Glissez pour réorganiser, basculez pour masquer des sections individuelles de la page artiste. Les sections sans données sont ignorées automatiquement.',
     artistLayoutReset: 'Réinitialiser',
+    playlistLayoutTitle: 'Mise en page de la playlist',
+    playlistLayoutDesc: 'Afficher ou masquer des éléments individuels sur la page de la playlist.',
     artistLayoutBio: 'Biographie de l\'artiste',
     artistLayoutTopTracks: 'Titres populaires',
     artistLayoutSimilar: 'Artistes similaires',

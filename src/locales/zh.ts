@@ -820,6 +820,8 @@ export const zhTranslation = {
     artistLayoutTitle: '艺术家页面板块',
     artistLayoutDesc: '拖动以重新排序，切换以隐藏艺术家页面的各个板块。没有数据的板块会自动跳过。',
     artistLayoutReset: '重置为默认',
+    playlistLayoutTitle: '播放列表页面布局',
+    playlistLayoutDesc: '切换在播放列表页面上显示的各个元素。',
     artistLayoutBio: '艺术家简介',
     artistLayoutTopTracks: '热门曲目',
     artistLayoutSimilar: '相似艺术家',

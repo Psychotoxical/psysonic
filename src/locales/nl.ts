@@ -825,6 +825,8 @@ export const nlTranslation = {
     artistLayoutTitle: 'Secties artiestenpagina',
     artistLayoutDesc: 'Versleep om te herschikken, schakel om individuele secties van de artiestenpagina te verbergen. Secties zonder gegevens worden automatisch overgeslagen.',
     artistLayoutReset: 'Standaard herstellen',
+    playlistLayoutTitle: 'Afspeellijst pagina-indeling',
+    playlistLayoutDesc: 'Toon of verberg individuele elementen op de afspeellijstpagina.',
     artistLayoutBio: 'Biografie van de artiest',
     artistLayoutTopTracks: 'Populaire nummers',
     artistLayoutSimilar: 'Soortgelijke artiesten',
