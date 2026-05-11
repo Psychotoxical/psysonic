@@ -1,0 +1,85 @@
+name: frontend-tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.ts'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/frontend-tests.yml'
+      - '.github/frontend-hot-path-files.txt'
+      - 'scripts/check-frontend-hot-path-coverage.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.ts'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/frontend-tests.yml'
+      - '.github/frontend-hot-path-files.txt'
+      - 'scripts/check-frontend-hot-path-coverage.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: vitest run
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: vitest
+        run: npm test
+
+  typecheck:
+    name: tsc --noEmit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: tsc
+        run: npx tsc --noEmit
+
+  coverage:
+    name: vitest --coverage (baseline + hot-path file gate)
+    # Two-layer gate: the script exits 1 when any listed file drops below the
+    # threshold (warning annotations show in the PR checks panel), but
+    # `continue-on-error: true` keeps it from BLOCKING merges. Drop the flag
+    # to flip the gate hard once we've watched a few PRs run cleanly.
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - run: npm ci
+      - name: vitest run --coverage
+        run: npx vitest run --coverage
+      - name: hot-path file coverage soft gate
+        run: bash scripts/check-frontend-hot-path-coverage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error

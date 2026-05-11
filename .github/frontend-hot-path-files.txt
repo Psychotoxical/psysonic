@@ -1,0 +1,28 @@
+# Hot-path source files for the per-file ≥70 % coverage gate (frontend).
+#
+# Mirrors `.github/hot-path-files.txt` for the Rust crates. Each entry is a
+# workspace-relative path; the gate script (`scripts/check-frontend-hot-path-
+# coverage.sh`) reads `coverage/coverage-summary.json` produced by
+# `vitest run --coverage` and warns when a listed file drops below the floor.
+#
+# Soft today (warnings only — the workflow carries `continue-on-error: true`).
+# Flip to a hard PR-blocker by removing `continue-on-error` from the
+# `frontend-tests` workflow once a few PRs have run cleanly.
+#
+# Curation rule (mirrors the backend list): a file belongs here when its
+# hot-path code dominates the file and ≥70 % is a reasonable floor. Files
+# that are partially covered today but contain large untested surface area
+# (e.g. `playerStore.ts`, the unfinished half of `previewStore.ts`) live
+# OUTSIDE the gate until their tests grow. Add them as Phase 1 coverage
+# work lands.
+#
+# Deferred from the gate, with current coverage shown for reference:
+#   - src/store/previewStore.ts          (33 % — only `_on*` + `stopPreview` covered)
+#   - src/store/playerStore.ts           (0 % — 3300-LOC monolith, Phase 2 target)
+#   - src/utils/dynamicColors.ts         (44 % — existing tests miss branches)
+#   - src/utils/shareLink.ts             (69 % — borderline, ~5 lines short)
+
+# ── utils (already at or above threshold) ────────────────────────────
+src/utils/coverArtRegisteredSizes.ts
+src/utils/serverDisplayName.ts
+src/utils/serverMagicString.ts
