@@ -206,8 +206,8 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     usePlayerStore.getState().redoLastQueueEdit();
   });
 
-  // Gapless ↔ Crossfade are mutually exclusive (see CLAUDE.md). Bridge handles
-  // the exclusion so the mini doesn't need to know about both states to act.
+  // Gapless ↔ Crossfade are mutually exclusive. Bridge handles the exclusion
+  // so the mini doesn't need to know about both states to act.
   const gaplessUnlisten = listen<{ value: boolean }>('mini:set-gapless', (e) => {
     const v = !!e.payload?.value;
     const a = useAuthStore.getState();

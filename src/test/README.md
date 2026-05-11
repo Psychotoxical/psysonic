@@ -15,7 +15,7 @@ src/test/
   helpers/
     factories.ts                # makeTrack / makeTracks fixtures
     renderWithProviders.tsx     # render() wrapped with MemoryRouter + i18n
-  CLAUDE.md                     # this file
+  README.md                     # this file
 ```
 
 ## Running tests
