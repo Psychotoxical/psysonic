@@ -100,6 +100,16 @@ export function installBrowserMocks(): void {
     URL.createObjectURL = createObjectUrlMock as unknown as typeof URL.createObjectURL;
     URL.revokeObjectURL = revokeObjectUrlMock as unknown as typeof URL.revokeObjectURL;
   }
+
+  // jsdom lacks scrollIntoView — components that auto-scroll the queue / lists
+  // crash on mount without this stub.
+  if (typeof Element !== 'undefined' && !('scrollIntoView' in Element.prototype)) {
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value: function scrollIntoView(_opts?: ScrollIntoViewOptions | boolean) { /* no-op */ },
+    });
+  }
 }
 
 export function resetBrowserMocks(): void {
