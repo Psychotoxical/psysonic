@@ -225,7 +225,26 @@ export function useOrbitHost(): void {
     void pushState();
 
     const id = window.setInterval(() => { void pushState(); }, STATE_TICK_MS);
-    return () => window.clearInterval(id);
+
+    // Event-driven push on play/pause flips. Without this the worst-case
+    // delay between "host hits pause" and "guest stops" is two full polling
+    // windows (host tick + guest tick = up to 5 s) — long enough for the
+    // guest to noticeably run ahead. Subscribing here adds at most one
+    // extra write per flip; non-flip state ticks still ride the 2.5 s
+    // timer. Listener filters on isPlaying so currentTime ticks don't
+    // trigger spurious pushes.
+    let prevIsPlaying = usePlayerStore.getState().isPlaying;
+    const unsubPlayPause = usePlayerStore.subscribe((state) => {
+      if (state.isPlaying === prevIsPlaying) return;
+      prevIsPlaying = state.isPlaying;
+      pushOrbitEvent('host:event-push', `isPlaying flip → ${state.isPlaying}`);
+      void pushState();
+    });
+
+    return () => {
+      window.clearInterval(id);
+      unsubPlayPause();
+    };
   }, [active, sessionPlaylistId]);
 
   useEffect(() => {
