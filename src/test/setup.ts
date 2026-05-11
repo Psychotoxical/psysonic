@@ -89,8 +89,11 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(),
-  emit: vi.fn(),
-  once: vi.fn(),
+  // Components chain `.catch()` on emit; return a resolved Promise so the
+  // chain doesn't throw "Cannot read properties of undefined (reading
+  // 'catch')" inside a useEffect on first render.
+  emit: vi.fn(async () => undefined),
+  once: vi.fn(async () => () => {}),
 }));
 
 // Linker for Tauri shell / dialog / store plugins — same idea. Extend as needed.
