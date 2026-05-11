@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Queue Toolbar — customizable button order + per-button visibility
+
+**By [@kveld9](https://github.com/kveld9), PR [#534](https://github.com/Psychotoxical/psysonic/pull/534)**
+
+* **Settings → Personalisation** grows a new **Queue Toolbar** section. Drag-and-drop reorders the toolbar buttons; a per-button toggle hides individual entries; a **Separator** item can be placed anywhere to break the row into visual groups. A **Reset** button restores the default layout.
+* Persistence via a new `queueToolbarStore` (Zustand + localStorage), so the layout survives restarts.
+* Behaviour-preserving default: `[Shuffle] [Save] [Load] [Share] [Clear] | [Gapless] [Crossfade] [Infinite]` — same buttons in the same order as before.
+* Auto-hides the toolbar when no real button is visible (a lone Separator no longer takes up space on its own).
+* i18n coverage across all 8 locales.
+
 ### Orbit — in-app diagnostics popover with copyable event log
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), prompted by reports from nzxl + RavingGrob, PR [#524](https://github.com/Psychotoxical/psysonic/pull/524)**
