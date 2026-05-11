@@ -24,6 +24,7 @@ import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
 import { shuffleArray } from '../utils/shuffleArray';
 import { songToTrack } from '../utils/songToTrack';
 import { buildInfiniteQueueCandidates } from '../utils/buildInfiniteQueueCandidates';
+import { getWindowKind } from '../app/windowKind';
 
 // Re-export for backward compatibility with the ~30 call sites that still
 // import these helpers from playerStore. Phase E (store splits) will migrate
@@ -3590,8 +3591,7 @@ export function installQueueUndoHotkey(): void {
   if (typeof window === 'undefined') return;
   const w = window as unknown as Record<string, unknown>;
   if (w[QUEUE_UNDO_HOTKEY_FLAG]) return;
-  const label = w.__PSY_WINDOW_LABEL__;
-  if (label === 'mini') return;
+  if (getWindowKind() === 'mini') return;
   w[QUEUE_UNDO_HOTKEY_FLAG] = true;
   document.addEventListener(
     'keydown',

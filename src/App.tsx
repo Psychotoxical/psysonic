@@ -112,6 +112,7 @@ import ZipDownloadOverlay from './components/ZipDownloadOverlay';
 import FpsOverlay from './components/FpsOverlay';
 import PasteClipboardHandler from './components/PasteClipboardHandler';
 import { usePerfProbeFlags } from './utils/perfFlags';
+import { getWindowKind } from './app/windowKind';
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'psysonic_sidebar_collapsed';
 
@@ -1274,9 +1275,9 @@ export default function App() {
 
   // Mini Player window: detected via Tauri window label. Rendered without
   // router / sidebar / full audio listeners — it just listens for state + sends
-  // control events. Label is read synchronously from a global set in main.tsx
-  // so the initial render picks the right tree.
-  const isMiniWindow = typeof window !== 'undefined' && (window as any).__PSY_WINDOW_LABEL__ === 'mini';
+  // control events. Cached synchronously by `getWindowKind()` so the initial
+  // render picks the right tree without flicker.
+  const isMiniWindow = getWindowKind() === 'mini';
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', effectiveTheme);

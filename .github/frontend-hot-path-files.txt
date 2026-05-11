@@ -38,5 +38,9 @@ src/utils/resolveReplayGainDb.ts
 src/utils/songToTrack.ts
 src/utils/buildInfiniteQueueCandidates.ts
 
+# ── Phase B.1: pre-React bootstrap + window-kind detector (2026-05-12) ──
+src/app/windowKind.ts
+src/app/bootstrap.ts
+
 # ── stores (added as their tests grew past the floor) ────────────────
 src/store/previewStore.ts
