@@ -32,5 +32,11 @@ src/utils/dynamicColors.ts
 src/utils/resolvePlaybackUrl.ts
 src/utils/copyEntityShareLink.ts
 
+# ── M0: pure helpers extracted from playerStore.ts (2026-05-12) ──────
+src/utils/shuffleArray.ts
+src/utils/resolveReplayGainDb.ts
+src/utils/songToTrack.ts
+src/utils/buildInfiniteQueueCandidates.ts
+
 # ── stores (added as their tests grew past the floor) ────────────────
 src/store/previewStore.ts

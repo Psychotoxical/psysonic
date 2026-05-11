@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { showToast } from '../utils/toast';
 import i18n from '../i18n';
-import { buildCoverArtUrl, buildStreamUrl, getPlayQueue, savePlayQueue, reportNowPlaying, scrobbleSong, SubsonicSong, getSong, getRandomSongs, getSimilarSongs2, getTopSongs, InternetRadioStation, setRating, getAlbumInfo2 } from '../api/subsonic';
+import { buildCoverArtUrl, buildStreamUrl, getPlayQueue, savePlayQueue, reportNowPlaying, scrobbleSong, getSong, getSimilarSongs2, getTopSongs, InternetRadioStation, setRating, getAlbumInfo2 } from '../api/subsonic';
 import { resolvePlaybackUrl, streamUrlTrackId, getPlaybackSourceKind, type PlaybackSourceKind } from '../utils/resolvePlaybackUrl';
 import { redactSubsonicUrlForLog } from '../utils/redactSubsonicUrl';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
@@ -18,13 +18,17 @@ import { useOrbitStore } from './orbitStore';
 import { estimateLivePosition } from '../api/orbit';
 import { loudnessGainPlaceholderUntilCacheDb } from '../utils/loudnessPlaceholder';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
-import {
-  enrichSongsForMixRatingFilter,
-  getMixMinRatingsConfigFromAuth,
-  passesMixMinRatings,
-} from '../utils/mixRatingFilter';
 import { getPerfProbeFlags } from '../utils/perfFlags';
 import { bumpPerfCounter } from '../utils/perfTelemetry';
+import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
+import { shuffleArray } from '../utils/shuffleArray';
+import { songToTrack } from '../utils/songToTrack';
+import { buildInfiniteQueueCandidates } from '../utils/buildInfiniteQueueCandidates';
+
+// Re-export for backward compatibility with the ~30 call sites that still
+// import these helpers from playerStore. Phase E (store splits) will migrate
+// the imports to '../utils/*' directly and drop these re-exports.
+export { resolveReplayGainDb, shuffleArray, songToTrack };
 
 const QUEUE_VISIBILITY_STORAGE_KEY = 'psysonic_queue_visible';
 
@@ -78,124 +82,6 @@ export interface Track {
    *  end of the current Play-Next streak. Stale flags behind queueIndex are
    *  harmless — the streak scan only looks forward from queueIndex+1. */
   playNextAdded?: boolean;
-}
-
-export function songToTrack(song: SubsonicSong): Track {
-  return {
-    id: song.id,
-    title: song.title,
-    artist: song.artist,
-    album: song.album,
-    albumId: song.albumId,
-    artistId: song.artistId,
-    duration: song.duration,
-    coverArt: song.coverArt,
-    track: song.track,
-    year: song.year,
-    bitRate: song.bitRate,
-    suffix: song.suffix,
-    userRating: song.userRating,
-    replayGainTrackDb: song.replayGain?.trackGain,
-    replayGainAlbumDb: song.replayGain?.albumGain,
-    replayGainPeak: song.replayGain?.trackPeak,
-    starred: song.starred,
-    genre: song.genre,
-    samplingRate: song.samplingRate,
-    bitDepth: song.bitDepth,
-    size: song.size,
-  };
-}
-
-/**
- * Resolve the ReplayGain dB value for a track based on the configured mode.
- * In 'auto' mode, picks album-gain when an adjacent queue neighbour shares the
- * same albumId (i.e. the track is being played as part of an album), otherwise
- * track-gain. Falls back to track-gain when album-gain is missing.
- */
-export function resolveReplayGainDb(
-  track: Track,
-  prevTrack: Track | null | undefined,
-  nextTrack: Track | null | undefined,
-  enabled: boolean,
-  mode: 'track' | 'album' | 'auto',
-): number | null {
-  if (!enabled) return null;
-  let useAlbum: boolean;
-  if (mode === 'album') {
-    useAlbum = true;
-  } else if (mode === 'track') {
-    useAlbum = false;
-  } else {
-    const albumId = track.albumId;
-    useAlbum = !!albumId && (
-      prevTrack?.albumId === albumId || nextTrack?.albumId === albumId
-    );
-  }
-  const value = useAlbum
-    ? (track.replayGainAlbumDb ?? track.replayGainTrackDb)
-    : track.replayGainTrackDb;
-  return value ?? null;
-}
-
-export function shuffleArray<T>(items: T[]): T[] {
-  const arr = [...items];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-/**
- * Infinite queue source strategy (Instant Mix-like):
- * 1) Prefer artist-driven candidates (Top + Similar) around the current track.
- * 2) Fallback to random songs when artist-driven fetches are empty.
- */
-async function buildInfiniteQueueCandidates(
-  seedTrack: Track | null,
-  existingIds: Set<string>,
-  count = 5,
-): Promise<Track[]> {
-  const RANDOM_TOPUP_BATCH_SIZE = Math.max(10, count * 2);
-  const RANDOM_TOPUP_MAX_BATCHES = 8;
-  const artistId = seedTrack?.artistId?.trim() || null;
-  const artistName = seedTrack?.artist?.trim() || null;
-
-  const [similar, top] = await Promise.all([
-    artistId ? getSimilarSongs2(artistId).catch(() => []) : Promise.resolve([]),
-    artistName ? getTopSongs(artistName).catch(() => []) : Promise.resolve([]),
-  ]);
-
-  const seedId = seedTrack?.id ?? null;
-  const mixCfg = getMixMinRatingsConfigFromAuth();
-  const mixedSources = [...top, ...similar];
-  const filteredMixedSongs = mixCfg.enabled
-    ? (await enrichSongsForMixRatingFilter(mixedSources, mixCfg)).filter(s => passesMixMinRatings(s, mixCfg))
-    : mixedSources;
-  const out: Track[] = shuffleArray(
-    filteredMixedSongs
-      .map(songToTrack)
-      .filter(t => t.id !== seedId && !existingIds.has(t.id)),
-  )
-    .slice(0, count)
-    .map(t => ({ ...t, autoAdded: true as const }));
-
-  const seenIds = new Set<string>([...existingIds, ...out.map(t => t.id)]);
-  for (let b = 0; out.length < count && b < RANDOM_TOPUP_MAX_BATCHES; b++) {
-    const random = await getRandomSongs(RANDOM_TOPUP_BATCH_SIZE, seedTrack?.genre).catch(() => []);
-    if (!random.length) break;
-    const filteredRandomSongs = mixCfg.enabled
-      ? (await enrichSongsForMixRatingFilter(random, mixCfg)).filter(s => passesMixMinRatings(s, mixCfg))
-      : random;
-    for (const track of shuffleArray(filteredRandomSongs.map(songToTrack))) {
-      if (track.id === seedId || seenIds.has(track.id)) continue;
-      out.push({ ...track, autoAdded: true as const });
-      seenIds.add(track.id);
-      if (out.length >= count) break;
-    }
-  }
-
-  return out.slice(0, count);
 }
 
 interface PlayerState {
