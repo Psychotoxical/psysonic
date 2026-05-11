@@ -38,13 +38,17 @@ export default defineConfig({
         'src/main.tsx',
         'src/vite-env.d.ts',
       ],
-      // Soft thresholds — Phase 0 is infra, not coverage push. Real numbers
-      // land in Phase 1 once cucadmuh and Frank lock the gate.
+      // Aggregate ratchet — prevents regressions across the whole tree.
+      // Set ~1pp under the current measured floor (lines 13.3, statements
+      // 12.5, functions 11.3, branches 9.9 as of 2026-05-12). Real per-file
+      // coverage on critical paths is enforced by the hot-path gate
+      // (.github/frontend-hot-path-files.txt + scripts/check-frontend-coverage.cjs).
+      // Bump these numbers up as refactor PRs add coverage; never down.
       thresholds: {
-        lines: 0,
-        functions: 0,
-        branches: 0,
-        statements: 0,
+        lines: 12,
+        functions: 10,
+        branches: 9,
+        statements: 11,
       },
     },
   },
