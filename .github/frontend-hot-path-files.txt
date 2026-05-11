@@ -19,7 +19,6 @@
 # work lands.
 #
 # Deferred from the gate, with current coverage shown for reference:
-#   - src/store/previewStore.ts          (33 % — only `_on*` + `stopPreview` covered, Phase 4 target)
 #   - src/store/playerStore.ts           (40 % — F1 closed under the 50 % floor; further coverage TBD)
 #   - src/store/authStore.ts             (79 % — F2 cleared 60 % floor; staying out one or two PRs to verify stability)
 #   - src/api/subsonic.ts                (13 % — F3 covered the URL-builder + parser surface; async API endpoints need axios mocking, deferred)
@@ -32,3 +31,6 @@ src/utils/shareLink.ts
 src/utils/dynamicColors.ts
 src/utils/resolvePlaybackUrl.ts
 src/utils/copyEntityShareLink.ts
+
+# ── stores (added as their tests grew past the floor) ────────────────
+src/store/previewStore.ts
