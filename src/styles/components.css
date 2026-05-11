@@ -1915,6 +1915,18 @@
   display: none;
 }
 
+/* Guest in an Orbit session: seekbar is read-only — sync follows the host.
+   `pointer-events: none` blocks click / drag / wheel / hover; the dimmed
+   look + not-allowed cursor (set on the parent so it shows when hovered
+   over the now-inert child) signal "this control is not yours". */
+[data-orbit-role="guest"] .waveform-seek-container {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+[data-orbit-role="guest"] .waveform-seek-container > * {
+  pointer-events: none;
+}
+
 .playlist-suggestions .track-row:hover .playlist-suggestion-preview-btn,
 .playlist-suggestion-preview-btn:hover,
 .playlist-suggestion-preview-btn.is-previewing {

@@ -1350,7 +1350,7 @@ export default function WaveformSeek({ trackId }: Props) {
   }, []);
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div className="waveform-seek-container" style={{ position: 'relative', width: '100%' }}>
       {hoverPct !== null && duration > 0 && (
         <span
           className="player-volume-pct"

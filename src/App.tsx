@@ -197,8 +197,12 @@ function AppShell() {
       && (orbitPhase === 'active' || orbitPhase === 'joining' || orbitPhase === 'starting');
     if (inOrbit) {
       document.documentElement.setAttribute('data-orbit-active', 'true');
+      // Also expose the role so CSS can target host-vs-guest UI states
+      // (e.g. guest seekbar is read-only — sync follows the host).
+      document.documentElement.setAttribute('data-orbit-role', orbitRole as string);
     } else {
       document.documentElement.removeAttribute('data-orbit-active');
+      document.documentElement.removeAttribute('data-orbit-role');
     }
   }, [orbitRole, orbitPhase]);
 
