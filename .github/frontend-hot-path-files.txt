@@ -7,22 +7,26 @@
 #
 # Soft today (warnings only — the workflow carries `continue-on-error: true`).
 # Flip to a hard PR-blocker by removing `continue-on-error` from the
-# `frontend-tests` workflow once a few PRs have run cleanly.
+# `frontend-tests` workflow at the start of M4 in the pre-refactor testing
+# plan (2026-05-11), once Phase 1–3 characterization tests have proven the
+# gate stable on a handful of real PRs.
 #
 # Curation rule (mirrors the backend list): a file belongs here when its
 # hot-path code dominates the file and ≥70 % is a reasonable floor. Files
 # that are partially covered today but contain large untested surface area
 # (e.g. `playerStore.ts`, the unfinished half of `previewStore.ts`) live
-# OUTSIDE the gate until their tests grow. Add them as Phase 1 coverage
+# OUTSIDE the gate until their tests grow. Add them as Phase 1–4 coverage
 # work lands.
 #
 # Deferred from the gate, with current coverage shown for reference:
-#   - src/store/previewStore.ts          (33 % — only `_on*` + `stopPreview` covered)
-#   - src/store/playerStore.ts           (0 % — 3300-LOC monolith, Phase 2 target)
-#   - src/utils/dynamicColors.ts         (44 % — existing tests miss branches)
-#   - src/utils/shareLink.ts             (69 % — borderline, ~5 lines short)
+#   - src/store/previewStore.ts          (33 % — only `_on*` + `stopPreview` covered, Phase 4 target)
+#   - src/store/playerStore.ts           (0 % — 3700-LOC monolith, Phase 1 target)
+#   - src/store/authStore.ts             (18 % — Phase 2 target)
+#   - src/api/subsonic.ts                (Phase 3 target)
 
 # ── utils (already at or above threshold) ────────────────────────────
 src/utils/coverArtRegisteredSizes.ts
 src/utils/serverDisplayName.ts
 src/utils/serverMagicString.ts
+src/utils/shareLink.ts
+src/utils/dynamicColors.ts
