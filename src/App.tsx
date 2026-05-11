@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, lazy, Suspense } from 'react';
 import { showToast } from './utils/toast';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -11,7 +11,6 @@ import PlayerBar from './components/PlayerBar';
 import BottomNav from './components/BottomNav';
 import MobilePlayerView from './components/MobilePlayerView';
 import { useIsMobile } from './hooks/useIsMobile';
-import { WindowVisibilityProvider } from './hooks/useWindowVisibility';
 import LiveSearch from './components/LiveSearch';
 import NowPlayingDropdown from './components/NowPlayingDropdown';
 import QueuePanel from './components/QueuePanel';
@@ -28,7 +27,6 @@ const NewReleases = lazy(() => import('./pages/NewReleases'));
 const Favorites = lazy(() => import('./pages/Favorites'));
 const RandomMix = lazy(() => import('./pages/RandomMix'));
 const RandomLanding = lazy(() => import('./pages/RandomLanding'));
-const Login = lazy(() => import('./pages/Login'));
 const AlbumDetail = lazy(() => import('./pages/AlbumDetail'));
 const MostPlayed = lazy(() => import('./pages/MostPlayed'));
 const LosslessAlbums = lazy(() => import('./pages/LosslessAlbums'));
@@ -51,8 +49,6 @@ const FolderBrowser = lazy(() => import('./pages/FolderBrowser'));
 const InternetRadio = lazy(() => import('./pages/InternetRadio'));
 const Genres = lazy(() => import('./pages/Genres'));
 const GenreDetail = lazy(() => import('./pages/GenreDetail'));
-import MiniPlayer from './components/MiniPlayer';
-import { initMiniPlayerBridgeOnMain } from './utils/miniPlayerBridge';
 import FullscreenPlayer from './components/FullscreenPlayer';
 import ContextMenu from './components/ContextMenu';
 import SongInfoModal from './components/SongInfoModal';
@@ -60,14 +56,12 @@ import DownloadFolderModal from './components/DownloadFolderModal';
 import GlobalConfirmModal from './components/GlobalConfirmModal';
 import OrbitAccountPicker from './components/OrbitAccountPicker';
 import OrbitHelpModal from './components/OrbitHelpModal';
-import { DragDropProvider } from './contexts/DragDropContext';
 import TooltipPortal from './components/TooltipPortal';
 import OverlayScrollArea from './components/OverlayScrollArea';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from './constants/appScroll';
 import ConnectionIndicator from './components/ConnectionIndicator';
 import LastfmIndicator from './components/LastfmIndicator';
 import OfflineBanner from './components/OfflineBanner';
-import ExportPickerModal from './components/ExportPickerModal';
 import AppUpdater from './components/AppUpdater';
 import TitleBar from './components/TitleBar';
 import OrbitSessionBar from './components/OrbitSessionBar';
@@ -87,7 +81,6 @@ import {
   search as subsonicSearch,
 } from './api/subsonic';
 import { useOfflineStore } from './store/offlineStore';
-import { initHotCachePrefetch } from './hotCachePrefetch';
 import i18n from './i18n';
 import { switchActiveServer } from './utils/switchActiveServer';
 import {
@@ -108,11 +101,10 @@ import { useZipDownloadStore } from './store/zipDownloadStore';
 import { usePreviewStore } from './store/previewStore';
 import { DEFAULT_IN_APP_BINDINGS, canRunShortcutActionInMiniWindow, executeCliPlayerCommand, executeRuntimeAction, isGlobalShortcutActionId, isShortcutAction } from './config/shortcutActions';
 import { matchInAppShortcutAction } from './shortcuts/runtime';
-import ZipDownloadOverlay from './components/ZipDownloadOverlay';
-import FpsOverlay from './components/FpsOverlay';
-import PasteClipboardHandler from './components/PasteClipboardHandler';
 import { usePerfProbeFlags } from './utils/perfFlags';
 import { getWindowKind } from './app/windowKind';
+import MiniPlayerApp from './app/MiniPlayerApp';
+import MainApp from './app/MainApp';
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'psysonic_sidebar_collapsed';
 
@@ -134,7 +126,7 @@ function persistSidebarCollapsed(collapsed: boolean): void {
   }
 }
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, servers, activeServerId } = useAuthStore();
   if (!isLoggedIn || !activeServerId || servers.length === 0) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -177,7 +169,7 @@ function shouldSuppressQueueResizerMouseDown(clientX: number, clientY: number, q
   return false;
 }
 
-function AppShell() {
+export function AppShell() {
   const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
   const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
@@ -791,7 +783,7 @@ function AppShell() {
 }
 
 // Media key + tray event handler
-function TauriEventBridge() {
+export function TauriEventBridge() {
   const navigate = useNavigate();
 
   // ZIP download progress events from Rust
@@ -1267,18 +1259,15 @@ function TauriEventBridge() {
 }
 
 export default function App() {
-  useThemeStore(s => s.theme); // keep subscription so re-render on manual change
+  // Re-subscribe so themeStore changes trigger a re-render (the value itself
+  // is consumed via useThemeScheduler / data-theme attribute below).
+  useThemeStore(s => s.theme);
   const effectiveTheme = useThemeScheduler();
   const font = useFontStore(s => s.font);
-  const [exportPickerOpen, setExportPickerOpen] = useState(false);
-  const perfFlags = usePerfProbeFlags();
 
-  // Mini Player window: detected via Tauri window label. Rendered without
-  // router / sidebar / full audio listeners — it just listens for state + sends
-  // control events. Cached synchronously by `getWindowKind()` so the initial
-  // render picks the right tree without flicker.
-  const isMiniWindow = getWindowKind() === 'mini';
-
+  // Document-attribute hooks are shared between both window kinds — each
+  // webview has its own `document`, and theme / font / track-preview tokens
+  // are read by CSS in both trees.
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
   }, [effectiveTheme]);
@@ -1315,140 +1304,5 @@ export default function App() {
     );
   }, [trackPreviewDurationSec]);
 
-  // Main window only: push playback state to mini window + handle control events.
-  useEffect(() => {
-    if (isMiniWindow) return;
-    return initMiniPlayerBridgeOnMain();
-  }, [isMiniWindow]);
-
-  // Main window only: optionally pre-create the mini player webview hidden so
-  // the first open is instant. Windows already does this unconditionally in
-  // Rust .setup() as a hang workaround — skip here to avoid double-building.
-  const preloadMiniPlayer = useAuthStore(s => s.preloadMiniPlayer);
-  useEffect(() => {
-    if (isMiniWindow || IS_WINDOWS || !preloadMiniPlayer) return;
-    invoke('preload_mini_player').catch(() => {});
-  }, [isMiniWindow, preloadMiniPlayer]);
-
-  // Mini window only: re-hydrate persisted appearance stores when the main
-  // window writes new values. Both webviews share localStorage (same origin),
-  // so the `storage` event fires here whenever main mutates a key — but
-  // Zustand persist only reads localStorage on initial load, hence the
-  // explicit rehydrate.
-  useEffect(() => {
-    if (!isMiniWindow) return;
-    const onStorage = (e: StorageEvent) => {
-      if (!e.key) return;
-      if (e.key === 'psysonic_theme') useThemeStore.persist.rehydrate();
-      else if (e.key === 'psysonic_font') useFontStore.persist.rehydrate();
-      else if (e.key === 'psysonic_keybindings') useKeybindingsStore.persist.rehydrate();
-      else if (e.key === 'psysonic_language' && e.newValue) {
-        i18n.changeLanguage(e.newValue);
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [isMiniWindow]);
-
-  if (isMiniWindow) {
-    return (
-      <DragDropProvider>
-        <MiniPlayer />
-        <GlobalConfirmModal />
-        {!perfFlags.disableTooltipPortal && <TooltipPortal />}
-        <FpsOverlay />
-      </DragDropProvider>
-    );
-  }
-
-  // UI scaling is scoped to .main-content via an inner wrapper (see <main>
-  // below). Sidebar, queue, player bar and (Linux) custom title bar stay 1:1
-  // because they live in separate grid cells. Document-level zoom is not used
-  // — it broke portal positioning and Tauri window measurement.
-
-  useEffect(() => {
-    return initAudioListeners();
-  }, []);
-
-  useEffect(() => {
-    return initHotCachePrefetch();
-  }, []);
-
-  useEffect(() => {
-    useGlobalShortcutsStore.getState().registerAll();
-  }, []);
-
-  // ── Easter egg: Ctrl+Shift+Alt+N → export new albums image ──
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || !e.shiftKey || !e.altKey || e.code !== 'KeyN') return;
-      e.preventDefault();
-      setExportPickerOpen(true);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const handleExport = async (since: number) => {
-    setExportPickerOpen(false);
-    try {
-      const { exportNewAlbumsImage } = await import('./utils/exportNewAlbums');
-      const result = await exportNewAlbumsImage(since);
-      if (result) {
-        const files = result.paths.length > 1 ? ` (${result.paths.length} Dateien)` : '';
-        showToast(`📸 ${result.count} Alben exportiert${files}`);
-      } else {
-        showToast('📭 Keine Alben in diesem Zeitraum gefunden');
-      }
-    } catch (err) {
-      showToast(`❌ Export fehlgeschlagen: ${String(err).slice(0, 80)}`);
-      console.error('[easter egg] export failed:', err);
-    }
-  };
-
-  useEffect(() => {
-    const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
-    const onScroll = (e: Event) => {
-      const el = e.target as HTMLElement;
-      el.classList.add('is-scrolling');
-      const existing = timers.get(el);
-      if (existing !== undefined) clearTimeout(existing);
-      timers.set(el, setTimeout(() => {
-        el.classList.remove('is-scrolling');
-        timers.delete(el);
-      }, 800));
-    };
-    document.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('scroll', onScroll, true);
-      timers.forEach(t => clearTimeout(t));
-    };
-  }, []);
-
-  return (
-    <WindowVisibilityProvider>
-      <BrowserRouter>
-        <PasteClipboardHandler />
-        <TauriEventBridge />
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/*"
-              element={
-                <RequireAuth>
-                  <DragDropProvider>
-                    <AppShell />
-                  </DragDropProvider>
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </Suspense>
-        {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
-        <ZipDownloadOverlay />
-        <FpsOverlay />
-      </BrowserRouter>
-    </WindowVisibilityProvider>
-  );
+  return getWindowKind() === 'mini' ? <MiniPlayerApp /> : <MainApp />;
 }

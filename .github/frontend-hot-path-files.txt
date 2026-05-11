@@ -42,5 +42,8 @@ src/utils/buildInfiniteQueueCandidates.ts
 src/app/windowKind.ts
 src/app/bootstrap.ts
 
+# ── Phase B.2: mini-player webview tree (2026-05-12) ─────────────────
+src/app/MiniPlayerApp.tsx
+
 # ── stores (added as their tests grew past the floor) ────────────────
 src/store/previewStore.ts
