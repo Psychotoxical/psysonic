@@ -17,6 +17,31 @@ export function getAuthParams(username: string, password: string) {
   return { u: username, t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json' };
 }
 
+export function restBaseFromUrl(serverUrl: string): string {
+  const base = serverUrl.startsWith('http') ? serverUrl.replace(/\/$/, '') : `http://${serverUrl.replace(/\/$/, '')}`;
+  return `${base}/rest`;
+}
+
+export async function apiWithCredentials<T>(
+  serverUrl: string,
+  username: string,
+  password: string,
+  endpoint: string,
+  extra: Record<string, unknown> = {},
+  timeout = 15000,
+): Promise<T> {
+  const params = { ...getAuthParams(username, password), ...extra };
+  const resp = await axios.get(`${restBaseFromUrl(serverUrl)}/${endpoint}`, {
+    params,
+    paramsSerializer: { indexes: null },
+    timeout,
+  });
+  const data = resp.data?.['subsonic-response'];
+  if (!data) throw new Error('Invalid response from server (possibly not a Subsonic server)');
+  if (data.status !== 'ok') throw new Error(data.error?.message ?? 'Subsonic API error');
+  return data as T;
+}
+
 export function getClient() {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();

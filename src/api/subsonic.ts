@@ -9,7 +9,7 @@ import {
 import {
   SUBSONIC_CLIENT,
   api,
-  getAuthParams,
+  apiWithCredentials,
   secureRandomSalt,
 } from './subsonicClient';
 import type { PingWithCredentialsResult, SubsonicSong } from './subsonicTypes';
@@ -51,31 +51,6 @@ export async function pingWithCredentials(
     console.warn('[psysonic] pingWithCredentials failed:', serverUrl, err);
     return { ok: false };
   }
-}
-
-function restBaseFromUrl(serverUrl: string): string {
-  const base = serverUrl.startsWith('http') ? serverUrl.replace(/\/$/, '') : `http://${serverUrl.replace(/\/$/, '')}`;
-  return `${base}/rest`;
-}
-
-async function apiWithCredentials<T>(
-  serverUrl: string,
-  username: string,
-  password: string,
-  endpoint: string,
-  extra: Record<string, unknown> = {},
-  timeout = 15000,
-): Promise<T> {
-  const params = { ...getAuthParams(username, password), ...extra };
-  const resp = await axios.get(`${restBaseFromUrl(serverUrl)}/${endpoint}`, {
-    params,
-    paramsSerializer: { indexes: null },
-    timeout,
-  });
-  const data = resp.data?.['subsonic-response'];
-  if (!data) throw new Error('Invalid response from server (possibly not a Subsonic server)');
-  if (data.status !== 'ok') throw new Error(data.error?.message ?? 'Subsonic API error');
-  return data as T;
 }
 
 const INSTANT_MIX_PROBE_RANDOM_SIZE = 8;
