@@ -74,6 +74,7 @@ import {
   getWaveformRefreshGen,
 } from './waveformRefreshGen';
 import { touchHotCacheOnPlayback } from './hotCacheTouch';
+import { applySkipStarOnManualNext } from './skipStarRating';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -533,35 +534,6 @@ function scheduleSeekFallbackRetry(trackId: string, seconds: number) {
 // Guard against rapid double-click play/pause sending two state transitions
 // to the Rust backend before it has finished the previous one.
 let togglePlayLock = false;
-/**
- * Skip → 1★: counts in `authStore.skipStarManualSkipCountsByKey` (persisted).
- * Only user-initiated `next()` increments. Natural track end (incl. gapless) clears the count;
- * threshold reached clears count and sets 1★ if still unrated.
- */
-function applySkipStarOnManualNext(skippedTrack: Track | null, manual: boolean): void {
-  if (!manual || !skippedTrack) return;
-  const id = skippedTrack.id;
-  const adv = useAuthStore.getState().recordSkipStarManualAdvance(id);
-  if (!adv?.crossedThreshold) return;
-  const live = usePlayerStore.getState();
-  const fromQueue = live.queue.find(t => t.id === id);
-  const cur =
-    live.userRatingOverrides[id] ??
-    fromQueue?.userRating ??
-    skippedTrack.userRating ??
-    0;
-  if (cur >= 1) return;
-  setRating(id, 1)
-    .then(() => {
-      usePlayerStore.setState(s => ({
-        queue: s.queue.map(t => (t.id === id ? { ...t, userRating: 1 } : t)),
-        currentTrack: s.currentTrack?.id === id ? { ...s.currentTrack, userRating: 1 } : s.currentTrack,
-        userRatingOverrides: { ...s.userRatingOverrides, [id]: 1 },
-      }));
-    })
-    .catch(() => {});
-}
-
 // ── HTML5 Radio Player ────────────────────────────────────────────────────────
 // Internet radio streams are played via a native <audio> element instead of
 // the Rust/Symphonia engine.  This gives us browser-native reconnect logic,
