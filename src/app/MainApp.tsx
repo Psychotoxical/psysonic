@@ -14,7 +14,8 @@ import { initAudioListeners } from '../store/playerStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { IS_WINDOWS } from '../utils/platform';
-import { AppShell, RequireAuth, TauriEventBridge } from '../App';
+import { AppShell, TauriEventBridge } from '../App';
+import RequireAuth from './RequireAuth';
 
 const Login = lazy(() => import('../pages/Login'));
 

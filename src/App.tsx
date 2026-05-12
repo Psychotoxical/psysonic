@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { showToast } from './utils/toast';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -9,46 +9,11 @@ import { useTranslation } from 'react-i18next';
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
 import BottomNav from './components/BottomNav';
-import MobilePlayerView from './components/MobilePlayerView';
 import { useIsMobile } from './hooks/useIsMobile';
 import LiveSearch from './components/LiveSearch';
 import NowPlayingDropdown from './components/NowPlayingDropdown';
 import QueuePanel from './components/QueuePanel';
-
-// Route-level lazy loading: keeps the non-page graph (shell, player, stores) in
-// the entry chunk; each page is fetched when its route is first visited.
-const Home = lazy(() => import('./pages/Home'));
-const Albums = lazy(() => import('./pages/Albums'));
-const Artists = lazy(() => import('./pages/Artists'));
-const ArtistDetail = lazy(() => import('./pages/ArtistDetail'));
-const Composers = lazy(() => import('./pages/Composers'));
-const ComposerDetail = lazy(() => import('./pages/ComposerDetail'));
-const NewReleases = lazy(() => import('./pages/NewReleases'));
-const Favorites = lazy(() => import('./pages/Favorites'));
-const RandomMix = lazy(() => import('./pages/RandomMix'));
-const RandomLanding = lazy(() => import('./pages/RandomLanding'));
-const AlbumDetail = lazy(() => import('./pages/AlbumDetail'));
-const MostPlayed = lazy(() => import('./pages/MostPlayed'));
-const LosslessAlbums = lazy(() => import('./pages/LosslessAlbums'));
-const RandomAlbums = lazy(() => import('./pages/RandomAlbums'));
-const LuckyMixPage = lazy(() => import('./pages/LuckyMix'));
-const SearchResults = lazy(() => import('./pages/SearchResults'));
-const Playlists = lazy(() => import('./pages/Playlists'));
-const PlaylistDetail = lazy(() => import('./pages/PlaylistDetail'));
-const NowPlayingPage = lazy(() => import('./pages/NowPlaying'));
-const Tracks = lazy(() => import('./pages/Tracks'));
-const Settings = lazy(() => import('./pages/Settings'));
-const Statistics = lazy(() => import('./pages/Statistics'));
-const Help = lazy(() => import('./pages/Help'));
-const WhatsNew = lazy(() => import('./pages/WhatsNew'));
-const DeviceSync = lazy(() => import('./pages/DeviceSync'));
-const OfflineLibrary = lazy(() => import('./pages/OfflineLibrary'));
-const LabelAlbums = lazy(() => import('./pages/LabelAlbums'));
-const AdvancedSearch = lazy(() => import('./pages/AdvancedSearch'));
-const FolderBrowser = lazy(() => import('./pages/FolderBrowser'));
-const InternetRadio = lazy(() => import('./pages/InternetRadio'));
-const Genres = lazy(() => import('./pages/Genres'));
-const GenreDetail = lazy(() => import('./pages/GenreDetail'));
+import AppRoutes from './app/AppRoutes';
 import FullscreenPlayer from './components/FullscreenPlayer';
 import ContextMenu from './components/ContextMenu';
 import SongInfoModal from './components/SongInfoModal';
@@ -71,7 +36,6 @@ import { useOrbitGuest } from './hooks/useOrbitGuest';
 import { cleanupOrphanedOrbitPlaylists, endOrbitSession, leaveOrbitSession } from './utils/orbit';
 import { useOrbitStore } from './store/orbitStore';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from './utils/platform';
-import { version } from '../package.json';
 import { useConnectionStatus } from './hooks/useConnectionStatus';
 import { useAuthStore } from './store/authStore';
 import {
@@ -86,7 +50,6 @@ import { switchActiveServer } from './utils/switchActiveServer';
 import {
   usePlayerStore,
   getPlaybackProgressSnapshot,
-  initAudioListeners,
   songToTrack,
   shuffleArray,
   flushPlayQueuePosition,
@@ -124,12 +87,6 @@ function persistSidebarCollapsed(collapsed: boolean): void {
   } catch {
     // Ignore storage failures and keep in-memory UI state.
   }
-}
-
-export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, servers, activeServerId } = useAuthStore();
-  if (!isLoggedIn || !activeServerId || servers.length === 0) return <Navigate to="/login" replace />;
-  return <>{children}</>;
 }
 
 /**
@@ -679,40 +636,7 @@ export function AppShell() {
               {perfFlags.disableMainRouteContentMount ? (
                 <div style={{ minHeight: '60vh' }} />
               ) : (
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/albums" element={<Albums />} />
-                  <Route path="/tracks" element={<Tracks />} />
-                  <Route path="/random" element={<RandomLanding />} />
-                  <Route path="/random/albums" element={<RandomAlbums />} />
-                  <Route path="/album/:id" element={<AlbumDetail />} />
-                  <Route path="/artists" element={<Artists />} />
-                  <Route path="/artist/:id" element={<ArtistDetail />} />
-                  <Route path="/composers" element={<Composers />} />
-                  <Route path="/composer/:id" element={<ComposerDetail />} />
-                  <Route path="/new-releases" element={<NewReleases />} />
-                  <Route path="/favorites" element={<Favorites />} />
-                  <Route path="/random/mix" element={<RandomMix />} />
-                  <Route path="/lucky-mix" element={<LuckyMixPage />} />
-                  <Route path="/label/:name" element={<LabelAlbums />} />
-                  <Route path="/search" element={<SearchResults />} />
-                  <Route path="/search/advanced" element={<AdvancedSearch />} />
-                  <Route path="/statistics" element={<Statistics />} />
-                  <Route path="/most-played" element={<MostPlayed />} />
-                  <Route path="/lossless-albums" element={<LosslessAlbums />} />
-                  <Route path="/now-playing" element={isMobile ? <MobilePlayerView /> : <NowPlayingPage />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/whats-new" element={<WhatsNew />} />
-                  <Route path="/help" element={<Help />} />
-                  <Route path="/offline" element={<OfflineLibrary />} />
-                  <Route path="/genres" element={<Genres />} />
-                  <Route path="/genres/:name" element={<GenreDetail />} />
-                  <Route path="/playlists" element={<Playlists />} />
-                  <Route path="/playlists/:id" element={<PlaylistDetail />} />
-                  <Route path="/radio" element={<InternetRadio />} />
-                  <Route path="/folders" element={<FolderBrowser />} />
-                  <Route path="/device-sync" element={<DeviceSync />} />
-                </Routes>
+                <AppRoutes />
               )}
             </Suspense>
           </OverlayScrollArea>
