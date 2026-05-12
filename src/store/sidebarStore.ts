@@ -7,7 +7,7 @@ export interface SidebarItemConfig {
 }
 
 // All configurable nav items in their default order.
-// Fixed items (nowPlaying, settings, offline) are not listed here.
+// Fixed items (settings, offline) are not listed here.
 export const DEFAULT_SIDEBAR_ITEMS: SidebarItemConfig[] = [
   { id: 'mainstage',     visible: true },
   { id: 'newReleases',   visible: true },
@@ -29,6 +29,7 @@ export const DEFAULT_SIDEBAR_ITEMS: SidebarItemConfig[] = [
   { id: 'deviceSync',    visible: false },
   { id: 'statistics',    visible: true },
   { id: 'help',          visible: true },
+  { id: 'nowPlaying',   visible: true },
 ];
 
 interface SidebarStore {

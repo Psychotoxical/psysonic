@@ -35,4 +35,5 @@ export const ALL_NAV_ITEMS: Record<string, NavItemMeta> = {
   deviceSync:   { icon: HardDriveUpload,labelKey: 'sidebar.deviceSync',   to: '/device-sync',   section: 'library' },
   statistics:   { icon: BarChart3,      labelKey: 'sidebar.statistics',   to: '/statistics',    section: 'system'  },
   help:         { icon: HelpCircle,     labelKey: 'sidebar.help',         to: '/help',          section: 'system'  },
+  nowPlaying:   { icon: AudioLines,     labelKey: 'sidebar.nowPlaying',  to: '/now-playing',   section: 'system'  },
 };

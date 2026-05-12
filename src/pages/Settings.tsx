@@ -4594,7 +4594,7 @@ function HomeCustomizer() {
     <div className="settings-card" style={{ padding: '4px 0' }}>
       {sections.map(sec => (
         <div key={sec.id} className="sidebar-customizer-row">
-          <span style={{ flex: 1, fontSize: 14 }}>{SECTION_LABELS[sec.id]}</span>
+          <span style={{ flex: 1, fontSize: 14, opacity: sec.visible ? 1 : 0.4 }}>{SECTION_LABELS[sec.id]}</span>
           <label className="toggle-switch" aria-label={SECTION_LABELS[sec.id]}>
             <input type="checkbox" checked={sec.visible} onChange={() => toggleSection(sec.id)} />
             <span className="toggle-track" />
@@ -4729,7 +4729,7 @@ function QueueToolbarCustomizer() {
             ) : (
               <div style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
             )}
-            <span style={{ flex: 1, fontSize: 14 }}>{label}</span>
+            <span style={{ flex: 1, fontSize: 14, opacity: btn.visible ? 1 : 0.4 }}>{label}</span>
             <label className="toggle-switch" aria-label={label}>
               <input type="checkbox" checked={btn.visible} onChange={() => toggleButton(btn.id)} />
               <span className="toggle-track" />
@@ -5055,7 +5055,7 @@ function SidebarCustomizer() {
       >
         <SidebarGripHandle idx={localIdx} section={section} label={t(meta.labelKey)} />
         <Icon size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: 14 }}>{t(meta.labelKey)}</span>
+        <span style={{ flex: 1, fontSize: 14, opacity: cfg.visible ? 1 : 0.4 }}>{t(meta.labelKey)}</span>
         <label className="toggle-switch" aria-label={t(meta.labelKey)}>
           <input type="checkbox" checked={cfg.visible} onChange={() => toggleItem(cfg.id)} />
           <span className="toggle-track" />
@@ -5067,7 +5067,7 @@ function SidebarCustomizer() {
   return (
     <>
       <div className="settings-card" style={{ marginBottom: '1rem' }}>
-        <div className="settings-toggle-row">
+        <div className="settings-toggle-row" style={{ opacity: randomNavMode === 'separate' ? 1 : 0.4 }}>
           <div>
             <div style={{ fontWeight: 500 }}>{t('settings.randomNavSplitTitle')}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.randomNavSplitDesc')}</div>
@@ -5093,7 +5093,7 @@ function SidebarCustomizer() {
           <div className="sidebar-customizer-block-label">{t('sidebar.system')}</div>
           {systemItems.map((cfg, i) => renderRow(cfg, i, 'system'))}
           <div className="sidebar-customizer-fixed-hint">
-            <span>{t('settings.sidebarFixed')}: {t('sidebar.nowPlaying')}, {t('sidebar.settings')}</span>
+            <span>{t('settings.sidebarFixed')}: {t('sidebar.settings')}</span>
           </div>
         </div>
       </div>

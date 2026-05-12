@@ -1165,7 +1165,7 @@ export const enTranslation = {
     appendToQueue: 'Append to queue',
     delete: 'Delete',
     deleteConfirm: 'Delete playlist "{{name}}"?',
-    clear: 'Clear',
+    clear: 'Clear queue',
     shuffle: 'Shuffle queue',
     gapless: 'Gapless',
     crossfade: 'Crossfade',

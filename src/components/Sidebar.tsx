@@ -156,8 +156,12 @@ export default function Sidebar({
     [libraryItemsForReorder, luckyMixAvailable],
   );
   const visibleSystemConfigs = useMemo(
-    () => systemItemsForReorder.filter(c => c.visible),
+    () => systemItemsForReorder.filter(c => c.visible && c.id !== 'nowPlaying'),
     [systemItemsForReorder],
+  );
+  const nowPlayingVisible = useMemo(
+    () => sidebarItems.find(i => i.id === 'nowPlaying')?.visible ?? true,
+    [sidebarItems],
   );
 
   const [navDnd, setNavDnd] = useState<{
@@ -958,19 +962,21 @@ export default function Sidebar({
         {/* What's New banner — only visible while the current release hasn't been seen. */}
         <WhatsNewBanner collapsed={isCollapsed} />
 
-        {/* Now Playing — fixed, always visible */}
-        <NavLink
-          to="/now-playing"
-          className={({ isActive }) => `nav-link nav-link-nowplaying ${isActive ? 'active' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.nowPlaying') : undefined}
-          data-tooltip-pos="bottom"
-        >
-          <span className="nav-np-icon-wrap">
-            <AudioLines size={isCollapsed ? 22 : 18} />
-            {isPlaying && currentTrack && <span className="nav-np-dot" />}
-          </span>
-          {!isCollapsed && <span>{t('sidebar.nowPlaying')}</span>}
-        </NavLink>
+        {/* Now Playing — toggleable via sidebar customizer */}
+        {nowPlayingVisible && (
+          <NavLink
+            to="/now-playing"
+            className={({ isActive }) => `nav-link nav-link-nowplaying ${isActive ? 'active' : ''}`}
+            data-tooltip={isCollapsed ? t('sidebar.nowPlaying') : undefined}
+            data-tooltip-pos="bottom"
+          >
+            <span className="nav-np-icon-wrap">
+              <AudioLines size={isCollapsed ? 22 : 18} />
+              {isPlaying && currentTrack && <span className="nav-np-dot" />}
+            </span>
+            {!isCollapsed && <span>{t('sidebar.nowPlaying')}</span>}
+          </NavLink>
+        )}
 
         {hasOfflineContent && (
           <NavLink
