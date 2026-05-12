@@ -10,7 +10,14 @@ import {
 } from '../utils/loudnessPreAnalysisSlider';
 import { createAudioSettingsActions } from './authAudioSettingsActions';
 import { createAuthLastfmActions } from './authLastfmActions';
+import { createCacheStorageActions } from './authCacheStorageActions';
+import { createDiscordSettingsActions } from './authDiscordSettingsActions';
+import { createDiscoveryActions } from './authDiscoveryActions';
+import { createLyricsSettingsActions } from './authLyricsSettingsActions';
+import { createPlumbingSettingsActions } from './authPlumbingActions';
 import { createServerProfileActions } from './authServerProfileActions';
+import { createTrackPreviewActions } from './authTrackPreviewActions';
+import { createUiAppearanceActions } from './authUiAppearanceActions';
 import {
   DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
   DEFAULT_LYRICS_SOURCES,
@@ -129,56 +136,13 @@ export const useAuthStore = create<AuthState>()(
       ...createServerProfileActions(set),
       ...createAuthLastfmActions(set),
       ...createAudioSettingsActions(set),
-
-      setMaxCacheMb: (v) => set({ maxCacheMb: v }),
-      setDownloadFolder: (v) => set({ downloadFolder: v }),
-      setOfflineDownloadDir: (v) => set({ offlineDownloadDir: v }),
-      setExcludeAudiobooks: (v) => set({ excludeAudiobooks: v }),
-      setCustomGenreBlacklist: (v) => set({ customGenreBlacklist: v }),
-      setTrackPreviewsEnabled: (v) => set({ trackPreviewsEnabled: !!v }),
-      setTrackPreviewLocation: (location, enabled) => set(state => ({
-        trackPreviewLocations: { ...state.trackPreviewLocations, [location]: !!enabled },
-      })),
-      setTrackPreviewStartRatio: (v) => set({ trackPreviewStartRatio: Math.max(0, Math.min(0.9, v)) }),
-      setTrackPreviewDurationSec: (v) => set({ trackPreviewDurationSec: Math.max(5, Math.min(120, Math.round(v))) }),
-      setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => set({ preloadMode: v }),
-      setPreloadCustomSeconds: (v: number) => set({ preloadCustomSeconds: v }),
-      setInfiniteQueueEnabled: (v) => set({ infiniteQueueEnabled: v }),
-      setPreservePlayNextOrder: (v) => set({ preservePlayNextOrder: v }),
-      setShowArtistImages: (v) => set({ showArtistImages: v }),
-      setShowTrayIcon: (v) => set({ showTrayIcon: v }),
-      setMinimizeToTray: (v) => set({ minimizeToTray: v }),
-      setShowOrbitTrigger: (v) => set({ showOrbitTrigger: v }),
-      setDiscordRichPresence: (v) => set({ discordRichPresence: v }),
-      setDiscordCoverSource: (v) => set({ discordCoverSource: v }),
-      setEnableBandsintown: (v) => set({ enableBandsintown: v }),
-      setDiscordTemplateDetails: (v) => set({ discordTemplateDetails: v }),
-      setDiscordTemplateState: (v) => set({ discordTemplateState: v }),
-      setDiscordTemplateLargeText: (v) => set({ discordTemplateLargeText: v }),
-      setUseCustomTitlebar: (v) => set({ useCustomTitlebar: v }),
-      setPreloadMiniPlayer: (v) => set({ preloadMiniPlayer: v }),
-      setLinuxWebkitKineticScroll: (v) => set({ linuxWebkitKineticScroll: v }),
-      setLoggingMode: (v) => set({ loggingMode: v }),
-      setNowPlayingEnabled: (v) => set({ nowPlayingEnabled: v }),
-      setLyricsServerFirst: (v: boolean) => set({ lyricsServerFirst: v }),
-      setEnableNeteaselyrics: (v: boolean) => set({ enableNeteaselyrics: v }),
-      setLyricsSources: (sources) => set({ lyricsSources: sources }),
-      setLyricsMode: (v) => set({ lyricsMode: v }),
-      setLyricsStaticOnly: (v) => set({ lyricsStaticOnly: v }),
-      setShowFullscreenLyrics: (v: boolean) => set({ showFullscreenLyrics: v }),
-      setFsLyricsStyle: (v) => set({ fsLyricsStyle: v }),
-      setSidebarLyricsStyle: (v) => set({ sidebarLyricsStyle: v }),
-      setShowFsArtistPortrait: (v: boolean) => set({ showFsArtistPortrait: v }),
-      setFsPortraitDim: (v: number) => set({ fsPortraitDim: v }),
-      setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
-      setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
-
-      setSeekbarStyle: (v) => set({ seekbarStyle: v }),
-      setQueueNowPlayingCollapsed: (v: boolean) => set({ queueNowPlayingCollapsed: v }),
-      setHotCacheEnabled: (v) => set({ hotCacheEnabled: v }),
-      setHotCacheMaxMb: (v) => set({ hotCacheMaxMb: v }),
-      setHotCacheDebounceSec: (v) => set({ hotCacheDebounceSec: v }),
-      setHotCacheDownloadDir: (v) => set({ hotCacheDownloadDir: v }),
+      ...createCacheStorageActions(set),
+      ...createDiscordSettingsActions(set),
+      ...createUiAppearanceActions(set),
+      ...createLyricsSettingsActions(set),
+      ...createTrackPreviewActions(set),
+      ...createDiscoveryActions(set),
+      ...createPlumbingSettingsActions(set),
 
       setSkipStarOnManualSkipsEnabled: (v) =>
         set({
@@ -212,14 +176,6 @@ export const useAuthStore = create<AuthState>()(
         const { [key]: _removed, ...rest } = s.skipStarManualSkipCountsByKey;
         set({ skipStarManualSkipCountsByKey: rest });
       },
-
-      setMixMinRatingFilterEnabled: (v) => set({ mixMinRatingFilterEnabled: v }),
-      setMixMinRatingSong: (v) => set({ mixMinRatingSong: clampMixFilterMinStars(v) }),
-      setMixMinRatingAlbum: (v) => set({ mixMinRatingAlbum: clampMixFilterMinStars(v) }),
-      setMixMinRatingArtist: (v) => set({ mixMinRatingArtist: clampMixFilterMinStars(v) }),
-      setRandomMixSize: (v) => set({ randomMixSize: clampRandomMixSize(v) }),
-      setShowLuckyMixMenu: (v) => set({ showLuckyMixMenu: v }),
-      setRandomNavMode: (v) => set({ randomNavMode: v }),
 
       setMusicFolders: (folders) => {
         const sid = get().activeServerId;
