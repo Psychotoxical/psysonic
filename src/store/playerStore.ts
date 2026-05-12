@@ -33,6 +33,22 @@ import {
 import { coerceWaveformBins, waveformBlobLenOk } from '../utils/waveformParse';
 import { normalizationAlmostEqual } from '../utils/normalizationCompare';
 import { isRecoverableSeekError } from '../utils/seekErrors';
+import {
+  emitPlaybackProgress,
+  getPlaybackProgressSnapshot,
+  subscribePlaybackProgress,
+  type PlaybackProgressSnapshot,
+} from './playbackProgress';
+
+// Re-export the playback-progress public surface so existing call sites
+// (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
+// TauriEventBridge, plus the progress characterization test) keep their
+// `from './playerStore'` imports working.
+export {
+  getPlaybackProgressSnapshot,
+  subscribePlaybackProgress,
+  type PlaybackProgressSnapshot,
+};
 import { getWindowKind } from '../app/windowKind';
 import {
   _resetQueueUndoStacksForTest,
@@ -474,48 +490,6 @@ let lastLiveProgressEmitAt = 0;
 const STORE_PROGRESS_COMMIT_MIN_MS = 20_000;
 const STORE_PROGRESS_COMMIT_MIN_DELTA_SEC = 5.0;
 let lastStoreProgressCommitAt = 0;
-
-export type PlaybackProgressSnapshot = {
-  currentTime: number;
-  progress: number;
-  buffered: number;
-};
-
-let playbackProgressSnapshot: PlaybackProgressSnapshot = {
-  currentTime: 0,
-  progress: 0,
-  buffered: 0,
-};
-const playbackProgressListeners = new Set<(
-  next: PlaybackProgressSnapshot,
-  prev: PlaybackProgressSnapshot
-) => void>();
-
-function emitPlaybackProgress(next: PlaybackProgressSnapshot): void {
-  const prev = playbackProgressSnapshot;
-  if (
-    Math.abs(prev.currentTime - next.currentTime) < 0.005 &&
-    Math.abs(prev.progress - next.progress) < 0.0002 &&
-    Math.abs(prev.buffered - next.buffered) < 0.0002
-  ) {
-    return;
-  }
-  playbackProgressSnapshot = next;
-  playbackProgressListeners.forEach(cb => cb(next, prev));
-}
-
-export function getPlaybackProgressSnapshot(): PlaybackProgressSnapshot {
-  return playbackProgressSnapshot;
-}
-
-export function subscribePlaybackProgress(
-  cb: (next: PlaybackProgressSnapshot, prev: PlaybackProgressSnapshot) => void,
-): () => void {
-  playbackProgressListeners.add(cb);
-  return () => {
-    playbackProgressListeners.delete(cb);
-  };
-}
 
 
 /** Deferred pause / resume — cleared on stop, new track, manual pause/resume. */
