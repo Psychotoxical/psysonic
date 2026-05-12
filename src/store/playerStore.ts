@@ -104,6 +104,7 @@ import {
   setBytePreloadingId,
   setGaplessPreloadingId,
 } from './gaplessPreloadState';
+import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -804,25 +805,6 @@ function prefetchLoudnessForEnqueuedTracks(
   const ids = collectLoudnessBackfillWindowTrackIds(mergedQueue, queueIndex, currentTrack);
   for (const id of ids) {
     void refreshLoudnessForTrack(id, { syncPlayingEngine: false });
-  }
-}
-
-async function promoteCompletedStreamToHotCache(track: Track, serverId: string, customDir: string | null) {
-  try {
-    const res = await invoke<{ path: string; size: number } | null>(
-      'promote_stream_cache_to_hot_cache',
-      {
-        trackId: track.id,
-        serverId,
-        url: buildStreamUrl(track.id),
-        suffix: track.suffix || 'mp3',
-        customDir,
-      },
-    );
-    if (!res || !res.path) return;
-    useHotCacheStore.getState().setEntry(track.id, serverId, res.path, res.size || 0, 'stream-promote');
-  } catch {
-    // best-effort promotion; normal hot-cache prefetch remains fallback
   }
 }
 
