@@ -6,8 +6,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
   Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
-  PanelLeft, RotateCcw, LayoutGrid, AppWindow, HardDrive, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
-  Users, Search, Scale, ListMusic
+  RotateCcw, LayoutGrid, AppWindow, HardDrive, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
+  Users, Search, Scale
 } from 'lucide-react';
 import i18n from '../i18n';
 import { showToast } from '../utils/toast';
@@ -30,27 +30,18 @@ import { SeekbarPreview } from '../components/WaveformSeek';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
 import { useThemeStore } from '../store/themeStore';
 import { useFontStore, FontId } from '../store/fontStore';
-import { useKeybindingsStore, KeyAction, formatBinding, buildInAppBinding } from '../store/keybindingsStore';
-import { useGlobalShortcutsStore, GlobalAction, buildGlobalShortcut, formatGlobalShortcut } from '../store/globalShortcutsStore';
-import { IN_APP_SHORTCUT_ACTIONS, GLOBAL_SHORTCUT_ACTIONS } from '../config/shortcutActions';
-import { useSidebarStore } from '../store/sidebarStore';
-import { useQueueToolbarStore } from '../store/queueToolbarStore';
 import {
   effectiveLoudnessPreAnalysisAttenuationDb,
 } from '../utils/loudnessPreAnalysisSlider';
-import { useArtistLayoutStore } from '../store/artistLayoutStore';
-import { useHomeStore } from '../store/homeStore';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { AddServerForm } from '../components/settings/AddServerForm';
-import { ArtistLayoutCustomizer } from '../components/settings/ArtistLayoutCustomizer';
 import { BackupSection } from '../components/settings/BackupSection';
-import { HomeCustomizer } from '../components/settings/HomeCustomizer';
+import { InputTab } from '../components/settings/InputTab';
 import { LoudnessLufsButtonGroup } from '../components/settings/LoudnessLufsButtonGroup';
-import { LyricsSourcesCustomizer } from '../components/settings/LyricsSourcesCustomizer';
-import { QueueToolbarCustomizer } from '../components/settings/QueueToolbarCustomizer';
+import { LyricsTab } from '../components/settings/LyricsTab';
+import { PersonalisationTab } from '../components/settings/PersonalisationTab';
 import { ServerGripHandle } from '../components/settings/ServerGripHandle';
 import { SETTINGS_INDEX, type Tab, matchScore, resolveTab } from '../components/settings/settingsTabs';
-import { SidebarCustomizer } from '../components/settings/SidebarCustomizer';
 import { UserManagementSection } from '../components/settings/UserManagementSection';
 import { CONTRIBUTORS, MAINTAINERS } from '../config/settingsCredits';
 import { buildAudioDeviceSelectOptions, formatAudioDeviceLabel, sortAudioDeviceIds } from '../utils/audioDeviceLabels';
@@ -75,8 +66,6 @@ export default function Settings() {
   const auth = useAuthStore();
   const theme = useThemeStore();
   const fontStore = useFontStore();
-  const kb = useKeybindingsStore();
-  const gs = useGlobalShortcutsStore();
   const serverId = auth.activeServerId ?? '';
   const clearAllOffline = useOfflineStore(s => s.clearAll);
   const clearHotCacheDisk = useHotCacheStore(s => s.clearAllDisk);
@@ -101,8 +90,6 @@ export default function Settings() {
     ),
     [auth.loudnessPreAnalysisAttenuationDb, auth.loudnessTargetLufs],
   );
-  const [listeningFor, setListeningFor] = useState<KeyAction | null>(null);
-  const [listeningForGlobal, setListeningForGlobal] = useState<GlobalAction | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const routeState = location.state;
@@ -1156,46 +1143,7 @@ export default function Settings() {
       )}
 
       {/* ── Lyrics ───────────────────────────────────────────────────────────── */}
-      {activeTab === 'lyrics' && (
-        <>
-          <SettingsSubSection
-            title={t('settings.lyricsSourcesTitle')}
-            icon={<Music2 size={16} />}
-          >
-            <LyricsSourcesCustomizer />
-          </SettingsSubSection>
-
-          <SettingsSubSection
-            title={t('settings.sidebarLyricsStyle')}
-            icon={<AudioLines size={16} />}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {(['classic', 'apple'] as const).map(style => {
-                const key = style === 'classic' ? 'Classic' : 'Apple';
-                const other = style === 'classic' ? 'apple' : 'classic';
-                return (
-                  <div key={style} className="settings-card">
-                    <div className="settings-toggle-row">
-                      <div>
-                        <div style={{ fontWeight: 500 }}>{t(`settings.sidebarLyricsStyle${key}` as any)}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t(`settings.sidebarLyricsStyle${key}Desc` as any)}</div>
-                      </div>
-                      <label className="toggle-switch" aria-label={t(`settings.sidebarLyricsStyle${key}` as any)}>
-                        <input
-                          type="checkbox"
-                          checked={auth.sidebarLyricsStyle === style}
-                          onChange={e => auth.setSidebarLyricsStyle(e.target.checked ? style : other)}
-                        />
-                        <span className="toggle-track" />
-                      </label>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </SettingsSubSection>
-        </>
-      )}
+      {activeTab === 'lyrics' && <LyricsTab />}
 
       {/* ── Integrations ─────────────────────────────────────────────────────── */}
       {activeTab === 'integrations' && (
@@ -1414,85 +1362,7 @@ export default function Settings() {
       )}
 
       {/* ── Personalisation ──────────────────────────────────────────────────── */}
-      {activeTab === 'personalisation' && (
-        <>
-          <SettingsSubSection
-            title={t('settings.sidebarTitle')}
-            icon={<PanelLeft size={16} />}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
-                onClick={() => useSidebarStore.getState().reset()}
-                data-tooltip={t('settings.sidebarReset')}
-                aria-label={t('settings.sidebarReset')}
-              >
-                <RotateCcw size={14} />
-              </button>
-            }
-          >
-            <SidebarCustomizer />
-          </SettingsSubSection>
-
-          <SettingsSubSection
-            title={t('settings.artistLayoutTitle')}
-            icon={<Users size={16} />}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
-                onClick={() => useArtistLayoutStore.getState().reset()}
-                data-tooltip={t('settings.artistLayoutReset')}
-                aria-label={t('settings.artistLayoutReset')}
-              >
-                <RotateCcw size={14} />
-              </button>
-            }
-          >
-            <ArtistLayoutCustomizer />
-          </SettingsSubSection>
-
-          <SettingsSubSection
-            title={t('settings.homeCustomizerTitle')}
-            icon={<LayoutGrid size={16} />}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
-                onClick={() => useHomeStore.getState().reset()}
-                data-tooltip={t('settings.sidebarReset')}
-                aria-label={t('settings.sidebarReset')}
-              >
-                <RotateCcw size={14} />
-              </button>
-            }
-          >
-            <HomeCustomizer />
-          </SettingsSubSection>
-
-          <SettingsSubSection
-            title={t('settings.queueToolbarTitle')}
-            icon={<ListMusic size={16} />}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
-                onClick={() => useQueueToolbarStore.getState().reset()}
-                data-tooltip={t('settings.queueToolbarReset')}
-                aria-label={t('settings.queueToolbarReset')}
-              >
-                <RotateCcw size={14} />
-              </button>
-            }
-          >
-            <QueueToolbarCustomizer />
-          </SettingsSubSection>
-        </>
-      )}
+      {activeTab === 'personalisation' && <PersonalisationTab />}
 
       {/* ── Library (legacy 'general' + 'server') ────────────────────────────── */}
       {activeTab === 'library' && (
@@ -2393,174 +2263,8 @@ export default function Settings() {
       )}
 
       {/* ── Input ────────────────────────────────────────────────────────────── */}
-      {activeTab === 'input' && (
-        <>
-        <SettingsSubSection
-          title={t('settings.inputKeybindingsTitle')}
-          icon={<Keyboard size={16} />}
-          action={
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
-              onClick={() => { kb.resetToDefaults(); setListeningFor(null); }}
-              data-tooltip={t('settings.shortcutsReset')}
-              aria-label={t('settings.shortcutsReset')}
-            >
-              <RotateCcw size={14} />
-            </button>
-          }
-        >
-          <div className="settings-card">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {IN_APP_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
-                const label = getLabel(t);
-                const bound = kb.bindings[action];
-                const isListening = listeningFor === action;
-                return (
-                  <div key={action} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-                    background: isListening ? 'var(--accent-dim)' : 'transparent',
-                    transition: 'background 0.15s',
-                  }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{label}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        onClick={() => {
-                          if (isListening) { setListeningFor(null); return; }
-                          setListeningFor(action);
-                          const handler = (e: KeyboardEvent) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (e.code === 'Escape') {
-                              setListeningFor(null);
-                              window.removeEventListener('keydown', handler, true);
-                              return;
-                            }
-                            const chord = buildInAppBinding(e);
-                            if (!chord) return;
-                            const existing = (Object.entries(kb.bindings) as [KeyAction, string | null][])
-                              .find(([, c]) => c === chord)?.[0];
-                            if (existing && existing !== action) kb.setBinding(existing, null);
-                            kb.setBinding(action, chord);
-                            setListeningFor(null);
-                            window.removeEventListener('keydown', handler, true);
-                          };
-                          window.addEventListener('keydown', handler, true);
-                        }}
-                        className="keybind-badge"
-                        style={{
-                          minWidth: 72, padding: '3px 10px', borderRadius: 'var(--radius-sm)',
-                          fontSize: 12, fontWeight: 600, fontFamily: 'monospace',
-                          background: isListening ? 'var(--accent)' : bound ? 'var(--bg-hover)' : 'var(--bg-card)',
-                          color: isListening ? 'var(--ctp-base)' : bound ? 'var(--text-primary)' : 'var(--text-muted)',
-                          border: `1px solid ${isListening ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {isListening ? t('settings.shortcutListening') : bound ? formatBinding(bound) : t('settings.shortcutUnbound')}
-                      </button>
-                      {bound && !isListening && (
-                        <button
-                          onClick={() => kb.setBinding(action, null)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px', lineHeight: 1 }}
-                          data-tooltip={t('settings.shortcutClear')}
-                        >
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </SettingsSubSection>
+      {activeTab === 'input' && <InputTab />}
 
-        <SettingsSubSection
-          title={t('settings.globalShortcutsTitle')}
-          icon={<Keyboard size={16} />}
-          description={t('settings.globalShortcutsNote')}
-          action={
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
-              onClick={() => { gs.resetAll(); setListeningForGlobal(null); }}
-              data-tooltip={t('settings.shortcutsReset')}
-              aria-label={t('settings.shortcutsReset')}
-            >
-              <RotateCcw size={14} />
-            </button>
-          }
-        >
-          <div className="settings-card">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {GLOBAL_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
-                const label = getLabel(t);
-                const bound = gs.shortcuts[action] ?? null;
-                const isListening = listeningForGlobal === action;
-                return (
-                  <div key={action} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-                    background: isListening ? 'var(--accent-dim)' : 'transparent',
-                    transition: 'background 0.15s',
-                  }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{label}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        onClick={() => {
-                          if (isListening) { setListeningForGlobal(null); return; }
-                          setListeningForGlobal(action);
-                          const handler = (e: KeyboardEvent) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (e.code === 'Escape') {
-                              setListeningForGlobal(null);
-                              window.removeEventListener('keydown', handler, true);
-                              return;
-                            }
-                            const shortcut = buildGlobalShortcut(e);
-                            if (shortcut) {
-                              gs.setShortcut(action, shortcut);
-                              setListeningForGlobal(null);
-                              window.removeEventListener('keydown', handler, true);
-                            }
-                          };
-                          window.addEventListener('keydown', handler, true);
-                        }}
-                        className="keybind-badge"
-                        style={{
-                          minWidth: 120, padding: '3px 10px', borderRadius: 'var(--radius-sm)',
-                          fontSize: 12, fontWeight: 600, fontFamily: 'monospace',
-                          background: isListening ? 'var(--accent)' : bound ? 'var(--bg-hover)' : 'var(--bg-card)',
-                          color: isListening ? 'var(--ctp-base)' : bound ? 'var(--text-primary)' : 'var(--text-muted)',
-                          border: `1px solid ${isListening ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {isListening ? t('settings.shortcutListening') : bound ? formatGlobalShortcut(bound) : t('settings.shortcutUnbound')}
-                      </button>
-                      {bound && !isListening && (
-                        <button
-                          onClick={() => gs.setShortcut(action, null)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px', lineHeight: 1 }}
-                          data-tooltip={t('settings.shortcutClear')}
-                        >
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </SettingsSubSection>
-        </>
-      )}
 
       {/* ── Server ───────────────────────────────────────────────────────────── */}
       {activeTab === 'servers' && (
