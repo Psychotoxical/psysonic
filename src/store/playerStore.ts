@@ -95,6 +95,15 @@ import {
   getLastQueueHeartbeatAt,
   syncQueueToServer,
 } from './queueSync';
+import {
+  clearPreloadingIds,
+  getBytePreloadingId,
+  getGaplessPreloadingId,
+  getLastGaplessSwitchTime,
+  markGaplessSwitch,
+  setBytePreloadingId,
+  setGaplessPreloadingId,
+} from './gaplessPreloadState';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -624,10 +633,6 @@ radioAudio.addEventListener('suspend', () => {
   clearRadioReconnectTimer();
 });
 
-// Timestamp of the last gapless auto-advance (from audio:track_switched).
-// Used to suppress ghost-commands from stale IPC arriving after the switch.
-let lastGaplessSwitchTime = 0;
-
 /** Coalesce concurrent `analysis_get_loudness_for_track` for one id+mode pair. The
  *  analysis:waveform-updated listener fires refreshWaveform + refreshLoudness in
  *  parallel for every full-track analysis completion; without coalescing, gapless
@@ -821,11 +826,6 @@ async function promoteCompletedStreamToHotCache(track: Track, serverId: string, 
   }
 }
 
-// Track ID that has already been sent to audio_chain_preload (gapless chain).
-let gaplessPreloadingId: string | null = null;
-// Track ID that has already been sent to audio_preload (byte pre-download).
-let bytePreloadingId: string | null = null;
-
 // ─── Audio event handlers (called from initAudioListeners) ───────────────────
 
 function handleAudioPlaying(_duration: number) {
@@ -994,8 +994,8 @@ function handleAudioProgress(current_time: number, duration: number) {
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
 
     // Byte pre-download — runs early so bytes are cached by chain time.
-    if ((shouldBytePreload || shouldBytePreloadForGaplessBackup) && nextTrack.id !== bytePreloadingId) {
-      bytePreloadingId = nextTrack.id;
+    if ((shouldBytePreload || shouldBytePreloadForGaplessBackup) && nextTrack.id !== getBytePreloadingId()) {
+      setBytePreloadingId(nextTrack.id);
       // Loudness cache only — do not call refreshWaveformForTrack(next): it writes global
       // waveformBins and would replace the current track's seekbar while still playing it.
       void refreshLoudnessForTrack(nextTrack.id, { syncPlayingEngine: false });
@@ -1017,8 +1017,8 @@ function handleAudioProgress(current_time: number, duration: number) {
     }
 
     // Gapless chain — decode + chain into Sink 30s before track boundary.
-    if (shouldChainGapless && nextTrack.id !== gaplessPreloadingId) {
-      gaplessPreloadingId = nextTrack.id;
+    if (shouldChainGapless && nextTrack.id !== getGaplessPreloadingId()) {
+      setGaplessPreloadingId(nextTrack.id);
       // Ensure loudness gain is already cached for the chained request payload.
       void refreshLoudnessForTrack(nextTrack.id, { syncPlayingEngine: false });
       const authState = useAuthStore.getState();
@@ -1053,7 +1053,7 @@ function handleAudioProgress(current_time: number, duration: number) {
 function handleAudioEnded() {
   // If a gapless switch happened recently, this ended event is stale — the
   // progress task fired it for the OLD source before seeing the chained one.
-  if (Date.now() - lastGaplessSwitchTime < 600) {
+  if (Date.now() - getLastGaplessSwitchTime() < 600) {
     return;
   }
 
@@ -1101,8 +1101,8 @@ function handleAudioEnded() {
  * touching the audio stream (no playTrack() call!).
  */
 function handleAudioTrackSwitched(duration: number) {
-  lastGaplessSwitchTime = Date.now();
-  gaplessPreloadingId = null; bytePreloadingId = null; // allow preloading for the track after this one
+  markGaplessSwitch();
+  clearPreloadingIds(); // allow preloading for the track after this one
   isAudioPaused = false;
 
   const store = usePlayerStore.getState();
@@ -1727,8 +1727,7 @@ export const usePlayerStore = create<PlayerState>()(
           scheduledResumeStartMs: null,
         });
 
-        gaplessPreloadingId = null;
-        bytePreloadingId = null;
+        clearPreloadingIds();
 
         let gen = playGeneration;
         const resyncEngine = Boolean(nextTrack) && !keepPlaybackFromPrior;
@@ -1955,7 +1954,7 @@ export const usePlayerStore = create<PlayerState>()(
         isAudioPaused = false;
         clearRadioReconnectTimer();
         radioReconnectCount = 0;
-        gaplessPreloadingId = null; bytePreloadingId = null;
+        clearPreloadingIds();
         clearSeekFallbackRetry();
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         // Stop Rust engine in case a regular track was playing.
@@ -2052,7 +2051,7 @@ export const usePlayerStore = create<PlayerState>()(
 
         // Ghost-command guard: if a gapless switch happened within 500 ms,
         // this playTrack call is likely a stale IPC echo — suppress it.
-        if (Date.now() - lastGaplessSwitchTime < 500) {
+        if (Date.now() - getLastGaplessSwitchTime() < 500) {
           return;
         }
 
@@ -2061,7 +2060,7 @@ export const usePlayerStore = create<PlayerState>()(
 
         const gen = ++playGeneration;
         isAudioPaused = false;
-        gaplessPreloadingId = null; bytePreloadingId = null; // new track — allow fresh preload for next
+        clearPreloadingIds(); // new track — allow fresh preload for next
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         clearSeekFallbackRetry();
         seekFallbackRestartAt = 0;
