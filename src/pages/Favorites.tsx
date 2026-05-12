@@ -1,3 +1,4 @@
+import { songToTrack } from '../utils/songToTrack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import AlbumRow from '../components/AlbumRow';
@@ -8,7 +9,7 @@ import {
   SubsonicAlbum, SubsonicArtist, SubsonicSong, InternetRadioStation,
   buildCoverArtUrl, coverArtCacheKey,
 } from '../api/subsonic';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import StarRating from '../components/StarRating';
 import { Cast, ChevronDown, ChevronLeft, ChevronRight, Check, Heart, ListPlus, Play, Square, Star, Users, X, SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw, AudioLines } from 'lucide-react';

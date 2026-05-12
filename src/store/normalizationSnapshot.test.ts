@@ -4,9 +4,8 @@
  * album-mode resolution). useAuthStore is mocked through a hoisted state
  * object so each test can flip flags without rebuilding the store.
  */
+import type { Track } from './playerStoreTypes';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Track } from './playerStore';
-
 const { authState } = vi.hoisted(() => ({
   authState: {
     normalizationEngine: 'off' as 'off' | 'replaygain' | 'loudness',

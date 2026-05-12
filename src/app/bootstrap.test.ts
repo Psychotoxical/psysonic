@@ -6,13 +6,14 @@
  * payload) and the failure-tolerant path (no throw when invoke or storage
  * misbehaves).
  */
+import { installQueueUndoHotkey } from '../store/queueUndoHotkey';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
-vi.mock('../store/playerStore', () => ({
+vi.mock('../store/queueUndoHotkey', () => ({
   installQueueUndoHotkey: vi.fn(),
 }));
 
@@ -21,7 +22,6 @@ vi.mock('./windowKind', () => ({
 }));
 
 import { invoke } from '@tauri-apps/api/core';
-import { installQueueUndoHotkey } from '../store/playerStore';
 import { getWindowKind } from './windowKind';
 import {
   pushLoggingModeToBackend,

@@ -1,5 +1,4 @@
-import type { Track } from '../store/playerStore';
-
+import type { Track } from '../store/playerStoreTypes';
 /**
  * Resolve the ReplayGain dB value for a track based on the configured mode.
  * In 'auto' mode, picks album-gain when an adjacent queue neighbour shares the

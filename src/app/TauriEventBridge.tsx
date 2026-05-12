@@ -1,3 +1,7 @@
+import { flushPlayQueuePosition } from '../store/queueSync';
+import { shuffleArray } from '../utils/shuffleArray';
+import { songToTrack } from '../utils/songToTrack';
+import { getPlaybackProgressSnapshot } from '../store/playbackProgress';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listen } from '@tauri-apps/api/event';
@@ -14,13 +18,7 @@ import {
 } from '../api/subsonic';
 import i18n from '../i18n';
 import { switchActiveServer } from '../utils/switchActiveServer';
-import {
-  usePlayerStore,
-  getPlaybackProgressSnapshot,
-  songToTrack,
-  shuffleArray,
-  flushPlayQueuePosition,
-} from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useKeybindingsStore, buildInAppBinding } from '../store/keybindingsStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { useZipDownloadStore } from '../store/zipDownloadStore';

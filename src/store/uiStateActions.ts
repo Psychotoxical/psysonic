@@ -8,13 +8,8 @@ type SetState = (
 ) => void;
 
 /**
- * Pure-UI state setters that mutate playerStore fields with no audio
- * engine / network side effects: starred + rating optimistic overrides,
- * context menu modal, song info modal, queue panel visibility (with
- * localStorage round-trip), fullscreen toggle, repeat mode cycle.
- *
- * Factored out of the playerStore `create()` body so the action set
- * stays a flat object literal instead of a giant inline block.
+ * Pure-UI state setters: no audio engine / network side effects.
+ * Add new actions here only if they fit that contract.
  */
 export function createUiStateActions(set: SetState): Pick<
   PlayerState,

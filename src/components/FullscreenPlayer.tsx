@@ -1,10 +1,11 @@
+import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useCallback, useEffect, useState, useRef, memo, useMemo } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
   ChevronDown, Repeat, Repeat1, Square, Music, Heart, MicVocal,
   Moon, Sunrise,
 } from 'lucide-react';
-import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { buildCoverArtUrl, coverArtCacheKey, getArtistInfo, star, unstar } from '../api/subsonic';
 import { useCachedUrl } from './CachedImage';
 import { getCachedBlob } from '../utils/imageCache';
@@ -13,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useLyrics, type WordLyricsLine } from '../hooks/useLyrics';
 import { useAuthStore } from '../store/authStore';
 import type { LrcLine } from '../api/lrclib';
-import type { Track } from '../store/playerStore';
+import type { Track } from '../store/playerStoreTypes';
 import { EaseScroller, targetForFraction } from '../utils/easeScroll';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';

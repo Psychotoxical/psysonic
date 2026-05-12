@@ -1,6 +1,7 @@
+import { songToTrack } from '../utils/songToTrack';
+import { shuffleArray } from '../utils/shuffleArray';
 import { getAlbum, getArtist } from '../api/subsonic';
-import { shuffleArray, songToTrack, usePlayerStore } from '../store/playerStore';
-
+import { usePlayerStore } from '../store/playerStore';
 /**
  * All tracks from the artist’s albums, shuffled — same idea as Artist page “shuffle play”.
  */

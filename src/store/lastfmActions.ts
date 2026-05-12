@@ -12,23 +12,11 @@ type SetState = (
 type GetState = () => PlayerState;
 
 /**
- * Four Last.fm love-related actions, factored out of the playerStore
- * `create()` body so the action set can be tested + reasoned about
- * separately:
- *
- *  - `toggleLastfmLove` — flip the current track's love state on the
- *    server, write through to the local cache map keyed by
- *    `${title}::${artist}` so other queue rows showing the same song
- *    update too.
- *  - `setLastfmLoved` — force-set the boolean (used by the
- *    `track:lastfm-loved` SSE-style event). Updates the cache when a
- *    current track exists.
- *  - `setLastfmLovedForSong` — write the cache for an arbitrary
- *    title/artist pair (used by the QueuePanel love button on
- *    not-yet-current tracks).
- *  - `syncLastfmLovedTracks` — startup-time bulk fetch of the user's
- *    loved-tracks list, merged into the local cache (local likes win
- *    on conflict) plus a recompute of the current track's flag.
+ * Four Last.fm love-related actions. The `lastfmLovedCache` is a map
+ * keyed by `${title}::${artist}` (not by track id) so other queue rows
+ * showing the same song update too when one is loved/unloved.
+ * `syncLastfmLovedTracks` merges the server's loved list with local
+ * cache — local likes win on conflict.
  */
 export function createLastfmActions(set: SetState, get: GetState): Pick<
   PlayerState,

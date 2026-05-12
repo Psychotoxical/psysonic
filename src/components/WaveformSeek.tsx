@@ -1,5 +1,6 @@
+import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useEffect, useRef, useState } from 'react';
-import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore, type SeekbarStyle } from '../store/authStore';
 import { bumpPerfCounter } from '../utils/perfTelemetry';

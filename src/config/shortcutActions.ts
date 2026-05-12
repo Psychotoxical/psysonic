@@ -1,8 +1,9 @@
+import { songToTrack } from '../utils/songToTrack';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import i18n from '../i18n';
 import { getSong, setRating, star, unstar } from '../api/subsonic';
-import { songToTrack, usePlayerStore } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { showToast } from '../utils/toast';

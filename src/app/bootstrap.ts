@@ -1,5 +1,5 @@
+import { installQueueUndoHotkey } from '../store/queueUndoHotkey';
 import { invoke } from '@tauri-apps/api/core';
-import { installQueueUndoHotkey } from '../store/playerStore';
 import { getWindowKind } from './windowKind';
 
 /** Sync backend HTTP User-Agent from the main webview once at startup. */

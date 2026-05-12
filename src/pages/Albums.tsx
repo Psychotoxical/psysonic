@@ -1,3 +1,4 @@
+import { songToTrack } from '../utils/songToTrack';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
@@ -5,7 +6,6 @@ import YearFilterButton from '../components/YearFilterButton';
 import StarFilterButton from '../components/StarFilterButton';
 import SortDropdown from '../components/SortDropdown';
 import { getAlbumList, getAlbumsByGenre, getAlbum, SubsonicAlbum, buildDownloadUrl } from '../api/subsonic';
-import { songToTrack } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';

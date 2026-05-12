@@ -1,3 +1,4 @@
+import { songToTrack } from '../utils/songToTrack';
 import {
   createPlaylist,
   updatePlaylist,
@@ -9,7 +10,7 @@ import {
 } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 import { useOrbitStore } from '../store/orbitStore';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { encodeSharePayload, decodeOrbitSharePayloadFromText } from './shareLink';
 import {
   makeInitialOrbitState,

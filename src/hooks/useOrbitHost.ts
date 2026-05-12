@@ -1,6 +1,7 @@
+import { songToTrack } from '../utils/songToTrack';
 import { useEffect, useRef } from 'react';
 import { useOrbitStore } from '../store/orbitStore';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { getSong } from '../api/subsonic';
 import {
   writeOrbitState,

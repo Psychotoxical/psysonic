@@ -8,6 +8,8 @@
  * Mocks `savePlayQueue` at the module boundary so we can assert the exact
  * args passed to the Subsonic API call.
  */
+import { initAudioListeners } from './initAudioListeners';
+import { flushPlayQueuePosition } from './queueSync';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Explicit (non-spread) mock map — the `...actual` spread pattern lets the
@@ -40,11 +42,7 @@ vi.mock('@/api/lastfm', () => ({
 }));
 
 import { savePlayQueue } from '@/api/subsonic';
-import {
-  flushPlayQueuePosition,
-  initAudioListeners,
-  usePlayerStore,
-} from './playerStore';
+import { usePlayerStore } from './playerStore';
 import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks } from '@/test/helpers/factories';

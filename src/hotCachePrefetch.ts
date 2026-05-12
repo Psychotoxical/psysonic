@@ -1,9 +1,10 @@
+import type { Track } from './store/playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { buildStreamUrl } from './api/subsonic';
 import { useAuthStore } from './store/authStore';
 import { HOT_CACHE_PROTECT_AFTER_CURRENT, useHotCacheStore, type HotCacheEntry } from './store/hotCacheStore';
 import { useOfflineStore } from './store/offlineStore';
-import { usePlayerStore, type Track } from './store/playerStore';
+import { usePlayerStore } from './store/playerStore';
 import {
   bumpHotCachePreviousTrackGrace,
   clearHotCachePreviousGrace,

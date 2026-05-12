@@ -1,7 +1,7 @@
+import type { Track } from './playerStoreTypes';
 import { savePlayQueue } from '../api/subsonic';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
-import { usePlayerStore, type Track } from './playerStore';
-
+import { usePlayerStore } from './playerStore';
 /**
  * Server-side play-queue persistence. Subsonic's `savePlayQueue` accepts
  * the current queue, the active track id, and the position in ms — so the

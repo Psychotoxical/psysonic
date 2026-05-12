@@ -1,3 +1,4 @@
+import type { Track } from '../store/playerStoreTypes';
 import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { invoke } from '@tauri-apps/api/core';
@@ -9,8 +10,6 @@ import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useHotCacheStore } from '../store/hotCacheStore';
 import { getCachedLyrics, putCachedLyrics, lyricsCacheKey } from '../utils/lyricsPersistentCache';
-import type { Track } from '../store/playerStore';
-
 export type LyricsSource = 'server' | 'lrclib' | 'netease' | 'embedded' | 'lyricsplus';
 
 /**

@@ -6,6 +6,7 @@
  * refactor (2026-05-12). This test pins the artist-first / random-fallback
  * order, the dedup contract against existingIds, and the autoAdded flag.
  */
+import type { Track } from '../store/playerStoreTypes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api/subsonic', () => ({
@@ -26,7 +27,6 @@ import {
   enrichSongsForMixRatingFilter,
   getMixMinRatingsConfigFromAuth,
 } from './mixRatingFilter';
-import type { Track } from '../store/playerStore';
 import { makeSubsonicSong } from '@/test/helpers/factories';
 
 const seed = (overrides: Partial<Track> = {}): Track => ({

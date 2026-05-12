@@ -1,4 +1,5 @@
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { songToTrack } from '../utils/songToTrack';
+import { usePlayerStore } from '../store/playerStore';
 import type { SubsonicSong } from '../api/subsonic';
 
 function fadeOut(setVolume: (v: number) => void, from: number, durationMs: number): Promise<void> {

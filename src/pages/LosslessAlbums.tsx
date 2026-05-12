@@ -1,3 +1,4 @@
+import { songToTrack } from '../utils/songToTrack';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import { ndListLosslessAlbumsPage } from '../api/navidromeBrowse';
@@ -6,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 import { usePerfProbeFlags } from '../utils/perfFlags';

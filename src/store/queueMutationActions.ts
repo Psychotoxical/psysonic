@@ -24,12 +24,8 @@ type SetState = (
 type GetState = () => PlayerState;
 
 /**
- * Queue-mutation actions factored out of the playerStore `create()` body.
- * All eleven members of the cluster: insertion (`enqueue`, `enqueueAt`,
- * `playNext`, `enqueueRadio`, `setRadioArtistId`), pruning (`clearQueue`,
- * `pruneUpcomingToCurrent`, `removeTrack`), and rearrangement
- * (`reorderQueue`, `shuffleQueue`, `shuffleUpcomingQueue`). All but
- * `setRadioArtistId` push a queue-undo snapshot and call
+ * Eleven queue-mutation actions. Shared invariant: every action except
+ * `setRadioArtistId` pushes a queue-undo snapshot and calls
  * `syncQueueToServer` so the Navidrome `savePlayQueue` stays in sync.
  */
 export function createQueueMutationActions(set: SetState, get: GetState): Pick<

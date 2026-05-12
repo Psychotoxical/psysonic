@@ -1,3 +1,5 @@
+import type { Track } from '../store/playerStoreTypes';
+import { songToTrack } from '../utils/songToTrack';
 import {
   filterSongsToActiveLibrary,
   getAlbum,
@@ -11,7 +13,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../i18n';
 import { useAuthStore } from '../store/authStore';
-import { songToTrack, usePlayerStore, type Track } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useLuckyMixStore } from '../store/luckyMixStore';
 import { isLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { showToast } from './toast';

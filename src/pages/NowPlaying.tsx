@@ -11,7 +11,7 @@ import {
   getAlbum, getArtist, getArtistInfo, getTopSongs,
   SubsonicSong, SubsonicArtistInfo, SubsonicAlbum,
 } from '../api/subsonic';
-import { songToTrack } from '../store/playerStore';
+import { songToTrack } from '../utils/songToTrack';
 import {
   lastfmIsConfigured,
   lastfmGetTrackInfo, lastfmGetArtistStats,

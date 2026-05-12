@@ -5,9 +5,8 @@
  * the player-store state surface so the test can drive every input
  * independently.
  */
+import type { Track } from './playerStoreTypes';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Track } from './playerStore';
-
 const { setRatingMock, recordSkipStarMock, playerSetStateMock, playerStateGet } = vi.hoisted(() => {
   const playerState = {
     queue: [] as Track[],

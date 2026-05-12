@@ -1,62 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
-import { shuffleArray } from '../utils/shuffleArray';
-import { songToTrack } from '../utils/songToTrack';
-import {
-  emitPlaybackProgress,
-  getPlaybackProgressSnapshot,
-  subscribePlaybackProgress,
-  type PlaybackProgressSnapshot,
-} from './playbackProgress';
-import { flushPlayQueuePosition } from './queueSync';
-import { initAudioListeners } from './initAudioListeners';
-import { installQueueUndoHotkey } from './queueUndoHotkey';
+import { emitPlaybackProgress } from './playbackProgress';
+import type { PlayerState } from './playerStoreTypes';
 import { readInitialQueueVisibility } from './queueVisibilityStorage';
-
-// Re-export so MainApp + the 3 playerStore characterization tests keep
-// their existing `from './playerStore'` imports.
-export { initAudioListeners };
-
-// Re-export so bootstrap.ts + bootstrap.test keep their existing
-// `from './playerStore'` imports.
-export { installQueueUndoHotkey };
-
-// Re-export so TauriEventBridge + persistence test keep their existing
-// `from './playerStore'` imports.
-export { flushPlayQueuePosition };
-
-// Re-export the playback-progress public surface so existing call sites
-// (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
-// TauriEventBridge, plus the progress characterization test) keep their
-// `from './playerStore'` imports working.
-export {
-  getPlaybackProgressSnapshot,
-  subscribePlaybackProgress,
-  type PlaybackProgressSnapshot,
-};
-import {
-  _resetQueueUndoStacksForTest,
-  consumePendingQueueListScrollTop,
-  pushQueueUndoFromGetter,
-  registerQueueListScrollTopReader,
-} from './queueUndo';
-
-// Re-export for backward compatibility with the ~30 call sites that still
-// import these helpers from playerStore. Phase E (store splits) will migrate
-// the imports to '../utils/*' directly and drop these re-exports.
-export { resolveReplayGainDb, shuffleArray, songToTrack };
-
-// Re-export the queue-undo public API so existing callers (QueuePanel,
-// test/helpers/storeReset) keep their `from './playerStore'` imports.
-export {
-  _resetQueueUndoStacksForTest,
-  consumePendingQueueListScrollTop,
-  registerQueueListScrollTopReader,
-};
-
-import type { PlayerState, Track } from './playerStoreTypes';
-export type { PlayerState, Track };
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
 import { runNext } from './nextAction';
@@ -69,12 +15,6 @@ import { createScheduleActions } from './scheduleActions';
 import { createTransportLightActions } from './transportLightActions';
 import { createUiStateActions } from './uiStateActions';
 import { createUndoRedoActions } from './undoRedoActions';
-
-
-// ─── Module-level playback primitives ─────────────────────────────────────────
-
-
-// ─── Store ────────────────────────────────────────────────────────────────────
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -125,20 +65,11 @@ export const usePlayerStore = create<PlayerState>()(
       ...createMiscActions(set, get),
       ...createScheduleActions(set, get),
 
-      // ── playTrack ────────────────────────────────────────────────────────────
       playTrack: (track, queue, manual = true, _orbitConfirmed = false, targetQueueIndex) =>
         runPlayTrack(set, get, track, queue, manual, _orbitConfirmed, targetQueueIndex),
-
-      // ── resume ───────────────────────────────────────────────────────────────
       resume: () => runResume(set, get),
-
-      // ── next ────────────────────────────────────────────────────────────────
       next: (manual = true) => runNext(set, get, manual),
-
-
-      // ── seek ─────────────────────────────────────────────────────────────────
       seek: (progress) => runSeek(set, get, progress),
-
       updateReplayGainForCurrentTrack: () => runUpdateReplayGainForCurrentTrack(set, get),
     };
     },

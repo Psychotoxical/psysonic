@@ -4,8 +4,8 @@
  * routing through the HTTP source) and the no-op detection in
  * `queuesStructuralEqual` that prevents unnecessary store rewrites.
  */
+import type { Track } from '../store/playerStoreTypes';
 import { describe, expect, it } from 'vitest';
-import type { Track } from '../store/playerStore';
 import {
   normalizeAnalysisTrackId,
   queuesStructuralEqual,

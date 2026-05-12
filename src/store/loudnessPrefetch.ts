@@ -1,8 +1,8 @@
+import type { Track } from './playerStoreTypes';
 import { useAuthStore } from './authStore';
 import { collectLoudnessBackfillWindowTrackIds } from './loudnessBackfillWindow';
 import { refreshLoudnessForTrack } from './loudnessRefresh';
-import { usePlayerStore, type Track } from './playerStore';
-
+import { usePlayerStore } from './playerStore';
 /**
  * After a bulk enqueue (queue replace, append-many, lucky-mix) warm the
  * loudness cache for the current track + the next N entries so the

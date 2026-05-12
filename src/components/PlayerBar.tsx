@@ -1,3 +1,4 @@
+import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -6,7 +7,7 @@ import {
   PictureInPicture2, ArrowLeftRight, Moon, Sunrise, Ellipsis,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';

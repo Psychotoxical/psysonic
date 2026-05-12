@@ -1,5 +1,4 @@
-import type { Track } from '../store/playerStore';
-
+import type { Track } from '../store/playerStoreTypes';
 /**
  * Strip the `stream:` prefix that some Rust events attach to track ids when
  * they're routed through the HTTP source. Both forms identify the same track,

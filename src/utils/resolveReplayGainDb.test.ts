@@ -5,10 +5,9 @@
  * Originally lived in `playerStore.ts`; extracted in M0 of the frontend
  * refactor (2026-05-12).
  */
+import type { Track } from '../store/playerStoreTypes';
 import { describe, expect, it } from 'vitest';
 import { resolveReplayGainDb } from './resolveReplayGainDb';
-import type { Track } from '../store/playerStore';
-
 describe('resolveReplayGainDb', () => {
   const t = (overrides: Partial<Track> = {}): Track => ({
     id: 'x',

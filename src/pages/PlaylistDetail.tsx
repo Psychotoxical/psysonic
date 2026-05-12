@@ -1,3 +1,4 @@
+import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -9,7 +10,7 @@ import {
   search, setRating, star, unstar,
   getRandomSongs, buildDownloadUrl, filterSongsToActiveLibrary, SubsonicPlaylist, SubsonicSong,
 } from '../api/subsonic';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';
 import { usePreviewStore } from '../store/previewStore';

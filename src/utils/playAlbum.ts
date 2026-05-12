@@ -1,6 +1,6 @@
 import { getAlbum } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
-import { songToTrack } from '../store/playerStore';
+import { songToTrack } from './songToTrack';
 import { useOrbitStore } from '../store/orbitStore';
 
 function fadeOut(setVolume: (v: number) => void, from: number, durationMs: number): Promise<void> {

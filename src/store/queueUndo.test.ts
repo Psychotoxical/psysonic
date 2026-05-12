@@ -4,8 +4,8 @@
  * push, and (c) the scroll-top reader / consumer pair that QueuePanel uses
  * to restore list scroll position after an undo/redo commit.
  */
+import type { PlayerState, Track } from './playerStoreTypes';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { PlayerState, Track } from './playerStore';
 import {
   QUEUE_UNDO_MAX,
   _resetQueueUndoStacksForTest,

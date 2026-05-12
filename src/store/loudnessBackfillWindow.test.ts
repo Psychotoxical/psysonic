@@ -4,8 +4,8 @@
  * = current track + next `LOUDNESS_BACKFILL_WINDOW_AHEAD` entries, with
  * duplicates collapsed.
  */
+import type { Track } from './playerStoreTypes';
 import { describe, expect, it } from 'vitest';
-import type { Track } from './playerStore';
 import {
   LOUDNESS_BACKFILL_WINDOW_AHEAD,
   collectLoudnessBackfillWindowTrackIds,

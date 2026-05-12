@@ -1,5 +1,4 @@
-import type { Track } from './playerStore';
-
+import type { Track } from './playerStoreTypes';
 /**
  * After a bulk enqueue (queue replace, append-many, lucky-mix) the runtime
  * warms the loudness cache for the current track + the next N entries so

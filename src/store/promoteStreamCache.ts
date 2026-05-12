@@ -1,8 +1,7 @@
+import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { buildStreamUrl } from '../api/subsonic';
 import { useHotCacheStore } from './hotCacheStore';
-import type { Track } from './playerStore';
-
 /**
  * Promote a track whose stream cache is full to the on-disk hot cache.
  * Rust copies the cached bytes into the hot-cache directory and returns

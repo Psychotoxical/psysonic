@@ -1,3 +1,4 @@
+import type { Track } from '../store/playerStoreTypes';
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   getMusicFolders,
@@ -7,7 +8,7 @@ import {
   SubsonicArtist,
   SubsonicAlbum,
 } from '../api/subsonic';
-import { usePlayerStore, Track } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { Folder, FolderOpen, Music, ChevronRight } from 'lucide-react';
 import { useLocation } from 'react-router-dom';

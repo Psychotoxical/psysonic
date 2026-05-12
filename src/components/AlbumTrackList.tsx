@@ -1,8 +1,10 @@
+import { songToTrack } from '../utils/songToTrack';
+import type { Track } from '../store/playerStoreTypes';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, ChevronRight, Heart, ChevronDown, Check, RotateCcw, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { SubsonicSong } from '../api/subsonic';
-import { Track, usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useDragDrop } from '../contexts/DragDropContext';

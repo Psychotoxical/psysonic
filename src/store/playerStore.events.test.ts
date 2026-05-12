@@ -6,6 +6,7 @@
  * regression test from §4.2 of the pre-refactor testing plan v2 — the
  * cleanup function returned by `initAudioListeners` must actually unsub.
  */
+import { initAudioListeners } from './initAudioListeners';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/subsonic', async () => {
@@ -40,7 +41,7 @@ vi.mock('@/utils/orbitBulkGuard', () => ({
   orbitBulkGuard: vi.fn(async () => true),
 }));
 
-import { initAudioListeners, usePlayerStore } from './playerStore';
+import { usePlayerStore } from './playerStore';
 import {
   emitTauriEvent,
   onInvoke,

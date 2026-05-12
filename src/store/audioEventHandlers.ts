@@ -1,3 +1,4 @@
+import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../api/lastfm';
 import { reportNowPlaying, scrobbleSong } from '../api/subsonic';
@@ -44,7 +45,7 @@ import {
 import {
   playbackSourceHintForResolvedUrl,
 } from './playbackUrlRouting';
-import { usePlayerStore, type Track } from './playerStore';
+import { usePlayerStore } from './playerStore';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import {
   flushQueueSyncToServer,

@@ -1,5 +1,4 @@
-import type { PlayerState, Track } from './playerStore';
-
+import type { PlayerState, Track } from './playerStoreTypes';
 /** Hard cap on undo/redo depth — keeps memory bounded for very long sessions. */
 export const QUEUE_UNDO_MAX = 32;
 

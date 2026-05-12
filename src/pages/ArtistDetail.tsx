@@ -1,3 +1,4 @@
+import { songToTrack } from '../utils/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, search, setRating, SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo, buildCoverArtUrl, coverArtCacheKey, star, unstar, uploadArtistImage } from '../api/subsonic';
@@ -8,7 +9,7 @@ import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, Ha
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { open } from '@tauri-apps/plugin-shell';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';

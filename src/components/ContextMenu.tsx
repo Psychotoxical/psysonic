@@ -1,3 +1,5 @@
+import { songToTrack } from '../utils/songToTrack';
+import type { Track } from '../store/playerStoreTypes';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Play, ListPlus, Radio, Heart, Download, ChevronRight, ChevronsRight, User, Disc3, ListMusic, Plus, Info, Sparkles, Star, Trash2, HeartCrack, Share2, Orbit as OrbitIcon } from 'lucide-react';
 import { useOrbitStore } from '../store/orbitStore';
@@ -10,7 +12,7 @@ import {
 import LastfmIcon from './LastfmIcon';
 import StarRating from './StarRating';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../api/lastfm';
-import { usePlayerStore, Track, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SubsonicAlbum, SubsonicArtist, star, unstar, getSimilarSongs2, getSimilarSongs, getTopSongs, buildDownloadUrl, getAlbum, getArtist, getPlaylists, getPlaylist, updatePlaylist, SubsonicPlaylist, setRating } from '../api/subsonic';
 import { useNavigate } from 'react-router-dom';

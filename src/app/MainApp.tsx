@@ -1,3 +1,4 @@
+import { initAudioListeners } from '../store/initAudioListeners';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -10,7 +11,6 @@ import ZipDownloadOverlay from '../components/ZipDownloadOverlay';
 import FpsOverlay from '../components/FpsOverlay';
 import { useAuthStore } from '../store/authStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
-import { initAudioListeners } from '../store/playerStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { IS_WINDOWS } from '../utils/platform';

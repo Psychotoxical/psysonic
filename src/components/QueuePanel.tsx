@@ -1,12 +1,9 @@
+import { registerQueueListScrollTopReader, consumePendingQueueListScrollTop } from '../store/queueUndo';
+import { songToTrack } from '../utils/songToTrack';
+import type { Track } from '../store/playerStoreTypes';
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Track,
-  usePlayerStore,
-  songToTrack,
-  registerQueueListScrollTopReader,
-  consumePendingQueueListScrollTop,
-} from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { useOrbitStore } from '../store/orbitStore';
 import OrbitGuestQueue from './OrbitGuestQueue';
 import OrbitQueueHead from './OrbitQueueHead';

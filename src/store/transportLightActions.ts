@@ -15,18 +15,12 @@ type SetState = (
 type GetState = () => PlayerState;
 
 /**
- * Light transport actions factored out of the playerStore `create()`
- * body — everything except `resume` (~165 LOC, separate PR) and the
- * scheduled pause/resume timer setters.
- *
- *  - `stop` — full reset: stops audio/radio, clears timers + seek + visual
- *    state, blanks playback metadata.
- *  - `pause` — pauses audio (or radio), flushes queue position so other
- *    devices can pick up the resume point.
- *  - `resetAudioPause` — flips the engine-paused flag without touching
- *    the UI `isPlaying` state. Used by `audio:ended` paths.
- *  - `togglePlay` — guarded toggle so a double media-key tap can't race
- *    pause + resume into a stuck state.
+ * Light transport actions — everything except `resume` (own module,
+ * see `resumeAction.ts`) and scheduled timers (`scheduleActions.ts`).
+ * `togglePlay` is guarded so a double media-key tap can't race
+ * pause + resume into a stuck state. `resetAudioPause` flips the
+ * engine-paused flag without touching the UI `isPlaying`, used by
+ * `audio:ended` paths.
  */
 export function createTransportLightActions(set: SetState, get: GetState): Pick<
   PlayerState,

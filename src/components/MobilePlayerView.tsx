@@ -1,3 +1,5 @@
+import type { Track } from '../store/playerStoreTypes';
+import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +8,7 @@ import {
   Shuffle, Repeat, Repeat1, Heart, Music, MicVocal, ListMusic, X,
   Moon, Sunrise,
 } from 'lucide-react';
-import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress, Track } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
 import { useCachedUrl } from './CachedImage';
 import LyricsPane from './LyricsPane';

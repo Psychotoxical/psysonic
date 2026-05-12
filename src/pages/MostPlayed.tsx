@@ -1,9 +1,10 @@
+import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound, Play, ListPlus } from 'lucide-react';
 import { getAlbumList, getAlbum, SubsonicAlbum, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import CachedImage from '../components/CachedImage';
 import { playAlbum } from '../utils/playAlbum';
 import { useTranslation } from 'react-i18next';

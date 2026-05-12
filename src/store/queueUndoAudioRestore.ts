@@ -1,3 +1,4 @@
+import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
 import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
@@ -7,8 +8,7 @@ import { getPlayGeneration, setIsAudioPaused } from './engineState';
 import { touchHotCacheOnPlayback } from './hotCacheTouch';
 import { isReplayGainActive, loudnessGainDbForEngineBind } from './loudnessGainCache';
 import { playbackSourceHintForResolvedUrl, recordEnginePlayUrl } from './playbackUrlRouting';
-import { usePlayerStore, type Track } from './playerStore';
-
+import { usePlayerStore } from './playerStore';
 /**
  * Reload the Rust audio engine to match a queue-undo snapshot. Zustand
  * alone can rewrite the queue + currentTrack, but the engine is still

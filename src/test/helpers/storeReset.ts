@@ -20,7 +20,8 @@
  *   // or for cross-store tests:
  *   beforeEach(resetAllStores);
  */
-import { usePlayerStore, _resetQueueUndoStacksForTest } from '@/store/playerStore';
+import { _resetQueueUndoStacksForTest } from '@/store/queueUndo';
+import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { usePreviewStore } from '@/store/previewStore';
 import { useOrbitStore } from '@/store/orbitStore';

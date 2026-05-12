@@ -1,3 +1,4 @@
+import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, RefreshCw, Sparkles } from 'lucide-react';
@@ -9,7 +10,7 @@ import {
   coverArtCacheKey,
 } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
-import { usePlayerStore, songToTrack } from '../store/playerStore';
+import { usePlayerStore } from '../store/playerStore';
 import CachedImage from '../components/CachedImage';
 import SongRail from '../components/SongRail';
 import VirtualSongList from '../components/VirtualSongList';

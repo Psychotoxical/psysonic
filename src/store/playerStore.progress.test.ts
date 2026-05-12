@@ -10,6 +10,8 @@
  * Drive emits via the `audio:progress` Tauri event (the only public path
  * to `emitPlaybackProgress`).
  */
+import { initAudioListeners } from './initAudioListeners';
+import { getPlaybackProgressSnapshot, subscribePlaybackProgress, type PlaybackProgressSnapshot } from './playbackProgress';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/subsonic', async () => {
@@ -36,13 +38,7 @@ vi.mock('@/api/lastfm', () => ({
   lastfmGetAllLovedTracks: vi.fn(async () => []),
 }));
 
-import {
-  getPlaybackProgressSnapshot,
-  initAudioListeners,
-  subscribePlaybackProgress,
-  usePlayerStore,
-  type PlaybackProgressSnapshot,
-} from './playerStore';
+import { usePlayerStore } from './playerStore';
 import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import { makeTrack } from '@/test/helpers/factories';
