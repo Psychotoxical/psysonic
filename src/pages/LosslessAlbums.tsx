@@ -1,10 +1,10 @@
+import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import { ndListLosslessAlbumsPage } from '../api/navidromeBrowse';
-import { buildDownloadUrl } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';

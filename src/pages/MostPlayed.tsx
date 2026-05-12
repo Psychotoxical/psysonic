@@ -1,10 +1,10 @@
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound, Play, ListPlus } from 'lucide-react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import CachedImage from '../components/CachedImage';

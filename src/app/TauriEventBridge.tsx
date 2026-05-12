@@ -13,7 +13,7 @@ import { showToast } from '../utils/toast';
 import { endOrbitSession, leaveOrbitSession } from '../utils/orbit';
 import { useOrbitStore } from '../store/orbitStore';
 import { useAuthStore } from '../store/authStore';
-import { search as subsonicSearch } from '../api/subsonic';
+import { search as subsonicSearch } from '../api/subsonicSearch';
 import i18n from '../i18n';
 import { switchActiveServer } from '../utils/switchActiveServer';
 import { usePlayerStore } from '../store/playerStore';

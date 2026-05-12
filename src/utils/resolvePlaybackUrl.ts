@@ -1,4 +1,4 @@
-import { buildStreamUrl } from '../api/subsonic';
+import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import { useOfflineStore } from '../store/offlineStore';
 import { useHotCacheStore } from '../store/hotCacheStore';
 

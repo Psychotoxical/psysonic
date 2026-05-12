@@ -1,3 +1,4 @@
+import { getLyricsBySongId } from '../api/subsonicLyrics';
 import type { SubsonicStructuredLyrics } from '../api/subsonicTypes';
 import type { Track } from '../store/playerStoreTypes';
 import { useEffect, useState } from 'react';
@@ -5,7 +6,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { invoke } from '@tauri-apps/api/core';
 import { fetchLyrics, parseLrc, LrcLine } from '../api/lrclib';
 import { fetchNeteaselyrics } from '../api/netease';
-import { getLyricsBySongId } from '../api/subsonic';
 import { fetchLyricsPlus, hasWordSync } from '../api/lyricsplus';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';

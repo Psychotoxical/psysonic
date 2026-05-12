@@ -1,10 +1,13 @@
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { setRating, star, unstar } from '../api/subsonicStarRating';
+import { search } from '../api/subsonicSearch';
 import { getAlbum } from '../api/subsonicLibrary';
 import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2 } from '../api/subsonicArtists';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { search, setRating, buildCoverArtUrl, coverArtCacheKey, star, unstar, uploadArtistImage } from '../api/subsonic';
+import { uploadArtistImage } from '../api/subsonic';
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';

@@ -10,8 +10,8 @@
  * Network-bound endpoints (`getAlbum`, `search`, etc.) require axios
  * mocking and are not in this PR.
  */
+import { buildCoverArtUrl, buildDownloadUrl, buildStreamUrl, coverArtCacheKey } from './subsonicStreamUrl';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildCoverArtUrl, buildDownloadUrl, buildStreamUrl, coverArtCacheKey } from './subsonic';
 import { parseSubsonicEntityStarRating } from './subsonicRatings';
 import { getClient, libraryFilterParams } from './subsonicClient';
 import { useAuthStore } from '@/store/authStore';

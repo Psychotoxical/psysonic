@@ -31,7 +31,7 @@ const hoisted = vi.hoisted(() => {
 });
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: hoisted.invokeMock }));
-vi.mock('../api/subsonic', () => ({ buildStreamUrl: hoisted.buildStreamUrlMock }));
+vi.mock('../api/subsonicStreamUrl', () => ({ buildStreamUrl: hoisted.buildStreamUrlMock }));
 vi.mock('./authStore', () => ({ useAuthStore: { getState: () => hoisted.authState } }));
 vi.mock('./playerStore', () => ({
   usePlayerStore: {

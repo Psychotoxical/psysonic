@@ -23,7 +23,7 @@ const { setRatingMock, recordSkipStarMock, playerSetStateMock, playerStateGet } 
   };
 });
 
-vi.mock('../api/subsonic', () => ({ setRating: setRatingMock }));
+vi.mock('../api/subsonicStarRating', () => ({ setRating: setRatingMock }));
 vi.mock('./authStore', () => ({
   useAuthStore: { getState: () => ({ recordSkipStarManualAdvance: recordSkipStarMock }) },
 }));

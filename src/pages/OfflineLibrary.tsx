@@ -1,10 +1,10 @@
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import React, { useState } from 'react';
 import { Play, HardDriveDownload, Trash2, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import CachedImage from '../components/CachedImage';
 
 type FilterType = 'all' | 'album' | 'playlist' | 'artist';

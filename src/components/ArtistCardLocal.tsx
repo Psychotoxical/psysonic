@@ -1,6 +1,6 @@
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import type { SubsonicArtist } from '../api/subsonicTypes';
 import React, { useMemo } from 'react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

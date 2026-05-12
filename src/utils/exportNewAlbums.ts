@@ -1,8 +1,8 @@
+import { buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import { getAlbumList } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { downloadDir, join } from '@tauri-apps/api/path';
-import { buildCoverArtUrl } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 // Catppuccin Macchiato palette
 const M = {

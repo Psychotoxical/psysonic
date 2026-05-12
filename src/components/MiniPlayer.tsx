@@ -1,3 +1,4 @@
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { emit, listen } from '@tauri-apps/api/event';
@@ -5,7 +6,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { Play, Pause, SkipBack, SkipForward, Pin, PinOff, Maximize2, X, ListMusic, Volume2, VolumeX, Shuffle, Infinity as InfinityIcon, Waves, MoveRight } from 'lucide-react';
 import CachedImage from './CachedImage';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';

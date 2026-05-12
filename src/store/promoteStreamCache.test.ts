@@ -13,7 +13,7 @@ const { invokeMock, setEntryMock, buildStreamUrlMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
-vi.mock('../api/subsonic', () => ({ buildStreamUrl: buildStreamUrlMock }));
+vi.mock('../api/subsonicStreamUrl', () => ({ buildStreamUrl: buildStreamUrlMock }));
 vi.mock('./hotCacheStore', () => ({
   useHotCacheStore: { getState: () => ({ setEntry: setEntryMock }) },
 }));

@@ -330,195 +330,23 @@ export async function fetchStatisticsFormatSample(): Promise<StatisticsFormatSam
 
 
 
-export async function getGenres(): Promise<SubsonicGenre[]> {
-  const data = await api<{ genres: { genre: SubsonicGenre | SubsonicGenre[] } }>('getGenres.view');
-  const raw = data.genres?.genre;
-  if (!raw) return [];
-  return Array.isArray(raw) ? raw : [raw];
-}
 
-export async function getAlbumsByGenre(genre: string, size = 50, offset = 0): Promise<SubsonicAlbum[]> {
-  const data = await api<{ albumList2: { album: SubsonicAlbum | SubsonicAlbum[] } }>('getAlbumList2.view', {
-    type: 'byGenre',
-    genre,
-    size,
-    offset,
-    _t: Date.now(),
-    ...libraryFilterParams(),
-  });
-  const raw = data.albumList2?.album;
-  if (!raw) return [];
-  return Array.isArray(raw) ? raw : [raw];
-}
 
-export async function getStarred(): Promise<StarredResults> {
-  const data = await api<{
-    starred2: {
-      artist?: SubsonicArtist[];
-      album?: SubsonicAlbum[];
-      song?: SubsonicSong[];
-    }
-  }>('getStarred2.view', { ...libraryFilterParams() });
-  const r = data.starred2 ?? {};
-  return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };
-}
 
-export async function star(id: string, type: 'song' | 'album' | 'artist' = 'album'): Promise<void> {
-  const params: Record<string, string> = {};
-  if (type === 'song') params.id = id;
-  if (type === 'album') params.albumId = id;
-  if (type === 'artist') params.artistId = id;
-  await api('star.view', params);
-}
 
-export async function unstar(id: string, type: 'song' | 'album' | 'artist' = 'album'): Promise<void> {
-  const params: Record<string, string> = {};
-  if (type === 'song') params.id = id;
-  if (type === 'album') params.albumId = id;
-  if (type === 'artist') params.artistId = id;
-  await api('unstar.view', params);
-}
 
-export async function search(query: string, options?: { albumCount?: number; artistCount?: number; songCount?: number }): Promise<SearchResults> {
-  if (!query.trim()) return { artists: [], albums: [], songs: [] };
-  const data = await api<{
-    searchResult3: {
-      artist?: SubsonicArtist[];
-      album?: SubsonicAlbum[];
-      song?: SubsonicSong[];
-    };
-  }>('search3.view', {
-    query,
-    artistCount: options?.artistCount ?? 5,
-    albumCount: options?.albumCount ?? 5,
-    songCount: options?.songCount ?? 10,
-    ...libraryFilterParams(),
-  });
-  const r = data.searchResult3 ?? {};
-  return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };
-}
 
-/**
- * Song-only paginated search3. Tolerates empty query — Navidrome returns all songs
- * ordered by title in that case; strict Subsonic implementations may return nothing.
- * Caller handles empty results gracefully (Tracks page falls back to its random pool).
- */
-export async function searchSongsPaged(query: string, songCount: number, songOffset: number): Promise<SubsonicSong[]> {
-  const data = await api<{ searchResult3: { song?: SubsonicSong[] } }>('search3.view', {
-    query,
-    artistCount: 0,
-    albumCount: 0,
-    songCount,
-    songOffset,
-    ...libraryFilterParams(),
-  });
-  return data.searchResult3?.song ?? [];
-}
 
-export async function setRating(id: string, rating: number): Promise<void> {
-  await api('setRating.view', { id, rating });
-  // Cached song lists keyed by rating (e.g. Tracks → Highly Rated rail) become
-  // stale immediately. Lazy-import to keep the module dep direction
-  // subsonic ← navidromeBrowse and avoid pulling Tauri internals into shared
-  // type-only consumers.
-  void import('./navidromeBrowse').then(m => m.ndInvalidateSongsCache()).catch(() => {});
-}
 
 /** How aggressively we assume `setRating` accepts album/artist ids (OpenSubsonic-style). */
 
-/**
- * Probe server for OpenSubsonic extensions. When `openSubsonic: true`, we treat album/artist
- * rating as supported (same `setRating.view` + entity id); otherwise track-only.
- */
-export async function probeEntityRatingSupport(): Promise<EntityRatingSupportLevel> {
-  try {
-    const data = await api<{ openSubsonic?: boolean; openSubsonicExtensions?: unknown[] }>(
-      'getOpenSubsonicExtensions.view',
-      {},
-      8000,
-    );
-    if (data.openSubsonic === true) return 'full';
-    if (Array.isArray(data.openSubsonicExtensions)) return 'full';
-    return 'track_only';
-  } catch {
-    return 'track_only';
-  }
-}
 
-export async function scrobbleSong(id: string, time: number): Promise<void> {
-  try {
-    await api('scrobble.view', { id, time, submission: true });
-  } catch {
-    // best effort
-  }
-}
 
-export async function reportNowPlaying(id: string): Promise<void> {
-  try {
-    await api('scrobble.view', { id, submission: false });
-  } catch {
-    // best effort
-  }
-}
 
-// ─── Stream URL ───────────────────────────────────────────────
-export function buildStreamUrl(id: string): string {
-  const { getBaseUrl, getActiveServer } = useAuthStore.getState();
-  const server = getActiveServer();
-  const baseUrl = getBaseUrl();
-  const salt = secureRandomSalt();
-  const token = md5((server?.password ?? '') + salt);
-  const p = new URLSearchParams({
-    id,
-    u: server?.username ?? '',
-    t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json',
-  });
-  return `${baseUrl}/rest/stream.view?${p.toString()}`;
-}
 
-/** Stable cache key for cover art — does not include ephemeral auth params. */
-export function coverArtCacheKey(id: string, size = 256): string {
-  const server = useAuthStore.getState().getActiveServer();
-  return `${server?.id ?? '_'}:cover:${id}:${size}`;
-}
 
-export function buildCoverArtUrl(id: string, size = 256): string {
-  const { getBaseUrl, getActiveServer } = useAuthStore.getState();
-  const server = getActiveServer();
-  const baseUrl = getBaseUrl();
-  const salt = secureRandomSalt();
-  const token = md5((server?.password ?? '') + salt);
-  const p = new URLSearchParams({
-    id, size: String(size),
-    u: server?.username ?? '',
-    t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json',
-  });
-  return `${baseUrl}/rest/getCoverArt.view?${p.toString()}`;
-}
 
-export function buildDownloadUrl(id: string): string {
-  const { getBaseUrl, getActiveServer } = useAuthStore.getState();
-  const server = getActiveServer();
-  const baseUrl = getBaseUrl();
-  const salt = secureRandomSalt();
-  const token = md5((server?.password ?? '') + salt);
-  const p = new URLSearchParams({
-    id,
-    u: server?.username ?? '',
-    t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json',
-  });
-  return `${baseUrl}/rest/download.view?${p.toString()}`;
-}
 
-// ─── Album Info (public image URLs from Last.fm/MusicBrainz) ──
-export async function getAlbumInfo2(albumId: string): Promise<AlbumInfo | null> {
-  try {
-    const data = await api<{ albumInfo: AlbumInfo }>('getAlbumInfo2.view', { id: albumId });
-    return data.albumInfo ?? null;
-  } catch {
-    return null;
-  }
-}
 
 // ─── Playlists ────────────────────────────────────────────────
 export async function getPlaylists(includeOrbit = false): Promise<SubsonicPlaylist[]> {
@@ -627,15 +455,6 @@ export async function savePlayQueue(songIds: string[], current?: string, positio
 }
 
 // ─── Now Playing ──────────────────────────────────────────────
-export async function getNowPlaying(): Promise<SubsonicNowPlaying[]> {
-  try {
-    const data = await api<{ nowPlaying: { entry?: SubsonicNowPlaying[] } | '' }>('getNowPlaying.view');
-    if (!data.nowPlaying || typeof data.nowPlaying === 'string') return [];
-    return data.nowPlaying.entry ?? [];
-  } catch {
-    return [];
-  }
-}
 
 
 // ─── Internet Radio ───────────────────────────────────────────
@@ -740,23 +559,3 @@ export async function fetchUrlBytes(url: string): Promise<[number[], string]> {
 }
 
 
-/**
- * Fetches structured lyrics from the server's embedded tags via the
- * OpenSubsonic `getLyricsBySongId` endpoint. Returns null when the
- * server doesn't support the endpoint or the track has no embedded lyrics.
- * Prefers synced lyrics over plain when both are present.
- */
-export async function getLyricsBySongId(id: string): Promise<SubsonicStructuredLyrics | null> {
-  try {
-    const data = await api<{ lyricsList: { structuredLyrics?: SubsonicStructuredLyrics[] } }>(
-      'getLyricsBySongId.view',
-      { id },
-    );
-    const list = data.lyricsList?.structuredLyrics;
-    if (!list || list.length === 0) return null;
-    return list.find(l => l.synced || l.issynced) ?? list[0];
-  } catch {
-    // Server doesn't support the endpoint or track has no embedded lyrics
-    return null;
-  }
-}

@@ -1,9 +1,9 @@
+import { getGenres } from '../api/subsonicGenres';
 import type { SubsonicGenre } from '../api/subsonicTypes';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Tags } from 'lucide-react';
-import { getGenres } from '../api/subsonic';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 
 const CTP_COLORS = [

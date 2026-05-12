@@ -1,3 +1,4 @@
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getSong } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { useEffect, useMemo, useState } from 'react';
@@ -9,7 +10,6 @@ import {
   declineOrbitSuggestion,
   suggestionKey,
 } from '../utils/orbit';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import CachedImage from './CachedImage';
 import { ORBIT_DEFAULT_SETTINGS } from '../api/orbit';
 

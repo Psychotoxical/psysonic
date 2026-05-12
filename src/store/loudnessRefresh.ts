@@ -1,5 +1,5 @@
+import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import { invoke } from '@tauri-apps/api/core';
-import { buildStreamUrl } from '../api/subsonic';
 import { redactSubsonicUrlForLog } from '../utils/redactSubsonicUrl';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';

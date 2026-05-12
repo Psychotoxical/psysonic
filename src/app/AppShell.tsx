@@ -1,3 +1,4 @@
+import { probeEntityRatingSupport } from '../api/subsonicStarRating';
 import { getMusicFolders } from '../api/subsonicLibrary';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -37,7 +38,6 @@ import { useOrbitStore } from '../store/orbitStore';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
-import { probeEntityRatingSupport } from '../api/subsonic';
 import { useOfflineStore } from '../store/offlineStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';

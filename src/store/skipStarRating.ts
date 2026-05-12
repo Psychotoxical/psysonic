@@ -1,5 +1,5 @@
+import { setRating } from '../api/subsonicStarRating';
 import type { Track } from './playerStoreTypes';
-import { setRating } from '../api/subsonic';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
 /**

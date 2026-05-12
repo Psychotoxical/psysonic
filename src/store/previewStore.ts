@@ -1,7 +1,7 @@
+import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import type { TrackPreviewLocation } from './authStoreTypes';
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import { buildStreamUrl } from '../api/subsonic';
 import { usePlayerStore } from './playerStore';
 import { useAuthStore } from './authStore';
 import { useOrbitStore } from './orbitStore';

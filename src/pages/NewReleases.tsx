@@ -1,10 +1,11 @@
+import { buildDownloadUrl } from '../api/subsonicStreamUrl';
+import { getAlbumsByGenre } from '../api/subsonicGenres';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { CheckSquare2, Download, HardDriveDownload, ListMusic } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
-import { getAlbumsByGenre, buildDownloadUrl } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';

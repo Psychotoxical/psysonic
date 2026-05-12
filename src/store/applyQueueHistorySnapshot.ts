@@ -1,5 +1,5 @@
+import { reportNowPlaying } from '../api/subsonicScrobble';
 import { invoke } from '@tauri-apps/api/core';
-import { reportNowPlaying } from '../api/subsonic';
 import { getPlaybackSourceKind } from '../utils/resolvePlaybackUrl';
 import { useAuthStore } from './authStore';
 import {

@@ -1,8 +1,8 @@
+import { getGenres } from '../api/subsonicGenres';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Filter, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getGenres } from '../api/subsonic';
 
 interface GenreFilterBarProps {
   selected: string[];

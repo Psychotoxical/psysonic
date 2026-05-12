@@ -1,7 +1,7 @@
+import { reportNowPlaying, scrobbleSong } from '../api/subsonicScrobble';
 import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../api/lastfm';
-import { reportNowPlaying, scrobbleSong } from '../api/subsonic';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
 import { getPerfProbeFlags } from '../utils/perfFlags';
 import { bumpPerfCounter } from '../utils/perfTelemetry';

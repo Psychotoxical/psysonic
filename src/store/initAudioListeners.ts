@@ -1,9 +1,7 @@
+import { getAlbumInfo2 } from '../api/subsonicAlbumInfo';
+import { buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import {
-  buildCoverArtUrl,
-  getAlbumInfo2,
-} from '../api/subsonic';
 import { streamUrlTrackId } from '../utils/resolvePlaybackUrl';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
 import { normalizationAlmostEqual } from '../utils/normalizationCompare';

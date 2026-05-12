@@ -1,3 +1,5 @@
+import { star, unstar } from '../api/subsonicStarRating';
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getArtist, getArtistInfo, getTopSongs } from '../api/subsonicArtists';
 import { getSong, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicSong, SubsonicArtistInfo, SubsonicAlbum } from '../api/subsonicTypes';
@@ -9,7 +11,6 @@ import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLyricsStore } from '../store/lyricsStore';
-import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
 import { songToTrack } from '../utils/songToTrack';
 import {
   lastfmIsConfigured,

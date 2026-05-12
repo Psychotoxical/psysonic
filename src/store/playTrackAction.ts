@@ -1,6 +1,6 @@
+import { reportNowPlaying } from '../api/subsonicScrobble';
 import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmUpdateNowPlaying } from '../api/lastfm';
-import { reportNowPlaying } from '../api/subsonic';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/queueIdentity';

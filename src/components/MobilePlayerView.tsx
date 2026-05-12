@@ -1,3 +1,5 @@
+import { star, unstar } from '../api/subsonicStarRating';
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import type { Track } from '../store/playerStoreTypes';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
@@ -9,7 +11,6 @@ import {
   Moon, Sunrise,
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
-import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
 import { useCachedUrl } from './CachedImage';
 import LyricsPane from './LyricsPane';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';

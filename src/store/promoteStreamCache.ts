@@ -1,6 +1,6 @@
+import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
-import { buildStreamUrl } from '../api/subsonic';
 import { useHotCacheStore } from './hotCacheStore';
 /**
  * Promote a track whose stream cache is full to the on-disk hot cache.
