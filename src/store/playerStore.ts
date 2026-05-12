@@ -6,7 +6,7 @@ import i18n from '../i18n';
 import { buildStreamUrl, getPlayQueue, savePlayQueue, reportNowPlaying, getSong, getSimilarSongs2, getTopSongs, setRating } from '../api/subsonic';
 import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
-import { lastfmUpdateNowPlaying, lastfmLoveTrack, lastfmUnloveTrack, lastfmGetTrackLoved, lastfmGetAllLovedTracks } from '../api/lastfm';
+import { lastfmUpdateNowPlaying, lastfmGetTrackLoved } from '../api/lastfm';
 import { useAuthStore } from './authStore';
 import { useOfflineStore } from './offlineStore';
 import { useHotCacheStore } from './hotCacheStore';
@@ -174,6 +174,7 @@ export {
 import type { PlayerState, Track } from './playerStoreTypes';
 export type { PlayerState, Track };
 import { applyQueueHistorySnapshot } from './applyQueueHistorySnapshot';
+import { createLastfmActions } from './lastfmActions';
 
 
 // ─── Module-level playback primitives ─────────────────────────────────────────
@@ -257,54 +258,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
       toggleFullscreen: () => set(state => ({ isFullscreenOpen: !state.isFullscreenOpen })),
 
-      toggleLastfmLove: () => {
-        const { currentTrack, lastfmLoved } = get();
-        const { lastfmSessionKey } = useAuthStore.getState();
-        if (!currentTrack || !lastfmSessionKey) return;
-        const newLoved = !lastfmLoved;
-        const cacheKey = `${currentTrack.title}::${currentTrack.artist}`;
-        set(s => ({ lastfmLoved: newLoved, lastfmLovedCache: { ...s.lastfmLovedCache, [cacheKey]: newLoved } }));
-        if (newLoved) {
-          lastfmLoveTrack(currentTrack, lastfmSessionKey);
-        } else {
-          lastfmUnloveTrack(currentTrack, lastfmSessionKey);
-        }
-      },
-
-      setLastfmLoved: (v) => {
-        const { currentTrack } = get();
-        if (currentTrack) {
-          const cacheKey = `${currentTrack.title}::${currentTrack.artist}`;
-          set(s => ({ lastfmLoved: v, lastfmLovedCache: { ...s.lastfmLovedCache, [cacheKey]: v } }));
-        } else {
-          set({ lastfmLoved: v });
-        }
-      },
-
-      syncLastfmLovedTracks: async () => {
-        const { lastfmSessionKey, lastfmUsername } = useAuthStore.getState();
-        if (!lastfmSessionKey || !lastfmUsername) return;
-        const tracks = await lastfmGetAllLovedTracks(lastfmUsername, lastfmSessionKey);
-        const newCache: Record<string, boolean> = {};
-        for (const t of tracks) newCache[`${t.title}::${t.artist}`] = true;
-        // Merge with existing cache (local likes take precedence)
-        set(s => ({ lastfmLovedCache: { ...newCache, ...s.lastfmLovedCache } }));
-        // Update current track's loved state if it's in the new cache
-        const { currentTrack } = get();
-        if (currentTrack) {
-          const loved = newCache[`${currentTrack.title}::${currentTrack.artist}`] ?? false;
-          set({ lastfmLoved: loved });
-        }
-      },
-
-      setLastfmLovedForSong: (title, artist, v) => {
-        const cacheKey = `${title}::${artist}`;
-        const isCurrentTrack = get().currentTrack?.title === title && get().currentTrack?.artist === artist;
-        set(s => ({
-          lastfmLovedCache: { ...s.lastfmLovedCache, [cacheKey]: v },
-          ...(isCurrentTrack ? { lastfmLoved: v } : {}),
-        }));
-      },
+      ...createLastfmActions(set, get),
 
       toggleRepeat: () => set(state => {
         const modes = ['off', 'all', 'one'] as const;
