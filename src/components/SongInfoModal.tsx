@@ -1,10 +1,10 @@
+import { getSong } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
-import { getSong } from '../api/subsonic';
 import { ndGetSongPath } from '../api/navidromeAdmin';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';

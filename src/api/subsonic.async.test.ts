@@ -21,21 +21,9 @@ vi.mock('axios', () => ({
 }));
 
 import axios from 'axios';
-import {
-  getAlbum,
-  getAlbumInfo2,
-  getArtists,
-  getMusicDirectory,
-  getMusicFolders,
-  getMusicIndexes,
-  getRandomSongs,
-  getSong,
-  getStarred,
-  getTopSongs,
-  pingWithCredentials,
-  ping,
-  search,
-} from './subsonic';
+import { getAlbumInfo2, getStarred, pingWithCredentials, ping, search } from './subsonic';
+import { getAlbum, getMusicDirectory, getMusicFolders, getMusicIndexes, getRandomSongs, getSong } from './subsonicLibrary';
+import { getArtists, getTopSongs } from './subsonicArtists';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 

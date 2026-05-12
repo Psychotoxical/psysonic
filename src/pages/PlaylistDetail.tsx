@@ -1,3 +1,4 @@
+import { getRandomSongs, filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
-import { getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt, search, setRating, star, unstar, getRandomSongs, buildDownloadUrl, filterSongsToActiveLibrary } from '../api/subsonic';
+import { getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt, search, setRating, star, unstar, buildDownloadUrl } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';

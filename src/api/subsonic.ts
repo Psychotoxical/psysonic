@@ -15,6 +15,12 @@ import {
   libraryFilterParams,
   secureRandomSalt,
 } from './subsonicClient';
+import { getAlbumList, getRandomSongs } from './subsonicLibrary';
+import { getArtists } from './subsonicArtists';
+
+/** Cache TTL for statistics page aggregates — same 7-minute window as
+ *  the rating prefetch cache in subsonicRatings.ts. */
+const RATING_CACHE_TTL = 7 * 60 * 1000;
 import type {
   AlbumInfo,
   EntityRatingSupportLevel,
@@ -43,53 +49,8 @@ import type {
 
 
 /** OpenSubsonic `artists` / `albumArtists` entries on a child song (may include `userRating`). */
-// ─── API Methods ──────────────────────────────────────────────
-export async function getMusicDirectory(id: string): Promise<SubsonicDirectory> {
-  const data = await api<{ directory: { id: string; parent?: string; name: string; child?: SubsonicDirectoryEntry | SubsonicDirectoryEntry[] } }>(
-    'getMusicDirectory.view',
-    { id },
-  );
-  const dir = data.directory;
-  const raw = dir.child;
-  const child: SubsonicDirectoryEntry[] = !raw ? [] : Array.isArray(raw) ? raw : [raw];
-  return { id: dir.id, parent: dir.parent, name: dir.name, child };
-}
 
-/** Returns the top-level artist/directory entries for a music folder root.
- *  Music folder IDs from getMusicFolders() are NOT valid getMusicDirectory IDs —
- *  use getIndexes.view with musicFolderId instead. */
-export async function getMusicIndexes(musicFolderId: string): Promise<SubsonicDirectoryEntry[]> {
-  type IndexArtist = { id: string; name: string; coverArt?: string };
-  type IndexEntry  = { name: string; artist?: IndexArtist | IndexArtist[] };
-  const data = await api<{ indexes: { index?: IndexEntry | IndexEntry[] } }>(
-    'getIndexes.view',
-    { musicFolderId },
-  );
-  const raw = data.indexes?.index;
-  if (!raw) return [];
-  const indices = Array.isArray(raw) ? raw : [raw];
-  const entries: SubsonicDirectoryEntry[] = [];
-  for (const idx of indices) {
-    const artists = idx.artist ? (Array.isArray(idx.artist) ? idx.artist : [idx.artist]) : [];
-    for (const a of artists) {
-      entries.push({ id: a.id, title: a.name, isDir: true, coverArt: a.coverArt });
-    }
-  }
-  return entries;
-}
 
-export async function getMusicFolders(): Promise<SubsonicMusicFolder[]> {
-  const data = await api<{ musicFolders: { musicFolder: SubsonicMusicFolder | SubsonicMusicFolder[] } }>(
-    'getMusicFolders.view',
-  );
-  const raw = data.musicFolders?.musicFolder;
-  if (!raw) return [];
-  const arr = Array.isArray(raw) ? raw : [raw];
-  return arr.map(f => ({
-    id: String((f as { id: string | number }).id),
-    name: (f as { name?: string }).name ?? 'Library',
-  }));
-}
 
 export async function ping(): Promise<boolean> {
   try {
@@ -220,237 +181,22 @@ export function scheduleInstantMixProbeForServer(
   );
 }
 
-export async function getRandomAlbums(size = 6): Promise<SubsonicAlbum[]> {
-  const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', {
-    type: 'random',
-    size,
-    ...libraryFilterParams(),
-  });
-  return data.albumList2?.album ?? [];
-}
 
-export async function getAlbumList(
-  type: 'random' | 'newest' | 'alphabeticalByName' | 'alphabeticalByArtist' | 'byYear' | 'recent' | 'starred' | 'frequent' | 'highest',
-  size = 30,
-  offset = 0,
-  extra: Record<string, unknown> = {}
-): Promise<SubsonicAlbum[]> {
-  const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', {
-    type,
-    size,
-    offset,
-    _t: Date.now(),
-    ...libraryFilterParams(),
-    ...extra,
-  });
-  return data.albumList2?.album ?? [];
-}
 
-/**
- * Navidrome (and some servers) ignore `musicFolderId` on getSimilarSongs / getSimilarSongs2 / getTopSongs,
- * so similar tracks can leak from other libraries. When the user scoped to one folder, we keep a set of
- * album ids in that scope (paginated getAlbumList2) and drop songs whose albumId is not in the set.
- */
-let scopedLibraryAlbumIdCache: {
-  serverId: string;
-  folderId: string;
-  filterVersion: number;
-  ids: Set<string>;
-} | null = null;
 
-async function albumIdsInActiveLibraryScope(): Promise<Set<string> | null> {
-  const { activeServerId, musicLibraryFilterByServer, musicLibraryFilterVersion } = useAuthStore.getState();
-  if (!activeServerId) return null;
-  const folder = musicLibraryFilterByServer[activeServerId];
-  if (folder === undefined || folder === 'all') {
-    scopedLibraryAlbumIdCache = null;
-    return null;
-  }
-  const hit = scopedLibraryAlbumIdCache;
-  if (
-    hit &&
-    hit.serverId === activeServerId &&
-    hit.folderId === folder &&
-    hit.filterVersion === musicLibraryFilterVersion
-  ) {
-    return hit.ids;
-  }
-  const ids = new Set<string>();
-  const pageSize = 500;
-  let offset = 0;
-  for (;;) {
-    const albums = await getAlbumList('alphabeticalByName', pageSize, offset);
-    for (const a of albums) ids.add(a.id);
-    if (albums.length < pageSize) break;
-    offset += pageSize;
-    if (offset > 500_000) break;
-  }
-  scopedLibraryAlbumIdCache = {
-    serverId: activeServerId,
-    folderId: folder,
-    filterVersion: musicLibraryFilterVersion,
-    ids,
-  };
-  return ids;
-}
 
-export async function filterSongsToActiveLibrary(songs: SubsonicSong[]): Promise<SubsonicSong[]> {
-  const allowed = await albumIdsInActiveLibraryScope();
-  if (!allowed || allowed.size === 0) return songs;
-  return songs.filter(s => s.albumId && allowed.has(s.albumId));
-}
 
-/** When scoped to one library, ask the server for more similar tracks — many will be filtered out client-side. */
-function similarSongsRequestCount(desired: number): number {
-  const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
-  const f = activeServerId ? musicLibraryFilterByServer[activeServerId] : undefined;
-  if (f === undefined || f === 'all') return desired;
-  return Math.min(300, Math.max(desired, desired * 4));
-}
 
-export async function getRandomSongs(size = 50, genre?: string, timeout = 15000): Promise<SubsonicSong[]> {
-  const params: Record<string, string | number> = { size, _t: Date.now(), ...libraryFilterParams() };
-  if (genre) params.genre = genre;
-  const data = await api<{ randomSongs: { song: SubsonicSong[] } }>('getRandomSongs.view', params, timeout);
-  return data.randomSongs?.song ?? [];
-}
 
-/** Extended random song fetch with server-side year/genre filtering. */
-export async function getRandomSongsFiltered(
-  filters: RandomSongsFilters,
-  timeout = 15000,
-): Promise<SubsonicSong[]> {
-  const params: Record<string, string | number> = {
-    size: filters.size ?? 50,
-    _t: Date.now(),
-    ...libraryFilterParams(),
-  };
-  if (filters.genre) params.genre = filters.genre;
-  if (typeof filters.fromYear === 'number') params.fromYear = filters.fromYear;
-  if (typeof filters.toYear === 'number') params.toYear = filters.toYear;
-  const data = await api<{ randomSongs: { song: SubsonicSong[] } }>('getRandomSongs.view', params, timeout);
-  return data.randomSongs?.song ?? [];
-}
 
-export async function getSong(id: string): Promise<SubsonicSong | null> {
-  try {
-    const data = await api<{ song: SubsonicSong }>('getSong.view', { id });
-    return data.song ?? null;
-  } catch {
-    return null;
-  }
-}
 
-export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
-  const data = await api<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>('getAlbum.view', { id });
-  const { song, ...album } = data.album;
-  return { album, songs: song ?? [] };
-}
 
-const MIX_RATING_PREFETCH_CONCURRENCY = 8;
-const RATING_CACHE_TTL = 7 * 60 * 1000; // 7 minutes
-const ratingCache = new Map<string, { value: number | undefined; expiresAt: number }>();
 
-function getCachedRating(key: string): number | undefined | null {
-  const entry = ratingCache.get(key);
-  if (!entry) return null; // cache miss
-  if (Date.now() > entry.expiresAt) { ratingCache.delete(key); return null; }
-  return entry.value;
-}
 
-function setCachedRating(key: string, value: number | undefined): void {
-  ratingCache.set(key, { value, expiresAt: Date.now() + RATING_CACHE_TTL });
-}
 
-function parseEntityUserRating(v: unknown): number | undefined {
-  if (v === null || v === undefined) return undefined;
-  const n = typeof v === 'number' ? v : Number(v);
-  if (!Number.isFinite(n)) return undefined;
-  return n;
-}
 
-/** Navidrome and some JSON shapes use `rating` where Subsonic docs say `userRating`. */
-export function parseSubsonicEntityStarRating(entity: {
-  userRating?: unknown;
-  rating?: unknown;
-}): number | undefined {
-  return parseEntityUserRating(entity.userRating ?? entity.rating);
-}
 
-/** Bump when rating parse keys change so stale cache entries are not reused. */
-const ENTITY_RATING_CACHE_KEY_VER = 'v2';
 
-/** Parallel `getArtist` calls to fill mix/album filters when list endpoints omit ratings. */
-export async function prefetchArtistUserRatings(
-  ids: string[],
-  concurrency = MIX_RATING_PREFETCH_CONCURRENCY,
-): Promise<Map<string, number>> {
-  const unique = [...new Set(ids.filter(Boolean))];
-  const out = new Map<string, number>();
-  if (!unique.length) return out;
-  const uncached: string[] = [];
-  for (const id of unique) {
-    const cached = getCachedRating(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
-    if (cached !== null) { if (cached !== undefined) out.set(id, cached); }
-    else uncached.push(id);
-  }
-  if (!uncached.length) return out;
-  let next = 0;
-  async function worker() {
-    for (;;) {
-      const i = next++;
-      if (i >= uncached.length) return;
-      const id = uncached[i];
-      try {
-        const { artist } = await getArtist(id);
-        const r = parseSubsonicEntityStarRating(artist);
-        setCachedRating(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
-        if (r !== undefined) out.set(id, r);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  const nWorkers = Math.min(concurrency, uncached.length);
-  await Promise.all(Array.from({ length: nWorkers }, () => worker()));
-  return out;
-}
-
-/** Parallel `getAlbum` calls when `albumList2` entries lack `userRating`. */
-export async function prefetchAlbumUserRatings(
-  ids: string[],
-  concurrency = MIX_RATING_PREFETCH_CONCURRENCY,
-): Promise<Map<string, number>> {
-  const unique = [...new Set(ids.filter(Boolean))];
-  const out = new Map<string, number>();
-  if (!unique.length) return out;
-  const uncached: string[] = [];
-  for (const id of unique) {
-    const cached = getCachedRating(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
-    if (cached !== null) { if (cached !== undefined) out.set(id, cached); }
-    else uncached.push(id);
-  }
-  if (!uncached.length) return out;
-  let next = 0;
-  async function worker() {
-    for (;;) {
-      const i = next++;
-      if (i >= uncached.length) return;
-      const id = uncached[i];
-      try {
-        const { album } = await getAlbum(id);
-        const r = parseSubsonicEntityStarRating(album);
-        setCachedRating(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
-        if (r !== undefined) out.set(id, r);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  const nWorkers = Math.min(concurrency, uncached.length);
-  await Promise.all(Array.from({ length: nWorkers }, () => worker()));
-  return out;
-}
 
 /** Paginated album stats for Statistics (playtime, counts, genre breakdown). Same TTL as rating prefetch. */
 /** Key `prefix:serverId:folder` — Statistics caches share scope with `libraryFilterParams()`. */
@@ -578,73 +324,11 @@ export async function fetchStatisticsFormatSample(): Promise<StatisticsFormatSam
   return result;
 }
 
-export async function getArtists(): Promise<SubsonicArtist[]> {
-  const data = await api<{ artists: { index: any } }>('getArtists.view', {
-    ...libraryFilterParams(),
-  });
-  const rawIdx = data.artists?.index;
-  const indices = Array.isArray(rawIdx) ? rawIdx : (rawIdx ? [rawIdx] : []);
-  const artists: SubsonicArtist[] = [];
-  for (const idx of indices) {
-    const rawArt = idx.artist;
-    const arr = Array.isArray(rawArt) ? rawArt : (rawArt ? [rawArt] : []);
-    artists.push(...arr);
-  }
-  return artists;
-}
 
-export async function getArtist(id: string): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
-  const data = await api<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>('getArtist.view', { id });
-  const { album, ...artist } = data.artist;
-  return { artist, albums: album ?? [] };
-}
 
-export async function getArtistInfo(id: string, options?: { similarArtistCount?: number }): Promise<SubsonicArtistInfo> {
-  const count = options?.similarArtistCount ?? 5;
-  const data = await api<{ artistInfo2: SubsonicArtistInfo }>('getArtistInfo2.view', { id, count, ...libraryFilterParams() });
-  return data.artistInfo2 ?? {};
-}
 
-export async function getTopSongs(artist: string): Promise<SubsonicSong[]> {
-  try {
-    const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
-    const scoped = activeServerId && musicLibraryFilterByServer[activeServerId] && musicLibraryFilterByServer[activeServerId] !== 'all';
-    const topCount = scoped ? 20 : 5;
-    const data = await api<{ topSongs: { song: SubsonicSong[] } }>('getTopSongs.view', { artist, count: topCount, ...libraryFilterParams() });
-    const raw = data.topSongs?.song ?? [];
-    const filtered = await filterSongsToActiveLibrary(raw);
-    return filtered.slice(0, 5);
-  } catch {
-    return [];
-  }
-}
 
-export async function getSimilarSongs2(id: string, count = 50): Promise<SubsonicSong[]> {
-  try {
-    const requestCount = similarSongsRequestCount(count);
-    const data = await api<{ similarSongs2: { song: SubsonicSong[] } }>('getSimilarSongs2.view', { id, count: requestCount, ...libraryFilterParams() });
-    const raw = data.similarSongs2?.song ?? [];
-    const filtered = await filterSongsToActiveLibrary(raw);
-    return filtered.slice(0, count);
-  } catch {
-    return [];
-  }
-}
 
-/** Similar tracks for a song id (Subsonic `getSimilarSongs`) — Navidrome + AudioMuse Instant Mix. */
-export async function getSimilarSongs(id: string, count = 50): Promise<SubsonicSong[]> {
-  try {
-    const requestCount = similarSongsRequestCount(count);
-    const data = await api<{ similarSongs: { song: SubsonicSong | SubsonicSong[] } }>('getSimilarSongs.view', { id, count: requestCount, ...libraryFilterParams() });
-    const raw = data.similarSongs?.song;
-    if (!raw) return [];
-    const list = Array.isArray(raw) ? raw : [raw];
-    const filtered = await filterSongsToActiveLibrary(list);
-    return filtered.slice(0, count);
-  } catch {
-    return [];
-  }
-}
 
 export async function getGenres(): Promise<SubsonicGenre[]> {
   const data = await api<{ genres: { genre: SubsonicGenre | SubsonicGenre[] } }>('getGenres.view');

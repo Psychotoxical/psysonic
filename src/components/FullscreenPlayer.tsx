@@ -1,3 +1,4 @@
+import { getArtistInfo } from '../api/subsonicArtists';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useCallback, useEffect, useState, useRef, memo, useMemo } from 'react';
 import {
@@ -6,7 +7,7 @@ import {
   Moon, Sunrise,
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
-import { buildCoverArtUrl, coverArtCacheKey, getArtistInfo, star, unstar } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
 import { useCachedUrl } from './CachedImage';
 import { getCachedBlob } from '../utils/imageCache';
 import { extractCoverColors } from '../utils/dynamicColors';

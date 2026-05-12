@@ -1,4 +1,4 @@
-import { getAlbum } from '../api/subsonic';
+import { getAlbum } from '../api/subsonicLibrary';
 import { usePlayerStore } from '../store/playerStore';
 import { songToTrack } from './songToTrack';
 import { useOrbitStore } from '../store/orbitStore';

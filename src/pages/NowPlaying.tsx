@@ -1,3 +1,5 @@
+import { getArtist, getArtistInfo, getTopSongs } from '../api/subsonicArtists';
+import { getSong, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicSong, SubsonicArtistInfo, SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +9,7 @@ import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLyricsStore } from '../store/lyricsStore';
-import { buildCoverArtUrl, coverArtCacheKey, getSong, star, unstar, getAlbum, getArtist, getArtistInfo, getTopSongs } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey, star, unstar } from '../api/subsonic';
 import { songToTrack } from '../utils/songToTrack';
 import {
   lastfmIsConfigured,

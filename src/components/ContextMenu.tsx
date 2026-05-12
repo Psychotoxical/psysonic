@@ -1,3 +1,5 @@
+import { getAlbum } from '../api/subsonicLibrary';
+import { getSimilarSongs2, getSimilarSongs, getTopSongs, getArtist } from '../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicPlaylist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
@@ -15,7 +17,7 @@ import StarRating from './StarRating';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../api/lastfm';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
-import { star, unstar, getSimilarSongs2, getSimilarSongs, getTopSongs, buildDownloadUrl, getAlbum, getArtist, getPlaylists, getPlaylist, updatePlaylist, setRating } from '../api/subsonic';
+import { star, unstar, buildDownloadUrl, getPlaylists, getPlaylist, updatePlaylist, setRating } from '../api/subsonic';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';

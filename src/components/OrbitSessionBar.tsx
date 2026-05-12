@@ -1,3 +1,4 @@
+import { getSong } from '../api/subsonicLibrary';
 import { songToTrack } from '../utils/songToTrack';
 import { useEffect, useRef, useState } from 'react';
 import { X, RefreshCw, Shuffle, Settings2, Share2, HelpCircle, Activity } from 'lucide-react';
@@ -5,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import { useHelpModalStore } from '../store/helpModalStore';
 import { usePlayerStore } from '../store/playerStore';
-import { getSong } from '../api/subsonic';
 import {
   endOrbitSession,
   leaveOrbitSession,

@@ -1,3 +1,5 @@
+import { getSimilarSongs } from '../api/subsonicArtists';
+import { getMusicFolders } from '../api/subsonicLibrary';
 import { flushPlayQueuePosition } from '../store/queueSync';
 import { shuffleArray } from '../utils/shuffleArray';
 import { songToTrack } from '../utils/songToTrack';
@@ -11,11 +13,7 @@ import { showToast } from '../utils/toast';
 import { endOrbitSession, leaveOrbitSession } from '../utils/orbit';
 import { useOrbitStore } from '../store/orbitStore';
 import { useAuthStore } from '../store/authStore';
-import {
-  getMusicFolders,
-  getSimilarSongs,
-  search as subsonicSearch,
-} from '../api/subsonic';
+import { search as subsonicSearch } from '../api/subsonic';
 import i18n from '../i18n';
 import { switchActiveServer } from '../utils/switchActiveServer';
 import { usePlayerStore } from '../store/playerStore';

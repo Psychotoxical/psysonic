@@ -7,7 +7,7 @@
  *
  *   // In the test:
  *   vi.mock('@/api/subsonic');
- *   import { getAlbum, buildStreamUrl } from '@/api/subsonic';
+ *   import { buildStreamUrl } from '@/api/subsonic';
  *   import { sampleAlbumWithSongs, mockStreamUrl } from '@/test/mocks/subsonic';
  *
  *   beforeEach(() => {
@@ -18,6 +18,7 @@
  * Realistic shape matters more than perfect coverage — these fixtures
  * mirror what Navidrome actually returns for common queries.
  */
+import { getAlbum } from '@/api/subsonicLibrary';
 import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist } from '@/api/subsonicTypes';
 import { makeSubsonicSong } from '@/test/helpers/factories';
 

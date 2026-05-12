@@ -1,3 +1,5 @@
+import { getArtists } from '../api/subsonicArtists';
+import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
 import Hero from '../components/Hero';
@@ -5,7 +7,6 @@ import AlbumRow from '../components/AlbumRow';
 import SongRail from '../components/SongRail';
 import BecauseYouLikeRail from '../components/BecauseYouLikeRail';
 import LosslessAlbumsRail from '../components/LosslessAlbumsRail';
-import { getAlbumList, getArtists, getRandomSongs } from '../api/subsonic';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';

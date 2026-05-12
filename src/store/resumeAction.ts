@@ -1,6 +1,6 @@
+import { getSong } from '../api/subsonicLibrary';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateLivePosition } from '../api/orbit';
-import { getSong } from '../api/subsonic';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
 import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';

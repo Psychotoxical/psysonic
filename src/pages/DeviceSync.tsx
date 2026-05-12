@@ -1,3 +1,5 @@
+import { getArtists, getArtist } from '../api/subsonicArtists';
+import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist, SubsonicArtist } from '../api/subsonicTypes';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -12,7 +14,7 @@ import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { useDeviceSyncStore, DeviceSyncSource } from '../store/deviceSyncStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
-import { getPlaylists, getAlbumList, getArtists, getAlbum, getPlaylist, getArtist, buildDownloadUrl, search as searchSubsonic } from '../api/subsonic';
+import { getPlaylists, getPlaylist, buildDownloadUrl, search as searchSubsonic } from '../api/subsonic';
 import { showToast } from '../utils/toast';
 import { IS_WINDOWS } from '../utils/platform';
 

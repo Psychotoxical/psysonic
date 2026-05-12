@@ -1,10 +1,12 @@
+import { getArtist, getArtistInfo } from '../api/subsonicArtists';
+import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicSong, SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Search, X, ListPlus } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { getAlbum, getArtist, getArtistInfo, setRating, buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl, star, unstar } from '../api/subsonic';
+import { setRating, buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl, star, unstar } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';

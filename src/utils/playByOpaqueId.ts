@@ -1,5 +1,5 @@
+import { getAlbum, getSong } from '../api/subsonicLibrary';
 import { songToTrack } from '../utils/songToTrack';
-import { getAlbum, getSong } from '../api/subsonic';
 import { playAlbum } from './playAlbum';
 import { playArtistShuffled } from './playArtistShuffled';
 import { usePlayerStore } from '../store/playerStore';

@@ -1,5 +1,5 @@
+import { getSimilarSongs2, getTopSongs } from '../api/subsonicArtists';
 import { invoke } from '@tauri-apps/api/core';
-import { getSimilarSongs2, getTopSongs } from '../api/subsonic';
 import { buildInfiniteQueueCandidates } from '../utils/buildInfiniteQueueCandidates';
 import { songToTrack } from '../utils/songToTrack';
 import { useAuthStore } from './authStore';

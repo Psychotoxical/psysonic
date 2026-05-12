@@ -1,10 +1,11 @@
+import { getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, RefreshCw, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getRandomSongs, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import CachedImage from '../components/CachedImage';
