@@ -1190,7 +1190,7 @@ export const ruTranslation = {
     appendToQueue: 'Добавить в очередь',
     delete: 'Удалить',
     deleteConfirm: 'Удалить плейлист «{{name}}»?',
-    clear: 'Очистить',
+    clear: 'Очистить очередь',
     shuffle: 'Перемешать',
     gapless: 'Без пауз',
     crossfade: 'Кроссфейд',

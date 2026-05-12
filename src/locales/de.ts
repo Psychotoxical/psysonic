@@ -1160,7 +1160,7 @@ export const deTranslation = {
     appendToQueue: 'An Warteschlange anhängen',
     delete: 'Löschen',
     deleteConfirm: 'Playlist "{{name}}" löschen?',
-    clear: 'Leeren',
+    clear: 'Warteschlange leeren',
     shuffle: 'Warteschlange mischen',
     gapless: 'Nahtlos',
     crossfade: 'Crossfade',

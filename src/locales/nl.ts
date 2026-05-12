@@ -1137,7 +1137,7 @@ export const nlTranslation = {
     appendToQueue: 'Toevoegen aan wachtrij',
     delete: 'Verwijderen',
     deleteConfirm: 'Afspeellijst "{{name}}" verwijderen?',
-    clear: 'Leegmaken',
+    clear: 'Wachtrij leegmaken',
     shuffle: 'Wachtrij shufflen',
     gapless: 'Naadloos',
     crossfade: 'Overgang',

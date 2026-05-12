@@ -1142,7 +1142,7 @@ export const esTranslation = {
     appendToQueue: 'Agregar a cola',
     delete: 'Eliminar',
     deleteConfirm: '¿Eliminar lista "{{name}}"?',
-    clear: 'Limpiar',
+    clear: 'Limpiar cola',
     shuffle: 'Mezclar cola',
     gapless: 'Gapless',
     crossfade: 'Crossfade',
