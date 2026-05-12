@@ -1,15 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
 import {
   isNavidromeAudiomuseSoftwareEligible,
 } from '../utils/subsonicServerIdentity';
-import { usePlayerStore } from './playerStore';
 import { IS_LINUX } from '../utils/platform';
 import {
   LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS,
   clampStoredLoudnessPreAnalysisAttenuationRefDb,
 } from '../utils/loudnessPreAnalysisSlider';
+import { createAudioSettingsActions } from './authAudioSettingsActions';
+import { createAuthLastfmActions } from './authLastfmActions';
+import { createServerProfileActions } from './authServerProfileActions';
 import {
   DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
   DEFAULT_LYRICS_SOURCES,
@@ -19,7 +20,6 @@ import {
   clampMixFilterMinStars,
   clampRandomMixSize,
   clampSkipStarThreshold,
-  generateId,
   sanitizeLoudnessLufsPreset,
   sanitizeLoudnessPreAnalysisFromStorage,
   sanitizeSkipStarCounts,
@@ -126,101 +126,15 @@ export const useAuthStore = create<AuthState>()(
       connectionError: null,
       lastfmSessionError: false,
 
-      addServer: (profile) => {
-        const id = generateId();
-        set(s => ({ servers: [...s.servers, { ...profile, id }] }));
-        return id;
-      },
+      ...createServerProfileActions(set),
+      ...createAuthLastfmActions(set),
+      ...createAudioSettingsActions(set),
 
-      updateServer: (id, data) => {
-        set(s => ({
-          servers: s.servers.map(srv => srv.id === id ? { ...srv, ...data } : srv),
-        }));
-      },
-
-      removeServer: (id) => {
-        set(s => {
-          const newServers = s.servers.filter(srv => srv.id !== id);
-          const switchedAway = s.activeServerId === id;
-          const { [id]: _r, ...entityRatingRest } = s.entityRatingSupportByServer;
-          const { [id]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
-          const { [id]: _idn, ...identityRest } = s.subsonicServerIdentityByServer;
-          const { [id]: _iss, ...issueRest } = s.audiomuseNavidromeIssueByServer;
-          const { [id]: _pr, ...probeRest } = s.instantMixProbeByServer;
-          return {
-            servers: newServers,
-            activeServerId: switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId,
-            isLoggedIn: switchedAway ? false : s.isLoggedIn,
-            entityRatingSupportByServer: entityRatingRest,
-            audiomuseNavidromeByServer: audiomuseRest,
-            subsonicServerIdentityByServer: identityRest,
-            audiomuseNavidromeIssueByServer: issueRest,
-            instantMixProbeByServer: probeRest,
-          };
-        });
-      },
-
-      setServers: (servers) => set({ servers }),
-
-      setActiveServer: (id) => set({ activeServerId: id, musicFolders: [] }),
-
-      setLoggedIn: (v) => set({ isLoggedIn: v }),
-      setConnecting: (v) => set({ isConnecting: v }),
-      setConnectionError: (e) => set({ connectionError: e }),
-
-      setLastfm: (apiKey, apiSecret, sessionKey, username) =>
-        set({ lastfmApiKey: apiKey, lastfmApiSecret: apiSecret, lastfmSessionKey: sessionKey, lastfmUsername: username }),
-
-      connectLastfm: (sessionKey, username) =>
-        set({ lastfmSessionKey: sessionKey, lastfmUsername: username }),
-
-      disconnectLastfm: () =>
-        set({ lastfmSessionKey: '', lastfmUsername: '', lastfmSessionError: false }),
-
-      setLastfmSessionError: (v) => set({ lastfmSessionError: v }),
-
-      setScrobblingEnabled: (v) => set({ scrobblingEnabled: v }),
       setMaxCacheMb: (v) => set({ maxCacheMb: v }),
       setDownloadFolder: (v) => set({ downloadFolder: v }),
       setOfflineDownloadDir: (v) => set({ offlineDownloadDir: v }),
       setExcludeAudiobooks: (v) => set({ excludeAudiobooks: v }),
       setCustomGenreBlacklist: (v) => set({ customGenreBlacklist: v }),
-      setReplayGainEnabled: (v) => {
-        set({ replayGainEnabled: v });
-        usePlayerStore.getState().updateReplayGainForCurrentTrack();
-      },
-      setNormalizationEngine: (v) => {
-        set({ normalizationEngine: v });
-        usePlayerStore.getState().updateReplayGainForCurrentTrack();
-      },
-      setLoudnessTargetLufs: (v) => {
-        set({ loudnessTargetLufs: v });
-        usePlayerStore.getState().updateReplayGainForCurrentTrack();
-      },
-      setLoudnessPreAnalysisAttenuationDb: (v) => {
-        const n = typeof v === 'number' ? v : Number(v);
-        if (!Number.isFinite(n)) return;
-        set({ loudnessPreAnalysisAttenuationDb: clampStoredLoudnessPreAnalysisAttenuationRefDb(n) });
-      },
-      resetLoudnessPreAnalysisAttenuationDbDefault: () => {
-        set({ loudnessPreAnalysisAttenuationDb: DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB });
-        usePlayerStore.getState().updateReplayGainForCurrentTrack();
-      },
-      setReplayGainMode: (v) => {
-        set({ replayGainMode: v });
-        usePlayerStore.getState().updateReplayGainForCurrentTrack();
-      },
-      setReplayGainPreGainDb: (v) => {
-        set({ replayGainPreGainDb: v });
-        usePlayerStore.getState().updateReplayGainForCurrentTrack();
-      },
-      setReplayGainFallbackDb: (v) => {
-        set({ replayGainFallbackDb: v });
-        usePlayerStore.getState().updateReplayGainForCurrentTrack();
-      },
-      setCrossfadeEnabled: (v) => set({ crossfadeEnabled: v }),
-      setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
-      setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
       setTrackPreviewsEnabled: (v) => set({ trackPreviewsEnabled: !!v }),
       setTrackPreviewLocation: (location, enabled) => set(state => ({
         trackPreviewLocations: { ...state.trackPreviewLocations, [location]: !!enabled },
@@ -261,8 +175,6 @@ export const useAuthStore = create<AuthState>()(
 
       setSeekbarStyle: (v) => set({ seekbarStyle: v }),
       setQueueNowPlayingCollapsed: (v: boolean) => set({ queueNowPlayingCollapsed: v }),
-      setEnableHiRes: (v) => set({ enableHiRes: v }),
-      setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),
       setHotCacheEnabled: (v) => set({ hotCacheEnabled: v }),
       setHotCacheMaxMb: (v) => set({ hotCacheMaxMb: v }),
       setHotCacheDebounceSec: (v) => set({ hotCacheDebounceSec: v }),
@@ -390,8 +302,6 @@ export const useAuthStore = create<AuthState>()(
                 return { audiomuseNavidromeIssueByServer: rest };
               })(),
         ),
-
-      logout: () => set({ isLoggedIn: false, musicFolders: [] }),
 
       getBaseUrl: () => {
         const s = get();
