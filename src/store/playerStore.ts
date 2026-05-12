@@ -39,6 +39,11 @@ import {
   subscribePlaybackProgress,
   type PlaybackProgressSnapshot,
 } from './playbackProgress';
+import {
+  playbackSourceHintForResolvedUrl,
+  recordEnginePlayUrl,
+  shouldRebindPlaybackToHotCache,
+} from './playbackUrlRouting';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -1032,31 +1037,6 @@ async function promoteCompletedStreamToHotCache(track: Track, serverId: string, 
   } catch {
     // best-effort promotion; normal hot-cache prefetch remains fallback
   }
-}
-
-/**
- * Tracks the **actual** `audio_play` URL family: `getPlaybackSourceKind()` can
- * report `hot` for RAM preload or disk index while the engine still uses HTTP.
- * Rebind-to-local seeks need this, not the UI hint alone.
- */
-let lastOpenedWithHttpTrackId: string | null = null;
-
-function recordEnginePlayUrl(trackId: string, url: string): void {
-  lastOpenedWithHttpTrackId = url.startsWith('psysonic-local://') ? null : trackId;
-}
-
-/** Matches `playTrack` / PlayerBar: stream vs hot-cache vs offline file from resolved `audio_play` URL. */
-function playbackSourceHintForResolvedUrl(trackId: string, serverId: string, url: string): PlaybackSourceKind {
-  if (!url.startsWith('psysonic-local://')) return 'stream';
-  return useOfflineStore.getState().getLocalUrl(trackId, serverId) ? 'offline' : 'hot';
-}
-
-function shouldRebindPlaybackToHotCache(trackId: string, serverId: string): boolean {
-  if (!serverId) return false;
-  if (!lastOpenedWithHttpTrackId || !sameQueueTrackId(lastOpenedWithHttpTrackId, trackId)) {
-    return false;
-  }
-  return resolvePlaybackUrl(trackId, serverId).startsWith('psysonic-local://');
 }
 
 // Track ID that has already been sent to audio_chain_preload (gapless chain).
