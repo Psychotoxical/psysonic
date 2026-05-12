@@ -75,6 +75,15 @@ import {
 } from './waveformRefreshGen';
 import { touchHotCacheOnPlayback } from './hotCacheTouch';
 import { applySkipStarOnManualNext } from './skipStarRating';
+import {
+  MAX_BACKFILL_ATTEMPTS_PER_TRACK,
+  clearBackfillInFlight,
+  getBackfillAttempts,
+  isBackfillInFlight,
+  markBackfillInFlight,
+  resetBackfillAttempts,
+  resetLoudnessBackfillStateForTrackId,
+} from './loudnessBackfillState';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -447,9 +456,6 @@ let seekDebounce: ReturnType<typeof setTimeout> | null = null;
 let seekTarget: number | null = null;
 let seekTargetSetAt = 0;
 const SEEK_TARGET_GUARD_TIMEOUT_MS = 5000;
-const analysisBackfillInFlightByTrackId: Record<string, true> = {};
-const analysisBackfillAttemptsByTrackId: Record<string, number> = {};
-const MAX_BACKFILL_ATTEMPTS_PER_TRACK = 2;
 // Streaming fallback seek guard: coalesce repeated "not seekable" recoveries.
 let seekFallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let seekFallbackRetryStartedAt = 0;
@@ -613,13 +619,6 @@ let lastGaplessSwitchTime = 0;
  *  preload + current-track completion can stack two SQLite reads + two state writes. */
 const loudnessRefreshInflight = new Map<string, Promise<void>>();
 
-function resetLoudnessBackfillStateForTrackId(trackId: string) {
-  for (const k of loudnessCacheStateKeysForTrackId(trackId)) {
-    delete analysisBackfillInFlightByTrackId[k];
-    analysisBackfillAttemptsByTrackId[k] = 0;
-  }
-}
-
 async function reseedLoudnessForTrackId(trackId: string) {
   if (!trackId) return;
   const auth = useAuthStore.getState();
@@ -718,9 +717,9 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
       forgetLoudnessGain(trackId);
       emitNormalizationDebug('refresh:miss', { trackId, row: row ?? null });
       const auth = useAuthStore.getState();
-      const attempts = analysisBackfillAttemptsByTrackId[trackId] ?? 0;
+      const attempts = getBackfillAttempts(trackId);
       if (auth.normalizationEngine === 'loudness'
-        && !analysisBackfillInFlightByTrackId[trackId]
+        && !isBackfillInFlight(trackId)
         && attempts < MAX_BACKFILL_ATTEMPTS_PER_TRACK) {
         if (!isTrackInsideLoudnessBackfillWindow(trackId)) {
           emitNormalizationDebug('backfill:skipped-outside-window', {
@@ -730,8 +729,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
           });
           return;
         }
-        analysisBackfillInFlightByTrackId[trackId] = true;
-        analysisBackfillAttemptsByTrackId[trackId] = attempts + 1;
+        markBackfillInFlight(trackId, attempts + 1);
         const url = buildStreamUrl(trackId);
         emitNormalizationDebug('backfill:enqueue', {
           trackId,
@@ -742,7 +740,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
           .then(() => emitNormalizationDebug('backfill:queued', { trackId, attempt: attempts + 1 }))
           .catch((e) => emitNormalizationDebug('backfill:error', { trackId, error: String(e) }))
           .finally(() => {
-            delete analysisBackfillInFlightByTrackId[trackId];
+            clearBackfillInFlight(trackId);
           });
       } else if (auth.normalizationEngine === 'loudness' && attempts >= MAX_BACKFILL_ATTEMPTS_PER_TRACK) {
         emitNormalizationDebug('backfill:throttled', { trackId, attempts });
@@ -757,7 +755,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
       return;
     }
     markLoudnessStable(trackId, row.recommendedGainDb);
-    analysisBackfillAttemptsByTrackId[trackId] = 0;
+    resetBackfillAttempts(trackId);
     emitNormalizationDebug('refresh:hit', { trackId, row });
     usePlayerStore.setState({
       normalizationDbgSource: 'refresh:hit',
