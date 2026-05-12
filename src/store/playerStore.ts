@@ -65,6 +65,10 @@ import {
   schedulePauseTimer,
   scheduleResumeTimer,
 } from './scheduleTimers';
+import {
+  invokeAudioSetNormalizationDeduped,
+  invokeAudioUpdateReplayGainDeduped,
+} from './normalizationIpcDedupe';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -647,77 +651,6 @@ function bumpWaveformRefreshGen(trackId: string) {
  *  parallel for every full-track analysis completion; without coalescing, gapless
  *  preload + current-track completion can stack two SQLite reads + two state writes. */
 const loudnessRefreshInflight = new Map<string, Promise<void>>();
-
-/** Skip redundant `audio_set_normalization` IPC when the same payload is sent twice within a short window (e.g. StrictMode). */
-let lastNormAudioInvokeKey = '';
-let lastNormAudioInvokeAtMs = 0;
-
-function invokeAudioSetNormalizationDeduped(payload: {
-  engine: string;
-  targetLufs: number;
-  preAnalysisAttenuationDb: number;
-}) {
-  const key = `${payload.engine}|${payload.targetLufs}|${payload.preAnalysisAttenuationDb}`;
-  const now = Date.now();
-  if (key === lastNormAudioInvokeKey && now - lastNormAudioInvokeAtMs < 450) {
-    return;
-  }
-  lastNormAudioInvokeKey = key;
-  lastNormAudioInvokeAtMs = now;
-  void invoke('audio_set_normalization', payload).catch(() => {});
-}
-
-/**
- * Skip redundant `audio_update_replay_gain` IPC when the same payload was sent
- * recently. updateReplayGainForCurrentTrack runs from the analysis:loudness-partial
- * listener (~every 900 ms while LUFS is on); without dedupe each tick triggers a
- * full IPC roundtrip + backend audio:normalization-state echo + frontend setState,
- * which saturates the WebView2 renderer thread on Windows after a few minutes.
- */
-let lastRgInvokeKey = '';
-let lastRgInvokeAtMs = 0;
-
-function invokeAudioUpdateReplayGainDeduped(payload: {
-  volume: number;
-  replayGainDb: number | null;
-  replayGainPeak: number | null;
-  loudnessGainDb: number | null;
-  preGainDb: number;
-  fallbackDb: number;
-}) {
-  const auth = useAuthStore.getState();
-  /** Must vary when LUFS target / pre-trim changes: Rust recomputes in `audio_update_replay_gain` even if JS still sends the same cached dB. */
-  const preEff =
-    auth.normalizationEngine === 'loudness'
-      ? effectiveLoudnessPreAnalysisAttenuationDb(
-          auth.loudnessPreAnalysisAttenuationDb,
-          auth.loudnessTargetLufs,
-        )
-      : auth.loudnessPreAnalysisAttenuationDb;
-  const normDedupeKey =
-    auth.normalizationEngine === 'loudness'
-      ? `loudness|tgt=${auth.loudnessTargetLufs}|pre=${preEff.toFixed(2)}`
-      : auth.normalizationEngine === 'replaygain'
-        ? 'replaygain'
-        : 'off';
-  const fmt = (v: number | null) => (v == null || !Number.isFinite(v) ? 'null' : v.toFixed(3));
-  const key = [
-    normDedupeKey,
-    payload.volume.toFixed(4),
-    fmt(payload.replayGainDb),
-    fmt(payload.replayGainPeak),
-    fmt(payload.loudnessGainDb),
-    payload.preGainDb.toFixed(2),
-    payload.fallbackDb.toFixed(2),
-  ].join('|');
-  const now = Date.now();
-  if (key === lastRgInvokeKey && now - lastRgInvokeAtMs < 250) {
-    return;
-  }
-  lastRgInvokeKey = key;
-  lastRgInvokeAtMs = now;
-  invoke('audio_update_replay_gain', payload).catch(console.error);
-}
 
 function resetLoudnessBackfillStateForTrackId(trackId: string) {
   for (const k of loudnessCacheStateKeysForTrackId(trackId)) {
