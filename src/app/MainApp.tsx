@@ -14,7 +14,7 @@ import { initAudioListeners } from '../store/playerStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { IS_WINDOWS } from '../utils/platform';
-import { TauriEventBridge } from '../App';
+import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
 import RequireAuth from './RequireAuth';
 
