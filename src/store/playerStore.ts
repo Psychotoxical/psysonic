@@ -84,6 +84,11 @@ import {
   resetBackfillAttempts,
   resetLoudnessBackfillStateForTrackId,
 } from './loudnessBackfillState';
+import {
+  LOUDNESS_BACKFILL_WINDOW_AHEAD,
+  collectLoudnessBackfillWindowTrackIds,
+  isTrackInsideLoudnessBackfillWindow,
+} from './loudnessBackfillWindow';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -721,10 +726,11 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
       if (auth.normalizationEngine === 'loudness'
         && !isBackfillInFlight(trackId)
         && attempts < MAX_BACKFILL_ATTEMPTS_PER_TRACK) {
-        if (!isTrackInsideLoudnessBackfillWindow(trackId)) {
+        const live = usePlayerStore.getState();
+        if (!isTrackInsideLoudnessBackfillWindow(trackId, live.queue, live.queueIndex, live.currentTrack)) {
           emitNormalizationDebug('backfill:skipped-outside-window', {
             trackId,
-            queueIndex: usePlayerStore.getState().queueIndex,
+            queueIndex: live.queueIndex,
             aheadWindow: LOUDNESS_BACKFILL_WINDOW_AHEAD,
           });
           return;
@@ -772,35 +778,6 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
     emitNormalizationDebug('refresh:error', { trackId });
     usePlayerStore.setState({ normalizationDbgSource: 'refresh:error', normalizationDbgTrackId: trackId });
   }
-}
-
-/** After bulk enqueue, warm loudness cache so gapless `audio_chain_preload` sees real gain, not only startup trim. */
-const LOUDNESS_BACKFILL_WINDOW_AHEAD = 5;
-
-function isTrackInsideLoudnessBackfillWindow(trackId: string): boolean {
-  if (!trackId) return false;
-  const state = usePlayerStore.getState();
-  const currentId = state.currentTrack?.id;
-  if (currentId === trackId) return true;
-  if (state.queue.length === 0) return false;
-  const start = Math.max(0, state.queueIndex + 1);
-  const end = Math.min(state.queue.length, start + LOUDNESS_BACKFILL_WINDOW_AHEAD);
-  for (let i = start; i < end; i++) {
-    if (state.queue[i]?.id === trackId) return true;
-  }
-  return false;
-}
-
-function collectLoudnessBackfillWindowTrackIds(queue: Track[], queueIndex: number, currentTrack: Track | null): string[] {
-  const ids = new Set<string>();
-  if (currentTrack?.id) ids.add(currentTrack.id);
-  const start = Math.max(0, queueIndex + 1);
-  const end = Math.min(queue.length, start + LOUDNESS_BACKFILL_WINDOW_AHEAD);
-  for (let i = start; i < end; i++) {
-    const tid = queue[i]?.id;
-    if (tid) ids.add(tid);
-  }
-  return Array.from(ids);
 }
 
 function prefetchLoudnessForEnqueuedTracks(
