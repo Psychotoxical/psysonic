@@ -142,6 +142,20 @@ import {
   getPlayGeneration,
   setIsAudioPaused,
 } from './engineState';
+import {
+  addRadioSessionSeen,
+  clearRadioSessionSeenIds,
+  deleteRadioSessionSeen,
+  getCurrentRadioArtistId,
+  hasRadioSessionSeen,
+  isRadioFetching,
+  setCurrentRadioArtistId,
+  setRadioFetching,
+} from './radioSessionState';
+import {
+  isInfiniteQueueFetching,
+  setInfiniteQueueFetching,
+} from './infiniteQueueState';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -391,22 +405,6 @@ type NormalizationStatePayload = {
 };
 
 // ─── Module-level playback primitives ─────────────────────────────────────────
-
-// Guard against concurrent infinite-queue fetches.
-let infiniteQueueFetching = false;
-// Guard against concurrent radio top-up fetches.
-let radioFetching = false;
-
-// Artist ID used to start the current radio session — persists across track
-// advances so proactive loading works even when songs lack artistId.
-let currentRadioArtistId: string | null = null;
-// Track ids the current radio session has already enqueued — *including*
-// entries that were trimmed off the front of the queue when it grew too long
-// (`HISTORY_KEEP` in next()'s top-up path). Without this the queue's own
-// id-set wasn't enough to dedupe: a song played 8 tracks ago is gone from
-// the queue and the next Last.fm/topSongs response could re-add it. Reset
-// on `setRadioArtistId(other)` and on `clearQueue()`. Issue #500.
-let radioSessionSeenIds = new Set<string>();
 
 /** Reload Rust audio to match a queue-undo snapshot (Zustand alone does not move the engine). */
 function queueUndoRestoreAudioEngine(opts: {
@@ -2216,10 +2214,10 @@ export const usePlayerStore = create<PlayerState>()(
           // drift this client off the host or pop the bulk-add modal at
           // the next track-end fallback.
           const { infiniteQueueEnabled } = useAuthStore.getState();
-          if (infiniteQueueEnabled && repeatMode === 'off' && !infiniteQueueFetching && !isInOrbitSession()) {
+          if (infiniteQueueEnabled && repeatMode === 'off' && !isInfiniteQueueFetching() && !isInOrbitSession()) {
             const remainingAuto = queue.slice(nextIdx + 1).filter(t => t.autoAdded).length;
             if (remainingAuto <= 2) {
-              infiniteQueueFetching = true;
+              setInfiniteQueueFetching(true);
               const existingIds = new Set(get().queue.map(t => t.id));
               buildInfiniteQueueCandidates(currentTrack, existingIds, 5).then(newTracks => {
                 // Re-check at resolution time — the user may have joined
@@ -2228,19 +2226,19 @@ export const usePlayerStore = create<PlayerState>()(
                 if (newTracks.length > 0) {
                   set(state => ({ queue: [...state.queue, ...newTracks] }));
                 }
-              }).catch(() => {}).finally(() => { infiniteQueueFetching = false; });
+              }).catch(() => {}).finally(() => { setInfiniteQueueFetching(false); });
             }
           }
           // Proactively top up radio tracks when ≤ 2 remain — always, regardless
           // of infinite queue setting.
           const nextTrack = queue[nextIdx];
-          if (nextTrack.radioAdded && !radioFetching) {
+          if (nextTrack.radioAdded && !isRadioFetching()) {
             const remainingRadio = queue.slice(nextIdx + 1).filter(t => t.radioAdded).length;
             if (remainingRadio <= 2) {
-              const artistId = nextTrack.artistId ?? currentRadioArtistId ?? null;
+              const artistId = nextTrack.artistId ?? getCurrentRadioArtistId() ?? null;
               const artistName = nextTrack.artist;
               if (artistId) {
-                radioFetching = true;
+                setRadioFetching(true);
                 Promise.all([getSimilarSongs2(artistId), getTopSongs(artistName)])
                   .then(([similar, top]) => {
                     const existingIds = new Set(get().queue.map(t => t.id));
@@ -2253,8 +2251,8 @@ export const usePlayerStore = create<PlayerState>()(
                     for (const raw of sourceList) {
                       if (fresh.length >= 10) break;
                       const t = songToTrack(raw);
-                      if (existingIds.has(t.id) || radioSessionSeenIds.has(t.id)) continue;
-                      radioSessionSeenIds.add(t.id);
+                      if (existingIds.has(t.id) || hasRadioSessionSeen(t.id)) continue;
+                      addRadioSessionSeen(t.id);
                       fresh.push({ ...t, radioAdded: true as const });
                     }
                     if (fresh.length > 0) {
@@ -2274,7 +2272,7 @@ export const usePlayerStore = create<PlayerState>()(
                     }
                   })
                   .catch(() => {})
-                  .finally(() => { radioFetching = false; });
+                  .finally(() => { setRadioFetching(false); });
               }
             }
           }
@@ -2297,13 +2295,13 @@ export const usePlayerStore = create<PlayerState>()(
           }
           // Queue exhausted. Check radio first (independent of infinite queue setting),
           // then infinite queue, then stop.
-          if (currentTrack?.radioAdded && !radioFetching) {
-            const artistId = currentTrack.artistId ?? currentRadioArtistId ?? null;
+          if (currentTrack?.radioAdded && !isRadioFetching()) {
+            const artistId = currentTrack.artistId ?? getCurrentRadioArtistId() ?? null;
             if (artistId) {
-              radioFetching = true;
+              setRadioFetching(true);
               Promise.all([getSimilarSongs2(artistId), getTopSongs(currentTrack.artist)])
                 .then(([similar, top]) => {
-                  radioFetching = false;
+                  setRadioFetching(false);
                   // The user may have joined an Orbit session while this
                   // fetch was in flight — bail without touching the queue.
                   if (isInOrbitSession()) {
@@ -2320,8 +2318,8 @@ export const usePlayerStore = create<PlayerState>()(
                   for (const raw of sourceList) {
                     if (fresh.length >= 10) break;
                     const t = songToTrack(raw);
-                    if (existingIds.has(t.id) || radioSessionSeenIds.has(t.id)) continue;
-                    radioSessionSeenIds.add(t.id);
+                    if (existingIds.has(t.id) || hasRadioSessionSeen(t.id)) continue;
+                    addRadioSessionSeen(t.id);
                     fresh.push({ ...t, radioAdded: true as const });
                   }
                   if (fresh.length > 0) {
@@ -2335,7 +2333,7 @@ export const usePlayerStore = create<PlayerState>()(
                   }
                 })
                 .catch(() => {
-                  radioFetching = false;
+                  setRadioFetching(false);
                   invoke('audio_stop').catch(console.error);
                   setIsAudioPaused(false);
                   set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
@@ -2345,11 +2343,11 @@ export const usePlayerStore = create<PlayerState>()(
           }
           const { infiniteQueueEnabled } = useAuthStore.getState();
           if (infiniteQueueEnabled && repeatMode === 'off') {
-            if (infiniteQueueFetching) return;
-            infiniteQueueFetching = true;
+            if (isInfiniteQueueFetching()) return;
+            setInfiniteQueueFetching(true);
             const existingIds = new Set(get().queue.map(t => t.id));
             buildInfiniteQueueCandidates(currentTrack, existingIds, 5).then(newTracks => {
-              infiniteQueueFetching = false;
+              setInfiniteQueueFetching(false);
               // The user may have joined an Orbit session while this
               // fetch was in flight — bail without invoking playTrack.
               if (isInOrbitSession()) {
@@ -2368,7 +2366,7 @@ export const usePlayerStore = create<PlayerState>()(
               const newQueue = [...currentQueue, ...newTracks];
               get().playTrack(newTracks[0], newQueue, false);
             }).catch(() => {
-              infiniteQueueFetching = false;
+              setInfiniteQueueFetching(false);
               invoke('audio_stop').catch(console.error);
               setIsAudioPaused(false);
               set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
@@ -2509,18 +2507,18 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setRadioArtistId: (artistId) => {
-        if (artistId !== currentRadioArtistId) {
-          radioSessionSeenIds = new Set();
+        if (artistId !== getCurrentRadioArtistId()) {
+          clearRadioSessionSeenIds();
         }
-        currentRadioArtistId = artistId;
+        setCurrentRadioArtistId(artistId);
       },
 
       enqueueRadio: (tracks, artistId) => {
         if (artistId !== undefined) {
-          if (artistId !== currentRadioArtistId) {
-            radioSessionSeenIds = new Set();
+          if (artistId !== getCurrentRadioArtistId()) {
+            clearRadioSessionSeenIds();
           }
-          currentRadioArtistId = artistId;
+          setCurrentRadioArtistId(artistId);
         }
         pushQueueUndoFromGetter(get);
         set(state => {
@@ -2535,11 +2533,11 @@ export const usePlayerStore = create<PlayerState>()(
             .slice(state.queueIndex + 1)
             .filter(t => t.radioAdded)
             .map(t => t.id);
-          for (const id of droppedRadioIds) radioSessionSeenIds.delete(id);
+          for (const id of droppedRadioIds) deleteRadioSessionSeen(id);
           // Capture surviving queue ids in the seen-set so the next radio top-up
           // can dedupe against the seed track + already-queued non-radio items.
-          for (const t of beforeAndCurrent) radioSessionSeenIds.add(t.id);
-          for (const t of upcoming) radioSessionSeenIds.add(t.id);
+          for (const t of beforeAndCurrent) addRadioSessionSeen(t.id);
+          for (const t of upcoming) addRadioSessionSeen(t.id);
           // Drop incoming tracks already seen earlier this session AND
           // intra-batch duplicates (top + similar Last.fm responses commonly
           // overlap). The seen-set is mutated inside the loop so a repeated
@@ -2547,8 +2545,8 @@ export const usePlayerStore = create<PlayerState>()(
           // the first occurrence (issue #500).
           const dedupedTracks: Track[] = [];
           for (const t of tracks) {
-            if (radioSessionSeenIds.has(t.id)) continue;
-            radioSessionSeenIds.add(t.id);
+            if (hasRadioSessionSeen(t.id)) continue;
+            addRadioSessionSeen(t.id);
             dedupedTracks.push(t);
           }
           // Insert new radio tracks before any autoAdded tracks in the upcoming section.
@@ -2612,8 +2610,8 @@ export const usePlayerStore = create<PlayerState>()(
         setIsAudioPaused(false);
         clearSeekFallbackRetry();
         clearSeekDebounce(); clearSeekTarget();
-        radioSessionSeenIds = new Set();
-        currentRadioArtistId = null;
+        clearRadioSessionSeenIds();
+        setCurrentRadioArtistId(null);
         set({ queue: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
         syncQueueToServer([], null, 0);
       },
