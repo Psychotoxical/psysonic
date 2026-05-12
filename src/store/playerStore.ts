@@ -69,6 +69,11 @@ import {
   invokeAudioSetNormalizationDeduped,
   invokeAudioUpdateReplayGainDeduped,
 } from './normalizationIpcDedupe';
+import {
+  bumpWaveformRefreshGen,
+  getWaveformRefreshGen,
+} from './waveformRefreshGen';
+import { touchHotCacheOnPlayback } from './hotCacheTouch';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -630,22 +635,6 @@ radioAudio.addEventListener('suspend', () => {
 // Used to suppress ghost-commands from stale IPC arriving after the switch.
 let lastGaplessSwitchTime = 0;
 
-function touchHotCacheOnPlayback(trackId: string, serverId: string) {
-  if (!trackId || !serverId) return;
-  useHotCacheStore.getState().touchPlayed(trackId, serverId);
-}
-
-/** Last-write-wins generation per track: avoids applying a stale empty waveform read when
- * `analysis:waveform-updated` bumps gen after SQLite commit while an older `analysis_get_waveform_for_track`
- * is still in flight. Gen is bumped only on explicit invalidation (waveform-updated, analysis storage),
- * not on every `refreshWaveformForTrack` call — otherwise bursts (Lucky Mix, queue) cancel each other. */
-const waveformRefreshGenByTrackId: Record<string, number> = {};
-
-function bumpWaveformRefreshGen(trackId: string) {
-  if (!trackId) return;
-  waveformRefreshGenByTrackId[trackId] = (waveformRefreshGenByTrackId[trackId] ?? 0) + 1;
-}
-
 /** Coalesce concurrent `analysis_get_loudness_for_track` for one id+mode pair. The
  *  analysis:waveform-updated listener fires refreshWaveform + refreshLoudness in
  *  parallel for every full-track analysis completion; without coalescing, gapless
@@ -701,10 +690,10 @@ async function reseedLoudnessForTrackId(trackId: string) {
 
 async function refreshWaveformForTrack(trackId: string) {
   if (!trackId) return;
-  const gen = waveformRefreshGenByTrackId[trackId] ?? 0;
+  const gen = getWaveformRefreshGen(trackId);
   try {
     const row = await invoke<WaveformCachePayload | null>('analysis_get_waveform_for_track', { trackId });
-    if ((waveformRefreshGenByTrackId[trackId] ?? 0) !== gen) return;
+    if (getWaveformRefreshGen(trackId) !== gen) return;
     // Never apply bins for a non-current track (e.g. gapless byte-preload fetches the neighbour).
     if (usePlayerStore.getState().currentTrack?.id !== trackId) return;
     const bins = row ? coerceWaveformBins(row.bins) : null;
