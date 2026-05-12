@@ -45,10 +45,6 @@ import {
 } from './loudnessGainCache';
 import {
   clearAllPlaybackScheduleTimers,
-  clearScheduledPauseTimers,
-  clearScheduledResumeTimers,
-  schedulePauseTimer,
-  scheduleResumeTimer,
 } from './scheduleTimers';
 import { invokeAudioUpdateReplayGainDeduped } from './normalizationIpcDedupe';
 import { touchHotCacheOnPlayback } from './hotCacheTouch';
@@ -154,6 +150,7 @@ export type { PlayerState, Track };
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
 import { createQueueMutationActions } from './queueMutationActions';
+import { createScheduleActions } from './scheduleActions';
 import { createTransportLightActions } from './transportLightActions';
 import { createUiStateActions } from './uiStateActions';
 import { createUndoRedoActions } from './undoRedoActions';
@@ -211,6 +208,7 @@ export const usePlayerStore = create<PlayerState>()(
       ...createTransportLightActions(set, get),
       ...createUndoRedoActions(set, get),
       ...createMiscActions(set, get),
+      ...createScheduleActions(set, get),
 
       // ── playTrack ────────────────────────────────────────────────────────────
       playTrack: (track, queue, manual = true, _orbitConfirmed = false, targetQueueIndex) => {
@@ -656,43 +654,6 @@ export const usePlayerStore = create<PlayerState>()(
            });
           })();
         }
-      },
-
-      clearScheduledPause: () => {
-        clearScheduledPauseTimers();
-        set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null });
-      },
-
-      clearScheduledResume: () => {
-        clearScheduledResumeTimers();
-        set({ scheduledResumeAtMs: null, scheduledResumeStartMs: null });
-      },
-
-      schedulePauseIn: (seconds) => {
-        const s = get();
-        if (!s.isPlaying) return;
-        const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
-        const startedAt = Date.now();
-        const at = startedAt + delayMs;
-        set({ scheduledPauseAtMs: at, scheduledPauseStartMs: startedAt });
-        schedulePauseTimer(delayMs, () => {
-          set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null });
-          get().pause();
-        });
-      },
-
-      scheduleResumeIn: (seconds) => {
-        const s = get();
-        if (s.isPlaying) return;
-        if (!s.currentTrack && !s.currentRadio) return;
-        const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
-        const startedAt = Date.now();
-        const at = startedAt + delayMs;
-        set({ scheduledResumeAtMs: at, scheduledResumeStartMs: startedAt });
-        scheduleResumeTimer(delayMs, () => {
-          set({ scheduledResumeAtMs: null, scheduledResumeStartMs: null });
-          get().resume();
-        });
       },
 
       // ── next / previous ──────────────────────────────────────────────────────
