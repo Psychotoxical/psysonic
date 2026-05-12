@@ -120,10 +120,19 @@ import {
 import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import { prefetchLoudnessForEnqueuedTracks } from './loudnessPrefetch';
 import { initAudioListeners } from './initAudioListeners';
+import { installQueueUndoHotkey } from './queueUndoHotkey';
+import {
+  persistQueueVisibility,
+  readInitialQueueVisibility,
+} from './queueVisibilityStorage';
 
 // Re-export so MainApp + the 3 playerStore characterization tests keep
 // their existing `from './playerStore'` imports.
 export { initAudioListeners };
+
+// Re-export so bootstrap.ts + bootstrap.test keep their existing
+// `from './playerStore'` imports.
+export { installQueueUndoHotkey };
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -138,7 +147,6 @@ export {
   subscribePlaybackProgress,
   type PlaybackProgressSnapshot,
 };
-import { getWindowKind } from '../app/windowKind';
 import {
   _resetQueueUndoStacksForTest,
   consumePendingQueueListScrollTop,
@@ -165,29 +173,6 @@ export {
   consumePendingQueueListScrollTop,
   registerQueueListScrollTopReader,
 };
-
-const QUEUE_VISIBILITY_STORAGE_KEY = 'psysonic_queue_visible';
-
-function readInitialQueueVisibility(): boolean {
-  if (typeof window === 'undefined') return true;
-  try {
-    const raw = window.localStorage.getItem(QUEUE_VISIBILITY_STORAGE_KEY);
-    if (raw === 'true') return true;
-    if (raw === 'false') return false;
-  } catch {
-    // ignore storage access failures and fall back to default
-  }
-  return true;
-}
-
-function persistQueueVisibility(visible: boolean): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(QUEUE_VISIBILITY_STORAGE_KEY, String(visible));
-  } catch {
-    // ignore storage access failures
-  }
-}
 
 export interface Track {
   id: string;
@@ -1892,49 +1877,3 @@ usePlayerStore.subscribe((state, prev) => {
   });
 });
 
-const QUEUE_UNDO_HOTKEY_FLAG = '__psyQueueUndoListenerInstalled';
-
-/** True when the event path includes a real text field — skip queue undo so Ctrl+Z stays native there. */
-function keyboardEventTargetIsEditableField(e: KeyboardEvent): boolean {
-  for (const n of e.composedPath()) {
-    if (!(n instanceof HTMLElement)) continue;
-    const tag = n.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-    if (n.isContentEditable) return true;
-  }
-  return false;
-}
-
-/**
- * Ctrl+Z / Cmd+Z undo and Ctrl+Shift+Z / Cmd+Shift+Z redo for the queue — document capture.
- * Call once at startup (e.g. from main.tsx); idempotent. Skips the mini-player window.
- */
-export function installQueueUndoHotkey(): void {
-  if (typeof window === 'undefined') return;
-  const w = window as unknown as Record<string, unknown>;
-  if (w[QUEUE_UNDO_HOTKEY_FLAG]) return;
-  if (getWindowKind() === 'mini') return;
-  w[QUEUE_UNDO_HOTKEY_FLAG] = true;
-  document.addEventListener(
-    'keydown',
-    (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.code !== 'KeyZ' && String(e.key || '').toLowerCase() !== 'z') return;
-      if (keyboardEventTargetIsEditableField(e)) return;
-
-      if (e.shiftKey) {
-        if (usePlayerStore.getState().redoLastQueueEdit()) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        return;
-      }
-
-      if (usePlayerStore.getState().undoLastQueueEdit()) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    },
-    true,
-  );
-}
