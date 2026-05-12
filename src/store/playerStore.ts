@@ -106,6 +106,20 @@ import {
   setRadioVolume,
   stopRadio,
 } from './radioPlayer';
+import {
+  LIVE_PROGRESS_EMIT_MIN_DELTA_SEC,
+  LIVE_PROGRESS_EMIT_MIN_MS,
+  NORMALIZATION_UI_THROTTLE_MS,
+  STORE_PROGRESS_COMMIT_MIN_DELTA_SEC,
+  STORE_PROGRESS_COMMIT_MIN_MS,
+  getLastLiveProgressEmitAt,
+  getLastNormalizationUiUpdateAtMs,
+  getLastStoreProgressCommitAt,
+  markLiveProgressEmit,
+  markNormalizationUiUpdate,
+  markStoreProgressCommit,
+  resetProgressEmitThrottles,
+} from './playbackThrottles';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -380,7 +394,6 @@ let currentRadioArtistId: string | null = null;
 // the queue and the next Last.fm/topSongs response could re-add it. Reset
 // on `setRadioArtistId(other)` and on `clearQueue()`. Issue #500.
 let radioSessionSeenIds = new Set<string>();
-let lastNormalizationUiUpdateAtMs = 0;
 
 /** Reload Rust audio to match a queue-undo snapshot (Zustand alone does not move the engine). */
 function queueUndoRestoreAudioEngine(opts: {
@@ -469,12 +482,6 @@ let seekFallbackVisualTarget: { trackId: string; seconds: number; setAtMs: numbe
 const SEEK_FALLBACK_VISUAL_GUARD_MS = 1600;
 const SEEK_FALLBACK_RETRY_INTERVAL_MS = 180;
 const SEEK_FALLBACK_RETRY_MAX_MS = 6000;
-const LIVE_PROGRESS_EMIT_MIN_MS = 1500;
-const LIVE_PROGRESS_EMIT_MIN_DELTA_SEC = 0.9;
-let lastLiveProgressEmitAt = 0;
-const STORE_PROGRESS_COMMIT_MIN_MS = 20_000;
-const STORE_PROGRESS_COMMIT_MIN_DELTA_SEC = 5.0;
-let lastStoreProgressCommitAt = 0;
 
 
 function clearSeekFallbackRetry() {
@@ -546,8 +553,7 @@ function prefetchLoudnessForEnqueuedTracks(
 
 function handleAudioPlaying(_duration: number) {
   setDeferHotCachePrefetch(false);
-  lastLiveProgressEmitAt = 0;
-  lastStoreProgressCommitAt = 0;
+  resetProgressEmitThrottles();
   usePlayerStore.setState({ isPlaying: true });
 }
 
@@ -606,7 +612,7 @@ function handleAudioProgress(current_time: number, duration: number) {
     const live = getPlaybackProgressSnapshot();
     const liveTimeDelta = Math.abs(live.currentTime - displayTime);
     if (
-      nowLive - lastLiveProgressEmitAt >= LIVE_PROGRESS_EMIT_MIN_MS ||
+      nowLive - getLastLiveProgressEmitAt() >= LIVE_PROGRESS_EMIT_MIN_MS ||
       liveTimeDelta >= LIVE_PROGRESS_EMIT_MIN_DELTA_SEC ||
       seekFallbackVisualTarget != null
     ) {
@@ -615,7 +621,7 @@ function handleAudioProgress(current_time: number, duration: number) {
         progress,
         buffered: 0,
       });
-      lastLiveProgressEmitAt = nowLive;
+      markLiveProgressEmit(nowLive);
     }
   }
   // Heartbeat: push current position to the server every 15 s while playing so
@@ -644,11 +650,11 @@ function handleAudioProgress(current_time: number, duration: number) {
   const commitDelta = Math.abs(store.currentTime - displayTime);
   const shouldCommitStore =
     seekFallbackVisualTarget != null ||
-    nowCommit - lastStoreProgressCommitAt >= STORE_PROGRESS_COMMIT_MIN_MS ||
+    nowCommit - getLastStoreProgressCommitAt() >= STORE_PROGRESS_COMMIT_MIN_MS ||
     commitDelta >= STORE_PROGRESS_COMMIT_MIN_DELTA_SEC;
   if (shouldCommitStore) {
     usePlayerStore.setState({ currentTime: displayTime, progress, buffered: 0 });
-    lastStoreProgressCommitAt = nowCommit;
+    markStoreProgressCommit(nowCommit);
   }
 
   // Pre-buffer / pre-chain next track based on preload mode and crossfade.
@@ -1002,12 +1008,12 @@ export function initAudioListeners(): () => void {
         && prev.normalizationNowDb == null;
       if (
         !isFirstNumericGain
-        && nowMs - lastNormalizationUiUpdateAtMs < 120
+        && nowMs - getLastNormalizationUiUpdateAtMs() < NORMALIZATION_UI_THROTTLE_MS
         && engine === prev.normalizationEngineLive
       ) {
         return;
       }
-      lastNormalizationUiUpdateAtMs = nowMs;
+      markNormalizationUiUpdate(nowMs);
       emitNormalizationDebug('event:audio:normalization-state', {
         trackId: usePlayerStore.getState().currentTrack?.id ?? null,
         payload,
