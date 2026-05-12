@@ -105,6 +105,15 @@ import {
   setGaplessPreloadingId,
 } from './gaplessPreloadState';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
+import {
+  SEEK_TARGET_GUARD_TIMEOUT_MS,
+  clearSeekTarget,
+  getSeekTarget,
+  getSeekTargetSetAt,
+  setSeekTarget,
+} from './seekTargetState';
+import { tryAcquireTogglePlayLock } from './togglePlayLock';
+import { reseedLoudnessForTrackId } from './loudnessReseed';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -476,11 +485,6 @@ function queueUndoRestoreAudioEngine(opts: {
 
 // Debounce timer for seek slider drags.
 let seekDebounce: ReturnType<typeof setTimeout> | null = null;
-// Target time of the last seek — blocks stale Rust progress ticks until the
-// engine has actually caught up to the new position.
-let seekTarget: number | null = null;
-let seekTargetSetAt = 0;
-const SEEK_TARGET_GUARD_TIMEOUT_MS = 5000;
 // Streaming fallback seek guard: coalesce repeated "not seekable" recoveries.
 let seekFallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let seekFallbackRetryStartedAt = 0;
@@ -498,16 +502,6 @@ const STORE_PROGRESS_COMMIT_MIN_MS = 20_000;
 const STORE_PROGRESS_COMMIT_MIN_DELTA_SEC = 5.0;
 let lastStoreProgressCommitAt = 0;
 
-
-function setSeekTarget(seconds: number) {
-  seekTarget = seconds;
-  seekTargetSetAt = Date.now();
-}
-
-function clearSeekTarget() {
-  seekTarget = null;
-  seekTargetSetAt = 0;
-}
 
 function clearSeekFallbackRetry() {
   if (seekFallbackRetryTimer) {
@@ -562,9 +556,6 @@ function scheduleSeekFallbackRetry(trackId: string, seconds: number) {
   }, SEEK_FALLBACK_RETRY_INTERVAL_MS);
 }
 
-// Guard against rapid double-click play/pause sending two state transitions
-// to the Rust backend before it has finished the previous one.
-let togglePlayLock = false;
 // ── HTML5 Radio Player ────────────────────────────────────────────────────────
 // Internet radio streams are played via a native <audio> element instead of
 // the Rust/Symphonia engine.  This gives us browser-native reconnect logic,
@@ -639,46 +630,6 @@ radioAudio.addEventListener('suspend', () => {
  *  parallel for every full-track analysis completion; without coalescing, gapless
  *  preload + current-track completion can stack two SQLite reads + two state writes. */
 const loudnessRefreshInflight = new Map<string, Promise<void>>();
-
-async function reseedLoudnessForTrackId(trackId: string) {
-  if (!trackId) return;
-  const auth = useAuthStore.getState();
-  if (auth.normalizationEngine !== 'loudness') return;
-  bumpWaveformRefreshGen(trackId);
-  if (usePlayerStore.getState().currentTrack?.id === trackId) {
-    usePlayerStore.setState({ waveformBins: null });
-  }
-  clearLoudnessCacheStateForTrackId(trackId);
-  resetLoudnessBackfillStateForTrackId(trackId);
-  if (auth.normalizationEngine === 'loudness') {
-    usePlayerStore.setState({
-      normalizationNowDb: null,
-      normalizationTargetLufs: auth.loudnessTargetLufs,
-      normalizationEngineLive: 'loudness',
-    });
-  }
-  try {
-    await invoke('analysis_delete_waveform_for_track', { trackId });
-  } catch (e) {
-    console.error('[psysonic] analysis_delete_waveform_for_track failed:', e);
-  }
-  try {
-    await invoke('analysis_delete_loudness_for_track', { trackId });
-  } catch (e) {
-    console.error('[psysonic] analysis_delete_loudness_for_track failed:', e);
-  }
-  usePlayerStore.getState().updateReplayGainForCurrentTrack();
-  const url = buildStreamUrl(trackId);
-  try {
-    await invoke('analysis_enqueue_seed_from_url', {
-      trackId,
-      url,
-      force: true,
-    });
-  } catch (e) {
-    console.error('[psysonic] analysis_enqueue_seed_from_url (reseed) failed:', e);
-  }
-}
 
 async function refreshWaveformForTrack(trackId: string) {
   if (!trackId) return;
@@ -828,10 +779,11 @@ function handleAudioProgress(current_time: number, duration: number) {
   // After the debounce fires, Rust may still emit 1–2 ticks with the old
   // position before the seek takes effect.  Block until current_time is
   // within 2 s of the requested target, then clear the guard.
-  if (seekTarget !== null) {
-    if (Math.abs(current_time - seekTarget) > 2.0) {
+  const activeSeekTarget = getSeekTarget();
+  if (activeSeekTarget !== null) {
+    if (Math.abs(current_time - activeSeekTarget) > 2.0) {
       // If a seek command hangs while streaming is stalled, do not freeze UI.
-      if (Date.now() - seekTargetSetAt <= SEEK_TARGET_GUARD_TIMEOUT_MS) return;
+      if (Date.now() - getSeekTargetSetAt() <= SEEK_TARGET_GUARD_TIMEOUT_MS) return;
       clearSeekTarget();
     } else {
       clearSeekTarget();
@@ -2515,9 +2467,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlay: () => {
-        if (togglePlayLock) return;
-        togglePlayLock = true;
-        setTimeout(() => { togglePlayLock = false; }, 300);
+        if (!tryAcquireTogglePlayLock()) return;
         const { isPlaying } = get();
         isPlaying ? get().pause() : get().resume();
       },
