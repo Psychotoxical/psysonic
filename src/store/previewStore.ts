@@ -1,8 +1,9 @@
+import type { TrackPreviewLocation } from './authStoreTypes';
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { buildStreamUrl } from '../api/subsonic';
 import { usePlayerStore } from './playerStore';
-import { useAuthStore, type TrackPreviewLocation } from './authStore';
+import { useAuthStore } from './authStore';
 import { useOrbitStore } from './orbitStore';
 
 /** Minimal track info needed to surface the preview in the player bar UI. */

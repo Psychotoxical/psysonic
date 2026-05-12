@@ -1,10 +1,11 @@
+import type { ServerProfile } from '../store/authStoreTypes';
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { ConnectionStatus } from '../hooks/useConnectionStatus';
-import { useAuthStore, type ServerProfile } from '../store/authStore';
+import { useAuthStore } from '../store/authStore';
 import { switchActiveServer } from '../utils/switchActiveServer';
 import { showToast } from '../utils/toast';
 import { serverListDisplayLabel } from '../utils/serverDisplayName';

@@ -1,8 +1,9 @@
+import type { SeekbarStyle } from '../store/authStoreTypes';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
-import { useAuthStore, type SeekbarStyle } from '../store/authStore';
+import { useAuthStore } from '../store/authStore';
 import { bumpPerfCounter } from '../utils/perfTelemetry';
 function fmt(s: number): string {
   if (!s || isNaN(s)) return '0:00';

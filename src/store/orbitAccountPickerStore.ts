@@ -1,6 +1,5 @@
+import type { ServerProfile } from './authStoreTypes';
 import { create } from 'zustand';
-import type { ServerProfile } from './authStore';
-
 let _resolve: ((server: ServerProfile | null) => void) | null = null;
 
 interface OrbitAccountPickerStore {

@@ -1,5 +1,4 @@
-import type { ServerProfile } from '../store/authStore';
-
+import type { ServerProfile } from '../store/authStoreTypes';
 /** Library share (track / album / artist / queue). Same naming family as `psysonic1-` server invites. */
 export const PSYSONIC_SHARE_PREFIX = 'psysonic2-';
 

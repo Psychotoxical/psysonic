@@ -1,3 +1,5 @@
+import type { ServerProfile, SeekbarStyle, LyricsSourceId, LyricsSourceConfig, LoggingMode, LoudnessLufsPreset, TrackPreviewLocation } from '../store/authStoreTypes';
+import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB, MIX_MIN_RATING_FILTER_MAX_STARS, TRACK_PREVIEW_LOCATIONS } from '../store/authStoreDefaults';
 import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { version as appVersion } from '../../package.json';
@@ -27,19 +29,7 @@ import { AboutPsysonicBrandHeader } from '../components/AboutPsysonicLol';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import ThemePicker, { THEME_GROUPS } from '../components/ThemePicker';
 import { useShallow } from 'zustand/react/shallow';
-import {
-  useAuthStore,
-  DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
-  ServerProfile,
-  MIX_MIN_RATING_FILTER_MAX_STARS,
-  TRACK_PREVIEW_LOCATIONS,
-  type SeekbarStyle,
-  type LyricsSourceId,
-  type LyricsSourceConfig,
-  type LoggingMode,
-  type LoudnessLufsPreset,
-  type TrackPreviewLocation,
-} from '../store/authStore';
+import { useAuthStore } from '../store/authStore';
 import { SeekbarPreview } from '../components/WaveformSeek';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
 import { useThemeStore } from '../store/themeStore';

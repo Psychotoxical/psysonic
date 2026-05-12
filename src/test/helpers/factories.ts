@@ -5,8 +5,8 @@
  * the fields the test cares about. Keeps tests focused on behaviour rather
  * than on assembling boilerplate.
  */
+import type { ServerProfile } from '@/store/authStoreTypes';
 import type { Track } from '@/store/playerStoreTypes';
-import type { ServerProfile } from '@/store/authStore';
 import type { SubsonicSong } from '@/api/subsonic';
 
 let trackCounter = 0;

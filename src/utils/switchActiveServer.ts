@@ -1,5 +1,5 @@
+import type { ServerProfile } from '../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
-import type { ServerProfile } from '../store/authStore';
 import { useAuthStore } from '../store/authStore';
 import { useOrbitStore } from '../store/orbitStore';
 import { endOrbitSession, leaveOrbitSession } from './orbit';

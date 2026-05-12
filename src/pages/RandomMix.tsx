@@ -1,9 +1,10 @@
+import { RANDOM_MIX_SIZE_OPTIONS } from '../store/authStoreDefaults';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useMemo, useState } from 'react';
 import { getGenres, SubsonicSong, SubsonicGenre, star, unstar } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
-import { useAuthStore, RANDOM_MIX_SIZE_OPTIONS } from '../store/authStore';
+import { useAuthStore } from '../store/authStore';
 import { Play, RefreshCw, ChevronDown, ChevronRight, ChevronUp, Heart, Square, AudioLines } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';

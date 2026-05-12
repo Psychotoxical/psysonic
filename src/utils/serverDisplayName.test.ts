@@ -1,5 +1,5 @@
+import type { ServerProfile } from '../store/authStoreTypes';
 import { describe, expect, it } from 'vitest';
-import type { ServerProfile } from '../store/authStore';
 import { serverListDisplayLabel, shortHostFromServerUrl } from './serverDisplayName';
 
 function srv(p: Partial<ServerProfile> & Pick<ServerProfile, 'id'>): ServerProfile {
