@@ -30,6 +30,9 @@ import {
   sameQueueTrackId,
   shallowCloneQueueTracks,
 } from '../utils/queueIdentity';
+import { coerceWaveformBins, waveformBlobLenOk } from '../utils/waveformParse';
+import { normalizationAlmostEqual } from '../utils/normalizationCompare';
+import { isRecoverableSeekError } from '../utils/seekErrors';
 import { getWindowKind } from '../app/windowKind';
 import {
   _resetQueueUndoStacksForTest,
@@ -268,36 +271,6 @@ type WaveformCachePayload = {
   updatedAt: number;
 };
 
-/** v4: `500` peak + `500` mean-abs = `1000` bytes. Legacy single curve: `500` (treated as mean=max). */
-function waveformBlobLenOk(len: number): boolean {
-  return len === 500 || len === 1000;
-}
-
-/** `Vec<u8>` from Rust often arrives as `Uint8Array`, not `Array.isArray`. */
-function coerceWaveformBins(bins: unknown): number[] | null {
-  if (bins == null) return null;
-  let raw: number[] | null = null;
-  if (Array.isArray(bins)) {
-    if (bins.length === 0) return null;
-    raw = bins.map(x => Number(x) & 255);
-  } else if (bins instanceof Uint8Array) {
-    if (bins.length === 0) return null;
-    raw = Array.from(bins);
-  } else if (typeof bins === 'object' && 'length' in bins && typeof (bins as { length: unknown }).length === 'number') {
-    const len = (bins as { length: number }).length;
-    if (len === 0) return null;
-    try {
-      raw = Array.from(bins as ArrayLike<number>).map(x => Number(x) & 255);
-    } catch {
-      return null;
-    }
-  } else {
-    return null;
-  }
-  if (!waveformBlobLenOk(raw.length)) return null;
-  return raw;
-}
-
 type LoudnessCachePayload = {
   integratedLufs: number;
   truePeak: number;
@@ -436,12 +409,6 @@ function emitNormalizationDebug(step: string, details?: Record<string, unknown>)
     scope: 'normalization',
     message: JSON.stringify({ step, details }),
   }).catch(() => {});
-}
-
-function normalizationAlmostEqual(a: number | null, b: number | null, eps = 0.12): boolean {
-  if (a == null && b == null) return true;
-  if (a == null || b == null) return false;
-  return Math.abs(a - b) <= eps;
 }
 
 function deriveNormalizationSnapshot(
@@ -591,13 +558,6 @@ function clearSeekFallbackRetry() {
   }
   seekFallbackRetryStartedAt = 0;
   seekFallbackRetryTarget = null;
-}
-
-function isRecoverableSeekError(msg: string): boolean {
-  return msg.includes('not seekable')
-    || msg.includes('audio sink not ready')
-    || msg.includes('audio seek busy')
-    || msg.includes('audio seek timeout');
 }
 
 function scheduleSeekFallbackRetry(trackId: string, seconds: number) {
