@@ -11,8 +11,6 @@ import { useHotCacheStore } from './hotCacheStore';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { useOrbitStore } from './orbitStore';
 import { estimateLivePosition } from '../api/orbit';
-import { loudnessGainPlaceholderUntilCacheDb } from '../utils/loudnessPlaceholder';
-import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
 import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
 import { shuffleArray } from '../utils/shuffleArray';
 import { songToTrack } from '../utils/songToTrack';
@@ -37,16 +35,12 @@ import {
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
 import { isInOrbitSession } from './orbitSession';
 import {
-  getCachedLoudnessGain,
-  hasStableLoudness,
   isReplayGainActive,
-  loudnessCacheStateKeysForTrackId,
   loudnessGainDbForEngineBind,
 } from './loudnessGainCache';
 import {
   clearAllPlaybackScheduleTimers,
 } from './scheduleTimers';
-import { invokeAudioUpdateReplayGainDeduped } from './normalizationIpcDedupe';
 import { touchHotCacheOnPlayback } from './hotCacheTouch';
 import { applySkipStarOnManualNext } from './skipStarRating';
 import { resetLoudnessBackfillStateForTrackId } from './loudnessBackfillState';
@@ -149,6 +143,7 @@ import type { PlayerState, Track } from './playerStoreTypes';
 export type { PlayerState, Track };
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
+import { runUpdateReplayGainForCurrentTrack } from './updateReplayGainAction';
 import { createQueueMutationActions } from './queueMutationActions';
 import { createScheduleActions } from './scheduleActions';
 import { createTransportLightActions } from './transportLightActions';
@@ -902,55 +897,7 @@ export const usePlayerStore = create<PlayerState>()(
         });
       },
 
-       updateReplayGainForCurrentTrack: () => {
-         const { currentTrack, queue, queueIndex, volume } = get();
-         if (!currentTrack || !currentTrack.id) return;
-         const authState = useAuthStore.getState();
-         const prev = queueIndex > 0 ? queue[queueIndex - 1] : null;
-         const next = queueIndex + 1 < queue.length ? queue[queueIndex + 1] : null;
-         const replayGainDb = resolveReplayGainDb(
-           currentTrack, prev, next,
-           isReplayGainActive(), authState.replayGainMode,
-         );
-         const replayGainPeak = isReplayGainActive()
-           ? (currentTrack.replayGainPeak ?? null)
-           : null;
-         
-        const normalization = deriveNormalizationSnapshot(currentTrack, queue, queueIndex);
-        const cachedLoud = getCachedLoudnessGain(currentTrack.id);
-        const cachedLoudDb = Number.isFinite(cachedLoud) ? cachedLoud! : null;
-        const haveStableLoud = hasStableLoudness(currentTrack.id);
-        const preEffForNorm = effectiveLoudnessPreAnalysisAttenuationDb(
-          authState.loudnessPreAnalysisAttenuationDb,
-          authState.loudnessTargetLufs,
-        );
-        const preAnalysisPlaceholderDb =
-          normalization.normalizationEngineLive === 'loudness'
-          && cachedLoudDb == null
-          && !haveStableLoud
-          && Number.isFinite(preEffForNorm)
-            ? loudnessGainPlaceholderUntilCacheDb(
-                authState.loudnessTargetLufs,
-                preEffForNorm,
-              )
-            : null;
-        set(prevState => ({
-          normalizationNowDb:
-            normalization.normalizationEngineLive === 'loudness'
-              ? (cachedLoudDb ?? preAnalysisPlaceholderDb ?? prevState.normalizationNowDb)
-              : normalization.normalizationNowDb,
-          normalizationTargetLufs: normalization.normalizationTargetLufs,
-          normalizationEngineLive: normalization.normalizationEngineLive,
-        }));
-        invokeAudioUpdateReplayGainDeduped({
-          volume,
-          replayGainDb,
-          replayGainPeak,
-          loudnessGainDb: currentTrack ? (getCachedLoudnessGain(currentTrack.id) ?? null) : null,
-          preGainDb: authState.replayGainPreGainDb,
-          fallbackDb: authState.replayGainFallbackDb,
-        });
-       },
+      updateReplayGainForCurrentTrack: () => runUpdateReplayGainForCurrentTrack(set, get),
     };
     },
     {
