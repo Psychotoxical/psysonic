@@ -120,6 +120,17 @@ import {
   markStoreProgressCommit,
   resetProgressEmitThrottles,
 } from './playbackThrottles';
+import {
+  SEEK_FALLBACK_VISUAL_GUARD_MS,
+  clearSeekFallbackRetry,
+  getSeekFallbackRestartAt,
+  getSeekFallbackTrackId,
+  getSeekFallbackVisualTarget,
+  scheduleSeekFallbackRetry,
+  setSeekFallbackRestartAt,
+  setSeekFallbackTrackId,
+  setSeekFallbackVisualTarget,
+} from './seekFallbackState';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -473,69 +484,7 @@ function queueUndoRestoreAudioEngine(opts: {
 // Debounce timer for seek slider drags.
 let seekDebounce: ReturnType<typeof setTimeout> | null = null;
 // Streaming fallback seek guard: coalesce repeated "not seekable" recoveries.
-let seekFallbackRetryTimer: ReturnType<typeof setTimeout> | null = null;
-let seekFallbackRetryStartedAt = 0;
-let seekFallbackRetryTarget: { trackId: string; seconds: number } | null = null;
-let seekFallbackTrackId: string | null = null;
-let seekFallbackRestartAt = 0;
-let seekFallbackVisualTarget: { trackId: string; seconds: number; setAtMs: number } | null = null;
-const SEEK_FALLBACK_VISUAL_GUARD_MS = 1600;
-const SEEK_FALLBACK_RETRY_INTERVAL_MS = 180;
-const SEEK_FALLBACK_RETRY_MAX_MS = 6000;
 
-
-function clearSeekFallbackRetry() {
-  if (seekFallbackRetryTimer) {
-    clearTimeout(seekFallbackRetryTimer);
-    seekFallbackRetryTimer = null;
-  }
-  seekFallbackRetryStartedAt = 0;
-  seekFallbackRetryTarget = null;
-}
-
-function scheduleSeekFallbackRetry(trackId: string, seconds: number) {
-  const now = Date.now();
-  if (
-    !seekFallbackRetryTarget
-    || seekFallbackRetryTarget.trackId !== trackId
-    || Math.abs(seekFallbackRetryTarget.seconds - seconds) > 0.25
-  ) {
-    clearSeekFallbackRetry();
-    seekFallbackRetryStartedAt = now;
-    seekFallbackRetryTarget = { trackId, seconds };
-  } else if (seekFallbackRetryStartedAt === 0) {
-    seekFallbackRetryStartedAt = now;
-  }
-  if (seekFallbackRetryTimer) clearTimeout(seekFallbackRetryTimer);
-  seekFallbackRetryTimer = setTimeout(() => {
-    seekFallbackRetryTimer = null;
-    const target = seekFallbackRetryTarget;
-    const s = usePlayerStore.getState();
-    if (!target || !s.currentTrack || s.currentTrack.id !== target.trackId) {
-      clearSeekFallbackRetry();
-      return;
-    }
-    if (Date.now() - seekFallbackRetryStartedAt > SEEK_FALLBACK_RETRY_MAX_MS) {
-      clearSeekFallbackRetry();
-      seekFallbackVisualTarget = null;
-      return;
-    }
-    invoke('audio_seek', { seconds: target.seconds }).then(() => {
-      setSeekTarget(target.seconds);
-      seekFallbackVisualTarget = null;
-      clearSeekFallbackRetry();
-    }).catch((err: unknown) => {
-      const msg = String(err ?? '');
-      if (!isRecoverableSeekError(msg)) {
-        console.error(err);
-        seekFallbackVisualTarget = null;
-        clearSeekFallbackRetry();
-        return;
-      }
-      scheduleSeekFallbackRetry(target.trackId, target.seconds);
-    });
-  }, SEEK_FALLBACK_RETRY_INTERVAL_MS);
-}
 
 function prefetchLoudnessForEnqueuedTracks(
   mergedQueue: Track[],
@@ -585,23 +534,24 @@ function handleAudioProgress(current_time: number, duration: number) {
   // Some backends can emit stale progress ticks shortly after pause/stop.
   // Ignoring them avoids reactivating UI redraw loops while transport is idle.
   const transportActive = store.isPlaying || store.currentRadio != null;
-  if (!transportActive && !seekFallbackVisualTarget) return;
-  if (seekFallbackVisualTarget && seekFallbackVisualTarget.trackId !== track.id) {
-    seekFallbackVisualTarget = null;
+  let visualTarget = getSeekFallbackVisualTarget();
+  if (!transportActive && !visualTarget) return;
+  if (visualTarget && visualTarget.trackId !== track.id) {
+    setSeekFallbackVisualTarget(null);
+    visualTarget = null;
   }
   let displayTime = current_time;
-  if (
-    seekFallbackVisualTarget
-    && seekFallbackVisualTarget.trackId === track.id
-  ) {
-    const nearTarget = Math.abs(current_time - seekFallbackVisualTarget.seconds) <= 2.0;
+  if (visualTarget && visualTarget.trackId === track.id) {
+    const nearTarget = Math.abs(current_time - visualTarget.seconds) <= 2.0;
     if (nearTarget) {
-      seekFallbackVisualTarget = null;
-    } else if (Date.now() - seekFallbackVisualTarget.setAtMs <= SEEK_FALLBACK_VISUAL_GUARD_MS) {
+      setSeekFallbackVisualTarget(null);
+      visualTarget = null;
+    } else if (Date.now() - visualTarget.setAtMs <= SEEK_FALLBACK_VISUAL_GUARD_MS) {
       // Keep UI at the requested position while backend catches up.
-      displayTime = seekFallbackVisualTarget.seconds;
+      displayTime = visualTarget.seconds;
     } else {
-      seekFallbackVisualTarget = null;
+      setSeekFallbackVisualTarget(null);
+      visualTarget = null;
     }
   }
   const dur = duration > 0 ? duration : track.duration;
@@ -614,7 +564,7 @@ function handleAudioProgress(current_time: number, duration: number) {
     if (
       nowLive - getLastLiveProgressEmitAt() >= LIVE_PROGRESS_EMIT_MIN_MS ||
       liveTimeDelta >= LIVE_PROGRESS_EMIT_MIN_DELTA_SEC ||
-      seekFallbackVisualTarget != null
+      visualTarget != null
     ) {
       emitPlaybackProgress({
         currentTime: displayTime,
@@ -649,7 +599,7 @@ function handleAudioProgress(current_time: number, duration: number) {
   const nowCommit = Date.now();
   const commitDelta = Math.abs(store.currentTime - displayTime);
   const shouldCommitStore =
-    seekFallbackVisualTarget != null ||
+    visualTarget != null ||
     nowCommit - getLastStoreProgressCommitAt() >= STORE_PROGRESS_COMMIT_MIN_MS ||
     commitDelta >= STORE_PROGRESS_COMMIT_MIN_DELTA_SEC;
   if (shouldCommitStore) {
@@ -1776,7 +1726,7 @@ export const usePlayerStore = create<PlayerState>()(
         clearPreloadingIds(); // new track — allow fresh preload for next
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
         clearSeekFallbackRetry();
-        seekFallbackRestartAt = 0;
+        setSeekFallbackRestartAt(0);
 
         // If a radio stream is active, stop it before the new track starts so
         // the PlayerBar clears radio mode immediately and the stream is released.
@@ -1786,9 +1736,12 @@ export const usePlayerStore = create<PlayerState>()(
 
         const state = get();
         const prevTrack = state.currentTrack;
-        seekFallbackTrackId = prevTrack?.id === track.id ? seekFallbackTrackId : null;
-        if (seekFallbackVisualTarget?.trackId !== track.id) {
-          seekFallbackVisualTarget = null;
+        if (prevTrack?.id !== track.id) {
+          setSeekFallbackTrackId(null);
+        }
+        const visualOnEntry = getSeekFallbackVisualTarget();
+        if (visualOnEntry?.trackId !== track.id) {
+          setSeekFallbackVisualTarget(null);
         }
         const newQueue = queue ?? state.queue;
         // Prefer an explicit target index from the caller (next/previous/queue-row
@@ -1806,8 +1759,9 @@ export const usePlayerStore = create<PlayerState>()(
         if (manual) {
           pushQueueUndoFromGetter(get);
         }
-        const pendingVisualTarget = seekFallbackVisualTarget?.trackId === track.id
-          ? seekFallbackVisualTarget.seconds
+        const visualForInitial = getSeekFallbackVisualTarget();
+        const pendingVisualTarget = visualForInitial?.trackId === track.id
+          ? visualForInitial.seconds
           : null;
         const initialTime = pendingVisualTarget !== null
           ? Math.max(0, Math.min(pendingVisualTarget, track.duration || pendingVisualTarget))
@@ -1919,13 +1873,13 @@ export const usePlayerStore = create<PlayerState>()(
                   .then(() => {
                     if (playGeneration !== gen) return;
                     setSeekTarget(seekTo);
-                    if (seekFallbackVisualTarget?.trackId === track.id) {
-                      seekFallbackVisualTarget = null;
+                    if (getSeekFallbackVisualTarget()?.trackId === track.id) {
+                      setSeekFallbackVisualTarget(null);
                     }
                   })
                   .catch(() => {
-                    if (seekFallbackVisualTarget?.trackId === track.id) {
-                      seekFallbackVisualTarget = null;
+                    if (getSeekFallbackVisualTarget()?.trackId === track.id) {
+                      setSeekFallbackVisualTarget(null);
                     }
                   });
               }
@@ -2435,7 +2389,7 @@ export const usePlayerStore = create<PlayerState>()(
           const authState = useAuthStore.getState();
           const sid = authState.activeServerId ?? '';
           if (currentTrack && shouldRebindPlaybackToHotCache(currentTrack.id, sid)) {
-            seekFallbackVisualTarget = { trackId: currentTrack.id, seconds: 0, setAtMs: Date.now() };
+            setSeekFallbackVisualTarget({ trackId: currentTrack.id, seconds: 0, setAtMs: Date.now() });
             get().playTrack(currentTrack, queue, true);
             return;
           }
@@ -2464,11 +2418,11 @@ export const usePlayerStore = create<PlayerState>()(
           const authSeek = useAuthStore.getState();
           const sidSeek = authSeek.activeServerId ?? '';
           if (shouldRebindPlaybackToHotCache(s0.currentTrack.id, sidSeek)) {
-            seekFallbackVisualTarget = {
+            setSeekFallbackVisualTarget({
               trackId: s0.currentTrack.id,
               seconds: time,
               setAtMs: Date.now(),
-            };
+            });
             clearSeekFallbackRetry();
             s0.playTrack(s0.currentTrack, s0.queue, true);
             return;
@@ -2476,7 +2430,7 @@ export const usePlayerStore = create<PlayerState>()(
           invoke('audio_seek', { seconds: time }).then(() => {
             // Arm stale-progress guard only after backend acknowledged seek.
             setSeekTarget(time);
-            seekFallbackVisualTarget = null;
+            setSeekFallbackVisualTarget(null);
             clearSeekFallbackRetry();
           }).catch((err: unknown) => {
             // Release the progress-tick guard so the UI doesn't freeze
@@ -2485,7 +2439,7 @@ export const usePlayerStore = create<PlayerState>()(
             const msg = String(err ?? '');
             if (!isRecoverableSeekError(msg)) {
               console.error(err);
-              seekFallbackVisualTarget = null;
+              setSeekFallbackVisualTarget(null);
               clearSeekFallbackRetry();
               return;
             }
@@ -2495,19 +2449,19 @@ export const usePlayerStore = create<PlayerState>()(
             if (!s.currentTrack) return;
             const now = Date.now();
             const sameBurst =
-              seekFallbackTrackId === s.currentTrack.id
-              && now - seekFallbackRestartAt < 600;
-            seekFallbackVisualTarget = {
+              getSeekFallbackTrackId() === s.currentTrack.id
+              && now - getSeekFallbackRestartAt() < 600;
+            setSeekFallbackVisualTarget({
               trackId: s.currentTrack.id,
               seconds: time,
               setAtMs: Date.now(),
-            };
+            });
             // Keep stale progress ticks from snapping UI back to start while
             // recoverable seek retries are still in flight.
             setSeekTarget(time);
             if (msg.includes('not seekable') && !sameBurst) {
-              seekFallbackTrackId = s.currentTrack.id;
-              seekFallbackRestartAt = now;
+              setSeekFallbackTrackId(s.currentTrack.id);
+              setSeekFallbackRestartAt(now);
               // Keep manual semantics (no crossfade) for seek recovery restarts.
               s.playTrack(s.currentTrack, s.queue, true);
             }
