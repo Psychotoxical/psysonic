@@ -47,6 +47,17 @@ import {
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
 import { emitNormalizationDebug } from './normalizationDebug';
 import { isInOrbitSession } from './orbitSession';
+import {
+  clearLoudnessCacheStateForTrackId,
+  forgetLoudnessGain,
+  getCachedLoudnessGain,
+  hasStableLoudness,
+  isReplayGainActive,
+  loudnessCacheStateKeysForTrackId,
+  loudnessGainDbForEngineBind,
+  markLoudnessStable,
+  setCachedLoudnessGain,
+} from './loudnessGainCache';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -335,8 +346,6 @@ let currentRadioArtistId: string | null = null;
 // the queue and the next Last.fm/topSongs response could re-add it. Reset
 // on `setRadioArtistId(other)` and on `clearQueue()`. Issue #500.
 let radioSessionSeenIds = new Set<string>();
-let cachedLoudnessGainByTrackId: Record<string, number> = {};
-let stableLoudnessGainByTrackId: Record<string, true> = {};
 let lastNormalizationUiUpdateAtMs = 0;
 
 /** Reload Rust audio to match a queue-undo snapshot (Zustand alone does not move the engine). */
@@ -726,38 +735,6 @@ function invokeAudioUpdateReplayGainDeduped(payload: {
   invoke('audio_update_replay_gain', payload).catch(console.error);
 }
 
-function isReplayGainActive() {
-  const a = useAuthStore.getState();
-  return a.normalizationEngine === 'replaygain' && a.replayGainEnabled;
-}
-
-function loudnessCacheStateKeysForTrackId(trackId: string): string[] {
-  if (!trackId) return [];
-  const out: string[] = [trackId];
-  if (trackId.startsWith('stream:')) {
-    const bare = trackId.slice('stream:'.length);
-    if (bare) out.push(bare);
-  } else {
-    out.push(`stream:${trackId}`);
-  }
-  return out;
-}
-
-function clearLoudnessCacheStateForTrackId(trackId: string) {
-  for (const k of loudnessCacheStateKeysForTrackId(trackId)) {
-    delete cachedLoudnessGainByTrackId[k];
-    delete stableLoudnessGainByTrackId[k];
-  }
-}
-
-/** Pass to `audio_play` / `audio_chain_preload` only — DB-backed gain. Omit partial hints so Rust uses pre-trim until `analysis:loudness-partial` + `audio_update_replay_gain`. */
-function loudnessGainDbForEngineBind(trackId: string | undefined | null): number | null {
-  if (!trackId) return null;
-  if (!stableLoudnessGainByTrackId[trackId]) return null;
-  const v = cachedLoudnessGainByTrackId[trackId];
-  return Number.isFinite(v) ? v : null;
-}
-
 function resetLoudnessBackfillStateForTrackId(trackId: string) {
   for (const k of loudnessCacheStateKeysForTrackId(trackId)) {
     delete analysisBackfillInFlightByTrackId[k];
@@ -828,7 +805,7 @@ async function refreshWaveformForTrack(trackId: string) {
   }
 }
 
-/** When `syncPlayingEngine` is false, only update `cachedLoudnessGainByTrackId` (e.g. queue neighbour) — do not call `audio_update_replay_gain` for the already-playing track. */
+/** When `syncPlayingEngine` is false, only update the loudness gain cache (e.g. queue neighbour) — do not call `audio_update_replay_gain` for the already-playing track. */
 async function refreshLoudnessForTrack(
   trackId: string,
   opts?: { syncPlayingEngine?: boolean },
@@ -860,8 +837,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
       return;
     }
     if (!row || !Number.isFinite(row.recommendedGainDb)) {
-      delete cachedLoudnessGainByTrackId[trackId];
-      delete stableLoudnessGainByTrackId[trackId];
+      forgetLoudnessGain(trackId);
       emitNormalizationDebug('refresh:miss', { trackId, row: row ?? null });
       const auth = useAuthStore.getState();
       const attempts = analysisBackfillAttemptsByTrackId[trackId] ?? 0;
@@ -902,8 +878,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
       });
       return;
     }
-    cachedLoudnessGainByTrackId[trackId] = row.recommendedGainDb;
-    stableLoudnessGainByTrackId[trackId] = true;
+    markLoudnessStable(trackId, row.recommendedGainDb);
     analysisBackfillAttemptsByTrackId[trackId] = 0;
     emitNormalizationDebug('refresh:hit', { trackId, row });
     usePlayerStore.setState({
@@ -917,8 +892,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
       usePlayerStore.getState().updateReplayGainForCurrentTrack();
     }
   } catch {
-    delete cachedLoudnessGainByTrackId[trackId];
-    delete stableLoudnessGainByTrackId[trackId];
+    forgetLoudnessGain(trackId);
     emitNormalizationDebug('refresh:error', { trackId });
     usePlayerStore.setState({ normalizationDbgSource: 'refresh:error', normalizationDbgTrackId: trackId });
   }
@@ -1428,14 +1402,14 @@ export function initAudioListeners(): () => void {
       const payloadTrackId = normalizeAnalysisTrackId(payload.trackId);
       if (payloadTrackId && payloadTrackId !== current.id) return;
       if (!Number.isFinite(payload.gainDb)) return;
-      if (stableLoudnessGainByTrackId[current.id]) return;
+      if (hasStableLoudness(current.id)) return;
       // Skip when the cached gain is already within ~0.05 dB of the new payload —
       // float jitter from the partial-loudness heuristic would otherwise re-trigger
       // updateReplayGainForCurrentTrack → audio_update_replay_gain → backend echo
       // every PARTIAL_LOUDNESS_EMIT_INTERVAL_MS even when nothing audibly changed.
-      const existing = cachedLoudnessGainByTrackId[current.id];
-      if (Number.isFinite(existing) && Math.abs(existing - payload.gainDb) < 0.05) return;
-      cachedLoudnessGainByTrackId[current.id] = payload.gainDb;
+      const existing = getCachedLoudnessGain(current.id);
+      if (Number.isFinite(existing) && Math.abs(existing! - payload.gainDb) < 0.05) return;
+      setCachedLoudnessGain(current.id, payload.gainDb);
       emitNormalizationDebug('partial-loudness:apply', {
         trackId: current.id,
         gainDb: payload.gainDb,
@@ -1457,7 +1431,7 @@ export function initAudioListeners(): () => void {
         return;
       }
       // Backfill finished for another id (e.g. next in queue): refresh loudness cache only
-      // so `cachedLoudnessGainByTrackId` is ready before `audio_play` / gapless chain.
+      // so the cached gain is ready before `audio_play` / gapless chain.
       void refreshLoudnessForTrack(payloadTrackId, { syncPlayingEngine: false });
       emitNormalizationDebug('backfill:applied', { trackId: payloadTrackId });
     }),
@@ -3295,9 +3269,9 @@ export const usePlayerStore = create<PlayerState>()(
            : null;
          
         const normalization = deriveNormalizationSnapshot(currentTrack, queue, queueIndex);
-        const cachedLoud = cachedLoudnessGainByTrackId[currentTrack.id];
-        const cachedLoudDb = Number.isFinite(cachedLoud) ? cachedLoud : null;
-        const haveStableLoud = !!stableLoudnessGainByTrackId[currentTrack.id];
+        const cachedLoud = getCachedLoudnessGain(currentTrack.id);
+        const cachedLoudDb = Number.isFinite(cachedLoud) ? cachedLoud! : null;
+        const haveStableLoud = hasStableLoudness(currentTrack.id);
         const preEffForNorm = effectiveLoudnessPreAnalysisAttenuationDb(
           authState.loudnessPreAnalysisAttenuationDb,
           authState.loudnessTargetLufs,
@@ -3324,7 +3298,7 @@ export const usePlayerStore = create<PlayerState>()(
           volume,
           replayGainDb,
           replayGainPeak,
-          loudnessGainDb: currentTrack ? (cachedLoudnessGainByTrackId[currentTrack.id] ?? null) : null,
+          loudnessGainDb: currentTrack ? (getCachedLoudnessGain(currentTrack.id) ?? null) : null,
           preGainDb: authState.replayGainPreGainDb,
           fallbackDb: authState.replayGainFallbackDb,
         });
