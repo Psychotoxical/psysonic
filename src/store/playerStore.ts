@@ -45,6 +45,8 @@ import {
   shouldRebindPlaybackToHotCache,
 } from './playbackUrlRouting';
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
+import { emitNormalizationDebug } from './normalizationDebug';
+import { isInOrbitSession } from './orbitSession';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -323,19 +325,6 @@ let infiniteQueueFetching = false;
 // Guard against concurrent radio top-up fetches.
 let radioFetching = false;
 
-/** True when the user is part of an Orbit session (any role, any phase
- *  short of `idle` / `error` / `ended`). Used by `next()` and its async
- *  fallback callbacks to suppress local queue-extension paths (radio
- *  top-up, infinite-queue, queue-exhausted refill) — those would either
- *  pop the orbitBulkGuard modal or silently inject tracks the host
- *  didn't pick. The helper is also called inside in-flight `.then()`
- *  callbacks so a fetch scheduled just before the user joined Orbit
- *  doesn't fire a `playTrack` after the join. */
-function isInOrbitSession(): boolean {
-  const o = useOrbitStore.getState();
-  if (o.role !== 'host' && o.role !== 'guest') return false;
-  return o.phase === 'active' || o.phase === 'joining' || o.phase === 'starting';
-}
 // Artist ID used to start the current radio session — persists across track
 // advances so proactive loading works even when songs lack artistId.
 let currentRadioArtistId: string | null = null;
@@ -423,14 +412,6 @@ function queueUndoRestoreAudioEngine(opts: {
       setDeferHotCachePrefetch(false);
     });
   touchHotCacheOnPlayback(track.id, authState.activeServerId ?? '');
-}
-
-function emitNormalizationDebug(step: string, details?: Record<string, unknown>) {
-  if (useAuthStore.getState().loggingMode !== 'debug') return;
-  void invoke('frontend_debug_log', {
-    scope: 'normalization',
-    message: JSON.stringify({ step, details }),
-  }).catch(() => {});
 }
 
 // Debounce timer for seek slider drags.
