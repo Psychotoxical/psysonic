@@ -58,7 +58,6 @@ import { applySkipStarOnManualNext } from './skipStarRating';
 import { resetLoudnessBackfillStateForTrackId } from './loudnessBackfillState';
 import {
   flushPlayQueuePosition,
-  flushQueueSyncToServer,
   syncQueueToServer,
 } from './queueSync';
 import {
@@ -70,13 +69,11 @@ import {
   clearSeekTarget,
   setSeekTarget,
 } from './seekTargetState';
-import { tryAcquireTogglePlayLock } from './togglePlayLock';
 import { reseedLoudnessForTrackId } from './loudnessReseed';
 import { refreshWaveformForTrack } from './waveformRefresh';
 import { refreshLoudnessForTrack } from './loudnessRefresh';
 import {
   clearRadioReconnectTimer,
-  pauseRadio,
   playRadioStream,
   resumeRadio,
   setRadioVolume,
@@ -141,14 +138,8 @@ export {
 import {
   _resetQueueUndoStacksForTest,
   consumePendingQueueListScrollTop,
-  popQueueRedoSnapshot,
-  popQueueUndoSnapshot,
-  pushQueueRedoSnapshot,
   pushQueueUndoFromGetter,
-  pushQueueUndoSnapshot,
-  queueUndoSnapshotFromState,
   registerQueueListScrollTopReader,
-  type QueueUndoSnapshot,
 } from './queueUndo';
 
 // Re-export for backward compatibility with the ~30 call sites that still
@@ -166,10 +157,11 @@ export {
 
 import type { PlayerState, Track } from './playerStoreTypes';
 export type { PlayerState, Track };
-import { applyQueueHistorySnapshot } from './applyQueueHistorySnapshot';
 import { createLastfmActions } from './lastfmActions';
 import { createQueueMutationActions } from './queueMutationActions';
+import { createTransportLightActions } from './transportLightActions';
 import { createUiStateActions } from './uiStateActions';
+import { createUndoRedoActions } from './undoRedoActions';
 
 
 // ─── Module-level playback primitives ─────────────────────────────────────────
@@ -221,36 +213,8 @@ export const usePlayerStore = create<PlayerState>()(
       ...createUiStateActions(set),
       ...createLastfmActions(set, get),
       ...createQueueMutationActions(set, get),
-
-      // ── stop ────────────────────────────────────────────────────────────────
-      stop: () => {
-        clearAllPlaybackScheduleTimers();
-        if (get().currentRadio) {
-          stopRadio();
-        } else {
-          invoke('audio_stop').catch(console.error);
-        }
-        setIsAudioPaused(false);
-        clearSeekFallbackRetry();
-        clearSeekDebounce(); clearSeekTarget();
-        set({
-          isPlaying: false,
-          progress: 0,
-          buffered: 0,
-          currentTime: 0,
-          currentRadio: null,
-          waveformBins: null,
-          normalizationNowDb: null,
-          normalizationTargetLufs: null,
-          normalizationEngineLive: 'off',
-          currentPlaybackSource: null,
-          enginePreloadedTrackId: null,
-          scheduledPauseAtMs: null,
-          scheduledPauseStartMs: null,
-          scheduledResumeAtMs: null,
-          scheduledResumeStartMs: null,
-        });
-      },
+      ...createTransportLightActions(set, get),
+      ...createUndoRedoActions(set, get),
 
       // ── playRadio ────────────────────────────────────────────────────────────
       playRadio: async (station) => {
@@ -591,28 +555,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (!wasPlaying) get().resume();
       },
 
-      // ── pause / resume / togglePlay ──────────────────────────────────────────
-      pause: () => {
-        clearAllPlaybackScheduleTimers();
-        if (get().currentRadio) {
-          pauseRadio();
-        } else {
-          invoke('audio_pause').catch(console.error);
-          setIsAudioPaused(true);
-          // Flush position so a quick close after pause still leaves the
-          // server with the right resume point for other devices.
-          const s = get();
-          if (s.currentTrack) {
-            void flushQueueSyncToServer(s.queue, s.currentTrack, s.currentTime);
-          }
-        }
-        set({ isPlaying: false, scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
-      },
-
-      resetAudioPause: () => {
-        setIsAudioPaused(false);
-      },
-
+      // ── resume ───────────────────────────────────────────────────────────────
       resume: () => {
         clearAllPlaybackScheduleTimers();
         set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
@@ -813,12 +756,6 @@ export const usePlayerStore = create<PlayerState>()(
           set({ scheduledResumeAtMs: null, scheduledResumeStartMs: null });
           get().resume();
         });
-      },
-
-      togglePlay: () => {
-        if (!tryAcquireTogglePlayLock()) return;
-        const { isPlaying } = get();
-        isPlaying ? get().pause() : get().resume();
       },
 
       // ── next / previous ──────────────────────────────────────────────────────
@@ -1097,23 +1034,6 @@ export const usePlayerStore = create<PlayerState>()(
 
       setProgress: (t, duration) => {
         set({ currentTime: t, progress: duration > 0 ? t / duration : 0 });
-      },
-
-      // ── queue management ─────────────────────────────────────────────────────
-      undoLastQueueEdit: () => {
-        const prior = get();
-        const snap = popQueueUndoSnapshot();
-        if (!snap) return false;
-        pushQueueRedoSnapshot(queueUndoSnapshotFromState(prior));
-        return applyQueueHistorySnapshot(snap, prior, set, get);
-      },
-
-      redoLastQueueEdit: () => {
-        const prior = get();
-        const snap = popQueueRedoSnapshot();
-        if (!snap) return false;
-        pushQueueUndoSnapshot(queueUndoSnapshotFromState(prior));
-        return applyQueueHistorySnapshot(snap, prior, set, get);
       },
 
       // ── server queue restore ─────────────────────────────────────────────────
