@@ -98,6 +98,14 @@ import { tryAcquireTogglePlayLock } from './togglePlayLock';
 import { reseedLoudnessForTrackId } from './loudnessReseed';
 import { refreshWaveformForTrack } from './waveformRefresh';
 import { refreshLoudnessForTrack } from './loudnessRefresh';
+import {
+  clearRadioReconnectTimer,
+  pauseRadio,
+  playRadioStream,
+  resumeRadio,
+  setRadioVolume,
+  stopRadio,
+} from './radioPlayer';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -521,75 +529,6 @@ function scheduleSeekFallbackRetry(trackId: string, seconds: number) {
     });
   }, SEEK_FALLBACK_RETRY_INTERVAL_MS);
 }
-
-// ── HTML5 Radio Player ────────────────────────────────────────────────────────
-// Internet radio streams are played via a native <audio> element instead of
-// the Rust/Symphonia engine.  This gives us browser-native reconnect logic,
-// codec support (MP3, AAC, HE-AAC, OGG) and stable ICY stream handling for
-// free, without touching the regular playback pipeline at all.
-const radioAudio = new Audio();
-radioAudio.preload = 'none';
-let radioStopping = false;
-// Pending reconnect timer for stalled streams — null when no reconnect is scheduled.
-let radioReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-// Counts how many stalled-reconnects have been attempted for the current station.
-// Reset to 0 on successful playback.  Hard-stop after MAX_RADIO_RECONNECTS so a
-// dead stream doesn't loop forever and leak resources in the background.
-let radioReconnectCount = 0;
-const MAX_RADIO_RECONNECTS = 5;
-
-function clearRadioReconnectTimer() {
-  if (radioReconnectTimer) { clearTimeout(radioReconnectTimer); radioReconnectTimer = null; }
-}
-
-radioAudio.addEventListener('ended', () => {
-  // Stream disconnected unexpectedly — clear radio state.
-  clearRadioReconnectTimer();
-  radioReconnectCount = 0;
-  usePlayerStore.setState({ isPlaying: false, currentRadio: null, progress: 0, currentTime: 0 });
-});
-radioAudio.addEventListener('error', () => {
-  clearRadioReconnectTimer();
-  if (radioStopping) { radioStopping = false; radioReconnectCount = 0; return; }
-  radioReconnectCount = 0;
-  usePlayerStore.setState({ isPlaying: false, currentRadio: null });
-  showToast('Radio stream error', 3000, 'error');
-});
-// Playing: stream is delivering audio — reset the reconnect counter.
-radioAudio.addEventListener('playing', () => {
-  radioReconnectCount = 0;
-});
-// Stalled: stream stopped delivering data — try to reconnect after 4 s.
-// On macOS/WKWebView, reassigning src during a stall can itself trigger
-// another stall event before the new connection is established.  The
-// radioReconnectTimer guard prevents stacking, and MAX_RADIO_RECONNECTS
-// ensures we don't loop forever on a dead stream.
-radioAudio.addEventListener('stalled', () => {
-  if (radioReconnectTimer) return; // already scheduled
-  if (radioReconnectCount >= MAX_RADIO_RECONNECTS) {
-    radioReconnectCount = 0;
-    usePlayerStore.setState({ isPlaying: false, currentRadio: null });
-    showToast('Radio stream disconnected', 4000, 'error');
-    return;
-  }
-  radioReconnectTimer = setTimeout(() => {
-    radioReconnectTimer = null;
-    if (!usePlayerStore.getState().currentRadio) return;
-    radioReconnectCount++;
-    // Use load() + play() instead of src reassignment — more reliable on
-    // macOS WKWebView where setting src can fire a premature error event.
-    radioAudio.load();
-    radioAudio.play().catch(console.error);
-  }, 4000);
-});
-// Waiting: browser is rebuffering — normal for live streams, no action needed.
-radioAudio.addEventListener('waiting', () => {
-  console.debug('[psysonic] radio: buffering');
-});
-// Suspend: browser paused loading (sufficient buffer) — cancel any stale reconnect.
-radioAudio.addEventListener('suspend', () => {
-  clearRadioReconnectTimer();
-});
 
 function prefetchLoudnessForEnqueuedTracks(
   mergedQueue: Track[],
@@ -1408,10 +1347,7 @@ export const usePlayerStore = create<PlayerState>()(
     (set, get) => {
       function applyQueueHistorySnapshot(snap: QueueUndoSnapshot, prior: PlayerState): boolean {
         if (prior.currentRadio) {
-          clearRadioReconnectTimer();
-          radioStopping = true;
-          radioAudio.pause();
-          radioAudio.src = '';
+          stopRadio();
         }
         let nextQueue = shallowCloneQueueTracks(snap.queue);
         let nextIndex = snap.queueIndex;
@@ -1694,10 +1630,7 @@ export const usePlayerStore = create<PlayerState>()(
       stop: () => {
         clearAllPlaybackScheduleTimers();
         if (get().currentRadio) {
-          clearRadioReconnectTimer();
-          radioStopping = true;
-          radioAudio.pause();
-          radioAudio.src = '';
+          stopRadio();
         } else {
           invoke('audio_stop').catch(console.error);
         }
@@ -1731,7 +1664,6 @@ export const usePlayerStore = create<PlayerState>()(
         set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
         isAudioPaused = false;
         clearRadioReconnectTimer();
-        radioReconnectCount = 0;
         clearPreloadingIds();
         clearSeekFallbackRetry();
         if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
@@ -1741,12 +1673,9 @@ export const usePlayerStore = create<PlayerState>()(
         // to HTML5 <audio> — the browser cannot play playlist files directly.
         const streamUrl = await invoke<string>('resolve_stream_url', { url: station.streamUrl })
           .catch(() => station.streamUrl);
-        // Play via HTML5 audio — browser handles reconnects, codec negotiation, buffering.
-        radioAudio.src = streamUrl;
         const { replayGainFallbackDb } = useAuthStore.getState();
         const fallbackFactor = replayGainFallbackDb !== 0 ? Math.pow(10, replayGainFallbackDb / 20) : 1;
-        radioAudio.volume = Math.min(1, volume * fallbackFactor);
-        radioAudio.play().catch((err: unknown) => {
+        playRadioStream(streamUrl, Math.min(1, volume * fallbackFactor)).catch((err: unknown) => {
           console.error('[psysonic] radio HTML5 play failed:', err);
           showToast('Radio stream error', 3000, 'error');
           set({ isPlaying: false, currentRadio: null });
@@ -1846,10 +1775,7 @@ export const usePlayerStore = create<PlayerState>()(
         // If a radio stream is active, stop it before the new track starts so
         // the PlayerBar clears radio mode immediately and the stream is released.
         if (get().currentRadio) {
-          clearRadioReconnectTimer();
-          radioStopping = true;
-          radioAudio.pause();
-          radioAudio.src = '';
+          stopRadio();
         }
 
         const state = get();
@@ -2090,7 +2016,7 @@ export const usePlayerStore = create<PlayerState>()(
       pause: () => {
         clearAllPlaybackScheduleTimers();
         if (get().currentRadio) {
-          radioAudio.pause();
+          pauseRadio();
         } else {
           invoke('audio_pause').catch(console.error);
           isAudioPaused = true;
@@ -2156,7 +2082,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         if (get().currentRadio) {
-          radioAudio.play().catch(console.error);
+          resumeRadio().catch(console.error);
           set({ isPlaying: true });
           return;
         }
@@ -2588,7 +2514,7 @@ export const usePlayerStore = create<PlayerState>()(
       setVolume: (v) => {
         const clamped = Math.max(0, Math.min(1, v));
         invoke('audio_set_volume', { volume: clamped }).catch(console.error);
-        radioAudio.volume = clamped;
+        setRadioVolume(clamped);
         set({ volume: clamped });
       },
 
