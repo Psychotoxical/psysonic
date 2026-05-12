@@ -20,7 +20,6 @@ import {
   sameQueueTrackId,
 } from '../utils/queueIdentity';
 import { waveformBlobLenOk } from '../utils/waveformParse';
-import { isRecoverableSeekError } from '../utils/seekErrors';
 import {
   emitPlaybackProgress,
   getPlaybackProgressSnapshot,
@@ -65,18 +64,12 @@ import {
 } from './radioPlayer';
 import {
   clearSeekFallbackRetry,
-  getSeekFallbackRestartAt,
-  getSeekFallbackTrackId,
   getSeekFallbackVisualTarget,
-  scheduleSeekFallbackRetry,
   setSeekFallbackRestartAt,
   setSeekFallbackTrackId,
   setSeekFallbackVisualTarget,
 } from './seekFallbackState';
-import {
-  armSeekDebounce,
-  clearSeekDebounce,
-} from './seekDebounce';
+import { clearSeekDebounce } from './seekDebounce';
 import {
   bumpPlayGeneration,
   getIsAudioPaused,
@@ -143,6 +136,7 @@ import type { PlayerState, Track } from './playerStoreTypes';
 export type { PlayerState, Track };
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
+import { runSeek } from './seekAction';
 import { runUpdateReplayGainForCurrentTrack } from './updateReplayGainAction';
 import { createQueueMutationActions } from './queueMutationActions';
 import { createScheduleActions } from './scheduleActions';
@@ -831,71 +825,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── seek ─────────────────────────────────────────────────────────────────
-      // 100 ms debounce collapses rapid slider drags into one actual seek.
-      seek: (progress) => {
-        const { currentTrack } = get();
-        if (!currentTrack) return;
-        const dur = currentTrack.duration;
-        if (!dur || !isFinite(dur)) return;
-        const time = Math.max(0, Math.min(progress * dur, dur - 0.25));
-        set({ progress: time / dur, currentTime: time });
-        armSeekDebounce(100, () => {
-          const s0 = get();
-          if (!s0.currentTrack) return;
-          const authSeek = useAuthStore.getState();
-          const sidSeek = authSeek.activeServerId ?? '';
-          if (shouldRebindPlaybackToHotCache(s0.currentTrack.id, sidSeek)) {
-            setSeekFallbackVisualTarget({
-              trackId: s0.currentTrack.id,
-              seconds: time,
-              setAtMs: Date.now(),
-            });
-            clearSeekFallbackRetry();
-            s0.playTrack(s0.currentTrack, s0.queue, true);
-            return;
-          }
-          invoke('audio_seek', { seconds: time }).then(() => {
-            // Arm stale-progress guard only after backend acknowledged seek.
-            setSeekTarget(time);
-            setSeekFallbackVisualTarget(null);
-            clearSeekFallbackRetry();
-          }).catch((err: unknown) => {
-            // Release the progress-tick guard so the UI doesn't freeze
-            // waiting for a target the engine will never reach.
-            clearSeekTarget();
-            const msg = String(err ?? '');
-            if (!isRecoverableSeekError(msg)) {
-              console.error(err);
-              setSeekFallbackVisualTarget(null);
-              clearSeekFallbackRetry();
-              return;
-            }
-            // Streaming-start path can be temporarily non-seekable or busy.
-            // Keep UI at target and retry seek for a short bounded window.
-            const s = get();
-            if (!s.currentTrack) return;
-            const now = Date.now();
-            const sameBurst =
-              getSeekFallbackTrackId() === s.currentTrack.id
-              && now - getSeekFallbackRestartAt() < 600;
-            setSeekFallbackVisualTarget({
-              trackId: s.currentTrack.id,
-              seconds: time,
-              setAtMs: Date.now(),
-            });
-            // Keep stale progress ticks from snapping UI back to start while
-            // recoverable seek retries are still in flight.
-            setSeekTarget(time);
-            if (msg.includes('not seekable') && !sameBurst) {
-              setSeekFallbackTrackId(s.currentTrack.id);
-              setSeekFallbackRestartAt(now);
-              // Keep manual semantics (no crossfade) for seek recovery restarts.
-              s.playTrack(s.currentTrack, s.queue, true);
-            }
-            scheduleSeekFallbackRetry(s.currentTrack.id, time);
-          });
-        });
-      },
+      seek: (progress) => runSeek(set, get, progress),
 
       updateReplayGainForCurrentTrack: () => runUpdateReplayGainForCurrentTrack(set, get),
     };
