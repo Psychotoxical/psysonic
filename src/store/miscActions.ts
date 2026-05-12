@@ -1,6 +1,6 @@
+import { getPlayQueue } from '../api/subsonicPlayQueue';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../i18n';
-import { getPlayQueue } from '../api/subsonic';
 import { songToTrack } from '../utils/songToTrack';
 import { showToast } from '../utils/toast';
 import { useAuthStore } from './authStore';

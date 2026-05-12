@@ -1,3 +1,4 @@
+import { getPlaylists, getPlaylist } from '../api/subsonicPlaylists';
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getArtists, getArtist } from '../api/subsonicArtists';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
@@ -15,7 +16,6 @@ import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { useDeviceSyncStore, DeviceSyncSource } from '../store/deviceSyncStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
-import { getPlaylists, getPlaylist } from '../api/subsonic';
 import { search as searchSubsonic } from '../api/subsonicSearch';
 import { showToast } from '../utils/toast';
 import { IS_WINDOWS } from '../utils/platform';

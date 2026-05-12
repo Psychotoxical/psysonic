@@ -17,7 +17,7 @@ const { savePlayQueueMock, playerState, progressSnapshot } = vi.hoisted(() => ({
   progressSnapshot: { currentTime: 0, progress: 0, buffered: 0 },
 }));
 
-vi.mock('../api/subsonic', () => ({ savePlayQueue: savePlayQueueMock }));
+vi.mock('../api/subsonicPlayQueue', () => ({ savePlayQueue: savePlayQueueMock }));
 vi.mock('./playerStore', () => ({
   usePlayerStore: { getState: () => playerState },
 }));

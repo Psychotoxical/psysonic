@@ -1,3 +1,4 @@
+import { uploadArtistImage } from '../api/subsonicPlaylists';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { search } from '../api/subsonicSearch';
@@ -7,7 +8,6 @@ import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } 
 import { songToTrack } from '../utils/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { uploadArtistImage } from '../api/subsonic';
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';

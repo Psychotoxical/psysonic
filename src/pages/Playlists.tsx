@@ -1,3 +1,4 @@
+import { deletePlaylist, getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
 import { getGenres } from '../api/subsonicGenres';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
@@ -6,7 +7,6 @@ import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ListMusic, Play, Plus, Trash2, CheckSquare2, Check, Clock3, Sparkles, Pencil } from 'lucide-react';
-import { deletePlaylist, getPlaylist, updatePlaylist } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useAuthStore } from '../store/authStore';

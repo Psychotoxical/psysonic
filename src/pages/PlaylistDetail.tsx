@@ -1,3 +1,4 @@
+import { getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt } from '../api/subsonicPlaylists';
 import { buildDownloadUrl, coverArtCacheKey, buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { search } from '../api/subsonicSearch';
@@ -10,7 +11,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
-import { getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';

@@ -8,6 +8,7 @@
  * Mocks `savePlayQueue` at the module boundary so we can assert the exact
  * args passed to the Subsonic API call.
  */
+import { savePlayQueue } from '@/api/subsonicPlayQueue';
 import { initAudioListeners } from './initAudioListeners';
 import { flushPlayQueuePosition } from './queueSync';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,22 +17,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // real `savePlayQueue` leak through to `playerStore.ts`'s relative import.
 // Listing every export the store uses keeps the override stable.
 vi.mock('@/api/subsonic', () => ({
+  pingWithCredentials: vi.fn(async () => ({ ok: true })),
+}));
+vi.mock('@/api/subsonicPlayQueue', () => ({
   savePlayQueue: vi.fn(async () => undefined),
   getPlayQueue: vi.fn(async () => ({ songs: [], current: undefined, position: 0 })),
+}));
+vi.mock('@/api/subsonicStreamUrl', () => ({
   buildStreamUrl: vi.fn((id: string) => `https://mock/stream/${id}`),
   buildCoverArtUrl: vi.fn((id: string) => `https://mock/cover/${id}`),
   buildDownloadUrl: vi.fn((id: string) => `https://mock/download/${id}`),
   coverArtCacheKey: vi.fn((id: string, size = 256) => `mock:cover:${id}:${size}`),
+}));
+vi.mock('@/api/subsonicLibrary', () => ({
   getSong: vi.fn(async () => null),
   getRandomSongs: vi.fn(async () => []),
+}));
+vi.mock('@/api/subsonicArtists', () => ({
   getSimilarSongs2: vi.fn(async () => []),
   getTopSongs: vi.fn(async () => []),
+}));
+vi.mock('@/api/subsonicAlbumInfo', () => ({
   getAlbumInfo2: vi.fn(async () => null),
+}));
+vi.mock('@/api/subsonicScrobble', () => ({
   reportNowPlaying: vi.fn(async () => undefined),
   scrobbleSong: vi.fn(async () => undefined),
+}));
+vi.mock('@/api/subsonicStarRating', () => ({
   setRating: vi.fn(async () => undefined),
   probeEntityRatingSupport: vi.fn(async () => 'track_only'),
-  pingWithCredentials: vi.fn(async () => ({ ok: true })),
 }));
 
 vi.mock('@/api/lastfm', () => ({
@@ -41,7 +56,6 @@ vi.mock('@/api/lastfm', () => ({
   lastfmGetAllLovedTracks: vi.fn(async () => []),
 }));
 
-import { savePlayQueue } from '@/api/subsonic';
 import { usePlayerStore } from './playerStore';
 import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';

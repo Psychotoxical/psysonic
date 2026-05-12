@@ -1,3 +1,4 @@
+import { getInternetRadioStations } from '../api/subsonicRadio';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getStarred, setRating, unstar } from '../api/subsonicStarRating';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong, InternetRadioStation } from '../api/subsonicTypes';
@@ -7,7 +8,6 @@ import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
 import CachedImage from '../components/CachedImage';
-import { getInternetRadioStations } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import StarRating from '../components/StarRating';
