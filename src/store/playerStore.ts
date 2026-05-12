@@ -119,10 +119,7 @@ import {
 import { prefetchLoudnessForEnqueuedTracks } from './loudnessPrefetch';
 import { initAudioListeners } from './initAudioListeners';
 import { installQueueUndoHotkey } from './queueUndoHotkey';
-import {
-  persistQueueVisibility,
-  readInitialQueueVisibility,
-} from './queueVisibilityStorage';
+import { readInitialQueueVisibility } from './queueVisibilityStorage';
 
 // Re-export so MainApp + the 3 playerStore characterization tests keep
 // their existing `from './playerStore'` imports.
@@ -175,6 +172,7 @@ import type { PlayerState, Track } from './playerStoreTypes';
 export type { PlayerState, Track };
 import { applyQueueHistorySnapshot } from './applyQueueHistorySnapshot';
 import { createLastfmActions } from './lastfmActions';
+import { createUiStateActions } from './uiStateActions';
 
 
 // ─── Module-level playback primitives ─────────────────────────────────────────
@@ -212,20 +210,7 @@ export const usePlayerStore = create<PlayerState>()(
       lastfmLoved: false,
       lastfmLovedCache: {},
       starredOverrides: {},
-      setStarredOverride: (id, starred) => set(s => ({ starredOverrides: { ...s.starredOverrides, [id]: starred } })),
       userRatingOverrides: {},
-      setUserRatingOverride: (id, rating) =>
-        set(s => {
-          const nextOverrides = { ...s.userRatingOverrides };
-          if (rating === 0) delete nextOverrides[id];
-          else nextOverrides[id] = rating;
-          return {
-            userRatingOverrides: nextOverrides,
-            queue: s.queue.map(t => (t.id === id ? { ...t, userRating: rating } : t)),
-            currentTrack:
-              s.currentTrack?.id === id ? { ...s.currentTrack, userRating: rating } : s.currentTrack,
-          };
-        }),
       isQueueVisible: readInitialQueueVisibility(),
       isFullscreenOpen: false,
       scheduledPauseAtMs: null,
@@ -234,36 +219,10 @@ export const usePlayerStore = create<PlayerState>()(
       scheduledResumeStartMs: null,
       repeatMode: 'off',
       contextMenu: { isOpen: false, x: 0, y: 0, item: null, type: null },
-
-      openContextMenu: (x, y, item, type, queueIndex, playlistId, playlistSongIndex, shareKindOverride) => set({
-        contextMenu: { isOpen: true, x, y, item, type, queueIndex, playlistId, playlistSongIndex, shareKindOverride },
-      }),
-      closeContextMenu: () => set(state => ({
-        contextMenu: { ...state.contextMenu, isOpen: false },
-      })),
-
       songInfoModal: { isOpen: false, songId: null },
-      openSongInfo: (songId) => set({ songInfoModal: { isOpen: true, songId } }),
-      closeSongInfo: () => set({ songInfoModal: { isOpen: false, songId: null } }),
 
-      toggleQueue: () =>
-        set(state => {
-          const next = !state.isQueueVisible;
-          persistQueueVisibility(next);
-          return { isQueueVisible: next };
-        }),
-      setQueueVisible: (v: boolean) => {
-        persistQueueVisibility(v);
-        set({ isQueueVisible: v });
-      },
-      toggleFullscreen: () => set(state => ({ isFullscreenOpen: !state.isFullscreenOpen })),
-
+      ...createUiStateActions(set),
       ...createLastfmActions(set, get),
-
-      toggleRepeat: () => set(state => {
-        const modes = ['off', 'all', 'one'] as const;
-        return { repeatMode: modes[(modes.indexOf(state.repeatMode) + 1) % modes.length] };
-      }),
 
       // ── stop ────────────────────────────────────────────────────────────────
       stop: () => {
