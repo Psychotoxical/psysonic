@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { showToast } from '../utils/toast';
 import i18n from '../i18n';
 import { buildStreamUrl, getPlayQueue, savePlayQueue, reportNowPlaying, getSong, getSimilarSongs2, getTopSongs, setRating } from '../api/subsonic';
-import { resolvePlaybackUrl, getPlaybackSourceKind } from '../utils/resolvePlaybackUrl';
+import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
 import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
 import { lastfmUpdateNowPlaying, lastfmLoveTrack, lastfmUnloveTrack, lastfmGetTrackLoved, lastfmGetAllLovedTracks } from '../api/lastfm';
 import { useAuthStore } from './authStore';
@@ -22,7 +22,6 @@ import { buildInfiniteQueueCandidates } from '../utils/buildInfiniteQueueCandida
 import {
   queuesStructuralEqual,
   sameQueueTrackId,
-  shallowCloneQueueTracks,
 } from '../utils/queueIdentity';
 import { waveformBlobLenOk } from '../utils/waveformParse';
 import { isRecoverableSeekError } from '../utils/seekErrors';
@@ -117,7 +116,6 @@ import {
   isInfiniteQueueFetching,
   setInfiniteQueueFetching,
 } from './infiniteQueueState';
-import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import { prefetchLoudnessForEnqueuedTracks } from './loudnessPrefetch';
 import { initAudioListeners } from './initAudioListeners';
 import { installQueueUndoHotkey } from './queueUndoHotkey';
@@ -157,7 +155,6 @@ import {
   pushQueueUndoSnapshot,
   queueUndoSnapshotFromState,
   registerQueueListScrollTopReader,
-  setPendingQueueListScrollTop,
   type QueueUndoSnapshot,
 } from './queueUndo';
 
@@ -176,6 +173,7 @@ export {
 
 import type { PlayerState, Track } from './playerStoreTypes';
 export type { PlayerState, Track };
+import { applyQueueHistorySnapshot } from './applyQueueHistorySnapshot';
 
 
 // ─── Module-level playback primitives ─────────────────────────────────────────
@@ -186,160 +184,6 @@ export type { PlayerState, Track };
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => {
-      function applyQueueHistorySnapshot(snap: QueueUndoSnapshot, prior: PlayerState): boolean {
-        if (prior.currentRadio) {
-          stopRadio();
-        }
-        let nextQueue = shallowCloneQueueTracks(snap.queue);
-        let nextIndex = snap.queueIndex;
-        let nextTrack = snap.currentTrack ? { ...snap.currentTrack } : null;
-
-        if (snap.currentTrack == null && prior.currentTrack) {
-          const playing = prior.currentTrack;
-          const pos = nextQueue.findIndex(t => sameQueueTrackId(t.id, playing.id));
-          if (pos === -1) {
-            nextQueue = [{ ...playing }, ...nextQueue];
-            nextIndex = 0;
-            nextTrack = { ...playing };
-          } else {
-            nextTrack = { ...playing };
-            nextIndex = pos;
-          }
-        }
-
-        nextIndex = Math.max(0, Math.min(nextIndex, Math.max(0, nextQueue.length - 1)));
-
-        const keepPlaybackFromPrior =
-          prior.currentTrack != null
-          && nextTrack != null
-          && sameQueueTrackId(prior.currentTrack.id, nextTrack.id)
-          && nextQueue.some(t => sameQueueTrackId(t.id, prior.currentTrack!.id))
-          && (
-            (snap.currentTrack != null && sameQueueTrackId(prior.currentTrack.id, snap.currentTrack.id))
-            || snap.currentTrack == null
-          );
-
-        if (keepPlaybackFromPrior) {
-          const playingKeep = prior.currentTrack;
-          if (playingKeep) {
-            const idxPrior = nextQueue.findIndex(t => sameQueueTrackId(t.id, playingKeep.id));
-            if (idxPrior >= 0) {
-              nextIndex = idxPrior;
-              nextTrack = { ...playingKeep };
-            }
-          }
-        }
-
-        let tRestoreRaw = typeof snap.currentTime === 'number' && Number.isFinite(snap.currentTime)
-          ? snap.currentTime
-          : 0;
-        let playingRestore = snap.isPlaying !== false;
-        if (keepPlaybackFromPrior && prior.currentTrack) {
-          tRestoreRaw = prior.currentTime;
-          playingRestore = prior.isPlaying;
-        }
-        const durForProgress = nextTrack?.duration && nextTrack.duration > 0 ? nextTrack.duration : null;
-        let pRestore = typeof snap.progress === 'number' && Number.isFinite(snap.progress)
-          ? snap.progress
-          : (durForProgress != null && durForProgress > 0
-            ? Math.max(0, Math.min(1, tRestoreRaw / durForProgress))
-            : 0);
-        if (keepPlaybackFromPrior) {
-          pRestore = prior.progress;
-        }
-        const tRestore = durForProgress != null
-          ? Math.max(0, Math.min(tRestoreRaw, durForProgress))
-          : Math.max(0, tRestoreRaw);
-
-        const keepWaveform =
-          prior.currentTrack?.id != null &&
-          nextTrack?.id != null &&
-          sameQueueTrackId(prior.currentTrack.id, nextTrack.id);
-        const norm =
-          nextTrack != null
-            ? deriveNormalizationSnapshot(nextTrack, nextQueue, nextIndex)
-            : ({
-                normalizationNowDb: null,
-                normalizationTargetLufs: null,
-                normalizationEngineLive: 'off',
-              } as Pick<
-                PlayerState,
-                'normalizationNowDb' | 'normalizationTargetLufs' | 'normalizationEngineLive'
-              >);
-        const authSnap = useAuthStore.getState();
-        const playbackSourceUndo = nextTrack
-          ? getPlaybackSourceKind(nextTrack.id, authSnap.activeServerId ?? '', null)
-          : null;
-        const playbackSourceFinal = keepPlaybackFromPrior && prior.currentPlaybackSource != null
-          ? prior.currentPlaybackSource
-          : playbackSourceUndo;
-
-        clearAllPlaybackScheduleTimers();
-        set({
-          scheduledPauseAtMs: null,
-          scheduledPauseStartMs: null,
-          scheduledResumeAtMs: null,
-          scheduledResumeStartMs: null,
-        });
-
-        clearPreloadingIds();
-
-        let gen = getPlayGeneration();
-        const resyncEngine = Boolean(nextTrack) && !keepPlaybackFromPrior;
-        if (resyncEngine || !nextTrack) {
-          gen = bumpPlayGeneration();
-          if (resyncEngine) {
-            setIsAudioPaused(false);
-          }
-        }
-
-        set({
-          queue: nextQueue,
-          queueIndex: nextIndex,
-          currentTrack: nextTrack,
-          currentRadio: null,
-          currentTime: tRestore,
-          progress: pRestore,
-          isPlaying: playingRestore,
-          waveformBins: keepWaveform ? prior.waveformBins : null,
-          enginePreloadedTrackId: keepPlaybackFromPrior ? prior.enginePreloadedTrackId : null,
-          currentPlaybackSource: playbackSourceFinal,
-          ...norm,
-        });
-
-        if (!nextTrack) {
-          invoke('audio_stop').catch(console.error);
-          setIsAudioPaused(false);
-          syncQueueToServer(nextQueue, null, 0);
-          if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
-            setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
-          }
-          return true;
-        }
-
-        void refreshWaveformForTrack(nextTrack.id);
-        void refreshLoudnessForTrack(nextTrack.id);
-        get().updateReplayGainForCurrentTrack();
-
-        if (!keepPlaybackFromPrior) {
-          const { nowPlayingEnabled: npUndo } = useAuthStore.getState();
-          if (npUndo) reportNowPlaying(nextTrack.id);
-
-          queueUndoRestoreAudioEngine({
-            generation: gen,
-            track: nextTrack,
-            queue: nextQueue,
-            queueIndex: nextIndex,
-            atSeconds: tRestore,
-            wantPlaying: playingRestore,
-          });
-        }
-        if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
-          setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
-        }
-        syncQueueToServer(nextQueue, nextTrack, tRestore);
-        return true;
-      }
 
       return {
       currentTrack: null,
@@ -1555,7 +1399,7 @@ export const usePlayerStore = create<PlayerState>()(
         const snap = popQueueUndoSnapshot();
         if (!snap) return false;
         pushQueueRedoSnapshot(queueUndoSnapshotFromState(prior));
-        return applyQueueHistorySnapshot(snap, prior);
+        return applyQueueHistorySnapshot(snap, prior, set, get);
       },
 
       redoLastQueueEdit: () => {
@@ -1563,7 +1407,7 @@ export const usePlayerStore = create<PlayerState>()(
         const snap = popQueueRedoSnapshot();
         if (!snap) return false;
         pushQueueUndoSnapshot(queueUndoSnapshotFromState(prior));
-        return applyQueueHistorySnapshot(snap, prior);
+        return applyQueueHistorySnapshot(snap, prior, set, get);
       },
 
       removeTrack: (index) => {
