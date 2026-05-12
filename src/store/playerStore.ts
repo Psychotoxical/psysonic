@@ -58,6 +58,13 @@ import {
   markLoudnessStable,
   setCachedLoudnessGain,
 } from './loudnessGainCache';
+import {
+  clearAllPlaybackScheduleTimers,
+  clearScheduledPauseTimers,
+  clearScheduledResumeTimers,
+  schedulePauseTimer,
+  scheduleResumeTimer,
+} from './scheduleTimers';
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -450,29 +457,6 @@ const STORE_PROGRESS_COMMIT_MIN_MS = 20_000;
 const STORE_PROGRESS_COMMIT_MIN_DELTA_SEC = 5.0;
 let lastStoreProgressCommitAt = 0;
 
-
-/** Deferred pause / resume — cleared on stop, new track, manual pause/resume. */
-let scheduledPauseTimer: number | null = null;
-let scheduledResumeTimer: number | null = null;
-
-function clearScheduledPauseTimers() {
-  if (scheduledPauseTimer != null) {
-    window.clearTimeout(scheduledPauseTimer);
-    scheduledPauseTimer = null;
-  }
-}
-
-function clearScheduledResumeTimers() {
-  if (scheduledResumeTimer != null) {
-    window.clearTimeout(scheduledResumeTimer);
-    scheduledResumeTimer = null;
-  }
-}
-
-function clearAllPlaybackScheduleTimers() {
-  clearScheduledPauseTimers();
-  clearScheduledResumeTimers();
-}
 
 function setSeekTarget(seconds: number) {
   seekTarget = seconds;
@@ -2686,32 +2670,28 @@ export const usePlayerStore = create<PlayerState>()(
       schedulePauseIn: (seconds) => {
         const s = get();
         if (!s.isPlaying) return;
-        clearScheduledPauseTimers();
         const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
         const startedAt = Date.now();
         const at = startedAt + delayMs;
         set({ scheduledPauseAtMs: at, scheduledPauseStartMs: startedAt });
-        scheduledPauseTimer = window.setTimeout(() => {
-          scheduledPauseTimer = null;
+        schedulePauseTimer(delayMs, () => {
           set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null });
           get().pause();
-        }, delayMs) as unknown as number;
+        });
       },
 
       scheduleResumeIn: (seconds) => {
         const s = get();
         if (s.isPlaying) return;
         if (!s.currentTrack && !s.currentRadio) return;
-        clearScheduledResumeTimers();
         const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
         const startedAt = Date.now();
         const at = startedAt + delayMs;
         set({ scheduledResumeAtMs: at, scheduledResumeStartMs: startedAt });
-        scheduledResumeTimer = window.setTimeout(() => {
-          scheduledResumeTimer = null;
+        scheduleResumeTimer(delayMs, () => {
           set({ scheduledResumeAtMs: null, scheduledResumeStartMs: null });
           get().resume();
-        }, delayMs) as unknown as number;
+        });
       },
 
       togglePlay: () => {
