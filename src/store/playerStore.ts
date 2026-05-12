@@ -131,6 +131,17 @@ import {
   setSeekFallbackTrackId,
   setSeekFallbackVisualTarget,
 } from './seekFallbackState';
+import {
+  armSeekDebounce,
+  clearSeekDebounce,
+  isSeekDebouncePending,
+} from './seekDebounce';
+import {
+  bumpPlayGeneration,
+  getIsAudioPaused,
+  getPlayGeneration,
+  setIsAudioPaused,
+} from './engineState';
 
 // Re-export so TauriEventBridge + persistence test keep their existing
 // `from './playerStore'` imports.
@@ -381,15 +392,6 @@ type NormalizationStatePayload = {
 
 // ─── Module-level playback primitives ─────────────────────────────────────────
 
-// isAudioPaused — true when the Rust audio engine has a loaded-but-paused track.
-// Used by resume() to decide between audio_resume (warm) vs audio_play (cold start).
-let isAudioPaused = false;
-
-// JS-side generation counter. Incremented on every playTrack() call.
-// The invoke().catch() error handler captures its own gen and bails if
-// playGeneration has moved on, preventing stale errors from skipping wrong tracks.
-let playGeneration = 0;
-
 // Guard against concurrent infinite-queue fetches.
 let infiniteQueueFetching = false;
 // Guard against concurrent radio top-up fetches.
@@ -447,7 +449,7 @@ function queueUndoRestoreAudioEngine(opts: {
     streamFormatSuffix: track.suffix ?? null,
   })
     .then(() => {
-      if (playGeneration !== generation) return;
+      if (getPlayGeneration() !== generation) return;
       if (keepPreloadHint) {
         usePlayerStore.setState({ enginePreloadedTrackId: null });
       }
@@ -455,13 +457,13 @@ function queueUndoRestoreAudioEngine(opts: {
       const seekTo = Math.max(0, atSeconds);
       const canSeek = seekTo > 0.05 && (dur == null || seekTo < dur - 0.05);
       const afterSeek = () => {
-        if (playGeneration !== generation) return;
+        if (getPlayGeneration() !== generation) return;
         if (!wantPlaying) {
           invoke('audio_pause').catch(console.error);
-          isAudioPaused = true;
+          setIsAudioPaused(true);
           usePlayerStore.setState({ isPlaying: false });
         } else {
-          isAudioPaused = false;
+          setIsAudioPaused(false);
         }
       };
       if (canSeek) {
@@ -471,7 +473,7 @@ function queueUndoRestoreAudioEngine(opts: {
       }
     })
     .catch((err: unknown) => {
-      if (playGeneration !== generation) return;
+      if (getPlayGeneration() !== generation) return;
       console.error('[psysonic] queue-undo audio_play failed:', err);
       usePlayerStore.setState({ isPlaying: false });
     })
@@ -481,8 +483,6 @@ function queueUndoRestoreAudioEngine(opts: {
   touchHotCacheOnPlayback(track.id, authState.activeServerId ?? '');
 }
 
-// Debounce timer for seek slider drags.
-let seekDebounce: ReturnType<typeof setTimeout> | null = null;
 // Streaming fallback seek guard: coalesce repeated "not seekable" recoveries.
 
 
@@ -513,7 +513,7 @@ function handleAudioProgress(current_time: number, duration: number) {
   // While a seek is pending, the store already holds the optimistic target
   // position.  Accepting stale progress from the Rust engine would briefly
   // snap the waveform back to the old position before the seek completes.
-  if (seekDebounce) return;
+  if (isSeekDebouncePending()) return;
   // After the debounce fires, Rust may still emit 1–2 ticks with the old
   // position before the seek takes effect.  Block until current_time is
   // within 2 s of the requested target, then clear the guard.
@@ -732,13 +732,13 @@ function handleAudioEnded() {
 
   // Radio stream disconnected — just stop; don't advance queue.
   if (usePlayerStore.getState().currentRadio) {
-    isAudioPaused = false;
+    setIsAudioPaused(false);
     usePlayerStore.setState({ isPlaying: false, currentRadio: null, progress: 0, currentTime: 0 });
     return;
   }
 
   const { repeatMode, currentTrack, queue, queueIndex } = usePlayerStore.getState();
-  isAudioPaused = false;
+  setIsAudioPaused(false);
   usePlayerStore.setState({
     isPlaying: false,
     progress: 0,
@@ -776,7 +776,7 @@ function handleAudioEnded() {
 function handleAudioTrackSwitched(duration: number) {
   markGaplessSwitch();
   clearPreloadingIds(); // allow preloading for the track after this one
-  isAudioPaused = false;
+  setIsAudioPaused(false);
 
   const store = usePlayerStore.getState();
   if (store.currentTrack?.id) {
@@ -847,15 +847,15 @@ function handleAudioTrackSwitched(duration: number) {
 
 function handleAudioError(message: string) {
   console.error('[psysonic] Audio error from backend:', message);
-  isAudioPaused = false;
+  setIsAudioPaused(false);
 
   const detail = message.length > 80 ? message.slice(0, 80) + '…' : message;
   showToast(`Couldn't play track — skipping. ${detail}`, 8000, 'error');
 
-  const gen = playGeneration;
+  const gen = getPlayGeneration();
   usePlayerStore.setState({ isPlaying: false });
   setTimeout(() => {
-    if (playGeneration !== gen) return;
+    if (getPlayGeneration() !== gen) return;
     usePlayerStore.getState().next(false);
   }, 1500);
 }
@@ -1399,12 +1399,12 @@ export const usePlayerStore = create<PlayerState>()(
 
         clearPreloadingIds();
 
-        let gen = playGeneration;
+        let gen = getPlayGeneration();
         const resyncEngine = Boolean(nextTrack) && !keepPlaybackFromPrior;
         if (resyncEngine || !nextTrack) {
-          gen = ++playGeneration;
+          gen = bumpPlayGeneration();
           if (resyncEngine) {
-            isAudioPaused = false;
+            setIsAudioPaused(false);
           }
         }
 
@@ -1424,7 +1424,7 @@ export const usePlayerStore = create<PlayerState>()(
 
         if (!nextTrack) {
           invoke('audio_stop').catch(console.error);
-          isAudioPaused = false;
+          setIsAudioPaused(false);
           syncQueueToServer(nextQueue, null, 0);
           if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
             setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
@@ -1590,9 +1590,9 @@ export const usePlayerStore = create<PlayerState>()(
         } else {
           invoke('audio_stop').catch(console.error);
         }
-        isAudioPaused = false;
+        setIsAudioPaused(false);
         clearSeekFallbackRetry();
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
+        clearSeekDebounce(); clearSeekTarget();
         set({
           isPlaying: false,
           progress: 0,
@@ -1615,14 +1615,14 @@ export const usePlayerStore = create<PlayerState>()(
       // ── playRadio ────────────────────────────────────────────────────────────
       playRadio: async (station) => {
         const { volume } = get();
-        ++playGeneration;
+        bumpPlayGeneration();
         clearAllPlaybackScheduleTimers();
         set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
-        isAudioPaused = false;
+        setIsAudioPaused(false);
         clearRadioReconnectTimer();
         clearPreloadingIds();
         clearSeekFallbackRetry();
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
+        clearSeekDebounce(); clearSeekTarget();
         // Stop Rust engine in case a regular track was playing.
         invoke('audio_stop').catch(() => {});
         // Resolve PLS/M3U playlist URLs to the actual stream URL before handing
@@ -1721,10 +1721,10 @@ export const usePlayerStore = create<PlayerState>()(
         clearAllPlaybackScheduleTimers();
         set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
 
-        const gen = ++playGeneration;
-        isAudioPaused = false;
+        const gen = bumpPlayGeneration();
+        setIsAudioPaused(false);
         clearPreloadingIds(); // new track — allow fresh preload for next
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
+        clearSeekDebounce(); clearSeekTarget();
         clearSeekFallbackRetry();
         setSeekFallbackRestartAt(0);
 
@@ -1860,7 +1860,7 @@ export const usePlayerStore = create<PlayerState>()(
             streamFormatSuffix: track.suffix ?? null,
           })
             .then(() => {
-              if (playGeneration !== gen) return;
+              if (getPlayGeneration() !== gen) return;
               if (keepPreloadHint) {
                 usePlayerStore.setState({ enginePreloadedTrackId: null });
               }
@@ -1871,7 +1871,7 @@ export const usePlayerStore = create<PlayerState>()(
               if (canSeekAfterPlay) {
                 void invoke('audio_seek', { seconds: seekTo })
                   .then(() => {
-                    if (playGeneration !== gen) return;
+                    if (getPlayGeneration() !== gen) return;
                     setSeekTarget(seekTo);
                     if (getSeekFallbackVisualTarget()?.trackId === track.id) {
                       setSeekFallbackVisualTarget(null);
@@ -1885,12 +1885,12 @@ export const usePlayerStore = create<PlayerState>()(
               }
             })
             .catch((err: unknown) => {
-              if (playGeneration !== gen) return;
+              if (getPlayGeneration() !== gen) return;
               setDeferHotCachePrefetch(false);
               console.error('[psysonic] audio_play failed:', err);
               set({ isPlaying: false });
               setTimeout(() => {
-                if (playGeneration !== gen) return;
+                if (getPlayGeneration() !== gen) return;
                 get().next(false);
               }, 500);
             });
@@ -1920,11 +1920,11 @@ export const usePlayerStore = create<PlayerState>()(
             authState.hotCacheDownloadDir || null,
           )
             .then(() => {
-              if (playGeneration !== gen) return;
+              if (getPlayGeneration() !== gen) return;
               runPlayTrackBody();
             })
             .catch((err: unknown) => {
-              if (playGeneration !== gen) return;
+              if (getPlayGeneration() !== gen) return;
               setDeferHotCachePrefetch(false);
               console.error('[psysonic] same-track hot promote / play body failed:', err);
               set({ isPlaying: false });
@@ -1979,7 +1979,7 @@ export const usePlayerStore = create<PlayerState>()(
           pauseRadio();
         } else {
           invoke('audio_pause').catch(console.error);
-          isAudioPaused = true;
+          setIsAudioPaused(true);
           // Flush position so a quick close after pause still leaves the
           // server with the right resume point for other devices.
           const s = get();
@@ -1991,7 +1991,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       resetAudioPause: () => {
-        isAudioPaused = false;
+        setIsAudioPaused(false);
       },
 
       resume: () => {
@@ -2020,9 +2020,9 @@ export const usePlayerStore = create<PlayerState>()(
                 // Same track: seek + un-pause via the Rust engine directly.
                 // Bypasses this resume() branch re-entry via the early return below.
                 get().seek(fraction);
-                if (isAudioPaused) {
+                if (getIsAudioPaused()) {
                   invoke('audio_resume').catch(console.error);
-                  isAudioPaused = false;
+                  setIsAudioPaused(false);
                   set({ isPlaying: true });
                 } else {
                   set({ isPlaying: true });
@@ -2051,17 +2051,17 @@ export const usePlayerStore = create<PlayerState>()(
         const coldPrev = queueIndex > 0 ? queue[queueIndex - 1] : null;
         const coldNext = queueIndex + 1 < queue.length ? queue[queueIndex + 1] : null;
 
-        if (isAudioPaused) {
+        if (getIsAudioPaused()) {
           // Rust engine has audio loaded but paused — just resume it.
           invoke('audio_resume').catch(console.error);
-          isAudioPaused = false;
+          setIsAudioPaused(false);
           set({ isPlaying: true });
           touchHotCacheOnPlayback(currentTrack.id, useAuthStore.getState().activeServerId ?? '');
         } else {
           // Engine has no loaded paused stream (app relaunch, or track ended and user
           // hits play — `isAudioPaused` is false after `audio:ended`). Flush any
           // `stream_completed_cache` from the prior play to hot disk before resolving URL.
-          const gen = ++playGeneration;
+          const gen = bumpPlayGeneration();
           const vol = get().volume;
           set({ isPlaying: true });
 
@@ -2075,11 +2075,11 @@ export const usePlayerStore = create<PlayerState>()(
                 authHot.hotCacheDownloadDir || null,
               );
             }
-            if (playGeneration !== gen) return;
+            if (getPlayGeneration() !== gen) return;
 
             // Fetch fresh track data from server to get replay gain metadata
             getSong(currentTrack.id).then(freshSong => {
-            if (playGeneration !== gen) return;
+            if (getPlayGeneration() !== gen) return;
             const trackToPlay = freshSong ? songToTrack(freshSong) : currentTrack;
             // Update store with fresh track data if available
             if (freshSong) set({ currentTrack: trackToPlay });
@@ -2109,18 +2109,18 @@ export const usePlayerStore = create<PlayerState>()(
               analysisTrackId: trackToPlay.id,
               streamFormatSuffix: trackToPlay.suffix ?? null,
             }).then(() => {
-              if (playGeneration === gen && currentTime > 1) {
+              if (getPlayGeneration() === gen && currentTime > 1) {
                 invoke('audio_seek', { seconds: currentTime }).catch(console.error);
               }
             }).catch((err: unknown) => {
-              if (playGeneration !== gen) return;
+              if (getPlayGeneration() !== gen) return;
               setDeferHotCachePrefetch(false);
               console.error('[psysonic] audio_play (cold resume) failed:', err);
               set({ isPlaying: false });
             });
             syncQueueToServer(queue, trackToPlay, currentTime);
           }).catch(() => {
-             if (playGeneration !== gen) return;
+             if (getPlayGeneration() !== gen) return;
              // Fallback to currentTrack if fetch fails
              const authStateCold = useAuthStore.getState();
              const replayGainDbCold = resolveReplayGainDb(
@@ -2148,7 +2148,7 @@ export const usePlayerStore = create<PlayerState>()(
                analysisTrackId: currentTrack.id,
                streamFormatSuffix: currentTrack.suffix ?? null,
              }).catch((err: unknown) => {
-               if (playGeneration !== gen) return;
+               if (getPlayGeneration() !== gen) return;
                setDeferHotCachePrefetch(false);
                console.error('[psysonic] audio_play (cold resume) failed:', err);
                set({ isPlaying: false });
@@ -2291,7 +2291,7 @@ export const usePlayerStore = create<PlayerState>()(
           // so a fetch scheduled mid-join doesn't slip through.
           if (isInOrbitSession()) {
             invoke('audio_stop').catch(console.error);
-            isAudioPaused = false;
+            setIsAudioPaused(false);
             set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
             return;
           }
@@ -2308,7 +2308,7 @@ export const usePlayerStore = create<PlayerState>()(
                   // fetch was in flight — bail without touching the queue.
                   if (isInOrbitSession()) {
                     invoke('audio_stop').catch(console.error);
-                    isAudioPaused = false;
+                    setIsAudioPaused(false);
                     set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
                     return;
                   }
@@ -2330,14 +2330,14 @@ export const usePlayerStore = create<PlayerState>()(
                     get().playTrack(fresh[0], newQueue, false, false, currentQueue.length);
                   } else {
                     invoke('audio_stop').catch(console.error);
-                    isAudioPaused = false;
+                    setIsAudioPaused(false);
                     set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
                   }
                 })
                 .catch(() => {
                   radioFetching = false;
                   invoke('audio_stop').catch(console.error);
-                  isAudioPaused = false;
+                  setIsAudioPaused(false);
                   set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
                 });
               return;
@@ -2354,13 +2354,13 @@ export const usePlayerStore = create<PlayerState>()(
               // fetch was in flight — bail without invoking playTrack.
               if (isInOrbitSession()) {
                 invoke('audio_stop').catch(console.error);
-                isAudioPaused = false;
+                setIsAudioPaused(false);
                 set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
                 return;
               }
               if (newTracks.length === 0) {
                 invoke('audio_stop').catch(console.error);
-                isAudioPaused = false;
+                setIsAudioPaused(false);
                 set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
                 return;
               }
@@ -2370,12 +2370,12 @@ export const usePlayerStore = create<PlayerState>()(
             }).catch(() => {
               infiniteQueueFetching = false;
               invoke('audio_stop').catch(console.error);
-              isAudioPaused = false;
+              setIsAudioPaused(false);
               set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
             });
           } else {
             invoke('audio_stop').catch(console.error);
-            isAudioPaused = false;
+            setIsAudioPaused(false);
             set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
           }
         }
@@ -2410,9 +2410,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (!dur || !isFinite(dur)) return;
         const time = Math.max(0, Math.min(progress * dur, dur - 0.25));
         set({ progress: time / dur, currentTime: time });
-        if (seekDebounce) clearTimeout(seekDebounce);
-        seekDebounce = setTimeout(() => {
-          seekDebounce = null;
+        armSeekDebounce(100, () => {
           const s0 = get();
           if (!s0.currentTrack) return;
           const authSeek = useAuthStore.getState();
@@ -2467,7 +2465,7 @@ export const usePlayerStore = create<PlayerState>()(
             }
             scheduleSeekFallbackRetry(s.currentTrack.id, time);
           });
-        }, 100);
+        });
       },
 
       // ── volume ───────────────────────────────────────────────────────────────
@@ -2611,9 +2609,9 @@ export const usePlayerStore = create<PlayerState>()(
 
       clearQueue: () => {
         invoke('audio_stop').catch(console.error);
-        isAudioPaused = false;
+        setIsAudioPaused(false);
         clearSeekFallbackRetry();
-        if (seekDebounce) { clearTimeout(seekDebounce); seekDebounce = null; } clearSeekTarget();
+        clearSeekDebounce(); clearSeekTarget();
         radioSessionSeenIds = new Set();
         currentRadioArtistId = null;
         set({ queue: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
