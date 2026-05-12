@@ -1,8 +1,5 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import {
-  isNavidromeAudiomuseSoftwareEligible,
-} from '../utils/subsonicServerIdentity';
 import { IS_LINUX } from '../utils/platform';
 import {
   LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS,
@@ -14,8 +11,11 @@ import { createCacheStorageActions } from './authCacheStorageActions';
 import { createDiscordSettingsActions } from './authDiscordSettingsActions';
 import { createDiscoveryActions } from './authDiscoveryActions';
 import { createLyricsSettingsActions } from './authLyricsSettingsActions';
+import { createMusicLibraryActions } from './authMusicLibraryActions';
+import { createPerServerCapabilityActions } from './authPerServerCapabilityActions';
 import { createPlumbingSettingsActions } from './authPlumbingActions';
 import { createServerProfileActions } from './authServerProfileActions';
+import { createSkipStarActions } from './authSkipStarActions';
 import { createTrackPreviewActions } from './authTrackPreviewActions';
 import { createUiAppearanceActions } from './authUiAppearanceActions';
 import {
@@ -26,11 +26,9 @@ import {
 import {
   clampMixFilterMinStars,
   clampRandomMixSize,
-  clampSkipStarThreshold,
   sanitizeLoudnessLufsPreset,
   sanitizeLoudnessPreAnalysisFromStorage,
   sanitizeSkipStarCounts,
-  skipStarCountStorageKey,
 } from './authStoreHelpers';
 import type {
   AuthState,
@@ -143,121 +141,9 @@ export const useAuthStore = create<AuthState>()(
       ...createTrackPreviewActions(set),
       ...createDiscoveryActions(set),
       ...createPlumbingSettingsActions(set),
-
-      setSkipStarOnManualSkipsEnabled: (v) =>
-        set({
-          skipStarOnManualSkipsEnabled: v,
-          ...(v ? {} : { skipStarManualSkipCountsByKey: {} }),
-        }),
-      setSkipStarManualSkipThreshold: (v) => set({ skipStarManualSkipThreshold: clampSkipStarThreshold(v) }),
-
-      recordSkipStarManualAdvance: (trackId: string) => {
-        const s = get();
-        if (!s.skipStarOnManualSkipsEnabled || s.skipStarManualSkipThreshold < 1) return null;
-        const key = skipStarCountStorageKey(s.activeServerId, trackId);
-        const prev = s.skipStarManualSkipCountsByKey[key] ?? 0;
-        const threshold = s.skipStarManualSkipThreshold;
-        const next = prev + 1;
-        if (next >= threshold) {
-          const { [key]: _removed, ...rest } = s.skipStarManualSkipCountsByKey;
-          set({ skipStarManualSkipCountsByKey: rest });
-          return { crossedThreshold: true };
-        }
-        set({
-          skipStarManualSkipCountsByKey: { ...s.skipStarManualSkipCountsByKey, [key]: next },
-        });
-        return { crossedThreshold: false };
-      },
-
-      clearSkipStarManualCountForTrack: (trackId: string) => {
-        const s = get();
-        const key = skipStarCountStorageKey(s.activeServerId, trackId);
-        if (s.skipStarManualSkipCountsByKey[key] === undefined) return;
-        const { [key]: _removed, ...rest } = s.skipStarManualSkipCountsByKey;
-        set({ skipStarManualSkipCountsByKey: rest });
-      },
-
-      setMusicFolders: (folders) => {
-        const sid = get().activeServerId;
-        set(s => {
-          const f = sid ? s.musicLibraryFilterByServer[sid] : undefined;
-          const invalidFilter = f && f !== 'all' && !folders.some(x => x.id === f);
-          return {
-            musicFolders: folders,
-            ...(sid && invalidFilter
-              ? { musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: 'all' } }
-              : {}),
-          };
-        });
-      },
-
-      setMusicLibraryFilter: (folderId) => {
-        const sid = get().activeServerId;
-        if (!sid) return;
-        set(s => ({
-          musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: folderId },
-          musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
-        }));
-      },
-
-      setEntityRatingSupport: (serverId, level) =>
-        set(s => ({
-          entityRatingSupportByServer: { ...s.entityRatingSupportByServer, [serverId]: level },
-        })),
-
-      setAudiomuseNavidromeEnabled: (serverId, enabled) =>
-        set(s => {
-          const audiomuseNavidromeByServer = enabled
-            ? { ...s.audiomuseNavidromeByServer, [serverId]: true }
-            : (() => {
-                const { [serverId]: _removed, ...rest } = s.audiomuseNavidromeByServer;
-                return rest;
-              })();
-          const { [serverId]: _issueRm, ...issueRest } = s.audiomuseNavidromeIssueByServer;
-          return { audiomuseNavidromeByServer, audiomuseNavidromeIssueByServer: issueRest };
-        }),
-
-      setSubsonicServerIdentity: (serverId, identity) =>
-        set(s => {
-          const subsonicServerIdentityByServer = { ...s.subsonicServerIdentityByServer, [serverId]: { ...identity } };
-          if (!isNavidromeAudiomuseSoftwareEligible(identity)) {
-            const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
-            const { [serverId]: _i, ...issueRest } = s.audiomuseNavidromeIssueByServer;
-            const { [serverId]: _p, ...probeRest } = s.instantMixProbeByServer;
-            return {
-              subsonicServerIdentityByServer,
-              audiomuseNavidromeByServer: audiomuseRest,
-              audiomuseNavidromeIssueByServer: issueRest,
-              instantMixProbeByServer: probeRest,
-            };
-          }
-          return { subsonicServerIdentityByServer };
-        }),
-
-      setInstantMixProbe: (serverId, result) =>
-        set(s => {
-          const instantMixProbeByServer = { ...s.instantMixProbeByServer, [serverId]: result };
-          if (result === 'empty') {
-            const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
-            const { [serverId]: _i, ...issueRest } = s.audiomuseNavidromeIssueByServer;
-            return {
-              instantMixProbeByServer,
-              audiomuseNavidromeByServer: audiomuseRest,
-              audiomuseNavidromeIssueByServer: issueRest,
-            };
-          }
-          return { instantMixProbeByServer };
-        }),
-
-      setAudiomuseNavidromeIssue: (serverId, hasIssue) =>
-        set(s =>
-          hasIssue
-            ? { audiomuseNavidromeIssueByServer: { ...s.audiomuseNavidromeIssueByServer, [serverId]: true } }
-            : (() => {
-                const { [serverId]: _rm, ...rest } = s.audiomuseNavidromeIssueByServer;
-                return { audiomuseNavidromeIssueByServer: rest };
-              })(),
-        ),
+      ...createSkipStarActions(set, get),
+      ...createMusicLibraryActions(set, get),
+      ...createPerServerCapabilityActions(set),
 
       getBaseUrl: () => {
         const s = get();
