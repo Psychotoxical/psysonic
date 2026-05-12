@@ -163,6 +163,8 @@ Download the signed DMG from the [GitHub Releases](https://github.com/Psychotoxi
 
 # Development
 
+Contributor expectations (PRs, CI, Tauri boundary, UI): [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ```bash
 git clone https://github.com/Psychotoxical/psysonic.git
 cd psysonic
