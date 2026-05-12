@@ -89,6 +89,16 @@ import {
   collectLoudnessBackfillWindowTrackIds,
   isTrackInsideLoudnessBackfillWindow,
 } from './loudnessBackfillWindow';
+import {
+  flushPlayQueuePosition,
+  flushQueueSyncToServer,
+  getLastQueueHeartbeatAt,
+  syncQueueToServer,
+} from './queueSync';
+
+// Re-export so TauriEventBridge + persistence test keep their existing
+// `from './playerStore'` imports.
+export { flushPlayQueuePosition };
 
 // Re-export the playback-progress public surface so existing call sites
 // (PlayerBar, FullscreenPlayer, WaveformSeek, LyricsPane, MobilePlayerView,
@@ -816,46 +826,6 @@ let gaplessPreloadingId: string | null = null;
 // Track ID that has already been sent to audio_preload (byte pre-download).
 let bytePreloadingId: string | null = null;
 
-// ─── Server queue sync ─────────────────────────────────────────────────────────
-let syncTimeout: ReturnType<typeof setTimeout> | null = null;
-let lastQueueHeartbeatAt = 0;
-
-function syncQueueToServer(queue: Track[], currentTrack: Track | null, currentTime: number) {
-  if (syncTimeout) clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(() => {
-    syncTimeout = null;
-    const ids = queue.slice(0, 1000).map(t => t.id);
-    const pos = Math.floor(currentTime * 1000);
-    savePlayQueue(ids, currentTrack?.id, pos).catch(err => {
-      console.error('Failed to sync play queue to server', err);
-    });
-  }, 5000);
-}
-
-// Cancel any pending debounced sync and push the current position
-// immediately. Used by the playback heartbeat, pause(), and the
-// app-close handler — all paths where a user might switch to another
-// device and expect to resume from the right spot.
-function flushQueueSyncToServer(queue: Track[], currentTrack: Track | null, currentTime: number): Promise<void> {
-  if (syncTimeout) {
-    clearTimeout(syncTimeout);
-    syncTimeout = null;
-  }
-  if (!currentTrack || queue.length === 0) return Promise.resolve();
-  lastQueueHeartbeatAt = Date.now();
-  const ids = queue.slice(0, 1000).map(t => t.id);
-  const pos = Math.floor(currentTime * 1000);
-  return savePlayQueue(ids, currentTrack.id, pos).catch(err => {
-    console.error('Failed to flush play queue to server', err);
-  });
-}
-
-export function flushPlayQueuePosition(): Promise<void> {
-  const s = usePlayerStore.getState();
-  if (s.currentRadio) return Promise.resolve();
-  return flushQueueSyncToServer(s.queue, s.currentTrack, getPlaybackProgressSnapshot().currentTime);
-}
-
 // ─── Audio event handlers (called from initAudioListeners) ───────────────────
 
 function handleAudioPlaying(_duration: number) {
@@ -936,7 +906,7 @@ function handleAudioProgress(current_time: number, duration: number) {
   // handler flush on top of this for clean shutdowns.
   if (store.isPlaying && !store.currentRadio) {
     const now = Date.now();
-    if (now - lastQueueHeartbeatAt >= 15_000) {
+    if (now - getLastQueueHeartbeatAt() >= 15_000) {
       void flushQueueSyncToServer(store.queue, track, displayTime);
     }
   }
