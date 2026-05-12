@@ -1,14 +1,11 @@
+import type { SubsonicAlbum, SubsonicArtist, SubsonicSong, InternetRadioStation } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
 import CachedImage from '../components/CachedImage';
-import {
-  getStarred, getInternetRadioStations, setRating,
-  SubsonicAlbum, SubsonicArtist, SubsonicSong, InternetRadioStation,
-  buildCoverArtUrl, coverArtCacheKey,
-} from '../api/subsonic';
+import { getStarred, getInternetRadioStations, setRating, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import StarRating from '../components/StarRating';

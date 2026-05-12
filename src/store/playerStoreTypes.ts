@@ -1,4 +1,4 @@
-import type { InternetRadioStation } from '../api/subsonic';
+import type { InternetRadioStation } from '../api/subsonicTypes';
 import type { PlaybackSourceKind } from '../utils/resolvePlaybackUrl';
 
 export interface Track {

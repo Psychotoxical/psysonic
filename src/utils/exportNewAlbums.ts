@@ -1,9 +1,8 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { downloadDir, join } from '@tauri-apps/api/path';
 import { getAlbumList, buildCoverArtUrl } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
-import type { SubsonicAlbum } from '../api/subsonic';
-
 // Catppuccin Macchiato palette
 const M = {
   crust:    '#181926',

@@ -1,8 +1,8 @@
+import type { SubsonicSong } from '../api/subsonicTypes';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { buildStreamUrl, getArtist, getAlbum } from '../api/subsonic';
-import type { SubsonicSong } from '../api/subsonic';
 import { useAuthStore } from './authStore';
 import { showToast } from '../utils/toast';
 import { useOfflineJobStore, cancelledDownloads } from './offlineJobStore';

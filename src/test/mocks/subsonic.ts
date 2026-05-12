@@ -18,7 +18,7 @@
  * Realistic shape matters more than perfect coverage — these fixtures
  * mirror what Navidrome actually returns for common queries.
  */
-import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist } from '@/api/subsonic';
+import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist } from '@/api/subsonicTypes';
 import { makeSubsonicSong } from '@/test/helpers/factories';
 
 export const sampleSubsonicSong: SubsonicSong = makeSubsonicSong({

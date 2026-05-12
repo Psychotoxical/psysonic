@@ -1,9 +1,9 @@
+import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { SubsonicSong } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { enqueueAndPlay } from '../utils/playSong';
 import { useDragDrop } from '../contexts/DragDropContext';

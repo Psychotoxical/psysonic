@@ -1,9 +1,10 @@
+import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRefElementClientHeight } from '../hooks/useResizeClientHeight';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { SubsonicSong, searchSongsPaged } from '../api/subsonic';
+import { searchSongsPaged } from '../api/subsonic';
 import { ndListSongs } from '../api/navidromeBrowse';
 import SongRow, { SongListHeader } from './SongRow';
 

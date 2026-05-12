@@ -1,13 +1,7 @@
+import type { SubsonicAlbum, SubsonicGenre } from '../api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
 import { Share2 } from 'lucide-react';
-import {
-  fetchStatisticsFormatSample,
-  fetchStatisticsLibraryAggregates,
-  fetchStatisticsOverview,
-  getAlbumList,
-  SubsonicAlbum,
-  SubsonicGenre,
-} from '../api/subsonic';
+import { fetchStatisticsFormatSample, fetchStatisticsLibraryAggregates, fetchStatisticsOverview, getAlbumList } from '../api/subsonic';
 import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
 import AlbumRow from '../components/AlbumRow';
 import StatsExportModal from '../components/StatsExportModal';

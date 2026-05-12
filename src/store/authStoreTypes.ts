@@ -1,4 +1,4 @@
-import type { EntityRatingSupportLevel } from '../api/subsonic';
+import type { EntityRatingSupportLevel } from '../api/subsonicTypes';
 import type {
   InstantMixProbeResult,
   SubsonicServerIdentity,

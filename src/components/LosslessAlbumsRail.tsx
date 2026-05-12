@@ -1,8 +1,8 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ndListLosslessAlbumsPage } from '../api/navidromeBrowse';
 import AlbumRow from './AlbumRow';
-import type { SubsonicAlbum } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 
 interface Props {

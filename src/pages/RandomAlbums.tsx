@@ -1,6 +1,7 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { RefreshCw, CheckSquare2, Download, HardDriveDownload } from 'lucide-react';
-import { getAlbumList, getAlbumsByGenre, getAlbum, SubsonicAlbum, buildDownloadUrl } from '../api/subsonic';
+import { getAlbumList, getAlbumsByGenre, getAlbum, buildDownloadUrl } from '../api/subsonic';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';

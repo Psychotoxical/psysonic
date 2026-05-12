@@ -1,6 +1,7 @@
+import type { SubsonicArtist } from '../api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getArtists, SubsonicArtist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
+import { getArtists, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { LayoutGrid, List, Images, CheckSquare2, ListMusic, Check } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';
 import { usePlayerStore } from '../store/playerStore';

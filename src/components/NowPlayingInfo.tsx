@@ -1,10 +1,11 @@
+import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
-import { getArtistInfo, getSong, type SubsonicArtistInfo, type SubsonicSong } from '../api/subsonic';
+import { getArtistInfo, getSong } from '../api/subsonic';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import CachedImage from './CachedImage';
 import OverlayScrollArea from './OverlayScrollArea';

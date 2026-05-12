@@ -1,3 +1,4 @@
+import type { SubsonicPlaylist } from '../api/subsonicTypes';
 import { registerQueueListScrollTopReader, consumePendingQueueListScrollTop } from '../store/queueUndo';
 import { songToTrack } from '../utils/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
@@ -9,7 +10,7 @@ import OrbitGuestQueue from './OrbitGuestQueue';
 import OrbitQueueHead from './OrbitQueueHead';
 import HostApprovalQueue from './HostApprovalQueue';
 import { Play, Music, Star, X, Trash2, Save, FolderOpen, Shuffle, Infinity, Waves, MicVocal, ListMusic, Check, ListPlus, MoveRight, Radio, HardDrive, ChevronDown, Info, Share2 } from 'lucide-react';
-import { buildCoverArtUrl, coverArtCacheKey, getAlbum, getPlaylists, getPlaylist, updatePlaylist, deletePlaylist, SubsonicPlaylist } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey, getAlbum, getPlaylists, getPlaylist, updatePlaylist, deletePlaylist } from '../api/subsonic';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';

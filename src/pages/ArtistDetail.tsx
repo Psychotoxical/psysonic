@@ -1,7 +1,8 @@
+import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, search, setRating, SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo, buildCoverArtUrl, coverArtCacheKey, star, unstar, uploadArtistImage } from '../api/subsonic';
+import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2, getAlbum, search, setRating, buildCoverArtUrl, coverArtCacheKey, star, unstar, uploadArtistImage } from '../api/subsonic';
 import AlbumCard from '../components/AlbumCard';
 import CachedImage from '../components/CachedImage';
 import CoverLightbox from '../components/CoverLightbox';

@@ -1,7 +1,8 @@
+import type { SubsonicSong, SubsonicGenre } from '../api/subsonicTypes';
 import { RANDOM_MIX_SIZE_OPTIONS } from '../store/authStoreDefaults';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useMemo, useState } from 'react';
-import { getGenres, SubsonicSong, SubsonicGenre, star, unstar } from '../api/subsonic';
+import { getGenres, star, unstar } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';

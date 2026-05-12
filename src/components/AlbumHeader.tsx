@@ -1,14 +1,14 @@
+import type { EntityRatingSupportLevel, SubsonicSong } from '../api/subsonicTypes';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Loader2, Highlighter, Shuffle, Share2 } from 'lucide-react';
-import { SubsonicSong, buildCoverArtUrl } from '../api/subsonic';
+import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
+import { buildCoverArtUrl } from '../api/subsonic';
 import CachedImage from './CachedImage';
 import CoverLightbox from './CoverLightbox';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useThemeStore } from '../store/themeStore';
 import StarRating from './StarRating';
-import type { EntityRatingSupportLevel } from '../api/subsonic';
 import { copyEntityShareLink } from '../utils/copyEntityShareLink';
 import { showToast } from '../utils/toast';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';

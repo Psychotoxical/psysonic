@@ -1,15 +1,7 @@
+import type { SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
 import type { Track } from '../store/playerStoreTypes';
 import { songToTrack } from '../utils/songToTrack';
-import {
-  filterSongsToActiveLibrary,
-  getAlbum,
-  getAlbumList,
-  getRandomSongs,
-  getSimilarSongs,
-  getTopSongs,
-  type SubsonicAlbum,
-  type SubsonicSong,
-} from '../api/subsonic';
+import { filterSongsToActiveLibrary, getAlbum, getAlbumList, getRandomSongs, getSimilarSongs, getTopSongs } from '../api/subsonic';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../i18n';
 import { useAuthStore } from '../store/authStore';

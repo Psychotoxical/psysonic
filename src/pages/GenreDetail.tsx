@@ -1,8 +1,9 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Disc3 } from 'lucide-react';
-import { getAlbumsByGenre, SubsonicAlbum } from '../api/subsonic';
+import { getAlbumsByGenre } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 import AlbumCard from '../components/AlbumCard';
 

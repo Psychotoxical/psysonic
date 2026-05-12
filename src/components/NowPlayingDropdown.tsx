@@ -1,7 +1,8 @@
+import type { SubsonicNowPlaying } from '../api/subsonicTypes';
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PlayCircle, User, Radio, RefreshCw } from 'lucide-react';
-import { getNowPlaying, SubsonicNowPlaying, buildCoverArtUrl } from '../api/subsonic';
+import { getNowPlaying, buildCoverArtUrl } from '../api/subsonic';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';

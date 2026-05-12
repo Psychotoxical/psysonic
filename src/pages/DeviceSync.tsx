@@ -1,3 +1,4 @@
+import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist, SubsonicArtist } from '../api/subsonicTypes';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -11,11 +12,7 @@ import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { useDeviceSyncStore, DeviceSyncSource } from '../store/deviceSyncStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
-import {
-  getPlaylists, getAlbumList, getArtists, getAlbum, getPlaylist, getArtist,
-  buildDownloadUrl, search as searchSubsonic,
-  SubsonicSong, SubsonicAlbum, SubsonicPlaylist, SubsonicArtist,
-} from '../api/subsonic';
+import { getPlaylists, getAlbumList, getArtists, getAlbum, getPlaylist, getArtist, buildDownloadUrl, search as searchSubsonic } from '../api/subsonic';
 import { showToast } from '../utils/toast';
 import { IS_WINDOWS } from '../utils/platform';
 
@@ -598,7 +595,7 @@ export default function DeviceSync() {
     setPreSyncOpen(true);
 
     try {
-      const { getClient } = await import('../api/subsonic');
+      const { getClient } = await import('../api/subsonicClient');
       const { baseUrl, params } = getClient();
       const payload = await invoke<{
         addBytes: number; addCount: number; delBytes: number; delCount: number; availableBytes: number; tracks: SubsonicSong[];

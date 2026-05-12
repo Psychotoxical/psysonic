@@ -1,6 +1,7 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { buildCoverArtUrl, coverArtCacheKey, SubsonicAlbum } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { getCachedBlob } from './imageCache';
 import PsysonicLogo from '../components/PsysonicLogo';
 

@@ -1,7 +1,7 @@
+import type { SubsonicPlaylist } from '../api/subsonicTypes';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getPlaylists, createPlaylist as apiCreatePlaylist, SubsonicPlaylist } from '../api/subsonic';
-
+import { getPlaylists, createPlaylist as apiCreatePlaylist } from '../api/subsonic';
 interface PlaylistStore {
   recentIds: string[];
   playlists: SubsonicPlaylist[];

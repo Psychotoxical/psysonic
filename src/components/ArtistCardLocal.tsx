@@ -1,5 +1,6 @@
+import type { SubsonicArtist } from '../api/subsonicTypes';
 import React, { useMemo } from 'react';
-import { SubsonicArtist, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

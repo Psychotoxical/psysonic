@@ -2,236 +2,48 @@ import axios from 'axios';
 import md5 from 'md5';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
-import { version } from '../../package.json';
 import {
   isNavidromeAudiomuseSoftwareEligible,
   type InstantMixProbeResult,
   type SubsonicServerIdentity,
 } from '../utils/subsonicServerIdentity';
+import {
+  SUBSONIC_CLIENT,
+  api,
+  getAuthParams,
+  getClient,
+  libraryFilterParams,
+  secureRandomSalt,
+} from './subsonicClient';
+import type {
+  AlbumInfo,
+  EntityRatingSupportLevel,
+  InternetRadioStation,
+  PingWithCredentialsResult,
+  RadioBrowserStation,
+  RandomSongsFilters,
+  SearchResults,
+  StarredResults,
+  StatisticsFormatSample,
+  StatisticsLibraryAggregates,
+  StatisticsOverviewData,
+  SubsonicAlbum,
+  SubsonicArtist,
+  SubsonicArtistInfo,
+  SubsonicDirectory,
+  SubsonicDirectoryEntry,
+  SubsonicGenre,
+  SubsonicMusicFolder,
+  SubsonicNowPlaying,
+  SubsonicOpenArtistRef,
+  SubsonicPlaylist,
+  SubsonicSong,
+  SubsonicStructuredLyrics,
+} from './subsonicTypes';
 
-const SUBSONIC_CLIENT = `psysonic/${version}`;
-
-// ─── Secure random salt ────────────────────────────────────────
-function secureRandomSalt(): string {
-  const buf = new Uint8Array(8);
-  crypto.getRandomValues(buf);
-  return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// ─── Token Auth ───────────────────────────────────────────────
-function getAuthParams(username: string, password: string) {
-  const salt = secureRandomSalt();
-  const token = md5(password + salt);
-  return { u: username, t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json' };
-}
-
-export function getClient() {
-  const { getBaseUrl, getActiveServer } = useAuthStore.getState();
-  const server = getActiveServer();
-  const baseUrl = getBaseUrl();
-  if (!baseUrl) throw new Error('No server configured');
-  const params = getAuthParams(server?.username ?? '', server?.password ?? '');
-  return { baseUrl: `${baseUrl}/rest`, params };
-}
-
-async function api<T>(endpoint: string, extra: Record<string, unknown> = {}, timeout = 15000): Promise<T> {
-  const { baseUrl, params } = getClient();
-  const resp = await axios.get(`${baseUrl}/${endpoint}`, {
-    params: { ...params, ...extra },
-    paramsSerializer: { indexes: null },
-    timeout,
-  });
-  const data = resp.data?.['subsonic-response'];
-  if (!data) throw new Error('Invalid response from server (possibly not a Subsonic server)');
-  if (data.status !== 'ok') throw new Error(data.error?.message ?? 'Subsonic API error');
-  return data as T;
-}
-
-/** Optional `musicFolderId` when the user narrowed browsing to one Subsonic library (see `getMusicFolders`). */
-export function libraryFilterParams(): Record<string, string | number> {
-  const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
-  if (!activeServerId) return {};
-  const f = musicLibraryFilterByServer[activeServerId];
-  if (f === undefined || f === 'all') return {};
-  return { musicFolderId: f };
-}
-
-// ─── Types ────────────────────────────────────────────────────
-export interface SubsonicAlbum {
-  id: string;
-  name: string;
-  artist: string;
-  artistId: string;
-  coverArt?: string;
-  songCount: number;
-  duration: number;
-  playCount?: number;
-  year?: number;
-  genre?: string;
-  starred?: string;
-  recordLabel?: string;
-  created?: string;
-  /** Present on some servers (e.g. OpenSubsonic) for album-level rating. */
-  userRating?: number;
-  /** OpenSubsonic: true when the album is tagged as a compilation. */
-  isCompilation?: boolean;
-  /** OpenSubsonic: release types from MusicBrainz tags (e.g. "Album", "EP", "Single", "Compilation", "Live"). */
-  releaseTypes?: string[];
-}
 
 /** OpenSubsonic `artists` / `albumArtists` entries on a child song (may include `userRating`). */
-export interface SubsonicOpenArtistRef {
-  id?: string;
-  name?: string;
-  userRating?: number;
-  /** Navidrome / alternate OpenSubsonic payloads (same meaning as `userRating`). */
-  rating?: number;
-}
-
-export interface SubsonicSong {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  albumId: string;
-  artistId?: string;
-  duration: number;
-  track?: number;
-  discNumber?: number;
-  coverArt?: string;
-  year?: number;
-  userRating?: number;
-  /** Some OpenSubsonic responses attach parent ratings on child songs. */
-  albumUserRating?: number;
-  artistUserRating?: number;
-  artists?: SubsonicOpenArtistRef[];
-  albumArtists?: SubsonicOpenArtistRef[];
-  // Audio technical info
-  bitRate?: number;
-  suffix?: string;
-  contentType?: string;
-  size?: number;
-  samplingRate?: number;
-  bitDepth?: number;
-  channelCount?: number;
-  starred?: string;
-  genre?: string;
-  path?: string;
-  albumArtist?: string;
-  /** ISRC code when available (e.g., Navidrome) */
-  isrc?: string;
-  replayGain?: {
-    trackGain?: number;
-    albumGain?: number;
-    trackPeak?: number;
-    albumPeak?: number;
-  };
-  /** OpenSubsonic: structured composer credit (string for back-compat). */
-  displayComposer?: string;
-  /** OpenSubsonic: structured contributors list — Navidrome ≥ 0.55. */
-  contributors?: Array<{
-    role: string;
-    subRole?: string;
-    artist: { id?: string; name: string };
-  }>;
-}
-
-export interface InternetRadioStation {
-  id: string;
-  name: string;
-  streamUrl: string;
-  homepageUrl?: string;
-  coverArt?: string; // Navidrome v0.61.0+
-}
-
-export interface RadioBrowserStation {
-  stationuuid: string;
-  name: string;
-  url: string;
-  favicon: string;
-  tags: string;
-}
-
-export interface SubsonicPlaylist {
-  id: string;
-  name: string;
-  songCount: number;
-  duration: number;
-  created: string;
-  changed: string;
-  owner?: string;
-  public?: boolean;
-  comment?: string;
-  coverArt?: string;
-}
-
-export interface SubsonicNowPlaying extends SubsonicSong {
-  username: string;
-  minutesAgo: number;
-  playerId: number;
-  playerName: string;
-}
-
-export interface SubsonicArtist {
-  id: string;
-  name: string;
-  albumCount?: number;
-  coverArt?: string;
-  starred?: string;
-  /** Present on some servers (e.g. OpenSubsonic) for artist-level rating. */
-  userRating?: number;
-}
-
-export interface SubsonicGenre {
-  value: string;
-  songCount: number;
-  albumCount: number;
-}
-
-export interface SubsonicMusicFolder {
-  id: string;
-  name: string;
-}
-
-export interface SubsonicArtistInfo {
-  biography?: string;
-  musicBrainzId?: string;
-  lastFmUrl?: string;
-  smallImageUrl?: string;
-  mediumImageUrl?: string;
-  largeImageUrl?: string;
-  similarArtist?: Array<{ id: string; name: string; albumCount?: number }>;
-}
-
 // ─── API Methods ──────────────────────────────────────────────
-export interface SubsonicDirectoryEntry {
-  id: string;
-  parent?: string;
-  title: string;
-  isDir: boolean;
-  album?: string;
-  artist?: string;
-  albumId?: string;
-  artistId?: string;
-  coverArt?: string;
-  duration?: number;
-  track?: number;
-  year?: number;
-  bitRate?: number;
-  suffix?: string;
-  size?: number;
-  genre?: string;
-  starred?: string;
-  userRating?: number;
-}
-
-export interface SubsonicDirectory {
-  id: string;
-  parent?: string;
-  name: string;
-  child: SubsonicDirectoryEntry[];
-}
-
 export async function getMusicDirectory(id: string): Promise<SubsonicDirectory> {
   const data = await api<{ directory: { id: string; parent?: string; name: string; child?: SubsonicDirectoryEntry | SubsonicDirectoryEntry[] } }>(
     'getMusicDirectory.view',
@@ -288,7 +100,6 @@ export async function ping(): Promise<boolean> {
   }
 }
 
-export type PingWithCredentialsResult = SubsonicServerIdentity & { ok: boolean };
 
 /** Test a connection with explicit credentials — does NOT depend on store state. */
 export async function pingWithCredentials(
@@ -504,13 +315,6 @@ export async function getRandomSongs(size = 50, genre?: string, timeout = 15000)
   return data.randomSongs?.song ?? [];
 }
 
-export interface RandomSongsFilters {
-  size?: number;
-  genre?: string;
-  fromYear?: number;
-  toYear?: number;
-}
-
 /** Extended random song fetch with server-side year/genre filtering. */
 export async function getRandomSongsFiltered(
   filters: RandomSongsFilters,
@@ -649,14 +453,6 @@ export async function prefetchAlbumUserRatings(
 }
 
 /** Paginated album stats for Statistics (playtime, counts, genre breakdown). Same TTL as rating prefetch. */
-export interface StatisticsLibraryAggregates {
-  playtimeSec: number;
-  albumsCounted: number;
-  songsCounted: number;
-  capped: boolean;
-  genres: SubsonicGenre[];
-}
-
 /** Key `prefix:serverId:folder` — Statistics caches share scope with `libraryFilterParams()`. */
 function statisticsPageCacheKey(prefix: string): string | null {
   const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
@@ -731,13 +527,6 @@ export async function fetchStatisticsLibraryAggregates(): Promise<StatisticsLibr
 }
 
 /** Recent / frequent / highest album strips + artist count for Statistics. */
-export interface StatisticsOverviewData {
-  recent: SubsonicAlbum[];
-  frequent: SubsonicAlbum[];
-  highest: SubsonicAlbum[];
-  artistCount: number;
-}
-
 const statisticsOverviewCache = new Map<string, { value: StatisticsOverviewData; expiresAt: number }>();
 
 export async function fetchStatisticsOverview(): Promise<StatisticsOverviewData> {
@@ -765,11 +554,6 @@ export async function fetchStatisticsOverview(): Promise<StatisticsOverviewData>
 }
 
 /** Format (suffix) histogram from a random sample for Statistics. */
-export interface StatisticsFormatSample {
-  rows: { format: string; count: number }[];
-  sampleSize: number;
-}
-
 const statisticsFormatCache = new Map<string, { value: StatisticsFormatSample; expiresAt: number }>();
 
 export async function fetchStatisticsFormatSample(): Promise<StatisticsFormatSample> {
@@ -883,18 +667,6 @@ export async function getAlbumsByGenre(genre: string, size = 50, offset = 0): Pr
   return Array.isArray(raw) ? raw : [raw];
 }
 
-export interface SearchResults {
-  artists: SubsonicArtist[];
-  albums: SubsonicAlbum[];
-  songs: SubsonicSong[];
-}
-
-export interface StarredResults {
-  artists: SubsonicArtist[];
-  albums: SubsonicAlbum[];
-  songs: SubsonicSong[];
-}
-
 export async function getStarred(): Promise<StarredResults> {
   const data = await api<{
     starred2: {
@@ -969,7 +741,6 @@ export async function setRating(id: string, rating: number): Promise<void> {
 }
 
 /** How aggressively we assume `setRating` accepts album/artist ids (OpenSubsonic-style). */
-export type EntityRatingSupportLevel = 'track_only' | 'full';
 
 /**
  * Probe server for OpenSubsonic extensions. When `openSubsonic: true`, we treat album/artist
@@ -1056,13 +827,6 @@ export function buildDownloadUrl(id: string): string {
 }
 
 // ─── Album Info (public image URLs from Last.fm/MusicBrainz) ──
-export interface AlbumInfo {
-  largeImageUrl?: string;
-  mediumImageUrl?: string;
-  smallImageUrl?: string;
-  notes?: string;
-}
-
 export async function getAlbumInfo2(albumId: string): Promise<AlbumInfo | null> {
   try {
     const data = await api<{ albumInfo: AlbumInfo }>('getAlbumInfo2.view', { id: albumId });
@@ -1276,7 +1040,6 @@ function parseRadioBrowserStations(raw: Array<Record<string, string>>): RadioBro
   }));
 }
 
-export const RADIO_PAGE_SIZE = 25;
 
 export async function searchRadioBrowser(query: string, offset = 0): Promise<RadioBrowserStation[]> {
   const raw = await invoke<Array<Record<string, string>>>('search_radio_browser', { query, offset });
@@ -1292,24 +1055,6 @@ export async function fetchUrlBytes(url: string): Promise<[number[], string]> {
   return invoke<[number[], string]>('fetch_url_bytes', { url });
 }
 
-// ─── Structured Lyrics (OpenSubsonic / getLyricsBySongId) ────────────────────
-
-export interface SubsonicLyricLine {
-  start?: number; // milliseconds — absent when unsynced
-  value: string;
-}
-
-export interface SubsonicStructuredLyrics {
-  /** OpenSubsonic spec field name (Navidrome ≥ 0.50.0 / any OpenSubsonic server). */
-  synced?: boolean;
-  /** Legacy / alternate casing used by some older Subsonic-compatible servers. */
-  issynced?: boolean;
-  lang?: string;
-  offset?: number;
-  displayArtist?: string;
-  displayTitle?: string;
-  line: SubsonicLyricLine[];
-}
 
 /**
  * Fetches structured lyrics from the server's embedded tags via the

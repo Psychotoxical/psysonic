@@ -11,15 +11,8 @@
  * mocking and are not in this PR.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  buildCoverArtUrl,
-  buildDownloadUrl,
-  buildStreamUrl,
-  coverArtCacheKey,
-  getClient,
-  libraryFilterParams,
-  parseSubsonicEntityStarRating,
-} from './subsonic';
+import { buildCoverArtUrl, buildDownloadUrl, buildStreamUrl, coverArtCacheKey, parseSubsonicEntityStarRating } from './subsonic';
+import { getClient, libraryFilterParams } from './subsonicClient';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 

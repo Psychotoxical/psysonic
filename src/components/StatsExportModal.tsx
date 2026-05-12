@@ -1,10 +1,11 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
-import { getAlbumList, SubsonicAlbum } from '../api/subsonic';
+import { getAlbumList } from '../api/subsonic';
 import { showToast } from '../utils/toast';
 import {
   exportAlbumCardBlob,

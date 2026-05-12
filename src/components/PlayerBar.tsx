@@ -1,3 +1,4 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -11,7 +12,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { buildCoverArtUrl, coverArtCacheKey, star, unstar, setRating, SubsonicAlbum } from '../api/subsonic';
+import { buildCoverArtUrl, coverArtCacheKey, star, unstar, setRating } from '../api/subsonic';
 import CachedImage from './CachedImage';
 import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';

@@ -1,5 +1,5 @@
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { SubsonicAlbum } from '../api/subsonic';
 import AlbumCard from './AlbumCard';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';

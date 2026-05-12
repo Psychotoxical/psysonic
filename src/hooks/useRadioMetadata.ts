@@ -1,6 +1,6 @@
+import type { InternetRadioStation } from '../api/subsonicTypes';
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { InternetRadioStation } from '../api/subsonic';
 import { usePerfProbeFlags } from '../utils/perfFlags';
 import {
   guessAzuraCastApiUrl,

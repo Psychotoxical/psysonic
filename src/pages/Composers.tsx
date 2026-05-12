@@ -1,6 +1,6 @@
+import type { SubsonicArtist } from '../api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SubsonicArtist } from '../api/subsonic';
 import { ndListArtistsByRole } from '../api/navidromeBrowse';
 import { LayoutGrid, List } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';

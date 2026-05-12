@@ -1,8 +1,9 @@
+import type { SearchResults, SubsonicArtist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Disc3, Users, Music, TextSearch } from 'lucide-react';
-import { search, SearchResults, buildCoverArtUrl, coverArtCacheKey, type SubsonicArtist } from '../api/subsonic';
+import { search, buildCoverArtUrl, coverArtCacheKey } from '../api/subsonic';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';

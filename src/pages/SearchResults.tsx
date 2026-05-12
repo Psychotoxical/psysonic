@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { search, searchSongsPaged, SearchResults as ISearchResults } from '../api/subsonic';
+import { search, searchSongsPaged } from '../api/subsonic';
+import type { SearchResults as ISearchResults } from '../api/subsonicTypes';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
 import SongRow, { SongListHeader } from '../components/SongRow';
