@@ -24,6 +24,12 @@ import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
 import { shuffleArray } from '../utils/shuffleArray';
 import { songToTrack } from '../utils/songToTrack';
 import { buildInfiniteQueueCandidates } from '../utils/buildInfiniteQueueCandidates';
+import {
+  normalizeAnalysisTrackId,
+  queuesStructuralEqual,
+  sameQueueTrackId,
+  shallowCloneQueueTracks,
+} from '../utils/queueIdentity';
 import { getWindowKind } from '../app/windowKind';
 import {
   _resetQueueUndoStacksForTest,
@@ -349,10 +355,6 @@ let cachedLoudnessGainByTrackId: Record<string, number> = {};
 let stableLoudnessGainByTrackId: Record<string, true> = {};
 let lastNormalizationUiUpdateAtMs = 0;
 
-function shallowCloneQueueTracks(queue: Track[]): Track[] {
-  return queue.map(t => ({ ...t }));
-}
-
 /** Reload Rust audio to match a queue-undo snapshot (Zustand alone does not move the engine). */
 function queueUndoRestoreAudioEngine(opts: {
   generation: number;
@@ -434,28 +436,6 @@ function emitNormalizationDebug(step: string, details?: Record<string, unknown>)
     scope: 'normalization',
     message: JSON.stringify({ step, details }),
   }).catch(() => {});
-}
-
-function normalizeAnalysisTrackId(trackId?: string | null): string | null {
-  if (!trackId) return null;
-  if (trackId.startsWith('stream:')) return trackId.slice('stream:'.length);
-  return trackId;
-}
-
-/** Compare track ids across `stream:` / bare Subsonic forms. */
-function sameQueueTrackId(a: string | undefined | null, b: string | undefined | null): boolean {
-  if (a == null || b == null) return false;
-  const na = normalizeAnalysisTrackId(a) ?? a;
-  const nb = normalizeAnalysisTrackId(b) ?? b;
-  return na === nb;
-}
-
-function queuesStructuralEqual(a: Track[], b: Track[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (!sameQueueTrackId(a[i]?.id, b[i]?.id)) return false;
-  }
-  return true;
 }
 
 function normalizationAlmostEqual(a: number | null, b: number | null, eps = 0.12): boolean {
