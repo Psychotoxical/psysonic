@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { AudioLines, Music2, Play, RotateCcw, Sliders, Waves } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB, TRACK_PREVIEW_LOCATIONS } from '../../store/authStoreDefaults';
@@ -11,17 +10,21 @@ import Equalizer from '../Equalizer';
 import SettingsSubSection from '../SettingsSubSection';
 import { LoudnessLufsButtonGroup } from './LoudnessLufsButtonGroup';
 import { IS_MACOS } from '../../utils/platform';
-import { buildAudioDeviceSelectOptions, sortAudioDeviceIds } from '../../utils/audioDeviceLabels';
+import { buildAudioDeviceSelectOptions } from '../../utils/audioDeviceLabels';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/loudnessPreAnalysisSlider';
-import { showToast } from '../../utils/toast';
+import { useAudioDevicesProbe } from '../../hooks/useAudioDevicesProbe';
 
 export function AudioTab() {
   const { t } = useTranslation();
   const auth = useAuthStore();
-  const [audioDevices, setAudioDevices] = useState<string[]>([]);
-  const [osDefaultAudioDeviceId, setOsDefaultAudioDeviceId] = useState<string | null>(null);
-  const [deviceSwitching, setDeviceSwitching] = useState(false);
-  const [devicesLoading, setDevicesLoading] = useState(false);
+  const {
+    audioDevices,
+    osDefaultAudioDeviceId,
+    deviceSwitching,
+    devicesLoading,
+    setDeviceSwitching,
+    refreshAudioDevices,
+  } = useAudioDevicesProbe(t);
 
   const preAnalysisEffectiveDb = useMemo(
     () => effectiveLoudnessPreAnalysisAttenuationDb(
@@ -30,67 +33,6 @@ export function AudioTab() {
     ),
     [auth.loudnessPreAnalysisAttenuationDb, auth.loudnessTargetLufs],
   );
-
-  const refreshAudioDevices = useCallback((opts?: { silent?: boolean }) => {
-    const silent = !!opts?.silent;
-    if (!silent) setDevicesLoading(true);
-    const listP = invoke<string[]>('audio_list_devices').catch((e) => {
-      console.error(e);
-      showToast(t('settings.audioOutputDeviceListError'), 5000, 'error');
-      return [] as string[];
-    });
-    const defP = invoke<string | null>('audio_default_output_device_name').catch(() => null);
-    Promise.all([listP, defP])
-      .then(async ([devices, osDefault]) => {
-        let canon: string | null = null;
-        try {
-          canon = await invoke<string | null>('audio_canonicalize_selected_device');
-          if (canon) useAuthStore.getState().setAudioOutputDevice(canon);
-        } catch {
-          /* ignore */
-        }
-        const finalList = canon
-          ? await invoke<string[]>('audio_list_devices').catch(() => devices)
-          : devices;
-        const defId = osDefault ?? null;
-        setAudioDevices(sortAudioDeviceIds(finalList, defId));
-        setOsDefaultAudioDeviceId(defId);
-      })
-      .finally(() => {
-        if (!silent) setDevicesLoading(false);
-      });
-  }, [t]);
-
-  // Load available audio output devices on mount.
-  // Skipped on macOS — the stream is pinned to the system default (see
-  // audioOutputDeviceMacNotice) so there is no picker to populate.
-  useEffect(() => {
-    if (IS_MACOS) return;
-    refreshAudioDevices();
-  }, [refreshAudioDevices]);
-
-  // Keep device list + "current system output" mark in sync when the backend reopens the stream.
-  useEffect(() => {
-    if (IS_MACOS) return;
-    let cancelled = false;
-    const unlisteners: Array<() => void> = [];
-    (async () => {
-      for (const ev of ['audio:device-changed', 'audio:device-reset'] as const) {
-        const u = await listen(ev, () => {
-          if (!cancelled) refreshAudioDevices({ silent: true });
-        });
-        if (cancelled) {
-          u();
-          return;
-        }
-        unlisteners.push(u);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      for (const u of unlisteners) u();
-    };
-  }, [refreshAudioDevices]);
 
   return (
     <>
