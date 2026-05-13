@@ -12,12 +12,32 @@ import {
   parseOrbitState,
   ORBIT_DEFAULT_MAX_USERS,
   ORBIT_PLAYLIST_PREFIX,
-  ORBIT_STATE_MAX_BYTES,
   type OrbitOutboxMeta,
-  type OrbitParticipant,
   type OrbitQueueItem,
   type OrbitState,
 } from '../api/orbit';
+import {
+  ORBIT_HEARTBEAT_ALIVE_MS,
+  ORBIT_ORPHAN_TTL_MS,
+  ORBIT_REMOVED_TTL_MS,
+  ORBIT_SHUFFLE_INTERVAL_MS,
+} from './orbit/constants';
+import {
+  generateSessionId,
+  OrbitStateTooLarge,
+  parseOutboxPlaylistName,
+  serialiseOrbitState,
+  serialiseOutboxMeta,
+  suggestionKey,
+} from './orbit/helpers';
+import {
+  applyOutboxSnapshotsToState,
+  computeOrbitDriftMs,
+  effectiveShuffleIntervalMs,
+  maybeShuffleQueue,
+  patchOrbitState,
+  type OutboxSnapshot,
+} from './orbit/stateMath';
 
 /**
  * Orbit — host-side lifecycle primitives.
@@ -30,44 +50,26 @@ import {
  * no new transport work.
  */
 
-// ── ID generation ───────────────────────────────────────────────────────
-
-/** 8 lowercase hex chars — unique enough for concurrent-session collision-free naming. */
-export function generateSessionId(): string {
-  const bytes = new Uint8Array(4);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// ── Serialisation ───────────────────────────────────────────────────────
-
-/**
- * Serialise the state blob for writing into a playlist comment. Emits a
- * plain JSON string. Throws when the output exceeds `ORBIT_STATE_MAX_BYTES`
- * — callers should trim optional fields (oldest queue entries / kicked
- * usernames) and retry, rather than write something truncated.
- */
-export function serialiseOrbitState(state: OrbitState): string {
-  const json = JSON.stringify(state);
-  // Encode-length check — emoji-heavy session names could inflate UTF-8 bytes
-  // beyond the string's .length count.
-  const byteLen = new TextEncoder().encode(json).length;
-  if (byteLen > ORBIT_STATE_MAX_BYTES) {
-    throw new OrbitStateTooLarge(byteLen);
-  }
-  return json;
-}
-
-export class OrbitStateTooLarge extends Error {
-  constructor(public readonly bytes: number) {
-    super(`Orbit state blob (${bytes} bytes) exceeds ${ORBIT_STATE_MAX_BYTES} byte budget`);
-    this.name = 'OrbitStateTooLarge';
-  }
-}
-
-function serialiseOutboxMeta(meta: OrbitOutboxMeta): string {
-  return JSON.stringify(meta);
-}
+// ── Re-exports from split modules ─────────────────────────────────────
+export {
+  ORBIT_HEARTBEAT_ALIVE_MS,
+  ORBIT_ORPHAN_TTL_MS,
+  ORBIT_REMOVED_TTL_MS,
+  ORBIT_SHUFFLE_INTERVAL_MS,
+} from './orbit/constants';
+export {
+  generateSessionId,
+  OrbitStateTooLarge,
+  serialiseOrbitState,
+  suggestionKey,
+} from './orbit/helpers';
+export {
+  applyOutboxSnapshotsToState,
+  computeOrbitDriftMs,
+  effectiveShuffleIntervalMs,
+  maybeShuffleQueue,
+  patchOrbitState,
+} from './orbit/stateMath';
 
 // ── Remote reads ────────────────────────────────────────────────────────
 
@@ -230,15 +232,6 @@ export async function endOrbitSession(): Promise<void> {
 }
 
 // ── Store helpers used by the tick hook ────────────────────────────────
-
-/** Merge a patch into the store's state blob, keeping nullability. */
-export function patchOrbitState(patch: Partial<OrbitState>): OrbitState | null {
-  const current = useOrbitStore.getState().state;
-  if (!current) return null;
-  const next: OrbitState = { ...current, ...patch };
-  useOrbitStore.getState().setState(next);
-  return next;
-}
 
 /**
  * Host-only: update the session settings and immediately push to Navidrome
@@ -443,13 +436,6 @@ export async function leaveOrbitSession(): Promise<void> {
 
 // ── Track pipeline ──────────────────────────────────────────────────────
 
-/**
- * Guest: suggest a track to the session.
- *
- * Appends the track to our own outbox playlist. The host's next sweep will
- * consume it and publish the authoritative queue update in the state blob.
- * No state mutation here — the guest never touches canonical state.
- */
 /** Why a guest's suggestion would be blocked, in priority order. `null` means
  *  the suggestion can proceed. */
 export type OrbitSuggestGateReason = 'not-guest' | 'muted' | null;
@@ -497,14 +483,6 @@ export async function suggestOrbitTrack(trackId: string): Promise<void> {
   // Drained by the guest tick's reconcilePendingSuggestions call.
   useOrbitStore.getState().addPendingSuggestion(trackId);
 }
-
-/**
- * Stable per-suggestion key across reshuffles — `addedBy`, `addedAt` and
- * `trackId` are all immutable once the host sweep has written them.
- * Shared between the host tick and the manual-approval UI.
- */
-export const suggestionKey = (q: OrbitQueueItem): string =>
-  `${q.addedBy}:${q.addedAt}:${q.trackId}`;
 
 /**
  * Host: accept a guest suggestion and route it into the live play queue.
@@ -634,23 +612,6 @@ export async function hostEnqueueToOrbit(trackId: string): Promise<void> {
 
 // ── Host-side outbox sweep ──────────────────────────────────────────────
 
-interface OutboxSnapshot {
-  user: string;
-  outboxPlaylistId: string;
-  /** Track IDs currently sitting in the outbox — these are the new suggestions. */
-  trackIds: string[];
-  /** Last heartbeat timestamp parsed from the outbox comment, or 0 if missing/broken. */
-  lastHeartbeat: number;
-}
-
-/** Extract `<username>` from a filename matching `__psyorbit_<sid>_from_<username>__`. */
-function parseOutboxPlaylistName(name: string, sid: string): string | null {
-  const prefix = `${ORBIT_PLAYLIST_PREFIX}${sid}_from_`;
-  if (!name.startsWith(prefix) || !name.endsWith('__')) return null;
-  const user = name.slice(prefix.length, name.length - 2);
-  return user.length > 0 ? user : null;
-}
-
 /**
  * Host: list all guest outbox playlists for the current session.
  * Skips the host's own outbox — that's heartbeat-only, not a suggestion channel.
@@ -711,74 +672,6 @@ export async function sweepGuestOutboxes(sid: string, hostUsername: string): Pro
     }
   }
   return snaps;
-}
-
-// ── State-blob construction from sweep results ─────────────────────────
-
-/** How long we consider a heartbeat still fresh. Longer than the guest tick so a single missed beat is tolerated. */
-export const ORBIT_HEARTBEAT_ALIVE_MS = 30_000;
-
-/**
- * Grace window for the app-start orphan sweep. A session on the user's
- * other device or a browser that briefly restarted must NOT be deleted
- * by this sweep. 5 min matches the guest-side host-timeout threshold:
- * if a session is silent for that long, it's fair to treat it as dead;
- * anything shorter is a real restart and must survive.
- */
-export const ORBIT_ORPHAN_TTL_MS = 5 * 60_000;
-
-/**
- * Legacy / fallback shuffle cadence. New sessions store their own interval
- * in `OrbitState.settings.shuffleIntervalMin`; `effectiveShuffleIntervalMs`
- * resolves that against this constant for sessions created before the
- * field existed.
- */
-export const ORBIT_SHUFFLE_INTERVAL_MS = 15 * 60_000;
-
-/**
- * Resolve the active auto-shuffle cadence in ms. Reads the host's configured
- * preset from `state.settings.shuffleIntervalMin`; older sessions that lack
- * the field fall back to 15 min so their tick cadence is unchanged.
- */
-export function effectiveShuffleIntervalMs(state: Pick<OrbitState, 'settings'>): number {
-  const min = state.settings?.shuffleIntervalMin;
-  return typeof min === 'number' ? min * 60_000 : ORBIT_SHUFFLE_INTERVAL_MS;
-}
-
-/**
- * How long a soft-`removed` marker stays in the state blob. Long enough for
- * the affected guest's 2.5 s read tick to surface the modal even after a
- * one-tick miss; short enough that the marker doesn't bloat state if the
- * guest never reconnects.
- */
-export const ORBIT_REMOVED_TTL_MS = 60_000;
-
-/**
- * Host helper — applies a Fisher-Yates shuffle to `state.queue` iff enough
- * time has passed since the last shuffle. Pure, returns a new state object.
- * `currentTrack` is never touched.
- */
-export function maybeShuffleQueue(state: OrbitState, nowMs: number = Date.now()): OrbitState {
-  if (state.settings?.autoShuffle === false) return state;
-  if (nowMs - state.lastShuffle < effectiveShuffleIntervalMs(state)) return state;
-  if (state.queue.length < 2) {
-    // Still bump `lastShuffle` so the next eligible shuffle is one full
-    // interval away, preventing a tight retry loop right after a guest
-    // drops a single item in.
-    return { ...state, lastShuffle: nowMs };
-  }
-  const shuffled = state.queue.slice();
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return { ...state, queue: shuffled, lastShuffle: nowMs };
-}
-
-/** Drift between a guest's local playback and the host's estimated live position. */
-export function computeOrbitDriftMs(state: OrbitState, guestPositionMs: number, nowMs: number = Date.now()): number {
-  const hostEstimated = state.positionMs + (state.isPlaying ? (nowMs - state.positionAt) : 0);
-  return guestPositionMs - hostEstimated;
 }
 
 // ── Host-side moderation ────────────────────────────────────────────────
@@ -911,79 +804,3 @@ export async function setOrbitSuggestionBlocked(username: string, blocked: boole
   catch { /* best-effort; next host tick will re-push state */ }
 }
 
-/**
- * Fold sweep results into an updated `OrbitState`.
- *
- *   - New queue items are appended to `state.queue`, with `addedBy` = user
- *     and `addedAt` = now. Host-authored tracks (host's own currentTrack
- *     progression) are handled elsewhere and don't flow through this path.
- *   - `participants` is rebuilt from scratch from the sweep heartbeats —
- *     anyone with a fresh heartbeat (< `ORBIT_HEARTBEAT_ALIVE_MS` old) and
- *     not in `kicked` counts as alive. Users that disappear from the sweep
- *     age out naturally.
- */
-export function applyOutboxSnapshotsToState(
-  state: OrbitState,
-  snapshots: OutboxSnapshot[],
-  nowMs: number = Date.now(),
-): OrbitState {
-  // ── Queue additions ──
-  // Guest outboxes are append-only from the host's POV — the host reads the
-  // same playlist every sweep, so we must dedupe against anything already in
-  // `state.queue` (or currently playing) by (user, trackId). Without this,
-  // every host tick re-adds every outbox entry and the pending-approval list
-  // balloons indefinitely. A user re-suggesting the same track after it
-  // lands/plays is a rare enough case to live with for now.
-  const existingKeys = new Set<string>(
-    state.queue.map(q => `${q.addedBy} ${q.trackId}`),
-  );
-  if (state.currentTrack) {
-    existingKeys.add(`${state.currentTrack.addedBy} ${state.currentTrack.trackId}`);
-  }
-
-  // Drop any new suggestion from a user the host has muted before the
-  // dedupe scan — they shouldn't count against the queue at all.
-  const blocked = new Set(state.suggestionBlocked ?? []);
-  const newItems: OrbitQueueItem[] = [];
-  for (const snap of snapshots) {
-    if (blocked.has(snap.user)) continue;
-    for (const trackId of snap.trackIds) {
-      const key = `${snap.user} ${trackId}`;
-      if (existingKeys.has(key)) continue;
-      existingKeys.add(key);
-      newItems.push({ trackId, addedBy: snap.user, addedAt: nowMs });
-    }
-  }
-
-  // ── Soft-removed list aging ──
-  // Drop entries older than the TTL so the list stays bounded and a long-
-  // expired marker doesn't kick a freshly-rejoined user back out.
-  const removed = (state.removed ?? []).filter(r => nowMs - r.at < ORBIT_REMOVED_TTL_MS);
-  const removedUsers = new Set(removed.map(r => r.user));
-
-  // ── Participants rebuild ──
-  // Soft-removed users stay out of `participants` even if their heartbeat is
-  // still fresh — gives them up to one read tick (~2.5s) to notice the
-  // `removed`-marker and tear down their guest hooks before the marker ages out.
-  const prev = new Map(state.participants.map(p => [p.user, p]));
-  const participants: OrbitParticipant[] = [];
-  for (const snap of snapshots) {
-    if (state.kicked.includes(snap.user)) continue;
-    if (removedUsers.has(snap.user)) continue;
-    const fresh = snap.lastHeartbeat > 0 && (nowMs - snap.lastHeartbeat) < ORBIT_HEARTBEAT_ALIVE_MS;
-    if (!fresh) continue;
-    const existing = prev.get(snap.user);
-    participants.push({
-      user: snap.user,
-      joinedAt: existing?.joinedAt ?? nowMs,
-      lastHeartbeat: snap.lastHeartbeat,
-    });
-  }
-
-  return {
-    ...state,
-    queue: newItems.length > 0 ? [...state.queue, ...newItems] : state.queue,
-    participants,
-    removed,
-  };
-}
