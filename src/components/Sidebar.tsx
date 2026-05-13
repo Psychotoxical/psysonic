@@ -33,50 +33,19 @@ import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { resetPerfProbeFlags, setPerfProbeFlag, usePerfProbeFlags } from '../utils/perfFlags';
 import { setPerfProbeTelemetryActive } from '../utils/perfTelemetry';
 
-const SIDEBAR_NAV_LONG_PRESS_MS = 1000;
-const SIDEBAR_NAV_LONG_PRESS_MOVE_CANCEL_PX = 10;
-const SMART_PREFIX = 'psy-smart-';
-const NEW_RELEASES_UNREAD_STORAGE_PREFIX = 'psy_new_releases_unread_seen_v1';
-const NEW_RELEASES_UNREAD_SAMPLE_SIZE = 80;
-const NEW_RELEASES_UNREAD_POLL_MS = 2 * 60 * 1000;
-const NEW_RELEASES_RESET_DELAY_MS = 5_000;
-/** Max album ids persisted per server/scope; cap must not drop the latest "newest" batch when marking read. */
-const NEW_RELEASES_SEEN_MAX_IDS = 500;
-
-/** Merge previous seen IDs with the current `getAlbumList(newest)` sample: newest batch is kept in full first, then older seen until `maxIds` (localStorage budget). */
-function mergeSeenNewReleaseIdsCap(prevSeen: string[], newestBatch: string[], maxIds: number): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const id of newestBatch) {
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  for (const id of prevSeen) {
-    if (out.length >= maxIds) break;
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
-}
-
-function isSmartPlaylistName(name: string): boolean {
-  return (name ?? '').toLowerCase().startsWith(SMART_PREFIX);
-}
-
-function displayPlaylistName(name: string): string {
-  const n = name ?? '';
-  if (isSmartPlaylistName(n)) return n.slice(SMART_PREFIX.length);
-  return n;
-}
-
-function isPointerOutsideAsideSidebar(clientX: number, clientY: number): boolean {
-  const aside = document.querySelector('aside.sidebar');
-  if (!aside) return false;
-  const r = aside.getBoundingClientRect();
-  return clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom;
-}
+import {
+  NEW_RELEASES_RESET_DELAY_MS,
+  NEW_RELEASES_SEEN_MAX_IDS,
+  NEW_RELEASES_UNREAD_POLL_MS,
+  NEW_RELEASES_UNREAD_SAMPLE_SIZE,
+  NEW_RELEASES_UNREAD_STORAGE_PREFIX,
+  SIDEBAR_NAV_LONG_PRESS_MOVE_CANCEL_PX,
+  SIDEBAR_NAV_LONG_PRESS_MS,
+  displayPlaylistName,
+  isPointerOutsideAsideSidebar,
+  isSmartPlaylistName,
+  mergeSeenNewReleaseIdsCap,
+} from '../utils/sidebarHelpers';
 
 
 export default function Sidebar({
