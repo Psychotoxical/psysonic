@@ -1,21 +1,22 @@
-import { getInternetRadioStations } from '../api/subsonicRadio';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
-import { getStarred, setRating, unstar } from '../api/subsonicStarRating';
+import { setRating, unstar } from '../api/subsonicStarRating';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong, InternetRadioStation } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
+import { TopFavoriteArtistsRow } from '../components/favorites/TopFavoriteArtists';
+import { RadioStationRow } from '../components/favorites/RadioFavorites';
+import { useFavoritesData } from '../hooks/useFavoritesData';
+import { useFavoritesSongFiltering } from '../hooks/useFavoritesSongFiltering';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
 import CachedImage from '../components/CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import StarRating from '../components/StarRating';
-import { Cast, ChevronDown, ChevronLeft, ChevronRight, Check, Heart, ListPlus, Play, Square, Star, Users, X, SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw, AudioLines } from 'lucide-react';
+import { Cast, ChevronDown, ChevronRight, Check, Heart, ListPlus, Play, Square, Star, X, SlidersHorizontal, RotateCcw, AudioLines } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useDragDrop } from '../contexts/DragDropContext';
-import { useAuthStore } from '../store/authStore';
 import { useSelectionStore } from '../store/selectionStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
@@ -41,11 +42,10 @@ const SORTABLE_COLUMNS = new Set(['title', 'artist', 'album', 'rating', 'duratio
 
 export default function Favorites() {
   const { t } = useTranslation();
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
-  const [artists, setArtists] = useState<SubsonicArtist[]>([]);
-  const [songs, setSongs] = useState<SubsonicSong[]>([]);
-  const [radioStations, setRadioStations] = useState<InternetRadioStation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    albums, artists, songs, setSongs, radioStations,
+    loading, topFavoriteArtists, unfavoriteStation,
+  } = useFavoritesData();
 
   // ── Sorting (3-state: asc → desc → reset) ────────────────────────────────
   const [sortKey, setSortKey] = useState<string>('natural');
@@ -104,48 +104,13 @@ export default function Favorites() {
     setSongs(prev => prev.filter(s => s.id !== id));
   }
 
-  // ── Sorting logic ─────────────────────────────────────────────────────────
-  const handleSortClick = (key: string) => {
-    if (!SORTABLE_COLUMNS.has(key)) return;
-
-    if (sortKey === key) {
-      const nextCount = sortClickCount + 1;
-      if (nextCount >= 3) {
-        // Reset to natural order (favorite addition order)
-        setSortKey('natural');
-        setSortDir('asc');
-        setSortClickCount(0);
-      } else {
-        // Toggle direction
-        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-        setSortClickCount(nextCount);
-      }
-    } else {
-      // Start new sort on this column
-      setSortKey(key);
-      setSortDir('asc');
-      setSortClickCount(1);
-    }
-  };
-
-  const getSortIndicator = (key: string) => {
-    if (sortKey !== key) return null;
-    if (sortClickCount === 0) return null;
-    return sortDir === 'asc' ? <ArrowUp size={12} style={{ marginLeft: 4, opacity: 0.7 }} /> : <ArrowDown size={12} style={{ marginLeft: 4, opacity: 0.7 }} />;
-  };
-
-  function unfavoriteStation(id: string) {
-    setRadioStations(prev => prev.filter(s => s.id !== id));
-    try {
-      const next = new Set<string>(JSON.parse(localStorage.getItem('psysonic_radio_favorites') ?? '[]'));
-      next.delete(id);
-      localStorage.setItem('psysonic_radio_favorites', JSON.stringify([...next]));
-    } catch { /* ignore */ }
-  }
+  const { filteredSongs, visibleSongs, handleSortClick, getSortIndicator } = useFavoritesSongFiltering({
+    songs, sortKey, setSortKey, sortDir, setSortDir, sortClickCount, setSortClickCount,
+    selectedArtist, selectedGenres, yearRange, ratings,
+  });
 
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const navigate = useNavigate();
-  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   // Clear selection when song list changes
   useEffect(() => {
@@ -184,116 +149,6 @@ export default function Favorites() {
       return next;
     });
   }, [songs]);
-
-  useEffect(() => {
-    const loadAll = async () => {
-      const [starredResult] = await Promise.allSettled([
-        getStarred(),
-      ]);
-      if (starredResult.status === 'fulfilled') {
-        setAlbums(starredResult.value.albums);
-        setArtists(starredResult.value.artists);
-        setSongs(starredResult.value.songs);
-      }
-
-      // Radio favorites: read IDs from localStorage, fetch all stations, filter
-      try {
-        const favIds = new Set<string>(JSON.parse(localStorage.getItem('psysonic_radio_favorites') ?? '[]'));
-        if (favIds.size > 0) {
-          const all = await getInternetRadioStations();
-          setRadioStations(all.filter(s => favIds.has(s.id)));
-        }
-      } catch { /* ignore */ }
-
-      setLoading(false);
-    };
-    loadAll();
-  }, [musicLibraryFilterVersion]);
-
-  // ── Top Favorite Artists aggregated from favorited songs ─────────────
-  const topFavoriteArtists = useMemo(() => {
-    const counts = new Map<string, { id: string; name: string; count: number; coverArtId: string }>();
-    for (const s of songs) {
-      if (starredOverrides[s.id] === false) continue;
-      const key = s.artistId || s.artist;
-      if (!key) continue;
-      const existing = counts.get(key);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        counts.set(key, {
-          id: key,
-          name: s.artist || key,
-          count: 1,
-          coverArtId: s.artistId || '',
-        });
-      }
-    }
-    return Array.from(counts.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 12);
-  }, [songs, starredOverrides]);
-
-  // ── Filter & sort logic ──────────────────────────────────────────────────
-  const filteredSongs = useMemo(() => {
-    return songs.filter(s => {
-      // Remove unfavorited
-      if (starredOverrides[s.id] === false) return false;
-
-      // Artist filter
-      if (selectedArtist) {
-        const artistMatch = s.artistId === selectedArtist ||
-                           s.artist === selectedArtist ||
-                           s.albumArtist === selectedArtist;
-        if (!artistMatch) return false;
-      }
-
-      // Genre filter
-      if (selectedGenres.length > 0) {
-        const songGenre = s.genre || '';
-        const hasMatchingGenre = selectedGenres.some(g =>
-          songGenre.toLowerCase().includes(g.toLowerCase())
-        );
-        if (!hasMatchingGenre) return false;
-      }
-
-      // Year range filter — only applied when range is non-default; songs without year are excluded
-      if (yearRange[0] !== MIN_YEAR || yearRange[1] !== CURRENT_YEAR) {
-        if (s.year === undefined || s.year < yearRange[0] || s.year > yearRange[1]) return false;
-      }
-
-      return true;
-    });
-  }, [songs, starredOverrides, selectedArtist, selectedGenres, yearRange]);
-
-  // ── Sort logic ───────────────────────────────────────────────────────────
-  const visibleSongs = useMemo(() => {
-    if (sortKey === 'natural' || sortClickCount === 0) {
-      return filteredSongs;
-    }
-
-    const sorted = [...filteredSongs];
-    const multiplier = sortDir === 'asc' ? 1 : -1;
-
-    return sorted.sort((a, b) => {
-      switch (sortKey) {
-        case 'title':
-          return multiplier * (a.title || '').localeCompare(b.title || '');
-        case 'artist':
-          return multiplier * ((a.artist || '').localeCompare(b.artist || ''));
-        case 'album':
-          return multiplier * ((a.album || '').localeCompare(b.album || ''));
-        case 'rating':
-          const ratingA = ratings[a.id] ?? userRatingOverrides[a.id] ?? a.userRating ?? 0;
-          const ratingB = ratings[b.id] ?? userRatingOverrides[b.id] ?? b.userRating ?? 0;
-          return multiplier * (ratingA - ratingB);
-        case 'duration':
-          return multiplier * ((a.duration || 0) - (b.duration || 0));
-        default:
-          return 0;
-      }
-    });
-  }, [filteredSongs, sortKey, sortDir, sortClickCount, ratings, userRatingOverrides]);
 
 
   if (loading) {
@@ -785,234 +640,6 @@ export default function Favorites() {
           )}
         </>
       )}
-    </div>
-  );
-}
-
-// ── Top Favorite Artists Row ──────────────────────────────────────────────────
-
-interface TopFavoriteArtist {
-  id: string;
-  name: string;
-  count: number;
-  coverArtId: string;
-}
-
-interface TopFavoriteArtistsRowProps {
-  title: string;
-  artists: TopFavoriteArtist[];
-  selectedKey: string | null;
-  onToggle: (key: string) => void;
-}
-
-function TopFavoriteArtistsRow({ title, artists, selectedKey, onToggle }: TopFavoriteArtistsRowProps) {
-  const { t } = useTranslation();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showLeft, setShowLeft] = useState(false);
-  const [showRight, setShowRight] = useState(true);
-
-  const handleScroll = () => {
-    if (!scrollRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-    setShowLeft(scrollLeft > 0);
-    setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
-  };
-
-  useEffect(() => {
-    handleScroll();
-    window.addEventListener('resize', handleScroll);
-    return () => window.removeEventListener('resize', handleScroll);
-  }, [artists]);
-
-  const scroll = (dir: 'left' | 'right') => {
-    if (!scrollRef.current) return;
-    const amount = scrollRef.current.clientWidth * 0.75;
-    scrollRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
-  };
-
-  return (
-    <section className="album-row-section">
-      <div className="album-row-header">
-        <h2 className="section-title" style={{ marginBottom: 0 }}>{title}</h2>
-        <div className="album-row-nav">
-          <button className={`nav-btn ${!showLeft ? 'disabled' : ''}`} onClick={() => scroll('left')} disabled={!showLeft}>
-            <ChevronLeft size={20} />
-          </button>
-          <button className={`nav-btn ${!showRight ? 'disabled' : ''}`} onClick={() => scroll('right')} disabled={!showRight}>
-            <ChevronRight size={20} />
-          </button>
-        </div>
-      </div>
-
-      <div className="album-grid-wrapper">
-        <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
-          {artists.map(a => (
-            <TopFavoriteArtistCard
-              key={a.id}
-              artist={a}
-              isSelected={selectedKey === a.id}
-              onClick={() => onToggle(a.id)}
-              songCountLabel={t('favorites.topArtistsSongCount', { count: a.count })}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-interface TopFavoriteArtistCardProps {
-  artist: TopFavoriteArtist;
-  isSelected: boolean;
-  onClick: () => void;
-  songCountLabel: string;
-}
-
-function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: TopFavoriteArtistCardProps) {
-  const coverId = artist.coverArtId;
-  const coverSrc = useMemo(() => coverId ? buildCoverArtUrl(coverId, 300) : '', [coverId]);
-  const coverCacheKey = useMemo(() => coverId ? coverArtCacheKey(coverId, 300) : '', [coverId]);
-
-  return (
-    <div
-      className={`artist-card${isSelected ? ' artist-card-selected' : ''}`}
-      onClick={onClick}
-      style={isSelected ? { outline: '2px solid var(--accent)', outlineOffset: '-2px', borderRadius: 12 } : undefined}
-    >
-      <div className="artist-card-avatar">
-        {coverId ? (
-          <CachedImage
-            src={coverSrc}
-            cacheKey={coverCacheKey}
-            alt={artist.name}
-            loading="lazy"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement?.classList.add('fallback-visible');
-            }}
-          />
-        ) : (
-          <Users size={32} color="var(--text-muted)" />
-        )}
-      </div>
-      <div className="artist-card-info">
-        <span className="artist-card-name">{artist.name}</span>
-        <span className="artist-card-meta">{songCountLabel}</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Radio Station Row ─────────────────────────────────────────────────────────
-
-interface RadioStationRowProps {
-  title: string;
-  stations: InternetRadioStation[];
-  currentRadio: InternetRadioStation | null;
-  isPlaying: boolean;
-  onPlay: (s: InternetRadioStation) => void;
-  onUnfavorite: (id: string) => void;
-}
-
-function RadioStationRow({ title, stations, currentRadio, isPlaying, onPlay, onUnfavorite }: RadioStationRowProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showLeft, setShowLeft] = useState(false);
-  const [showRight, setShowRight] = useState(true);
-
-  const handleScroll = () => {
-    if (!scrollRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-    setShowLeft(scrollLeft > 0);
-    setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
-  };
-
-  const scroll = (dir: 'left' | 'right') => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollBy({ left: dir === 'left' ? -scrollRef.current.clientWidth * 0.75 : scrollRef.current.clientWidth * 0.75, behavior: 'smooth' });
-  };
-
-  return (
-    <section className="album-row-section">
-      <div className="album-row-header">
-        <h2 className="section-title" style={{ marginBottom: 0 }}>{title}</h2>
-        <div className="album-row-nav">
-          <button className={`nav-btn${!showLeft ? ' disabled' : ''}`} onClick={() => scroll('left')} disabled={!showLeft}>
-            <ChevronLeft size={20} />
-          </button>
-          <button className={`nav-btn${!showRight ? ' disabled' : ''}`} onClick={() => scroll('right')} disabled={!showRight}>
-            <ChevronRight size={20} />
-          </button>
-        </div>
-      </div>
-      <div className="album-grid-wrapper">
-        <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
-          {stations.map(s => (
-            <RadioFavCard
-              key={s.id}
-              station={s}
-              isActive={currentRadio?.id === s.id}
-              isPlaying={isPlaying}
-              onPlay={() => onPlay(s)}
-              onUnfavorite={() => onUnfavorite(s.id)}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Radio Favorite Card ───────────────────────────────────────────────────────
-
-interface RadioFavCardProps {
-  station: InternetRadioStation;
-  isActive: boolean;
-  isPlaying: boolean;
-  onPlay: () => void;
-  onUnfavorite: () => void;
-}
-
-function RadioFavCard({ station: s, isActive, isPlaying, onPlay, onUnfavorite }: RadioFavCardProps) {
-  const { t } = useTranslation();
-  return (
-    <div className={`album-card${isActive ? ' radio-card-active' : ''}`}>
-      <div className="album-card-cover">
-        {s.coverArt ? (
-          <CachedImage
-            src={buildCoverArtUrl(`ra-${s.id}`, 256)}
-            cacheKey={coverArtCacheKey(`ra-${s.id}`, 256)}
-            alt={s.name}
-            className="album-card-cover-img"
-          />
-        ) : (
-          <div className="album-card-cover-placeholder playlist-card-icon">
-            <Cast size={48} strokeWidth={1.2} />
-          </div>
-        )}
-        {isActive && isPlaying && (
-          <div className="radio-live-overlay">
-            <span className="radio-live-badge">{t('radio.live')}</span>
-          </div>
-        )}
-        <div className="album-card-play-overlay">
-          <button className="album-card-details-btn" onClick={onPlay}>
-            {isActive && isPlaying ? <X size={15} /> : <Cast size={14} />}
-          </button>
-        </div>
-      </div>
-      <div className="album-card-info">
-        <div className="album-card-title">{s.name}</div>
-        <div className="album-card-artist" style={{ display: 'flex', alignItems: 'center' }}>
-          <button
-            className="radio-favorite-btn active"
-            style={{ background: 'none', border: 'none', padding: '2px', cursor: 'pointer', display: 'flex' }}
-            onClick={onUnfavorite}
-            data-tooltip={t('radio.unfavorite')}
-          >
-            <Heart size={12} fill="currentColor" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
