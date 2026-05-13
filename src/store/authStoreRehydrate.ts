@@ -15,6 +15,7 @@ import type {
   AuthState,
   DiscordCoverSource,
   LyricsSourceConfig,
+  QueueDurationDisplayMode,
   SeekbarStyle,
 } from './authStoreTypes';
 
@@ -78,6 +79,13 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ? {}
     : { seekbarStyle: 'truewave' as SeekbarStyle };
 
+  const VALID_QUEUE_DURATION_MODES = new Set<string>(['total', 'remaining', 'eta']);
+  const queueDurationDisplayModeMigrated = VALID_QUEUE_DURATION_MODES.has(
+    (state as { queueDurationDisplayMode?: unknown }).queueDurationDisplayMode as string,
+  )
+    ? {}
+    : { queueDurationDisplayMode: 'total' as QueueDurationDisplayMode };
+
   // The `animationMode` 3-state setting was removed; users on `'reduced'`
   // or `'static'` collapse onto the former `'full'` path automatically as
   // soon as the field is gone from the store. Strip the persisted field
@@ -126,6 +134,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...lyricsSourcesMigrated,
     ...wheelSmoothOneTime,
     ...seekbarStyleMigrated,
+    ...queueDurationDisplayModeMigrated,
     ...discordCoverSourceMigrated,
   };
 }

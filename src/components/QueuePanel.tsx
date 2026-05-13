@@ -18,6 +18,7 @@ import { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import type { QueueDurationDisplayMode } from '../store/authStoreTypes';
 import { encodeSharePayload } from '../utils/shareLink';
 import { copyTextToClipboard } from '../utils/serverMagicString';
 import { showToast } from '../utils/toast';
@@ -190,16 +191,14 @@ function LoadPlaylistModal({ onClose, onLoad }: { onClose: () => void, onLoad: (
   );
 }
 
-type DurationMode = 'total' | 'remaining' | 'eta';
-
 interface QueueHeaderProps {
   queue: Track[];
   queueIndex: number;
   activePlaylist: { id: string; name: string } | null;
   isNowPlayingCollapsed: boolean;
   setIsNowPlayingCollapsed: (v: boolean) => void;
-  durationMode: DurationMode;
-  setDurationMode: (m: DurationMode) => void;
+  durationMode: QueueDurationDisplayMode;
+  setDurationMode: (m: QueueDurationDisplayMode) => void;
   t: TFunction;
 }
 function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed, setIsNowPlayingCollapsed, durationMode, setDurationMode, t }: QueueHeaderProps) {
@@ -235,7 +234,7 @@ function QueueHeader({ queue, queueIndex, activePlaylist, isNowPlayingCollapsed,
     else dur = fmtEta(remainingSecs);
   }
 
-  const nextMode: DurationMode =
+  const nextMode: QueueDurationDisplayMode =
     durationMode === 'total' ? 'remaining' :
     durationMode === 'remaining' ? 'eta' : 'total';
   const nextTooltipKey =
@@ -385,8 +384,9 @@ function QueuePanelHostOrSolo() {
 
   const isNowPlayingCollapsed = useAuthStore(s => s.queueNowPlayingCollapsed);
   const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
+  const durationMode = useAuthStore(s => s.queueDurationDisplayMode);
+  const setDurationMode = useAuthStore(s => s.setQueueDurationDisplayMode);
   const toolbarButtons = useQueueToolbarStore(s => s.buttons);
-  const [durationMode, setDurationMode] = useState<DurationMode>('total');
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
   const [lufsTgtOpen, setLufsTgtOpen] = useState(false);
   const [lufsTgtPopStyle, setLufsTgtPopStyle] = useState<React.CSSProperties>({});

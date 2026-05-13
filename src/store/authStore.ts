@@ -86,6 +86,7 @@ export const useAuthStore = create<AuthState>()(
       lastSeenChangelogVersion: '',
       seekbarStyle: 'truewave',
       queueNowPlayingCollapsed: false,
+      queueDurationDisplayMode: 'total',
       enableHiRes: false,
       audioOutputDevice: null,
       hotCacheEnabled: false,
@@ -147,6 +148,10 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: state => {
         const { musicFolders: _mf, musicLibraryFilterVersion: _fv, ...rest } = state;
+        // Denylist: everything else is persisted. New store fields therefore serialize by
+        // default. If this is ever refactored to an allowlist, each new persisted key must be
+        // listed explicitly — otherwise it would drop from localStorage with no failing test
+        // unless we add coverage for that field's round-trip.
         return rest;
       },
       onRehydrateStorage: () => (state, error) => {
