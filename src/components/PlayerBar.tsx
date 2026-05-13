@@ -1,8 +1,7 @@
 import { star, unstar, setRating } from '../api/subsonicStarRating';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Music,
@@ -30,44 +29,8 @@ import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 import { usePlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
 import { usePreviewStore } from '../store/previewStore';
 import { usePerfProbeFlags } from '../utils/perfFlags';
-
-function formatTime(seconds: number): string {
-  if (!seconds || isNaN(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-// Renders the playback clock without ever causing PlayerBar to re-render.
-// Updates the DOM directly via an imperative store subscription.
-const PlaybackTime = memo(function PlaybackTime({ className }: { className?: string }) {
-  const spanRef = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (spanRef.current) {
-      spanRef.current.textContent = formatTime(getPlaybackProgressSnapshot().currentTime);
-    }
-    return subscribePlaybackProgress(state => {
-      if (spanRef.current) spanRef.current.textContent = formatTime(state.currentTime);
-    });
-  }, []);
-  return <span className={className} ref={spanRef} />;
-});
-
-// Renders the remaining time (duration - currentTime) without causing PlayerBar to re-render.
-const RemainingTime = memo(function RemainingTime({ duration, className }: { duration: number; className?: string }) {
-  const spanRef = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const updateRemaining = () => {
-      if (spanRef.current) {
-        const remaining = Math.max(0, duration - getPlaybackProgressSnapshot().currentTime);
-        spanRef.current.textContent = `-${formatTime(remaining)}`;
-      }
-    };
-    updateRemaining();
-    return subscribePlaybackProgress(updateRemaining);
-  }, [duration]);
-  return <span className={className} ref={spanRef} />;
-});
+import { formatTime } from '../utils/playerBarHelpers';
+import { PlaybackTime, RemainingTime } from './playerBar/PlaybackClock';
 
 export default function PlayerBar() {
   const { t } = useTranslation();
