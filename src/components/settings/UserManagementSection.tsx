@@ -3,9 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { RotateCcw, Shield, Trash2, User, UserPlus, Users, Wand2, X } from 'lucide-react';
 import {
-  ndCreateUser,
-  ndDeleteUser,
-  ndSetUserLibraries,
   ndUpdateUser,
   type NdUser,
 } from '../../api/navidromeAdmin';
@@ -18,7 +15,8 @@ import {
 import { shortHostFromServerUrl } from '../../utils/serverDisplayName';
 import { formatLastSeen } from '../../utils/userMgmtHelpers';
 import { useUserMgmtData } from '../../hooks/useUserMgmtData';
-import { UserForm, type UserFormState } from './UserForm';
+import { useUserMgmtActions } from '../../hooks/useUserMgmtActions';
+import { UserForm } from './UserForm';
 
 export function UserManagementSection({
   serverUrl,
@@ -33,136 +31,12 @@ export function UserManagementSection({
   const { users, libraries, loading, loadError, load } = useUserMgmtData(serverUrl, token, t);
   const [editing, setEditing] = useState<NdUser | 'new' | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<NdUser | null>(null);
-  const [busy, setBusy] = useState(false);
   const [magicRowUser, setMagicRowUser] = useState<NdUser | null>(null);
   const [magicRowPassword, setMagicRowPassword] = useState('');
   const [magicRowSubmitting, setMagicRowSubmitting] = useState(false);
-
-  const handleSave = async (form: UserFormState) => {
-    const userName = form.userName.trim();
-    const name = form.name.trim();
-    const email = form.email.trim();
-    if (editing === 'new') {
-      if (!userName || !name || !form.password.trim()) {
-        showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
-        return;
-      }
-    } else if (editing) {
-      if (!userName || !name) {
-        showToast(t('settings.userMgmtValidationMissingIdentity'), 4000, 'error');
-        return;
-      }
-    }
-    if (!form.isAdmin && form.libraryIds.length === 0 && libraries.length > 0) {
-      showToast(t('settings.userMgmtLibrariesValidation'), 4000, 'error');
-      return;
-    }
-    if (!token) return;
-    setBusy(true);
-    try {
-      let targetId: string;
-      if (editing === 'new') {
-        const created = await ndCreateUser(serverUrl, token, {
-          userName, name, email, password: form.password, isAdmin: form.isAdmin,
-        });
-        targetId = created.id;
-        showToast(t('settings.userMgmtCreated'), 3000, 'info');
-      } else if (editing) {
-        await ndUpdateUser(serverUrl, token, editing.id, {
-          userName, name, email, password: form.password, isAdmin: form.isAdmin,
-        });
-        targetId = editing.id;
-        showToast(t('settings.userMgmtUpdated'), 3000, 'info');
-      } else {
-        return;
-      }
-      if (!form.isAdmin && form.libraryIds.length > 0) {
-        try {
-          await ndSetUserLibraries(serverUrl, token, targetId, form.libraryIds);
-        } catch (e) {
-          const msg = (e instanceof Error && e.message) ? e.message : String(e);
-          showToast(`${t('settings.userMgmtLibrariesUpdateError')}: ${msg}`, 5000, 'error');
-        }
-      }
-      setEditing(null);
-      await load();
-    } catch (e) {
-      const msg = (e instanceof Error && e.message) ? e.message : (typeof e === 'string' ? e : null);
-      const fallback = editing === 'new'
-        ? t('settings.userMgmtCreateError')
-        : t('settings.userMgmtUpdateError');
-      showToast(msg ?? fallback, 5000, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSaveAndGetMagic = async (form: UserFormState) => {
-    if (editing !== 'new' || form.isAdmin) return;
-    const userName = form.userName.trim();
-    const name = form.name.trim();
-    const email = form.email.trim();
-    if (!userName || !name || !form.password.trim()) {
-      showToast(t('settings.userMgmtValidationMissing'), 4000, 'error');
-      return;
-    }
-    if (!form.isAdmin && form.libraryIds.length === 0 && libraries.length > 0) {
-      showToast(t('settings.userMgmtLibrariesValidation'), 4000, 'error');
-      return;
-    }
-    if (!token) return;
-    setBusy(true);
-    try {
-      const created = await ndCreateUser(serverUrl, token, {
-        userName, name, email, password: form.password, isAdmin: form.isAdmin,
-      });
-      const targetId = created.id;
-      showToast(t('settings.userMgmtCreated'), 3000, 'info');
-      if (!form.isAdmin && form.libraryIds.length > 0) {
-        try {
-          await ndSetUserLibraries(serverUrl, token, targetId, form.libraryIds);
-        } catch (e) {
-          const msg = (e instanceof Error && e.message) ? e.message : String(e);
-          showToast(`${t('settings.userMgmtLibrariesUpdateError')}: ${msg}`, 5000, 'error');
-        }
-      }
-      const str = encodeServerMagicString({
-        url: serverUrl.trim(),
-        username: userName,
-        password: form.password,
-        name: shortHostFromServerUrl(serverUrl),
-      });
-      const ok = await copyTextToClipboard(str);
-      showToast(
-        ok ? t('settings.userMgmtMagicStringCopied') : t('settings.userMgmtMagicStringCopyFailed'),
-        ok ? 3000 : 5000,
-        ok ? 'info' : 'error',
-      );
-      setEditing(null);
-      await load();
-    } catch (e) {
-      const msg = (e instanceof Error && e.message) ? e.message : (typeof e === 'string' ? e : null);
-      showToast(msg ?? t('settings.userMgmtCreateError'), 5000, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const performDelete = async (u: NdUser) => {
-    if (!token) return;
-    setConfirmingDelete(null);
-    setBusy(true);
-    try {
-      await ndDeleteUser(serverUrl, token, u.id);
-      showToast(t('settings.userMgmtDeleted'), 3000, 'info');
-      await load();
-    } catch (e) {
-      const msg = (e instanceof Error && e.message) ? e.message : (typeof e === 'string' ? e : t('settings.userMgmtDeleteError'));
-      showToast(msg, 5000, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { busy, handleSave, handleSaveAndGetMagic, performDelete } = useUserMgmtActions({
+    serverUrl, token, libraries, editing, setEditing, reload: load, t,
+  });
 
   return (
     <section className="settings-section">
@@ -341,7 +215,12 @@ export function UserManagementSection({
         confirmLabel={t('settings.userMgmtDelete')}
         cancelLabel={t('settings.userMgmtCancel')}
         danger
-        onConfirm={() => { if (confirmingDelete) void performDelete(confirmingDelete); }}
+        onConfirm={() => {
+          if (!confirmingDelete) return;
+          const target = confirmingDelete;
+          setConfirmingDelete(null);
+          void performDelete(target);
+        }}
         onCancel={() => setConfirmingDelete(null)}
       />
       {magicRowUser && createPortal(
