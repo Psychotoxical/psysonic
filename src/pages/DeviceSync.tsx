@@ -21,12 +21,23 @@ import { showToast } from '../utils/toast';
 import { IS_WINDOWS } from '../utils/platform';
 
 import {
-  uuid, formatBytes, trackToSyncInfo,
-  type SourceTab, type SyncStatus, type RemovableDrive,
+  formatBytes, trackToSyncInfo,
+  type SourceTab,
 } from '../utils/deviceSyncHelpers';
-import { applyLegacyTemplate } from '../utils/deviceSyncLegacyTemplate';
 import { fetchTracksForSource } from '../utils/fetchTracksForSource';
 import BrowserRow from '../components/deviceSync/BrowserRow';
+import { useDeviceSyncDrives } from '../hooks/useDeviceSyncDrives';
+import { useDeviceSyncSourceStatuses } from '../hooks/useDeviceSyncSourceStatuses';
+import {
+  runDeviceSyncMigrationPreview,
+  runDeviceSyncMigrationExecute,
+  type MigrationPhase, type MigrationPair, type MigrationResult,
+} from '../utils/runDeviceSyncMigration';
+import {
+  runDeviceSyncSummaryPrompt,
+  runDeviceSyncExecute,
+  type SyncDelta,
+} from '../utils/runDeviceSyncExecution';
 
 // ─── component ───────────────────────────────────────────────────────────────
 
@@ -63,52 +74,21 @@ export default function DeviceSync() {
   const [artistAlbumsMap, setArtistAlbumsMap]     = useState<Map<string, SubsonicAlbum[]>>(new Map());
   const [loadingArtistIds, setLoadingArtistIds]   = useState<Set<string>>(new Set());
 
-  // Map source IDs → computed device paths (for status derivation)
-  const [sourcePathsMap, setSourcePathsMap] = useState<Map<string, string[]>>(new Map());
-
   // ─── Removable drive detection ──────────────────────────────────────────
-  const [drives, setDrives] = useState<RemovableDrive[]>([]);
-  const [drivesLoading, setDrivesLoading] = useState(false);
+  const { drives, drivesLoading, activeDrive, driveDetected, refreshDrives } =
+    useDeviceSyncDrives(targetDir);
 
   const [preSyncOpen, setPreSyncOpen] = useState(false);
   const [preSyncLoading, setPreSyncLoading] = useState(false);
-  const [syncDelta, setSyncDelta] = useState({ addBytes: 0, addCount: 0, delBytes: 0, delCount: 0, availableBytes: 0, tracks: [] as SubsonicSong[] });
+  const [syncDelta, setSyncDelta] = useState<SyncDelta>({ addBytes: 0, addCount: 0, delBytes: 0, delCount: 0, availableBytes: 0, tracks: [] as SubsonicSong[] });
 
   // ─── Migration (rename existing files into the fixed scheme) ────────────
-  type MigrationPhase = 'closed' | 'loading' | 'preview' | 'executing' | 'done' | 'nothing';
   const [migrationPhase, setMigrationPhase] = useState<MigrationPhase>('closed');
   const [migrationOldTemplate, setMigrationOldTemplate] = useState<string>('');
-  const [migrationPairs, setMigrationPairs] = useState<{ old: string; new: string }[]>([]);
-  const [migrationCollisions, setMigrationCollisions] = useState<{ old: string; new: string }[]>([]);
+  const [migrationPairs, setMigrationPairs] = useState<MigrationPair[]>([]);
+  const [migrationCollisions, setMigrationCollisions] = useState<MigrationPair[]>([]);
   const [migrationUnchanged, setMigrationUnchanged] = useState(0);
-  const [migrationResult, setMigrationResult] = useState<{ ok: number; failed: number; errors: string[] } | null>(null);
-
-  const refreshDrives = useCallback(async () => {
-    setDrivesLoading(true);
-    try {
-      const result = await invoke<RemovableDrive[]>('get_removable_drives');
-      setDrives(result);
-    } catch {
-      setDrives([]);
-    } finally {
-      setDrivesLoading(false);
-    }
-  }, []);
-
-  // Fetch drives on mount, then poll every 5 seconds
-  useEffect(() => {
-    refreshDrives();
-    const interval = setInterval(refreshDrives, 5000);
-    return () => clearInterval(interval);
-  }, [refreshDrives]);
-
-  // Detect if the current targetDir is on a detected removable drive
-  const activeDrive = useMemo(() => {
-    if (!targetDir) return null;
-    return drives.find(d => targetDir.startsWith(d.mount_point)) ?? null;
-  }, [targetDir, drives]);
-
-  const driveDetected = activeDrive !== null;
+  const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
 
   const isRunning = jobStatus === 'running';
 
@@ -157,52 +137,10 @@ export default function DeviceSync() {
     }
   }, [driveDetected]);
 
-  // Compute expected paths for each source (for status comparison)
-  useEffect(() => {
-    if (!targetDir || sources.length === 0) {
-      setSourcePathsMap(new Map());
-      return;
-    }
-    // Path schema is fixed in the Rust backend now — no template parameter.
-    let cancelled = false;
-    (async () => {
-      const map = new Map<string, string[]>();
-      await Promise.all(sources.map(async source => {
-        if (cancelled) return;
-        try {
-          const tracks = await fetchTracksForSource(source);
-          const paths = await invoke<string[]>('compute_sync_paths', {
-            tracks: tracks.map((tr, idx) => trackToSyncInfo(
-              tr, '',
-              source.type === 'playlist' ? { name: source.name, index: idx + 1 } : undefined,
-            )),
-            destDir: targetDir,
-          });
-          map.set(source.id, paths);
-        } catch {
-          map.set(source.id, []);
-        }
-      }));
-      if (!cancelled) setSourcePathsMap(map);
-    })();
-    return () => { cancelled = true; };
-  }, [targetDir, sources]);
-
-  // Derive sync status per source
-  const sourceStatuses = useMemo(() => {
-    const deviceSet = new Set(deviceFilePaths);
-    const statuses = new Map<string, SyncStatus>();
-    for (const source of sources) {
-      if (pendingDeletion.includes(source.id)) {
-        statuses.set(source.id, 'deletion');
-      } else {
-        const paths = sourcePathsMap.get(source.id) ?? [];
-        const allSynced = paths.length > 0 && paths.every(p => deviceSet.has(p));
-        statuses.set(source.id, allSynced ? 'synced' : 'pending');
-      }
-    }
-    return statuses;
-  }, [sources, pendingDeletion, sourcePathsMap, deviceFilePaths]);
+  // Source status (path map + derived synced/pending/deletion)
+  const { sourcePathsMap, sourceStatuses } = useDeviceSyncSourceStatuses(
+    targetDir, sources, pendingDeletion, deviceFilePaths,
+  );
 
   // ─── Desired State / Diff Logic ─────────────────────────────────────────
 
@@ -363,109 +301,17 @@ export default function DeviceSync() {
   const filteredArtists   = useMemo(() => artists.filter(a => a.name.toLowerCase().includes(q)), [artists, q]);
 
   // ─── Migration handlers ─────────────────────────────────────────────────
-  const startMigrationPreview = async () => {
-    if (!targetDir || sources.length === 0) return;
-    setMigrationPhase('loading');
-    setMigrationResult(null);
-    try {
-      // Look up the old template from the v1 manifest on disk.
-      const manifest = await invoke<{ version: number; filenameTemplate?: string } | null>(
-        'read_device_manifest', { destDir: targetDir }
-      );
-      const oldTemplate = manifest?.filenameTemplate?.trim() || '';
-      if (!oldTemplate) {
-        // v2 manifest or missing — nothing to migrate from.
-        setMigrationPhase('nothing');
-        return;
-      }
-      setMigrationOldTemplate(oldTemplate);
 
-      // Migration only renames tracks that came from album/artist sources —
-      // under the old template all tracks lived in a flat album tree. Playlist
-      // sources get their own `Playlists/{name}/…` folder under the new scheme,
-      // so the files they need are a subset (or copies) of the album tracks and
-      // are cleaner to just re-download on the next sync.
-      const albumSourceTracks: SubsonicSong[] = [];
-      const seenIds = new Set<string>();
-      for (const source of sources.filter(s => s.type !== 'playlist')) {
-        try {
-          const tracks = await fetchTracksForSource(source);
-          for (const tr of tracks) {
-            if (seenIds.has(tr.id)) continue;
-            seenIds.add(tr.id);
-            albumSourceTracks.push(tr);
-          }
-        } catch { /* skip unreachable source */ }
-      }
+  const startMigrationPreview = () => runDeviceSyncMigrationPreview({
+    targetDir, sources,
+    setMigrationPhase, setMigrationResult, setMigrationOldTemplate,
+    setMigrationPairs, setMigrationCollisions, setMigrationUnchanged,
+  });
 
-      // New paths via Rust (fixed album-tree schema).
-      const newAbsPaths = await invoke<string[]>('compute_sync_paths', {
-        tracks: albumSourceTracks.map(tr => trackToSyncInfo(tr, '')),
-        destDir: targetDir,
-      });
-      const sepChar = IS_WINDOWS ? '\\' : '/';
-      const prefix = targetDir.endsWith(sepChar) ? targetDir : targetDir + sepChar;
-      const newRelPaths = newAbsPaths.map(p => p.startsWith(prefix) ? p.slice(prefix.length) : p);
-
-      // Old paths via the legacy template (JS).
-      const oldRelPaths = albumSourceTracks.map(tr => applyLegacyTemplate(oldTemplate, {
-        artist: tr.artist ?? '',
-        album: tr.album ?? '',
-        title: tr.title ?? '',
-        trackNumber: tr.track,
-        discNumber: tr.discNumber,
-        year: tr.year,
-        suffix: tr.suffix ?? 'mp3',
-      }));
-
-      const pairs: { old: string; new: string }[] = [];
-      const collisions: { old: string; new: string }[] = [];
-      const newPathCounts = new Map<string, number>();
-      let unchanged = 0;
-
-      for (let i = 0; i < albumSourceTracks.length; i++) {
-        const o = oldRelPaths[i];
-        const n = newRelPaths[i];
-        if (o === n) { unchanged += 1; continue; }
-        newPathCounts.set(n, (newPathCounts.get(n) ?? 0) + 1);
-        pairs.push({ old: o, new: n });
-      }
-      // Two separate old files mapping onto the same new path → collision.
-      const colliding = new Set([...newPathCounts.entries()].filter(([, c]) => c > 1).map(([p]) => p));
-      const cleanPairs = pairs.filter(p => !colliding.has(p.new));
-      for (const p of pairs.filter(p => colliding.has(p.new))) collisions.push(p);
-
-      setMigrationPairs(cleanPairs);
-      setMigrationCollisions(collisions);
-      setMigrationUnchanged(unchanged);
-      setMigrationPhase(cleanPairs.length === 0 && collisions.length === 0 ? 'nothing' : 'preview');
-    } catch (e) {
-      setMigrationResult({ ok: 0, failed: 0, errors: [String(e)] });
-      setMigrationPhase('done');
-    }
-  };
-
-  const executeMigration = async () => {
-    if (!targetDir || migrationPairs.length === 0) { setMigrationPhase('closed'); return; }
-    setMigrationPhase('executing');
-    try {
-      const results = await invoke<{ oldPath: string; newPath: string; ok: boolean; error: string | null }[]>(
-        'rename_device_files',
-        { targetDir, pairs: migrationPairs.map(p => [p.old, p.new]) }
-      );
-      const ok = results.filter(r => r.ok).length;
-      const failed = results.filter(r => !r.ok).length;
-      const errors = results.filter(r => !r.ok).map(r => `${r.oldPath}: ${r.error ?? 'unknown'}`);
-      setMigrationResult({ ok, failed, errors });
-      // Bump manifest to v2 (no template field) + rescan the device.
-      invoke('write_device_manifest', { destDir: targetDir, sources }).catch(() => {});
-      scanDevice();
-      setMigrationPhase('done');
-    } catch (e) {
-      setMigrationResult({ ok: 0, failed: migrationPairs.length, errors: [String(e)] });
-      setMigrationPhase('done');
-    }
-  };
+  const executeMigration = () => runDeviceSyncMigrationExecute({
+    targetDir, sources, migrationPairs,
+    setMigrationPhase, setMigrationResult, scanDevice,
+  });
 
   const closeMigration = () => {
     setMigrationPhase('closed');
@@ -499,112 +345,15 @@ export default function DeviceSync() {
 
   // ─── Sync (non-blocking) ────────────────────────────────────────────────
 
-  const promptSyncSummary = async () => {
-    if (!targetDir)          { showToast(t('deviceSync.noTargetDir'), 3000, 'error'); return; }
-    if (sources.length === 0){ showToast(t('deviceSync.noSources'),   3000, 'error'); return; }
+  const promptSyncSummary = () => runDeviceSyncSummaryPrompt({
+    targetDir, sources, pendingDeletion, t,
+    setPreSyncLoading, setPreSyncOpen, setSyncDelta,
+  });
 
-    setPreSyncLoading(true);
-    setPreSyncOpen(true);
-
-    try {
-      const { getClient } = await import('../api/subsonicClient');
-      const { baseUrl, params } = getClient();
-      const payload = await invoke<{
-        addBytes: number; addCount: number; delBytes: number; delCount: number; availableBytes: number; tracks: SubsonicSong[];
-      }>('calculate_sync_payload', {
-        sources,
-        deletionIds: pendingDeletion,
-        auth: { baseUrl, ...params },
-        targetDir,
-      });
-
-      setSyncDelta(payload);
-    } catch {
-      showToast(t('deviceSync.fetchError'), 3000, 'error');
-      setPreSyncOpen(false);
-    } finally {
-      setPreSyncLoading(false);
-    }
-  };
-
-  const handleSyncExecution = async () => {
-    setPreSyncOpen(false);
-
-    // 1. Handle pending deletions first
-    const deletionSources = sources.filter(s => pendingDeletion.includes(s.id));
-    if (deletionSources.length > 0) {
-      try {
-        const allPaths: string[] = [];
-        // Compute paths per source so playlist sources delete from their own
-        // folder (Playlists/{Name}/…) rather than from the album tree.
-        for (const source of deletionSources) {
-          const tracks = await fetchTracksForSource(source);
-          const paths = await invoke<string[]>('compute_sync_paths', {
-            tracks: tracks.map((tr, idx) => trackToSyncInfo(
-              tr, '',
-              source.type === 'playlist' ? { name: source.name, index: idx + 1 } : undefined,
-            )),
-            destDir: targetDir,
-          });
-          allPaths.push(...paths);
-        }
-
-        await invoke<number>('delete_device_files', { paths: allPaths });
-        removeSources(deletionSources.map(s => s.id));
-        // Update manifest so it stays in sync after deletions
-        const remainingSources = useDeviceSyncStore.getState().sources;
-        if (targetDir) invoke('write_device_manifest', { destDir: targetDir, sources: remainingSources }).catch(() => {});
-        showToast(
-          t('deviceSync.deleteComplete', { count: deletionSources.length }),
-          3000, 'info'
-        );
-      } catch {
-        showToast(t('deviceSync.fetchError'), 3000, 'error');
-      }
-    }
-
-    const allTracks = syncDelta.tracks;
-    if (allTracks.length === 0) {
-      // No new downloads needed, but the user may still have added a
-      // playlist source — (re)write its .m3u8 against the existing files.
-      if (targetDir) {
-        const playlistSources = sources.filter(s => s.type === 'playlist');
-        playlistSources.forEach(async playlist => {
-          try {
-            const tracks = await fetchTracksForSource(playlist);
-            await invoke('write_playlist_m3u8', {
-              destDir: targetDir,
-              playlistName: playlist.name,
-              tracks: tracks.map((tr, idx) => trackToSyncInfo(tr, '', { name: playlist.name, index: idx + 1 })),
-            });
-          } catch { /* non-fatal */ }
-        });
-      }
-      scanDevice();
-      return;
-    }
-
-    const jobId = uuid();
-    useDeviceSyncJobStore.getState().startSync(jobId, allTracks.length);
-
-    showToast(t('deviceSync.syncInBackground'), 3000, 'info');
-
-    invoke('sync_batch_to_device', {
-      tracks: allTracks.map(track => trackToSyncInfo(track, buildDownloadUrl(track.id))),
-      destDir: targetDir,
-      jobId,
-      expectedBytes: syncDelta.addBytes,
-    }).catch((err: string) => {
-      useDeviceSyncJobStore.getState().complete(0, 0, allTracks.length);
-      if (err.includes('NOT_ENOUGH_SPACE')) {
-        showToast(t('deviceSync.notEnoughSpace'), 5000, 'error');
-      } else if (err === 'NOT_MOUNTED_VOLUME') {
-        showToast(t('deviceSync.notMountedVolume'), 5000, 'error');
-      } else {
-        showToast(t('deviceSync.fetchError'), 3000, 'error');
-      }
-    });
-  };
+  const handleSyncExecution = () => runDeviceSyncExecute({
+    targetDir, sources, pendingDeletion, syncDelta, t,
+    setPreSyncOpen, removeSources, scanDevice,
+  });
 
   // ─── Actions ────────────────────────────────────────────────────────────
 
