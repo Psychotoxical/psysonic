@@ -1,8 +1,7 @@
 import { getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt } from '../api/subsonicPlaylists';
-import { coverArtCacheKey, buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { search } from '../api/subsonicSearch';
-import { getRandomSongs, filterSongsToActiveLibrary } from '../api/subsonicLibrary';
+import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
@@ -22,7 +21,6 @@ import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useDragDrop } from '../contexts/DragDropContext';
-import CachedImage, { useCachedUrl } from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
 import StarRating from '../components/StarRating';
@@ -48,6 +46,9 @@ import { runPlaylistZipDownload } from '../utils/runPlaylistZipDownload';
 import { playPlaylistAll, shufflePlaylistAll, enqueuePlaylistAll } from '../utils/playlistBulkPlayActions';
 import { startPlaylistRowDrag } from '../utils/startPlaylistRowDrag';
 import { runPlaylistReorderDrop } from '../utils/runPlaylistReorderDrop';
+import { usePlaylistCovers } from '../hooks/usePlaylistCovers';
+import { usePlaylistSelection } from '../hooks/usePlaylistSelection';
+import { usePlaylistSuggestions } from '../hooks/usePlaylistSuggestions';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -139,36 +140,21 @@ export default function PlaylistDetail() {
     searchErrors?: SpotifyCsvTrack[];
   } | null>(null);
 
+  // ── Save ──────────────────────────────────────────────────────
+  const savePlaylist = useCallback(async (updatedSongs: SubsonicSong[], prevCount = 0) => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await updatePlaylist(id, updatedSongs.map(s => s.id), prevCount);
+      if (id) touchPlaylist(id);
+    } catch {}
+    setSaving(false);
+  }, [id, touchPlaylist]);
+
   // ── Bulk select ───────────────────────────────────────────────────
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [lastSelectedIdx, setLastSelectedIdx] = useState<number | null>(null);
   const [showBulkPlPicker, setShowBulkPlPicker] = useState(false);
-
-  const toggleSelect = (id: string, idx: number, shift: boolean) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (shift && lastSelectedIdx !== null) {
-        const from = Math.min(lastSelectedIdx, idx);
-        const to = Math.max(lastSelectedIdx, idx);
-        songs.slice(from, to + 1).forEach(s => next.add(s.id));
-      } else {
-        next.has(id) ? next.delete(id) : next.add(id);
-      }
-      return next;
-    });
-    setLastSelectedIdx(idx);
-  };
-
-  const allSelected = selectedIds.size === songs.length && songs.length > 0;
-  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(songs.map(s => s.id)));
-
-  const bulkRemove = () => {
-    const prevCount = songs.length;
-    const next = songs.filter(s => !selectedIds.has(s.id));
-    setSongs(next);
-    savePlaylist(next, prevCount);
-    setSelectedIds(new Set());
-  };
+  const { selectedIds, setSelectedIds, allSelected, toggleAll, toggleSelect, bulkRemove } =
+    usePlaylistSelection(songs, setSongs, savePlaylist);
 
   useEffect(() => {
     if (!showBulkPlPicker) return;
@@ -180,44 +166,8 @@ export default function PlaylistDetail() {
   }, [showBulkPlPicker]);
 
   // ── 2×2 cover quad (first 4 unique album covers) ─────────────
-  const coverQuad = useMemo(() => {
-    const seen = new Set<string>();
-    const result: string[] = [];
-    for (const s of songs) {
-      if (s.coverArt && !seen.has(s.coverArt)) {
-        seen.add(s.coverArt);
-        result.push(s.coverArt);
-        if (result.length === 4) break;
-      }
-    }
-    return result;
-  }, [songs]);
-
-  // Stable fetch URLs + cache keys for the 2×2 grid and blurred background.
-  // buildCoverArtUrl generates a new crypto salt on every call, so these MUST
-  // be memoized — otherwise every render produces new URLs, useCachedUrl
-  // re-triggers, state updates, another render → infinite flicker loop.
-  const coverQuadUrls = useMemo(() =>
-    Array.from({ length: 4 }, (_, i) => {
-      const coverId = coverQuad[i % Math.max(1, coverQuad.length)];
-      if (!coverId) return null;
-      return { src: buildCoverArtUrl(coverId, 200), cacheKey: coverArtCacheKey(coverId, 200) };
-    }),
-  [coverQuad]);
-
-  const effectiveBgId = customCoverId ?? coverQuad[0] ?? '';
-  const bgFetchUrl = useMemo(() => buildCoverArtUrl(effectiveBgId, 300), [effectiveBgId]);
-  const bgCacheKey = useMemo(() => coverArtCacheKey(effectiveBgId, 300), [effectiveBgId]);
-  const resolvedBgUrl = useCachedUrl(bgFetchUrl, bgCacheKey);
-
-  const customCoverFetchUrl = useMemo(
-    () => customCoverId ? buildCoverArtUrl(customCoverId, 300) : null,
-    [customCoverId],
-  );
-  const customCoverCacheKey = useMemo(
-    () => customCoverId ? coverArtCacheKey(customCoverId, 300) : null,
-    [customCoverId],
-  );
+  const { coverQuadUrls, customCoverFetchUrl, customCoverCacheKey, resolvedBgUrl } =
+    usePlaylistCovers(songs, customCoverId);
 
   // Song search
   const [searchOpen, setSearchOpen] = useState(false);
@@ -229,8 +179,8 @@ export default function PlaylistDetail() {
   const [searchPlPickerOpen, setSearchPlPickerOpen] = useState(false);
 
   // Suggestions
-  const [suggestions, setSuggestions] = useState<SubsonicSong[]>([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const { suggestions, setSuggestions, loadingSuggestions, loadSuggestions } =
+    usePlaylistSuggestions(songs, playlist?.id);
 
   // ── Column resize/visibility ──────────────────────────────────────────────
   const {
@@ -278,43 +228,6 @@ export default function PlaylistDetail() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id, lastModified]);
-
-  // ── Suggestions ───────────────────────────────────────────────
-  const loadSuggestions = useCallback(async (currentSongs: SubsonicSong[]) => {
-    if (!currentSongs.length) return;
-    // Count genres across playlist songs, pick the most common one
-    const genreCounts: Record<string, number> = {};
-    for (const s of currentSongs) {
-      if (s.genre) genreCounts[s.genre] = (genreCounts[s.genre] ?? 0) + 1;
-    }
-    const genres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]);
-    // Fall back to no genre filter if none of the songs have genre tags
-    const genre = genres.length > 0 ? genres[Math.floor(Math.random() * Math.min(3, genres.length))][0] : undefined;
-    const existingIds = new Set(currentSongs.map(s => s.id));
-    setLoadingSuggestions(true);
-    setSuggestions([]);
-    try {
-      const random = await getRandomSongs(25, genre);
-      setSuggestions(random.filter(s => !existingIds.has(s.id)).slice(0, 10));
-    } catch {}
-    setLoadingSuggestions(false);
-  }, []);
-
-  useEffect(() => {
-    if (songs.length > 0) loadSuggestions(songs);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlist?.id]);
-
-  // ── Save ──────────────────────────────────────────────────────
-  const savePlaylist = useCallback(async (updatedSongs: SubsonicSong[], prevCount = 0) => {
-    if (!id) return;
-    setSaving(true);
-    try {
-      await updatePlaylist(id, updatedSongs.map(s => s.id), prevCount);
-      if (id) touchPlaylist(id);
-    } catch {}
-    setSaving(false);
-  }, [id, touchPlaylist]);
 
   // ── Meta edit ─────────────────────────────────────────────────
   const handleSaveMeta = async (opts: {
