@@ -1,8 +1,6 @@
-import { getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
-import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
+import { updatePlaylist } from '../api/subsonicPlaylists';
 import type { SubsonicPlaylist, SubsonicSong } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
@@ -38,10 +36,10 @@ import PlaylistSuggestions from '../components/playlist/PlaylistSuggestions';
 import PlaylistHero from '../components/playlist/PlaylistHero';
 import PlaylistTracklist from '../components/playlist/PlaylistTracklist';
 import PlaylistFilterToolbar from '../components/playlist/PlaylistFilterToolbar';
-import { getDisplayedSongs, type PlaylistSortKey, type PlaylistSortDir } from '../utils/playlistDisplayedSongs';
+import type { PlaylistSortKey, PlaylistSortDir } from '../utils/playlistDisplayedSongs';
 import { runPlaylistZipDownload } from '../utils/runPlaylistZipDownload';
 import { runPlaylistSaveMeta } from '../utils/runPlaylistSaveMeta';
-import { playPlaylistAll, shufflePlaylistAll, enqueuePlaylistAll } from '../utils/playlistBulkPlayActions';
+import { runPlaylistLoad } from '../utils/runPlaylistLoad';
 import { startPlaylistRowDrag } from '../utils/startPlaylistRowDrag';
 import { runPlaylistReorderDrop } from '../utils/runPlaylistReorderDrop';
 import { usePlaylistCovers } from '../hooks/usePlaylistCovers';
@@ -50,6 +48,9 @@ import { usePlaylistSuggestions } from '../hooks/usePlaylistSuggestions';
 import { usePlaylistSongSearch } from '../hooks/usePlaylistSongSearch';
 import { usePlaylistSongMutations } from '../hooks/usePlaylistSongMutations';
 import { usePlaylistStarRating } from '../hooks/usePlaylistStarRating';
+import { usePlaylistPreview } from '../hooks/usePlaylistPreview';
+import { usePlaylistBulkPlayCallbacks } from '../hooks/usePlaylistBulkPlayCallbacks';
+import { usePlaylistDerived } from '../hooks/usePlaylistDerived';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -209,24 +210,9 @@ export default function PlaylistDetail() {
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    getPlaylist(id)
-      .then(async ({ playlist, songs }) => {
-        const filteredSongs = await filterSongsToActiveLibrary(songs);
-        setPlaylist(playlist);
-        setSongs(filteredSongs);
-        if (playlist.coverArt) setCustomCoverId(playlist.coverArt);
-        const init: Record<string, number> = {};
-        const starred = new Set<string>();
-        filteredSongs.forEach(s => {
-          if (s.userRating) init[s.id] = s.userRating;
-          if (s.starred) starred.add(s.id);
-        });
-        setRatings(init);
-        setStarredSongs(starred);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    runPlaylistLoad({
+      id, setLoading, setPlaylist, setSongs, setCustomCoverId, setRatings, setStarredSongs,
+    });
   }, [id, lastModified]);
 
   // ── Meta edit ─────────────────────────────────────────────────
@@ -264,25 +250,7 @@ export default function PlaylistDetail() {
   });
 
   // ── Preview (30s mid-song sample via Rust audio engine) ────────
-  // Pause/resume of the main player + timer + cancel-on-supersede are all
-  // handled in `audio_preview_play` / `audio_preview_stop`. The store mirrors
-  // engine events so we just dispatch here and read `previewingId` for UI.
-  const startPreview = useCallback((song: SubsonicSong) => {
-    usePreviewStore.getState().startPreview({
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      coverArt: song.coverArt,
-      duration: song.duration,
-    }, 'suggestions').catch(() => { /* engine errored — store already rolled back */ });
-  }, []);
-
-  // Cancel any in-flight preview when the user navigates away.
-  useEffect(() => () => {
-    if (usePreviewStore.getState().previewingId) {
-      usePreviewStore.getState().stopPreview();
-    }
-  }, []);
+  const { startPreview } = usePlaylistPreview();
 
   // ── Rating / Star ─────────────────────────────────────────────
   const { handleRate, handleToggleStar } = usePlaylistStarRating({
@@ -308,21 +276,9 @@ export default function PlaylistDetail() {
   };
 
   // ── Memoized derivations ──────────────────────────────────────
-  const existingIds = useMemo(() => new Set(songs.map(s => s.id)), [songs]);
-  const tracks = useMemo(() => songs.map(songToTrack), [songs]);
-
-  const displayedSongs = useMemo(
-    () => getDisplayedSongs(songs, {
-      filterText, sortKey, sortDir,
-      ratings, userRatingOverrides, starredOverrides, starredSongs,
-    }),
-    [songs, filterText, sortKey, sortDir, ratings, userRatingOverrides, starredOverrides, starredSongs],
-  );
-  const displayedTracks = useMemo(
-    () => displayedSongs === songs ? tracks : displayedSongs.map(songToTrack),
-    [displayedSongs, songs, tracks],
-  );
-  const isFiltered = displayedSongs !== songs;
+  const { existingIds, tracks, displayedSongs, displayedTracks, isFiltered } = usePlaylistDerived(songs, {
+    filterText, sortKey, sortDir, ratings, starredSongs,
+  });
 
   // ── Drag-over visual feedback ─────────────────────────────────
   const handleRowMouseEnter = (idx: number, e: React.MouseEvent) => {
@@ -333,20 +289,9 @@ export default function PlaylistDetail() {
   };
 
   // ── Playback actions (encapsulated like AlbumHeader) ─────────
-  const handlePlayAll = useCallback(
-    () => playPlaylistAll({ songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue }),
-    [songs.length, id, tracks, touchPlaylist, playTrack, enqueue],
-  );
-
-  const handleShuffleAll = useCallback(
-    () => shufflePlaylistAll({ songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue }),
-    [songs.length, id, tracks, touchPlaylist, playTrack, enqueue],
-  );
-
-  const handleEnqueueAll = useCallback(
-    () => enqueuePlaylistAll({ songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue }),
-    [songs.length, id, tracks, touchPlaylist, playTrack, enqueue],
-  );
+  const { handlePlayAll, handleShuffleAll, handleEnqueueAll } = usePlaylistBulkPlayCallbacks({
+    songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue,
+  });
 
   // ── Render ────────────────────────────────────────────────────
   if (loading) {
