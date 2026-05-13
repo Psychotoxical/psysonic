@@ -2,7 +2,6 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Check, ChevronDown, RotateCcw } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +17,7 @@ import {
 } from '../utils/albumTrackListHelpers';
 import { TrackRow } from './albumTrackList/TrackRow';
 import { AlbumTrackListMobile } from './albumTrackList/AlbumTrackListMobile';
+import { TracklistColumnPicker } from './albumTrackList/TracklistColumnPicker';
 
 export type { SortKey } from '../utils/albumTrackListHelpers';
 
@@ -277,44 +277,15 @@ export default function AlbumTrackList({
 
   return (
     <>
-      {/* Column visibility picker - outside .tracklist to avoid overflow cutoff */}
-      <div className="tracklist-col-picker-wrapper" ref={pickerRef}>
-        <div className="tracklist-col-picker">
-          <button
-            className="tracklist-col-picker-btn"
-            onClick={e => { e.stopPropagation(); setPickerOpen(v => !v); }}
-            data-tooltip={t('albumDetail.columns')}
-          >
-            <ChevronDown size={14} />
-          </button>
-          {pickerOpen && (
-            <div className="tracklist-col-picker-menu">
-              <div className="tracklist-col-picker-label">{t('albumDetail.columns')}</div>
-              {COLUMNS.filter(c => !c.required).map(c => {
-                const label = c.i18nKey ? t(`albumDetail.${c.i18nKey as string}`) : c.key;
-                const isOn = colVisible.has(c.key);
-                return (
-                  <button
-                    key={c.key}
-                    className={`tracklist-col-picker-item${isOn ? ' active' : ''}`}
-                    onClick={() => toggleColumn(c.key)}
-                  >
-                    <span className="tracklist-col-picker-check">
-                      {isOn && <Check size={13} />}
-                    </span>
-                    {label}
-                  </button>
-                );
-              })}
-              <div className="tracklist-col-picker-divider" />
-              <button className="tracklist-col-picker-reset" onClick={resetColumns}>
-                <RotateCcw size={13} />
-                {t('albumDetail.resetColumns')}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      <TracklistColumnPicker
+        pickerRef={pickerRef}
+        pickerOpen={pickerOpen}
+        setPickerOpen={setPickerOpen}
+        colVisible={colVisible}
+        toggleColumn={toggleColumn}
+        resetColumns={resetColumns}
+        t={t}
+      />
 
     <div
         className="tracklist"
