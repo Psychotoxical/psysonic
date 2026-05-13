@@ -1,15 +1,12 @@
 import { star, unstar } from '../api/subsonicStarRating';
 import { getGenres } from '../api/subsonicGenres';
 import type { SubsonicSong, SubsonicGenre } from '../api/subsonicTypes';
-import { RANDOM_MIX_SIZE_OPTIONS } from '../store/authStoreDefaults';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useMemo, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';
-import { Play, RefreshCw, ChevronDown, ChevronRight, ChevronUp, Heart, Square, AudioLines } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useDragDrop } from '../contexts/DragDropContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import {
@@ -20,6 +17,7 @@ import { AUDIOBOOK_GENRES, filterRandomMixSongs, formatRandomMixDuration } from 
 import RandomMixHeader from '../components/randomMix/RandomMixHeader';
 import RandomMixFiltersPanel from '../components/randomMix/RandomMixFiltersPanel';
 import RandomMixGenrePanel from '../components/randomMix/RandomMixGenrePanel';
+import RandomMixTrackRow from '../components/randomMix/RandomMixTrackRow';
 
 export default function RandomMix() {
   const { t } = useTranslation();
@@ -37,7 +35,6 @@ export default function RandomMix() {
   const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const isMobile = useIsMobile();
-  const psyDrag = useDragDrop();
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const {
     excludeAudiobooks,
@@ -251,100 +248,46 @@ export default function RandomMix() {
               {genreMixSongs.map((song, idx) => {
                 const track = songToTrack(song);
                 const queueSongs = genreMixSongs.map(songToTrack);
-                const isCurrentTrack = currentTrack?.id === song.id;
-                const artist = song.artist;
-                const isArtistBlocked = !!artist && customGenreBlacklist.some(bg => artist.toLowerCase().includes(bg.toLowerCase()));
-                const isArtistJustAdded = addedArtist === artist;
+                const isStarred = song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id);
                 return (
-                  <div
+                  <RandomMixTrackRow
                     key={song.id}
-                    className={`track-row track-row-with-actions${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                    style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 70px 65px' }}
-                    onClick={e => { if ((e.target as HTMLElement).closest('button, a, input')) return; if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
-                    onDoubleClick={orbitActive ? e => { if ((e.target as HTMLElement).closest('button, a, input')) return; addTrackToOrbit(song.id); } : undefined}
-                    role="row"
-                    onContextMenu={e => { e.preventDefault(); setContextMenuSongId(song.id); openContextMenu(e.clientX, e.clientY, track, 'song'); }}
-                    onMouseDown={e => {
-                      if (e.button !== 0) return;
+                    song={song}
+                    idx={idx}
+                    gridTemplateColumns="60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 70px 65px"
+                    track={track}
+                    queueSongs={queueSongs}
+                    isCurrentTrack={currentTrack?.id === song.id}
+                    isPlaying={isPlaying}
+                    isContextActive={contextMenuSongId === song.id}
+                    orbitActive={orbitActive}
+                    previewingId={previewingId}
+                    previewAudioStarted={previewAudioStarted}
+                    starredOverrides={starredOverrides}
+                    isStarred={isStarred}
+                    customGenreBlacklist={customGenreBlacklist}
+                    addedArtist={addedArtist}
+                    addedGenre={addedGenre}
+                    showGenreCol={false}
+                    isGenreBlocked={false}
+                    onPlay={() => playTrack(track, queueSongs)}
+                    onQueueHint={queueHint}
+                    onAddTrackToOrbit={addTrackToOrbit}
+                    onOpenContextMenu={e => {
                       e.preventDefault();
-                      const sx = e.clientX, sy = e.clientY;
-                      const onMove = (me: MouseEvent) => {
-                        if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-                          document.removeEventListener('mousemove', onMove);
-                          document.removeEventListener('mouseup', onUp);
-                          psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
-                        }
-                      };
-                      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                      document.addEventListener('mousemove', onMove);
-                      document.addEventListener('mouseup', onUp);
+                      setContextMenuSongId(song.id);
+                      openContextMenu(e.clientX, e.clientY, track, 'song');
                     }}
-                  >
-                    <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`}>
-                      {isCurrentTrack && isPlaying ? (
-                        <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
-                      ) : (
-                        <span className="track-num-number">{idx + 1}</span>
-                      )}
-                    </div>
-                    <div className="track-info track-info-suggestion">
-                      <button
-                        type="button"
-                        className="playlist-suggestion-play-btn"
-                        onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
-                        data-tooltip={t('common.play')}
-                        aria-label={t('common.play')}
-                      >
-                        <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
-                      </button>
-                      <button
-                        type="button"
-                        className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
-                        onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'randomMix'); }}
-                        data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                        aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                      >
-                        <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
-                          <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
-                          <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
-                        </svg>
-                        {previewingId === song.id
-                          ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
-                          : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
-                      </button>
-                      <span className="track-title">{song.title}</span>
-                    </div>
-                    <div className="track-artist-cell">
-                      {artist ? (
-                        <button
-                          className={`rm-artist-btn${isArtistBlocked ? ' is-blocked' : isArtistJustAdded ? ' just-added' : ''}`}
-                          onClick={() => {
-                            if (isArtistBlocked) return;
-                            if (!customGenreBlacklist.some(bg => artist.toLowerCase().includes(bg.toLowerCase()))) {
-                              setCustomGenreBlacklist([...customGenreBlacklist, artist]);
-                              setAddedArtist(artist);
-                              setTimeout(() => setAddedArtist(null), 1500);
-                            }
-                          }}
-                          data-tooltip={isArtistBlocked ? t('randomMix.artistBlocked') : isArtistJustAdded ? t('randomMix.artistAddedToBlacklist') : t('randomMix.artistClickHint')}
-                        >{artist}</button>
-                      ) : <span className="track-artist">—</span>}
-                    </div>
-                    <div className="track-info">
-                      <span className="track-title" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{song.album ?? '—'}</span>
-                    </div>
-                    <div className="track-star-cell">
-                      <button
-                        className="btn btn-ghost track-star-btn"
-                        onClick={e => toggleSongStar(song, e)}
-                        data-tooltip={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? t('randomMix.favoriteRemove') : t('randomMix.favoriteAdd')}
-                        style={{ color: (song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}
-                      >
-                        <Heart size={14} fill={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'currentColor' : 'none'} />
-                      </button>
-                    </div>
-                    <div className="track-duration">{formatRandomMixDuration(song.duration)}</div>
-                  </div>
+                    onToggleStar={e => toggleSongStar(song, e)}
+                    onBlacklistArtist={artist => {
+                      if (!customGenreBlacklist.some(bg => artist.toLowerCase().includes(bg.toLowerCase()))) {
+                        setCustomGenreBlacklist([...customGenreBlacklist, artist]);
+                        setAddedArtist(artist);
+                        setTimeout(() => setAddedArtist(null), 1500);
+                      }
+                    }}
+                    onBlacklistGenre={() => {}}
+                  />
                 );
               })}
             </div>
@@ -373,132 +316,57 @@ export default function RandomMix() {
           {filteredSongs.map((song, idx) => {
             const track = songToTrack(song);
             const queueSongs = filteredSongs.map(songToTrack);
-            const isCurrentTrack = currentTrack?.id === song.id;
-            const artist = song.artist;
             const genre = song.genre;
-            const isArtistBlocked = !!artist && customGenreBlacklist.some(bg => artist.toLowerCase().includes(bg.toLowerCase()));
-            const isArtistJustAdded = addedArtist === artist;
+            const isStarred = song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id);
             const isGenreBlocked = !!genre && (
               AUDIOBOOK_GENRES.some(ag => genre.toLowerCase().includes(ag)) ||
               customGenreBlacklist.some(bg => genre.toLowerCase().includes(bg.toLowerCase()))
             );
-            const isGenreJustAdded = addedGenre === genre;
             return (
-              <div
+              <RandomMixTrackRow
                 key={song.id}
-                className={`track-row track-row-with-actions${isCurrentTrack ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 120px 70px 65px' }}
-                onClick={e => { if ((e.target as HTMLElement).closest('button, a, input')) return; if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
-                onDoubleClick={orbitActive ? e => { if ((e.target as HTMLElement).closest('button, a, input')) return; addTrackToOrbit(song.id); } : undefined}
-                role="row"
-                onContextMenu={e => {
+                song={song}
+                idx={idx}
+                gridTemplateColumns="60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 120px 70px 65px"
+                track={track}
+                queueSongs={queueSongs}
+                isCurrentTrack={currentTrack?.id === song.id}
+                isPlaying={isPlaying}
+                isContextActive={contextMenuSongId === song.id}
+                orbitActive={orbitActive}
+                previewingId={previewingId}
+                previewAudioStarted={previewAudioStarted}
+                starredOverrides={starredOverrides}
+                isStarred={isStarred}
+                customGenreBlacklist={customGenreBlacklist}
+                addedArtist={addedArtist}
+                addedGenre={addedGenre}
+                showGenreCol
+                isGenreBlocked={isGenreBlocked}
+                onPlay={() => playTrack(track, queueSongs)}
+                onQueueHint={queueHint}
+                onAddTrackToOrbit={addTrackToOrbit}
+                onOpenContextMenu={e => {
                   e.preventDefault();
                   setContextMenuSongId(song.id);
                   openContextMenu(e.clientX, e.clientY, track, 'song');
                 }}
-                onMouseDown={e => {
-                  if (e.button !== 0) return;
-                  e.preventDefault();
-                  const sx = e.clientX, sy = e.clientY;
-                  const onMove = (me: MouseEvent) => {
-                    if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-                      document.removeEventListener('mousemove', onMove);
-                      document.removeEventListener('mouseup', onUp);
-                      psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
-                    }
-                  };
-                  const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                  document.addEventListener('mousemove', onMove);
-                  document.addEventListener('mouseup', onUp);
+                onToggleStar={e => toggleSongStar(song, e)}
+                onBlacklistArtist={artist => {
+                  if (!customGenreBlacklist.some(bg => artist.toLowerCase().includes(bg.toLowerCase()))) {
+                    setCustomGenreBlacklist([...customGenreBlacklist, artist]);
+                    setAddedArtist(artist);
+                    setTimeout(() => setAddedArtist(null), 1500);
+                  }
                 }}
-              >
-                <div className={`track-num${isCurrentTrack ? ' track-num-active' : ''}`}>
-                  {isCurrentTrack && isPlaying ? (
-                    <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
-                  ) : (
-                    <span className="track-num-number">{idx + 1}</span>
-                  )}
-                </div>
-
-                <div className="track-info track-info-suggestion">
-                  <button
-                    type="button"
-                    className="playlist-suggestion-play-btn"
-                    onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, queueSongs); }}
-                    data-tooltip={t('common.play')}
-                    aria-label={t('common.play')}
-                  >
-                    <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
-                  </button>
-                  <button
-                    type="button"
-                    className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
-                    onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'randomMix'); }}
-                    data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                    aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                  >
-                    <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
-                      <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
-                    </svg>
-                    {previewingId === song.id
-                      ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
-                      : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
-                  </button>
-                  <span className="track-title">{song.title}</span>
-                </div>
-
-                <div className="track-artist-cell">
-                  {artist ? (
-                    <button
-                      className={`rm-artist-btn${isArtistBlocked ? ' is-blocked' : isArtistJustAdded ? ' just-added' : ''}`}
-                      onClick={() => {
-                        if (isArtistBlocked) return;
-                        if (!customGenreBlacklist.some(bg => artist.toLowerCase().includes(bg.toLowerCase()))) {
-                          setCustomGenreBlacklist([...customGenreBlacklist, artist]);
-                          setAddedArtist(artist);
-                          setTimeout(() => setAddedArtist(null), 1500);
-                        }
-                      }}
-                      data-tooltip={isArtistBlocked ? t('randomMix.artistBlocked') : isArtistJustAdded ? t('randomMix.artistAddedToBlacklist') : t('randomMix.artistClickHint')}
-                    >{artist}</button>
-                  ) : <span className="track-artist">—</span>}
-                </div>
-
-                <div className="track-info">
-                  <span className="track-title" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{song.album ?? '—'}</span>
-                </div>
-
-                <div>
-                  {genre ? (
-                    <button
-                      className={`rm-genre-chip${isGenreBlocked ? ' is-blocked' : isGenreJustAdded ? ' just-added' : ''}`}
-                      onClick={() => {
-                        if (isGenreBlocked) return;
-                        if (!customGenreBlacklist.some(bg => genre.toLowerCase().includes(bg.toLowerCase()))) {
-                          setCustomGenreBlacklist([...customGenreBlacklist, genre]);
-                          setAddedGenre(genre);
-                          setTimeout(() => setAddedGenre(null), 1500);
-                        }
-                      }}
-                      data-tooltip={isGenreBlocked ? t('randomMix.genreBlocked') : isGenreJustAdded ? t('randomMix.genreAddedToBlacklist') : t('randomMix.genreClickHint')}
-                    >{genre}</button>
-                  ) : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>}
-                </div>
-
-                <div className="track-star-cell">
-                  <button
-                    className="btn btn-ghost track-star-btn"
-                    onClick={e => toggleSongStar(song, e)}
-                    data-tooltip={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? t('randomMix.favoriteRemove') : t('randomMix.favoriteAdd')}
-                    style={{ color: (song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}
-                  >
-                    <Heart size={14} fill={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'currentColor' : 'none'} />
-                  </button>
-                </div>
-
-                <div className="track-duration">{formatRandomMixDuration(song.duration)}</div>
-              </div>
+                onBlacklistGenre={g => {
+                  if (!customGenreBlacklist.some(bg => g.toLowerCase().includes(bg.toLowerCase()))) {
+                    setCustomGenreBlacklist([...customGenreBlacklist, g]);
+                    setAddedGenre(g);
+                    setTimeout(() => setAddedGenre(null), 1500);
+                  }
+                }}
+              />
             );
           })}
         </div>
