@@ -1,0 +1,77 @@
+/* ─── Result items ─── */
+.mobile-search-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.mobile-search-item:active {
+  background: var(--bg-hover);
+}
+
+.mobile-search-thumb {
+  width: 46px;
+  height: 46px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.mobile-search-thumb--artist-round {
+  border-radius: 50%;
+}
+
+.mobile-search-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.mobile-search-avatar--circle {
+  border-radius: 50%;
+}
+
+.mobile-search-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mobile-search-item-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobile-search-item-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobile-search-item-chevron {
+  color: var(--text-muted);
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
