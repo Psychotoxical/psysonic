@@ -1,12 +1,12 @@
 import type { ServerProfile, SeekbarStyle, LoggingMode, LoudnessLufsPreset, TrackPreviewLocation } from '../store/authStoreTypes';
-import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB, MIX_MIN_RATING_FILTER_MAX_STARS, TRACK_PREVIEW_LOCATIONS } from '../store/authStoreDefaults';
+import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB, TRACK_PREVIEW_LOCATIONS } from '../store/authStoreDefaults';
 import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { version as appVersion } from '../../package.json';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Wifi, WifiOff, Globe, Music2, Sliders, LogOut, CheckCircle2, FolderOpen,
-  Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, Shuffle, X, Play, Type, Keyboard, ChevronDown,
-  RotateCcw, LayoutGrid, AppWindow, HardDrive, Download, Waves, Star, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
+  Palette, Server, Plus, Trash2, Eye, EyeOff, Info, ExternalLink, X, Play, Type, Keyboard, ChevronDown,
+  RotateCcw, LayoutGrid, AppWindow, HardDrive, Download, Waves, Clock, ZoomIn, Sparkles, AlertTriangle, Maximize2, AudioLines, User, Lock,
   Users, Search, Scale
 } from 'lucide-react';
 import i18n from '../i18n';
@@ -18,8 +18,6 @@ import { getImageCacheSize, clearImageCache } from '../utils/imageCache';
 import { useOfflineStore } from '../store/offlineStore';
 import { useHotCacheStore } from '../store/hotCacheStore';
 import { usePlayerStore } from '../store/playerStore';
-import { lastfmGetToken, lastfmAuthUrl, lastfmGetSession, lastfmGetUserInfo, LastfmUserInfo } from '../api/lastfm';
-import LastfmIcon from '../components/LastfmIcon';
 import CustomSelect from '../components/CustomSelect';
 import SettingsSubSection from '../components/SettingsSubSection';
 import LicensesPanel from '../components/LicensesPanel';
@@ -37,6 +35,8 @@ import { useDragDrop } from '../contexts/DragDropContext';
 import { AddServerForm } from '../components/settings/AddServerForm';
 import { BackupSection } from '../components/settings/BackupSection';
 import { InputTab } from '../components/settings/InputTab';
+import { IntegrationsTab } from '../components/settings/IntegrationsTab';
+import { LibraryTab } from '../components/settings/LibraryTab';
 import { LoudnessLufsButtonGroup } from '../components/settings/LoudnessLufsButtonGroup';
 import { LyricsTab } from '../components/settings/LyricsTab';
 import { PersonalisationTab } from '../components/settings/PersonalisationTab';
@@ -52,12 +52,9 @@ import { switchActiveServer } from '../utils/switchActiveServer';
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { Trans, useTranslation } from 'react-i18next';
 import Equalizer from '../components/Equalizer';
-import StarRating from '../components/StarRating';
 import { showAudiomuseNavidromeServerSetting } from '../utils/subsonicServerIdentity';
 import { type ServerMagicPayload } from '../utils/serverMagicString';
 import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/serverDisplayName';
-
-const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
 
 const AUDIOMUSE_NV_PLUGIN_URL = 'https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin';
 
@@ -115,11 +112,6 @@ export default function Settings() {
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [pastedServerInvite, setPastedServerInvite] = useState<ServerMagicPayload | null>(null);
-  const [newGenre, setNewGenre] = useState('');
-  const [lfmState, setLfmState] = useState<'idle' | 'waiting' | 'error'>('idle');
-  const [lfmPendingToken, setLfmPendingToken] = useState<string | null>(null);
-  const [lfmError, setLfmError] = useState<string | null>(null);
-  const [lfmUserInfo, setLfmUserInfo] = useState<LastfmUserInfo | null>(null);
   const [imageCacheBytes, setImageCacheBytes] = useState<number | null>(null);
   const [offlineCacheBytes, setOfflineCacheBytes] = useState<number | null>(null);
   const [hotCacheBytes, setHotCacheBytes] = useState<number | null>(null);
@@ -251,11 +243,6 @@ export default function Settings() {
   }, [activeTab, ndAdminAuth, ndAuthChecked]);
 
   useEffect(() => {
-    if (!auth.lastfmSessionKey || !auth.lastfmUsername) { setLfmUserInfo(null); return; }
-    lastfmGetUserInfo(auth.lastfmUsername, auth.lastfmSessionKey).then(setLfmUserInfo).catch(() => {});
-  }, [auth.lastfmSessionKey, auth.lastfmUsername]);
-
-  useEffect(() => {
     if (activeTab !== 'storage') return;
     getImageCacheSize().then(setImageCacheBytes);
     invoke<number>('get_offline_cache_size', { customDir: auth.offlineDownloadDir || null }).then(setOfflineCacheBytes).catch(() => setOfflineCacheBytes(0));
@@ -381,48 +368,6 @@ export default function Settings() {
       setClearing(false);
     }
   }, [t]);
-
-  const startLastfmConnect = useCallback(async () => {
-    setLfmError(null);
-    let token: string;
-    try {
-      token = await lastfmGetToken();
-      setLfmPendingToken(token);
-      setLfmState('waiting');
-      await openUrl(lastfmAuthUrl(token));
-    } catch (e: any) {
-      setLfmError(e.message ?? 'Unknown error');
-      setLfmState('error');
-      return;
-    }
-
-    // Poll every 2 s until the user authorises or we time out (2 min)
-    const deadline = Date.now() + 120_000;
-    const poll = async () => {
-      if (Date.now() > deadline) {
-        setLfmState('error');
-        setLfmError('Timed out — please try again.');
-        setLfmPendingToken(null);
-        return;
-      }
-      try {
-        const { key, name } = await lastfmGetSession(token);
-        auth.connectLastfm(key, name);
-        setLfmState('idle');
-        setLfmPendingToken(null);
-      } catch (e: any) {
-        // Error 14 = not yet authorised, keep polling
-        if (e.message?.includes('14')) {
-          setTimeout(poll, 2000);
-        } else {
-          setLfmState('error');
-          setLfmError(e.message ?? 'Unknown error');
-          setLfmPendingToken(null);
-        }
-      }
-    };
-    setTimeout(poll, 2000);
-  }, [auth]);
 
   const testConnection = async (server: ServerProfile) => {
     setConnStatus(s => ({ ...s, [server.id]: 'testing' }));
@@ -1146,435 +1091,15 @@ export default function Settings() {
       {activeTab === 'lyrics' && <LyricsTab />}
 
       {/* ── Integrations ─────────────────────────────────────────────────────── */}
-      {activeTab === 'integrations' && (
-        <>
-          <div
-            className="settings-privacy-notice"
-            role="note"
-            aria-label={t('settings.integrationsPrivacyTitle')}
-          >
-            <AlertTriangle size={16} className="settings-privacy-notice-icon" aria-hidden="true" />
-            <div>
-              <div className="settings-privacy-notice-title">{t('settings.integrationsPrivacyTitle')}</div>
-              <div
-                className="settings-privacy-notice-body"
-                // Enthaelt <strong> aus dem i18n-String — der Inhalt ist statisch
-                // und kommt nur aus unseren Locales, kein User-Input.
-                dangerouslySetInnerHTML={{ __html: t('settings.integrationsPrivacyBody') }}
-              />
-            </div>
-          </div>
+      {activeTab === 'integrations' && <IntegrationsTab />}
 
-          {/* Last.fm */}
-          <SettingsSubSection
-            title={t('settings.lfmTitle')}
-            icon={<LastfmIcon size={16} />}
-          >
-            <div className="settings-card">
-              {auth.lastfmSessionKey ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '10px', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
-                    <div style={{ flexShrink: 0, color: '#e31c23' }}><LastfmIcon size={20} /></div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>@{auth.lastfmUsername}</div>
-                      {lfmUserInfo && (
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: '0.75rem' }}>
-                          <span>{t('settings.lfmScrobbles', { n: lfmUserInfo.playcount.toLocaleString() })}</span>
-                          <span>{t('settings.lfmMemberSince', { year: new Date(lfmUserInfo.registeredAt * 1000).getFullYear() })}</span>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
-                      onClick={() => auth.disconnectLastfm()}
-                    >
-                      {t('settings.lfmDisconnect')}
-                    </button>
-                  </div>
-                  <div className="settings-toggle-row">
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.scrobbleEnabled')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.scrobbleDesc')}</div>
-                    </div>
-                    <label className="toggle-switch" aria-label={t('settings.scrobbleEnabled')}>
-                      <input type="checkbox" checked={auth.scrobblingEnabled} onChange={e => auth.setScrobblingEnabled(e.target.checked)} id="scrobbling-toggle" />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
-                </div>
-              ) : lfmState === 'waiting' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: 13, color: 'var(--text-secondary)' }}>
-                    <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                    {t('settings.lfmConnecting')}
-                  </div>
-                  <button className="btn btn-ghost" style={{ alignSelf: 'flex-start', fontSize: 12 }}
-                    onClick={() => { setLfmState('idle'); setLfmPendingToken(null); }}>
-                    {t('common.cancel')}
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                    {t('settings.lfmConnectDesc')}
-                  </p>
-                  {lfmState === 'error' && (
-                    <p style={{ fontSize: 12, color: 'var(--danger)' }}>{lfmError}</p>
-                  )}
-                  <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} onClick={startLastfmConnect}>
-                    {t('settings.lfmConnect')}
-                  </button>
-                </div>
-              )}
-            </div>
-          </SettingsSubSection>
-
-          {/* Discord Rich Presence */}
-          <SettingsSubSection
-            title={t('settings.discordRichPresence')}
-            icon={<Sparkles size={16} />}
-          >
-            <div className="settings-card">
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.discordRichPresence')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordRichPresenceDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.discordRichPresence')}>
-                  <input type="checkbox" checked={auth.discordRichPresence} onChange={e => auth.setDiscordRichPresence(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              {auth.discordRichPresence && (
-                <>
-                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
-                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverNone')}</div>
-                    <label className="toggle-switch" aria-label={t('settings.discordCoverNone')}>
-                      <input
-                        type="checkbox"
-                        checked={auth.discordCoverSource === 'none'}
-                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'none' : 'server')}
-                      />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
-                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
-                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverServer')}</div>
-                    <label className="toggle-switch" aria-label={t('settings.discordCoverServer')}>
-                      <input
-                        type="checkbox"
-                        checked={auth.discordCoverSource === 'server'}
-                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'server' : 'none')}
-                      />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
-                  <div className="settings-toggle-row" style={{ padding: '4px var(--space-3) 4px var(--space-6)', fontSize: 13 }}>
-                    <div style={{ fontWeight: 500 }}>{t('settings.discordCoverApple')}</div>
-                    <label className="toggle-switch" aria-label={t('settings.discordCoverApple')}>
-                      <input
-                        type="checkbox"
-                        checked={auth.discordCoverSource === 'apple'}
-                        onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'apple' : 'none')}
-                      />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
-                  <div className="settings-section-divider" />
-                  <div style={{ paddingTop: 8 }}>
-                    <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>{t('settings.discordTemplates')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{t('settings.discordTemplatesDesc')}</div>
-                    <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                      <label style={{ fontSize: 12 }}>{t('settings.discordTemplateDetails')}</label>
-                      <input
-                        className="input"
-                        type="text"
-                        value={auth.discordTemplateDetails}
-                        onChange={e => auth.setDiscordTemplateDetails(e.target.value)}
-                        placeholder="{artist}"
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                      <label style={{ fontSize: 12 }}>{t('settings.discordTemplateState')}</label>
-                      <input
-                        className="input"
-                        type="text"
-                        value={auth.discordTemplateState}
-                        onChange={e => auth.setDiscordTemplateState(e.target.value)}
-                        placeholder="{title}"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label style={{ fontSize: 12 }}>{t('settings.discordTemplateLargeText')}</label>
-                      <input
-                        className="input"
-                        type="text"
-                        value={auth.discordTemplateLargeText}
-                        onChange={e => auth.setDiscordTemplateLargeText(e.target.value)}
-                        placeholder="{album}"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </SettingsSubSection>
-
-          {/* Bandsintown */}
-          <SettingsSubSection
-            title={t('settings.enableBandsintown')}
-            icon={<Info size={16} />}
-          >
-            <div className="settings-card">
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.enableBandsintown')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.enableBandsintownDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.enableBandsintown')}>
-                  <input type="checkbox" checked={auth.enableBandsintown} onChange={e => auth.setEnableBandsintown(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-            </div>
-          </SettingsSubSection>
-
-          {/* Now-Playing Share (Navidrome) */}
-          <SettingsSubSection
-            title={t('settings.nowPlayingEnabled')}
-            icon={<Wifi size={16} />}
-          >
-            <div className="settings-card">
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingEnabled')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.nowPlayingEnabled')}>
-                  <input type="checkbox" checked={auth.nowPlayingEnabled} onChange={e => auth.setNowPlayingEnabled(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-            </div>
-          </SettingsSubSection>
-        </>
-      )}
 
       {/* ── Personalisation ──────────────────────────────────────────────────── */}
       {activeTab === 'personalisation' && <PersonalisationTab />}
 
       {/* ── Library (legacy 'general' + 'server') ────────────────────────────── */}
-      {activeTab === 'library' && (
-        <>
-          {/* Random Mix Blacklist */}
-          <SettingsSubSection
-            title={t('settings.randomMixTitle')}
-            icon={<Shuffle size={16} />}
-          >
-            <div className="settings-card">
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
-                {t('settings.randomMixBlacklistDesc')}
-              </p>
+      {activeTab === 'library' && <LibraryTab />}
 
-              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: '0.5rem' }}>{t('settings.randomMixBlacklistTitle')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem', minHeight: 32 }}>
-                {auth.customGenreBlacklist.length === 0 ? (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>{t('settings.randomMixBlacklistEmpty')}</span>
-                ) : (
-                  auth.customGenreBlacklist.map(genre => (
-                    <span key={genre} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                      color: 'var(--accent)', borderRadius: 'var(--radius-sm)',
-                      padding: '2px 8px', fontSize: 12, fontWeight: 500,
-                    }}>
-                      {genre}
-                      <button
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1, fontSize: 14 }}
-                        onClick={() => auth.setCustomGenreBlacklist(auth.customGenreBlacklist.filter(g => g !== genre))}
-                        aria-label={`Remove ${genre}`}
-                      >×</button>
-                    </span>
-                  ))
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.5rem', maxWidth: 400 }}>
-                <input
-                  className="input"
-                  type="text"
-                  value={newGenre}
-                  onChange={e => setNewGenre(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newGenre.trim()) {
-                      const trimmed = newGenre.trim();
-                      if (!auth.customGenreBlacklist.includes(trimmed)) {
-                        auth.setCustomGenreBlacklist([...auth.customGenreBlacklist, trimmed]);
-                      }
-                      setNewGenre('');
-                    }
-                  }}
-                  placeholder={t('settings.randomMixBlacklistPlaceholder')}
-                  style={{ fontSize: 13 }}
-                />
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => {
-                    const trimmed = newGenre.trim();
-                    if (trimmed && !auth.customGenreBlacklist.includes(trimmed)) {
-                      auth.setCustomGenreBlacklist([...auth.customGenreBlacklist, trimmed]);
-                    }
-                    setNewGenre('');
-                  }}
-                  disabled={!newGenre.trim()}
-                >
-                  {t('settings.randomMixBlacklistAdd')}
-                </button>
-              </div>
-
-              <div className="divider" style={{ margin: '1rem 0' }} />
-
-              <div className="settings-toggle-row" style={{ marginBottom: '1rem' }}>
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.luckyMixMenuTitle')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {t('settings.luckyMixMenuDesc')}
-                  </div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.luckyMixMenuTitle')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.showLuckyMixMenu}
-                    onChange={e => auth.setShowLuckyMixMenu(e.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-
-              <div className="divider" style={{ margin: '1rem 0' }} />
-
-              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>{t('settings.randomMixHardcodedTitle')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                {AUDIOBOOK_GENRES_DISPLAY.map(genre => (
-                  <span key={genre} className="genre-keyword-badge" style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    background: 'var(--bg-hover)', color: 'var(--text-muted)',
-                    borderRadius: 'var(--radius-sm)', padding: '2px 8px', fontSize: 12,
-                  }}>
-                    {genre}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </SettingsSubSection>
-
-          {/* Ratings */}
-          <SettingsSubSection
-            title={t('settings.ratingsSectionTitle')}
-            icon={<Star size={16} />}
-          >
-            <div className="settings-card">
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.ratingsSkipStarTitle')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.ratingsSkipStarDesc')}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                  {auth.skipStarOnManualSkipsEnabled && (
-                    <>
-                      <label htmlFor="settings-skip-star-threshold" style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                        {t('settings.ratingsSkipStarThresholdLabel')}
-                      </label>
-                      <input
-                        id="settings-skip-star-threshold"
-                        className="input"
-                        type="number"
-                        min={1}
-                        max={99}
-                        value={auth.skipStarManualSkipThreshold}
-                        onChange={e => auth.setSkipStarManualSkipThreshold(Number(e.target.value))}
-                        style={{ width: 72, padding: '6px 10px', fontSize: 13 }}
-                        aria-label={t('settings.ratingsSkipStarThresholdLabel')}
-                      />
-                    </>
-                  )}
-                  <label className="toggle-switch" aria-label={t('settings.ratingsSkipStarTitle')}>
-                    <input
-                      type="checkbox"
-                      checked={auth.skipStarOnManualSkipsEnabled}
-                      onChange={e => auth.setSkipStarOnManualSkipsEnabled(e.target.checked)}
-                    />
-                    <span className="toggle-track" />
-                  </label>
-                </div>
-              </div>
-
-              <div className="settings-section-divider" />
-
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.ratingsMixFilterTitle')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {t('settings.ratingsMixFilterDesc', {
-                      mix: t('sidebar.randomMix'),
-                      albums: t('sidebar.randomAlbums'),
-                    })}
-                  </div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.ratingsMixFilterTitle')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.mixMinRatingFilterEnabled}
-                    onChange={e => auth.setMixMinRatingFilterEnabled(e.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-              {auth.mixMinRatingFilterEnabled && (
-                <>
-                  <div className="settings-section-divider" />
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
-                      gap: '1rem 0.75rem',
-                      alignItems: 'start',
-                    }}
-                  >
-                    {([
-                      { key: 'song', label: t('settings.ratingsMixMinSong'), value: auth.mixMinRatingSong, set: auth.setMixMinRatingSong },
-                      { key: 'album', label: t('settings.ratingsMixMinAlbum'), value: auth.mixMinRatingAlbum, set: auth.setMixMinRatingAlbum },
-                      { key: 'artist', label: t('settings.ratingsMixMinArtist'), value: auth.mixMinRatingArtist, set: auth.setMixMinRatingArtist },
-                    ] as const).map(row => (
-                      <div
-                        key={row.key}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 8,
-                          minWidth: 0,
-                          textAlign: 'center',
-                        }}
-                      >
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>{row.label}</span>
-                        <StarRating
-                          maxSelectable={MIX_MIN_RATING_FILTER_MAX_STARS}
-                          value={row.value}
-                          onChange={row.set}
-                          ariaLabel={t('settings.ratingsMixMinThresholdAria', { label: row.label })}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </SettingsSubSection>
-
-        </>
-      )}
 
       {/* ── Offline & Cache ──────────────────────────────────────────────────── */}
       {activeTab === 'storage' && (
