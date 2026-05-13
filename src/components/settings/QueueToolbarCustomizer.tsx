@@ -126,7 +126,7 @@ export function QueueToolbarCustomizer() {
             ) : (
               <div style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
             )}
-            <span style={{ flex: 1, fontSize: 14 }}>{label}</span>
+            <span style={{ flex: 1, fontSize: 14, opacity: btn.visible ? 1 : 0.45 }}>{label}</span>
             <label className="toggle-switch" aria-label={label}>
               <input type="checkbox" checked={btn.visible} onChange={() => toggleButton(btn.id)} />
               <span className="toggle-track" />

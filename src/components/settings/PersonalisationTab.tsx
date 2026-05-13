@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next';
-import { LayoutGrid, ListMusic, PanelLeft, RotateCcw, Users } from 'lucide-react';
+import { Disc3, LayoutGrid, ListMusic, PanelLeft, RotateCcw, Users } from 'lucide-react';
 import { useArtistLayoutStore } from '../../store/artistLayoutStore';
 import { useHomeStore } from '../../store/homeStore';
+import { usePlayerBarButtonsStore } from '../../store/playerBarButtonsStore';
 import { useQueueToolbarStore } from '../../store/queueToolbarStore';
 import { useSidebarStore } from '../../store/sidebarStore';
 import SettingsSubSection from '../SettingsSubSection';
 import { ArtistLayoutCustomizer } from './ArtistLayoutCustomizer';
 import { HomeCustomizer } from './HomeCustomizer';
+import { PlayerBarCustomizer } from './PlayerBarCustomizer';
 import { QueueToolbarCustomizer } from './QueueToolbarCustomizer';
 import { SidebarCustomizer } from './SidebarCustomizer';
 
@@ -69,6 +71,25 @@ export function PersonalisationTab() {
         }
       >
         <HomeCustomizer />
+      </SettingsSubSection>
+
+      <SettingsSubSection
+        title={t('settings.playerBarTitle')}
+        icon={<Disc3 size={16} />}
+        action={
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
+            onClick={() => usePlayerBarButtonsStore.getState().reset()}
+            data-tooltip={t('settings.playerBarReset')}
+            aria-label={t('settings.playerBarReset')}
+          >
+            <RotateCcw size={14} />
+          </button>
+        }
+      >
+        <PlayerBarCustomizer />
       </SettingsSubSection>
 
       <SettingsSubSection

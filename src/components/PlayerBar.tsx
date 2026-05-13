@@ -13,6 +13,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
+import { usePlayerBarButtonsStore } from '../store/playerBarButtonsStore';
 import { useThemeStore } from '../store/themeStore';
 import CachedImage from './CachedImage';
 import WaveformSeek from './WaveformSeek';
@@ -112,6 +113,13 @@ export default function PlayerBar() {
     openContextMenu: s.openContextMenu,
   })));
   const { lastfmSessionKey } = useAuthStore();
+  const {
+    starRating: showBarStarRating,
+    favorite: showBarFavorite,
+    lastfmLove: showBarLastfmLove,
+    equalizer: showBarEqualizer,
+    miniPlayer: showBarMiniPlayer,
+  } = usePlayerBarButtonsStore(useShallow(s => s.visibility));
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
   const [floatingStyle, setFloatingStyle] = useState<React.CSSProperties>({});
   const playerBarRef = useRef<HTMLElement>(null);
@@ -413,7 +421,7 @@ export default function PlayerBar() {
             style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.artistId ? 'pointer' : 'default' }}
             onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
           />
-          {currentTrack && !isRadio && !showPreviewMeta && (
+          {currentTrack && !isRadio && !showPreviewMeta && showBarStarRating && (
             <StarRating
               value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
               onChange={r => { setUserRatingOverride(currentTrack.id, r); setRating(currentTrack.id, r).catch(() => {}); }}
@@ -427,7 +435,7 @@ export default function PlayerBar() {
             </span>
           )}
         </div>
-        {currentTrack && !isRadio && (
+        {currentTrack && !isRadio && showBarFavorite && (
           <button
             className={`player-btn player-btn-sm player-star-btn${isStarred ? ' is-starred' : ''}`}
             onClick={toggleStar}
@@ -438,7 +446,7 @@ export default function PlayerBar() {
             <Heart size={15} fill={isStarred ? 'currentColor' : 'none'} />
           </button>
         )}
-        {currentTrack && !isRadio && lastfmSessionKey && (
+        {currentTrack && !isRadio && showBarLastfmLove && lastfmSessionKey && (
           <button
             className="player-btn player-btn-sm player-love-btn"
             onClick={toggleLastfmLove}
@@ -595,25 +603,27 @@ export default function PlayerBar() {
         </div>
       ) : (
         <>
-          {/* EQ Button */}
-          <button
-            className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}
-            onClick={() => setEqOpen(v => !v)}
-            aria-label={t('player.equalizer')}
-            data-tooltip={t('player.equalizer')}
-          >
-            <SlidersVertical size={15} />
-          </button>
+          {showBarEqualizer && (
+            <button
+              className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}
+              onClick={() => setEqOpen(v => !v)}
+              aria-label={t('player.equalizer')}
+              data-tooltip={t('player.equalizer')}
+            >
+              <SlidersVertical size={15} />
+            </button>
+          )}
 
-          {/* Mini Player */}
-          <button
-            className="player-btn player-btn-sm"
-            onClick={() => invoke('open_mini_player').catch(() => {})}
-            aria-label={t('player.miniPlayer')}
-            data-tooltip={t('player.miniPlayer')}
-          >
-            <PictureInPicture2 size={15} />
-          </button>
+          {showBarMiniPlayer && (
+            <button
+              className="player-btn player-btn-sm"
+              onClick={() => invoke('open_mini_player').catch(() => {})}
+              aria-label={t('player.miniPlayer')}
+              data-tooltip={t('player.miniPlayer')}
+            >
+              <PictureInPicture2 size={15} />
+            </button>
+          )}
 
           {/* Volume */}
           <div className="player-volume-section">
@@ -665,28 +675,32 @@ export default function PlayerBar() {
           style={utilityMenuStyle}
           onWheel={handleVolumeWheel}
         >
-          {utilityMenuMode === 'full' && (
+          {utilityMenuMode === 'full' && (showBarEqualizer || showBarMiniPlayer) && (
             <div className="player-overflow-menu-row">
-              <button
-                className={`player-overflow-menu-btn${eqOpen ? ' active' : ''}`}
-                onClick={() => {
-                  setEqOpen(v => !v);
-                  setUtilityMenuOpen(false);
-                }}
-              >
-                <SlidersVertical size={14} />
-                {t('player.equalizer')}
-              </button>
-              <button
-                className="player-overflow-menu-btn"
-                onClick={() => {
-                  invoke('open_mini_player').catch(() => {});
-                  setUtilityMenuOpen(false);
-                }}
-              >
-                <PictureInPicture2 size={14} />
-                {t('player.miniPlayer')}
-              </button>
+              {showBarEqualizer && (
+                <button
+                  className={`player-overflow-menu-btn${eqOpen ? ' active' : ''}`}
+                  onClick={() => {
+                    setEqOpen(v => !v);
+                    setUtilityMenuOpen(false);
+                  }}
+                >
+                  <SlidersVertical size={14} />
+                  {t('player.equalizer')}
+                </button>
+              )}
+              {showBarMiniPlayer && (
+                <button
+                  className="player-overflow-menu-btn"
+                  onClick={() => {
+                    invoke('open_mini_player').catch(() => {});
+                    setUtilityMenuOpen(false);
+                  }}
+                >
+                  <PictureInPicture2 size={14} />
+                  {t('player.miniPlayer')}
+                </button>
+              )}
             </div>
           )}
           {utilityMenuMode === 'full' ? (
