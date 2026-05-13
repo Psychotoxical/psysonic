@@ -18,6 +18,10 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <br><br>
 
+**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian and Chinese.
+
+More translations are added over time.
+
 **No telemetry • Native performance • Navidrome-first • Community driven**
 
 </div>
@@ -136,8 +140,6 @@ Start a session, invite others with a link and listen together with host-control
 | Windows | Native installer                                                |
 | macOS   | Signed DMG                                                      |
 | Linux   | AppImage / DEB / RPM / AUR (`psysonic`, `psysonic-bin`) / NixOS |
-
-Psysonic supports **9 languages** and growing.
 
 ---
 
