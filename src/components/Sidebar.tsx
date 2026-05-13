@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
@@ -6,18 +6,12 @@ import { useOfflineJobStore } from '../store/offlineJobStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
 import { useAuthStore } from '../store/authStore';
 import { useSidebarStore } from '../store/sidebarStore';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  Settings,
-  PanelLeftClose, PanelLeft, AudioLines, HardDriveDownload, HardDriveUpload,
-  ChevronDown, Check, Music2, X, ChevronRight, PlayCircle, Sparkles, Trash2,
-} from 'lucide-react';
+import { PanelLeft, PanelLeftClose, Trash2 } from 'lucide-react';
 import PsysonicLogo from './PsysonicLogo';
 import PSmallLogo from './PSmallLogo';
-import WhatsNewBanner from './WhatsNewBanner';
 import { usePlaylistStore } from '../store/playlistStore';
-import { ALL_NAV_ITEMS } from '../config/navItems';
 import OverlayScrollArea from './OverlayScrollArea';
 import {
   getLibraryItemsForReorder,
@@ -25,17 +19,13 @@ import {
 } from '../utils/sidebarNavReorder';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { usePerfProbeFlags } from '../utils/perfFlags';
-
-import {
-  displayPlaylistName,
-  isSmartPlaylistName,
-} from '../utils/sidebarHelpers';
 import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnread';
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
 import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';
 import SidebarPerfProbeModal from './sidebar/SidebarPerfProbeModal';
+import SidebarNavBody from './sidebar/SidebarNavBody';
 
 
 export default function Sidebar({
@@ -95,7 +85,6 @@ export default function Sidebar({
   const filterId = serverId ? (musicLibraryFilterByServer[serverId] ?? 'all') : 'all';
   const selectedFolderName =
     filterId === 'all' ? null : musicFolders.find(f => f.id === filterId)?.name ?? null;
-  const libraryTriggerPlain = filterId === 'all';
 
   const libraryItemsForReorder = useMemo(
     () => getLibraryItemsForReorder(sidebarItems, randomNavMode),
@@ -212,310 +201,40 @@ export default function Sidebar({
             sidebarItems.length,
           ]}
         >
-        {!isCollapsed && (showLibraryPicker ? (
-          <>
-            <button
-              ref={libraryTriggerRef}
-              type="button"
-              className={`nav-library-scope-trigger ${libraryTriggerPlain ? 'nav-library-scope-trigger--plain' : ''} ${libraryDropdownOpen ? 'nav-library-scope-trigger--open' : ''}`}
-              onClick={() => {
-                setLibraryDropdownOpen(!libraryDropdownOpen);
-              }}
-              aria-label={t('sidebar.libraryScope')}
-              aria-expanded={libraryDropdownOpen}
-              aria-haspopup="listbox"
-              data-tooltip={libraryDropdownOpen ? undefined : t('sidebar.libraryScope')}
-              data-tooltip-pos="bottom"
-            >
-              {!libraryTriggerPlain ? (
-                <Music2 size={16} className="nav-library-scope-icon" strokeWidth={2} aria-hidden />
-              ) : null}
-              <div className="nav-library-scope-text">
-                <span className="nav-library-scope-title">{t('sidebar.library')}</span>
-                {selectedFolderName ? (
-                  <span className="nav-library-scope-subtitle" data-tooltip={selectedFolderName} data-tooltip-pos="right">
-                    {selectedFolderName}
-                  </span>
-                ) : null}
-              </div>
-              <ChevronDown size={16} strokeWidth={2.25} className="nav-library-scope-chevron" aria-hidden />
-            </button>
-            {libraryDropdownOpen &&
-              createPortal(
-                <div
-                  className={`nav-library-dropdown-panel${musicFolders.length > 10 ? ' nav-library-dropdown-panel--many-libraries' : ''}`}
-                  role="listbox"
-                  aria-label={t('sidebar.libraryScope')}
-                  style={{
-                    position: 'fixed',
-                    top: dropdownRect.top,
-                    left: dropdownRect.left,
-                    width: dropdownRect.width,
-                    minWidth: dropdownRect.width,
-                    maxWidth: dropdownRect.width,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={filterId === 'all'}
-                    className={`nav-library-dropdown-item ${filterId === 'all' ? 'nav-library-dropdown-item--selected' : ''}`}
-                    onClick={() => pickLibrary('all')}
-                  >
-                    <span className="nav-library-dropdown-item-label">{t('sidebar.allLibraries')}</span>
-                    {filterId === 'all' ? <Check size={16} className="nav-library-dropdown-check" strokeWidth={2.5} /> : <span className="nav-library-dropdown-check-spacer" />}
-                  </button>
-                  {musicFolders.map(f => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      role="option"
-                      aria-selected={filterId === f.id}
-                      className={`nav-library-dropdown-item ${filterId === f.id ? 'nav-library-dropdown-item--selected' : ''}`}
-                      onClick={() => pickLibrary(f.id)}
-                    >
-                      <span className="nav-library-dropdown-item-label">{f.name}</span>
-                      {filterId === f.id ? <Check size={16} className="nav-library-dropdown-check" strokeWidth={2.5} /> : <span className="nav-library-dropdown-check-spacer" />}
-                    </button>
-                  ))}
-                </div>,
-                document.body
-              )}
-          </>
-        ) : (
-          <span className="nav-section-label">{t('sidebar.library')}</span>
-        ))}
-        {visibleLibraryConfigs.map(cfg => {
-          const item = ALL_NAV_ITEMS[cfg.id];
-          if (!item) return null;
-          const sectionIdx = libraryItemsForReorder.findIndex(x => x.id === cfg.id);
-          const dndRow = !isCollapsed && sectionIdx >= 0;
-          const rowClass = dndRow ? navDndRowClass('library', sectionIdx) : undefined;
-          const dndProps = dndRow
-            ? {
-                'data-sidebar-nav-dnd-row': '',
-                'data-sidebar-section': 'library' as const,
-                'data-sidebar-idx': String(sectionIdx),
-                onPointerDown: (e: React.PointerEvent) =>
-                  handleNavRowPointerDown(e, 'library', sectionIdx),
-              }
-            : {};
-
-          return item.to === '/playlists' && !isCollapsed ? (
-            <div
-              key={item.to}
-              className={`sidebar-playlists-wrapper${rowClass ? ` ${rowClass}` : ''}`}
-              {...dndProps}
-              style={navDnd && dndRow ? { touchAction: 'none' } : undefined}
-            >
-              <div className="sidebar-playlists-header-row">
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) => `nav-link sidebar-playlists-main-link ${isActive ? 'active' : ''}`}
-                >
-                  <item.icon size={18} />
-                  <span>{t(item.labelKey)}</span>
-                </NavLink>
-                <button
-                  className={`sidebar-playlists-toggle ${playlistsExpanded ? 'expanded' : ''}`}
-                  onClick={() => setPlaylistsExpanded(!playlistsExpanded)}
-                  aria-expanded={playlistsExpanded}
-                  aria-label={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
-                  data-tooltip={playlistsExpanded ? t('sidebar.collapsePlaylists') : t('sidebar.expandPlaylists')}
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-              {playlistsExpanded && (
-                <div className="sidebar-playlists-list">
-                  {playlistsLoading ? (
-                    <div className="sidebar-playlists-loading">
-                      <div className="spinner" style={{ width: 14, height: 14 }} />
-                    </div>
-                  ) : playlists.length === 0 ? (
-                    <div className="sidebar-playlists-empty">{t('playlists.empty')}</div>
-                  ) : (
-                    playlists.map((pl: { id: string; name: string }) => (
-                      <NavLink
-                        key={pl.id}
-                        to={`/playlists/${pl.id}`}
-                        className={({ isActive }) => `nav-link sidebar-playlist-item ${isActive ? 'active' : ''}`}
-                      >
-                        {isSmartPlaylistName(pl.name) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
-                        <span>{displayPlaylistName(pl.name)}</span>
-                      </NavLink>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          ) : isCollapsed ? (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
-              data-tooltip-pos="bottom"
-            >
-              <item.icon size={isCollapsed ? 22 : 18} />
-              {item.to === '/new-releases' && newReleasesUnreadCount > 0 && (
-                <span className="sidebar-nav-unread-badge" aria-hidden>
-                  {newReleasesUnreadCount > 99 ? '99+' : newReleasesUnreadCount}
-                </span>
-              )}
-              {!isCollapsed && <span>{t(item.labelKey)}</span>}
-            </NavLink>
-          ) : (
-            <div
-              key={item.to}
-              className={rowClass}
-              {...dndProps}
-              style={navDnd && dndRow ? { touchAction: 'none' } : undefined}
-            >
-              <NavLink
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
-                data-tooltip-pos="bottom"
-              >
-                <item.icon size={isCollapsed ? 22 : 18} />
-                {!isCollapsed && <span>{t(item.labelKey)}</span>}
-                {item.to === '/new-releases' && newReleasesUnreadCount > 0 && (
-                  <span className="sidebar-nav-unread-badge" aria-hidden>
-                    {newReleasesUnreadCount > 99 ? '99+' : newReleasesUnreadCount}
-                  </span>
-                )}
-              </NavLink>
-            </div>
-          );
-        })}
-
-        {/* Spacer: everything from here onward sticks to the bottom of the sidebar. */}
-        <div className="sidebar-bottom-spacer" />
-
-        {/* What's New banner — only visible while the current release hasn't been seen. */}
-        <WhatsNewBanner collapsed={isCollapsed} />
-
-        {/* Now Playing — fixed, always visible */}
-        <NavLink
-          to="/now-playing"
-          className={({ isActive }) => `nav-link nav-link-nowplaying ${isActive ? 'active' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.nowPlaying') : undefined}
-          data-tooltip-pos="bottom"
-        >
-          <span className="nav-np-icon-wrap">
-            <AudioLines size={isCollapsed ? 22 : 18} />
-            {isPlaying && currentTrack && <span className="nav-np-dot" />}
-          </span>
-          {!isCollapsed && <span>{t('sidebar.nowPlaying')}</span>}
-        </NavLink>
-
-        {hasOfflineContent && (
-          <NavLink
-            to="/offline"
-            className={({ isActive }) => `nav-link nav-link-offline ${isActive ? 'active' : ''}`}
-            data-tooltip={isCollapsed ? t('sidebar.offlineLibrary') : undefined}
-            data-tooltip-pos="bottom"
-          >
-            <HardDriveDownload size={isCollapsed ? 22 : 18} />
-            {!isCollapsed && <span>{t('sidebar.offlineLibrary')}</span>}
-          </NavLink>
-        )}
-
-        {visibleSystemConfigs.length > 0 && !isCollapsed && <span className="nav-section-label">{t('sidebar.system')}</span>}
-        {visibleSystemConfigs.map(cfg => {
-          const item = ALL_NAV_ITEMS[cfg.id];
-          if (!item) return null;
-          const sectionIdx = systemItemsForReorder.findIndex(x => x.id === cfg.id);
-          const dndRow = !isCollapsed && sectionIdx >= 0;
-          const rowClass = dndRow ? navDndRowClass('system', sectionIdx) : undefined;
-          const dndProps = dndRow
-            ? {
-                'data-sidebar-nav-dnd-row': '',
-                'data-sidebar-section': 'system' as const,
-                'data-sidebar-idx': String(sectionIdx),
-                onPointerDown: (e: React.PointerEvent) =>
-                  handleNavRowPointerDown(e, 'system', sectionIdx),
-              }
-            : {};
-
-          return isCollapsed ? (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
-              data-tooltip-pos="bottom"
-            >
-              <item.icon size={isCollapsed ? 22 : 18} />
-              {!isCollapsed && <span>{t(item.labelKey)}</span>}
-            </NavLink>
-          ) : (
-            <div
-              key={item.to}
-              className={rowClass}
-              {...dndProps}
-              style={navDnd && dndRow ? { touchAction: 'none' } : undefined}
-            >
-              <NavLink
-                to={item.to}
-                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
-                data-tooltip-pos="bottom"
-              >
-                <item.icon size={isCollapsed ? 22 : 18} />
-                {!isCollapsed && <span>{t(item.labelKey)}</span>}
-              </NavLink>
-            </div>
-          );
-        })}
-        <NavLink
-          to="/settings"
-          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.settings') : undefined}
-          data-tooltip-pos="bottom"
-        >
-          <Settings size={isCollapsed ? 22 : 18} />
-          {!isCollapsed && <span>{t('sidebar.settings')}</span>}
-        </NavLink>
-
-        {activeJobs.length > 0 && (
-          <div
-            className={`sidebar-offline-queue ${isCollapsed ? 'sidebar-offline-queue--collapsed' : ''}`}
-            data-tooltip={isCollapsed ? t('sidebar.downloadingTracks', { n: activeJobs.length }) : undefined}
-            data-tooltip-pos="right"
-          >
-            <HardDriveDownload size={isCollapsed ? 18 : 14} className="spin-slow" />
-            {!isCollapsed && (
-              <span>{t('sidebar.downloadingTracks', { n: activeJobs.length })}</span>
-            )}
-            <button
-              className="sidebar-offline-cancel"
-              onClick={cancelAllDownloads}
-              data-tooltip={t('sidebar.cancelDownload')}
-              data-tooltip-pos="right"
-              aria-label={t('sidebar.cancelDownload')}
-            >
-              <X size={12} />
-            </button>
-          </div>
-        )}
-
-        {isSyncing && (
-          <div
-            className={`sidebar-offline-queue sidebar-sync-queue ${isCollapsed ? 'sidebar-offline-queue--collapsed' : ''}`}
-            data-tooltip={isCollapsed ? t('sidebar.syncingTracks', { done: syncJobDone + syncJobSkip + syncJobFail, total: syncJobTotal }) : undefined}
-            data-tooltip-pos="right"
-          >
-            <HardDriveUpload size={isCollapsed ? 18 : 14} className="spin-slow" />
-            {!isCollapsed && (
-              <span>{t('sidebar.syncingTracks', { done: syncJobDone + syncJobSkip + syncJobFail, total: syncJobTotal })}</span>
-            )}
-          </div>
-        )}
+        <SidebarNavBody
+          isCollapsed={isCollapsed}
+          showLibraryPicker={showLibraryPicker}
+          filterId={filterId}
+          selectedFolderName={selectedFolderName}
+          libraryDropdownOpen={libraryDropdownOpen}
+          setLibraryDropdownOpen={setLibraryDropdownOpen}
+          dropdownRect={dropdownRect}
+          libraryTriggerRef={libraryTriggerRef}
+          musicFolders={musicFolders}
+          pickLibrary={pickLibrary}
+          visibleLibraryConfigs={visibleLibraryConfigs}
+          libraryItemsForReorder={libraryItemsForReorder}
+          visibleSystemConfigs={visibleSystemConfigs}
+          systemItemsForReorder={systemItemsForReorder}
+          playlistsExpanded={playlistsExpanded}
+          setPlaylistsExpanded={setPlaylistsExpanded}
+          playlists={playlists}
+          playlistsLoading={playlistsLoading}
+          newReleasesUnreadCount={newReleasesUnreadCount}
+          navDnd={navDnd}
+          navDndRowClass={navDndRowClass}
+          handleNavRowPointerDown={handleNavRowPointerDown}
+          isPlaying={isPlaying}
+          hasNowPlayingTrack={!!currentTrack}
+          hasOfflineContent={hasOfflineContent}
+          activeJobsCount={activeJobs.length}
+          cancelAllDownloads={cancelAllDownloads}
+          isSyncing={isSyncing}
+          syncJobDone={syncJobDone}
+          syncJobSkip={syncJobSkip}
+          syncJobFail={syncJobFail}
+          syncJobTotal={syncJobTotal}
+        />
         </OverlayScrollArea>
       </nav>
     </aside>
