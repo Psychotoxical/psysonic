@@ -1,5 +1,5 @@
 import { getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt } from '../api/subsonicPlaylists';
-import { buildDownloadUrl, coverArtCacheKey, buildCoverArtUrl } from '../api/subsonicStreamUrl';
+import { coverArtCacheKey, buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { search } from '../api/subsonicSearch';
 import { getRandomSongs, filterSongsToActiveLibrary } from '../api/subsonicLibrary';
@@ -20,8 +20,6 @@ import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
-import { invoke } from '@tauri-apps/api/core';
-import { join } from '@tauri-apps/api/path';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useDragDrop } from '../contexts/DragDropContext';
 import CachedImage, { useCachedUrl } from '../components/CachedImage';
@@ -29,7 +27,6 @@ import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
 import StarRating from '../components/StarRating';
 import {
-  sanitizeFilename,
   formatDuration,
   formatSize,
   totalDurationLabel,
@@ -47,6 +44,10 @@ import PlaylistHero from '../components/playlist/PlaylistHero';
 import PlaylistTracklist from '../components/playlist/PlaylistTracklist';
 import PlaylistFilterToolbar from '../components/playlist/PlaylistFilterToolbar';
 import { getDisplayedSongs, type PlaylistSortKey, type PlaylistSortDir } from '../utils/playlistDisplayedSongs';
+import { runPlaylistZipDownload } from '../utils/runPlaylistZipDownload';
+import { playPlaylistAll, shufflePlaylistAll, enqueuePlaylistAll } from '../utils/playlistBulkPlayActions';
+import { startPlaylistRowDrag } from '../utils/startPlaylistRowDrag';
+import { runPlaylistReorderDrop } from '../utils/runPlaylistReorderDrop';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -346,24 +347,9 @@ export default function PlaylistDetail() {
   // ── ZIP Download ──────────────────────────────────────────────
   const handleDownload = async () => {
     if (!playlist || !id) return;
-    const folder = downloadFolder || await requestDownloadFolder();
-    if (!folder) return;
-
-    const filename = `${sanitizeFilename(playlist.name)}.zip`;
-    const destPath = await join(folder, filename);
-    const url = buildDownloadUrl(id);
-    const downloadId = crypto.randomUUID();
-
-    const { start, complete, fail } = useZipDownloadStore.getState();
-    start(downloadId, filename);
-    setZipDownloadId(downloadId);
-    try {
-      await invoke('download_zip', { id: downloadId, url, destPath });
-      complete(downloadId);
-    } catch (e) {
-      fail(downloadId);
-      console.error('ZIP download failed:', e);
-    }
+    await runPlaylistZipDownload({
+      playlist, id, downloadFolder, requestDownloadFolder, setZipDownloadId,
+    });
   };
 
   // ── CSV Import ────────────────────────────────────────────────
@@ -461,76 +447,16 @@ export default function PlaylistDetail() {
     if (!container) return;
 
     const onPsyDrop = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail?.data) return;
-      let parsed: any;
-      try { parsed = JSON.parse(detail.data); } catch { return; }
-      if (parsed.type !== 'playlist_reorder') return;
-
-      setDropTargetIdx(null);
-
-      const fromIdx: number = parsed.index;
-
-      // Determine drop index from the event target row
-      const target = (e.target as HTMLElement).closest('[data-track-idx]');
-      let toIdx = songs.length;
-      if (target) {
-        const targetIdx = parseInt(target.getAttribute('data-track-idx') ?? '', 10);
-        const rect = target.getBoundingClientRect();
-        const cursorY = (e as CustomEvent & { clientY?: number }).clientY ?? (rect.top + rect.height / 2);
-        const before = cursorY < rect.top + rect.height / 2;
-        toIdx = before ? targetIdx : targetIdx + 1;
-      }
-
-      if (fromIdx === toIdx || fromIdx === toIdx - 1) return;
-
-      setSongs(prev => {
-        const next = [...prev];
-        const [moved] = next.splice(fromIdx, 1);
-        const insertAt = toIdx > fromIdx ? toIdx - 1 : toIdx;
-        next.splice(insertAt, 0, moved);
-        savePlaylist(next);
-        return next;
-      });
+      runPlaylistReorderDrop({ e, songs, savePlaylist, setDropTargetIdx, setSongs });
     };
 
     container.addEventListener('psy-drop', onPsyDrop);
     return () => container.removeEventListener('psy-drop', onPsyDrop);
-  }, [songs, savePlaylist]);
+  }, [songs, savePlaylist, tracklistRef]);
 
   // ── Row mousedown: threshold drag for reorder (from anywhere on the row) ──
   const handleRowMouseDown = (e: React.MouseEvent, idx: number) => {
-    if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('button, input')) return;
-    e.preventDefault();
-    const sx = e.clientX, sy = e.clientY;
-    const onMove = (me: MouseEvent) => {
-      if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        if (!isFiltered && selectedIds.has(songs[idx]?.id) && selectedIds.size > 1) {
-          const bulkTracks = songs.filter(s => selectedIds.has(s.id)).map(songToTrack);
-          startDrag({ data: JSON.stringify({ type: 'songs', tracks: bulkTracks }), label: `${bulkTracks.length} Songs` }, me.clientX, me.clientY);
-        } else if (!isFiltered) {
-          startDrag(
-            { data: JSON.stringify({ type: 'playlist_reorder', index: idx }), label: songs[idx]?.title ?? '' },
-            me.clientX, me.clientY
-          );
-        } else {
-          // filtered view: single-song drag to queue
-          startDrag(
-            { data: JSON.stringify({ type: 'song', track: songToTrack(songs[idx]) }), label: songs[idx]?.title ?? '' },
-            me.clientX, me.clientY
-          );
-        }
-      }
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    startPlaylistRowDrag({ e, idx, songs, selectedIds, isFiltered, startDrag });
   };
 
   // ── Memoized derivations ──────────────────────────────────────
@@ -559,28 +485,20 @@ export default function PlaylistDetail() {
   };
 
   // ── Playback actions (encapsulated like AlbumHeader) ─────────
-  const handlePlayAll = useCallback(() => {
-    if (!songs.length || !id) return;
-    touchPlaylist(id);
-    playTrack(tracks[0], tracks);
-  }, [songs.length, id, tracks, touchPlaylist, playTrack]);
+  const handlePlayAll = useCallback(
+    () => playPlaylistAll({ songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue }),
+    [songs.length, id, tracks, touchPlaylist, playTrack, enqueue],
+  );
 
-  const handleShuffleAll = useCallback(() => {
-    if (!songs.length || !id) return;
-    touchPlaylist(id);
-    const shuffled = [...tracks];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    playTrack(shuffled[0], shuffled);
-  }, [songs.length, id, tracks, touchPlaylist, playTrack]);
+  const handleShuffleAll = useCallback(
+    () => shufflePlaylistAll({ songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue }),
+    [songs.length, id, tracks, touchPlaylist, playTrack, enqueue],
+  );
 
-  const handleEnqueueAll = useCallback(() => {
-    if (!songs.length || !id) return;
-    touchPlaylist(id);
-    enqueue(tracks);
-  }, [songs.length, id, tracks, touchPlaylist, enqueue]);
+  const handleEnqueueAll = useCallback(
+    () => enqueuePlaylistAll({ songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue }),
+    [songs.length, id, tracks, touchPlaylist, playTrack, enqueue],
+  );
 
   // ── Render ────────────────────────────────────────────────────
   if (loading) {
