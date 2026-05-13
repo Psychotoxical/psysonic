@@ -36,6 +36,7 @@ import { useWindowFullscreenState } from '../hooks/useWindowFullscreenState';
 import { useNowPlayingTrayTitle } from '../hooks/useNowPlayingTrayTitle';
 import { useTrayMenuI18n } from '../hooks/useTrayMenuI18n';
 import { useServerCapabilitiesProbe } from '../hooks/useServerCapabilitiesProbe';
+import { useQueueResizer } from '../hooks/useQueueResizer';
 import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
@@ -133,9 +134,6 @@ export function AppShell() {
   // modal takeover on startup.
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readInitialSidebarCollapsed);
-  const [queueWidth, setQueueWidth] = useState(340);
-  const [isDraggingQueue, setIsDraggingQueue] = useState(false);
-  const [queueHandleTop, setQueueHandleTop] = useState<number | null>(null);
   const [isMainScrolling, setIsMainScrolling] = useState(false);
 
   const setSidebarCollapsed = useCallback((collapsed: boolean) => {
@@ -149,35 +147,13 @@ export function AppShell() {
     return () => window.removeEventListener('psy:toggle-sidebar', onToggleSidebar);
   }, [isSidebarCollapsed, setSidebarCollapsed]);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDraggingQueue) {
-      const newWidth = Math.max(310, Math.min(window.innerWidth - e.clientX, 500));
-      setQueueWidth(newWidth);
-    }
-  }, [isDraggingQueue]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDraggingQueue(false);
-  }, []);
-
-  useEffect(() => {
-    if (isDraggingQueue) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.classList.add('is-dragging');
-    } else {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'default';
-      document.body.classList.remove('is-dragging');
-    }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.body.classList.remove('is-dragging');
-    };
-  }, [isDraggingQueue, handleMouseMove, handleMouseUp]);
+  const {
+    queueWidth,
+    isDraggingQueue,
+    setIsDraggingQueue,
+    queueHandleTop,
+    handleQueueHandleMouseDown,
+  } = useQueueResizer({ isMobile, isSidebarCollapsed, isQueueVisible, toggleQueue });
 
   useEffect(() => {
     const viewports = new Set<HTMLElement>();
@@ -209,76 +185,6 @@ export function AppShell() {
       setIsMainScrolling(false);
     };
   }, [location.pathname]);
-
-  const syncQueueHandleTop = useCallback(() => {
-    const leftBtn = document.querySelector('.sidebar .collapse-btn') as HTMLElement | null;
-    if (!leftBtn) return;
-    const r = leftBtn.getBoundingClientRect();
-    setQueueHandleTop(r.top + r.height / 2);
-  }, []);
-
-  useEffect(() => {
-    if (isMobile) return;
-    const leftBtn = document.querySelector('.sidebar .collapse-btn') as HTMLElement | null;
-    if (!leftBtn) return;
-
-    syncQueueHandleTop();
-    const raf = requestAnimationFrame(syncQueueHandleTop);
-
-    const onResize = () => syncQueueHandleTop();
-    window.addEventListener('resize', onResize);
-    const observer = new ResizeObserver(onResize);
-    observer.observe(leftBtn);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', onResize);
-      observer.disconnect();
-    };
-  }, [isMobile, isSidebarCollapsed, syncQueueHandleTop]);
-
-  const handleQueueHandleMouseDown = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const DRAG_THRESHOLD_PX = 4;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    let didDrag = false;
-
-    const cleanup = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp, true);
-      document.body.style.cursor = '';
-      document.body.classList.remove('is-dragging');
-    };
-
-    const applyWidthFromClientX = (clientX: number) => {
-      const newWidth = Math.max(310, Math.min(window.innerWidth - clientX, 500));
-      setQueueWidth(newWidth);
-    };
-
-    const onMove = (me: MouseEvent) => {
-      const movedEnough = Math.hypot(me.clientX - startX, me.clientY - startY) >= DRAG_THRESHOLD_PX;
-      if (!didDrag && movedEnough) {
-        didDrag = true;
-        if (!isQueueVisible) toggleQueue();
-        document.body.style.cursor = 'col-resize';
-        document.body.classList.add('is-dragging');
-      }
-      if (!didDrag) return;
-      applyWidthFromClientX(me.clientX);
-    };
-
-    const onUp = () => {
-      cleanup();
-      if (!didDrag) toggleQueue();
-    };
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp, true);
-  }, [isQueueVisible, toggleQueue]);
 
   // ── Global DnD fix for Linux/WebKitGTK / Wayland ─────────────────
   // dragover/dragenter: WebKitGTK needs preventDefault so external drops are not
