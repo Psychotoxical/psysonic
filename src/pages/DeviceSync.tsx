@@ -3,9 +3,9 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
-  HardDriveUpload, FolderOpen, Loader2,
+  HardDriveUpload, Loader2,
   ListMusic, Disc3, Users, CheckCircle2, AlertCircle, Clock,
-  ChevronRight, ChevronDown, Trash2, Undo2, Search, Usb, RefreshCw, Shuffle, Zap, X,
+  ChevronRight, ChevronDown, Trash2, Undo2, Search, Shuffle, Zap, X,
 } from 'lucide-react';
 import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +35,9 @@ import {
   type SyncDelta,
 } from '../utils/runDeviceSyncExecution';
 import { runDeviceSyncChooseFolder } from '../utils/runDeviceSyncChooseFolder';
+import DeviceSyncHeader from '../components/deviceSync/DeviceSyncHeader';
+import DeviceSyncPreSyncModal from '../components/deviceSync/DeviceSyncPreSyncModal';
+import DeviceSyncMigrationModal from '../components/deviceSync/DeviceSyncMigrationModal';
 
 // ─── component ───────────────────────────────────────────────────────────────
 
@@ -204,100 +207,18 @@ export default function DeviceSync() {
   return (
     <div className="device-sync-page">
 
-      {/* ── Header ── */}
-      <div className="device-sync-header">
-        <div className="device-sync-header-title">
-          <HardDriveUpload size={20} />
-          <h1>{t('deviceSync.title')}</h1>
-        </div>
-
-        <div className="device-sync-config-row">
-
-          {/* ── Left: Fixed schema info ── */}
-          <div className="device-sync-schema-section">
-            <span className="device-sync-label-inline">{t('deviceSync.schemaLabel', { defaultValue: 'Naming scheme' })}</span>
-            <code className="device-sync-schema-code">
-              {'{AlbumArtist}/{Album}/{TrackNum} - {Title}.{ext}'}
-            </code>
-            <span className="device-sync-schema-hint">
-              {t('deviceSync.schemaHint', {
-                defaultValue: 'Fixed scheme for reliable cross-OS sync. Playlists are written as .m3u8 that reference the album tracks — no duplicates on the device.',
-              })}
-            </span>
-            {targetDir && sources.length > 0 && (
-              <button
-                className="btn btn-ghost device-sync-migrate-btn"
-                onClick={startMigrationPreview}
-                data-tooltip={t('deviceSync.migrateTooltip', {
-                  defaultValue: 'Rename existing files on the device into the new scheme (from the old filename template).',
-                })}
-                data-tooltip-pos="bottom"
-              >
-                {t('deviceSync.migrateButton', { defaultValue: 'Reorganize existing files…' })}
-              </button>
-            )}
-          </div>
-
-          {/* ── Right: Drive config ── */}
-          <div className="device-sync-target-section">
-            <span className="device-sync-label-inline">{t('deviceSync.targetDevice')}</span>
-            <div className="device-sync-header-config">
-              <div className="device-sync-drive-layout">
-                {/* Row 1: Controls */}
-                <div className="device-sync-drive-controls">
-                  {/* Fallback manual folder picker & Refresh */}
-                  <button className="btn btn-ghost" onClick={handleChooseFolder} data-tooltip={t('deviceSync.browseManual')}>
-                    <FolderOpen size={18} />
-                  </button>
-                  <button
-                    className="btn btn-ghost device-sync-refresh-btn"
-                    onClick={refreshDrives}
-                    disabled={drivesLoading}
-                    data-tooltip={t('deviceSync.refreshDrives')}
-                  >
-                    <RefreshCw size={18} className={drivesLoading ? 'spin' : ''} />
-                  </button>
-
-                  {/* Dropdown element */}
-                  {drives.length > 0 ? (
-                    <>
-                      <Usb size={18} className="device-sync-drive-icon" />
-                      <CustomSelect
-                        className="input device-sync-drive-select"
-                        value={targetDir ?? ''}
-                        onChange={v => {
-                          setTargetDir(v);
-                          if (v) {
-                            setTimeout(() => scanDevice(), 100);
-                          }
-                        }}
-                        options={[
-                          { value: '', label: t('deviceSync.selectDrive') },
-                          ...drives.map(d => ({ value: d.mount_point, label: d.name || d.mount_point }))
-                        ]}
-                      />
-                    </>
-                  ) : (
-                    <span className="device-sync-no-drives">
-                      <AlertCircle size={18} />
-                      {t('deviceSync.noDrivesDetected')}
-                    </span>
-                  )}
-                </div>
-
-              {/* Row 2: Metadata */}
-              {activeDrive && (
-                <div className="device-sync-drive-meta">
-                  {formatBytes(activeDrive.available_space)} {t('deviceSync.free')} / {formatBytes(activeDrive.total_space)} &bull; {activeDrive.file_system}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-
+      <DeviceSyncHeader
+        targetDir={targetDir}
+        setTargetDir={setTargetDir}
+        sources={sources}
+        drives={drives}
+        drivesLoading={drivesLoading}
+        activeDrive={activeDrive}
+        refreshDrives={refreshDrives}
+        scanDevice={scanDevice}
+        handleChooseFolder={handleChooseFolder}
+        startMigrationPreview={startMigrationPreview}
+      />
 
       {/* ── Main ── */}
       <div className="device-sync-main">
@@ -567,173 +488,24 @@ export default function DeviceSync() {
 
       </div>
 
-      {/* Pre-Sync Summary Modal */}
-      {preSyncOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content device-sync-modal">
-            <h2 className="modal-title">{t('deviceSync.syncSummary')}</h2>
+      <DeviceSyncPreSyncModal
+        preSyncOpen={preSyncOpen}
+        preSyncLoading={preSyncLoading}
+        syncDelta={syncDelta}
+        onCancel={() => setPreSyncOpen(false)}
+        onProceed={handleSyncExecution}
+      />
 
-            {preSyncLoading ? (
-              <div className="device-sync-loading-modal" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '20px' }}>
-                <Loader2 size={32} className="spin" />
-                <p style={{ marginTop: '10px' }}>{t('deviceSync.calculating')}</p>
-              </div>
-            ) : (
-              <div className="device-sync-summary-stats" style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '10px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <span>{t('deviceSync.filesToAdd')}</span>
-                  <span className="color-success">+{syncDelta.addCount} ({(syncDelta.addBytes / 1_048_576).toFixed(1)} MB)</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <span>{t('deviceSync.filesToDelete')}</span>
-                  <span className="color-error">-{syncDelta.delCount} ({(syncDelta.delBytes / 1_048_576).toFixed(1)} MB)</span>
-                </div>
-                <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '10px 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                  <span>{t('deviceSync.netChange')}</span>
-                  <span>{((syncDelta.addBytes - syncDelta.delBytes) / 1_048_576).toFixed(1)} MB</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: syncDelta.addBytes > syncDelta.availableBytes + syncDelta.delBytes ? 'var(--danger)' : 'inherit', marginTop: '10px' }}>
-                  <span>{t('deviceSync.availableSpace')}</span>
-                  <span>{(syncDelta.availableBytes / 1_048_576).toFixed(1)} MB</span>
-                </div>
-                {syncDelta.addBytes > syncDelta.availableBytes + syncDelta.delBytes && (
-                  <div className="sync-warning error" style={{ background: 'color-mix(in srgb, var(--danger) 15%, transparent)', padding: '10px', borderRadius: 'var(--radius-md)', marginTop: '15px', display: 'flex', gap: '10px', color: 'var(--danger)', alignItems: 'flex-start' }}>
-                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <span>{t('deviceSync.spaceWarning')}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!preSyncLoading && (
-              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px' }}>
-                <button className="btn btn-ghost" onClick={() => setPreSyncOpen(false)}>
-                  {t('deviceSync.cancel')}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSyncExecution}
-                  disabled={syncDelta.addBytes > syncDelta.availableBytes + syncDelta.delBytes}
-                >
-                  {t('deviceSync.proceed')}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Migration modal (rename existing files into the fixed scheme) ── */}
-      {migrationPhase !== 'closed' && (
-        <div className="modal-overlay" onClick={migrationPhase === 'executing' ? undefined : closeMigration}>
-          <div className="modal-content device-sync-migrate-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">{t('deviceSync.migrateTitle', { defaultValue: 'Reorganize existing files' })}</h2>
-            <div className="device-sync-migrate-body">
-              {migrationPhase === 'loading' && (
-                <div className="device-sync-migrate-loading">
-                  <Loader2 size={18} className="spin" />
-                  <span>{t('deviceSync.migrateLoading', { defaultValue: 'Analyzing existing files…' })}</span>
-                </div>
-              )}
-              {migrationPhase === 'nothing' && (
-                <div className="device-sync-migrate-nothing">
-                  {migrationOldTemplate ? (
-                    t('deviceSync.migrateNothingToDo', { defaultValue: 'All existing files already match the new scheme — nothing to do.' })
-                  ) : (
-                    t('deviceSync.migrateNoTemplate', { defaultValue: 'No legacy filename template found on the device. Migration only applies when the stick was synced with a Psysonic version that supported custom templates.' })
-                  )}
-                </div>
-              )}
-              {migrationPhase === 'preview' && (
-                <>
-                  <div className="device-sync-migrate-summary">
-                    <div>
-                      <strong>{migrationPairs.length}</strong>{' '}
-                      {t('deviceSync.migrateFilesToRename', { defaultValue: 'files will be renamed' })}
-                    </div>
-                    {migrationUnchanged > 0 && (
-                      <div className="muted">
-                        {t('deviceSync.migrateUnchanged', {
-                          defaultValue: '{{n}} files are already at the correct path',
-                          n: migrationUnchanged,
-                        })}
-                      </div>
-                    )}
-                    {migrationCollisions.length > 0 && (
-                      <div className="device-sync-migrate-warning">
-                        <AlertCircle size={14} />
-                        {t('deviceSync.migrateCollisions', {
-                          defaultValue: '{{n}} files cannot be renamed automatically (multiple tracks map to the same target). They will be left untouched — the next sync re-downloads them into the correct location.',
-                          n: migrationCollisions.length,
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div className="device-sync-migrate-preview-note">
-                    {t('deviceSync.migratePreviewNote', {
-                      defaultValue: 'Old template: {{tpl}}',
-                      tpl: migrationOldTemplate,
-                    })}
-                  </div>
-                </>
-              )}
-              {migrationPhase === 'executing' && (
-                <div className="device-sync-migrate-loading">
-                  <Loader2 size={18} className="spin" />
-                  <span>{t('deviceSync.migrateExecuting', { defaultValue: 'Renaming files…' })}</span>
-                </div>
-              )}
-              {migrationPhase === 'done' && migrationResult && (
-                <div className="device-sync-migrate-result">
-                  <div className="device-sync-migrate-result-line">
-                    <CheckCircle2 size={14} className="positive" />
-                    {t('deviceSync.migrateSuccess', {
-                      defaultValue: '{{n}} files renamed successfully',
-                      n: migrationResult.ok,
-                    })}
-                  </div>
-                  {migrationResult.failed > 0 && (
-                    <div className="device-sync-migrate-result-line">
-                      <AlertCircle size={14} className="danger" />
-                      {t('deviceSync.migrateFailed', {
-                        defaultValue: '{{n}} renames failed',
-                        n: migrationResult.failed,
-                      })}
-                    </div>
-                  )}
-                  {migrationResult.errors.length > 0 && (
-                    <details className="device-sync-migrate-errors">
-                      <summary>{t('deviceSync.migrateShowErrors', { defaultValue: 'Show errors' })}</summary>
-                      <ul>
-                        {migrationResult.errors.slice(0, 50).map((err, i) => (
-                          <li key={i}>{err}</li>
-                        ))}
-                        {migrationResult.errors.length > 50 && (
-                          <li>… {migrationResult.errors.length - 50} more</li>
-                        )}
-                      </ul>
-                    </details>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="device-sync-migrate-footer">
-              {migrationPhase === 'preview' && (
-                <>
-                  <button className="btn btn-ghost" onClick={closeMigration}>{t('common.cancel')}</button>
-                  <button className="btn btn-primary" onClick={executeMigration} disabled={migrationPairs.length === 0}>
-                    {t('deviceSync.migrateStart', { defaultValue: 'Start renaming' })}
-                  </button>
-                </>
-              )}
-              {(migrationPhase === 'done' || migrationPhase === 'nothing') && (
-                <button className="btn btn-primary" onClick={closeMigration}>{t('common.close')}</button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <DeviceSyncMigrationModal
+        migrationPhase={migrationPhase}
+        migrationOldTemplate={migrationOldTemplate}
+        migrationPairs={migrationPairs}
+        migrationCollisions={migrationCollisions}
+        migrationUnchanged={migrationUnchanged}
+        migrationResult={migrationResult}
+        executeMigration={executeMigration}
+        closeMigration={closeMigration}
+      />
     </div>
   );
 }
