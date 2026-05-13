@@ -40,52 +40,9 @@ import {
   shuffleArray,
 } from '../utils/contextMenuHelpers';
 import { AddToPlaylistSubmenu } from './contextMenu/AddToPlaylistSubmenu';
+import { AlbumToPlaylistSubmenu, ArtistToPlaylistSubmenu } from './contextMenu/AlbumArtistToPlaylistSubmenu';
 
 export { AddToPlaylistSubmenu };
-
-// Same as AddToPlaylistSubmenu but resolves album songs first
-function AlbumToPlaylistSubmenu({ albumId, onDone, triggerId }: { albumId: string; onDone: () => void; triggerId?: string }) {
-  const [resolvedIds, setResolvedIds] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    getAlbum(albumId).then((data) => {
-      setResolvedIds(data.songs.map((s) => s.id));
-    }).catch(() => setResolvedIds([]));
-  }, [albumId]);
-
-  if (resolvedIds === null) {
-    return (
-      <div className="context-submenu" style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem' }}>
-        <div className="spinner" style={{ width: 16, height: 16 }} />
-      </div>
-    );
-  }
-  if (resolvedIds.length === 0) return null;
-  return <AddToPlaylistSubmenu songIds={resolvedIds} onDone={onDone} triggerId={triggerId} />;
-}
-
-// Resolves all songs from all of an artist's albums, then hands off to AddToPlaylistSubmenu.
-function ArtistToPlaylistSubmenu({ artistId, onDone, triggerId }: { artistId: string; onDone: () => void; triggerId?: string }) {
-  const [resolvedIds, setResolvedIds] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      const { albums } = await getArtist(artistId);
-      const albumSongs = await Promise.all(albums.map(a => getAlbum(a.id).then(r => r.songs)));
-      setResolvedIds(albumSongs.flat().map(s => s.id));
-    })().catch(() => setResolvedIds([]));
-  }, [artistId]);
-
-  if (resolvedIds === null) {
-    return (
-      <div className="context-submenu" style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem' }}>
-        <div className="spinner" style={{ width: 16, height: 16 }} />
-      </div>
-    );
-  }
-  if (resolvedIds.length === 0) return null;
-  return <AddToPlaylistSubmenu songIds={resolvedIds} onDone={onDone} triggerId={triggerId} />;
-}
 
 // Resolves all songs from multiple albums and adds them to playlist with detailed toast notifications
 function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId }: { albumIds: string[]; onDone: () => void; triggerId?: string }) {
