@@ -10,6 +10,7 @@ import {
 } from '../utils/folderBrowserHelpers';
 import FolderBrowserColumn from '../components/folderBrowser/FolderBrowserColumn';
 import { useFolderBrowserNowPlayingPath } from '../hooks/useFolderBrowserNowPlayingPath';
+import { useFolderBrowserScrolling } from '../hooks/useFolderBrowserScrolling';
 
 export default function FolderBrowser() {
   const { t } = useTranslation();
@@ -17,18 +18,20 @@ export default function FolderBrowser() {
   const [columnFilters, setColumnFilters] = useState<Record<number, string>>({});
   const [filterFocusCol, setFilterFocusCol] = useState<number | null>(null);
   const [keyboardNavActive, setKeyboardNavActive] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const filterInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const pendingNavColRef = useRef<number | null>(null);
   const [keyboardPos, setKeyboardPos] = useState<NavPos | null>(null);
   const [contextAnchorPos, setContextAnchorPos] = useState<NavPos | null>(null);
-  const [columnsViewportWidth, setColumnsViewportWidth] = useState(0);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
   const playTrack = usePlayerStore(s => s.playTrack);
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const isContextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
+
+  const { wrapperRef, columnsViewportWidth } = useFolderBrowserScrolling({
+    columns, keyboardPos, keyboardNavActive, setKeyboardNavActive,
+  });
 
   const { playingPathIds, setPlayingPathIds, isSelectedPathForCurrentTrack } =
     useFolderBrowserNowPlayingPath({ columns, currentTrack, isPlaying, setColumns, setKeyboardPos });
@@ -57,74 +60,6 @@ export default function FolderBrowser() {
         setColumns([{ ...placeholder, items: [], loading: false, error: true }]);
       });
   }, []);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollLeft = el.scrollWidth;
-    });
-  }, [columns.length]);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    setColumnsViewportWidth(el.clientWidth);
-    const observer = new ResizeObserver(() => {
-      setColumnsViewportWidth(el.clientWidth);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!wrapperRef.current) return;
-    requestAnimationFrame(() => {
-      columns.forEach((col, colIndex) => {
-        const selectedId = col.selectedId;
-        if (!selectedId) return;
-        const row = wrapperRef.current?.querySelector<HTMLElement>(
-          `.folder-col[data-folder-col-index="${colIndex}"] .folder-col-row[data-item-id="${selectedId}"]`,
-        );
-        row?.scrollIntoView({ block: 'nearest' });
-      });
-
-      if (keyboardPos) {
-        const kbdRow = wrapperRef.current?.querySelector<HTMLElement>(
-          `.folder-col[data-folder-col-index="${keyboardPos.colIndex}"] .folder-col-row[data-row-index="${keyboardPos.rowIndex}"]`,
-        );
-        kbdRow?.scrollIntoView({ block: 'nearest' });
-      }
-
-      const fallbackColIndex = [...columns]
-        .map((c, i) => (c.selectedId ? i : -1))
-        .filter(i => i >= 0)
-        .pop();
-      const baseColIndex = keyboardPos?.colIndex ?? fallbackColIndex ?? Math.max(0, columns.length - 1);
-      const focusColIndex = Math.min(Math.max(0, columns.length - 1), baseColIndex + 1);
-      const focusCol = wrapperRef.current?.querySelector<HTMLElement>(
-        `.folder-col[data-folder-col-index="${focusColIndex}"]`,
-      );
-      focusCol?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    });
-  }, [columns, keyboardPos]);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const hasRows = columns.some(c => !c.loading && !c.error && c.items.length > 0);
-    if (!hasRows) return;
-    requestAnimationFrame(() => {
-      el.focus({ preventScroll: true });
-    });
-  }, [columns]);
-
-  useEffect(() => {
-    if (!keyboardNavActive) return;
-    const onMouseMove = () => setKeyboardNavActive(false);
-    window.addEventListener('mousemove', onMouseMove, { once: true });
-    return () => window.removeEventListener('mousemove', onMouseMove);
-  }, [keyboardNavActive]);
 
   useEffect(() => {
     setColumnFilters(prev => {
