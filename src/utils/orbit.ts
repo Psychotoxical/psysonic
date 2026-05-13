@@ -1,10 +1,9 @@
-import { createPlaylist, updatePlaylist, updatePlaylistMeta, deletePlaylist, getPlaylist, getPlaylists } from '../api/subsonicPlaylists';
+import { createPlaylist, updatePlaylist, deletePlaylist, getPlaylist, getPlaylists } from '../api/subsonicPlaylists';
 import { getSong } from '../api/subsonicLibrary';
 import { songToTrack } from '../utils/songToTrack';
 import { useAuthStore } from '../store/authStore';
 import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore } from '../store/playerStore';
-import { encodeSharePayload, decodeOrbitSharePayloadFromText } from './shareLink';
 import {
   makeInitialOrbitState,
   orbitOutboxPlaylistName,
@@ -16,28 +15,22 @@ import {
   type OrbitQueueItem,
   type OrbitState,
 } from '../api/orbit';
-import {
-  ORBIT_HEARTBEAT_ALIVE_MS,
-  ORBIT_ORPHAN_TTL_MS,
-  ORBIT_REMOVED_TTL_MS,
-  ORBIT_SHUFFLE_INTERVAL_MS,
-} from './orbit/constants';
+import { ORBIT_ORPHAN_TTL_MS } from './orbit/constants';
 import {
   generateSessionId,
-  OrbitStateTooLarge,
   parseOutboxPlaylistName,
-  serialiseOrbitState,
-  serialiseOutboxMeta,
   suggestionKey,
 } from './orbit/helpers';
 import {
   applyOutboxSnapshotsToState,
-  computeOrbitDriftMs,
-  effectiveShuffleIntervalMs,
-  maybeShuffleQueue,
-  patchOrbitState,
   type OutboxSnapshot,
 } from './orbit/stateMath';
+import {
+  findSessionPlaylistId,
+  readOrbitState,
+  writeOrbitHeartbeat,
+  writeOrbitState,
+} from './orbit/remote';
 
 /**
  * Orbit — host-side lifecycle primitives.
@@ -70,52 +63,17 @@ export {
   maybeShuffleQueue,
   patchOrbitState,
 } from './orbit/stateMath';
-
-// ── Remote reads ────────────────────────────────────────────────────────
-
-/** Pull + parse the canonical state from the session playlist. Null on miss or parse error. */
-export async function readOrbitState(sessionPlaylistId: string): Promise<OrbitState | null> {
-  try {
-    const { playlist } = await getPlaylist(sessionPlaylistId);
-    if (!playlist.comment) return null;
-    let raw: unknown;
-    try { raw = JSON.parse(playlist.comment); } catch { return null; }
-    return parseOrbitState(raw);
-  } catch { return null; }
-}
-
-// ── Remote writes ───────────────────────────────────────────────────────
-
-/**
- * Write the state blob into the session playlist's comment.
- *
- * NOTE (design doc "known rough edges"): `updatePlaylist.view` with name +
- * comment MUST preserve the track list. Confirmed to work on Navidrome via
- * observation in PR #256 (playlist-editor); if a future Navidrome release
- * ever changes that, we need to switch to `updatePlaylist` with the full
- * track list echoed back.
- */
-export async function writeOrbitState(
-  sessionPlaylistId: string,
-  state: OrbitState,
-): Promise<void> {
-  const comment = serialiseOrbitState(state);
-  const name = orbitSessionPlaylistName(state.sid);
-  await updatePlaylistMeta(sessionPlaylistId, name, comment, /* public */ true);
-}
-
-/**
- * Write a heartbeat into the given outbox playlist's comment. Host keeps one
- * for symmetry + to feed its own presence into the participants pipeline
- * (used from Phase 4 onwards when guests look for host liveness).
- */
-export async function writeOrbitHeartbeat(
-  outboxPlaylistId: string,
-  outboxName: string,
-): Promise<void> {
-  const meta: OrbitOutboxMeta = { ts: Date.now() };
-  await updatePlaylistMeta(outboxPlaylistId, outboxName, serialiseOutboxMeta(meta), /* public */ true);
-}
+export {
+  findSessionPlaylistId,
+  readOrbitState,
+  writeOrbitHeartbeat,
+  writeOrbitState,
+} from './orbit/remote';
+export {
+  buildOrbitShareLink,
+  parseOrbitShareLink,
+  type OrbitShareLink,
+} from './orbit/shareLink';
 
 // ── Host lifecycle ──────────────────────────────────────────────────────
 
@@ -276,49 +234,6 @@ export async function updateOrbitSettings(patch: Partial<import('../api/orbit').
   store.setState(next);
   try { await writeOrbitState(store.sessionPlaylistId, next); }
   catch { /* best-effort; next host-tick will push the current state anyway */ }
-}
-
-// ── Share link ──────────────────────────────────────────────────────────
-
-export interface OrbitShareLink {
-  /** Base URL of the Navidrome server (decoded). */
-  serverBase: string;
-  /** Session id (8 hex chars). */
-  sid: string;
-}
-
-/**
- * Parse an orbit invite from pasted text. Accepts the magic-string format
- * `psysonic2-<base64url-json>` (same prefix family as library shares and
- * server invites). The caller decides what to do on null (show toast, etc.).
- */
-export function parseOrbitShareLink(text: string): OrbitShareLink | null {
-  if (!text) return null;
-  const payload = decodeOrbitSharePayloadFromText(text);
-  if (!payload) return null;
-  try { new URL(payload.srv); } catch { return null; }
-  return { serverBase: payload.srv, sid: payload.sid };
-}
-
-/** Build an orbit invite magic string for a live session. */
-export function buildOrbitShareLink(serverBase: string, sid: string): string {
-  return encodeSharePayload({ srv: serverBase, k: 'orbit', sid });
-}
-
-// ── Playlist lookup ─────────────────────────────────────────────────────
-
-/**
- * Find the Navidrome playlist id of a session given its session id.
- * Scans the user's visible playlist list — Navidrome exposes public
- * playlists from other users, so a guest can find the host's session.
- */
-export async function findSessionPlaylistId(sid: string): Promise<string | null> {
-  const target = orbitSessionPlaylistName(sid);
-  try {
-    const all = await getPlaylists(true);
-    const hit = all.find(p => p.name === target);
-    return hit?.id ?? null;
-  } catch { return null; }
 }
 
 // ── Guest lifecycle ─────────────────────────────────────────────────────
