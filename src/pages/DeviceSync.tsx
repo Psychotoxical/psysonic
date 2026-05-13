@@ -1,12 +1,7 @@
-import { getPlaylists } from '../api/subsonicPlaylists';
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
-import { getArtists, getArtist } from '../api/subsonicArtists';
-import { getAlbumList } from '../api/subsonicLibrary';
-import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist, SubsonicArtist } from '../api/subsonicTypes';
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import type { SubsonicSong } from '../api/subsonicTypes';
+import React, { useState, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   HardDriveUpload, FolderOpen, Loader2,
   ListMusic, Disc3, Users, CheckCircle2, AlertCircle, Clock,
@@ -16,18 +11,19 @@ import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { useDeviceSyncStore, DeviceSyncSource } from '../store/deviceSyncStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
-import { search as searchSubsonic } from '../api/subsonicSearch';
 import { showToast } from '../utils/toast';
 import { IS_WINDOWS } from '../utils/platform';
 
 import {
-  formatBytes, trackToSyncInfo,
+  formatBytes,
   type SourceTab,
 } from '../utils/deviceSyncHelpers';
-import { fetchTracksForSource } from '../utils/fetchTracksForSource';
 import BrowserRow from '../components/deviceSync/BrowserRow';
 import { useDeviceSyncDrives } from '../hooks/useDeviceSyncDrives';
 import { useDeviceSyncSourceStatuses } from '../hooks/useDeviceSyncSourceStatuses';
+import { useDeviceSyncBrowser } from '../hooks/useDeviceSyncBrowser';
+import { useDeviceSyncDeviceScan } from '../hooks/useDeviceSyncDeviceScan';
+import { useDeviceSyncJobEvents } from '../hooks/useDeviceSyncJobEvents';
 import {
   runDeviceSyncMigrationPreview,
   runDeviceSyncMigrationExecute,
@@ -38,6 +34,7 @@ import {
   runDeviceSyncExecute,
   type SyncDelta,
 } from '../utils/runDeviceSyncExecution';
+import { runDeviceSyncChooseFolder } from '../utils/runDeviceSyncChooseFolder';
 
 // ─── component ───────────────────────────────────────────────────────────────
 
@@ -64,16 +61,6 @@ export default function DeviceSync() {
 
   const [activeTab, setActiveTab]           = useState<SourceTab>('albums');
   const [search, setSearch]                 = useState('');
-  const [playlists, setPlaylists]           = useState<SubsonicPlaylist[]>([]);
-  const [randomAlbums, setRandomAlbums]     = useState<SubsonicAlbum[]>([]);
-  const [albumSearchResults, setAlbumSearchResults] = useState<SubsonicAlbum[]>([]);
-  const [albumSearchLoading, setAlbumSearchLoading] = useState(false);
-  const [artists, setArtists]               = useState<SubsonicArtist[]>([]);
-  const [loadingBrowser, setLoadingBrowser] = useState(false);
-  const [expandedArtistIds, setExpandedArtistIds] = useState<Set<string>>(new Set());
-  const [artistAlbumsMap, setArtistAlbumsMap]     = useState<Map<string, SubsonicAlbum[]>>(new Map());
-  const [loadingArtistIds, setLoadingArtistIds]   = useState<Set<string>>(new Set());
-
   // ─── Removable drive detection ──────────────────────────────────────────
   const { drives, drivesLoading, activeDrive, driveDetected, refreshDrives } =
     useDeviceSyncDrives(targetDir);
@@ -92,50 +79,8 @@ export default function DeviceSync() {
 
   const isRunning = jobStatus === 'running';
 
-  // ─── Device scan on mount ───────────────────────────────────────────────
-
-  const scanDevice = useCallback(async () => {
-    if (!targetDir || sources.length === 0) {
-      setDeviceFilePaths([]);
-      return;
-    }
-    setScanning(true);
-    try {
-      const files = await invoke<string[]>('list_device_dir_files', { dir: targetDir });
-      setDeviceFilePaths(files);
-    } catch {
-      setDeviceFilePaths([]);
-    } finally {
-      setScanning(false);
-    }
-  }, [targetDir, sources.length]);
-
-  // Scan device on mount and when targetDir changes
-  useEffect(() => { scanDevice(); }, [scanDevice]);
-
-  // Auto-import manifest when page loads and drive is already connected
-  const manifestImportedRef = useRef(false);
-  useEffect(() => {
-    if (!targetDir || !driveDetected || manifestImportedRef.current) return;
-    manifestImportedRef.current = true;
-    invoke<{ version: number; sources: DeviceSyncSource[] } | null>(
-      'read_device_manifest', { destDir: targetDir }
-    ).then(manifest => {
-      if (manifest?.sources?.length) {
-        useDeviceSyncStore.getState().clearSources();
-        manifest.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
-        showToast(t('deviceSync.manifestImported', { count: manifest.sources.length }), 4000, 'info');
-      }
-    }).catch(() => {});
-  }, [targetDir, driveDetected, t]);
-
-  // Clear device file list and reset import flag when stick is unplugged
-  useEffect(() => {
-    if (!driveDetected) {
-      setDeviceFilePaths([]);
-      manifestImportedRef.current = false;
-    }
-  }, [driveDetected]);
+  // ─── Device scan + manifest auto-import ─────────────────────────────────
+  const { scanDevice } = useDeviceSyncDeviceScan(targetDir, sources.length, driveDetected, t);
 
   // Source status (path map + derived synced/pending/deletion)
   const { sourcePathsMap, sourceStatuses } = useDeviceSyncSourceStatuses(
@@ -172,129 +117,15 @@ export default function DeviceSync() {
   }, [sources, pendingDeletion, sourceStatuses, sourcePathsMap, deviceFilePaths, markForDeletion, removeSource, unmarkDeletion, addSource]);
 
   // ─── Listen for background sync events ──────────────────────────────────
+  useDeviceSyncJobEvents(t, scanDevice);
 
-  useEffect(() => {
-    const jobStore = useDeviceSyncJobStore.getState;
-    const unlistenProgress = listen<{
-      jobId: string; done: number; skipped: number; failed: number; total: number;
-    }>('device:sync:progress', ({ payload }) => {
-      const current = jobStore();
-      if (current.jobId && payload.jobId === current.jobId) {
-        useDeviceSyncJobStore.getState().updateProgress(
-          payload.done, payload.skipped, payload.failed
-        );
-      }
-    });
-
-    const unlistenComplete = listen<{
-      jobId: string; done: number; skipped: number; failed: number; total: number; cancelled?: boolean;
-    }>('device:sync:complete', ({ payload }) => {
-      const current = jobStore();
-      if (current.jobId && payload.jobId === current.jobId) {
-        if (payload.cancelled) {
-          useDeviceSyncJobStore.getState().complete(payload.done, payload.skipped, payload.failed);
-          // status is already 'cancelled' from the button click; complete() would overwrite it — restore it
-          useDeviceSyncJobStore.getState().cancel();
-        } else {
-          useDeviceSyncJobStore.getState().complete(payload.done, payload.skipped, payload.failed);
-          showToast(
-            t('deviceSync.syncResult', {
-              done: payload.done, skipped: payload.skipped, total: payload.total
-            }),
-            5000, 'info'
-          );
-          // Write manifest so another machine can read the synced sources from the stick
-          const { targetDir: dir, sources: srcs } = useDeviceSyncStore.getState();
-          if (dir) {
-            invoke('write_device_manifest', { destDir: dir, sources: srcs }).catch(() => {});
-            // For every playlist source, write an Extended-M3U next to the
-            // playlist-folder tracks. Context carries the playlist name +
-            // per-track index so the filenames match the files we just synced.
-            const playlistSources = srcs.filter(s => s.type === 'playlist');
-            playlistSources.forEach(async playlist => {
-              try {
-                const tracks = await fetchTracksForSource(playlist);
-                await invoke('write_playlist_m3u8', {
-                  destDir: dir,
-                  playlistName: playlist.name,
-                  tracks: tracks.map((tr, idx) => trackToSyncInfo(tr, '', { name: playlist.name, index: idx + 1 })),
-                });
-              } catch { /* m3u8 failure is non-fatal — skip silently */ }
-            });
-          }
-        }
-        // Re-scan the device after sync completes (cancelled or not)
-        scanDevice();
-      }
-    });
-
-    return () => {
-      unlistenProgress.then(f => f());
-      unlistenComplete.then(f => f());
-    };
-  }, [t, scanDevice]);
-
-  // Load browser data when tab switches
-  useEffect(() => {
-    setSearch('');
-    if (activeTab === 'playlists' && playlists.length === 0) loadPlaylists();
-    if (activeTab === 'albums'    && randomAlbums.length === 0) loadRandomAlbums();
-    if (activeTab === 'artists'   && artists.length === 0)   loadArtists();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
-
-  // Live album search with 300ms debounce
-  useEffect(() => {
-    if (activeTab !== 'albums') return;
-    const q = search.trim();
-    if (!q) { setAlbumSearchResults([]); return; }
-    setAlbumSearchLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const { albums } = await searchSubsonic(q, { albumCount: 20, artistCount: 0, songCount: 0 });
-        setAlbumSearchResults(albums);
-      } catch {
-        setAlbumSearchResults([]);
-      } finally {
-        setAlbumSearchLoading(false);
-      }
-    }, 300);
-    return () => { clearTimeout(timer); setAlbumSearchLoading(false); };
-  }, [search, activeTab]);
-
-  const loadPlaylists = useCallback(async () => {
-    setLoadingBrowser(true);
-    try { setPlaylists(await getPlaylists()); } catch { /* ignore */ }
-    finally { setLoadingBrowser(false); }
-  }, []);
-  const loadRandomAlbums = useCallback(async () => {
-    setLoadingBrowser(true);
-    try { setRandomAlbums(await getAlbumList('random', 10)); } catch { /* ignore */ }
-    finally { setLoadingBrowser(false); }
-  }, []);
-  const loadArtists = useCallback(async () => {
-    setLoadingBrowser(true);
-    try { setArtists(await getArtists()); } catch { /* ignore */ }
-    finally { setLoadingBrowser(false); }
-  }, []);
-
-  const toggleArtistExpand = useCallback(async (artistId: string) => {
-    setExpandedArtistIds(prev => {
-      const next = new Set(prev);
-      if (next.has(artistId)) { next.delete(artistId); return next; }
-      next.add(artistId);
-      return next;
-    });
-    if (!artistAlbumsMap.has(artistId)) {
-      setLoadingArtistIds(prev => new Set(prev).add(artistId));
-      try {
-        const { albums } = await getArtist(artistId);
-        setArtistAlbumsMap(prev => new Map(prev).set(artistId, albums));
-      } finally {
-        setLoadingArtistIds(prev => { const n = new Set(prev); n.delete(artistId); return n; });
-      }
-    }
-  }, [artistAlbumsMap]);
+  // Browser (playlists / albums / artists tabs + their loaders + debounced search)
+  const {
+    playlists, randomAlbums, albumSearchResults, albumSearchLoading,
+    artists, loadingBrowser,
+    expandedArtistIds, artistAlbumsMap, loadingArtistIds,
+    toggleArtistExpand,
+  } = useDeviceSyncBrowser(activeTab, search, () => setSearch(''));
 
   const q                 = search.toLowerCase();
   const filteredPlaylists = useMemo(() => playlists.filter(p => p.name.toLowerCase().includes(q)), [playlists, q]);
@@ -321,27 +152,7 @@ export default function DeviceSync() {
     setMigrationOldTemplate('');
   };
 
-  const handleChooseFolder = async () => {
-    const sel = await openDialog({ directory: true, multiple: false, title: t('deviceSync.chooseFolder') });
-    if (sel) {
-      const dir = sel as string;
-      setTargetDir(dir);
-      // If the device has a psysonic-sync.json, always import it — replacing any
-      // sources from a previous device so switching sticks works correctly.
-      try {
-        const manifest = await invoke<{ version: number; sources: DeviceSyncSource[] } | null>(
-          'read_device_manifest', { destDir: dir }
-        );
-        if (manifest?.sources?.length) {
-          useDeviceSyncStore.getState().clearSources();
-          manifest.sources.forEach(s => useDeviceSyncStore.getState().addSource(s));
-          showToast(t('deviceSync.manifestImported', { count: manifest.sources.length }), 4000, 'info');
-        }
-      } catch { /* no manifest, that's fine */ }
-      // Trigger a device scan after folder change
-      setTimeout(() => scanDevice(), 100);
-    }
-  };
+  const handleChooseFolder = () => runDeviceSyncChooseFolder({ t, setTargetDir, scanDevice });
 
   // ─── Sync (non-blocking) ────────────────────────────────────────────────
 
