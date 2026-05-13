@@ -33,9 +33,10 @@ import OrbitSessionBar from '../components/OrbitSessionBar';
 import OrbitStartTrigger from '../components/OrbitStartTrigger';
 import { useOrbitHost } from '../hooks/useOrbitHost';
 import { useOrbitGuest } from '../hooks/useOrbitGuest';
+import { usePlatformShellSetup } from '../hooks/usePlatformShellSetup';
 import { cleanupOrphanedOrbitPlaylists } from '../utils/orbit';
 import { useOrbitStore } from '../store/orbitStore';
-import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
+import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
@@ -60,7 +61,7 @@ export function AppShell() {
   const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
   const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
-  const [isTilingWm, setIsTilingWm] = useState(false);
+  const { isTilingWm } = usePlatformShellSetup();
 
   // Orbit session hooks: idle until the local store marks a role.
   useOrbitHost();
@@ -85,23 +86,6 @@ export function AppShell() {
       document.documentElement.removeAttribute('data-orbit-role');
     }
   }, [orbitRole, orbitPhase]);
-
-  useEffect(() => {
-    if (!IS_LINUX) return;
-    invoke<boolean>('is_tiling_wm_cmd').then(setIsTilingWm).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!IS_LINUX) return;
-    invoke<boolean>('no_compositing_mode').then(noComp => {
-      if (noComp) document.documentElement.classList.add('no-compositing');
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const platform = IS_LINUX ? 'linux' : IS_MACOS ? 'macos' : IS_WINDOWS ? 'windows' : 'unknown';
-    document.documentElement.setAttribute('data-platform', platform);
-  }, []);
 
   useEffect(() => {
     const win = getCurrentWindow();
@@ -132,8 +116,6 @@ export function AppShell() {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const setMusicFolders = useAuthStore(s => s.setMusicFolders);
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
-  const linuxWebkitKineticScroll = useAuthStore(s => s.linuxWebkitKineticScroll);
-  const loggingMode = useAuthStore(s => s.loggingMode);
   const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
@@ -150,23 +132,6 @@ export function AppShell() {
     window.addEventListener('psy:navigate', onPsyNavigate);
     return () => window.removeEventListener('psy:navigate', onPsyNavigate);
   }, [navigate]);
-
-  // Sync custom titlebar preference with native decorations on Linux
-  // On tiling WMs decorations are always off (no native title bar to replace).
-  useEffect(() => {
-    if (!IS_LINUX) return;
-    const enabled = isTilingWm ? false : !useCustomTitlebar;
-    invoke('set_window_decorations', { enabled }).catch(() => {});
-  }, [useCustomTitlebar, isTilingWm]);
-
-  useEffect(() => {
-    if (!IS_LINUX) return;
-    invoke('set_linux_webkit_smooth_scrolling', { enabled: linuxWebkitKineticScroll }).catch(() => {});
-  }, [linuxWebkitKineticScroll]);
-
-  useEffect(() => {
-    invoke('set_logging_mode', { mode: loggingMode }).catch(() => {});
-  }, [loggingMode]);
 
   useEffect(() => {
     if (!isLoggedIn || !activeServerId) return;
