@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { RotateCcw, Shield, Trash2, User, UserPlus, Users, Wand2, X } from 'lucide-react';
 import {
   ndCreateUser,
   ndDeleteUser,
-  ndListLibraries,
-  ndListUsers,
   ndSetUserLibraries,
   ndUpdateUser,
-  type NdLibrary,
   type NdUser,
 } from '../../api/navidromeAdmin';
 import ConfirmModal from '../ConfirmModal';
@@ -20,6 +17,7 @@ import {
 } from '../../utils/serverMagicString';
 import { shortHostFromServerUrl } from '../../utils/serverDisplayName';
 import { formatLastSeen } from '../../utils/userMgmtHelpers';
+import { useUserMgmtData } from '../../hooks/useUserMgmtData';
 import { UserForm, type UserFormState } from './UserForm';
 
 export function UserManagementSection({
@@ -32,46 +30,13 @@ export function UserManagementSection({
   currentUsername: string;
 }) {
   const { t, i18n } = useTranslation();
-  const [users, setUsers] = useState<NdUser[]>([]);
-  const [libraries, setLibraries] = useState<NdLibrary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { users, libraries, loading, loadError, load } = useUserMgmtData(serverUrl, token, t);
   const [editing, setEditing] = useState<NdUser | 'new' | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<NdUser | null>(null);
   const [busy, setBusy] = useState(false);
   const [magicRowUser, setMagicRowUser] = useState<NdUser | null>(null);
   const [magicRowPassword, setMagicRowPassword] = useState('');
   const [magicRowSubmitting, setMagicRowSubmitting] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      // Sequential, not parallel: nginx setups with churning upstream
-      // keep-alive drop one of the two parallel TLS connections. Doing
-      // users first then libraries keeps us on one connection at a time
-      // and pairs cleanly with the nd_retry backoff on the Rust side.
-      const list = await ndListUsers(serverUrl, token);
-      const libs = await ndListLibraries(serverUrl, token).catch(() => [] as NdLibrary[]);
-      setUsers([...list].sort((a, b) => a.userName.localeCompare(b.userName)));
-      setLibraries([...libs].sort((a, b) => a.name.localeCompare(b.name)));
-    } catch (e) {
-      // Tauri invoke rejects with a plain string (our Rust returns Err(String)),
-      // not an Error instance. Normalise so the surfaced message is the real
-      // cause (e.g. "tls handshake eof") rather than the generic i18n fallback.
-      const raw = typeof e === 'string'
-        ? e
-        : (e instanceof Error && e.message)
-          ? e.message
-          : '';
-      const prefix = t('settings.userMgmtLoadError');
-      setLoadError(raw ? `${prefix} ${raw}` : prefix);
-    } finally {
-      setLoading(false);
-    }
-  }, [serverUrl, token, t]);
-
-  useEffect(() => { void load(); }, [load]);
 
   const handleSave = async (form: UserFormState) => {
     const userName = form.userName.trim();
