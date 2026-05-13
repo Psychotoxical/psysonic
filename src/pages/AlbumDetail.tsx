@@ -1,8 +1,7 @@
 import { buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
-import { getArtist, getArtistInfo } from '../api/subsonicArtists';
-import { getAlbum } from '../api/subsonicLibrary';
-import type { SubsonicSong, SubsonicAlbum } from '../api/subsonicTypes';
+import { getArtistInfo } from '../api/subsonicArtists';
+import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -11,6 +10,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
+import { useAlbumDetailData } from '../hooks/useAlbumDetailData';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
@@ -24,14 +24,7 @@ import { useCachedUrl } from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
 import { useSelectionStore } from '../store/selectionStore';
-
-function sanitizeFilename(name: string): string {
-  return name
-    .replace(/[/\\?%*:|"<>]/g, '-')
-    .replace(/\.{2,}/g, '.')
-    .replace(/^[\s.]+|[\s.]+$/g, '')
-    .substring(0, 200) || 'download';
-}
+import { sanitizeFilename } from '../utils/albumDetailHelpers';
 
 export default function AlbumDetail() {
   const { t } = useTranslation();
@@ -48,14 +41,13 @@ export default function AlbumDetail() {
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
 
-  const [album, setAlbum] = useState<Awaited<ReturnType<typeof getAlbum>> | null>(null);
-  const [relatedAlbums, setRelatedAlbums] = useState<SubsonicAlbum[]>([]);
+  const {
+    album, setAlbum, relatedAlbums, loading,
+    isStarred, setIsStarred, starredSongs, setStarredSongs,
+  } = useAlbumDetailData(id);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [bio, setBio] = useState<string | null>(null);
   const [bioOpen, setBioOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [isStarred, setIsStarred] = useState(false);
-  const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const [offlineStorageFull, setOfflineStorageFull] = useState(false);
 
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
@@ -100,26 +92,6 @@ export default function AlbumDetail() {
   const offlineProgress = offlineProgressTotal > 0
     ? { done: offlineProgressDone, total: offlineProgressTotal }
     : null;
-
-  useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    setRelatedAlbums([]);
-    getAlbum(id).then(async data => {
-      setAlbum(data);
-      setIsStarred(!!data.album.starred);
-      const initialStarred = new Set<string>();
-      data.songs.forEach(s => { if (s.starred) initialStarred.add(s.id); });
-      setStarredSongs(initialStarred);
-      setLoading(false);
-      try {
-        const artistData = await getArtist(data.album.artistId);
-        setRelatedAlbums(artistData.albums.filter(a => a.id !== id));
-      } catch (e) {
-        console.error('Failed to fetch related albums', e);
-      }
-    }).catch(() => setLoading(false));
-  }, [id]);
 
   useEffect(() => {
     if (!id) return;
