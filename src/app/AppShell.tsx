@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { PanelRight, PanelRightClose } from 'lucide-react';
@@ -37,6 +37,10 @@ import { useNowPlayingTrayTitle } from '../hooks/useNowPlayingTrayTitle';
 import { useTrayMenuI18n } from '../hooks/useTrayMenuI18n';
 import { useServerCapabilitiesProbe } from '../hooks/useServerCapabilitiesProbe';
 import { useQueueResizer } from '../hooks/useQueueResizer';
+import { useGlobalDndAndSelectionBlockers } from '../hooks/useGlobalDndAndSelectionBlockers';
+import { useAppActivityTracking } from '../hooks/useAppActivityTracking';
+import { useMainScrollingIndicator } from '../hooks/useMainScrollingIndicator';
+import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
 import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
@@ -104,20 +108,7 @@ export function AppShell() {
     document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTo({ top: 0 });
   }, [location.pathname]);
 
-  // Auto-navigate to offline library when no connection but cached content exists
-  const prevConnStatus = useRef(connStatus);
-  useEffect(() => {
-    const prev = prevConnStatus.current;
-    prevConnStatus.current = connStatus;
-
-    if (connStatus === 'disconnected' && hasOfflineContent && prev !== 'disconnected') {
-      navigate('/offline', { replace: true });
-    }
-    // Return from offline page only when reconnecting (not when user navigates there manually while online)
-    if (connStatus === 'connected' && prev === 'disconnected' && location.pathname === '/offline') {
-      navigate('/', { replace: true });
-    }
-  }, [connStatus, hasOfflineContent, location.pathname, navigate]);
+  useOfflineAutoNav(connStatus, hasOfflineContent, location.pathname, navigate);
 
   useEffect(() => {
     initializeFromServerQueue();
@@ -134,7 +125,7 @@ export function AppShell() {
   // modal takeover on startup.
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readInitialSidebarCollapsed);
-  const [isMainScrolling, setIsMainScrolling] = useState(false);
+  const isMainScrolling = useMainScrollingIndicator(location.pathname);
 
   const setSidebarCollapsed = useCallback((collapsed: boolean) => {
     persistSidebarCollapsed(collapsed);
@@ -155,120 +146,8 @@ export function AppShell() {
     handleQueueHandleMouseDown,
   } = useQueueResizer({ isMobile, isSidebarCollapsed, isQueueVisible, toggleQueue });
 
-  useEffect(() => {
-    const viewports = new Set<HTMLElement>();
-    const appViewport = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
-    if (appViewport) viewports.add(appViewport);
-    const nowPlayingViewport = document.querySelector<HTMLElement>('.np-main__viewport');
-    if (nowPlayingViewport) viewports.add(nowPlayingViewport);
-    if (viewports.size === 0) return;
-
-    let scrollHideTimer: number | null = null;
-
-    const onScroll = () => {
-      setIsMainScrolling(true);
-      if (scrollHideTimer != null) window.clearTimeout(scrollHideTimer);
-      scrollHideTimer = window.setTimeout(() => {
-        setIsMainScrolling(false);
-        scrollHideTimer = null;
-      }, 180);
-    };
-
-    viewports.forEach(viewport => {
-      viewport.addEventListener('scroll', onScroll, { passive: true });
-    });
-    return () => {
-      viewports.forEach(viewport => {
-        viewport.removeEventListener('scroll', onScroll);
-      });
-      if (scrollHideTimer != null) window.clearTimeout(scrollHideTimer);
-      setIsMainScrolling(false);
-    };
-  }, [location.pathname]);
-
-  // ── Global DnD fix for Linux/WebKitGTK / Wayland ─────────────────
-  // dragover/dragenter: WebKitGTK needs preventDefault so external drops are not
-  // a permanent "forbidden" cursor. dragstart (capture): cancel native drags from
-  // the page (e.g. SVG grips); Wayland can otherwise leave a stuck GTK drag-proxy.
-  // In-app moves use psy-drag (mouse events). Harmless on Windows/macOS.
-  useEffect(() => {
-    const allow = (e: DragEvent) => {
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-    };
-    // Prevent the webview from navigating when something (e.g. a file
-    // from the OS file manager) is dropped on the document body.
-    const blockDrop = (e: DragEvent) => { e.preventDefault(); };
-
-    // Block Ctrl+A / Cmd+A "select all" — WebKit ignores user-select:none for keyboard shortcuts
-    const blockSelectAll = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        const target = e.target as HTMLElement;
-        // Allow Ctrl+A inside actual text inputs and textareas
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-        e.preventDefault();
-      }
-    };
-
-    // Block mouse drag selection — WebKitGTK ignores user-select:none on * for drag selection
-    const blockSelectStart = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-      if ((target as HTMLElement).closest('[data-selectable]')) return;
-      e.preventDefault();
-    };
-
-    const blockDragStart = (e: DragEvent) => {
-      e.preventDefault();
-    };
-
-    document.addEventListener('dragover', allow);
-    document.addEventListener('dragenter', allow);
-    document.addEventListener('drop', blockDrop);
-    document.addEventListener('dragstart', blockDragStart, true);
-    document.addEventListener('keydown', blockSelectAll, true);
-    document.addEventListener('selectstart', blockSelectStart);
-
-    return () => {
-      document.removeEventListener('dragover', allow);
-      document.removeEventListener('dragenter', allow);
-      document.removeEventListener('drop', blockDrop);
-      document.removeEventListener('dragstart', blockDragStart, true);
-      document.removeEventListener('keydown', blockSelectAll, true);
-      document.removeEventListener('selectstart', blockSelectStart);
-    };
-  }, []);
-
-  // Pause CSS animations when the browser tab is hidden (`document.hidden`).
-  // Tauri `win.hide()` is mirrored separately via `data-psy-native-hidden` from
-  // Rust (see components.css). WebView2 can keep compositing without the former.
-  useEffect(() => {
-    const update = () => {
-      document.documentElement.dataset.appHidden = document.hidden ? 'true' : 'false';
-    };
-    document.addEventListener('visibilitychange', update);
-    update();
-    return () => document.removeEventListener('visibilitychange', update);
-  }, []);
-
-  // Pause cosmetic animations when the window loses OS focus but stays visible
-  // (alt-tab, click into another app). On low-VRAM laptops WebView2 keeps
-  // compositing mesh blobs / waveform / marquee at full rate even though the
-  // user isn't looking — measurable GPU drain reported in issue #334.
-  useEffect(() => {
-    const update = () => {
-      const blurred = !document.hasFocus();
-      window.__psyBlurred = blurred;
-      document.documentElement.dataset.appBlurred = blurred ? 'true' : 'false';
-    };
-    window.addEventListener('focus', update);
-    window.addEventListener('blur', update);
-    update();
-    return () => {
-      window.removeEventListener('focus', update);
-      window.removeEventListener('blur', update);
-    };
-  }, []);
+  useGlobalDndAndSelectionBlockers();
+  useAppActivityTracking();
 
   const isMobilePlayer = isMobile && location.pathname === '/now-playing';
 
