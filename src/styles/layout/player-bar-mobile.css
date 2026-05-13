@@ -1,0 +1,41 @@
+/* ─── Player Bar — Mobile ─── */
+.app-shell[data-mobile] .player-bar {
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  height: 64px;
+}
+
+.app-shell[data-mobile] .player-track-info {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.app-shell[data-mobile] .player-waveform-section,
+.app-shell[data-mobile] .player-volume-section,
+.app-shell[data-mobile] .player-eq-btn,
+.app-shell[data-mobile] .player-bar > .player-btn.player-btn-sm:not(.player-star-btn):not(.player-love-btn) {
+  display: none;
+}
+
+.app-shell[data-mobile] .player-buttons {
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.app-shell[data-mobile] .player-btn-primary {
+  width: 40px;
+  height: 40px;
+}
+
+.app-shell[data-mobile] .player-album-art,
+.app-shell[data-mobile] .player-album-art-placeholder {
+  width: 44px;
+  height: 44px;
+}
+
+/* Hide star + last.fm love buttons in mobile player to save space */
+.app-shell[data-mobile] .player-star-btn,
+.app-shell[data-mobile] .player-love-btn {
+  display: none;
+}
+

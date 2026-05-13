@@ -1,0 +1,80 @@
+/* ─── BottomNav Component ─── */
+.bottom-nav {
+  grid-area: bottomnav;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border-subtle);
+  height: 56px;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: color var(--transition-fast);
+  position: relative;
+}
+
+.bottom-nav-item:hover {
+  color: var(--text-secondary);
+}
+
+.bottom-nav-item.active {
+  color: var(--accent);
+}
+
+.bottom-nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 0 0 var(--radius-full) var(--radius-full);
+}
+
+.bottom-nav-item svg {
+  opacity: 0.65;
+  transition: opacity var(--transition-fast);
+}
+
+.bottom-nav-item.active svg,
+.bottom-nav-item:hover svg {
+  opacity: 1;
+}
+
+.bottom-nav-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bottom-nav-np-dot {
+  position: absolute;
+  top: -2px;
+  right: -5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: np-dot-pulse 1.8s ease-in-out infinite;
+}
+
+.bottom-nav-label {
+  line-height: 1;
+}
+

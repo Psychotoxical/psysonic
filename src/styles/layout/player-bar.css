@@ -1,0 +1,428 @@
+/* ─── Player Bar ─── */
+.player-bar {
+  grid-area: player;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-5);
+  background: var(--bg-player);
+  border-top: 1px solid var(--border-subtle);
+  height: var(--player-height);
+  position: relative;
+  z-index: 100;
+  /* WebKitGTK (software compositing) occasionally paints the bar fully
+     black for one frame when an unrelated layer in the page invalidates.
+     `contain` isolates layout/paint so the bar's region cannot
+     participate in the surrounding dirty rect. */
+  contain: layout paint;
+}
+
+/* Floating player bar styles - positioning handled by ResizeObserver */
+.player-bar.floating {
+  position: fixed;
+  bottom: 12px;
+  /* left/right handled dynamically by JS */
+  z-index: 1000;
+  border-radius: 50px;
+  width: auto;
+  min-width: 100px;
+  max-width: none;
+  grid-area: unset;
+  padding: 0 24px 0 8px;
+  gap: 16px;
+  background: var(--bg-player);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Internal element adjustments for floating mode */
+.player-bar.floating .player-track-info {
+  flex: 0 0 auto;
+  min-width: 240px;
+  max-width: 320px;
+}
+
+.player-bar.floating .player-album-art-wrap {
+  border-radius: 50%;
+}
+
+.player-bar.floating .player-album-art,
+.player-bar.floating .player-album-art-placeholder {
+  border-radius: 0;
+}
+
+.player-bar.floating .player-buttons {
+  flex-shrink: 0;
+  gap: 16px;
+}
+
+.player-bar.floating .player-waveform-section {
+  flex: 1;
+  min-width: 200px;
+}
+
+.player-bar.floating .player-volume-section {
+  flex: 0 0 auto;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Liquid-glass floating bar — macOS + Windows only.
+   Inspired by PR #211 (kveld9), adapted to theme tokens and reduced
+   blur so it stays within WebView2 / WKWebView GPU budgets. Linux
+   always keeps the solid look from PR #216, regardless of compositor. */
+html[data-platform="macos"] .player-bar.floating,
+html[data-platform="windows"] .player-bar.floating {
+  background: color-mix(in srgb, var(--bg-player) 72%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 12%, transparent);
+}
+
+.player-track-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 320px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.player-album-art {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--bg-card);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-md);
+}
+
+.player-album-art-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.player-album-art-wrap {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.player-album-art-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  pointer-events: none;
+}
+.player-album-art-wrap.clickable { cursor: pointer; }
+.player-album-art-wrap:hover::after { opacity: 1; }
+
+/* Expand icon hint that appears on cover hover */
+.player-art-expand-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  pointer-events: none;
+  z-index: 1;
+}
+.player-album-art-wrap.clickable:hover .player-art-expand-hint { opacity: 1; }
+
+.player-track-meta {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.player-track-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.player-track-artist {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.player-track-rating {
+  margin-top: 4px;
+  width: auto;
+  justify-content: flex-start;
+}
+
+.player-track-rating .star {
+  font-size: 11px;
+  padding: 0 1px;
+}
+
+/* ── Marquee (PlayerBar track name / artist) ── */
+.marquee-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.marquee-scroll {
+  display: inline-block;
+  animation: player-marquee 12s linear infinite;
+  animation-delay: 2s;
+}
+
+@keyframes player-marquee {
+  0%,   12% { transform: translateX(0); }
+  78%,  88% { transform: translateX(var(--marquee-amount)); }
+  88.1%, 100% { transform: translateX(0); }
+}
+
+.player-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.player-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.player-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  transform: scale(1.12);
+}
+
+.player-btn-sm {
+  width: 28px;
+  height: 28px;
+}
+
+/* Star + Last.fm heart — visually separated from track title */
+.player-star-btn {
+  margin: var(--space-1);
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.player-star-btn:hover,
+.player-star-btn.is-starred {
+  color: var(--color-star-active, var(--accent));
+}
+
+.player-btn-primary {
+  width: 46px;
+  height: 46px;
+  background: var(--accent);
+  color: var(--ctp-crust);
+  border-radius: 50%;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  flex-shrink: 0;
+}
+
+.player-btn-primary:hover {
+  background: var(--accent);
+  color: var(--ctp-crust);
+  transform: scale(1.06);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), var(--shadow-glow);
+  filter: brightness(1.12);
+}
+
+/* Waveform seekbar section */
+.player-waveform-section {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: 24px;
+  margin-right: 24px;
+}
+
+.player-waveform-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 2.5rem;
+}
+
+.player-time:first-child {
+  text-align: right;
+}
+
+.player-time:last-child {
+  text-align: left;
+}
+
+/* Clickable time toggle with swap indicator */
+.player-time-toggle {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.player-time-toggle:hover {
+  background-color: var(--surface-hover, rgba(128, 128, 128, 0.2));
+  color: var(--text-primary);
+}
+
+.player-time-toggle:active {
+  background-color: var(--surface-active, rgba(128, 128, 128, 0.3));
+}
+
+/* Volume section */
+.player-volume-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  width: 155px;
+}
+
+.player-volume-slider-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.player-volume-slider {
+  width: 100%;
+  display: block;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.player-volume-pct {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.player-eq-btn {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.player-eq-btn:hover,
+.player-eq-btn.active {
+  color: var(--accent);
+}
+
+.player-overflow-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.player-overflow-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 238px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  z-index: 240;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-overflow-menu-row {
+  display: flex;
+  gap: 6px;
+}
+
+.player-overflow-menu-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.player-overflow-menu-btn:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.player-overflow-menu-btn.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.player-volume-section.player-volume-section--menu {
+  width: 100%;
+}
+
+.player-overflow-menu--volume-only {
+  padding: 10px;
+}
+
+.player-volume-slider-wrap.player-volume-slider-wrap--menu-only {
+  width: 100%;
+  min-width: 0;
+}
+

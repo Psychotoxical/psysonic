@@ -1,0 +1,42 @@
+/* ─── Psysonic App Shell ─── */
+
+*, *::before, *::after {
+  user-select: none;
+}
+
+/* Allow text selection only where the user needs to copy content */
+.artist-bio, [data-selectable] {
+  user-select: text;
+}
+
+.app-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--queue-width);
+  /* minmax(0, 1fr) instead of plain 1fr: CSS Grid spec treats 1fr as
+     minmax(auto, 1fr), meaning the row won't shrink below its min-content
+     size. With minmax(0, 1fr) the row can collapse to zero, keeping the
+     player bar row always visible regardless of content size or zoom level. */
+  grid-template-rows: minmax(0, 1fr) var(--player-height);
+  grid-template-areas:
+    "sidebar main queue"
+    "player  player player";
+  /* height: 100% inherits from html/body/#root (all 100%) so the grid
+     tracks actual window resize events on every platform.
+     100vh was used previously but WebView2 (Windows) does not update the
+     CSS viewport synchronously on resize, causing the player-bar grid row
+     to drift off-screen. overflow: hidden still prevents the 1fr row from
+     pushing the grid taller than the window on Linux WMs that ignore
+     the OS minHeight constraint. */
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+/* When player bar is floating, content extends to bottom */
+.app-shell.floating-player {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas:
+    "sidebar main queue";
+}
+

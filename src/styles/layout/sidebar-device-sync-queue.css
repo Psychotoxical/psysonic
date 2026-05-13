@@ -1,0 +1,16 @@
+/* ─── Sidebar device-sync queue ─── */
+.sidebar-sync-queue {
+  background: color-mix(in srgb, var(--success, #4ade80) 10%, var(--bg-sidebar));
+  border-color: color-mix(in srgb, var(--success, #4ade80) 25%, transparent);
+  color: var(--success, #4ade80);
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+.spin-slow {
+  animation: spin-slow 2s linear infinite;
+  flex-shrink: 0;
+}
+

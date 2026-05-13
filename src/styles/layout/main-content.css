@@ -1,0 +1,122 @@
+/* ─── Main Content ─── */
+.main-content {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0; /* allow 1fr row to shrink freely */
+  background: var(--bg-app);
+  z-index: 1;
+}
+
+/* Scoped UI scaling target. Sidebar / queue / player / titlebar live in
+   sibling grid cells of .app-shell and stay at 1:1. The wrapper inherits
+   .main-content's flex column layout so .content-header (fixed height) and
+   .content-body (flex: 1, scroll) keep working unchanged.
+   Zoom is applied via inline style only when uiScale !== 1, so the default
+   case has no extra layer or layout cost. */
+.main-content-zoom {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.content-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  height: 64px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+  position: relative;
+  z-index: 10;
+}
+
+.content-header h1 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.content-header .spacer { flex: 1; }
+
+.content-header > * {
+  transition: opacity 0.14s ease, visibility 0.14s ease;
+}
+
+.content-header[data-live-search-overlay] > :not(.live-search):not(.spacer) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.content-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-6);
+  contain: paint;
+}
+
+/* When floating player is active, add extra bottom padding so content doesn't
+   get hidden behind the fixed floating bar (player height + bottom offset + minimal spacing).
+   !important needed to override inline padding:0 on App.tsx content-body */
+.app-shell.floating-player .content-body {
+  padding-bottom: calc(var(--player-height) + 12px) !important;
+}
+
+/* Every page re-uses .content-body as its outer wrapper, but App.tsx already
+   renders one around <Routes /> as the scroll container. The inner one must
+   not establish its own scroll ancestor — otherwise `position: sticky`
+   children anchor to a container that never scrolls, and the header just
+   scrolls along with the content. Padding stays: the outer App.tsx
+   content-body has `padding: 0` inline, the inner one is what gives each
+   page its breathing room. */
+.content-body .content-body {
+  overflow: visible;
+}
+
+/* Main route stack: scroll + overlay thumb live in the inner viewport, not the
+   outer .content-body, so sticky headers still anchor to the scrolling element. */
+.content-body.app-shell-route-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: relative;
+  contain: none;
+}
+
+.app-shell-route-scroll.overlay-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell-route-scroll .app-shell-route-scroll__viewport {
+  contain: paint;
+}
+
+/* Sticky page header: keeps page title + filter/search bar visible while the
+   body scrolls. Negative horizontal margins (+ matching padding) make the
+   background flush with the scroll container edges so the sticky block looks
+   like a real bar, not a floating island. `top: 0` clamps below the content-
+   body's own padding-top; the residual 24px gap above the sticky block while
+   scrolling is intentional — gives the bar visual breathing room. */
+.page-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-app);
+  margin: 0 calc(-1 * var(--space-6)) var(--space-5);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+

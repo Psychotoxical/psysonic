@@ -1,0 +1,191 @@
+/* ─── Utility Footer ─── */
+.mp-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 8px 0 max(12px, env(safe-area-inset-bottom, 12px));
+  flex-shrink: 0;
+}
+
+.mp-footer-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  transition: color var(--transition-fast), background var(--transition-fast);
+  min-height: 44px;
+}
+
+.mp-footer-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE QUEUE / LYRICS DRAWER
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes mq-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes mq-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.mq-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  animation: mq-fade-in 0.2s ease both;
+}
+
+.mq-drawer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 90vh;
+  z-index: 501;
+  background: var(--bg-sidebar);
+  border-radius: 18px 18px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: mq-slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
+}
+
+.mq-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.mq-drawer-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.mq-drawer-count {
+  font-size: 13px;
+  color: var(--accent);
+  flex: 1;
+}
+
+.mq-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.mq-drawer-close:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.mq-drawer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.mq-drawer-empty {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Lyrics drawer — fill entire drawer */
+.mq-drawer-lyrics .mq-drawer-list {
+  padding: 0;
+}
+
+/* ── Queue Item ── */
+.mq-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast);
+  min-height: 44px;
+}
+
+.mq-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.mq-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.mq-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mq-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mq-item-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.mq-item.active .mq-item-artist {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.mq-item-dur {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: var(--space-3);
+}
+
+.mq-item.active .mq-item-dur {
+  color: inherit;
+  opacity: 0.7;
+}
+

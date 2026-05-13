@@ -1,0 +1,394 @@
+/* ─── Update Toast ─── */
+@keyframes update-toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── AppUpdater floating toast ── */
+.app-updater-toast {
+  position: fixed;
+  bottom: calc(var(--player-height, 80px) + 12px);
+  left: 12px;
+  width: 210px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-sidebar);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 9000;
+  animation: update-toast-in 0.35s ease both;
+}
+.app-updater-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent);
+}
+.app-updater-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex: 1;
+}
+.app-updater-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+.app-updater-dismiss:hover { opacity: 1; }
+.app-updater-version {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding-left: 19px;
+}
+.app-updater-actions {
+  padding-left: 19px;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-updater-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 2px;
+}
+.app-updater-error {
+  font-size: 10px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.app-updater-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.85;
+  transition: opacity var(--transition-fast);
+}
+.app-updater-btn-primary:hover { opacity: 1; }
+.app-updater-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.75;
+  transition: opacity var(--transition-fast);
+}
+.app-updater-btn-secondary:hover { opacity: 1; color: var(--text-primary); }
+.app-updater-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: 19px;
+  margin-top: 2px;
+}
+.app-updater-progress-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--bg-glass);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.app-updater-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.15s ease;
+}
+.app-updater-pct {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 26px;
+  text-align: right;
+}
+.app-updater-status {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-left: 19px;
+  font-style: italic;
+}
+
+/* ── Update Modal ────────────────────────────────────────────────────────── */
+.update-modal {
+  width: min(520px, 94vw);
+  gap: 0;
+  padding: 0;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.update-modal-header {
+  padding: 14px 16px 14px 18px;
+}
+.update-modal-versions {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+/* Scrollable middle section (changelog + download area combined) */
+.update-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+/* Changelog accordion */
+.update-modal-changelog {
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.update-modal-changelog-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  letter-spacing: 0.03em;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.update-modal-changelog-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-glass);
+}
+.update-modal-changelog-body {
+  padding: 4px 18px 12px;
+}
+/* Download area */
+.update-modal-download-area {
+  padding: 14px 18px;
+}
+.update-modal-asset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+.update-modal-asset-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+  word-break: break-all;
+}
+.update-modal-asset-size {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.update-modal-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.update-modal-progress .app-updater-progress-bar { flex: 1; height: 4px; }
+.update-modal-dl-bytes {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.update-modal-done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.update-modal-done-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.update-modal-done-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.update-modal-folder-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+}
+/* macOS Tauri Updater — idle state info block */
+.update-modal-mac-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.update-modal-mac-info-main {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.update-modal-mac-info-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.update-modal-trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.update-modal-trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--positive, var(--accent));
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+}
+.update-modal-trust-badge svg {
+  flex-shrink: 0;
+}
+/* macOS Tauri Updater — done state (after install, before/during restart) */
+.update-modal-done-icon {
+  align-self: center;
+  color: var(--positive, var(--accent));
+  margin-bottom: var(--space-1);
+}
+.update-modal-done-countdown {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+/* AUR hint */
+.update-modal-aur {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.update-modal-aur-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.update-modal-aur-cmd {
+  display: block;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  font-family: monospace;
+  user-select: all;
+}
+.update-modal-aur-alt {
+  color: var(--text-muted);
+}
+.update-modal-asset-none {
+  padding: 4px 0;
+}
+/* Footer */
+.update-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.update-modal-skip {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: var(--space-1) var(--space-2);
+}
+.update-modal-skip:hover { color: var(--text-secondary); }
+
+.update-toast {
+  margin: 0 var(--space-1) var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: update-toast-in 0.35s ease both;
+}
+
+.update-toast-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent);
+}
+
+.update-toast-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.update-toast-version {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding-left: 22px;
+}
+
+.update-toast-link {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  padding-left: 22px;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast);
+}
+
+.update-toast-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.update-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) 0;
+  color: var(--accent);
+  animation: update-toast-in 0.35s ease both;
+  cursor: default;
+}
+

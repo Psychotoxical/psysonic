@@ -1,0 +1,41 @@
+/* ─── Offline Banner ─── */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-sidebar));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.offline-banner span {
+  flex: 1;
+}
+
+.offline-banner-retry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.offline-banner-retry:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.offline-banner-retry:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+

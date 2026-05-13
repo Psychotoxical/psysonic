@@ -1,0 +1,26 @@
+/* ─── Grid Overrides ─── */
+.app-shell[data-mobile] {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "main"
+    "bottomnav"
+    "player";
+  width: 100vw;
+  max-width: 100%;
+}
+
+.app-shell[data-mobile][data-titlebar] {
+  grid-template-rows: var(--titlebar-height) minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "titlebar"
+    "main"
+    "bottomnav"
+    "player";
+}
+
+/* Hide the sidebar collapse button on mobile */
+.app-shell[data-mobile] .collapse-btn {
+  display: none;
+}
+

@@ -1,0 +1,16 @@
+/* ─── Content Header — Mobile ─── */
+.app-shell[data-mobile] .content-header {
+  padding: 0 var(--space-4);
+  height: 52px;
+  gap: var(--space-3);
+}
+
+/* Hide queue toggle on mobile */
+.app-shell[data-mobile] .queue-toggle-btn {
+  display: none;
+}
+
+.app-shell[data-mobile] .resizer-queue-handle {
+  display: none;
+}
+

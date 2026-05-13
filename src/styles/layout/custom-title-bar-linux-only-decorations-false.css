@@ -1,0 +1,139 @@
+/* ─── Custom title bar (Linux only — decorations: false) ─── */
+:root {
+  --titlebar-height: 32px;
+}
+
+.app-shell[data-titlebar] {
+  grid-template-rows: var(--titlebar-height) minmax(0, 1fr) var(--player-height);
+  grid-template-areas:
+    "titlebar titlebar titlebar"
+    "sidebar  main     queue"
+    "player   player   player";
+}
+
+/* When player bar is floating with titlebar, content extends to bottom */
+.app-shell[data-titlebar].floating-player {
+  grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
+  grid-template-areas:
+    "titlebar titlebar titlebar"
+    "sidebar  main     queue";
+}
+
+/* Resize grips — replace the native GTK grips lost when decorations: false */
+.app-shell[data-titlebar]::before,
+.app-shell[data-titlebar]::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--text-muted) 1.5px, transparent 1.5px);
+  background-size: 4px 4px;
+  opacity: 0.35;
+  z-index: 9999;
+}
+.app-shell[data-titlebar]::before { left: 0; }
+.app-shell[data-titlebar]::after  { right: 0; }
+
+.titlebar {
+  grid-area: titlebar;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 6px 0 12px;
+  height: var(--titlebar-height);
+  user-select: none;
+}
+
+.titlebar-track {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 40%;
+  pointer-events: none;
+  padding: 3px 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.titlebar-track:empty {
+  display: none;
+}
+
+.titlebar-track-state {
+  font-size: 9px;
+  color: var(--accent);
+  flex-shrink: 0;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+.titlebar-track-text {
+  font-size: 11px;
+  color: #ececec;
+  max-width: 100%;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  flex: 0 0 auto;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.titlebar-btn-close {
+  background: #ff5f57;
+}
+
+.titlebar-btn-minimize {
+  background: #febc2e;
+}
+
+.titlebar-btn-maximize {
+  background: #28c840;
+}
+
+.titlebar-btn:hover {
+  filter: brightness(1.1);
+}
+
+.titlebar-btn-close:hover    { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(255, 95, 87, 0.75); }
+.titlebar-btn-minimize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(254, 188, 46, 0.75); }
+.titlebar-btn-maximize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(40, 200, 64, 0.75); }
+
+.titlebar-btn:active {
+  filter: brightness(0.92);
+}
+
+.titlebar-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Resizer handles must start below the titlebar */
+.app-shell[data-titlebar] .resizer {
+  top: var(--titlebar-height);
+}
+

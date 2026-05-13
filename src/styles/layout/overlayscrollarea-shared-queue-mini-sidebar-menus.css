@@ -1,0 +1,191 @@
+/* ─── OverlayScrollArea (shared: queue, mini, sidebar, menus) ─────────────── */
+.overlay-scroll {
+  --overlay-rail-top: 0px;
+  --overlay-rail-bottom: 0px;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-scroll--rail-inset-none {
+  --overlay-rail-top: 0px;
+  --overlay-rail-bottom: 0px;
+}
+
+.overlay-scroll--rail-inset-mini {
+  --overlay-rail-top: 4px;
+  --overlay-rail-bottom: 4px;
+}
+
+.overlay-scroll--rail-inset-panel {
+  --overlay-rail-top: var(--space-2);
+  --overlay-rail-bottom: var(--space-2);
+}
+
+.overlay-scroll--viewport-scroll-auto .overlay-scroll__viewport {
+  scroll-behavior: auto;
+}
+
+.overlay-scroll__viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+
+.overlay-scroll__viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.overlay-scroll__rail {
+  position: absolute;
+  top: var(--overlay-rail-top);
+  right: 0;
+  bottom: var(--overlay-rail-bottom);
+  width: 14px;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.overlay-scroll__thumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--text-muted);
+  opacity: 0;
+  transition:
+    opacity 0.18s ease,
+    width 0.2s ease,
+    border-radius 0.2s ease;
+  pointer-events: none;
+  will-change: transform;
+  cursor: grab;
+  touch-action: none;
+}
+
+.overlay-scroll__viewport.is-scrolling ~ .overlay-scroll__rail .overlay-scroll__thumb,
+.overlay-scroll:hover .overlay-scroll__rail .overlay-scroll__thumb {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+
+.overlay-scroll__rail:hover .overlay-scroll__thumb,
+.overlay-scroll__rail:has(.overlay-scroll__thumb.is-thumb-dragging) .overlay-scroll__thumb {
+  width: 9px;
+  border-radius: 4px;
+}
+
+.overlay-scroll__rail .overlay-scroll__thumb.is-thumb-dragging {
+  opacity: 0.9;
+  pointer-events: auto;
+  cursor: grabbing;
+  transition: opacity 0.18s ease;
+}
+
+.queue-list-wrap.overlay-scroll {
+  flex: 1 1 auto;
+}
+
+.queue-list.overlay-scroll__viewport {
+  padding: var(--space-2);
+}
+
+.queue-empty {
+  padding: var(--space-4);
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 14px;
+}
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  color: var(--text-secondary);
+}
+/* Prevent child elements from stealing dragenter/dragleave events */
+.queue-item > * { pointer-events: none; }
+
+.queue-item:hover, .queue-item.context-active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.queue-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.queue-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.queue-item-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: inherit;
+}
+
+.queue-item-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.queue-item:hover .queue-item-artist,
+.queue-item.context-active .queue-item-artist {
+  color: var(--text-secondary);
+}
+
+.queue-item-duration {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: var(--space-3);
+}
+
+.queue-item.active .queue-item-artist,
+.queue-item.active .queue-item-duration {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.queue-item-attribution,
+.queue-current-attribution {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.75;
+  margin-top: 1px;
+  font-style: italic;
+}
+
+.queue-item:hover .queue-item-attribution,
+.queue-item.context-active .queue-item-attribution {
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+.queue-item.active .queue-item-attribution {
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE LAYOUT  (< 800px)
+   Controller: data-mobile attribute set by useIsMobile hook
+   ═══════════════════════════════════════════════════════════════════════════ */
+

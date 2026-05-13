@@ -1,0 +1,42 @@
+/* ─── Sidebar offline download queue ─── */
+.sidebar-offline-queue {
+  margin: 4px var(--space-1) 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--accent);
+  overflow: hidden;
+}
+
+.sidebar-offline-queue--collapsed {
+  justify-content: center;
+  padding: 6px;
+}
+
+.sidebar-offline-cancel {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.sidebar-offline-cancel:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+

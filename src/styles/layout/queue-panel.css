@@ -1,0 +1,338 @@
+/* ─── Queue Panel ─── */
+.queue-panel {
+  grid-area: queue;
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0; /* allow 1fr row to shrink freely */
+}
+
+.queue-panel.queue-drop-active {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: linear-gradient(var(--accent-dim), var(--accent-dim)), var(--bg-sidebar);
+}
+
+.queue-header {
+  height: 64px;
+  box-sizing: border-box;
+  padding: 0 var(--space-4);
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.queue-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+.queue-action-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.queue-action-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.queue-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 var(--space-3);
+  height: 44px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+}
+
+.crossfade-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 170px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crossfade-popover-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+}
+
+.crossfade-popover-value {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--text-primary);
+}
+
+.crossfade-popover-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.crossfade-popover-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.queue-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.queue-round-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+.queue-round-btn:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--accent);
+}
+.queue-round-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.queue-round-btn.active {
+  color: var(--ctp-base);
+  background: var(--accent);
+}
+
+.queue-current-track {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.queue-current-track-body {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.queue-current-cover {
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  position: relative;
+}
+
+.queue-current-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.queue-current-cover .fallback {
+  color: var(--text-muted);
+}
+
+.queue-current-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.queue-current-info h3 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.queue-current-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.queue-current-sub.is-link {
+  cursor: pointer;
+}
+.queue-current-sub.is-link:hover {
+  color: var(--accent);
+}
+
+.queue-current-tech {
+  width: 100%;
+  font-size: 9px;
+  font-family: monospace;
+  letter-spacing: 0.05em;
+  background: var(--ctp-surface1);
+  color: var(--accent);
+  padding: 3px var(--space-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.queue-current-tech-source {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  opacity: 0.92;
+}
+
+.queue-current-tech-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Two-line layout: base info + RG badge on top, optional ReplayGain
+   values underneath when the badge is expanded. The stack wraps both
+   rows so the source icon stays vertically centered next to the whole
+   text block. */
+.queue-current-tech-stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.queue-current-tech-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Pill-shaped toggle that signals "this track has ReplayGain metadata"
+   without committing screen space to the numbers — values appear in the
+   tooltip and on the second line when expanded. */
+.queue-current-tech-rg-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.12s;
+}
+.queue-current-tech-rg-badge:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.queue-current-tech-rg-badge svg {
+  transition: transform 0.18s ease;
+}
+.queue-current-tech-rg-badge--open svg {
+  transform: rotate(180deg);
+}
+
+.queue-current-tech-rg {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 8px;
+  opacity: 0.72;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-current-tech-metric {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.queue-current-tech-metric:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.queue-current-tech-metric--lufs-reanalyze {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  max-width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.queue-divider {
+  padding: var(--space-3) var(--space-4) 0;
+  flex-shrink: 0;
+}
+

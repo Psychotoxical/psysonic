@@ -1,0 +1,140 @@
+/* ─── Sidebar Expandable Playlists Section ─── */
+.sidebar-playlists-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-playlists-header-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-right: var(--space-2);
+}
+
+.sidebar-playlists-main-link {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-playlists-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.sidebar-playlists-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-playlists-toggle.expanded {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+.sidebar-playlists-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-playlists-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  text-align: left;
+}
+
+.sidebar-playlists-header:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-playlists-header.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.sidebar-playlists-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-playlists-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.sidebar-playlists-list {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--space-4);
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+  gap: var(--space-1);
+}
+
+.sidebar-playlist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  overflow: hidden;
+}
+
+.sidebar-playlist-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-playlist-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-playlist-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.sidebar-playlists-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+.sidebar-playlists-empty {
+  padding: var(--space-2);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+

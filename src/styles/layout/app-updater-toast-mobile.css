@@ -1,0 +1,5 @@
+/* ─── App Updater Toast — Mobile ─── */
+.app-shell[data-mobile] .app-updater-toast {
+  bottom: calc(64px + 56px + 12px);
+}
+

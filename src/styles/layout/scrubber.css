@@ -1,0 +1,58 @@
+/* ─── Scrubber ─── */
+.mp-scrubber-wrap {
+  padding: 12px 0 2px;
+  flex-shrink: 0;
+}
+
+.mp-scrubber {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.mp-scrubber-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ctp-surface2, rgba(255,255,255,0.12));
+}
+
+.mp-scrubber-fill {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.08s linear;
+}
+
+.mp-scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s ease;
+}
+
+.mp-scrubber:active .mp-scrubber-thumb {
+  transform: translate(-50%, -50%) scale(1.3);
+}
+
+.mp-scrubber-times {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
