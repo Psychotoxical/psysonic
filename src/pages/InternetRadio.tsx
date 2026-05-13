@@ -12,6 +12,8 @@ import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/plugin-shell';
 import { showToast } from '../utils/toast';
+import RadioToolbar, { type RadioSortBy } from '../components/internetRadio/RadioToolbar';
+import AlphabetFilterBar from '../components/internetRadio/AlphabetFilterBar';
 
 export default function InternetRadio() {
   const { t } = useTranslation();
@@ -291,74 +293,6 @@ export default function InternetRadio() {
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
 
-interface RadioToolbarProps {
-  sortBy: 'manual' | 'az' | 'za' | 'newest';
-  activeFilter: string;
-  onSortChange: (s: 'manual' | 'az' | 'za' | 'newest') => void;
-  onFilterChange: (f: string) => void;
-}
-
-function RadioToolbar({ sortBy, activeFilter, onSortChange, onFilterChange }: RadioToolbarProps) {
-  const { t } = useTranslation();
-  const sortOptions = [
-    { value: 'manual', label: t('radio.sortManual') },
-    { value: 'az',     label: t('radio.sortAZ') },
-    { value: 'za',     label: t('radio.sortZA') },
-    { value: 'newest', label: t('radio.sortNewest') },
-  ];
-  return (
-    <div className="radio-toolbar">
-      <div className="radio-toolbar-chips">
-        {(['all', 'favorites'] as const).map(f => (
-          <button
-            key={f}
-            className={`radio-filter-chip${activeFilter === f ? ' active' : ''}`}
-            onClick={() => onFilterChange(f)}
-          >
-            {f === 'all' ? t('radio.filterAll') : t('radio.filterFavorites')}
-          </button>
-        ))}
-      </div>
-      <CustomSelect
-        value={sortBy}
-        options={sortOptions}
-        onChange={v => onSortChange(v as RadioToolbarProps['sortBy'])}
-        style={{ width: 'max-content', minWidth: 130, maxWidth: 220, flexShrink: 0 }}
-      />
-    </div>
-  );
-}
-
-// ── Alphabet Filter Bar ────────────────────────────────────────────────────────
-
-const ALPHABET_KEYS = ['#', ...Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i))];
-
-interface AlphabetFilterBarProps {
-  activeLetter: string | null;
-  availableLetters: Set<string>;
-  onSelect: (l: string) => void;
-}
-
-function AlphabetFilterBar({ activeLetter, availableLetters, onSelect }: AlphabetFilterBarProps) {
-  return (
-    <div className="alphabet-filter-bar">
-      {ALPHABET_KEYS.map(l => {
-        const available = availableLetters.has(l);
-        const active = activeLetter === l;
-        return (
-          <button
-            key={l}
-            className={`alphabet-filter-btn${active ? ' active' : ''}${!available ? ' empty' : ''}`}
-            onClick={() => { if (available) onSelect(l); }}
-            tabIndex={available ? 0 : -1}
-          >
-            {l}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Radio Card ────────────────────────────────────────────────────────────────
 
