@@ -1,7 +1,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { PanelRight, PanelRightClose } from 'lucide-react';
+import { PanelRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/Sidebar';
 import PlayerBar from '../components/PlayerBar';
@@ -41,6 +41,7 @@ import { useGlobalDndAndSelectionBlockers } from '../hooks/useGlobalDndAndSelect
 import { useAppActivityTracking } from '../hooks/useAppActivityTracking';
 import { useMainScrollingIndicator } from '../hooks/useMainScrollingIndicator';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
+import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
@@ -53,7 +54,6 @@ import { usePerfProbeFlags } from '../utils/perfFlags';
 import {
   persistSidebarCollapsed,
   readInitialSidebarCollapsed,
-  shouldSuppressQueueResizerMouseDown,
 } from '../utils/appShellHelpers';
 
 /**
@@ -217,49 +217,15 @@ export function AppShell() {
         </div>
       </main>
       {!isMobile && (
-        <div
-          className="resizer resizer-queue"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            if (document.body.classList.contains('is-overlay-scrollbar-thumb-drag')) {
-              // Self-heal stale drag flag: if no thumb is actually dragging,
-              // unblock the queue resizer immediately.
-              const activeThumbDrag = document.querySelector('.overlay-scroll__thumb.is-thumb-dragging');
-              if (!activeThumbDrag) {
-                document.body.classList.remove('is-overlay-scrollbar-thumb-drag');
-              } else {
-                return;
-              }
-            }
-            if (shouldSuppressQueueResizerMouseDown(e.clientX, e.clientY, queueWidth)) return;
-            setIsDraggingQueue(true);
-          }}
-          style={{
-            display: isQueueVisible ? 'block' : 'none',
-            right: `${Math.max(0, queueWidth - 3)}px`,
-          }}
+        <AppShellQueueResizerSeam
+          isQueueVisible={isQueueVisible}
+          queueWidth={queueWidth}
+          queueHandleTop={queueHandleTop}
+          isMainScrolling={isMainScrolling}
+          setIsDraggingQueue={setIsDraggingQueue}
+          handleQueueHandleMouseDown={handleQueueHandleMouseDown}
+          t={t}
         />
-      )}
-      {!isMobile && isQueueVisible && (
-        <button
-          type="button"
-          className="resizer-queue-handle"
-          onMouseDown={handleQueueHandleMouseDown}
-          style={{
-            position: 'fixed',
-            top: queueHandleTop != null ? `${queueHandleTop}px` : '50%',
-            right: `${Math.max(0, queueWidth - 11)}px`,
-            transform: 'translateY(-50%)',
-            zIndex: 101,
-            opacity: isMainScrolling ? 0 : 1,
-            pointerEvents: isMainScrolling ? 'none' : 'auto',
-          }}
-          data-tooltip={t('player.collapseQueueResize')}
-          data-tooltip-pos="left"
-          aria-label={t('player.collapseQueueResize')}
-        >
-          {isQueueVisible ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
-        </button>
       )}
       {!isMobile && !perfFlags.disableQueuePanelMount && <QueuePanel />}
       {isMobile && !isMobilePlayer && <BottomNav />}
