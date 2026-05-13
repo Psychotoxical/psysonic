@@ -11,9 +11,9 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { useAlbumDetailData } from '../hooks/useAlbumDetailData';
+import { useAlbumOfflineState } from '../hooks/useAlbumOfflineState';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOfflineStore } from '../store/offlineStore';
-import { useOfflineJobStore } from '../store/offlineJobStore';
 import { join } from '@tauri-apps/api/path';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import AlbumCard from '../components/AlbumCard';
@@ -69,29 +69,7 @@ export default function AlbumDetail() {
   // Derive a stable albumId for the selectors below (empty string when not yet loaded).
   const albumId = album?.album.id ?? '';
 
-  // Selectors return primitives so Zustand only triggers a re-render when the VALUE
-  // actually changes — not on every `jobs` array mutation during batch downloads.
-  const offlineStatus = useOfflineStore((s): 'none' | 'downloading' | 'cached' => {
-    if (!albumId) return 'none';
-    const meta = s.albums[`${serverId}:${albumId}`];
-    const isDownloaded = meta && meta.trackIds.length > 0 && meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
-    return isDownloaded ? 'cached' : 'none';
-  });
-  const isOfflineDownloading = useOfflineJobStore(s =>
-    !!albumId && s.jobs.some(j => j.albumId === albumId && (j.status === 'queued' || j.status === 'downloading'))
-  );
-  const offlineProgressDone = useOfflineJobStore(s => {
-    if (!albumId) return 0;
-    return s.jobs.filter(j => j.albumId === albumId && (j.status === 'done' || j.status === 'error')).length;
-  });
-  const offlineProgressTotal = useOfflineJobStore(s => {
-    if (!albumId) return 0;
-    return s.jobs.filter(j => j.albumId === albumId).length;
-  });
-  const resolvedOfflineStatus = isOfflineDownloading ? 'downloading' : offlineStatus;
-  const offlineProgress = offlineProgressTotal > 0
-    ? { done: offlineProgressDone, total: offlineProgressTotal }
-    : null;
+  const { resolvedOfflineStatus, offlineProgress } = useAlbumOfflineState(albumId, serverId);
 
   useEffect(() => {
     if (!id) return;
