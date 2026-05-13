@@ -1,4 +1,4 @@
-import { star, unstar, setRating } from '../api/subsonicStarRating';
+import { star, unstar } from '../api/subsonicStarRating';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -31,6 +31,7 @@ import { usePreviewStore } from '../store/previewStore';
 import { usePerfProbeFlags } from '../utils/perfFlags';
 import { formatTime } from '../utils/playerBarHelpers';
 import { PlaybackTime, RemainingTime } from './playerBar/PlaybackClock';
+import { PlayerTrackInfo } from './playerBar/PlayerTrackInfo';
 
 export default function PlayerBar() {
   const { t } = useTranslation();
@@ -295,124 +296,32 @@ export default function PlayerBar() {
       aria-label={t('player.regionLabel')}
     >
 
-      {/* Track Info */}
-      <div className="player-track-info">
-        <div
-          className={`player-album-art-wrap ${currentTrack && !isRadio && !showPreviewMeta ? 'clickable' : ''}`}
-          onClick={() => !isRadio && !showPreviewMeta && currentTrack && toggleFullscreen()}
-          data-tooltip={!isRadio && !showPreviewMeta && currentTrack ? t('player.openFullscreen') : undefined}
-        >
-          {isRadio ? (
-            currentRadio?.coverArt ? (
-              <CachedImage
-                className="player-album-art"
-                src={radioCoverSrc}
-                cacheKey={radioCoverKey}
-                alt={currentRadio.name}
-              />
-            ) : (
-              <div className="player-album-art-placeholder">
-                <Cast size={20} />
-              </div>
-            )
-          ) : displayCoverArt ? (
-            <CachedImage
-              className="player-album-art"
-              src={coverSrc}
-              cacheKey={coverKey}
-              alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
-            />
-          ) : (
-            <div className="player-album-art-placeholder">
-              <Music size={22} />
-            </div>
-          )}
-          {currentTrack && !isRadio && !showPreviewMeta && (
-            <div className="player-art-expand-hint" aria-hidden="true">
-              <Maximize2 size={16} />
-            </div>
-          )}
-        </div>
-        <div className="player-track-meta">
-          {showPreviewMeta && (
-            <span className="player-preview-label" aria-label={t('player.previewActive')}>
-              {t('player.previewLabel')}
-            </span>
-          )}
-          <MarqueeText
-            text={isRadio
-              ? (radioMeta.currentTitle
-                  ? (radioMeta.currentArtist
-                      ? `${radioMeta.currentArtist} — ${radioMeta.currentTitle}`
-                      : radioMeta.currentTitle)
-                  : (currentRadio?.name ?? '—'))
-              : displayTitle}
-            className="player-track-name"
-            style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.albumId ? 'pointer' : 'default' }}
-            onClick={() => !isRadio && !showPreviewMeta && currentTrack?.albumId && navigate(`/album/${currentTrack.albumId}`)}
-            onContextMenu={!isRadio && !showPreviewMeta && currentTrack?.albumId
-              ? (e) => {
-                  e.preventDefault();
-                  const album: SubsonicAlbum = {
-                    id: currentTrack.albumId,
-                    name: currentTrack.album,
-                    artist: currentTrack.artist,
-                    artistId: currentTrack.artistId ?? '',
-                    coverArt: currentTrack.coverArt,
-                    songCount: 0,
-                    duration: 0,
-                  };
-                  openContextMenu(e.clientX, e.clientY, album, 'album');
-                }
-              : undefined}
-          />
-          <MarqueeText
-            text={isRadio
-              ? (radioMeta.currentTitle && currentRadio?.name
-                  ? currentRadio.name
-                  : t('radio.liveStream'))
-              : displayArtist}
-            className="player-track-artist"
-            style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.artistId ? 'pointer' : 'default' }}
-            onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
-          />
-          {currentTrack && !isRadio && !showPreviewMeta && (
-            <StarRating
-              value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
-              onChange={r => { setUserRatingOverride(currentTrack.id, r); setRating(currentTrack.id, r).catch(() => {}); }}
-              className="player-track-rating"
-              ariaLabel={t('albumDetail.ratingLabel')}
-            />
-          )}
-          {isRadio && radioMeta.listeners != null && (
-            <span className="player-radio-listeners">
-              {t('radio.listenerCount', { count: radioMeta.listeners })}
-            </span>
-          )}
-        </div>
-        {currentTrack && !isRadio && (
-          <button
-            className={`player-btn player-btn-sm player-star-btn${isStarred ? ' is-starred' : ''}`}
-            onClick={toggleStar}
-            aria-label={isStarred ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
-            data-tooltip={isStarred ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
-            style={{ flexShrink: 0 }}
-          >
-            <Heart size={15} fill={isStarred ? 'currentColor' : 'none'} />
-          </button>
-        )}
-        {currentTrack && !isRadio && lastfmSessionKey && (
-          <button
-            className="player-btn player-btn-sm player-love-btn"
-            onClick={toggleLastfmLove}
-            aria-label={lastfmLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
-            data-tooltip={lastfmLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
-            style={{ color: lastfmLoved ? '#e31c23' : 'var(--text-muted)', flexShrink: 0 }}
-          >
-            <LastfmIcon size={15} />
-          </button>
-        )}
-      </div>
+      <PlayerTrackInfo
+        currentTrack={currentTrack}
+        currentRadio={currentRadio}
+        isRadio={isRadio}
+        radioMeta={radioMeta}
+        radioCoverSrc={radioCoverSrc}
+        radioCoverKey={radioCoverKey}
+        coverSrc={coverSrc}
+        coverKey={coverKey}
+        displayCoverArt={displayCoverArt}
+        displayTitle={displayTitle}
+        displayArtist={displayArtist}
+        showPreviewMeta={showPreviewMeta}
+        previewingTrack={previewingTrack}
+        isStarred={isStarred}
+        toggleStar={toggleStar}
+        lastfmSessionKey={lastfmSessionKey}
+        lastfmLoved={lastfmLoved}
+        toggleLastfmLove={toggleLastfmLove}
+        userRatingOverrides={userRatingOverrides}
+        setUserRatingOverride={setUserRatingOverride}
+        toggleFullscreen={toggleFullscreen}
+        navigate={navigate}
+        openContextMenu={openContextMenu}
+        t={t}
+      />
 
       {/* Transport Controls */}
       <div className="player-buttons" ref={transportAnchorRef}>
