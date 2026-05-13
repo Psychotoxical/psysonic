@@ -35,6 +35,7 @@ import { LoadPlaylistModal } from './queuePanel/LoadPlaylistModal';
 import { QueueHeader } from './queuePanel/QueueHeader';
 import { QueueCurrentTrack } from './queuePanel/QueueCurrentTrack';
 import { useQueuePanelDrag } from '../hooks/useQueuePanelDrag';
+import { useQueueLufsTgtPopover } from '../hooks/useQueueLufsTgtPopover';
 
 export default function QueuePanel() {
   const orbitRole = useOrbitStore(s => s.role);
@@ -131,10 +132,6 @@ function QueuePanelHostOrSolo() {
   const toolbarButtons = useQueueToolbarStore(s => s.buttons);
   const [durationMode, setDurationMode] = useState<DurationMode>('total');
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
-  const [lufsTgtOpen, setLufsTgtOpen] = useState(false);
-  const [lufsTgtPopStyle, setLufsTgtPopStyle] = useState<React.CSSProperties>({});
-  const lufsTgtBtnRef = useRef<HTMLButtonElement>(null);
-  const lufsTgtMenuRef = useRef<HTMLDivElement>(null);
   const expandReplayGain = useThemeStore(s => s.expandReplayGain);
   const setExpandReplayGain = useThemeStore(s => s.setExpandReplayGain);
   const crossfadeBtnRef = useRef<HTMLButtonElement>(null);
@@ -143,6 +140,14 @@ function QueuePanelHostOrSolo() {
   const authLoudnessTargetLufs = useAuthStore(s => s.loudnessTargetLufs);
   const setLoudnessTargetLufs = useAuthStore(s => s.setLoudnessTargetLufs);
   const loudnessPreAnalysisAttenuationDb = useAuthStore(s => s.loudnessPreAnalysisAttenuationDb);
+
+  const {
+    lufsTgtOpen,
+    setLufsTgtOpen,
+    lufsTgtPopStyle,
+    lufsTgtBtnRef,
+    lufsTgtMenuRef,
+  } = useQueueLufsTgtPopover(expandReplayGain);
 
   useEffect(() => {
     if (!showCrossfadePopover) return;
@@ -156,64 +161,6 @@ function QueuePanelHostOrSolo() {
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [showCrossfadePopover]);
-
-  useEffect(() => {
-    if (!lufsTgtOpen) return;
-    const handle = (e: MouseEvent) => {
-      if (
-        lufsTgtBtnRef.current?.contains(e.target as Node) ||
-        lufsTgtMenuRef.current?.contains(e.target as Node)
-      ) return;
-      setLufsTgtOpen(false);
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [lufsTgtOpen]);
-
-  const updateLufsTgtPopStyle = () => {
-    if (!lufsTgtBtnRef.current) return;
-    const rect = lufsTgtBtnRef.current.getBoundingClientRect();
-    const MARGIN = 6;
-    const WIDTH = 160;
-    const MAX_H = 220;
-    const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
-    const spaceAbove = rect.top - MARGIN;
-    const useAbove = spaceBelow < 120 && spaceAbove > spaceBelow;
-    const left = Math.min(
-      Math.max(rect.right - WIDTH, 8),
-      window.innerWidth - WIDTH - 8,
-    );
-    setLufsTgtPopStyle({
-      position: 'fixed',
-      left,
-      width: WIDTH,
-      ...(useAbove
-        ? { bottom: window.innerHeight - rect.top + MARGIN }
-        : { top: rect.bottom + MARGIN }),
-      maxHeight: Math.min(MAX_H, useAbove ? spaceAbove : spaceBelow),
-      zIndex: 99998,
-    });
-  };
-
-  useLayoutEffect(() => {
-    if (!lufsTgtOpen) return;
-    updateLufsTgtPopStyle();
-  }, [lufsTgtOpen]);
-
-  useEffect(() => {
-    if (!lufsTgtOpen) return;
-    const onResize = () => updateLufsTgtPopStyle();
-    window.addEventListener('resize', onResize);
-    window.addEventListener('scroll', onResize, true);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('scroll', onResize, true);
-    };
-  }, [lufsTgtOpen]);
-
-  useEffect(() => {
-    if (!expandReplayGain) setLufsTgtOpen(false);
-  }, [expandReplayGain]);
 
   const queueListRef = useRef<HTMLDivElement>(null);
 
