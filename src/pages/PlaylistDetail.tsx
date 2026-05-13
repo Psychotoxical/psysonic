@@ -1,10 +1,8 @@
-import { getPlaylist, updatePlaylist, updatePlaylistMeta, uploadPlaylistCoverArt } from '../api/subsonicPlaylists';
-import { setRating, star, unstar } from '../api/subsonicStarRating';
-import { search } from '../api/subsonicSearch';
+import { getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
 import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
@@ -22,7 +20,6 @@ import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useTranslation } from 'react-i18next';
-import { showToast } from '../utils/toast';
 import StarRating from '../components/StarRating';
 import {
   formatDuration,
@@ -43,12 +40,16 @@ import PlaylistTracklist from '../components/playlist/PlaylistTracklist';
 import PlaylistFilterToolbar from '../components/playlist/PlaylistFilterToolbar';
 import { getDisplayedSongs, type PlaylistSortKey, type PlaylistSortDir } from '../utils/playlistDisplayedSongs';
 import { runPlaylistZipDownload } from '../utils/runPlaylistZipDownload';
+import { runPlaylistSaveMeta } from '../utils/runPlaylistSaveMeta';
 import { playPlaylistAll, shufflePlaylistAll, enqueuePlaylistAll } from '../utils/playlistBulkPlayActions';
 import { startPlaylistRowDrag } from '../utils/startPlaylistRowDrag';
 import { runPlaylistReorderDrop } from '../utils/runPlaylistReorderDrop';
 import { usePlaylistCovers } from '../hooks/usePlaylistCovers';
 import { usePlaylistSelection } from '../hooks/usePlaylistSelection';
 import { usePlaylistSuggestions } from '../hooks/usePlaylistSuggestions';
+import { usePlaylistSongSearch } from '../hooks/usePlaylistSongSearch';
+import { usePlaylistSongMutations } from '../hooks/usePlaylistSongMutations';
+import { usePlaylistStarRating } from '../hooks/usePlaylistStarRating';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -172,11 +173,10 @@ export default function PlaylistDetail() {
   // Song search
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SubsonicSong[]>([]);
-  const [searching, setSearching] = useState(false);
-  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedSearchIds, setSelectedSearchIds] = useState<Set<string>>(new Set());
   const [searchPlPickerOpen, setSearchPlPickerOpen] = useState(false);
+  const { searchResults, setSearchResults, searching } =
+    usePlaylistSongSearch(songs, searchOpen, searchQuery);
 
   // Suggestions
   const { suggestions, setSuggestions, loadingSuggestions, loadSuggestions } =
@@ -235,26 +235,10 @@ export default function PlaylistDetail() {
     coverFile: File | null; coverRemoved: boolean;
   }) => {
     if (!id || !playlist) return;
-    await updatePlaylistMeta(id, opts.name.trim() || playlist.name, opts.comment, opts.isPublic);
-    setPlaylist(p => p
-      ? { ...p, name: opts.name.trim() || p.name, comment: opts.comment, public: opts.isPublic }
-      : p
+    await runPlaylistSaveMeta(
+      { id, playlist, t, setPlaylist, setCustomCoverId, setEditingMeta },
+      opts,
     );
-    if (opts.coverFile) {
-      try {
-        await uploadPlaylistCoverArt(id, opts.coverFile);
-        const { playlist: refreshed } = await getPlaylist(id);
-        setPlaylist(prev => prev ? { ...prev, coverArt: refreshed.coverArt } : prev);
-        if (refreshed.coverArt) setCustomCoverId(refreshed.coverArt);
-        showToast(t('playlists.coverUpdated'));
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : t('playlists.coverUpdated'), 3000, 'error');
-      }
-    } else if (opts.coverRemoved) {
-      setCustomCoverId(null);
-    }
-    showToast(t('playlists.metaSaved'));
-    setEditingMeta(false);
   };
 
   // ── ZIP Download ──────────────────────────────────────────────
@@ -275,28 +259,9 @@ export default function PlaylistDetail() {
   };
 
   // ── Remove ────────────────────────────────────────────────────
-  const removeSong = (idx: number) => {
-    const prevCount = songs.length;
-    const next = songs.filter((_, i) => i !== idx);
-    setSongs(next);
-    savePlaylist(next, prevCount);
-  };
-
-  // ── Add ───────────────────────────────────────────────────────
-  const addSong = (song: SubsonicSong) => {
-    if (songs.some(s => s.id === song.id)) return;
-    const scrollHost = document.querySelector('.main-content') as HTMLElement | null;
-    const savedScroll = scrollHost?.scrollTop ?? 0;
-    const next = [...songs, song];
-    setSongs(next);
-    savePlaylist(next);
-    setSuggestions(prev => prev.filter(s => s.id !== song.id));
-    setSearchResults(prev => prev.filter(s => s.id !== song.id));
-    if (scrollHost) {
-      requestAnimationFrame(() => { scrollHost.scrollTop = savedScroll; });
-    }
-    showToast(t('playlists.addSuccess', { count: 1, playlist: playlist?.name }));
-  };
+  const { removeSong, addSong } = usePlaylistSongMutations({
+    songs, setSongs, savePlaylist, setSuggestions, setSearchResults, playlist, t,
+  });
 
   // ── Preview (30s mid-song sample via Rust audio engine) ────────
   // Pause/resume of the main player + timer + cancel-on-supersede are all
@@ -320,39 +285,9 @@ export default function PlaylistDetail() {
   }, []);
 
   // ── Rating / Star ─────────────────────────────────────────────
-  const handleRate = (songId: string, rating: number) => {
-    setRatings(prev => ({ ...prev, [songId]: rating }));
-    usePlayerStore.getState().setUserRatingOverride(songId, rating);
-    setRating(songId, rating).catch(() => {});
-  };
-
-  const handleToggleStar = (song: SubsonicSong, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const isStarred = song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id);
-    setStarredSongs(prev => {
-      const next = new Set(prev);
-      isStarred ? next.delete(song.id) : next.add(song.id);
-      return next;
-    });
-    setStarredOverride(song.id, !isStarred);
-    (isStarred ? unstar(song.id, 'song') : star(song.id, 'song')).catch(() => {});
-  };
-
-  // ── Search ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!searchOpen || !searchQuery.trim()) { setSearchResults([]); return; }
-    if (searchDebounce.current) clearTimeout(searchDebounce.current);
-    searchDebounce.current = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const res = await search(searchQuery, { songCount: 20, artistCount: 0, albumCount: 0 });
-        const existingIds = new Set(songs.map(s => s.id));
-        setSearchResults(res.songs.filter(s => !existingIds.has(s.id)));
-      } catch {}
-      setSearching(false);
-    }, 350);
-    return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
-  }, [searchQuery, searchOpen, songs]);
+  const { handleRate, handleToggleStar } = usePlaylistStarRating({
+    ratings, setRatings, starredSongs, setStarredSongs,
+  });
 
   // ── psy-drop DnD reordering ───────────────────────────────────
   useEffect(() => {
