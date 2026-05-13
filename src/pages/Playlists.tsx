@@ -1,33 +1,32 @@
-import { deletePlaylist, getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
+import { getPlaylist } from '../api/subsonicPlaylists';
 import { getGenres } from '../api/subsonicGenres';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicGenre } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ListMusic, Play, Plus, Trash2, CheckSquare2, Check, Clock3, Sparkles, Pencil } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useAuthStore } from '../store/authStore';
-import CachedImage from '../components/CachedImage';
-import StarRating from '../components/StarRating';
 import { useTranslation } from 'react-i18next';
-import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
-import { showToast } from '../utils/toast';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 
+import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
 import {
-  defaultSmartFilters, displayPlaylistName, isSmartPlaylistName,
+  defaultSmartFilters, isSmartPlaylistName,
   type SmartFilters, type PendingSmartPlaylist,
 } from '../utils/playlistsSmart';
-import { PlaylistSmartCoverCell, PlaylistCardMainCover } from '../components/playlists/PlaylistCoverImages';
 import { useSmartCoverCollage } from '../hooks/useSmartCoverCollage';
 import { usePlaylistsLibraryScopeCounts } from '../hooks/usePlaylistsLibraryScopeCounts';
 import { usePendingSmartPolling } from '../hooks/usePendingSmartPolling';
 import { runPlaylistsOpenSmartEditor } from '../utils/runPlaylistsOpenSmartEditor';
 import { runPlaylistsSaveSmart } from '../utils/runPlaylistsSaveSmart';
+import {
+  runPlaylistDelete, runPlaylistDeleteSelected, runPlaylistMergeSelected,
+} from '../utils/runPlaylistsActions';
 import PlaylistsSmartEditor from '../components/playlists/PlaylistsSmartEditor';
+import PlaylistsHeader from '../components/playlists/PlaylistsHeader';
+import PlaylistCard from '../components/playlists/PlaylistCard';
 
 function formatDuration(seconds: number): string {
   return formatHumanHoursMinutes(seconds);
@@ -147,80 +146,17 @@ export default function Playlists() {
     setPlayingId(null);
   };
 
-  const handleDelete = async (e: React.MouseEvent, pl: SubsonicPlaylist) => {
-    e.stopPropagation();
-    if (deleteConfirmId !== pl.id) {
-      setDeleteConfirmId(pl.id);
-      const btn = e.currentTarget as HTMLElement;
-      requestAnimationFrame(() => {
-        btn.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-      });
-      return;
-    }
-    try {
-      await deletePlaylist(pl.id);
-      removeId(pl.id);
-      usePlaylistStore.setState((s) => ({
-        playlists: s.playlists.filter((p) => p.id !== pl.id),
-      }));
-      showToast(t('playlists.deleteSuccess', { count: 1 }), 3000, 'info');
-    } catch {
-      showToast(t('playlists.deleteFailed', { name: pl.name }), 3000, 'error');
-    }
-    setDeleteConfirmId(null);
-  };
+  const handleDelete = (e: React.MouseEvent, pl: SubsonicPlaylist) => runPlaylistDelete({
+    e, pl, deleteConfirmId, setDeleteConfirmId, removeId, t,
+  });
 
-  const handleDeleteSelected = async () => {
-    const deletable = selectedPlaylists.filter(isPlaylistDeletable);
-    if (deletable.length === 0) return;
-    let deleted = 0;
-    for (const pl of deletable) {
-      try {
-        await deletePlaylist(pl.id);
-        removeId(pl.id);
-        deleted++;
-      } catch {
-        showToast(t('playlists.deleteFailed', { name: pl.name }), 3000, 'error');
-      }
-    }
-    usePlaylistStore.setState((s) => ({
-      playlists: s.playlists.filter((p) => !(selectedIds.has(p.id) && isPlaylistDeletable(p))),
-    }));
-    clearSelection();
-    if (deleted > 0) {
-      showToast(t('playlists.deleteSuccess', { count: deleted }), 3000, 'info');
-    }
-  };
+  const handleDeleteSelected = () => runPlaylistDeleteSelected({
+    selectedPlaylists, selectedIds, isPlaylistDeletable, removeId, clearSelection, t,
+  });
 
-  const handleMergeSelected = async (targetPlaylist: SubsonicPlaylist) => {
-    if (selectedPlaylists.length === 0) return;
-    try {
-      const { songs: targetSongs } = await getPlaylist(targetPlaylist.id);
-      const targetIds = new Set(targetSongs.map(s => s.id));
-      let totalAdded = 0;
-
-      for (const pl of selectedPlaylists) {
-        if (pl.id === targetPlaylist.id) continue;
-        const { songs } = await getPlaylist(pl.id);
-        const newSongs = songs.filter(s => !targetIds.has(s.id));
-        if (newSongs.length > 0) {
-          newSongs.forEach(s => targetIds.add(s.id));
-          totalAdded += newSongs.length;
-        }
-      }
-
-      if (totalAdded > 0) {
-        await updatePlaylist(targetPlaylist.id, Array.from(targetIds));
-        touchPlaylist(targetPlaylist.id);
-        showToast(t('playlists.mergeSuccess', { count: totalAdded, playlist: targetPlaylist.name }), 3000, 'info');
-      } else {
-        showToast(t('playlists.mergeNoNewSongs'), 3000, 'info');
-      }
-      clearSelection();
-    } catch {
-      showToast(t('playlists.mergeError'), 4000, 'error');
-    }
-  };
+  const handleMergeSelected = (targetPlaylist: SubsonicPlaylist) => runPlaylistMergeSelected({
+    targetPlaylist, selectedPlaylists, touchPlaylist, clearSelection, t,
+  });
 
   if (loading) {
     return (
@@ -276,83 +212,26 @@ export default function Playlists() {
         }
       `}</style>
 
-      {/* ── Header row ── */}
-      <div className="playlists-header">
-        <h1 className="page-title" style={{ marginBottom: 0 }}>
-          {selectionMode && selectedIds.size > 0
-            ? t('playlists.selectionCount', { count: selectedIds.size })
-            : t('playlists.title')}
-        </h1>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {!(selectionMode && selectedIds.size > 0) && (<>
-              {creating ? (
-                <>
-                  <input
-                    ref={nameInputRef}
-                    className="input"
-                    style={{ width: 220 }}
-                    placeholder={t('playlists.createName')}
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleCreate();
-                      if (e.key === 'Escape') { setCreating(false); setNewName(''); }
-                    }}
-                  />
-                  <button className="btn btn-primary" onClick={handleCreate}>
-                    {t('playlists.create')}
-                  </button>
-                  <button className="btn btn-surface" onClick={() => { setCreating(false); setNewName(''); }}>
-                    {t('playlists.cancel')}
-                  </button>
-                </>
-              ) : (
-                <button className="btn btn-primary" onClick={() => { setCreatingSmart(false); setCreating(true); }}>
-                  <Plus size={15} /> {t('playlists.newPlaylist')}
-                </button>
-              )}
-              {!creating && isNavidromeServer && (
-                <button className="btn btn-surface" onClick={() => {
-                  setCreating(false);
-                  setEditingSmartId(null);
-                  setSmartFilters(defaultSmartFilters);
-                  setGenreQuery('');
-                  setCreatingSmart(v => !v);
-                }}>
-                  <Plus size={15} /> {t('smartPlaylists.create')}
-                </button>
-              )}
-            </>
-          )}
-          {selectionMode && selectedIds.size > 0 && (() => {
-            const deletableCount = selectedPlaylists.filter(isPlaylistDeletable).length;
-            return (
-              <button
-                className="btn btn-danger"
-                onClick={handleDeleteSelected}
-                disabled={deletableCount === 0}
-                data-tooltip={deletableCount === selectedIds.size
-                  ? undefined
-                  : t('playlists.deleteSelectedPartial', { n: deletableCount, total: selectedIds.size })}
-                data-tooltip-pos="bottom"
-              >
-                <Trash2 size={15} />
-                {t('playlists.deleteSelected')}
-              </button>
-            );
-          })()}
-          <button
-            className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-            onClick={toggleSelectionMode}
-            data-tooltip={selectionMode ? t('playlists.cancelSelect') : t('playlists.startSelect')}
-            data-tooltip-pos="bottom"
-            style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
-          >
-            <CheckSquare2 size={15} />
-            {selectionMode ? t('playlists.cancelSelect') : t('playlists.select')}
-          </button>
-        </div>
-      </div>
+      <PlaylistsHeader
+        selectionMode={selectionMode}
+        selectedIds={selectedIds}
+        selectedPlaylists={selectedPlaylists}
+        isPlaylistDeletable={isPlaylistDeletable}
+        toggleSelectionMode={toggleSelectionMode}
+        handleDeleteSelected={handleDeleteSelected}
+        creating={creating}
+        setCreating={setCreating}
+        setCreatingSmart={setCreatingSmart}
+        newName={newName}
+        setNewName={setNewName}
+        nameInputRef={nameInputRef}
+        handleCreate={handleCreate}
+        isNavidromeServer={isNavidromeServer}
+        setEditingSmartId={setEditingSmartId}
+        setSmartFilters={setSmartFilters}
+        setGenreQuery={setGenreQuery}
+      />
+
       {creatingSmart && (
         <PlaylistsSmartEditor
           smartFilters={smartFilters}
@@ -374,142 +253,29 @@ export default function Playlists() {
       ) : (
         <div className="album-grid-wrap">
           {playlists.map((pl) => (
-            <div
+            <PlaylistCard
               key={pl.id}
-              className={`album-card${selectionMode && selectedIds.has(pl.id) ? ' selected' : ''}`}
-              onClick={(e) => {
-                if (selectionMode) {
-                  toggleSelect(pl.id, { shiftKey: e.shiftKey });
-                } else {
-                  navigate(`/playlists/${pl.id}`);
-                }
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if (selectionMode && selectedIds.size > 0) {
-                  openContextMenu(e.clientX, e.clientY, selectedPlaylists, 'multi-playlist');
-                } else {
-                  openContextMenu(e.clientX, e.clientY, pl, 'playlist');
-                }
-              }}
-              onMouseLeave={() => { if (deleteConfirmId === pl.id) setDeleteConfirmId(null); }}
-              style={selectionMode && selectedIds.has(pl.id) ? {
-                position: 'relative',
-                outline: '2px solid var(--accent)',
-                outlineOffset: '2px',
-                borderRadius: 'var(--radius-md)'
-              } : { position: 'relative' }}
-            >
-              {!selectionMode && (
-                <div className="playlist-card-actions">
-                  {isPlaylistDeletable(pl) && (
-                    <button
-                      className="playlist-card-action playlist-card-action--edit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isSmartPlaylistName(pl.name)) {
-                          void handleOpenSmartEditor(pl);
-                          return;
-                        }
-                        navigate(`/playlists/${pl.id}`, { state: { openEditMeta: true } });
-                      }}
-                      data-tooltip={t('playlists.editMeta')}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  )}
-                  {isPlaylistDeletable(pl) && (
-                    <button
-                      className={`playlist-card-action playlist-card-action--delete${deleteConfirmId === pl.id ? ' playlist-card-action--delete-confirm' : ''}`}
-                      onClick={(e) => handleDelete(e, pl)}
-                      data-tooltip={deleteConfirmId === pl.id ? t('playlists.confirmDelete') : t('common.delete')}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
-              )}
-              {selectionMode && (
-                <div className={`album-card-select-check${selectedIds.has(pl.id) ? ' album-card-select-check--on' : ''}`}>
-                  {selectedIds.has(pl.id) && <Check size={14} strokeWidth={3} />}
-                </div>
-              )}
-              {/* Cover area — server collage or fallback icon */}
-              <div className="album-card-cover">
-                {isSmartPlaylistName(pl.name) && (smartCoverIdsByPlaylist[pl.id]?.length ?? 0) > 0 ? (
-                  <div className="playlist-cover-grid">
-                    {Array.from({ length: 4 }, (_, i) => {
-                      const id = smartCoverIdsByPlaylist[pl.id][i % smartCoverIdsByPlaylist[pl.id].length];
-                      return id ? (
-                        <PlaylistSmartCoverCell key={i} coverId={id} />
-                      ) : (
-                        <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
-                      );
-                    })}
-                  </div>
-                ) : pl.coverArt ? (
-                  <PlaylistCardMainCover coverArt={pl.coverArt} alt={pl.name} />
-                ) : (
-                  <div className="album-card-cover-placeholder playlist-card-icon">
-                    <ListMusic size={48} strokeWidth={1.2} />
-                  </div>
-                )}
-                {pendingSmart.some(p => p.id === pl.id || p.name === pl.name) && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      left: 8,
-                      width: 24,
-                      height: 24,
-                      borderRadius: 999,
-                      background: 'rgba(0,0,0,0.45)',
-                      border: '1px solid rgba(255,255,255,0.25)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      zIndex: 8,
-                      pointerEvents: 'none',
-                    }}
-                    data-tooltip={t('common.loading')}
-                  >
-                    <Clock3 size={13} />
-                  </div>
-                )}
-
-                {/* Play overlay — same pattern as AlbumCard */}
-                <div className="album-card-play-overlay">
-                  <button
-                    className="album-card-details-btn"
-                    onClick={(e) => handlePlay(e, pl)}
-                    disabled={playingId === pl.id}
-                  >
-                    {playingId === pl.id
-                      ? <span className="spinner" style={{ width: 14, height: 14 }} />
-                      : <Play size={15} fill="currentColor" />
-                    }
-                  </button>
-                </div>
-
-              </div>
-
-              <div className="album-card-info">
-                <div className="album-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {isSmartPlaylistName(pl.name) && <Sparkles size={14} style={{ color: 'var(--text-muted)', flex: '0 0 auto' }} />}
-                  <span>{displayPlaylistName(pl.name)}</span>
-                </div>
-                <div className="album-card-artist">
-                  {t('playlists.songs', { n: filteredSongCountByPlaylist[pl.id] ?? pl.songCount })}
-                  {(filteredDurationByPlaylist[pl.id] ?? pl.duration) > 0 && (
-                    <> · {formatDuration(filteredDurationByPlaylist[pl.id] ?? pl.duration)}</>
-                  )}
-                </div>
-              </div>
-            </div>
+              pl={pl}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              selectedPlaylists={selectedPlaylists}
+              toggleSelect={toggleSelect}
+              isPlaylistDeletable={isPlaylistDeletable}
+              deleteConfirmId={deleteConfirmId}
+              setDeleteConfirmId={setDeleteConfirmId}
+              handleOpenSmartEditor={handleOpenSmartEditor}
+              handleDelete={handleDelete}
+              handlePlay={handlePlay}
+              playingId={playingId}
+              smartCoverIdsByPlaylist={smartCoverIdsByPlaylist}
+              pendingSmart={pendingSmart}
+              filteredSongCountByPlaylist={filteredSongCountByPlaylist}
+              filteredDurationByPlaylist={filteredDurationByPlaylist}
+            />
           ))}
         </div>
       )}
+
 
     </div>
   );
