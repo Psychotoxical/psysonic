@@ -126,6 +126,15 @@ export const CONTRIBUTORS = [
     ],
   },
   {
+    github: 'nisrael',
+    since: '1.34.0',
+    contributions: [
+      'Nightfox.nvim theme group in Open Source Classics (PR #114)',
+      'Switch reqwest to rustls-tls for cross-platform TLS (PR #112)',
+      'ICY stream metadata & AzuraCast Now Playing support (PR #146)',
+    ],
+  },
+  {
     github: 'kveld9',
     since: '1.34.4',
     contributions: [
@@ -153,15 +162,6 @@ export const CONTRIBUTORS = [
     ],
   },
   {
-    github: 'nisrael',
-    since: '1.34.0',
-    contributions: [
-      'Nightfox.nvim theme group in Open Source Classics (PR #114)',
-      'Switch reqwest to rustls-tls for cross-platform TLS (PR #112)',
-      'ICY stream metadata & AzuraCast Now Playing support (PR #146)',
-    ],
-  },
-  {
     github: 'peri4ko',
     since: '1.43.0',
     contributions: [
@@ -173,7 +173,14 @@ export const CONTRIBUTORS = [
     since: '1.46.0',
     contributions: [
       'Discord Rich Presence: cover art from your own server (Subsonic getAlbumInfo2) with three-way picker — none / server / Apple Music (PR #462)',
-      'Artist page: group albums by OpenSubsonic releaseTypes (Album / EP / Single / Compilation / Live / Soundtrack / Remix) with deterministic order and i18n section headers in all 8 locales (PR #471)',
+      'Artist page: group albums by OpenSubsonic releaseTypes (Album / EP / Single / Compilation / Live / Soundtrack / Remix) with deterministic order and i18n section headers in all 9 locales (PR #471)',
+    ],
+  },
+  {
+    github: 'MihaiCatalin120',
+    since: '1.46.0',
+    contributions: [
+      'Romanian (ro) full UI translation (PR #663)',
     ],
   },
   {
@@ -263,12 +270,12 @@ export const CONTRIBUTORS = [
       'Queue: optional "Preserve Play Next order" toggle — multiple Play Next inserts queue up behind each other instead of latest-on-top (PR #464)',
       'Library: "favorites only" filter on Albums, Artists and Advanced Search — toolbar toggle reading star overrides live (PR #466)',
       'Settings: keep current active server when adding a new one — no more auto-switch interrupting playback or library context (PR #475)',
-      'Help page: full rewrite with 45 focused entries across 10 themed sections (Getting Started / Playback & Queue / Audio Tools / Library & Discovery / Lyrics / Sharing & Social / Personalization / Power User / Offline & Sync / Integrations & Troubleshooting), in-page live search with case-insensitive substring matching and auto-expand on hits, translated to all 8 locales (PR #485)',
+      'Help page: full rewrite with 45 focused entries across 10 themed sections (Getting Started / Playback & Queue / Audio Tools / Library & Discovery / Lyrics / Sharing & Social / Personalization / Power User / Offline & Sync / Integrations & Troubleshooting), in-page live search with case-insensitive substring matching and auto-expand on hits, translated to all 9 locales (PR #485)',
       'Library: Browse by Composer — native-API role listing for classical libraries, library-scoped queries, composer as a first-class share entity (PR #487)',
       'Home: "Because you listened" recommendation rail — Last.fm-anchored similar-artist surfacing with round-robin anchor rotation per server (PR #489)',
       'Song Info: absolute file path on Navidrome via native /api/song/{id} — Subsonic only ever returned a relative path (or none on Navidrome), the native endpoint surfaces the full server-side location (PR #504)',
       'Home: Lossless Albums rail + dedicated /lossless-albums page with infinite scroll and header parity (selection mode, enqueue, offline, download ZIPs), streaming load via per-fetch onProgress, sidebar entry default visible, detection via Navidrome native bit_depth-sorted song cursor with always-lossless suffix allowlist (PR #506)',
-      'Accessibility: OpenDyslexic font option in the Settings picker — bundled locally via @fontsource/opendyslexic, asymmetric glyph shapes for easier b/d, p/q tracking, Latin-only with translated subtitle in all 8 locales calling out the dyslexia-friendly intent and the Cyrillic/CJK fallback (PR #507)',
+      'Accessibility: OpenDyslexic font option in the Settings picker — bundled locally via @fontsource/opendyslexic, asymmetric glyph shapes for easier b/d, p/q tracking, Latin-only with translated subtitle in all 9 locales calling out the dyslexia-friendly intent and the Cyrillic/CJK fallback (PR #507)',
     ],
   },
 ] as const;

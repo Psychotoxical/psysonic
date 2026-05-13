@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Persistence via a new `queueToolbarStore` (Zustand + localStorage), so the layout survives restarts.
 * Behaviour-preserving default: `[Shuffle] [Save] [Load] [Share] [Clear] | [Gapless] [Crossfade] [Infinite]` — same buttons in the same order as before.
 * Auto-hides the toolbar when no real button is visible (a lone Separator no longer takes up space on its own).
-* i18n coverage across all 8 locales.
+* i18n coverage across all 9 locales.
 
 ### Orbit — in-app diagnostics popover with copyable event log
 
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Copy** + **Clear** buttons. Copy drops formatted `[ISO] [scope] body` lines on the clipboard — paste straight into a Discord bug report.
 * Instrumentation lands at every previously-silent decision point in the guest tick (`initial-sync`, `track-change` followed / diverged, `play-pause-flip`) plus host state pushes, so the "stopped after the first song" Orbit symptom is now diagnosable from the buffer alone.
 * Events are also bridged to the existing `frontend_debug_log` command when **Settings → Logging** is on Debug, so power users still get the same data in `psysonic-logs-*.log` for offline triage.
-* i18n: full `orbit.diag.*` namespace across all 8 locales (EN + DE native; ES / FR / NB / NL / RU / ZH first-pass, polish welcome).
+* i18n: full `orbit.diag.*` namespace across all 9 locales (EN + DE native; RO native; ES / FR / NB / NL / RU / ZH first-pass, polish welcome).
 
 ### Player Bar — album context menu on song title right-click
 
@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Next step on the accessibility track after the colour-side work (WCAG contrast audits across every theme, dedicated colour-vision-deficiency theme variants for protanopia / deuteranopia / tritanopia): a dyslexia-friendly **OpenDyslexic** font option in the existing font picker.
 * OpenDyslexic uses a heavier weighted baseline and asymmetric glyph shapes — `b`/`d`, `p`/`q` never mirror, italics are differentiated forms rather than slanted regulars — which many dyslexic readers find easier to track than a typical sans.
 * Bundled locally via `@fontsource/opendyslexic` (SIL OFL, freely redistributable). No CDN dependency. The Settings picker grew an optional **subtitle** field on font entries so the OpenDyslexic row carries a "dyslexia-friendly · no RU/ZH support" hint without cluttering the other 14 fonts.
-* **Latin, Latin-extended and Cyrillic.** Chinese (ZH) falls back to the system font when OpenDyslexic is selected; the subtitle calls that out upfront. Subtitle text is translated in all 8 locales.
+* **Latin, Latin-extended and Cyrillic.** Chinese (ZH) falls back to the system font when OpenDyslexic is selected; the subtitle calls that out upfront. Subtitle text is translated in all 9 locales.
 
 ### Lossless Albums — rail on Home + dedicated page + sidebar entry
 
@@ -62,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Detection walks Navidrome's native `/api/song?_sort=bit_depth&_order=DESC` and dedupes to album ids along the way, stopping when the cursor crosses into lossy or runs out. Restricted to containers that are **always lossless** (`flac`, `wav`, `aiff`/`aif`, `dsf`/`dff`, `ape`, `wv`, `shn`, `tta`) — `m4a` and `wma` are intentionally excluded because they can carry both lossless and lossy codecs and Navidrome's `codec` field isn't reliable enough to disambiguate.
 * Streaming load: albums stream into the page progressively as each internal fetch completes (`onProgress` callback) instead of blocking on the full `loadMore`.
 * New sidebar entry **Lossless** (Gem icon), visible by default.
-* i18n coverage across all 8 locales for the new strings (sidebar / home / page subtitle / empty / unsupported). RU and ZH are machine-translation quality, flagged for a polish pass.
+* i18n coverage across all 9 locales for the new strings (sidebar / home / page subtitle / empty / unsupported). RU and ZH are machine-translation quality, flagged for a polish pass.
 
 ### Song Info — absolute file path on Navidrome servers
 
@@ -108,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Albums on the artist page can now be **grouped into sections** by their OpenSubsonic `releaseTypes` (Album, EP, Single, Compilation, Live, Soundtrack, Remix). Section order is deterministic across languages, with unknown types appended at the end.
 * Falls back to the previous flat list when the server doesn't return `releaseTypes` or all albums share the default Album type — no behaviour change for non-OpenSubsonic servers.
-* Section headers are localised in all 8 supported languages.
+* Section headers are localised in all 9 supported languages.
 
 ### Library — Browse by Composer
 
@@ -129,6 +129,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Anchor rotation is **per-server**: switching servers keeps independent rotation state instead of aliasing one server's anchor id onto the next server's pool. The rail also renders on fresh servers that have no frequent-play history yet, as long as they have starred or recently played items. Zero extra API calls — all three seed lists are already in the Home initial fetch.
 * **Responsive layout:** **3** cards in one row on 2K-class screens, **2** cards in one row at 1080p (the orphan third card on a second row is hidden via container query), and all **3** stacked vertically on truly narrow / mobile widths.
 * Toggleable in the Home customizer like every other rail; respects the existing performance flags ("Disable rail artwork", "Disable Home album rows").
+
+### Romanian (ro) translation
+
+**By [@MihaiCatalin120](https://github.com/MihaiCatalin120), PR [#663](https://github.com/Psychotoxical/psysonic/pull/663)**
+
+* Complete Romanian (`ro`) locale for navigation, player, playlists, settings, help, and errors.
+* Psysonic now ships in **nine** UI languages: English, German, Spanish, French, Dutch, Norwegian Bokmål, Russian, Chinese (Simplified), and Romanian.
 
 ## Changed
 
@@ -155,7 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), suggested by cucadmuh, PR [#514](https://github.com/Psychotoxical/psysonic/pull/514)**
 
-* The Settings language picker now shows each language **written in itself** — `English`, `Deutsch`, `Español`, `Français`, `Nederlands`, `Norsk`, `Русский`, `中文` — same eight labels in every locale instead of translating each name into the current UI language.
+* The Settings language picker now shows each language **written in itself** — `English`, `Deutsch`, `Español`, `Français`, `Nederlands`, `Norsk`, `Русский`, `中文`, `Română` — same nine labels in every locale instead of translating each name into the current UI language.
 * A native speaker can recognise their own language regardless of which UI language is currently active; same convention used by Wikipedia and most OS-level language pickers.
 * Filled in `languageEs` for the six locales (de/fr/nl/nb/ru/zh) where it was missing — the Spanish entry was previously falling back to `'Spanish'` from `en.ts` on every non-EN/non-ES UI.
 
@@ -220,7 +227,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Help page rebuilt from scratch: dropped entries the UI itself answers, consolidated natural groupings, and added entries for features that didn't exist yet when the original Q/A list was written (**Orbit**, **Magic Strings**, **LUFS**, **Mini Player**, **Smart Playlists**, **Track Preview**, **Search**, **Statistics**, **Tracks** hub, **Genre Browser**, **Discord**, **Bandsintown**, **Multi-select**, **Sidebar/Home/Artist customization**, **Sleep Timer**, **Open Source Licenses**). 45 focused entries across **10 themed sections**.
 * New **live in-page search**: case-insensitive substring across every Q+A, sections without hits collapse out, matches auto-expand so the answer is visible without clicking. × button clears the query.
-* Translated to all **8 supported locales** (en, de, fr, nl, zh, nb, ru, es). Russian and Chinese are at machine-translation quality and would benefit from a polish pass by the original locale maintainers.
+* Translated to all **9 supported locales** (en, de, fr, nl, zh, nb, ru, es, ro). Russian and Chinese are at machine-translation quality and would benefit from a polish pass by the original locale maintainers.
 
 ### Community themes — redesign pass
 

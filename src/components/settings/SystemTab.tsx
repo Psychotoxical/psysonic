@@ -240,7 +240,7 @@ export function SystemTab() {
         icon={<Users size={16} />}
       >
         <div className="contributors-grid">
-          {[...CONTRIBUTORS].sort((a, b) => b.contributions.length - a.contributions.length).map(c => (
+          {CONTRIBUTORS.map(c => (
             <details key={c.github} className="contributor-card">
               <summary className="contributor-card-summary">
                 <img

@@ -137,7 +137,7 @@ Start a session, invite others with a link and listen together with host-control
 | macOS   | Signed DMG                                                      |
 | Linux   | AppImage / DEB / RPM / AUR (`psysonic`, `psysonic-bin`) / NixOS |
 
-Psysonic supports **8 languages** and growing.
+Psysonic supports **9 languages** and growing.
 
 ---
 
