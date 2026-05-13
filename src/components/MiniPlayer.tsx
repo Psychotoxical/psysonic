@@ -4,8 +4,7 @@ import { createPortal } from 'react-dom';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
-import { Play, Pause, SkipBack, SkipForward, Pin, PinOff, Maximize2, X, ListMusic, Volume2, VolumeX, Shuffle, Infinity as InfinityIcon, Waves, MoveRight } from 'lucide-react';
-import CachedImage from './CachedImage';
+import { ListMusic, Volume2, VolumeX, Shuffle, Infinity as InfinityIcon, Waves, MoveRight } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';
@@ -18,8 +17,11 @@ import type { MiniSyncPayload, MiniControlAction, MiniTrackInfo } from '../utils
 import {
   COLLAPSED_SIZE, EXPANDED_SIZE, COLLAPSED_MIN, EXPANDED_MIN,
   EXPANDED_H_KEY, QUEUE_OPEN_KEY,
-  readStoredExpandedHeight, readQueueOpen, initialSnapshot, fmt,
+  readStoredExpandedHeight, readQueueOpen, initialSnapshot,
 } from '../utils/miniPlayerHelpers';
+import { MiniTitlebar } from './miniPlayer/MiniTitlebar';
+import { MiniMeta } from './miniPlayer/MiniMeta';
+import { MiniControls } from './miniPlayer/MiniControls';
 
 interface ProgressPayload {
   current_time: number;
@@ -418,85 +420,17 @@ export default function MiniPlayer() {
 
   return (
     <div className="mini-player-shell">
-      <div
-        className={`mini-player__titlebar${!IS_LINUX ? ' mini-player__titlebar--mac' : ''}`}
-        {...(!IS_LINUX ? {} : { 'data-tauri-drag-region': true })}
-      >
-        {IS_LINUX ? (
-          <span className="mini-player__titlebar-title" data-tauri-drag-region>
-            {track?.title ?? 'Psysonic Mini'}
-          </span>
-        ) : (
-          // macOS/Windows already render a native titlebar with the window
-          // title + close button; we just need a flexible spacer so the
-          // action buttons sit right.
-          <span className="mini-player__titlebar-spacer" />
-        )}
-        <button
-          type="button"
-          className={`mini-player__titlebar-btn${alwaysOnTop ? ' mini-player__titlebar-btn--active' : ''}`}
-          onClick={toggleOnTop}
-          data-tauri-drag-region="false"
-          data-tooltip={alwaysOnTop ? t('miniPlayer.pinOff') : t('miniPlayer.pinOnTop')}
-          aria-label={alwaysOnTop ? t('miniPlayer.pinOff') : t('miniPlayer.pinOnTop')}
-        >
-          {alwaysOnTop ? <Pin size={13} /> : <PinOff size={13} />}
-        </button>
-        <button
-          type="button"
-          className="mini-player__titlebar-btn"
-          onClick={showMain}
-          data-tauri-drag-region="false"
-          data-tooltip={t('miniPlayer.openMainWindow')}
-          aria-label={t('miniPlayer.openMainWindow')}
-        >
-          <Maximize2 size={13} />
-        </button>
-        {/* macOS + Windows already provide Close via the native titlebar —
-            skip the duplicate so the in-app titlebar stays minimal. */}
-        {IS_LINUX && (
-          <button
-            type="button"
-            className="mini-player__titlebar-btn mini-player__titlebar-btn--close"
-            onClick={closeMini}
-            data-tauri-drag-region="false"
-            data-tooltip={t('miniPlayer.close')}
-            aria-label={t('miniPlayer.close')}
-          >
-            <X size={13} />
-          </button>
-        )}
-      </div>
+      <MiniTitlebar
+        trackTitle={track?.title}
+        alwaysOnTop={alwaysOnTop}
+        toggleOnTop={toggleOnTop}
+        showMain={showMain}
+        closeMini={closeMini}
+        t={t}
+      />
 
       <div className={`mini-player${queueOpen ? ' mini-player--queue-open' : ''}`}>
-        <div className="mini-player__meta">
-          <div className="mini-player__art">
-            {track?.coverArt ? (
-              <CachedImage
-                src={miniCoverSrc}
-                cacheKey={miniCoverKey}
-                alt={track.album}
-              />
-            ) : (
-              <div className="mini-player__art-fallback" />
-            )}
-          </div>
-
-          <div className="mini-player__meta-text" data-tauri-drag-region="false">
-            <div className="mini-player__title" title={track?.title}>
-              {track?.title ?? '—'}
-            </div>
-            {track?.artist && (
-              <div className="mini-player__artist" title={track.artist}>{track.artist}</div>
-            )}
-            {track?.album && (
-              <div className="mini-player__album" title={track.album}>{track.album}</div>
-            )}
-            {track?.year && (
-              <div className="mini-player__year">{track.year}</div>
-            )}
-          </div>
-        </div>
+        <MiniMeta track={track} miniCoverSrc={miniCoverSrc} miniCoverKey={miniCoverKey} />
 
         <div className="mini-player__toolbar" data-tauri-drag-region="false">
           <div className="mini-player__volume-wrap">
@@ -708,27 +642,13 @@ export default function MiniPlayer() {
         </OverlayScrollArea>
       )}
 
-        <div className="mini-player__bottom" data-tauri-drag-region="false">
-          <div className="mini-player__controls">
-            <button className="mini-player__btn" onClick={() => control('prev')} data-tauri-drag-region="false">
-              <SkipBack size={16} />
-            </button>
-            <button className="mini-player__btn mini-player__btn--primary" onClick={() => control('toggle')} data-tauri-drag-region="false">
-              {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-            </button>
-            <button className="mini-player__btn" onClick={() => control('next')} data-tauri-drag-region="false">
-              <SkipForward size={16} />
-            </button>
-          </div>
-
-          <div className="mini-player__progress">
-            <div className="mini-player__progress-time">{fmt(currentTime)}</div>
-            <div className="mini-player__progress-track">
-              <div className="mini-player__progress-fill" style={{ width: `${progress}%` }} />
-            </div>
-            <div className="mini-player__progress-time">{fmt(duration)}</div>
-          </div>
-        </div>
+        <MiniControls
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          progress={progress}
+          control={control}
+        />
 
         {ctxMenu && (
           <MiniContextMenu
