@@ -1,9 +1,7 @@
 import { uploadArtistImage } from '../api/subsonicPlaylists';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
-import { search } from '../api/subsonicSearch';
 import { getAlbum } from '../api/subsonicLibrary';
-import { getArtist, getArtistInfo, getTopSongs, getSimilarSongs2 } from '../api/subsonicArtists';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
@@ -21,7 +19,7 @@ import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import { lastfmGetSimilarArtists, lastfmIsConfigured } from '../api/lastfm';
+import { lastfmIsConfigured } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
 import { invalidateCoverArt } from '../utils/imageCache';
 import { showToast } from '../utils/toast';
@@ -30,62 +28,28 @@ import { extractCoverColors } from '../utils/dynamicColors';
 import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function ArtistSuggestionTrackCover({ coverArt, album }: { coverArt: string; album: string }) {
-  const src = useMemo(() => buildCoverArtUrl(coverArt, 64), [coverArt]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 64), [coverArt]);
-  return (
-    <CachedImage
-      src={src}
-      cacheKey={cacheKey}
-      alt={album}
-      style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }}
-      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-    />
-  );
-}
-
-/** Strip dangerous tags/attributes from server-provided HTML */
-function sanitizeHtml(html: string): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, select, base, meta, link').forEach(el => el.remove());
-  doc.querySelectorAll('*').forEach(el => {
-    Array.from(el.attributes).forEach(attr => {
-      const name = attr.name.toLowerCase();
-      const val = attr.value.toLowerCase().trim();
-      if (name.startsWith('on') || (name === 'href' && (val.startsWith('javascript:') || val.startsWith('data:'))) || (name === 'src' && (val.startsWith('javascript:') || val.startsWith('data:')))) {
-        el.removeAttribute(attr.name);
-      }
-    });
-  });
-  return doc.body.innerHTML;
-}
+import { formatDuration, sanitizeHtml } from '../utils/artistDetailHelpers';
+import ArtistSuggestionTrackCover from '../components/artistDetail/ArtistSuggestionTrackCover';
+import { useArtistDetailData } from '../hooks/useArtistDetailData';
+import { useArtistSimilarArtists } from '../hooks/useArtistSimilarArtists';
+import {
+  runArtistDetailPlayAll, runArtistDetailShuffle, runArtistDetailStartRadio,
+} from '../utils/runArtistDetailPlay';
 
 
 export default function ArtistDetail() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [artist, setArtist] = useState<SubsonicArtist | null>(null);
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
-  const [featuredAlbums, setFeaturedAlbums] = useState<SubsonicAlbum[]>([]);
-  const [topSongs, setTopSongs] = useState<SubsonicSong[]>([]);
-  const [info, setInfo] = useState<SubsonicArtistInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    artist, setArtist, albums, topSongs, info, featuredAlbums,
+    loading, artistInfoLoading, featuredLoading,
+    isStarred, setIsStarred,
+  } = useArtistDetailData(id);
   const [radioLoading, setRadioLoading] = useState(false);
   const [playAllLoading, setPlayAllLoading] = useState(false);
-  const [isStarred, setIsStarred] = useState(false);
   const [openedLink, setOpenedLink] = useState<string | null>(null);
-  const [similarArtists, setSimilarArtists] = useState<SubsonicArtist[]>([]);
-  const [similarLoading, setSimilarLoading] = useState(false);
-  const [artistInfoLoading, setArtistInfoLoading] = useState(false);
-  const [featuredLoading, setFeaturedLoading] = useState(false);
+  const { similarArtists, similarLoading } = useArtistSimilarArtists(artist, info, artistInfoLoading);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -123,46 +87,8 @@ export default function ArtistDetail() {
   const [artistEntityRating, setArtistEntityRating] = useState(0);
 
   useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    setLoading(true);
-    setInfo(null);
-    setTopSongs([]);
-    setFeaturedAlbums([]);
     setAvatarGlow('');
-    getArtist(id).then(artistData => {
-      if (cancelled) return;
-      setArtist(artistData.artist);
-      setAlbums(artistData.albums);
-      setIsStarred(!!artistData.artist.starred);
-      // Render the page immediately from local data
-      setLoading(false);
-
-      getTopSongs(artistData.artist.name).then(songsData => {
-        if (!cancelled) setTopSongs(songsData ?? []);
-      }).catch(() => {});
-    }).catch(err => {
-      if (!cancelled) { console.error(err); setLoading(false); }
-    });
-    return () => { cancelled = true; };
   }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    setArtistInfoLoading(true);
-    getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
-      .then(artistInfo => {
-        if (!cancelled) setInfo(artistInfo ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setInfo(null);
-      })
-      .finally(() => {
-        if (!cancelled) setArtistInfoLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [id, audiomuseNavidromeEnabled]);
 
   useEffect(() => {
     if (!id) return;
@@ -192,112 +118,6 @@ export default function ArtistDetail() {
     }
   };
 
-  // "Also Featured On" — loaded in background after main content renders
-  useEffect(() => {
-    if (!id || !artist) return;
-    const ownAlbumIds = new Set(albums.map(a => a.id));
-    setFeaturedLoading(true);
-    search(artist.name, { songCount: 500, artistCount: 0, albumCount: 0 })
-      .catch(() => ({ songs: [], albums: [], artists: [] }))
-      .then(searchResults => {
-        const featuredSongs = (searchResults.songs ?? []).filter(
-          song => song.artistId === id && !ownAlbumIds.has(song.albumId)
-        );
-        const albumMap = new Map<string, SubsonicAlbum>();
-        featuredSongs.forEach(song => {
-          if (!albumMap.has(song.albumId)) {
-            albumMap.set(song.albumId, {
-              id: song.albumId,
-              name: song.album,
-              artist: song.albumArtist ?? '',
-              artistId: '',
-              coverArt: song.coverArt,
-              songCount: 1,
-              duration: song.duration,
-              year: song.year,
-            });
-          } else {
-            const a = albumMap.get(song.albumId)!;
-            a.songCount++;
-            a.duration += song.duration;
-          }
-        });
-        setFeaturedAlbums([...albumMap.values()]);
-        setFeaturedLoading(false);
-      });
-  }, [artist?.id, musicLibraryFilterVersion]);
-
-  useEffect(() => {
-    if (!artist || audiomuseNavidromeEnabled || !lastfmIsConfigured()) return;
-    setSimilarArtists([]);
-    setSimilarLoading(true);
-    lastfmGetSimilarArtists(artist.name).then(async names => {
-      if (names.length === 0) { setSimilarLoading(false); return; }
-      const results = await Promise.all(
-        names.slice(0, 30).map(name =>
-          search(name, { artistCount: 3, albumCount: 0, songCount: 0 }).catch(() => ({ artists: [], albums: [], songs: [] }))
-        )
-      );
-      const seen = new Set<string>([artist.id]);
-      const found: SubsonicArtist[] = [];
-      for (let i = 0; i < results.length; i++) {
-        const targetName = names[i].toLowerCase();
-        const match = results[i].artists.find(a => a.name.toLowerCase() === targetName);
-        if (match && !seen.has(match.id)) {
-          seen.add(match.id);
-          found.push(match);
-        }
-      }
-      setSimilarArtists(found);
-      setSimilarLoading(false);
-    }).catch(() => setSimilarLoading(false));
-  }, [artist?.id, musicLibraryFilterVersion, audiomuseNavidromeEnabled]);
-
-  /** When AudioMuse is on but the server returns no similar artists, fall back to Last.fm (if configured). */
-  useEffect(() => {
-    if (!artist || !audiomuseNavidromeEnabled || !lastfmIsConfigured()) return;
-    if (artistInfoLoading) return;
-    if ((info?.similarArtist?.length ?? 0) > 0) return;
-
-    setSimilarArtists([]);
-    setSimilarLoading(true);
-    lastfmGetSimilarArtists(artist.name).then(async names => {
-      if (names.length === 0) { setSimilarLoading(false); return; }
-      const results = await Promise.all(
-        names.slice(0, 30).map(name =>
-          search(name, { artistCount: 3, albumCount: 0, songCount: 0 }).catch(() => ({ artists: [], albums: [], songs: [] }))
-        )
-      );
-      const seen = new Set<string>([artist.id]);
-      const found: SubsonicArtist[] = [];
-      for (let i = 0; i < results.length; i++) {
-        const targetName = names[i].toLowerCase();
-        const match = results[i].artists.find(a => a.name.toLowerCase() === targetName);
-        if (match && !seen.has(match.id)) {
-          seen.add(match.id);
-          found.push(match);
-        }
-      }
-      setSimilarArtists(found);
-      setSimilarLoading(false);
-    }).catch(() => setSimilarLoading(false));
-  }, [
-    artist?.id,
-    artist?.name,
-    musicLibraryFilterVersion,
-    audiomuseNavidromeEnabled,
-    artistInfoLoading,
-    info?.similarArtist?.length,
-  ]);
-
-  useEffect(() => {
-    if (!audiomuseNavidromeEnabled) return;
-    if ((info?.similarArtist?.length ?? 0) > 0) {
-      setSimilarArtists([]);
-      setSimilarLoading(false);
-    }
-  }, [id, audiomuseNavidromeEnabled, info?.similarArtist?.length]);
-
   const openLink = (url: string, key: string) => {
     open(url);
     setOpenedLink(key);
@@ -317,70 +137,11 @@ export default function ArtistDetail() {
     }
   };
 
-  const fetchAllTracks = async () => {
-    const results = await Promise.all(albums.map(a => getAlbum(a.id)));
-    const sorted = [...results].sort((a, b) => (a.album.year ?? 0) - (b.album.year ?? 0));
-    return sorted.flatMap(r => [...r.songs].sort((a, b) => (a.track ?? 0) - (b.track ?? 0))).map(songToTrack);
-  };
-
-  const handlePlayAll = async () => {
-    if (albums.length === 0) return;
-    setPlayAllLoading(true);
-    try {
-      const tracks = await fetchAllTracks();
-      if (tracks.length > 0) playTrack(tracks[0], tracks);
-    } finally {
-      setPlayAllLoading(false);
-    }
-  };
-
-  const handleShuffle = async () => {
-    if (albums.length === 0) return;
-    setPlayAllLoading(true);
-    try {
-      const tracks = await fetchAllTracks();
-      if (tracks.length > 0) {
-        const shuffled = [...tracks].sort(() => Math.random() - 0.5);
-        playTrack(shuffled[0], shuffled);
-      }
-    } finally {
-      setPlayAllLoading(false);
-    }
-  };
-
-  const handleStartRadio = async () => {
+  const handlePlayAll = () => runArtistDetailPlayAll({ albums, setPlayAllLoading, playTrack });
+  const handleShuffle = () => runArtistDetailShuffle({ albums, setPlayAllLoading, playTrack });
+  const handleStartRadio = () => {
     if (!artist) return;
-    setRadioLoading(true);
-    try {
-      // Fire both fetches in parallel
-      const topPromise = getTopSongs(artist.name);
-      const similarPromise = getSimilarSongs2(artist.id, 50);
-
-      // Start playing as soon as top songs arrive
-      const top = await topPromise;
-      if (top.length > 0) {
-        const firstTrack = songToTrack(top[0]);
-        playTrack(firstTrack, [firstTrack]);
-        setRadioLoading(false);
-        // Enqueue remaining tracks when similar songs arrive
-        const similar = await similarPromise;
-        const remaining = [...top.slice(1), ...similar].map(songToTrack);
-        if (remaining.length > 0) enqueue(remaining);
-      } else {
-        // No top songs — fall back to similar
-        const similar = await similarPromise;
-        if (similar.length > 0) {
-          const tracks = similar.map(songToTrack);
-          playTrack(tracks[0], tracks);
-        } else {
-          alert(t('artistDetail.noRadio'));
-        }
-        setRadioLoading(false);
-      }
-    } catch (e) {
-      console.error('Radio start failed', e);
-      setRadioLoading(false);
-    }
+    return runArtistDetailStartRadio({ artist, t, setRadioLoading, playTrack, enqueue });
   };
 
   const handleShareArtist = async () => {
@@ -399,7 +160,9 @@ export default function ArtistDetail() {
     setPlayAllLoading(true);
     try {
       // Get all artist tracks ordered by album and track number
-      const allTracks = await fetchAllTracks();
+      const results = await Promise.all(albums.map(a => getAlbum(a.id)));
+      const sorted = [...results].sort((a, b) => (a.album.year ?? 0) - (b.album.year ?? 0));
+      const allTracks = sorted.flatMap(r => [...r.songs].sort((a, b) => (a.track ?? 0) - (b.track ?? 0))).map(songToTrack);
 
       // Top songs from clicked index onward
       const topTracksFromIndex = topSongs.slice(startIndex).map(songToTrack);
@@ -408,7 +171,7 @@ export default function ArtistDetail() {
       const topSongIds = new Set(topSongs.map(s => s.id));
 
       // Filter remaining tracks to exclude top songs (prevent duplicates)
-      const remainingTracks = allTracks.filter(t => !topSongIds.has(t.id));
+      const remainingTracks = allTracks.filter(tr => !topSongIds.has(tr.id));
 
       // Build queue: remaining top songs + rest of artist catalog
       const queue = [...topTracksFromIndex, ...remainingTracks];
