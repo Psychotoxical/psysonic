@@ -2,7 +2,7 @@ import { getArtists } from '../api/subsonicArtists';
 import type { SubsonicArtist } from '../api/subsonicTypes';
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, List, Images, CheckSquare2, Check } from 'lucide-react';
+import { LayoutGrid, List, Images, CheckSquare2 } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -18,9 +18,10 @@ import {
   ARTIST_LIST_LETTER_ROW_EST,
   ARTIST_LIST_ROW_EST,
 } from '../utils/artistsHelpers';
-import { ArtistCardAvatar, ArtistRowAvatar } from '../components/artists/ArtistAvatars';
 import { useArtistsFiltering } from '../hooks/useArtistsFiltering';
 import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
+import { ArtistsGridView } from '../components/artists/ArtistsGridView';
+import { ArtistsListView } from '../components/artists/ArtistsListView';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
@@ -185,173 +186,35 @@ export default function Artists() {
       {loading && <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>}
 
       {!loading && viewMode === 'grid' && (
-        <div className="album-grid-wrap">
-          {visible.map(artist => (
-            <div
-              key={artist.id}
-              className={`artist-card${selectionMode && selectedIds.has(artist.id) ? ' selected' : ''}${selectionMode ? ' artist-card--selectable' : ''}`}
-              onClick={() => {
-                if (selectionMode) {
-                  toggleSelect(artist.id);
-                } else {
-                  navigate(`/artist/${artist.id}`);
-                }
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if (selectionMode && selectedIds.size > 0) {
-                  openContextMenu(e.clientX, e.clientY, selectedArtists, 'multi-artist');
-                } else {
-                  openContextMenu(e.clientX, e.clientY, artist, 'artist');
-                }
-              }}
-              style={selectionMode && selectedIds.has(artist.id) ? {
-                outline: '2px solid var(--accent)',
-                outlineOffset: '2px',
-                borderRadius: 'var(--radius-md)'
-              } : {}}
-            >
-              {selectionMode && (
-                <div className={`artist-card-select-check${selectedIds.has(artist.id) ? ' artist-card-select-check--on' : ''}`}>
-                  {selectedIds.has(artist.id) && <Check size={14} strokeWidth={3} />}
-                </div>
-              )}
-              <ArtistCardAvatar artist={artist} showImages={showArtistImages} />
-              <div style={{ textAlign: 'center' }}>
-                <div className="artist-card-name">{artist.name}</div>
-                {artist.albumCount != null && (
-                  <div className="artist-card-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ArtistsGridView
+          visible={visible}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          selectedArtists={selectedArtists}
+          showArtistImages={showArtistImages}
+          toggleSelect={toggleSelect}
+          navigate={navigate}
+          openContextMenu={openContextMenu}
+          t={t}
+        />
       )}
 
       {!loading && viewMode === 'list' && (
-        perfFlags.disableMainstageVirtualLists ? (
-          <>
-            {letters.map(letter => (
-              <div key={letter} style={{ marginBottom: '1.5rem' }}>
-                <h3 className="letter-heading">{letter}</h3>
-                <div className="artist-list">
-                  {groups[letter].map(artist => (
-                    <button
-                      key={artist.id}
-                      className={`artist-row${selectionMode && selectedIds.has(artist.id) ? ' selected' : ''}`}
-                      onClick={() => {
-                        if (selectionMode) {
-                          toggleSelect(artist.id);
-                        } else {
-                          navigate(`/artist/${artist.id}`);
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        if (selectionMode && selectedIds.size > 0) {
-                          openContextMenu(e.clientX, e.clientY, selectedArtists, 'multi-artist');
-                        } else {
-                          openContextMenu(e.clientX, e.clientY, artist, 'artist');
-                        }
-                      }}
-                      id={`artist-${artist.id}`}
-                      style={selectionMode && selectedIds.has(artist.id) ? {
-                        background: 'var(--accent-dim)',
-                        color: 'var(--accent)'
-                      } : {}}
-                    >
-                      <ArtistRowAvatar artist={artist} showImages={showArtistImages} />
-                      <div style={{ textAlign: 'left' }}>
-                        <div className="artist-name">{artist.name}</div>
-                        {artist.albumCount != null && (
-                          <div className="artist-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </>
-        ) : (
-          <div style={{ position: 'relative', width: '100%' }}>
-            <div
-              style={{
-                height: artistListFlatRows.length === 0 ? 0 : artistListVirtualizer.getTotalSize(),
-                width: '100%',
-                position: 'relative',
-              }}
-            >
-              {artistListVirtualizer.getVirtualItems().map(vi => {
-                const row = artistListFlatRows[vi.index];
-                if (!row) return null;
-                if (row.kind === 'letter') {
-                  return (
-                    <div
-                      key={vi.key}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        transform: `translateY(${vi.start}px)`,
-                      }}
-                    >
-                      <h3 className="letter-heading">{row.letter}</h3>
-                    </div>
-                  );
-                }
-                const artist = row.artist;
-                return (
-                  <div
-                    key={vi.key}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      transform: `translateY(${vi.start}px)`,
-                      paddingBottom: row.isLastInLetter ? '1.5rem' : undefined,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className={`artist-row${selectionMode && selectedIds.has(artist.id) ? ' selected' : ''}`}
-                      onClick={() => {
-                        if (selectionMode) {
-                          toggleSelect(artist.id);
-                        } else {
-                          navigate(`/artist/${artist.id}`);
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        if (selectionMode && selectedIds.size > 0) {
-                          openContextMenu(e.clientX, e.clientY, selectedArtists, 'multi-artist');
-                        } else {
-                          openContextMenu(e.clientX, e.clientY, artist, 'artist');
-                        }
-                      }}
-                      id={`artist-${artist.id}`}
-                      style={selectionMode && selectedIds.has(artist.id) ? {
-                        background: 'var(--accent-dim)',
-                        color: 'var(--accent)'
-                      } : {}}
-                    >
-                      <ArtistRowAvatar artist={artist} showImages={showArtistImages} />
-                      <div style={{ textAlign: 'left' }}>
-                        <div className="artist-name">{artist.name}</div>
-                        {artist.albumCount != null && (
-                          <div className="artist-meta">{t('artists.albumCount', { count: artist.albumCount })}</div>
-                        )}
-                      </div>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )
+        <ArtistsListView
+          virtualized={!perfFlags.disableMainstageVirtualLists}
+          groups={groups}
+          letters={letters}
+          artistListFlatRows={artistListFlatRows}
+          artistListVirtualizer={artistListVirtualizer}
+          selectionMode={selectionMode}
+          selectedIds={selectedIds}
+          selectedArtists={selectedArtists}
+          showArtistImages={showArtistImages}
+          toggleSelect={toggleSelect}
+          navigate={navigate}
+          openContextMenu={openContextMenu}
+          t={t}
+        />
       )}
 
       {!loading && hasMore && (
