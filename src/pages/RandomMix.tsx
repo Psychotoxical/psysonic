@@ -15,23 +15,8 @@ import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import {
   fetchRandomMixSongsUntilFull,
   getMixMinRatingsConfigFromAuth,
-  passesMixMinRatings,
 } from '../utils/mixRatingFilter';
-
-const AUDIOBOOK_GENRES = [
-  'hörbuch', 'hoerbuch', 'hörspiel', 'hoerspiel',
-  'audiobook', 'audio book', 'spoken word', 'spokenword',
-  'podcast', 'kapitel', 'thriller', 'krimi', 'speech',
-  'fantasy', 'comedy', 'literature',
-];
-
-
-function formatDuration(seconds: number): string {
-  if (!seconds || isNaN(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+import { AUDIOBOOK_GENRES, filterRandomMixSongs, formatRandomMixDuration } from '../utils/randomMixHelpers';
 
 export default function RandomMix() {
   const { t } = useTranslation();
@@ -126,21 +111,7 @@ export default function RandomMix() {
     }).catch(() => {});
   }, [musicLibraryFilterVersion]);
 
-  const filteredSongs = songs.filter(song => {
-    if (!excludeAudiobooks) return true;
-    const checkText = (text: string) => {
-      const t = text.toLowerCase();
-      if (AUDIOBOOK_GENRES.some(ag => t.includes(ag))) return true;
-      if (customGenreBlacklist.some(bg => t.includes(bg.toLowerCase()))) return true;
-      return false;
-    };
-    if (song.genre && checkText(song.genre)) return false;
-    if (song.title && checkText(song.title)) return false;
-    if (song.album && checkText(song.album)) return false;
-    if (song.artist && checkText(song.artist)) return false;
-    if (!passesMixMinRatings(song, mixRatingCfg)) return false;
-    return true;
-  });
+  const filteredSongs = filterRandomMixSongs(songs, { excludeAudiobooks, customGenreBlacklist, mixRatingCfg });
 
   const handlePlayAll = () => {
     if (selectedGenre && genreMixSongs.length > 0) {
@@ -556,7 +527,7 @@ export default function RandomMix() {
                         <Heart size={14} fill={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'currentColor' : 'none'} />
                       </button>
                     </div>
-                    <div className="track-duration">{formatDuration(song.duration)}</div>
+                    <div className="track-duration">{formatRandomMixDuration(song.duration)}</div>
                   </div>
                 );
               })}
@@ -710,7 +681,7 @@ export default function RandomMix() {
                   </button>
                 </div>
 
-                <div className="track-duration">{formatDuration(song.duration)}</div>
+                <div className="track-duration">{formatRandomMixDuration(song.duration)}</div>
               </div>
             );
           })}
