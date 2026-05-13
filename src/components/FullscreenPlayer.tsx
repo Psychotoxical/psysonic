@@ -1,6 +1,5 @@
 import { star, unstar } from '../api/subsonicStarRating';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
-import { getArtistInfo } from '../api/subsonicArtists';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   SkipBack, SkipForward,
@@ -9,7 +8,6 @@ import {
 import { usePlayerStore } from '../store/playerStore';
 import { useCachedUrl } from './CachedImage';
 import { getCachedBlob } from '../utils/imageCache';
-import { extractCoverColors } from '../utils/dynamicColors';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { FsLyricsApple } from './fullscreenPlayer/FsLyricsApple';
@@ -19,15 +17,13 @@ import { FsPortrait } from './fullscreenPlayer/FsPortrait';
 import { FsSeekbar } from './fullscreenPlayer/FsSeekbar';
 import { FsLyricsMenu } from './fullscreenPlayer/FsLyricsMenu';
 import { FsPlayBtn } from './fullscreenPlayer/FsPlayBtn';
+import { useFsDynamicAccent } from '../hooks/useFsDynamicAccent';
+import { useFsArtistPortrait } from '../hooks/useFsArtistPortrait';
+import { useFsIdleFade } from '../hooks/useFsIdleFade';
 
-// ─── Main component ────────────────────────────────────────────────────────────
 interface FullscreenPlayerProps {
   onClose: () => void;
 }
-
-// Module-level cache: artKey → accent color string.
-// Survives track changes so same-album songs reuse the extracted color instantly.
-const coverAccentCache = new Map<string, string>();
 
 export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const { t } = useTranslation();
@@ -69,55 +65,13 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   // `false` = no fetchUrl fallback — prevents double crossfade (fetchUrl → blobUrl).
   const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey, false);
 
-  // Dynamic accent color extracted from the current album cover.
-  // Applied as --dynamic-fs-accent on the root element so it inherits to all
-  // children; CSS rules use var(--dynamic-fs-accent, var(--accent)) as fallback.
-  // Reset to null on track change so the previous color doesn't linger while
-  // the new one is being extracted.
-  const [dynamicAccent, setDynamicAccent] = useState<string | null>(null);
-
-  // On cover change: hit cache for instant result, or fetch → extract → cache.
-  // Cache hit avoids re-fetching for same-album tracks. Reset only when uncached.
-  useEffect(() => {
-    if (!artKey || !artUrl) { setDynamicAccent(null); return; }
-    const cached = coverAccentCache.get(artKey);
-    if (cached) { setDynamicAccent(cached); return; }
-    // No cache hit — keep the previous color visible until extraction completes.
-    let cancelled = false;
-    let blobUrl = '';
-    (async () => {
-      try {
-        const resp = await fetch(artUrl);
-        if (cancelled) return;
-        const blob = await resp.blob();
-        if (cancelled) return;
-        blobUrl = URL.createObjectURL(blob);
-        const colors = await extractCoverColors(blobUrl);
-        if (cancelled) return;
-        if (colors.accent) {
-          coverAccentCache.set(artKey, colors.accent);
-          setDynamicAccent(colors.accent);
-        }
-      } catch { /* ignore */ } finally {
-        if (blobUrl) URL.revokeObjectURL(blobUrl);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [artKey]);
+  // Dynamic accent color extracted from the current album cover, applied as
+  // --dynamic-fs-accent on the root element. Cache hits return instantly so
+  // same-album tracks reuse the color without re-fetching.
+  const dynamicAccent = useFsDynamicAccent(artUrl, artKey);
 
   // Artist image → portrait on right. Falls back to cover art.
-  const [artistBgUrl, setArtistBgUrl] = useState<string>('');
-  useEffect(() => {
-    setArtistBgUrl('');
-    const artistId = currentTrack?.artistId;
-    if (!artistId) return;
-    let cancelled = false;
-    getArtistInfo(artistId).then(info => {
-      if (!cancelled && info.largeImageUrl) setArtistBgUrl(info.largeImageUrl);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [currentTrack?.artistId]);
-
+  const artistBgUrl = useFsArtistPortrait(currentTrack?.artistId);
   const portraitUrl = artistBgUrl || resolvedCoverUrl;
   const showFullscreenLyrics   = useAuthStore(s => s.showFullscreenLyrics);
   const fsLyricsStyle          = useAuthStore(s => s.fsLyricsStyle);
@@ -145,38 +99,8 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const lyricsMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const fsControlsRef = useRef<HTMLDivElement>(null);
 
-  // Idle-fade system — hides controls after 3 s of inactivity
-  const [isIdle, setIsIdle] = useState(false);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const resetIdle = useCallback(() => {
-    setIsIdle(false);
-    if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setIsIdle(true), 3000);
-  }, []);
-
-  // Throttled wrapper for mousemove — avoids clearing/setting timeouts on every pixel.
-  const lastMoveTime = useRef(0);
-  const handleMouseMove = useCallback(() => {
-    const now = Date.now();
-    if (now - lastMoveTime.current < 200) return;
-    lastMoveTime.current = now;
-    resetIdle();
-  }, [resetIdle]);
-
-  useEffect(() => {
-    resetIdle();
-    return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
-  }, [resetIdle]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      resetIdle();
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, resetIdle]);
+  // Idle-fade system — hides controls after 3 s of inactivity; Esc closes.
+  const { isIdle, handleMouseMove } = useFsIdleFade(onClose);
 
   const metaParts = useMemo(() => [
     currentTrack?.album,
