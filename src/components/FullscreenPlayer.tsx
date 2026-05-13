@@ -1,12 +1,10 @@
 import { star, unstar } from '../api/subsonicStarRating';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getArtistInfo } from '../api/subsonicArtists';
-import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
-import React, { useCallback, useEffect, useState, useRef, memo, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward,
-  ChevronDown, Repeat, Repeat1, Square, Music, Heart, MicVocal,
-  Moon, Sunrise,
+  SkipBack, SkipForward,
+  ChevronDown, Repeat, Repeat1, Square, Heart, MicVocal,
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCachedUrl } from './CachedImage';
@@ -14,128 +12,13 @@ import { getCachedBlob } from '../utils/imageCache';
 import { extractCoverColors } from '../utils/dynamicColors';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
-import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
-import PlaybackDelayModal from './PlaybackDelayModal';
-import PlaybackScheduleBadge from './PlaybackScheduleBadge';
-import { usePlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
 import { FsLyricsApple } from './fullscreenPlayer/FsLyricsApple';
 import { FsLyricsRail } from './fullscreenPlayer/FsLyricsRail';
 import { FsArt } from './fullscreenPlayer/FsArt';
 import { FsPortrait } from './fullscreenPlayer/FsPortrait';
 import { FsSeekbar } from './fullscreenPlayer/FsSeekbar';
-
-// ─── Lyrics settings popover — shown above the mic button ────────────────────
-interface FsLyricsMenuProps {
-  open: boolean;
-  onClose: () => void;
-  accentColor: string | null;
-  triggerRef?: React.RefObject<HTMLElement | null>;
-}
-const FsLyricsMenu = memo(function FsLyricsMenu({ open, onClose, accentColor, triggerRef }: FsLyricsMenuProps) {
-  const { t } = useTranslation();
-  const showLyrics  = useAuthStore(s => s.showFullscreenLyrics);
-  const lyricsStyle = useAuthStore(s => s.fsLyricsStyle);
-  const setLyrics   = useAuthStore(s => s.setShowFullscreenLyrics);
-  const setStyle    = useAuthStore(s => s.setFsLyricsStyle);
-  const panelRef    = useRef<HTMLDivElement>(null);
-
-  // Close on click outside the panel or on Escape.
-  // Ignore clicks on the trigger button so re-clicking it toggles normally
-  // instead of outside-handler closing + click re-opening.
-  useEffect(() => {
-    if (!open) return;
-    const onKey   = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    const onMouse = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (panelRef.current?.contains(target)) return;
-      if (triggerRef?.current?.contains(target)) return;
-      onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    const t = setTimeout(() => window.addEventListener('mousedown', onMouse), 0);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('mousedown', onMouse);
-    };
-  }, [open, onClose, triggerRef]);
-
-  if (!open) return null;
-
-  const accent = accentColor ?? 'var(--accent)';
-
-  return (
-    <div className="fslm-panel" ref={panelRef}>
-      {/* Toggle row */}
-      <div className="fslm-row">
-        <span className="fslm-label">{t('player.fsLyricsToggle')}</span>
-        <label className="toggle-switch" aria-label={t('player.fsLyricsToggle')}>
-          <input
-            type="checkbox"
-            checked={showLyrics}
-            onChange={e => setLyrics(e.target.checked)}
-          />
-          <span className="toggle-track" />
-        </label>
-      </div>
-
-      {/* Style selector — dimmed when lyrics are off */}
-      <div className={`fslm-style-row${showLyrics ? '' : ' fslm-disabled'}`}>
-        {(['rail', 'apple'] as const).map(style => (
-          <button
-            key={style}
-            className={`fslm-style-btn${lyricsStyle === style ? ' fslm-style-active' : ''}`}
-            onClick={() => setStyle(style)}
-            style={lyricsStyle === style ? { borderColor: accent, color: accent, background: `color-mix(in srgb, ${accent} 14%, transparent)` } : undefined}
-          >
-            <span className="fslm-style-name">{t(`settings.fsLyricsStyle${style.charAt(0).toUpperCase() + style.slice(1)}` as any)}</span>
-            <span className="fslm-style-desc">{t(`settings.fsLyricsStyle${style.charAt(0).toUpperCase() + style.slice(1)}Desc` as any)}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="fslm-arrow" />
-    </div>
-  );
-});
-
-// ─── Play/Pause button (isolated — subscribes to isPlaying only) ──────────────
-const FsPlayBtn = memo(function FsPlayBtn({
-  controlsAnchorRef,
-}: {
-  controlsAnchorRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  const { t } = useTranslation();
-  const isPlaying  = usePlayerStore(s => s.isPlaying);
-  const togglePlay = usePlayerStore(s => s.togglePlay);
-  const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
-  const playSlotRef = useRef<HTMLSpanElement>(null);
-  const scheduleRemaining = usePlaybackScheduleRemaining();
-  return (
-    <>
-      <span ref={playSlotRef} className="playback-transport-play-wrap">
-        <PlaybackScheduleBadge layoutAnchorRef={playSlotRef} className="playback-schedule-badge--fs" />
-        <button
-          type="button"
-          className="fs-btn fs-btn-play"
-          {...playPauseBind}
-          aria-label={isPlaying ? t('player.pause') : t('player.play')}
-          data-tooltip={isPlaying ? t('player.pause') : t('player.play')}
-        >
-          {scheduleRemaining != null ? (
-            <span className={`player-btn-schedule-stack player-btn-schedule-stack--${scheduleRemaining.mode} player-btn-schedule-stack--fs`}>
-              {scheduleRemaining.mode === 'pause'
-                ? <Moon size={12} strokeWidth={2.5} />
-                : <Sunrise size={12} strokeWidth={2.5} />}
-              <span className="player-btn-schedule-time player-btn-schedule-time--fs">{scheduleRemaining.remaining}</span>
-            </span>
-          ) : isPlaying ? <Pause size={25} /> : <Play size={25} fill="currentColor" />}
-        </button>
-      </span>
-      <PlaybackDelayModal open={delayModalOpen} onClose={() => setDelayModalOpen(false)} anchorRef={controlsAnchorRef} />
-    </>
-  );
-});
+import { FsLyricsMenu } from './fullscreenPlayer/FsLyricsMenu';
+import { FsPlayBtn } from './fullscreenPlayer/FsPlayBtn';
 
 // ─── Main component ────────────────────────────────────────────────────────────
 interface FullscreenPlayerProps {
