@@ -1,8 +1,7 @@
 import { getPlaylists, getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
-import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { star, unstar, setRating } from '../api/subsonicStarRating';
 import { getAlbum } from '../api/subsonicLibrary';
-import { getSimilarSongs2, getSimilarSongs, getTopSongs, getArtist } from '../api/subsonicArtists';
+import { getArtist } from '../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicPlaylist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
@@ -22,22 +21,15 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { useDownloadModalStore } from '../store/downloadModalStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { open } from '@tauri-apps/plugin-shell';
-import { join } from '@tauri-apps/api/path';
-import { invoke } from '@tauri-apps/api/core';
-import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/toast';
 import type { EntityShareKind } from '../utils/shareLink';
-import { copyEntityShareLink } from '../utils/copyEntityShareLink';
 import {
   SMART_PLAYLIST_PREFIX,
   confirmAddAllDuplicates,
   isSmartPlaylistName,
-  sanitizeFilename,
-  shuffleArray,
 } from '../utils/contextMenuHelpers';
 import { AddToPlaylistSubmenu } from './contextMenu/AddToPlaylistSubmenu';
 import { AlbumToPlaylistSubmenu, ArtistToPlaylistSubmenu } from './contextMenu/AlbumArtistToPlaylistSubmenu';
@@ -47,6 +39,12 @@ import {
   MultiPlaylistToPlaylistSubmenu,
   SinglePlaylistToPlaylistSubmenu,
 } from './contextMenu/PlaylistToPlaylistSubmenus';
+import {
+  copyShareLink as copyShareLinkAction,
+  downloadAlbum as downloadAlbumAction,
+  startInstantMix as startInstantMixAction,
+  startRadio as startRadioAction,
+} from '../utils/contextMenuActions';
 
 export { AddToPlaylistSubmenu };
 
@@ -78,7 +76,6 @@ export default function ContextMenu() {
   const entityRatingSupport =
     auth.activeServerId ? auth.entityRatingSupportByServer[auth.activeServerId] ?? 'unknown' : 'unknown';
   const audiomuseNavidromeEnabled = !!(auth.activeServerId && auth.audiomuseNavidromeByServer[auth.activeServerId]);
-  const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -408,144 +405,17 @@ export default function ContextMenu() {
     await action();
   };
 
-  const copyShareLink = useCallback(async (kind: EntityShareKind, id: string) => {
-    const ok = await copyEntityShareLink(kind, id);
-    if (ok) showToast(t('contextMenu.shareCopied'));
-    else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
-  }, [t]);
+  const copyShareLink = useCallback(
+    (kind: EntityShareKind, id: string) => copyShareLinkAction(kind, id, t),
+    [t],
+  );
 
-  const startRadio = async (artistId: string, artistName: string, seedTrack?: Track) => {
-    if (seedTrack) {
-      // Start playback immediately based on current state
-      const state = usePlayerStore.getState();
-      if (state.currentTrack?.id === seedTrack.id) {
-        if (!state.isPlaying) state.resume();
-        // Already playing this track — don't restart
-      } else {
-        playTrack(seedTrack, [seedTrack]);
-      }
-      // Load radio queue in background — enqueueRadio replaces any pending radio
-      // tracks so clicking "Start Radio" again never stacks duplicate batches.
-      // Lead with similar songs (other artists) so the listener doesn't get a
-      // wall of the seed artist's own top tracks before anything else plays.
-      // Top tracks stay as a fallback for setups without Last.fm / small
-      // libraries where similar comes back empty (issue #500).
-      try {
-        const [similar, top] = await Promise.all([getSimilarSongs2(artistId), getTopSongs(artistName)]);
-        const similarTracks = shuffleArray(
-          similar.map(songToTrack).filter(t => t.id !== seedTrack.id).map(t => ({ ...t, radioAdded: true as const }))
-        );
-        const radioTracks = similarTracks.length > 0
-          ? similarTracks
-          : shuffleArray(
-              top.map(songToTrack).filter(t => t.id !== seedTrack.id).map(t => ({ ...t, radioAdded: true as const }))
-            );
-        if (radioTracks.length > 0) usePlayerStore.getState().enqueueRadio(radioTracks, artistId);
-      } catch (e) {
-        console.error('Failed to load radio queue', e);
-      }
-    } else {
-      // Artist radio: fire both calls immediately but don't wait for the slow one.
-      // getTopSongs is fast (local library) — start playback as soon as it resolves.
-      // getSimilarSongs2 is slow (Last.fm) — enrich the queue in the background.
-      const similarPromise = getSimilarSongs2(artistId).catch(() => [] as Awaited<ReturnType<typeof getSimilarSongs2>>);
-      try {
-        const top = await getTopSongs(artistName);
-        // Shuffle so each Radio session starts from a different track rather
-        // than always kicking off with the #1 most-played song.
-        const topTracks = shuffleArray(
-          top.map(t => ({ ...songToTrack(t), radioAdded: true as const }))
-        );
-        if (topTracks.length === 0) {
-          // No local top songs — fall back to waiting for similar tracks
-          const similar = await similarPromise;
-          const fallback = shuffleArray(
-            similar.map(t => ({ ...songToTrack(t), radioAdded: true as const }))
-          );
-          if (fallback.length === 0) return;
-          const state = usePlayerStore.getState();
-          if (state.currentTrack) {
-            state.enqueueRadio(fallback, artistId);
-          } else {
-            state.setRadioArtistId(artistId);
-            playTrack(fallback[0], fallback);
-          }
-          return;
-        }
-        // Start playback from the first shuffled top track only.
-        // No other tracks are queued yet — positions 2+ will be filled
-        // exclusively by the similar-songs result below.
-        const state = usePlayerStore.getState();
-        if (state.currentTrack) {
-          state.enqueueRadio([topTracks[0]], artistId);
-        } else {
-          state.setRadioArtistId(artistId);
-          playTrack(topTracks[0], [topTracks[0]]);
-        }
-        // Populate positions 2+ from similar songs only — never from the
-        // remaining top tracks.  Mixing in topTracks.slice(1) meant that when
-        // getSimilarSongs2 returned nothing (no Last.fm, small library, etc.)
-        // the queue fell back to the same top-4 the user just heard.
-        // If similarTracks is also empty, the proactive top-up in next()
-        // will refill the queue when the first track nears its end.
-        similarPromise.then(similar => {
-          const similarTracks = shuffleArray(
-            similar
-              .map(t => ({ ...songToTrack(t), radioAdded: true as const }))
-              .filter(t => t.id !== topTracks[0].id)
-          );
-          if (similarTracks.length === 0) return;
-          const { queue, queueIndex } = usePlayerStore.getState();
-          const pendingRadio = queue.slice(queueIndex + 1).filter(t => t.radioAdded);
-          usePlayerStore.getState().enqueueRadio([...pendingRadio, ...similarTracks], artistId);
-        });
-      } catch (e) {
-        console.error('Failed to start radio', e);
-      }
-    }
-  };
+  const startRadio = (artistId: string, artistName: string, seedTrack?: Track) =>
+    startRadioAction(artistId, artistName, playTrack, seedTrack);
 
-  const startInstantMix = async (song: Track) => {
-    usePlayerStore.getState().reseedQueueForInstantMix(song);
-    const serverId = useAuthStore.getState().activeServerId;
-    try {
-      const similar = await getSimilarSongs(song.id, 50);
-      if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, false);
-      const shuffled = shuffleArray(
-        similar
-          .filter(s => s.id !== song.id)
-          .map(s => ({ ...songToTrack(s), radioAdded: true as const }))
-      );
-      if (shuffled.length > 0) {
-        const aid = song.artistId?.trim() || undefined;
-        usePlayerStore.getState().enqueueRadio(shuffled, aid);
-      }
-    } catch (e) {
-      console.error('Instant mix failed', e);
-      if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, true);
-      showToast(t('contextMenu.instantMixFailed'), 5000, 'error');
-    }
-  };
+  const startInstantMix = (song: Track) => startInstantMixAction(song, t);
 
-  const downloadAlbum = async (albumName: string, albumId: string) => {
-    const folder = auth.downloadFolder || await requestDownloadFolder();
-    if (!folder) return;
-
-    const filename = `${sanitizeFilename(albumName)}.zip`;
-    const destPath = await join(folder, filename);
-    const url = buildDownloadUrl(albumId);
-    const id = crypto.randomUUID();
-
-    const { start, complete, fail } = useZipDownloadStore.getState();
-    start(id, filename);
-    try {
-      await invoke('download_zip', { id, url, destPath });
-      complete(id);
-    } catch (e) {
-      fail(id);
-      console.error('ZIP download failed:', e);
-    }
-  };
+  const downloadAlbum = downloadAlbumAction;
 
   if (!contextMenu.isOpen || !contextMenu.item) return null;
 
