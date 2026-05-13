@@ -41,7 +41,6 @@ import { runPlaylistZipDownload } from '../utils/runPlaylistZipDownload';
 import { runPlaylistSaveMeta } from '../utils/runPlaylistSaveMeta';
 import { runPlaylistLoad } from '../utils/runPlaylistLoad';
 import { startPlaylistRowDrag } from '../utils/startPlaylistRowDrag';
-import { runPlaylistReorderDrop } from '../utils/runPlaylistReorderDrop';
 import { usePlaylistCovers } from '../hooks/usePlaylistCovers';
 import { usePlaylistSelection } from '../hooks/usePlaylistSelection';
 import { usePlaylistSuggestions } from '../hooks/usePlaylistSuggestions';
@@ -51,6 +50,9 @@ import { usePlaylistStarRating } from '../hooks/usePlaylistStarRating';
 import { usePlaylistPreview } from '../hooks/usePlaylistPreview';
 import { usePlaylistBulkPlayCallbacks } from '../hooks/usePlaylistBulkPlayCallbacks';
 import { usePlaylistDerived } from '../hooks/usePlaylistDerived';
+import { usePlaylistRouteEffects } from '../hooks/usePlaylistRouteEffects';
+import { useBulkPlPickerOutsideClick } from '../hooks/useBulkPlPickerOutsideClick';
+import { usePlaylistDnDReorder } from '../hooks/usePlaylistDnDReorder';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -126,7 +128,6 @@ export default function PlaylistDetail() {
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
-  const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
   const zipDownloads = useZipDownloadStore(s => s.downloads);
   const [zipDownloadId, setZipDownloadId] = useState<string | null>(null);
   const activeZip = zipDownloadId ? zipDownloads.find(d => d.id === zipDownloadId) : undefined;
@@ -157,15 +158,7 @@ export default function PlaylistDetail() {
   const [showBulkPlPicker, setShowBulkPlPicker] = useState(false);
   const { selectedIds, setSelectedIds, allSelected, toggleAll, toggleSelect, bulkRemove } =
     usePlaylistSelection(songs, setSongs, savePlaylist);
-
-  useEffect(() => {
-    if (!showBulkPlPicker) return;
-    const handler = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.bulk-pl-picker-wrap')) setShowBulkPlPicker(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showBulkPlPicker]);
+  useBulkPlPickerOutsideClick(showBulkPlPicker, setShowBulkPlPicker);
 
   // ── 2×2 cover quad (first 4 unique album covers) ─────────────
   const { coverQuadUrls, customCoverFetchUrl, customCoverCacheKey, resolvedBgUrl } =
@@ -190,20 +183,7 @@ export default function PlaylistDetail() {
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   } = useTracklistColumns(PL_COLUMNS, 'psysonic_playlist_columns');
 
-  // DnD
-  const [dropTargetIdx, setDropTargetIdx] = useState<{ idx: number; before: boolean } | null>(null);
-
-  useEffect(() => {
-    if (!contextMenuOpen) setContextMenuSongId(null);
-  }, [contextMenuOpen]);
-
-  useEffect(() => {
-    const state = (location.state as { openEditMeta?: boolean } | null) ?? null;
-    if (state?.openEditMeta) {
-      setEditingMeta(true);
-      navigate(location.pathname, { replace: true, state: null });
-    }
-  }, [location.state, location.pathname, navigate]);
+  usePlaylistRouteEffects({ setContextMenuSongId, setEditingMeta, location, navigate });
 
   // ── Load ─────────────────────────────────────────────────────
   const lastModified = usePlaylistStore(s => (id ? s.lastModified[id] : undefined));
@@ -257,18 +237,10 @@ export default function PlaylistDetail() {
     ratings, setRatings, starredSongs, setStarredSongs,
   });
 
-  // ── psy-drop DnD reordering ───────────────────────────────────
-  useEffect(() => {
-    const container = tracklistRef.current;
-    if (!container) return;
-
-    const onPsyDrop = (e: Event) => {
-      runPlaylistReorderDrop({ e, songs, savePlaylist, setDropTargetIdx, setSongs });
-    };
-
-    container.addEventListener('psy-drop', onPsyDrop);
-    return () => container.removeEventListener('psy-drop', onPsyDrop);
-  }, [songs, savePlaylist, tracklistRef]);
+  // ── DnD reorder listener + drag-over visual feedback ──────────
+  const { dropTargetIdx, handleRowMouseEnter } = usePlaylistDnDReorder({
+    tracklistRef, songs, savePlaylist, setSongs,
+  });
 
   // ── Row mousedown: threshold drag for reorder (from anywhere on the row) ──
   const handleRowMouseDown = (e: React.MouseEvent, idx: number) => {
@@ -279,14 +251,6 @@ export default function PlaylistDetail() {
   const { existingIds, tracks, displayedSongs, displayedTracks, isFiltered } = usePlaylistDerived(songs, {
     filterText, sortKey, sortDir, ratings, starredSongs,
   });
-
-  // ── Drag-over visual feedback ─────────────────────────────────
-  const handleRowMouseEnter = (idx: number, e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const before = e.clientY < rect.top + rect.height / 2;
-    setDropTargetIdx({ idx, before });
-  };
 
   // ── Playback actions (encapsulated like AlbumHeader) ─────────
   const { handlePlayAll, handleShuffleAll, handleEnqueueAll } = usePlaylistBulkPlayCallbacks({
