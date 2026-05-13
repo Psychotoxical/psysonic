@@ -3,7 +3,6 @@ import type { SubsonicDirectoryEntry, SubsonicArtist } from '../api/subsonicType
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
-import { Folder, FolderOpen, Music, ChevronRight } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import type { Track } from '../store/playerStoreTypes';
 import {
@@ -11,6 +10,7 @@ import {
   folderBrowserHasKeyModifiers, isFolderBrowserArrowKey,
   type Column, type ColumnKind, type NavPos,
 } from '../utils/folderBrowserHelpers';
+import FolderBrowserColumn from '../components/folderBrowser/FolderBrowserColumn';
 
 let persistedPlayingPathIds: string[] = [];
 
@@ -639,120 +639,61 @@ export default function FolderBrowser() {
         onKeyDown={onColumnsKeyDown}
       >
         {columns.map((col, colIndex) => (
-          <div
+          <FolderBrowserColumn
             key={`${col.id}-${colIndex}`}
-            className={`folder-col${isColumnCompact(col, colIndex) ? ' folder-col--compact' : ''}`}
-            data-folder-col-index={colIndex}
-          >
-            {(filterFocusCol === colIndex || !!columnFilters[colIndex]) && (
-              <div className="folder-col-filter">
-                <input
-                  ref={el => { filterInputRefs.current[colIndex] = el; }}
-                  data-folder-filter-input="true"
-                  className="folder-col-filter-input"
-                  value={columnFilters[colIndex] ?? ''}
-                  placeholder={t('playlists.searchPlaceholder')}
-                  onFocus={() => setFilterFocusCol(colIndex)}
-                  onBlur={() => {
-                    if (!(columnFilters[colIndex] ?? '').trim()) {
-                      setFilterFocusCol(prev => (prev === colIndex ? null : prev));
-                    }
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Escape') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setColumnFilters(prev => ({ ...prev, [colIndex]: '' }));
-                      setFilterFocusCol(null);
-                      requestAnimationFrame(() => wrapperRef.current?.focus({ preventScroll: true }));
-                      return;
-                    }
-                    if (e.key === 'ArrowDown' && !folderBrowserHasKeyModifiers(e)) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const rowIndex = preferredRowIndex(colIndex);
-                      if (rowIndex >= 0) {
-                        const nextItem = (filteredItemsByCol[colIndex] ?? [])[rowIndex];
-                        if (nextItem) {
-                          if (nextItem.isDir) handleDirClick(colIndex, nextItem);
-                          else setSelectedInColumn(colIndex, nextItem.id);
-                        }
-                        setKeyboardPos({ colIndex, rowIndex });
-                        requestAnimationFrame(() => wrapperRef.current?.focus({ preventScroll: true }));
-                      }
-                    }
-                  }}
-                  onChange={e => {
-                    const value = e.target.value;
-                    setColumnFilters(prev => ({ ...prev, [colIndex]: value }));
-                    setKeyboardPos(prev => {
-                      if (!prev || prev.colIndex !== colIndex) return prev;
-                      return { colIndex, rowIndex: 0 };
-                    });
-                  }}
-                />
-              </div>
-            )}
-            {col.loading ? (
-              <div className="folder-col-status">
-                <div className="spinner" style={{ width: 20, height: 20 }} />
-              </div>
-            ) : col.error ? (
-              <div className="folder-col-status folder-col-error">
-                {t('folderBrowser.error')}
-              </div>
-            ) : (filteredItemsByCol[colIndex]?.length ?? 0) === 0 ? (
-              <div className="folder-col-status">{t('folderBrowser.empty')}</div>
-            ) : (
-              (filteredItemsByCol[colIndex] ?? []).map((item, rowIndex) => {
-                const isSelected = col.selectedId === item.id;
-                const isContextRow =
-                  contextAnchorPos?.colIndex === colIndex && contextAnchorPos.rowIndex === rowIndex;
-                const isKeyboardRow =
-                  keyboardPos?.colIndex === colIndex && keyboardPos?.rowIndex === rowIndex;
-                const isNowPlayingTrack = !item.isDir && currentTrack?.id === item.id;
-                const isPathPlayingIcon = !!(isSelectedPathForCurrentTrack && playingPathIds.includes(item.id));
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    title={item.title}
-                    data-col-index={colIndex}
-                    data-row-index={rowIndex}
-                    data-item-id={item.id}
-                    className={`folder-col-row${isSelected ? ' selected' : ''}${isContextRow ? ' context-active' : ''}${isKeyboardRow ? ' keyboard-active' : ''}${isNowPlayingTrack ? ' now-playing' : ''}`}
-                    onClick={() => {
-                      setKeyboardPos({ colIndex, rowIndex });
-                      if (item.isDir) handleDirClick(colIndex, item);
-                      else handleFileClick(colIndex, item);
-                    }}
-                    onKeyDown={e => {
-                      if (!isFolderBrowserArrowKey(e) || folderBrowserHasKeyModifiers(e)) return;
-                      e.preventDefault();
-                    }}
-                    onContextMenu={e => {
-                      setKeyboardPos({ colIndex, rowIndex });
-                      onRowContextMenu(e, colIndex, rowIndex, col, item);
-                    }}
-                  >
-                    <span className={`folder-col-icon${isPathPlayingIcon ? ' folder-col-path-playing-icon' : ''}`}>
-                      {item.isDir ? (
-                        isSelected ? (
-                          <FolderOpen size={14} />
-                        ) : (
-                          <Folder size={14} />
-                        )
-                      ) : (
-                        <Music size={14} strokeWidth={isNowPlayingTrack ? 2.5 : 2} className={isNowPlayingTrack && isPlaying ? 'folder-col-playing-icon' : undefined} />
-                      )}
-                    </span>
-                    <span className="folder-col-name">{item.title}</span>
-                    {item.isDir && <ChevronRight size={12} className="folder-col-chevron" />}
-                  </button>
-                );
-              })
-            )}
-          </div>
+            col={col}
+            colIndex={colIndex}
+            isCompact={isColumnCompact(col, colIndex)}
+            filterValue={columnFilters[colIndex] ?? ''}
+            filterVisible={filterFocusCol === colIndex || !!columnFilters[colIndex]}
+            filteredItems={filteredItemsByCol[colIndex] ?? []}
+            keyboardRowIndex={keyboardPos?.colIndex === colIndex ? keyboardPos.rowIndex : null}
+            contextRowIndex={contextAnchorPos?.colIndex === colIndex ? contextAnchorPos.rowIndex : null}
+            currentTrack={currentTrack}
+            isPlaying={isPlaying}
+            isSelectedPathForCurrentTrack={!!isSelectedPathForCurrentTrack}
+            playingPathIds={playingPathIds}
+            registerFilterInput={el => { filterInputRefs.current[colIndex] = el; }}
+            onFilterFocus={() => setFilterFocusCol(colIndex)}
+            onFilterBlur={() => {
+              if (!(columnFilters[colIndex] ?? '').trim()) {
+                setFilterFocusCol(prev => (prev === colIndex ? null : prev));
+              }
+            }}
+            onFilterEscape={() => {
+              setColumnFilters(prev => ({ ...prev, [colIndex]: '' }));
+              setFilterFocusCol(null);
+              requestAnimationFrame(() => wrapperRef.current?.focus({ preventScroll: true }));
+            }}
+            onFilterArrowDown={() => {
+              const rowIndex = preferredRowIndex(colIndex);
+              if (rowIndex >= 0) {
+                const nextItem = (filteredItemsByCol[colIndex] ?? [])[rowIndex];
+                if (nextItem) {
+                  if (nextItem.isDir) handleDirClick(colIndex, nextItem);
+                  else setSelectedInColumn(colIndex, nextItem.id);
+                }
+                setKeyboardPos({ colIndex, rowIndex });
+                requestAnimationFrame(() => wrapperRef.current?.focus({ preventScroll: true }));
+              }
+            }}
+            onFilterChange={value => {
+              setColumnFilters(prev => ({ ...prev, [colIndex]: value }));
+              setKeyboardPos(prev => {
+                if (!prev || prev.colIndex !== colIndex) return prev;
+                return { colIndex, rowIndex: 0 };
+              });
+            }}
+            onRowClick={(item, rowIndex) => {
+              setKeyboardPos({ colIndex, rowIndex });
+              if (item.isDir) handleDirClick(colIndex, item);
+              else handleFileClick(colIndex, item);
+            }}
+            onRowContextMenu={(e, rowIndex, c, item) => {
+              setKeyboardPos({ colIndex, rowIndex });
+              onRowContextMenu(e, colIndex, rowIndex, c, item);
+            }}
+          />
         ))}
       </div>
     </div>
