@@ -1,18 +1,15 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
-import { AudioLines, Music2, Play, RotateCcw, Sliders, Waves } from 'lucide-react';
+import { Music2, Play, RotateCcw, Sliders, Waves } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB, TRACK_PREVIEW_LOCATIONS } from '../../store/authStoreDefaults';
 import type { TrackPreviewLocation } from '../../store/authStoreTypes';
-import CustomSelect from '../CustomSelect';
 import Equalizer from '../Equalizer';
 import SettingsSubSection from '../SettingsSubSection';
 import { LoudnessLufsButtonGroup } from './LoudnessLufsButtonGroup';
-import { IS_MACOS } from '../../utils/platform';
-import { buildAudioDeviceSelectOptions } from '../../utils/audioDeviceLabels';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/loudnessPreAnalysisSlider';
 import { useAudioDevicesProbe } from '../../hooks/useAudioDevicesProbe';
+import { AudioOutputDeviceSection } from './audio/AudioOutputDeviceSection';
 
 export function AudioTab() {
   const { t } = useTranslation();
@@ -36,57 +33,15 @@ export function AudioTab() {
 
   return (
     <>
-      {/* Audio Output Device */}
-      <SettingsSubSection
-        title={t('settings.audioOutputDevice')}
-        icon={<AudioLines size={16} />}
-      >
-        <div className="settings-card">
-          {IS_MACOS ? (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              {t('settings.audioOutputDeviceMacNotice')}
-            </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                {t('settings.audioOutputDeviceDesc')}
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <CustomSelect
-                  style={{ flex: 1 }}
-                  value={auth.audioOutputDevice ?? ''}
-                  disabled={deviceSwitching || devicesLoading}
-                  onChange={async (val) => {
-                    const device = val || null;
-                    setDeviceSwitching(true);
-                    try {
-                      await invoke('audio_set_device', { deviceName: device });
-                      auth.setAudioOutputDevice(device);
-                    } catch { /* device open failed — don't persist */ }
-                    setDeviceSwitching(false);
-                  }}
-                  options={buildAudioDeviceSelectOptions(
-                    audioDevices,
-                    t('settings.audioOutputDeviceDefault'),
-                    osDefaultAudioDeviceId,
-                    t('settings.audioOutputDeviceOsDefaultNow'),
-                    auth.audioOutputDevice,
-                    t('settings.audioOutputDeviceNotInCurrentList'),
-                  )}
-                />
-                <button
-                  className="icon-btn"
-                  onClick={() => refreshAudioDevices()}
-                  disabled={devicesLoading || deviceSwitching}
-                  data-tooltip={t('settings.audioOutputDeviceRefresh')}
-                >
-                  <RotateCcw size={15} className={devicesLoading ? 'spin' : ''} />
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </SettingsSubSection>
+      <AudioOutputDeviceSection
+        audioDevices={audioDevices}
+        osDefaultAudioDeviceId={osDefaultAudioDeviceId}
+        deviceSwitching={deviceSwitching}
+        devicesLoading={devicesLoading}
+        setDeviceSwitching={setDeviceSwitching}
+        refreshAudioDevices={refreshAudioDevices}
+        t={t}
+      />
 
       {/* Native Hi-Res Playback */}
       <SettingsSubSection
