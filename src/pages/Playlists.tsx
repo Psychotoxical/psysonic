@@ -18,183 +18,18 @@ import { showToast } from '../utils/toast';
 import { ndCreateSmartPlaylist, ndGetSmartPlaylist, ndListSmartPlaylists, ndUpdateSmartPlaylist } from '../api/navidromeSmart';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 
+import {
+  SMART_PREFIX, LIMIT_MAX, YEAR_MIN, YEAR_MAX,
+  defaultSmartFilters, parseSmartRulesToFilters, buildSmartRulesPayload,
+  isSmartPlaylistName, displayPlaylistName, clampYear,
+  type SmartFilters, type PendingSmartPlaylist,
+} from '../utils/playlistsSmart';
+import { PlaylistSmartCoverCell, PlaylistCardMainCover } from '../components/playlists/PlaylistCoverImages';
+import { useSmartCoverCollage } from '../hooks/useSmartCoverCollage';
+import { usePlaylistsLibraryScopeCounts } from '../hooks/usePlaylistsLibraryScopeCounts';
+
 function formatDuration(seconds: number): string {
   return formatHumanHoursMinutes(seconds);
-}
-
-function PlaylistSmartCoverCell({ coverId }: { coverId: string }) {
-  const src = useMemo(() => buildCoverArtUrl(coverId, 200), [coverId]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverId, 200), [coverId]);
-  return (
-    <CachedImage
-      className="playlist-cover-cell"
-      src={src}
-      cacheKey={cacheKey}
-      alt=""
-    />
-  );
-}
-
-function PlaylistCardMainCover({ coverArt, alt }: { coverArt: string; alt: string }) {
-  const src = useMemo(() => buildCoverArtUrl(coverArt, 256), [coverArt]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 256), [coverArt]);
-  return (
-    <CachedImage
-      src={src}
-      cacheKey={cacheKey}
-      alt={alt}
-      className="album-card-cover-img"
-    />
-  );
-}
-
-const SMART_PREFIX = 'psy-smart-';
-const LIMIT_MAX = 500;
-const YEAR_MIN = 1950;
-const YEAR_MAX = new Date().getFullYear() + 1;
-
-type GenreMode = 'include' | 'exclude';
-type YearMode = 'include' | 'exclude';
-
-type SmartFilters = {
-  name: string;
-  limit: string;
-  sort: string;
-  artistContains: string;
-  albumContains: string;
-  titleContains: string;
-  minRating: number;
-  excludeUnrated: boolean;
-  compilationOnly: boolean;
-  selectedGenres: string[];
-  genreMode: GenreMode;
-  yearFrom: number;
-  yearTo: number;
-  yearMode: YearMode;
-};
-
-type PendingSmartPlaylist = {
-  name: string;
-  id?: string;
-  firstSeenCoverArt?: string;
-  attempts: number;
-};
-
-type NdSmartRuleNode = Record<string, unknown>;
-
-const defaultSmartFilters: SmartFilters = {
-  name: '',
-  limit: '50',
-  sort: '+random',
-  artistContains: '',
-  albumContains: '',
-  titleContains: '',
-  minRating: 0,
-  excludeUnrated: false,
-  compilationOnly: false,
-  selectedGenres: [],
-  genreMode: 'include',
-  yearFrom: YEAR_MIN,
-  yearTo: YEAR_MAX,
-  yearMode: 'include',
-};
-
-function clampYear(v: number): number {
-  return Math.max(YEAR_MIN, Math.min(YEAR_MAX, v));
-}
-
-function isSmartPlaylistName(name: string): boolean {
-  return (name ?? '').toLowerCase().startsWith(SMART_PREFIX);
-}
-
-function displayPlaylistName(name: string): string {
-  const n = name ?? '';
-  if (isSmartPlaylistName(n)) return n.slice(SMART_PREFIX.length);
-  return n;
-}
-
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-}
-
-function parseSmartRulesToFilters(
-  rules: Record<string, unknown> | undefined,
-  playlistName: string,
-): SmartFilters {
-  const next: SmartFilters = {
-    ...defaultSmartFilters,
-    name: displayPlaylistName(playlistName),
-  };
-  if (!rules) return next;
-
-  if (typeof rules.limit === 'number' && Number.isFinite(rules.limit)) {
-    next.limit = String(Math.max(1, Math.min(LIMIT_MAX, Number(rules.limit))));
-  }
-  if (typeof rules.sort === 'string' && rules.sort.trim()) next.sort = rules.sort;
-
-  const includeGenres: string[] = [];
-  const excludeGenres: string[] = [];
-  const all = Array.isArray(rules.all) ? rules.all : [];
-  for (const node of all) {
-    const obj = asRecord(node);
-    if (!obj) continue;
-
-    const contains = asRecord(obj.contains);
-    if (contains) {
-      if (typeof contains.artist === 'string') next.artistContains = contains.artist;
-      if (typeof contains.album === 'string') next.albumContains = contains.album;
-      if (typeof contains.title === 'string') next.titleContains = contains.title;
-    }
-
-    const gt = asRecord(obj.gt);
-    if (gt && typeof gt.rating === 'number') {
-      if (gt.rating > 0) next.minRating = Math.max(0, Math.min(5, Math.floor(gt.rating)));
-      else if (gt.rating === 0) next.excludeUnrated = true;
-    }
-
-    const is = asRecord(obj.is);
-    if (is?.compilation === true) next.compilationOnly = true;
-
-    const notContains = asRecord(obj.notContains);
-    if (notContains && typeof notContains.genre === 'string') excludeGenres.push(notContains.genre);
-
-    const inTheRange = asRecord(obj.inTheRange);
-    if (inTheRange && Array.isArray(inTheRange.year) && inTheRange.year.length === 2) {
-      const from = Number(inTheRange.year[0]);
-      const to = Number(inTheRange.year[1]);
-      if (Number.isFinite(from) && Number.isFinite(to)) {
-        next.yearMode = 'include';
-        next.yearFrom = clampYear(Math.min(from, to));
-        next.yearTo = clampYear(Math.max(from, to));
-      }
-    }
-
-    const any = Array.isArray(obj.any) ? (obj.any as NdSmartRuleNode[]) : [];
-    if (any.length > 0) {
-      const parsedGenreIncludes = any
-        .map((item) => asRecord(asRecord(item)?.contains)?.genre)
-        .filter((v): v is string => typeof v === 'string');
-      if (parsedGenreIncludes.length > 0) includeGenres.push(...parsedGenreIncludes);
-
-      const ltYear = any.map((item) => asRecord(asRecord(item)?.lt)?.year).find((v) => typeof v === 'number');
-      const gtYear = any.map((item) => asRecord(asRecord(item)?.gt)?.year).find((v) => typeof v === 'number');
-      if (typeof ltYear === 'number' && typeof gtYear === 'number') {
-        next.yearMode = 'exclude';
-        next.yearFrom = clampYear(Math.min(ltYear, gtYear));
-        next.yearTo = clampYear(Math.max(ltYear, gtYear));
-      }
-    }
-  }
-
-  if (includeGenres.length > 0) {
-    next.genreMode = 'include';
-    next.selectedGenres = [...new Set(includeGenres)];
-  } else if (excludeGenres.length > 0) {
-    next.genreMode = 'exclude';
-    next.selectedGenres = [...new Set(excludeGenres)];
-  }
-
-  return next;
 }
 
 export default function Playlists() {
@@ -222,9 +57,9 @@ export default function Playlists() {
   const [creatingSmartBusy, setCreatingSmartBusy] = useState(false);
   const [editingSmartId, setEditingSmartId] = useState<string | null>(null);
   const [pendingSmart, setPendingSmart] = useState<PendingSmartPlaylist[]>([]);
-  const [smartCoverIdsByPlaylist, setSmartCoverIdsByPlaylist] = useState<Record<string, string[]>>({});
-  const [filteredSongCountByPlaylist, setFilteredSongCountByPlaylist] = useState<Record<string, number>>({});
-  const [filteredDurationByPlaylist, setFilteredDurationByPlaylist] = useState<Record<string, number>>({});
+  const smartCoverIdsByPlaylist = useSmartCoverCollage(playlists, musicLibraryFilterVersion);
+  const { filteredSongCountByPlaylist, filteredDurationByPlaylist } =
+    usePlaylistsLibraryScopeCounts(playlists, musicLibraryFilterVersion);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -259,86 +94,6 @@ export default function Playlists() {
     getGenres().then(setGenres).catch(() => {});
   }, [fetchPlaylists]);
 
-  // Smart playlists: build 2x2 cover collage from tracks inside the active library scope.
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      const smart = playlists.filter(pl => isSmartPlaylistName(pl.name));
-      if (smart.length === 0) {
-        if (!cancelled) setSmartCoverIdsByPlaylist({});
-        return;
-      }
-      const rows = await Promise.all(
-        smart.map(async (pl) => {
-          try {
-            const { songs } = await getPlaylist(pl.id);
-            const filtered = await filterSongsToActiveLibrary(songs);
-            const ids: string[] = [];
-            const seen = new Set<string>();
-            for (const s of filtered) {
-              const cid = s.coverArt;
-              if (!cid || seen.has(cid)) continue;
-              seen.add(cid);
-              ids.push(cid);
-              if (ids.length >= 4) break;
-            }
-            return [pl.id, ids] as const;
-          } catch {
-            return [pl.id, [] as string[]] as const;
-          }
-        }),
-      );
-      if (cancelled) return;
-      const next: Record<string, string[]> = {};
-      for (const [id, ids] of rows) next[id] = ids;
-      setSmartCoverIdsByPlaylist(next);
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [playlists, musicLibraryFilterVersion]);
-
-  // Playlist list should reflect active library scope for song counts.
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (playlists.length === 0) {
-        if (!cancelled) {
-          setFilteredSongCountByPlaylist({});
-          setFilteredDurationByPlaylist({});
-        }
-        return;
-      }
-      const ids = playlists.map((pl) => pl.id);
-      const next: Record<string, number> = {};
-      const nextDuration: Record<string, number> = {};
-      for (let i = 0; i < ids.length; i += 4) {
-        const chunk = ids.slice(i, i + 4);
-        const rows = await Promise.all(
-          chunk.map(async (id) => {
-            try {
-              const { songs } = await getPlaylist(id);
-              const filtered = await filterSongsToActiveLibrary(songs);
-              const duration = filtered.reduce((acc, s) => acc + (s.duration ?? 0), 0);
-              return [id, filtered.length, duration] as const;
-            } catch {
-              return [id, -1, -1] as const;
-            }
-          }),
-        );
-        for (const [id, count, duration] of rows) {
-          if (count >= 0) next[id] = count;
-          if (duration >= 0) nextDuration[id] = duration;
-        }
-      }
-      if (!cancelled) {
-        setFilteredSongCountByPlaylist(next);
-        setFilteredDurationByPlaylist(nextDuration);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [playlists, musicLibraryFilterVersion]);
-
   useEffect(() => {
     if (creating) nameInputRef.current?.focus();
   }, [creating]);
@@ -358,37 +113,6 @@ export default function Playlists() {
     await fetchPlaylists();
     setCreating(false);
     setNewName('');
-  };
-
-  const buildSmartRulesPayload = (): Record<string, unknown> => {
-    const all: Record<string, unknown>[] = [];
-    if (smartFilters.artistContains.trim()) all.push({ contains: { artist: smartFilters.artistContains.trim() } });
-    if (smartFilters.albumContains.trim()) all.push({ contains: { album: smartFilters.albumContains.trim() } });
-    if (smartFilters.titleContains.trim()) all.push({ contains: { title: smartFilters.titleContains.trim() } });
-
-    const minRating = Number(smartFilters.minRating);
-    if (Number.isFinite(minRating) && minRating > 0) all.push({ gt: { rating: minRating } });
-    else if (smartFilters.excludeUnrated) all.push({ gt: { rating: 0 } });
-    if (smartFilters.compilationOnly) all.push({ is: { compilation: true } });
-
-    if (smartFilters.selectedGenres.length > 0) {
-      if (smartFilters.genreMode === 'include') {
-        all.push({ any: smartFilters.selectedGenres.map(v => ({ contains: { genre: v } })) });
-      } else {
-        for (const g of smartFilters.selectedGenres) all.push({ notContains: { genre: g } });
-      }
-    }
-
-    if (smartFilters.yearMode === 'include') {
-      all.push({ inTheRange: { year: [smartFilters.yearFrom, smartFilters.yearTo] } });
-    } else {
-      all.push({ any: [{ lt: { year: smartFilters.yearFrom } }, { gt: { year: smartFilters.yearTo } }] });
-    }
-
-    const rules: Record<string, unknown> = { all };
-    rules.limit = Math.max(1, Math.min(LIMIT_MAX, Number(smartFilters.limit) || 50));
-    rules.sort = smartFilters.sort;
-    return rules;
   };
 
   const handleOpenSmartEditor = async (pl: SubsonicPlaylist) => {
@@ -459,7 +183,7 @@ export default function Playlists() {
           ordinal += 1;
         }
       }
-      const rules = buildSmartRulesPayload();
+      const rules = buildSmartRulesPayload(smartFilters);
       const fullName = `${SMART_PREFIX}${baseName}`;
       if (editingSmartId) {
         await ndUpdateSmartPlaylist(editingSmartId, fullName, rules, true);
