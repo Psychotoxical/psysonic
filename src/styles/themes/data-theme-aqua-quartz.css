@@ -1,0 +1,265 @@
+/* ─────────────────────────────────────────── */
+
+[data-theme='aqua-quartz'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666666%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #b0b8c8;
+  --ctp-mantle: #c8d0e0;
+  --ctp-base: #e8e8e8;
+  --ctp-surface0: #f4f4f4;
+  --ctp-surface1: #ececec;
+  --ctp-surface2: #e0e0e0;
+  --ctp-overlay0: #888888;
+  --ctp-overlay1: #666666;
+  --ctp-overlay2: #444444;
+  --ctp-text: #111111;
+  --ctp-subtext1: #333333;
+  --ctp-subtext0: #555555;
+
+  --ctp-mauve: #3165c4;
+  --ctp-lavender: #6699dd;
+  --ctp-green: #28c941;
+  --ctp-teal: #17a2b8;
+  --ctp-sky: #5ac8fa;
+  --ctp-blue: #2060c0;
+  --ctp-sapphire: #1a4fa0;
+  --ctp-pink: #ff2d55;
+  --ctp-flamingo: #ff3b30;
+  --ctp-rosewater: #ffcc00;
+  --ctp-yellow: #ffcc00;
+  --ctp-peach: #ff9500;
+  --ctp-maroon: #af52de;
+  --ctp-red: #ff3b30;
+
+  /* Aluminium app bg, blue sidebar token (overridden below) */
+  --bg-app: #e8e8e8;
+  --bg-sidebar: #5a7ab8;
+  --bg-card: #f4f4f4;
+  --bg-hover: rgba(49, 101, 196, 0.12);
+  --bg-player: #c0c0c0;
+  --bg-glass: rgba(232, 232, 232, 0.85);
+
+  --accent: #3165c4;
+  --accent-dim: rgba(49, 101, 196, 0.15);
+  --accent-glow: rgba(49, 101, 196, 0.45);
+  --volume-accent: #3165c4;
+
+  --text-primary: #111111;
+  --text-secondary: #333333;
+  --text-muted: #777777;
+
+  --border: #a0a0a0;
+  --border-subtle: #cccccc;
+
+  --radius-sm: 4px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+}
+
+/* Aluminium pinstripe background */
+[data-theme='aqua-quartz'] .app-shell {
+  background: #e8e8e8;
+}
+
+/* Iconic Aqua blue Source List sidebar */
+[data-theme='aqua-quartz'] .sidebar {
+  background: linear-gradient(to bottom, #7090c8 0%, #5a78b8 35%, #4a68a8 70%, #4060a0 100%);
+  border-right: 1px solid #3a5590;
+}
+
+/* White text/icons in sidebar */
+[data-theme='aqua-quartz'] .sidebar,
+[data-theme='aqua-quartz'] .nav-link,
+[data-theme='aqua-quartz'] .sidebar-logo-text,
+[data-theme='aqua-quartz'] .sidebar-section-label,
+[data-theme='aqua-quartz'] .nav-section-label {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+[data-theme='aqua-quartz'] .nav-link {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+[data-theme='aqua-quartz'] .nav-link:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+
+/* Active nav: white pill with blue-tinted text */
+[data-theme='aqua-quartz'] .nav-link.active {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95), rgba(240, 245, 255, 0.9)) !important;
+  color: #1a4a9c !important;
+  border-radius: var(--radius-full) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+[data-theme='aqua-quartz'] .nav-link.active svg {
+  color: #1a4a9c !important;
+}
+
+/* Brushed aluminum player bar */
+[data-theme='aqua-quartz'] .player-bar {
+  background: linear-gradient(to bottom,
+      #d8d8d8 0%,
+      #d0d0d0 15%,
+      #c0c0c0 50%,
+      #b4b4b4 85%,
+      #acacac 100%);
+  border-top: 1px solid #909090;
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+[data-theme='aqua-quartz'] .player-track-name,
+[data-theme='aqua-quartz'] .player-track-artist,
+[data-theme='aqua-quartz'] .player-time {
+  color: #111111 !important;
+}
+
+/* All buttons get rounded pill shape */
+[data-theme='aqua-quartz'] .btn {
+  border-radius: var(--radius-full) !important;
+}
+
+/* Aluminium jelly — secondary/surface/ghost buttons */
+[data-theme='aqua-quartz'] .btn-surface,
+[data-theme='aqua-quartz'] .btn-ghost {
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0.95) 0%,
+      #ececec 20%,
+      #d4d4d4 48%,
+      #c4c4c4 52%,
+      #d0d0d0 80%,
+      #e0e0e0 100%) !important;
+  border: 1px solid #909090 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  color: #111111 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+[data-theme='aqua-quartz'] .btn-surface:hover,
+[data-theme='aqua-quartz'] .btn-ghost:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0.95) 0%,
+      #f0f0f0 20%,
+      #dadada 48%,
+      #cacaca 52%,
+      #d6d6d6 80%,
+      #e4e4e4 100%) !important;
+}
+
+/* Authentic Aqua blue jelly — primary buttons */
+[data-theme='aqua-quartz'] .btn-primary,
+[data-theme='aqua-quartz'] .player-btn-primary {
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(160, 195, 255, 0.9) 20%,
+      #3165c4 48%,
+      #1a4aaa 52%,
+      #2555bb 75%,
+      #4a7ad4 100%) !important;
+  border: 1px solid #1040a0 !important;
+  border-radius: var(--radius-full) !important;
+  box-shadow: 0 2px 8px rgba(49, 101, 196, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  color: white !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='aqua-quartz'] .btn-primary:hover,
+[data-theme='aqua-quartz'] .player-btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 3px 12px rgba(49, 101, 196, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Aqua progress/seek track + fill */
+[data-theme='aqua-quartz'] .progress-bar-track {
+  background: linear-gradient(to bottom, #b0b0b0, #d0d0d0);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme='aqua-quartz'] .progress-bar-fill {
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0.85) 0%,
+      #6699ee 25%,
+      #3165c4 55%,
+      #1a4aaa 56%,
+      #4070cc 100%);
+  box-shadow: 0 0 6px rgba(49, 101, 196, 0.5);
+  border-radius: 999px;
+}
+
+/* Cards with subtle aluminium feel */
+[data-theme='aqua-quartz'] .card {
+  background: #f4f4f4;
+  border: 1px solid #c0c0c0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Queue / panels on light aluminium bg */
+[data-theme='aqua-quartz'] .queue-panel,
+[data-theme='aqua-quartz'] .queue-header {
+  background: #e8e8e8;
+  color: #111111;
+}
+
+[data-theme='aqua-quartz'] .queue-item {
+  color: #111111;
+}
+
+[data-theme='aqua-quartz'] .queue-item-artist,
+[data-theme='aqua-quartz'] .queue-item-sub {
+  color: #555555;
+}
+
+/* Queue round toolbar buttons — aluminium jelly */
+[data-theme='aqua-quartz'] .queue-round-btn {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95) 0%, #ececec 20%, #d4d4d4 48%, #c4c4c4 52%, #d0d0d0 100%);
+  border: 1px solid #909090;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  color: #333333;
+}
+
+[data-theme='aqua-quartz'] .queue-round-btn:hover:not(:disabled) {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95) 0%, #f0f0f0 20%, #dadada 48%, #cacaca 52%, #d6d6d6 100%);
+  color: #111111;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+[data-theme='aqua-quartz'] .queue-round-btn.active {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95) 0%, rgba(160, 195, 255, 0.9) 20%, #3165c4 48%, #1a4aaa 52%, #4a7ad4 100%);
+  border: 1px solid #1040a0;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(49, 101, 196, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Hero play button — blue jelly */
+[data-theme='aqua-quartz'] .hero-play-btn {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95) 0%, rgba(160, 195, 255, 0.9) 20%, #3165c4 48%, #1a4aaa 52%, #2555bb 75%, #4a7ad4 100%);
+  border: 1px solid #1040a0;
+  border-radius: var(--radius-full);
+  box-shadow: 0 2px 8px rgba(49, 101, 196, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  color: white;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+[data-theme='aqua-quartz'] .hero-play-btn:hover {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.98) 0%, rgba(185, 215, 255, 0.95) 20%, #3a72d8 48%, #2058c0 52%, #2d62cc 75%, #5585e0 100%);
+  filter: brightness(1.08);
+  box-shadow: 0 3px 12px rgba(49, 101, 196, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transform: scale(1.02);
+}
+
+/* Album card hover play button — blue jelly */
+[data-theme='aqua-quartz'] .album-card-details-btn {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95) 0%, rgba(160, 195, 255, 0.9) 20%, #3165c4 48%, #1a4aaa 52%, #4a7ad4 100%);
+  border: 1px solid #1040a0;
+  box-shadow: 0 3px 10px rgba(49, 101, 196, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  color: white;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+

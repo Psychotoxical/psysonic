@@ -1,0 +1,54 @@
+/* ─── wnamp — component-level overrides ──────────────────────────────── */
+
+/* Column resize grip — was surface1 on bg-card = 1.19:1 (invisible) */
+[data-theme='wnamp'] .col-resize-handle::after {
+  background: var(--ctp-overlay1); /* #8a8a96 → 3.4:1 on bg-card */
+  width: 2px;
+}
+
+/* Focus ring — keyboard navigation, accent gold for visibility */
+[data-theme='wnamp'] *:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Scrollbar thumb — explicit contrast */
+[data-theme='wnamp'] ::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay0);
+}
+[data-theme='wnamp'] *:hover::-webkit-scrollbar-thumb,
+[data-theme='wnamp'] .is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay2);
+}
+
+/* ── Classic Winamp: LCD display + bevel buttons ── */
+[data-theme='wnamp'] .connection-type {
+  color: var(--text-primary);
+}
+
+[data-theme='wnamp'] .connection-server {
+  color: var(--text-secondary);
+}
+
+[data-theme='wnamp'] .player-track-name {
+  color: #00ff00;
+  text-shadow: 0 0 6px rgba(0, 255, 0, 0.65), 0 0 2px rgba(0, 255, 0, 0.4);
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  letter-spacing: 0.04em;
+}
+
+[data-theme='wnamp'] .player-track-artist {
+  color: #00cc00;
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  opacity: 0.85;
+}
+
+[data-theme='wnamp'] .btn {
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.18), inset -1px -1px 0 rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='wnamp'] .player-btn,
+[data-theme='wnamp'] .player-btn-primary {
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.18), inset -1px -1px 0 rgba(0, 0, 0, 0.55), 0 2px 5px rgba(0, 0, 0, 0.5);
+}
+

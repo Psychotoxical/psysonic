@@ -1,0 +1,25 @@
+/* ─────────────────────────────────────────────────────────────
+   Middle-Earth — The One Ring Inscription Glow
+   ───────────────────────────────────────────────────────────── */
+
+/* Breathing glow of the Ring — applied to player-track-name.
+   Like the inscription heating up in Bag End's fireplace.      */
+@keyframes ring-inscription-glow {
+
+  0%,
+  100% {
+    text-shadow:
+      0 0 8px rgba(240, 200, 60, 0.70),
+      0 0 18px rgba(200, 140, 20, 0.38),
+      0 0 36px rgba(160, 100, 10, 0.15);
+  }
+
+  50% {
+    text-shadow:
+      0 0 12px rgba(240, 200, 60, 0.95),
+      0 0 28px rgba(200, 140, 20, 0.65),
+      0 0 52px rgba(160, 100, 10, 0.32),
+      0 0 80px rgba(100, 60, 5, 0.14);
+  }
+}
+

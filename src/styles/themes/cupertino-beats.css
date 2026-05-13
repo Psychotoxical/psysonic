@@ -1,0 +1,97 @@
+/* ─── Cupertino Beats ─── */
+[data-theme='cupertino-beats'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a1a1a1%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #000000;
+  --ctp-mantle: #121212;
+  --ctp-base: #1c1c1e;
+  --ctp-surface0: #2c2c2e;
+  --ctp-surface1: #3a3a3c;
+  --ctp-surface2: #48484a;
+  --ctp-overlay0: #636366;
+  --ctp-overlay1: #8e8e93;
+  --ctp-overlay2: #aeaeb2;
+  --ctp-text: #ffffff;
+  --ctp-subtext1: #ebebf599;
+  --ctp-subtext0: #ebebf560;
+
+  --ctp-mauve: #fa243c;
+  --ctp-lavender: #ff5e71;
+  --ctp-green: #34c759;
+  --ctp-teal: #30b0c7;
+  --ctp-sky: #5ac8fa;
+  --ctp-blue: #007aff;
+  --ctp-sapphire: #0051d5;
+  --ctp-pink: #ff2d55;
+  --ctp-flamingo: #ff3b30;
+  --ctp-rosewater: #ff9f0a;
+  --ctp-yellow: #ffcc00;
+  --ctp-peach: #ff9500;
+  --ctp-maroon: #af52de;
+  --ctp-red: #ff3b30;
+
+  --bg-app: #1c1c1e;
+  --bg-sidebar: rgba(18, 18, 18, 0.75);
+  --bg-card: #2c2c2e;
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --bg-player: rgba(0, 0, 0, 0.85);
+  --bg-glass: rgba(28, 28, 30, 0.6);
+
+  --accent: #fa243c;
+  --accent-dim: rgba(250, 36, 60, 0.15);
+  --accent-glow: rgba(250, 36, 60, 0.3);
+  --volume-accent: #fa243c;
+
+  --text-primary: #ffffff;
+  --text-secondary: rgba(235, 235, 245, 0.6);
+  --text-muted: rgba(235, 235, 245, 0.3);
+
+  --border: rgba(255, 255, 255, 0.1);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+
+  --positive: #34c759;
+  --warning: #ffcc00;
+  --danger: #ff3b30;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+
+  --transition-fast: 150ms ease;
+  --transition-med: 250ms ease;
+  --transition-slow: 350ms ease;
+
+  --sidebar-width: 220px;
+  --player-height: 88px;
+}
+
+[data-theme='cupertino-beats'] .sidebar {
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-right: 1px solid var(--border);
+}
+
+[data-theme='cupertino-beats'] .player-bar {
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  border-top: 1px solid var(--border);
+}
+
+[data-theme='cupertino-beats'] .nav-link.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-theme='cupertino-beats'] .nav-link.active::before {
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+}
+

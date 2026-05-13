@@ -1,0 +1,254 @@
+/* ─── A Theme of Ice and Fire — Game of Thrones ─── */
+/* Concept: FIRE (volcanic Dragonstone, main area) vs ICE (Castle Black, sidebar) */
+@keyframes fire-flicker {
+  0% {
+    text-shadow: 0 0 8px rgba(200, 30, 20, 0.65), 0 0 20px rgba(200, 60, 10, 0.30);
+  }
+
+  20% {
+    text-shadow: 0 0 12px rgba(220, 55, 15, 0.75), 0 0 28px rgba(210, 40, 10, 0.38);
+  }
+
+  40% {
+    text-shadow: 0 0 6px rgba(180, 20, 10, 0.55), 0 0 14px rgba(190, 30, 10, 0.22);
+  }
+
+  65% {
+    text-shadow: 0 0 14px rgba(215, 50, 12, 0.80), 0 0 32px rgba(200, 70, 15, 0.40);
+  }
+
+  85% {
+    text-shadow: 0 0 9px rgba(195, 25, 15, 0.60), 0 0 22px rgba(200, 40, 10, 0.28);
+  }
+
+  100% {
+    text-shadow: 0 0 8px rgba(200, 30, 20, 0.65), 0 0 20px rgba(200, 60, 10, 0.30);
+  }
+}
+
+[data-theme='ice-and-fire'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c41e1e%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Palette — Targaryen blood red, dragon gold, volcanic black, Wall ice */
+  --ctp-crust: #060402;
+  --ctp-mantle: #0a0806;
+  --ctp-base: #100c08;
+  --ctp-surface0: #1c1410;
+  --ctp-surface1: #281c14;
+  --ctp-surface2: #38261c;
+  --ctp-overlay0: #5a3e2e;
+  --ctp-overlay1: #7a5840;
+  --ctp-overlay2: #9a7858;
+  --ctp-text: #ecdcc8;
+  --ctp-subtext1: #d0b898;
+  --ctp-subtext0: #a89070;
+  --ctp-mauve: #c41e1e;
+  --ctp-lavender: #e03030;
+  --ctp-pink: #e03030;
+  --ctp-flamingo: #c83010;
+  --ctp-rosewater: #ecdcc8;
+  --ctp-green: #5a8a3a;
+  --ctp-teal: #5090a0;
+  /* Wall ice teal */
+  --ctp-sky: #80b8d0;
+  /* Northern sky */
+  --ctp-blue: #3a6898;
+  --ctp-sapphire: #3a6898;
+  --ctp-yellow: #c8880a;
+  /* Lannister / dragon gold */
+  --ctp-peach: #c83010;
+  --ctp-maroon: #8b0808;
+  --ctp-red: #c41e1e;
+
+  --bg-app: #100c08;
+  /* volcanic black — warm dark */
+  --bg-sidebar: #090c10;
+  /* Castle Black — cold blue-grey stone */
+  --bg-card: #1c1410;
+  --bg-hover: #281c14;
+  --bg-player: #060402;
+  /* obsidian black */
+  --bg-glass: rgba(10, 8, 6, 0.92);
+  --accent: #c41e1e;
+  /* Targaryen blood red */
+  --accent-dim: rgba(196, 30, 30, 0.14);
+  --accent-glow: rgba(196, 30, 30, 0.38);
+  --text-primary: #ecdcc8;
+  /* warm stone parchment */
+  --text-secondary: #9a7858;
+  --text-muted: #b08860;
+  --border: rgba(196, 30, 30, 0.20);
+  --border-subtle: rgba(196, 30, 30, 0.08);
+  --border-dropdown: rgba(196, 30, 30, 0.32);
+  --shadow-dropdown: rgba(0, 0, 0, 0.92);
+  --positive: #5a8a3a;
+  --warning: #c8880a;
+  --danger: #c41e1e;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+/* App shell — scattered torch-light: warm pools of fire at corners */
+[data-theme='ice-and-fire'] .app-shell {
+  background-image:
+    radial-gradient(ellipse at 15% 85%, rgba(200, 80, 10, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgba(180, 20, 10, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 85%, rgba(200, 100, 15, 0.05) 0%, transparent 45%);
+}
+
+/* Sidebar — THE NORTH: cold Castle Black stone, masonry pattern */
+[data-theme='ice-and-fire'] .sidebar {
+  background: #090c10;
+  border-right: 1px solid rgba(196, 30, 30, 0.20);
+  background-image:
+    repeating-linear-gradient(0deg,
+      rgba(80, 110, 140, 0.04) 0px, transparent 1px, transparent 56px,
+      rgba(80, 110, 140, 0.04) 57px),
+    repeating-linear-gradient(90deg,
+      rgba(80, 110, 140, 0.025) 0px, transparent 1px, transparent 112px,
+      rgba(80, 110, 140, 0.025) 113px);
+}
+
+/* Player bar — Dragonstone forge: fire glow rising from below */
+[data-theme='ice-and-fire'] .player-bar {
+  background: #060402;
+  border-top: 2px solid #c41e1e;
+  background-image:
+    radial-gradient(ellipse at 50% 130%, rgba(200, 80, 15, 0.22) 0%, rgba(180, 20, 10, 0.12) 45%, transparent 70%);
+  box-shadow: 0 -8px 36px rgba(180, 20, 10, 0.22), 0 -1px 0 rgba(0, 0, 0, 0.9);
+}
+
+/* Track name — Targaryen red, fire flicker (irregular like real flame) */
+[data-theme='ice-and-fire'] .player-track-name {
+  color: #d42020;
+  animation: fire-flicker 5s ease-in-out infinite;
+}
+
+/* Artist name — Lannister/dragon gold */
+[data-theme='ice-and-fire'] .player-artist-name {
+  color: #c8880a;
+}
+
+/* Nav active — blood red left bar */
+[data-theme='ice-and-fire'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(196, 30, 30, 0.18) 0%, transparent 100%);
+  border-left: 3px solid #c41e1e;
+  color: #d42020;
+}
+
+[data-theme='ice-and-fire'] .nav-link:hover:not(.active) {
+  background: linear-gradient(90deg, rgba(196, 30, 30, 0.08) 0%, transparent 100%);
+  border-left: 3px solid rgba(196, 30, 30, 0.32);
+}
+
+/* Content header — red-to-gold ornate rule: Fire and Blood / Hear Me Roar */
+[data-theme='ice-and-fire'] .content-header {
+  border-bottom: 1px solid rgba(196, 30, 30, 0.16);
+  position: relative;
+}
+
+[data-theme='ice-and-fire'] .content-header::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(196, 30, 30, 0.70) 25%,
+      rgba(200, 136, 10, 0.90) 50%,
+      rgba(196, 30, 30, 0.70) 75%,
+      transparent 100%);
+}
+
+/* Cards — volcanic panel, fire-gold border on hover */
+[data-theme='ice-and-fire'] .album-card:hover,
+[data-theme='ice-and-fire'] .artist-card:hover {
+  box-shadow:
+    0 0 0 1px rgba(196, 30, 30, 0.50),
+    0 0 0 2px rgba(200, 136, 10, 0.14),
+    0 4px 24px rgba(180, 20, 10, 0.18);
+}
+
+/* Track / queue rows */
+[data-theme='ice-and-fire'] .track-row:hover,
+[data-theme='ice-and-fire'] .queue-item:hover {
+  box-shadow: inset 2px 0 0 #c41e1e;
+  background: rgba(196, 30, 30, 0.07);
+}
+
+/* Primary play button — Targaryen red gradient */
+[data-theme='ice-and-fire'] .player-btn-primary {
+  background: linear-gradient(180deg, #e03030 0%, #c41e1e 50%, #9c1010 100%);
+  color: #ecdcc8;
+  box-shadow: 0 0 16px rgba(196, 30, 30, 0.48);
+  border: 1px solid #880808;
+}
+
+[data-theme='ice-and-fire'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #f04040 0%, #d42828 50%, #ac1818 100%);
+  box-shadow: 0 0 26px rgba(196, 30, 30, 0.70);
+}
+
+/* btn-primary */
+[data-theme='ice-and-fire'] .btn-primary {
+  background: linear-gradient(180deg, #e03030 0%, #c41e1e 50%, #9c1010 100%);
+  color: #ecdcc8;
+  border: 1px solid #880808;
+}
+
+[data-theme='ice-and-fire'] .btn-primary:hover {
+  background: linear-gradient(180deg, #f04040 0%, #d42828 50%, #ac1818 100%);
+}
+
+/* Hero play button */
+[data-theme='ice-and-fire'] .hero-play-btn {
+  background: linear-gradient(180deg, #e03030 0%, #c41e1e 50%, #9c1010 100%);
+  color: #ecdcc8;
+  border: 1px solid #880808;
+  box-shadow: 0 2px 16px rgba(196, 30, 30, 0.48);
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+[data-theme='ice-and-fire'] .hero-play-btn:hover {
+  background: linear-gradient(180deg, #f04040 0%, #d42828 50%, #ac1818 100%);
+  box-shadow: 0 4px 26px rgba(196, 30, 30, 0.70);
+  transform: scale(1.02);
+}
+
+/* Album card overlay button */
+[data-theme='ice-and-fire'] .album-card-details-btn {
+  background: linear-gradient(180deg, #e03030 0%, #c41e1e 50%, #9c1010 100%);
+  color: #ecdcc8;
+  border: 1px solid #880808;
+  box-shadow: 0 2px 12px rgba(196, 30, 30, 0.45);
+}
+
+/* Scrollbar — obsidian dark, blood-red thumb transitioning to gold */
+[data-theme='ice-and-fire'] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+[data-theme='ice-and-fire'] ::-webkit-scrollbar-track {
+  background: #090c10;
+}
+
+[data-theme='ice-and-fire'] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c41e1e, #883010);
+  border-radius: 3px;
+}
+
+[data-theme='ice-and-fire'] ::-webkit-scrollbar-thumb:hover {
+  background: #c8880a;
+}
+
+/* Connection indicators */
+[data-theme='ice-and-fire'] .connection-type,
+[data-theme='ice-and-fire'] .connection-server {
+  color: #9a7858;
+}
+

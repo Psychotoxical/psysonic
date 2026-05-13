@@ -1,0 +1,56 @@
+/* ─── 1984 Cyberpunk (juanmnl/vs-1984 — mint-green variant) ─── */
+[data-theme='vs-1984-cyberpunk'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f5f5f5%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #0e0f15;
+  --ctp-mantle:   #15171d;   /* sideBar.background */
+  --ctp-base:     #1C1E27;   /* editor.background */
+  --ctp-surface0: #232631;
+  --ctp-surface1: #2c2f3c;
+  --ctp-surface2: #383b4a;
+  --ctp-overlay0: #525863;
+  --ctp-overlay1: #78A8D6;   /* language variable */
+  --ctp-overlay2: #b8bfd1;
+  --ctp-text:     #f5f5f5;
+  --ctp-subtext1: #d4d8e3;
+  --ctp-subtext0: #78A8D6;
+  --ctp-mauve:    #85EEA7;
+  --ctp-lavender: #78A8D6;
+  --ctp-pink:     #FF16B0;
+  --ctp-flamingo: #7ADAD1;
+  --ctp-rosewater:#7ADAD1;
+  --ctp-blue:     #78A8D6;
+  --ctp-sapphire: #7ADAD1;
+  --ctp-sky:      #7ADAD1;
+  --ctp-teal:     #7ADAD1;
+  --ctp-green:    #85EEA7;
+  --ctp-yellow:   #7ADAD1;
+  --ctp-peach:    #85EEA7;
+  --ctp-maroon:   #FF16B0;
+  --ctp-red:      #FF16B0;
+
+  --bg-app:           #1C1E27;
+  --bg-sidebar:       #15171d;
+  --bg-card:          #232631;
+  --bg-hover:         #2c2f3c;
+  --bg-player:        #15171d;
+  --bg-glass:         rgba(28, 30, 39, 0.82);
+  --accent:           #85EEA7;       /* signature mint-green */
+  --accent-dim:       rgba(133, 238, 167, 0.16);
+  --accent-glow:      rgba(133, 238, 167, 0.32);
+  --text-primary:     #f5f5f5;
+  --text-secondary:   #78A8D6;
+  --text-muted:       #525863;
+  --border:           #2c2f3c;
+  --border-subtle:    #232631;
+  --border-dropdown:  #383b4a;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #85EEA7;
+  --warning:          #7ADAD1;
+  --danger:           #FF16B0;
+  --waveform-played:    #85EEA7;
+  --waveform-buffered:  #383b4a;
+  --waveform-unplayed:  #232631;
+}
+

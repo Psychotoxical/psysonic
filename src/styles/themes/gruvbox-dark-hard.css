@@ -1,0 +1,53 @@
+/* ─── Gruvbox Dark Hard ─── */
+[data-theme='gruvbox-dark-hard'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ebdbb2%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #1d2021;
+  --ctp-mantle: #1d2021;
+  --ctp-base: #282828;
+  --ctp-surface0: #3c3836;
+  --ctp-surface1: #504945;
+  --ctp-surface2: #665c54;
+  --ctp-overlay0: #7c6f64;
+  --ctp-overlay1: #928374;
+  --ctp-overlay2: #a89984;
+  --ctp-text: #ebdbb2;
+  --ctp-subtext1: #d5c4a1;
+  --ctp-subtext0: #bdae93;
+  --ctp-mauve: #d3869b;
+  --ctp-lavender: #d3869b;
+  --ctp-pink: #d3869b;
+  --ctp-flamingo: #fb4934;
+  --ctp-rosewater: #fb4934;
+  --ctp-blue: #83a598;
+  --ctp-sapphire: #83a598;
+  --ctp-sky: #8ec07c;
+  --ctp-teal: #8ec07c;
+  --ctp-green: #b8bb26;
+  --ctp-yellow: #fabd2f;
+  --ctp-peach: #fe8019;
+  --ctp-maroon: #fb4934;
+  --ctp-red: #cc241d;
+
+  --bg-app: #1d2021;
+  --bg-sidebar: #141617;
+  --bg-card: #3c3836;
+  --bg-hover: #504945;
+  --bg-player: #1d2021;
+  --bg-glass: rgba(29, 32, 33, 0.82);
+  --accent: #fabd2f;
+  --accent-dim: rgba(250, 189, 47, 0.15);
+  --accent-glow: rgba(250, 189, 47, 0.3);
+  --text-primary: #ebdbb2;
+  --text-secondary: #d5c4a1;
+  --text-muted: #928374;
+  --border: #504945;
+  --border-subtle: #3c3836;
+  --border-dropdown: #665c54;
+  --shadow-dropdown: rgba(0, 0, 0, 0.6);
+  --positive: #b8bb26;
+  --warning: #fabd2f;
+  --danger: #fb4934;
+}
+

@@ -1,0 +1,10 @@
+/* ─── Mouse-event DnD cursor (psy-dragging) ──────────────────────
+   Applied by DragDropProvider while a mouse-based drag is active.
+   Overrides cursor globally to "grabbing" and prevents text-
+   selection / stray pointer events on child elements. ─────────── */
+body.psy-dragging,
+body.psy-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+

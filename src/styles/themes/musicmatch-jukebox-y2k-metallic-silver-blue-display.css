@@ -1,0 +1,398 @@
+/* ─── Musicmatch Jukebox — Y2K Metallic Silver / Blue Display ─── */
+[data-theme='muma-jukebox'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%234a4a4a%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #001358;
+  /* deep blue — LCD display */
+  --ctp-mantle: #b5babc;
+  /* dark silver — panels, sidebar */
+  --ctp-base: #d4d8db;
+  /* metallic silver — main body */
+  --ctp-surface0: #c8ccce;
+  --ctp-surface1: #bec2c4;
+  --ctp-surface2: #8a9094;
+  /* border gray */
+  --ctp-overlay0: #6a7074;
+  --ctp-overlay1: #505458;
+  --ctp-overlay2: #3a3e42;
+  --ctp-text: #1a1a1a;
+  --ctp-subtext1: #3a3a3a;
+  --ctp-subtext0: #4a4a4a;
+  /* Cyan accent + Musicmatch orange */
+  --ctp-mauve: #00d0ff;
+  /* cyan — primary accent */
+  --ctp-lavender: #40e0ff;
+  --ctp-sky: #00c0e8;
+  --ctp-sapphire: #0088c8;
+  --ctp-blue: #0058b8;
+  --ctp-teal: #009898;
+  --ctp-green: #008840;
+  --ctp-yellow: #cc8800;
+  --ctp-peach: #ff6600;
+  /* Musicmatch orange — secondary accent */
+  --ctp-pink: #d04060;
+  --ctp-flamingo: #c05040;
+  --ctp-rosewater: #c87060;
+  --ctp-maroon: #b02828;
+  --ctp-red: #c82020;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #d4d8db;
+  --bg-sidebar: #b5babc;
+  --bg-card: #c8ccce;
+  --bg-hover: #bec2c4;
+  --bg-player: #001358;
+  /* LCD display — deep blue */
+  --bg-glass: rgba(212, 216, 219, 0.92);
+  --accent: #00d0ff;
+  --accent-dim: rgba(0, 208, 255, 0.15);
+  --accent-glow: rgba(0, 208, 255, 0.35);
+  --volume-accent: #ff6600;
+  /* Musicmatch orange for volume */
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #909090;
+  --border: #8a9094;
+  --border-subtle: #c0c4c6;
+  --positive: #008840;
+  --warning: #cc8800;
+  --danger: #c82020;
+}
+
+/* ── Musicmatch: contrast fixes ── */
+[data-theme='muma-jukebox'] .queue-round-btn.active {
+  color: #001358;
+}
+
+/* Accent-coloured text on silver body needs to be darker */
+[data-theme='muma-jukebox'] {
+  --accent: #0070a0;
+  --accent-dim: rgba(0, 112, 160, 0.15);
+  --accent-glow: rgba(0, 112, 160, 0.35);
+}
+
+/* Player bar keeps the bright cyan since it's on dark blue bg */
+[data-theme='muma-jukebox'] .player-bar {
+  --accent: #00d0ff;
+}
+
+/* ── Metallic bevel buttons ── */
+[data-theme='muma-jukebox'] .btn {
+  background: linear-gradient(180deg, #e4e8eb 0%, #c0c4c7 100%);
+  color: #1a1a1a;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.9),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.28),
+    0 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+[data-theme='muma-jukebox'] .btn:hover {
+  background: linear-gradient(180deg, #eceef0 0%, #cacdd0 100%);
+}
+
+[data-theme='muma-jukebox'] .btn-primary {
+  background: linear-gradient(180deg, #40e0ff 0%, #00a8d8 100%);
+  color: #001358;
+  font-weight: 600;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.6),
+    inset -1px -1px 0 rgba(0, 60, 120, 0.4),
+    0 1px 4px rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+[data-theme='muma-jukebox'] .btn-primary:hover {
+  background: linear-gradient(180deg, #60e8ff 0%, #20c0f0 100%);
+}
+
+/* ── Player bar: blue LCD display area ── */
+[data-theme='muma-jukebox'] .player-bar {
+  background: #001358;
+  border-top: 3px solid #8a9094;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='muma-jukebox'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(0, 208, 255, 0.75), 0 0 2px rgba(0, 208, 255, 0.4);
+  letter-spacing: 0.02em;
+}
+
+[data-theme='muma-jukebox'] .player-track-artist {
+  color: #00d0ff;
+  opacity: 0.9;
+}
+
+[data-theme='muma-jukebox'] .player-btn,
+[data-theme='muma-jukebox'] .player-btn-primary {
+  background: linear-gradient(180deg, #1a2880 0%, #000e40 100%);
+  color: #00d0ff;
+  box-shadow:
+    inset 1px 1px 0 rgba(0, 208, 255, 0.25),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.5),
+    0 2px 5px rgba(0, 0, 0, 0.4);
+  border-radius: 50%;
+}
+
+[data-theme='muma-jukebox'] .player-btn:hover,
+[data-theme='muma-jukebox'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #2030a0 0%, #001060 100%);
+  color: #40e8ff;
+}
+
+/* ── Sidebar: brushed-metal panel ── */
+[data-theme='muma-jukebox'] .sidebar {
+  background: linear-gradient(180deg, #c8ccce 0%, #b0b4b7 100%);
+  border-right: 2px solid #7a8084;
+  box-shadow: inset -2px 0 0 rgba(255, 255, 255, 0.5), 2px 0 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Nav links on silver: look like Windows panel items */
+[data-theme='muma-jukebox'] .nav-link {
+  color: #1a1a2a;
+  border-radius: 3px;
+  margin: 1px 4px;
+}
+
+[data-theme='muma-jukebox'] .nav-link:hover {
+  background: linear-gradient(180deg, #dde2e5 0%, #c8ccce 100%);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.8), inset -1px -1px 0 rgba(0, 0, 0, 0.15);
+  color: #0070a0;
+}
+
+[data-theme='muma-jukebox'] .nav-link.active {
+  background: linear-gradient(180deg, #b8c8e0 0%, #9ab0d0 100%);
+  box-shadow:
+    inset 1px 1px 0 rgba(0, 0, 0, 0.15),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.5);
+  color: #001358;
+  font-weight: 600;
+}
+
+[data-theme='muma-jukebox'] .nav-link.active::before {
+  display: none;
+}
+
+/* ── Cards / panels: inset bevel ── */
+[data-theme='muma-jukebox'] .glass,
+[data-theme='muma-jukebox'] .card {
+  background: #d4d8db;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.85),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.15),
+    0 2px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #9a9ea0 !important;
+}
+
+/* ── Track rows: Windows XP list selection ── */
+[data-theme='muma-jukebox'] .track-row:hover,
+[data-theme='muma-jukebox'] .track-row.context-active {
+  background: #316AC5 !important;
+  color: #ffffff !important;
+  box-shadow: none;
+}
+
+[data-theme='muma-jukebox'] .track-row:hover .track-title,
+[data-theme='muma-jukebox'] .track-row:hover .track-artist,
+[data-theme='muma-jukebox'] .track-row:hover .track-duration,
+[data-theme='muma-jukebox'] .track-row:hover .track-num,
+[data-theme='muma-jukebox'] .track-row.context-active .track-title,
+[data-theme='muma-jukebox'] .track-row.context-active .track-artist {
+  color: #ffffff !important;
+}
+
+/* ── Queue items ── */
+[data-theme='muma-jukebox'] .queue-item:hover,
+[data-theme='muma-jukebox'] .queue-item.context-active {
+  background: #316AC5 !important;
+}
+
+[data-theme='muma-jukebox'] .queue-item:hover .queue-item-title,
+[data-theme='muma-jukebox'] .queue-item:hover .queue-item-artist,
+[data-theme='muma-jukebox'] .queue-item:hover .queue-item-duration,
+[data-theme='muma-jukebox'] .queue-item.context-active .queue-item-title,
+[data-theme='muma-jukebox'] .queue-item.context-active .queue-item-artist {
+  color: #ffffff !important;
+}
+
+[data-theme='muma-jukebox'] .queue-item.active {
+  background: rgba(0, 112, 160, 0.14);
+  box-shadow: inset 3px 0 0 #0070a0;
+}
+
+[data-theme='muma-jukebox'] .np-queue-item:hover,
+[data-theme='muma-jukebox'] .np-queue-item.context-active {
+  background: #316AC5;
+}
+
+[data-theme='muma-jukebox'] .np-queue-item-active {
+  color: #001358;
+  font-weight: 600;
+}
+
+[data-theme='muma-jukebox'] .np-queue-item.active {
+  background: rgba(49, 106, 197, 0.18);
+}
+
+/* ── Artist / playlist rows ── */
+[data-theme='muma-jukebox'] .artist-row:hover,
+[data-theme='muma-jukebox'] .playlist-row:hover {
+  background: #316AC5;
+  color: #ffffff;
+}
+
+/* ── Settings tabs: XP tab strip ── */
+[data-theme='muma-jukebox'] .settings-tab {
+  background: linear-gradient(180deg, #d4d8db 0%, #c0c4c7 100%);
+  border: 1px solid #9a9ea0;
+  color: #1a1a1a;
+  border-radius: 3px 3px 0 0;
+  margin-right: 2px;
+}
+
+[data-theme='muma-jukebox'] .settings-tab:hover {
+  background: linear-gradient(180deg, #dde2e5 0%, #cacdd0 100%);
+  color: #0070a0;
+}
+
+[data-theme='muma-jukebox'] .settings-tab.active {
+  background: linear-gradient(180deg, #ffffff 0%, #f0f4f8 100%);
+  color: #001358;
+  font-weight: 600;
+  box-shadow: inset 0 2px 0 #0070a0;
+  border-bottom-color: transparent;
+}
+
+/* ── Queue tab buttons ── */
+[data-theme='muma-jukebox'] .queue-tab-btn:hover {
+  color: #0070a0;
+}
+
+/* ── Now-playing active ── */
+[data-theme='muma-jukebox'] .np-album-track.active .np-album-track-title,
+[data-theme='muma-jukebox'] .np-album-track.active .np-album-track-num {
+  color: #0070a0;
+  font-weight: 600;
+}
+
+/* ── Scrollbar: XP silver ── */
+[data-theme='muma-jukebox'] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+[data-theme='muma-jukebox'] ::-webkit-scrollbar-track {
+  background: linear-gradient(90deg, #c0c4c7 0%, #d4d8db 100%);
+  border: 1px solid #9a9ea0;
+}
+
+[data-theme='muma-jukebox'] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #dde2e5 0%, #b8bcbf 100%);
+  border: 1px solid #9a9ea0;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.7), inset -1px -1px 0 rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='muma-jukebox'] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #e8ecf0 0%, #c8ccce 100%);
+}
+
+[data-theme='muma-jukebox'] ::-webkit-scrollbar-button {
+  background: linear-gradient(180deg, #dde2e5 0%, #b8bcbf 100%);
+  border: 1px solid #9a9ea0;
+  height: 16px;
+}
+
+/* ── Dropdowns ── */
+[data-theme='muma-jukebox'] .custom-select-trigger {
+  background: linear-gradient(180deg, #e4e8eb 0%, #d4d8db 100%);
+  border: 1px solid #9a9ea0;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+[data-theme='muma-jukebox'] .custom-select-option:hover {
+  background: #316AC5 !important;
+  color: #ffffff !important;
+}
+
+/* ── Connection indicators ── */
+[data-theme='muma-jukebox'] .connection-type,
+[data-theme='muma-jukebox'] .connection-server {
+  color: #0070a0;
+}
+
+/* ── Orange: volume knob + active/playing states ── */
+/* Knob is var(--text-primary) by default = near-black on silver → fix to orange */
+[data-theme='muma-jukebox'] input[type="range"]::-webkit-slider-thumb {
+  background: #ff6600;
+  box-shadow: inset 1px 1px 0 rgba(255, 180, 80, 0.7), inset -1px -1px 0 rgba(160, 40, 0, 0.4);
+}
+
+[data-theme='muma-jukebox'] input[type="range"]:hover::-webkit-slider-thumb {
+  background: #ff8020;
+}
+
+/* Active queue item: orange left bar instead of blue */
+[data-theme='muma-jukebox'] .queue-item.active {
+  background: rgba(255, 102, 0, 0.1);
+  box-shadow: inset 3px 0 0 #ff6600;
+}
+
+[data-theme='muma-jukebox'] .np-queue-item-active {
+  color: #cc4400;
+  font-weight: 600;
+}
+
+[data-theme='muma-jukebox'] .np-queue-item.active {
+  background: rgba(255, 102, 0, 0.1);
+}
+
+/* Now-playing active track = orange brand color */
+[data-theme='muma-jukebox'] .np-album-track.active .np-album-track-title,
+[data-theme='muma-jukebox'] .np-album-track.active .np-album-track-num {
+  color: #cc4400;
+  font-weight: 600;
+}
+
+/* Active nav link: orange accent text */
+[data-theme='muma-jukebox'] .nav-link.active {
+  color: #cc4400;
+}
+
+/* Settings tab active: orange top border */
+[data-theme='muma-jukebox'] .settings-tab.active {
+  box-shadow: inset 0 2px 0 #ff6600;
+  color: #cc4400;
+}
+
+/* Track row playing indicator (now-playing track-num shown in orange) */
+[data-theme='muma-jukebox'] .track-row.playing .track-num {
+  color: #ff6600;
+}
+
+/* Player bar artist: keep cyan, but LCD progress/waveform in orange */
+[data-theme='muma-jukebox'] .player-bar input[type="range"]::-webkit-slider-thumb {
+  background: #ff6600;
+}
+
+/* Waveform: orange played, cyan buffered, dim unplayed */
+[data-theme='muma-jukebox'] {
+  --waveform-played: #ff6600;
+  --waveform-buffered: #00d0ff;
+  --waveform-unplayed: #3a5080;
+}
+
+/* ── Hero readability on silver background ── */
+[data-theme='muma-jukebox'] .album-detail-badge {
+  background: #0070a0;
+  color: #ffffff;
+}
+
+[data-theme='muma-jukebox'] .album-detail-info {
+  color: #4a4a4a;
+}
+

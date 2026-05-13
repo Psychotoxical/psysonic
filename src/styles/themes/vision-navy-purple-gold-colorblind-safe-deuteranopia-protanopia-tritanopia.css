@@ -1,0 +1,73 @@
+/* ─── Vision Navy — Purple & Gold, colorblind-safe (Deuteranopia / Protanopia / Tritanopia) ─── */
+[data-theme='vision-navy'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23C8D4E4%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Colour-blind safe / AAA contrast audit (companion to Vision Dark) ───
+     Chromatic semantic colours sourced verbatim from the Okabe-Ito CVD-safe
+     reference palette. Neutral tokens tuned so every interactive / readable
+     surface clears WCAG thresholds against `--bg-app` (#0a1628, L≈0.009):
+       • text-primary  16.4:1  (AAA ✓)
+       • text-secondary 12.1:1 (AAA ✓, raised from 10.8:1)
+       • text-muted     7.7:1  (AAA ✓, raised from 3.5:1 — was below AA!)
+       • accent (gold) 14.5:1  (AAA ✓)
+       • warning        8.6:1  (AAA ✓)
+       • positive       5.7:1  (AA — Okabe-Ito reference, kept verbatim)
+       • danger         4.9:1  (AA — Okabe-Ito reference, kept verbatim)
+       • overlay0       3.4:1  (UI ✓, raised from 2.9:1)
+       • border         3.7:1  (UI ✓, raised from 1.2:1)
+       • waveform-unplayed perceptible at ~2.0:1 (raised from 1.2:1)
+     Component-level overrides below cover the column grip, badges, focus
+     ring and queue item text on the very dark sidebar (#060e1c).
+  */
+
+  --ctp-crust:     #030a14;
+  --ctp-mantle:    #060e1c;
+  --ctp-base:      #0a1628;
+  --ctp-surface0:  #112038;
+  --ctp-surface1:  #243c58;     /* raised from #1a2e48 so borders/grips are perceptible */
+  --ctp-surface2:  #304c6c;
+  --ctp-overlay0:  #5a7694;     /* raised from #486480 → 3.4:1 UI ✓ */
+  --ctp-overlay1:  #7e96b4;
+  --ctp-overlay2:  #9aafcc;
+  --ctp-text:      #eef2f8;
+  --ctp-subtext1:  #c8d4e4;     /* raised slightly from #c0c8d8 */
+  --ctp-subtext0:  #9caac2;
+  --ctp-mauve:     #a07af8;
+  --ctp-lavender:  #b89af8;
+  --ctp-blue:      #3b82f6;
+  --ctp-sapphire:  #38bdf8;
+  --ctp-sky:       #7dd3fc;
+  --ctp-teal:      #2dd4bf;
+  --ctp-green:     #009e73;  /* Okabe-Ito Bluish Green (CVD reference) */
+  --ctp-yellow:    #ffd700;  /* Gold */
+  --ctp-peach:     #e69f00;  /* Okabe-Ito Orange (CVD reference) */
+  --ctp-maroon:    #d55e00;  /* Okabe-Ito Vermillion (CVD reference) */
+  --ctp-red:       #d55e00;
+  --ctp-flamingo:  #f472b6;
+  --ctp-pink:      #e879f9;
+  --ctp-rosewater: #f0abfc;
+
+  --bg-app:         #0a1628;
+  --bg-sidebar:     #060e1c;
+  --bg-card:        #112038;
+  --bg-hover:       #243c58;    /* raised → 2.9:1 vs bg-card, clearly perceptible */
+  --bg-player:      #040c18;
+  --bg-glass:       rgba(10, 22, 40, 0.88);
+  --accent:         #ffd700;
+  --accent-dim:     rgba(255, 215, 0, 0.18);
+  --accent-glow:    rgba(255, 215, 0, 0.40);
+  --text-primary:   #eef2f8;
+  --text-secondary: #c8d4e4;    /* 12.1:1 vs bg-app — AAA ✓ */
+  --text-muted:     #9caac2;    /* 7.7:1 vs bg-app — AAA ✓, was 3.5:1 (below AA!) */
+  --border:         #607d9a;    /* 3.7:1 vs bg-card — UI ✓, was 1.2:1 */
+  --border-subtle:  #304c6c;    /* still subtle but perceptible */
+  --positive:       #009e73;    /* Okabe-Ito Bluish Green (CVD reference, 5.7:1 AA) */
+  --warning:        #e69f00;    /* Okabe-Ito Orange (8.6:1 AAA ✓) */
+  --danger:         #d55e00;    /* Okabe-Ito Vermillion (4.9:1 AA) */
+  --volume-accent:  #ffd700;
+  --waveform-played:    #ffd700;
+  --waveform-buffered:  #7e96b4; /* overlay1 → 5.7:1 vs bg-app */
+  --waveform-unplayed:  #304c6c; /* still dim but perceptible */
+}
+

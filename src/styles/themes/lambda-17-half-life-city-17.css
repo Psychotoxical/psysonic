@@ -1,0 +1,236 @@
+/* ─── Lambda 17 — Half-Life / City 17 ─── */
+/* HEV orange + Combine Overwatch teal + City 17 concrete       */
+[data-theme='lambda-17'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ff9d00%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* City 17 — warm concrete dark, not pure black */
+  --ctp-crust: #0c0d0e;
+  --ctp-mantle: #111315;
+  --ctp-base: #171a1c;
+  --ctp-surface0: #1f2326;
+  --ctp-surface1: #282d30;
+  --ctp-surface2: #33393d;
+  --ctp-overlay0: #4e5660;
+  --ctp-overlay1: #718090;
+  --ctp-overlay2: #96a8b4;
+  --ctp-text: #e4ddd0;
+  /* concrete dust off-white */
+  --ctp-subtext1: #c8c0b0;
+  --ctp-subtext0: #96a8b4;
+
+  /* Half-Life palette */
+  --ctp-peach: #ff9d00;
+  /* HEV suit orange */
+  --ctp-mauve: #ff9d00;
+  --ctp-lavender: #ffb84d;
+  --ctp-flamingo: #ffb84d;
+  --ctp-rosewater: #ffd080;
+  --ctp-teal: #00c8c0;
+  /* Combine Overwatch scanner teal */
+  --ctp-sky: #00c8c0;
+  --ctp-sapphire: #0090a0;
+  --ctp-blue: #0060a0;
+  /* G-Man suit navy */
+  --ctp-green: #78c800;
+  /* Headcrab / barnacle green */
+  --ctp-yellow: #f0d000;
+  /* radiation warning yellow */
+  --ctp-red: #e03020;
+  /* danger / health critical */
+  --ctp-maroon: #b82010;
+  --ctp-pink: #cc44aa;
+  /* Xen alien purple-pink */
+
+  --bg-app: #171a1c;
+  /* City 17 corridor concrete */
+  --bg-sidebar: #111315;
+  /* Combine facility wall */
+  --bg-card: #1f2326;
+  --bg-hover: rgba(255, 157, 0, 0.08);
+  --bg-player: #0c0d0e;
+  /* HEV suit display dark */
+  --bg-glass: rgba(17, 19, 21, 0.95);
+
+  --accent: #ff9d00;
+  /* HEV orange */
+  --accent-dim: rgba(255, 157, 0, 0.13);
+  --accent-glow: rgba(255, 157, 0, 0.45);
+  --volume-accent: #00c8c0;
+  /* Combine teal for volume */
+
+  --text-primary: #e4ddd0;
+  /* concrete dust off-white */
+  --text-secondary: #00c8c0;
+  /* Combine Overwatch teal */
+  --text-muted: #4e5660;
+  --border: #2a3035;
+  --border-subtle: #1f2326;
+  --shadow-dropdown: rgba(0, 0, 0, 0.85);
+
+  --positive: #78c800;
+  --warning: #ff9d00;
+  --danger: #e03020;
+
+  --radius-sm: 0px;
+  --radius-md: 1px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+}
+
+/* Sidebar = Combine control panel: horizontal panel lines */
+[data-theme='lambda-17'] .sidebar {
+  border-right: 2px solid #ff9d00;
+  box-shadow: 2px 0 12px rgba(255, 157, 0, 0.08);
+  background-image: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 28px,
+      rgba(0, 200, 192, 0.04) 28px,
+      rgba(0, 200, 192, 0.04) 29px);
+}
+
+/* Player bar = HEV suit monitor: orange top + teal secondary */
+[data-theme='lambda-17'] .player-bar {
+  border-top: 2px solid #ff9d00;
+  box-shadow:
+    0 -1px 0 rgba(0, 200, 192, 0.3),
+    0 -6px 24px rgba(255, 157, 0, 0.07);
+}
+
+/* Track name = HEV announcement style */
+[data-theme='lambda-17'] .player-track-name {
+  color: #ff9d00;
+  text-shadow: 0 0 10px rgba(255, 157, 0, 0.65), 0 0 24px rgba(255, 157, 0, 0.25);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* Artist = Combine Overwatch voice color */
+[data-theme='lambda-17'] .player-track-artist {
+  color: #00c8c0;
+}
+
+/* Queue album = Xen purple */
+[data-theme='lambda-17'] .queue-meta-album {
+  color: #cc44aa;
+}
+
+/* Active nav: HEV orange gradient */
+[data-theme='lambda-17'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(255, 157, 0, 0.16) 0%, transparent 100%);
+  color: #ff9d00;
+}
+
+[data-theme='lambda-17'] .nav-link.active::before {
+  width: 3px;
+  box-shadow: 2px 0 10px rgba(255, 157, 0, 0.6);
+}
+
+/* Buttons */
+[data-theme='lambda-17'] .btn-primary {
+  background: #ff9d00;
+  color: #0c0d0e;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: none;
+  border-radius: 1px;
+}
+
+[data-theme='lambda-17'] .btn-primary:hover {
+  background: #ffb030;
+}
+
+/* Queue active = HEV orange lambda bar */
+[data-theme='lambda-17'] .queue-item.active {
+  background: rgba(255, 157, 0, 0.08);
+  box-shadow: inset 3px 0 0 #ff9d00;
+}
+
+[data-theme='lambda-17'] .np-queue-item.active {
+  background: rgba(255, 157, 0, 0.07);
+}
+
+[data-theme='lambda-17'] .np-queue-item-active {
+  color: #ff9d00;
+  text-shadow: 0 0 8px rgba(255, 157, 0, 0.55);
+}
+
+/* Now-playing active track = Combine teal */
+[data-theme='lambda-17'] .np-album-track.active .np-album-track-title,
+[data-theme='lambda-17'] .np-album-track.active .np-album-track-num {
+  color: #00c8c0;
+  text-shadow: 0 0 8px rgba(0, 200, 192, 0.5);
+}
+
+/* Hover rows */
+[data-theme='lambda-17'] .track-row:hover,
+[data-theme='lambda-17'] .track-row.context-active {
+  background: rgba(255, 157, 0, 0.07) !important;
+  box-shadow: inset 3px 0 0 #ff9d00;
+}
+
+[data-theme='lambda-17'] .queue-item:hover,
+[data-theme='lambda-17'] .queue-item.context-active {
+  background: rgba(255, 157, 0, 0.07) !important;
+  box-shadow: inset 3px 0 0 #ff9d00;
+}
+
+[data-theme='lambda-17'] .np-queue-item:hover,
+[data-theme='lambda-17'] .np-queue-item.context-active {
+  background: rgba(255, 157, 0, 0.07);
+  box-shadow: inset 2px 0 0 #ff9d00;
+}
+
+[data-theme='lambda-17'] .artist-row:hover {
+  background: rgba(255, 157, 0, 0.06);
+  box-shadow: inset 3px 0 0 #ff9d00;
+}
+
+[data-theme='lambda-17'] .playlist-row:hover {
+  background: rgba(255, 157, 0, 0.06);
+  box-shadow: inset 3px 0 0 #ff9d00;
+}
+
+/* Settings tabs: Combine teal when active */
+[data-theme='lambda-17'] .settings-tab:hover {
+  background: rgba(255, 157, 0, 0.07);
+  color: #ff9d00;
+}
+
+[data-theme='lambda-17'] .settings-tab.active {
+  background: rgba(0, 200, 192, 0.08);
+  color: #00c8c0;
+  box-shadow: inset 3px 0 0 #00c8c0;
+}
+
+/* Queue tabs */
+[data-theme='lambda-17'] .queue-tab-btn:hover {
+  background: rgba(255, 157, 0, 0.07);
+  color: #ff9d00;
+}
+
+/* Dropdowns */
+[data-theme='lambda-17'] .custom-select-trigger:hover {
+  background: rgba(255, 157, 0, 0.07);
+}
+
+[data-theme='lambda-17'] .custom-select-option:hover {
+  background: rgba(255, 157, 0, 0.1) !important;
+  color: #ff9d00 !important;
+}
+
+/* Artist pills = headcrab green */
+[data-theme='lambda-17'] .artist-ext-link:hover {
+  background: rgba(120, 200, 0, 0.1);
+  color: #78c800 !important;
+  border-color: rgba(120, 200, 0, 0.4) !important;
+}
+
+/* Connection indicators */
+[data-theme='lambda-17'] .connection-type,
+[data-theme='lambda-17'] .connection-server {
+  color: #00c8c0;
+}
+

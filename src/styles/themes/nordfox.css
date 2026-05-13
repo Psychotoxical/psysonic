@@ -1,0 +1,53 @@
+/* ─── Nordfox ─── */
+[data-theme='nordfox'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23cdcecf%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #232831;
+  --ctp-mantle: #232831;
+  --ctp-base: #2e3440;
+  --ctp-surface0: #39404f;
+  --ctp-surface1: #444c5e;
+  --ctp-surface2: #5a657d;
+  --ctp-overlay0: #60728a;
+  --ctp-overlay1: #7e8188;
+  --ctp-overlay2: #abb1bb;
+  --ctp-text: #cdcecf;
+  --ctp-subtext1: #c7cdd9;
+  --ctp-subtext0: #abb1bb;
+  --ctp-mauve: #b48ead;
+  --ctp-lavender: #81a1c1;
+  --ctp-pink: #bf88bc;
+  --ctp-flamingo: #bf616a;
+  --ctp-rosewater: #c9826b;
+  --ctp-blue: #81a1c1;
+  --ctp-sapphire: #81a1c1;
+  --ctp-sky: #88c0d0;
+  --ctp-teal: #88c0d0;
+  --ctp-green: #a3be8c;
+  --ctp-yellow: #ebcb8b;
+  --ctp-peach: #c9826b;
+  --ctp-maroon: #bf616a;
+  --ctp-red: #bf616a;
+
+  --bg-app: #2e3440;
+  --bg-sidebar: #232831;
+  --bg-card: #39404f;
+  --bg-hover: #444c5e;
+  --bg-player: #232831;
+  --bg-glass: rgba(46, 52, 64, 0.75);
+  --accent: #81a1c1;
+  --accent-dim: rgba(129, 161, 193, 0.15);
+  --accent-glow: rgba(129, 161, 193, 0.3);
+  --text-primary: #cdcecf;
+  --text-secondary: #abb1bb;
+  --text-muted: #60728a;
+  --border: #444c5e;
+  --border-subtle: #39404f;
+  --border-dropdown: #5a657d;
+  --shadow-dropdown: rgba(0, 0, 0, 0.6);
+  --positive: #a3be8c;
+  --warning: #ebcb8b;
+  --danger: #bf616a;
+}
+

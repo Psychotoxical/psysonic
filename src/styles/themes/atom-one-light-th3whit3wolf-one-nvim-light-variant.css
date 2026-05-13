@@ -1,0 +1,56 @@
+/* ─── Atom One Light (Th3Whit3Wolf/one-nvim — light variant) ─── */
+[data-theme='one-light'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23383A42%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #e7e9e1;   /* vertsplit */
+  --ctp-mantle:   #eaeaeb;
+  --ctp-base:     #fafafa;   /* syntax_bg */
+  --ctp-surface0: #ececed;
+  --ctp-surface1: #dfdfdf;   /* pmenu */
+  --ctp-surface2: #d3d3d3;   /* special_grey */
+  --ctp-overlay0: #c2c2c3;   /* mono_4 */
+  --ctp-overlay1: #a0a1a7;   /* mono_3 */
+  --ctp-overlay2: #696c77;   /* mono_2 */
+  --ctp-text:     #383A42;   /* mono_1 */
+  --ctp-subtext1: #4f525e;   /* term_8 */
+  --ctp-subtext0: #696c77;
+  --ctp-mauve:    #a626a4;   /* hue_3 */
+  --ctp-lavender: #526fff;   /* syntax_accent */
+  --ctp-pink:     #d291e4;
+  --ctp-flamingo: #ca1243;   /* hue_5_2 */
+  --ctp-rosewater:#986801;   /* hue_6 */
+  --ctp-blue:     #4078f2;   /* hue_2 */
+  --ctp-sapphire: #0184bc;   /* hue_1 */
+  --ctp-sky:      #0184bc;
+  --ctp-teal:     #0184bc;
+  --ctp-green:    #50a14f;   /* hue_4 */
+  --ctp-yellow:   #c18401;   /* hue_6_2 */
+  --ctp-peach:    #986801;
+  --ctp-maroon:   #ca1243;
+  --ctp-red:      #e45649;   /* hue_5 */
+
+  --bg-app:           #fafafa;
+  --bg-sidebar:       #eaeaeb;
+  --bg-card:          #ececed;
+  --bg-hover:         #dfdfdf;
+  --bg-player:        #eaeaeb;
+  --bg-glass:         rgba(250, 250, 250, 0.92);
+  --accent:           #4078f2;       /* hue_2 — signature One Light blue */
+  --accent-dim:       rgba(64, 120, 242, 0.12);
+  --accent-glow:      rgba(64, 120, 242, 0.24);
+  --text-primary:     #383A42;       /* mono_1 */
+  --text-secondary:   #696c77;       /* mono_2 */
+  --text-muted:       #a0a1a7;       /* mono_3 */
+  --border:           #dfdfdf;
+  --border-subtle:    #ececed;
+  --border-dropdown:  #c2c2c3;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.16);
+  --positive:         #50a14f;       /* hue_4 */
+  --warning:          #c18401;       /* hue_6_2 */
+  --danger:           #e45649;       /* hue_5 */
+  --waveform-played:    #4078f2;
+  --waveform-buffered:  #a0a1a7;
+  --waveform-unplayed:  #dfdfdf;
+}
+

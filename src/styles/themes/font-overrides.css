@@ -1,0 +1,76 @@
+/* ─── Font overrides ─── */
+[data-font='inter'] {
+  --font-sans: 'Inter Variable', system-ui, -apple-system, sans-serif;
+  --font-display: 'Inter Variable', sans-serif;
+}
+
+[data-font='outfit'] {
+  --font-sans: 'Outfit Variable', system-ui, sans-serif;
+  --font-display: 'Outfit Variable', sans-serif;
+}
+
+[data-font='dm-sans'] {
+  --font-sans: 'DM Sans Variable', system-ui, sans-serif;
+  --font-display: 'DM Sans Variable', sans-serif;
+}
+
+[data-font='nunito'] {
+  --font-sans: 'Nunito Variable', system-ui, sans-serif;
+  --font-display: 'Nunito Variable', sans-serif;
+}
+
+[data-font='rubik'] {
+  --font-sans: 'Rubik Variable', system-ui, sans-serif;
+  --font-display: 'Rubik Variable', sans-serif;
+}
+
+[data-font='space-grotesk'] {
+  --font-sans: 'Space Grotesk Variable', system-ui, sans-serif;
+  --font-display: 'Space Grotesk Variable', sans-serif;
+}
+
+[data-font='figtree'] {
+  --font-sans: 'Figtree Variable', system-ui, sans-serif;
+  --font-display: 'Figtree Variable', sans-serif;
+}
+
+[data-font='manrope'] {
+  --font-sans: 'Manrope Variable', system-ui, sans-serif;
+  --font-display: 'Manrope Variable', sans-serif;
+}
+
+[data-font='plus-jakarta-sans'] {
+  --font-sans: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans Variable', sans-serif;
+}
+
+[data-font='lexend'] {
+  --font-sans: 'Lexend Variable', system-ui, sans-serif;
+  --font-display: 'Lexend Variable', sans-serif;
+}
+
+[data-font='geist'] {
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
+  --font-display: 'Geist Variable', sans-serif;
+}
+
+[data-font='jetbrains-mono'] {
+  --font-sans: 'JetBrains Mono Variable', monospace;
+  --font-display: 'JetBrains Mono Variable', monospace;
+}
+
+[data-font='golos-text'] {
+  --font-sans: 'Golos Text Variable', system-ui, sans-serif;
+  --font-display: 'Golos Text Variable', sans-serif;
+}
+
+[data-font='unbounded'] {
+  --font-sans: 'Unbounded Variable', system-ui, sans-serif;
+  --font-display: 'Unbounded Variable', sans-serif;
+}
+
+[data-font='opendyslexic'] {
+  --font-sans: 'OpenDyslexic', system-ui, sans-serif;
+  --font-display: 'OpenDyslexic', sans-serif;
+}
+

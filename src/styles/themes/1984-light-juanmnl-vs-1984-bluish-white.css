@@ -1,0 +1,56 @@
+/* ─── 1984 Light (juanmnl/vs-1984 — bluish-white) ─── */
+[data-theme='vs-1984-light'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2319152c%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #d4d6e7;
+  --ctp-mantle:   #dfe0f0;   /* sideBar.background */
+  --ctp-base:     #e4e5f5;   /* editor.background */
+  --ctp-surface0: #d4d6e7;
+  --ctp-surface1: #cccdde;
+  --ctp-surface2: #b9bad0;
+  --ctp-overlay0: #9793b9;   /* comment */
+  --ctp-overlay1: #7f8a99;   /* lineNumber */
+  --ctp-overlay2: #585d74;
+  --ctp-text:     #19152c;
+  --ctp-subtext1: #3f374b;
+  --ctp-subtext0: #585d74;   /* sideBar.foreground */
+  --ctp-mauve:    #a626a4;
+  --ctp-lavender: #4d5eff;
+  --ctp-pink:     #FF16B0;
+  --ctp-flamingo: #c300ff;
+  --ctp-rosewater:#1930fd;
+  --ctp-blue:     #4d5eff;
+  --ctp-sapphire: #46BDFF;
+  --ctp-sky:      #46BDFF;
+  --ctp-teal:     #1930fd;
+  --ctp-green:    #1d7848;
+  --ctp-yellow:   #b88600;
+  --ctp-peach:    #FF16B0;
+  --ctp-maroon:   #FF16B0;
+  --ctp-red:      #FF16B0;
+
+  --bg-app:           #e4e5f5;
+  --bg-sidebar:       #dfe0f0;
+  --bg-card:          #d4d6e7;
+  --bg-hover:         #cccdde;
+  --bg-player:        #dfe0f0;
+  --bg-glass:         rgba(228, 229, 245, 0.92);
+  --accent:           #4d5eff;       /* variable blue — readable on bluish-white */
+  --accent-dim:       rgba(77, 94, 255, 0.12);
+  --accent-glow:      rgba(77, 94, 255, 0.24);
+  --text-primary:     #19152c;
+  --text-secondary:   #585d74;       /* sideBar.foreground */
+  --text-muted:       #9793b9;       /* comment */
+  --border:           #cccdde;
+  --border-subtle:    #d4d6e7;
+  --border-dropdown:  #b9bad0;
+  --shadow-dropdown:  rgba(25, 21, 44, 0.18);
+  --positive:         #1d7848;
+  --warning:          #b88600;
+  --danger:           #FF16B0;       /* signature 1984 hot-pink button */
+  --waveform-played:    #4d5eff;
+  --waveform-buffered:  #9793b9;
+  --waveform-unplayed:  #d4d6e7;
+}
+

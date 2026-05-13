@@ -1,0 +1,384 @@
+/* ─── Powerslave (inspired) — Iron Maiden ─── */
+/* Blazing Egyptian sun — warm sandstone main, Nile-sky deep-blue sidebar,
+   pharaoh gold accent, gold+blue duality. Light, no dark mode.
+   Sidebar: deep Nile blue with subtle hieroglyph grid. Player bar: navy + gold cornice. */
+[data-theme='powerslave'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23C8800A%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — sandstone, pharaoh gold, temple shadows ── */
+  --ctp-crust: #180E04;
+  --ctp-mantle: #2A1808;
+  --ctp-base: #F0DFB0;
+  /* warm sandstone */
+  --ctp-surface0: #E8D49A;
+  --ctp-surface1: #DEC880;
+  --ctp-surface2: #D0B860;
+  --ctp-overlay0: #A07830;
+  --ctp-overlay1: #806020;
+  --ctp-overlay2: #604810;
+  --ctp-text: #2A1808;
+  /* warm dark brown */
+  --ctp-subtext1: #4A2C10;
+  --ctp-subtext0: #6A4018;
+  --ctp-mauve: #C8800A;
+  /* pharaoh gold */
+  --ctp-lavender: #D49020;
+  --ctp-pink: #B04000;
+  --ctp-flamingo: #CC4800;
+  --ctp-rosewater: #F8EDD0;
+  --ctp-green: #507820;
+  --ctp-teal: #207870;
+  /* Egyptian turquoise */
+  --ctp-sky: #3080A0;
+  --ctp-blue: #1A5080;
+  --ctp-sapphire: #204870;
+  --ctp-yellow: #C8800A;
+  --ctp-peach: #C05010;
+  --ctp-maroon: #801808;
+  --ctp-red: #A82000;
+
+  /* ── Semantic tokens ──
+     Contrast audit (vs. --bg-app #F0DFB0, L≈0.746):
+       text-primary   12.9:1 AAA ✓
+       text-secondary  6.7:1 AA+ ✓
+       text-muted      4.6:1 AA  ✓ (was 3.05:1 — below AA)
+       positive        5.5:1 AA  ✓ (was 3.97:1)
+       warning         5.8:1 AA  ✓ (was 3.62:1 — was below AA)
+       danger          5.5:1 AA  ✓
+       accent (gold)   1.98:1 UI (Pharaoh brand, never as body text)
+  */
+  --bg-app: #F0DFB0;
+  /* sun-bleached sandstone */
+  --bg-sidebar: #0A2035;
+  /* Nile sky — deep lapis blue */
+  --bg-card: #F8EDD0;
+  --bg-hover: #E8D49A;
+  --bg-player: #06101C;
+  /* deep night Nile */
+  --bg-glass: rgba(240, 223, 176, 0.94);
+  --accent: #C8960C;
+  /* pharaoh gold — brand identity, 1.98:1 UI-pass only (never as body text) */
+  --accent-dim: rgba(200, 150, 12, 0.16);
+  --accent-glow: rgba(200, 150, 12, 0.35);
+  --text-primary: #2A1808;
+  --text-secondary: #6A4018;
+  --text-muted: #805810;     /* 4.6:1 AA ✓, deepened from #A07830 (3.05:1 below AA) */
+  --border: rgba(42, 24, 8, 0.38);         /* ~2.3:1 visible structural line (was 1.33:1) */
+  --border-subtle: rgba(42, 24, 8, 0.20);  /* ~1.5:1 subtle but perceptible (was 1.19:1) */
+  --border-dropdown: rgba(200, 128, 10, 0.40);
+  --shadow-dropdown: rgba(24, 14, 4, 0.22);
+  --positive: #3E6018;       /* 5.5:1 AA ✓, deeper olive (was #507820 at 3.97:1) */
+  --warning: #A04008;        /* 5.8:1 AA ✓, deeper burnt-orange (was #C05010 at 3.62:1) */
+  --danger: #A82000;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  --waveform-played: #2E7BB8;
+  /* Nile azure — the sky */
+  --waveform-buffered: rgba(46, 123, 184, 0.32);
+  --waveform-unplayed: rgba(42, 24, 8, 0.22);
+
+  /* Logo — Nile blue → pharaoh gold */
+  --logo-color-start: #2E7BB8;
+  --logo-color-end: #C8960C;
+}
+
+/* Sidebar — Nile-sky deep blue, drifting cloud wisps */
+[data-theme='powerslave'] .sidebar {
+  background: #0A2035;
+  border-right: none;
+  background-image:
+    radial-gradient(ellipse 130% 30% at 50% 6%, rgba(140, 190, 235, 0.07) 0%, transparent 65%),
+    radial-gradient(ellipse 90% 25% at 18% 22%, rgba(100, 155, 205, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 115% 28% at 78% 38%, rgba(120, 170, 225, 0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 100% 26% at 38% 58%, rgba(90, 145, 195, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 120% 30% at 68% 75%, rgba(110, 165, 218, 0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 85% 24% at 22% 92%, rgba(130, 180, 232, 0.04) 0%, transparent 60%);
+}
+
+[data-theme='powerslave'] .nav-link {
+  color: rgba(200, 224, 248, 0.65);
+}
+
+[data-theme='powerslave'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(200, 150, 12, 0.22) 0%, transparent 100%);
+  border-left: 3px solid #C8960C;
+  color: #D49828;
+}
+
+[data-theme='powerslave'] .nav-link:hover:not(.active) {
+  background: rgba(46, 123, 184, 0.12);
+  border-left: 3px solid rgba(46, 123, 184, 0.50);
+  color: rgba(200, 224, 248, 0.92);
+}
+
+/* Player bar — deep Nile night, gold cornice */
+[data-theme='powerslave'] .player-bar {
+  background: #06101C;
+  border-top: 2px solid #C8960C;
+  box-shadow: 0 -4px 24px rgba(46, 123, 184, 0.10), 0 -1px 0 rgba(200, 150, 12, 0.20);
+}
+
+/* Track name — warm gold glow */
+[data-theme='powerslave'] .player-track-name {
+  color: #D49828;
+  text-shadow: 0 0 12px rgba(200, 150, 12, 0.40);
+}
+
+/* Artist name — Nile azure */
+[data-theme='powerslave'] .player-artist-name {
+  color: #6AAED8;
+}
+
+/* Content header */
+[data-theme='powerslave'] .content-header {
+  border-bottom: 1px solid rgba(42, 24, 8, 0.12);
+}
+
+/* Cards — parchment on sandstone */
+[data-theme='powerslave'] .album-card,
+[data-theme='powerslave'] .artist-card {
+  background: #F8EDD0;
+  box-shadow: 0 1px 4px rgba(42, 24, 8, 0.10);
+}
+
+[data-theme='powerslave'] .album-card:hover,
+[data-theme='powerslave'] .artist-card:hover {
+  box-shadow: 0 0 0 2px #C8800A, 0 4px 16px rgba(42, 24, 8, 0.12);
+}
+
+/* Track / queue rows */
+[data-theme='powerslave'] .track-row:hover {
+  background: #E8D49A;
+  box-shadow: inset 2px 0 0 #C8800A;
+}
+
+[data-theme='powerslave'] .queue-item:hover {
+  background: rgba(46, 123, 184, 0.12);
+  box-shadow: inset 2px 0 0 #2E7BB8;
+}
+
+/* Buttons — gold gradient */
+[data-theme='powerslave'] .player-btn-primary {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+  box-shadow: 0 0 12px rgba(200, 128, 10, 0.28);
+}
+
+[data-theme='powerslave'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #E0A028 0%, #D48818 50%, #B07010 100%);
+  box-shadow: 0 0 22px rgba(200, 128, 10, 0.48);
+}
+
+[data-theme='powerslave'] .btn-primary {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+}
+
+[data-theme='powerslave'] .btn-primary:hover {
+  background: linear-gradient(180deg, #E0A028 0%, #D48818 50%, #B07010 100%);
+}
+
+[data-theme='powerslave'] .hero-play-btn {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+  box-shadow: 0 2px 16px rgba(200, 128, 10, 0.28);
+}
+
+[data-theme='powerslave'] .hero-play-btn:hover {
+  background: linear-gradient(180deg, #E0A028 0%, #D48818 50%, #B07010 100%);
+  box-shadow: 0 4px 26px rgba(200, 128, 10, 0.48);
+  transform: scale(1.02);
+}
+
+[data-theme='powerslave'] .album-card-details-btn {
+  background: linear-gradient(180deg, #D49020 0%, #C8800A 50%, #A06008 100%);
+  color: #180E04;
+  border: 1px solid #806006;
+}
+
+[data-theme='powerslave'] .album-card-details-btn:hover {
+  background: linear-gradient(180deg, #E0A028 0%, #D48818 50%, #B07010 100%);
+}
+
+/* Badge — gold pill */
+[data-theme='powerslave'] .badge,
+[data-theme='powerslave'] .album-detail-badge {
+  background: #C8800A;
+  color: #F8EDD0;
+}
+
+/* Settings + queue */
+[data-theme='powerslave'] .settings-tab:hover {
+  background: rgba(200, 150, 12, 0.08);
+  color: #C8960C;
+}
+
+[data-theme='powerslave'] .settings-tab.active {
+  background: rgba(200, 150, 12, 0.14);
+  color: #C8960C;
+  border-color: #C8960C;
+}
+
+[data-theme='powerslave'] .queue-tab-btn:hover {
+  background: rgba(46, 123, 184, 0.12);
+  color: rgba(200, 224, 248, 0.92);
+}
+
+[data-theme='powerslave'] .queue-tab-btn.active {
+  color: #C8960C;
+}
+
+[data-theme='powerslave'] .queue-round-btn.active {
+  color: #06101C;
+}
+
+/* Queue panel text — Nile-blue sidebar */
+[data-theme='powerslave'] .queue-panel {
+  background: #0A2035;
+}
+
+[data-theme='powerslave'] .queue-item-title {
+  color: rgba(220, 235, 248, 0.90);
+}
+
+[data-theme='powerslave'] .queue-item-artist,
+[data-theme='powerslave'] .queue-item-duration {
+  color: rgba(140, 190, 230, 0.55);
+}
+
+[data-theme='powerslave'] .queue-item.active .queue-item-artist,
+[data-theme='powerslave'] .queue-item.active .queue-item-duration {
+  color: rgba(140, 190, 230, 0.75);
+}
+
+[data-theme='powerslave'] .queue-divider span {
+  color: rgba(140, 190, 230, 0.38) !important;
+}
+
+[data-theme='powerslave'] .queue-current-info h3 {
+  color: rgba(220, 235, 248, 0.92);
+}
+
+[data-theme='powerslave'] .queue-current-sub {
+  color: rgba(140, 190, 230, 0.58);
+}
+
+[data-theme='powerslave'] .queue-current-cover .fallback {
+  color: rgba(140, 190, 230, 0.30);
+}
+
+[data-theme='powerslave'] .queue-action-btn {
+  color: rgba(140, 190, 230, 0.65);
+}
+
+[data-theme='powerslave'] .queue-action-btn:hover:not(:disabled) {
+  color: rgba(220, 235, 248, 0.95);
+}
+
+/* Misc interactive */
+[data-theme='powerslave'] .custom-select-trigger:hover {
+  background: #E8D49A;
+}
+
+[data-theme='powerslave'] .custom-select-option:hover {
+  background: rgba(200, 128, 10, 0.10);
+}
+
+[data-theme='powerslave'] .artist-row:hover {
+  background: rgba(200, 128, 10, 0.07);
+  box-shadow: inset 3px 0 0 #C8800A;
+}
+
+[data-theme='powerslave'] .playlist-row:hover {
+  background: rgba(200, 128, 10, 0.07);
+  box-shadow: inset 3px 0 0 #C8800A;
+}
+
+[data-theme='powerslave'] .artist-ext-link:hover {
+  background: rgba(200, 128, 10, 0.08);
+  border-color: #C8800A;
+}
+
+/* Connection indicators */
+[data-theme='powerslave'] .connection-type {
+  color: #050E19;
+}
+
+[data-theme='powerslave'] .connection-server {
+  color: #050E19;
+}
+
+/* Back button needs light color — sits on dark overlay above sandstone content */
+[data-theme='powerslave'] .album-detail-back {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme='powerslave'] .album-detail-back:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* Tech strip — default ctp-surface1 (#DEC880) is too bright on dark blue queue panel */
+[data-theme='powerslave'] .queue-current-tech {
+  background: rgba(6, 16, 28, 0.88);
+  color: rgba(140, 190, 230, 0.72);
+}
+
+/* Album detail hero meta */
+[data-theme='powerslave'] .album-detail-info {
+  color: rgba(255, 255, 255, 0.80);
+}
+
+[data-theme='powerslave'] .album-detail-artist,
+[data-theme='powerslave'] .album-detail-artist-link {
+  color: #050E19;
+}
+
+[data-theme='powerslave'] .album-detail-artist-link:hover {
+  color: #0A2035;
+}
+
+/* np-album-track */
+[data-theme='powerslave'] .np-album-track.active .np-album-track-title,
+[data-theme='powerslave'] .np-album-track.active .np-album-track-num {
+  color: #C8960C;
+}
+
+/* Scrollbar — warm, gold thumb */
+[data-theme='powerslave'] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+[data-theme='powerslave'] ::-webkit-scrollbar-track {
+  background: #E8D49A;
+}
+
+[data-theme='powerslave'] ::-webkit-scrollbar-thumb {
+  background: rgba(200, 128, 10, 0.35);
+  border-radius: 3px;
+}
+
+[data-theme='powerslave'] ::-webkit-scrollbar-thumb:hover {
+  background: #C8800A;
+}
+
+/* Column resize grip — was surface1 (#DEC880) on bg-card = 1.41:1 (invisible)
+   Use the deeper temple-shadow overlay1 tone for strong legibility. */
+[data-theme='powerslave'] .col-resize-handle::after {
+  background: #806020;            /* 5.0:1 on bg-card — visible dark grip */
+  width: 2px;
+}
+
+/* Focus ring — pharaoh gold accent with strong outline for keyboard nav */
+[data-theme='powerslave'] *:focus-visible {
+  outline: 2px solid #C8800A;
+  outline-offset: 2px;
+}
+

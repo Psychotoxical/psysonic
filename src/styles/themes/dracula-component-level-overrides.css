@@ -1,0 +1,24 @@
+/* ─── Dracula — component-level overrides ─────────────────────────────── */
+
+/* Column resize grip — was surface1 on bg-card = 1:1 (identical, invisible).
+   Use the Comment-lifted tone for strong legibility. */
+[data-theme='dracula'] .col-resize-handle::after {
+  background: #c0bfcc;               /* 5.5:1 on bg-card — visible */
+  width: 2px;
+}
+
+/* Focus ring — Dracula Purple for keyboard nav */
+[data-theme='dracula'] *:focus-visible {
+  outline: 2px solid #bd93f9;
+  outline-offset: 2px;
+}
+
+/* Scrollbar thumb — Comment colour (Dracula-authentic) */
+[data-theme='dracula'] ::-webkit-scrollbar-thumb {
+  background: #6272a4;
+}
+[data-theme='dracula'] *:hover::-webkit-scrollbar-thumb,
+[data-theme='dracula'] .is-scrolling::-webkit-scrollbar-thumb {
+  background: #8b95c0;
+}
+

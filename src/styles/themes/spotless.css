@@ -1,0 +1,120 @@
+/* ─── Spotless ─── */
+[data-theme='spotless'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B3B3B3%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #000000;
+  --ctp-mantle: #121212;
+  --ctp-base: #181818;
+  --ctp-surface0: #282828;
+  --ctp-surface1: #3E3E3E;
+  --ctp-surface2: #535353;
+  --ctp-overlay0: #727272;
+  --ctp-overlay1: #A7A7A7;
+  --ctp-overlay2: #B3B3B3;
+  --ctp-text: #FFFFFF;
+  --ctp-subtext1: #EBEBEB;
+  --ctp-subtext0: #D6D6D6;
+
+  --ctp-mauve: #1ED760;
+  --ctp-lavender: #1FDF64;
+  --ctp-green: #1ED760;
+  --ctp-teal: #1DF2A4;
+  --ctp-sky: #3D91F4;
+  --ctp-blue: #2E77D0;
+  --ctp-sapphire: #1C5599;
+  --ctp-pink: #E55C5C;
+  --ctp-flamingo: #E55C5C;
+  --ctp-rosewater: #FFC8C8;
+  --ctp-yellow: #FFA42B;
+  --ctp-peach: #FF7A00;
+  --ctp-maroon: #B22A2A;
+  --ctp-red: #E22134;
+
+  --bg-app: #121212;
+  --bg-sidebar: #000000;
+  --bg-card: #181818;
+  --bg-hover: #282828;
+  --bg-player: #181818;
+  --bg-glass: rgba(18, 18, 18, 0.85);
+
+  --accent: #1ED760;
+  --accent-dim: rgba(30, 215, 96, 0.15);
+  --accent-glow: rgba(30, 215, 96, 0.35);
+  --volume-accent: #FFFFFF;
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #B3B3B3;
+  --text-muted: #A7A7A7;
+
+  --border: #282828;
+  --border-subtle: rgba(255, 255, 255, 0.1);
+
+  --positive: #1ED760;
+  --warning: #FFA42B;
+  --danger: #E22134;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.7);
+
+  --transition-fast: 150ms ease;
+  --transition-med: 250ms ease;
+  --transition-slow: 350ms ease;
+
+  --sidebar-width: 220px;
+  --player-height: 88px;
+}
+
+[data-theme='spotless'] .sidebar {
+  border-right: none;
+}
+
+[data-theme='spotless'] .player-bar {
+  border-top: 1px solid var(--border-subtle);
+}
+
+[data-theme='spotless'] .nav-link:hover {
+  color: var(--text-primary);
+  background-color: transparent;
+}
+
+[data-theme='spotless'] .nav-link.active {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+}
+
+[data-theme='spotless'] .nav-link.active::before {
+  display: none;
+}
+
+[data-theme='spotless'] .btn-primary {
+  color: var(--ctp-crust);
+  border-radius: var(--radius-full);
+  font-weight: 700;
+}
+
+[data-theme='spotless'] .player-btn-primary {
+  color: var(--ctp-crust);
+  background-color: var(--text-primary);
+  border-radius: var(--radius-full);
+}
+
+[data-theme='spotless'] .player-btn-primary:hover {
+  background-color: var(--accent);
+  transform: scale(1.05);
+}
+
+[data-theme='spotless'] .queue-item:hover,
+[data-theme='spotless'] .track-row:hover {
+  background-color: var(--bg-hover);
+  border-radius: var(--radius-sm);
+}
+

@@ -1,0 +1,70 @@
+/* ─── Dracula ─── */
+[data-theme='dracula'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f8f8f2%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette: official Dracula (draculatheme.com) preserved verbatim.
+     Contrast audit (vs. --bg-app #282a36, L≈0.024):
+       text-primary   13.4:1 AAA ✓ (official Foreground)
+       text-secondary 10.8:1 AAA ✓
+       text-muted      4.9:1 AA  ✓ (lifted from Comment #6272a4 at 2.99:1 — below all thresholds)
+       accent          5.9:1 AA  ✓ (Purple)
+       positive       10.4:1 AAA ✓ (Green)
+       warning         8.4:1 AAA ✓ (Orange)
+       danger          4.5:1 AA  ✓ (Red)
+     Border/hover separation fixed: Dracula's "Current Line" (#44475a)
+     was doing triple duty as card bg + border + hover, producing zero
+     visible structure. Borders now use the official Comment #6272a4
+     (1.9:1 — Dracula-authentic), hover lifts to Selection #565869.
+  */
+  --ctp-crust:    #191a21;
+  --ctp-mantle:   #21222c;
+  --ctp-base:     #282a36;
+  --ctp-surface0: #3a3c4e;
+  --ctp-surface1: #44475a;   /* official "Current Line" */
+  --ctp-surface2: #565869;   /* official "Selection" */
+  --ctp-overlay0: #6272a4;   /* official "Comment" */
+  --ctp-overlay1: #8b95c0;   /* lifted Comment for UI use */
+  --ctp-overlay2: #c0bfcc;
+  --ctp-text:     #f8f8f2;
+  --ctp-subtext1: #e0dfe6;
+  --ctp-subtext0: #c0bfcc;
+  --ctp-mauve:    #bd93f9;
+  --ctp-lavender: #bd93f9;
+  --ctp-pink:     #ff79c6;
+  --ctp-flamingo: #ff79c6;
+  --ctp-rosewater:#ffb86c;
+  --ctp-blue:     #6272a4;
+  --ctp-sapphire: #8be9fd;
+  --ctp-sky:      #8be9fd;
+  --ctp-teal:     #8be9fd;
+  --ctp-green:    #50fa7b;
+  --ctp-yellow:   #f1fa8c;
+  --ctp-peach:    #ffb86c;
+  --ctp-maroon:   #ff5555;
+  --ctp-red:      #ff5555;
+
+  --bg-app:           #282a36;
+  --bg-sidebar:       #21222c;
+  --bg-card:          #44475a;
+  --bg-hover:         #565869;       /* official Selection — 1.4:1 vs card, perceptible (was identical to card) */
+  --bg-player:        #21222c;
+  --bg-glass:         rgba(40, 42, 54, 0.88);
+  --accent:           #bd93f9;
+  --accent-dim:       rgba(189, 147, 249, 0.18);
+  --accent-glow:      rgba(189, 147, 249, 0.35);
+  --text-primary:     #f8f8f2;
+  --text-secondary:   #e0dfe6;
+  --text-muted:       #8b95c0;       /* 4.9:1 AA ✓, lifted Comment — was #6272a4 (2.99:1 below AA) */
+  --border:           #6272a4;       /* official Comment — 1.9:1, visible (was #44475a = invisible on card) */
+  --border-subtle:    #4e5167;       /* 1.2:1 subtle but perceptible */
+  --border-dropdown:  #6272a4;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.6);
+  --positive:         #50fa7b;
+  --warning:          #ffb86c;
+  --danger:           #ff5555;
+  --waveform-played:    #bd93f9;
+  --waveform-buffered:  #6272a4;
+  --waveform-unplayed:  #3a3c4e;
+}
+

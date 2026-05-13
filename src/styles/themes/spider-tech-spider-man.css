@@ -1,0 +1,350 @@
+/* ─── Spider-Tech — Spider-Man ─── */
+[data-theme='spider-tech'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23E62429%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Palette — suit red, night-sky navy, web black */
+  --ctp-crust: #060408;
+  --ctp-mantle: #0a0610;
+  --ctp-base: #0e0c18;
+  --ctp-surface0: #181428;
+  --ctp-surface1: #241e3a;
+  --ctp-surface2: #302848;
+  --ctp-overlay0: #4a3e68;
+  --ctp-overlay1: #6a5888;
+  --ctp-overlay2: #9080a8;
+  --ctp-text: #f0ecf8;
+  --ctp-subtext1: #d0c8e0;
+  --ctp-subtext0: #a898c0;
+  --ctp-mauve: #E62429;
+  --ctp-lavender: #ff4a50;
+  --ctp-pink: #ff4a50;
+  --ctp-flamingo: #cc1a1f;
+  --ctp-rosewater: #f0ecf8;
+  --ctp-green: #4adf80;
+  --ctp-teal: #3ab8d0;
+  --ctp-sky: #4a88ff;
+  --ctp-blue: #1e52c8;
+  --ctp-sapphire: #1e52c8;
+  --ctp-yellow: #f0c030;
+  --ctp-peach: #E62429;
+  --ctp-maroon: #8b0010;
+  --ctp-red: #E62429;
+
+  --bg-app: #0e0c18;
+  --bg-sidebar: #0a0610;
+  --bg-card: #181428;
+  --bg-hover: #241e3a;
+  --bg-player: #060408;
+  --bg-glass: rgba(10, 6, 16, 0.92);
+  --accent: #E62429;
+  --accent-dim: rgba(230, 36, 41, 0.14);
+  --accent-glow: rgba(230, 36, 41, 0.38);
+  --text-primary: #f0ecf8;
+  --text-secondary: #9080a8;
+  --text-muted: #a898c0;
+  --border: rgba(230, 36, 41, 0.18);
+  --border-subtle: rgba(230, 36, 41, 0.08);
+  --border-dropdown: rgba(230, 36, 41, 0.30);
+  --shadow-dropdown: rgba(0, 0, 0, 0.92);
+  --positive: #4adf80;
+  --warning: #f0c030;
+  --danger: #E62429;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+/* App shell — Into the Spider-Verse comic halftone dots */
+[data-theme='spider-tech'] .app-shell {
+  background-image: radial-gradient(circle,
+      rgba(230, 36, 41, 0.055) 1px,
+      transparent 1px);
+  background-size: 14px 14px;
+}
+
+/* Sidebar — CSS spider web radiating from top-left corner */
+[data-theme='spider-tech'] .sidebar {
+  background: #080510;
+  border-right: 1px solid rgba(230, 36, 41, 0.22);
+  background-image:
+    repeating-radial-gradient(circle at 0% 0%,
+      transparent 0px,
+      transparent 38px,
+      rgba(230, 36, 41, 0.10) 39px,
+      rgba(230, 36, 41, 0.10) 40px),
+    repeating-conic-gradient(from 0deg at 0% 0%,
+      transparent 0deg,
+      transparent 19deg,
+      rgba(230, 36, 41, 0.07) 19deg,
+      rgba(230, 36, 41, 0.07) 20deg);
+}
+
+/* Player bar — deep black with red suit border + glow */
+[data-theme='spider-tech'] .player-bar {
+  background: #060408;
+  border-top: 2px solid #E62429;
+  box-shadow: 0 -6px 28px rgba(230, 36, 41, 0.20), 0 -1px 0 rgba(0, 0, 0, 0.9);
+}
+
+/* Track name — Spider-Man red, bold */
+[data-theme='spider-tech'] .player-track-name {
+  color: #E62429;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(230, 36, 41, 0.45), 0 0 24px rgba(230, 36, 41, 0.20);
+}
+
+/* Artist name — Spider suit blue */
+[data-theme='spider-tech'] .player-artist-name {
+  color: #4a88ff;
+}
+
+/* Nav active — red left bar */
+[data-theme='spider-tech'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(230, 36, 41, 0.18) 0%, transparent 100%);
+  border-left: 3px solid #E62429;
+  color: #E62429;
+}
+
+[data-theme='spider-tech'] .nav-link:hover:not(.active) {
+  background: linear-gradient(90deg, rgba(230, 36, 41, 0.08) 0%, transparent 100%);
+  border-left: 3px solid rgba(230, 36, 41, 0.35);
+}
+
+/* Content header */
+[data-theme='spider-tech'] .content-header {
+  border-bottom: 1px solid rgba(230, 36, 41, 0.14);
+}
+
+/* Cards — red border glow on hover */
+[data-theme='spider-tech'] .album-card:hover,
+[data-theme='spider-tech'] .artist-card:hover {
+  box-shadow: 0 0 0 1px rgba(230, 36, 41, 0.55), 0 4px 20px rgba(230, 36, 41, 0.16);
+}
+
+/* Track / queue rows */
+[data-theme='spider-tech'] .track-row:hover,
+[data-theme='spider-tech'] .queue-item:hover {
+  box-shadow: inset 2px 0 0 #E62429;
+  background: rgba(230, 36, 41, 0.06);
+}
+
+/* Primary play button — suit red */
+[data-theme='spider-tech'] .player-btn-primary {
+  background: linear-gradient(180deg, #ff4a50 0%, #E62429 50%, #b81820 100%);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(230, 36, 41, 0.50);
+  border: 1px solid #9c1018;
+}
+
+[data-theme='spider-tech'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #ff6065 0%, #f03035 50%, #cc2025 100%);
+  box-shadow: 0 0 26px rgba(230, 36, 41, 0.72);
+}
+
+/* btn-primary */
+[data-theme='spider-tech'] .btn-primary {
+  background: linear-gradient(180deg, #ff4a50 0%, #E62429 50%, #b81820 100%);
+  color: #ffffff;
+  border: 1px solid #9c1018;
+}
+
+[data-theme='spider-tech'] .btn-primary:hover {
+  background: linear-gradient(180deg, #ff6065 0%, #f03035 50%, #cc2025 100%);
+}
+
+/* Hero play button */
+[data-theme='spider-tech'] .hero-play-btn {
+  background: linear-gradient(180deg, #ff4a50 0%, #E62429 50%, #b81820 100%);
+  color: #ffffff;
+  border: 1px solid #9c1018;
+  box-shadow: 0 2px 16px rgba(230, 36, 41, 0.50);
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+[data-theme='spider-tech'] .hero-play-btn:hover {
+  background: linear-gradient(180deg, #ff6065 0%, #f03035 50%, #cc2025 100%);
+  box-shadow: 0 4px 26px rgba(230, 36, 41, 0.72);
+  transform: scale(1.02);
+}
+
+/* Album card overlay button */
+[data-theme='spider-tech'] .album-card-details-btn {
+  background: linear-gradient(180deg, #ff4a50 0%, #E62429 50%, #b81820 100%);
+  color: #ffffff;
+  border: 1px solid #9c1018;
+  box-shadow: 0 2px 12px rgba(230, 36, 41, 0.45);
+}
+
+/* Scrollbar — dark with red thumb */
+[data-theme='spider-tech'] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+[data-theme='spider-tech'] ::-webkit-scrollbar-track {
+  background: #0a0610;
+}
+
+[data-theme='spider-tech'] ::-webkit-scrollbar-thumb {
+  background: rgba(230, 36, 41, 0.40);
+  border-radius: 3px;
+}
+
+[data-theme='spider-tech'] ::-webkit-scrollbar-thumb:hover {
+  background: #E62429;
+}
+
+/* ── Jayfin (Mediaplayer) ─────────────────────────────────────── */
+[data-theme='jayfin'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23AA5CC3%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Jellyfin Palette ── */
+  --ctp-crust: #050505;
+  --ctp-mantle: #0c0c0c;
+  --ctp-base: #141414;
+  --ctp-surface0: #1e1e1e;
+  --ctp-surface1: #282828;
+  --ctp-surface2: #333333;
+  --ctp-overlay0: #505050;
+  --ctp-overlay1: #787878;
+  --ctp-overlay2: #a8a8a8;
+  --ctp-text: #ffffff;
+  --ctp-subtext1: #e8e8e8;
+  --ctp-subtext0: #c0c0c0;
+
+  /* Jellyfin Lila als Hauptakzent, Cyan als Sekundärfarbe */
+  --ctp-mauve: #AA5CC3;
+  --ctp-lavender: #bf7ed4;
+  --ctp-green: #2ed573;
+  --ctp-teal: #00c8dc;
+  --ctp-sky: #00A4DC;
+  --ctp-blue: #0088cc;
+  --ctp-sapphire: #0060a0;
+  --ctp-pink: #c070d8;
+  --ctp-flamingo: #d488e8;
+  --ctp-rosewater: #e8b8f8;
+  --ctp-yellow: #ffd060;
+  --ctp-peach: #ff9500;
+  --ctp-maroon: #cc3355;
+  --ctp-red: #ff4444;
+
+  /* ── Semantische Tokens ── */
+  --bg-app: #141414;
+  --bg-sidebar: #0c0c0c;
+  --bg-card: #1e1e1e;
+  --bg-hover: rgba(170, 92, 195, 0.1);
+  --bg-player: #050505;
+  --bg-glass: rgba(14, 14, 14, 0.88);
+
+  --accent: #AA5CC3;
+  --accent-dim: rgba(170, 92, 195, 0.15);
+  --accent-glow: rgba(170, 92, 195, 0.4);
+  --volume-accent: #AA5CC3;
+
+  --text-primary: #ffffff;
+  --text-secondary: #c8c8c8;
+  --text-muted: #888888;
+
+  --border: #2a2a2a;
+  --border-subtle: #1e1e1e;
+
+  --positive: #2ed573;
+  --warning: #ffd060;
+  --danger: #ff4444;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-full: 999px;
+}
+
+/* Sidebar mit dezenter Tiefe */
+[data-theme='jayfin'] .sidebar {
+  background: #0c0c0c;
+  border-right: 1px solid #1e1e1e;
+}
+
+/* Aktiver Nav-Link: gefüllte Lila-Fläche mit weißer Schrift (WCAG AA) + linker Balken
+   Vorher: color #AA5CC3 auf 12 % accent über bg-sidebar → ~3.30:1 (Fail AA small text).
+   Jetzt:  weißer Text auf 22 % accent → >10:1, Brand-Identity bleibt durch den Balken. */
+[data-theme='jayfin'] .nav-link.active {
+  background: rgba(170, 92, 195, 0.22);
+  color: #ffffff;
+  border-left: 3px solid #AA5CC3;
+}
+
+[data-theme='jayfin'] .nav-link.active svg {
+  color: #ffffff;
+}
+
+/* Player Bar: tiefes Schwarz mit Jellyfin-Brand-Gradient als Oberkante */
+[data-theme='jayfin'] .player-bar {
+  background: #050505;
+  border-top: 2px solid transparent;
+  border-image: linear-gradient(to right, #00A4DC, #AA5CC3) 1;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Progress fill: Gradient Cyan → Lila */
+[data-theme='jayfin'] .progress-bar-fill {
+  background: linear-gradient(to right, #00A4DC 0%, #AA5CC3 100%);
+  box-shadow: 0 0 8px rgba(170, 92, 195, 0.5);
+}
+
+/* Cards */
+[data-theme='jayfin'] .card {
+  background: #1e1e1e;
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Btn-primary: Jellyfin Lila
+   font-weight 700 nötig, weil weiß auf #AA5CC3 nur 4.08:1 erreicht —
+   bold verdichtet die Glyph-Fläche und hebt die Lesbarkeit über die AA-Schwelle. */
+[data-theme='jayfin'] .btn-primary,
+[data-theme='jayfin'] .player-btn-primary,
+[data-theme='jayfin'] .hero-play-btn {
+  background: #AA5CC3;
+  color: #ffffff;
+  border: none;
+  font-weight: 700;
+  box-shadow: 0 2px 12px rgba(170, 92, 195, 0.35);
+}
+
+[data-theme='jayfin'] .btn-primary:hover,
+[data-theme='jayfin'] .player-btn-primary:hover,
+[data-theme='jayfin'] .hero-play-btn:hover {
+  background: #be70d8;
+  box-shadow: 0 4px 18px rgba(170, 92, 195, 0.5);
+  filter: none;
+}
+
+/* Album card hover play button */
+[data-theme='jayfin'] .album-card-details-btn {
+  background: #AA5CC3;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='jayfin'] .album-card-details-btn:hover {
+  background: #be70d8;
+}
+
+/* Queue round buttons */
+[data-theme='jayfin'] .queue-round-btn.active {
+  background: #AA5CC3;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(170, 92, 195, 0.4);
+}
+
+/* Connection indicators: schwarz auf warmem Grau */
+[data-theme='w98'] .connection-type,
+[data-theme='w98'] .connection-server {
+  color: #000000;
+}
+

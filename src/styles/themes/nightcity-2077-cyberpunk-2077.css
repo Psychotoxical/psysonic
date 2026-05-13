@@ -1,0 +1,299 @@
+/* ─── NightCity 2077 — Cyberpunk 2077 ─── */
+/* V yellow + Netrunner cyan + Gang magenta + Johnny Silverhand glitch */
+@keyframes glitch-2077 {
+
+  0%,
+  85%,
+  100% {
+    text-shadow:
+      0 0 8px rgba(252, 238, 10, 0.75),
+      0 0 22px rgba(252, 238, 10, 0.35),
+      0 0 48px rgba(252, 238, 10, 0.12);
+    transform: none;
+  }
+
+  86% {
+    text-shadow:
+      -3px 0 rgba(0, 245, 255, 0.65),
+      3px 0 rgba(255, 45, 155, 0.65),
+      0 0 8px rgba(252, 238, 10, 0.75);
+    transform: translateX(-2px);
+  }
+
+  87% {
+    text-shadow:
+      3px 0 rgba(0, 245, 255, 0.65),
+      -3px 0 rgba(255, 45, 155, 0.65),
+      0 0 8px rgba(252, 238, 10, 0.75);
+    transform: translateX(2px) skewX(-2deg);
+  }
+
+  88% {
+    text-shadow:
+      0 0 8px rgba(252, 238, 10, 0.75),
+      0 0 22px rgba(252, 238, 10, 0.35);
+    transform: none;
+  }
+
+  89% {
+    text-shadow:
+      -1px 0 rgba(0, 245, 255, 0.4),
+      1px 0 rgba(255, 45, 155, 0.4),
+      0 0 10px rgba(252, 238, 10, 0.8);
+    transform: translateX(1px);
+  }
+
+  90% {
+    text-shadow:
+      0 0 8px rgba(252, 238, 10, 0.75),
+      0 0 22px rgba(252, 238, 10, 0.35),
+      0 0 48px rgba(252, 238, 10, 0.12);
+    transform: none;
+  }
+}
+
+[data-theme='nightcity-2077'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FCEE0A%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Night City asphalt — dark with cold blue-black undertone */
+  --ctp-crust: #000003;
+  --ctp-mantle: #020208;
+  --ctp-base: #06060f;
+  --ctp-surface0: #0d0d1a;
+  --ctp-surface1: #141428;
+  --ctp-surface2: #1e1e38;
+  --ctp-overlay0: #50508a;
+  --ctp-overlay1: #7878b8;
+  --ctp-overlay2: #a0a0d8;
+  --ctp-text: #f0f0ff;
+  --ctp-subtext1: #d0d0f8;
+  --ctp-subtext0: #a0a0d8;
+
+  /* Cyberpunk palette */
+  --ctp-yellow: #FCEE0A;
+  /* V / Johnny — primary yellow */
+  --ctp-mauve: #FCEE0A;
+  --ctp-lavender: #ffe84d;
+  --ctp-teal: #00f5ff;
+  /* Netrunner cyan */
+  --ctp-sky: #00f5ff;
+  --ctp-sapphire: #00c8e0;
+  --ctp-blue: #0088ff;
+  /* NCPD/corpo blue */
+  --ctp-pink: #ff2d9b;
+  /* Gang magenta — Maelstrom/Valentinos neon */
+  --ctp-flamingo: #ff2d9b;
+  --ctp-rosewater: #ff80c8;
+  --ctp-green: #00ff9f;
+  /* Netrunner green — Quickhack */
+  --ctp-red: #ff1a1a;
+  /* Combat critical / Arasaka red */
+  --ctp-maroon: #cc0000;
+  --ctp-peach: #ff8800;
+  /* Trauma Team orange */
+
+  --bg-app: #06060f;
+  --bg-sidebar: #020208;
+  /* deeper — like the Night City backdrop */
+  --bg-card: #0d0d1a;
+  --bg-hover: rgba(252, 238, 10, 0.07);
+  --bg-player: #000003;
+  --bg-glass: rgba(6, 6, 15, 0.96);
+
+  --accent: #FCEE0A;
+  /* V yellow */
+  --accent-dim: rgba(252, 238, 10, 0.12);
+  --accent-glow: rgba(252, 238, 10, 0.5);
+  --volume-accent: #00f5ff;
+  /* Netrunner cyan for volume */
+
+  --text-primary: #f0f0ff;
+  --text-secondary: #00f5ff;
+  /* Netrunner cyan — the key differentiator */
+  --text-muted: #6868a8;
+  --border: #1e1e38;
+  --border-subtle: #0d0d1a;
+  --shadow-dropdown: rgba(0, 0, 0, 0.95);
+
+  --positive: #00ff9f;
+  --warning: #FCEE0A;
+  --danger: #ff1a1a;
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+}
+
+/* Sidebar = tech/netrunner panel: cyan border + scan-line texture */
+[data-theme='nightcity-2077'] .sidebar {
+  border-right: 2px solid #00f5ff;
+  box-shadow: 2px 0 16px rgba(0, 245, 255, 0.1);
+  background-image: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 3px,
+      rgba(0, 245, 255, 0.012) 3px,
+      rgba(0, 245, 255, 0.012) 4px);
+}
+
+/* Player bar = HUD: V yellow top + cyan secondary strip */
+[data-theme='nightcity-2077'] .player-bar {
+  border-top: 2px solid #FCEE0A;
+  box-shadow:
+    0 -1px 0 rgba(0, 245, 255, 0.35),
+    0 -8px 32px rgba(252, 238, 10, 0.08),
+    0 -2px 16px rgba(0, 245, 255, 0.06);
+}
+
+/* Track name = V's yellow + Johnny Silverhand glitch */
+[data-theme='nightcity-2077'] .player-track-name {
+  color: #FCEE0A;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  animation: glitch-2077 9s infinite;
+}
+
+/* Artist = Netrunner cyan */
+[data-theme='nightcity-2077'] .player-track-artist {
+  color: #00f5ff;
+}
+
+/* Queue album = gang magenta */
+[data-theme='nightcity-2077'] .queue-meta-album {
+  color: #ff2d9b;
+}
+
+/* Active nav: yellow gradient + chamfered feel */
+[data-theme='nightcity-2077'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(252, 238, 10, 0.15) 0%, transparent 100%);
+  color: #FCEE0A;
+}
+
+[data-theme='nightcity-2077'] .nav-link.active::before {
+  width: 3px;
+  background: #FCEE0A;
+  box-shadow: 2px 0 14px rgba(252, 238, 10, 0.7);
+}
+
+/* Buttons: angular chamfered corner — iconic CP2077 UI shape */
+[data-theme='nightcity-2077'] .btn-primary {
+  background: #FCEE0A;
+  color: #000000;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: none;
+  border-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+
+[data-theme='nightcity-2077'] .btn-primary:hover {
+  background: #ffe84d;
+  box-shadow: 0 0 20px rgba(252, 238, 10, 0.5);
+}
+
+[data-theme='nightcity-2077'] .btn-surface {
+  border-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+}
+
+/* Queue active = cyan netrunner bar */
+[data-theme='nightcity-2077'] .queue-item.active {
+  background: rgba(0, 245, 255, 0.07);
+  box-shadow: inset 3px 0 0 #00f5ff;
+}
+
+[data-theme='nightcity-2077'] .np-queue-item.active {
+  background: rgba(0, 245, 255, 0.06);
+}
+
+[data-theme='nightcity-2077'] .np-queue-item-active {
+  color: #FCEE0A;
+  text-shadow: 0 0 8px rgba(252, 238, 10, 0.6);
+}
+
+/* Now-playing active track = magenta gang glow */
+[data-theme='nightcity-2077'] .np-album-track.active .np-album-track-title,
+[data-theme='nightcity-2077'] .np-album-track.active .np-album-track-num {
+  color: #ff2d9b;
+  text-shadow: 0 0 10px rgba(255, 45, 155, 0.55);
+}
+
+/* Hover rows: yellow left bar */
+[data-theme='nightcity-2077'] .track-row:hover,
+[data-theme='nightcity-2077'] .track-row.context-active {
+  background: rgba(252, 238, 10, 0.06) !important;
+  box-shadow: inset 3px 0 0 #FCEE0A;
+}
+
+[data-theme='nightcity-2077'] .queue-item:hover,
+[data-theme='nightcity-2077'] .queue-item.context-active {
+  background: rgba(0, 245, 255, 0.06) !important;
+  box-shadow: inset 3px 0 0 #00f5ff;
+}
+
+[data-theme='nightcity-2077'] .np-queue-item:hover,
+[data-theme='nightcity-2077'] .np-queue-item.context-active {
+  background: rgba(0, 245, 255, 0.06);
+  box-shadow: inset 2px 0 0 #00f5ff;
+}
+
+[data-theme='nightcity-2077'] .artist-row:hover {
+  background: rgba(252, 238, 10, 0.05);
+  box-shadow: inset 3px 0 0 #FCEE0A;
+}
+
+[data-theme='nightcity-2077'] .playlist-row:hover {
+  background: rgba(252, 238, 10, 0.05);
+  box-shadow: inset 3px 0 0 #FCEE0A;
+}
+
+/* Settings tabs: active = magenta Valentinos style */
+[data-theme='nightcity-2077'] .settings-tab:hover {
+  background: rgba(252, 238, 10, 0.06);
+  color: #FCEE0A;
+}
+
+[data-theme='nightcity-2077'] .settings-tab.active {
+  background: rgba(255, 45, 155, 0.08);
+  color: #ff2d9b;
+  box-shadow: inset 3px 0 0 #ff2d9b;
+}
+
+/* Queue tabs */
+[data-theme='nightcity-2077'] .queue-tab-btn:hover {
+  background: rgba(0, 245, 255, 0.07);
+  color: #00f5ff;
+}
+
+/* Dropdowns */
+[data-theme='nightcity-2077'] .custom-select-trigger:hover {
+  background: rgba(252, 238, 10, 0.07);
+}
+
+[data-theme='nightcity-2077'] .custom-select-option:hover {
+  background: rgba(252, 238, 10, 0.1) !important;
+  color: #FCEE0A !important;
+}
+
+/* Artist pills = Trauma Team orange */
+[data-theme='nightcity-2077'] .artist-ext-link:hover {
+  background: rgba(255, 136, 0, 0.1);
+  color: #ff8800 !important;
+  border-color: rgba(255, 136, 0, 0.4) !important;
+}
+
+/* Cards: dark glass with cyan edge-glow */
+[data-theme='nightcity-2077'] .glass {
+  border: 1px solid rgba(0, 245, 255, 0.12) !important;
+  box-shadow: 0 0 0 1px rgba(252, 238, 10, 0.04), inset 0 0 20px rgba(0, 245, 255, 0.02) !important;
+}
+
+/* Connection indicators */
+[data-theme='nightcity-2077'] .connection-type,
+[data-theme='nightcity-2077'] .connection-server {
+  color: #00f5ff;
+}
+

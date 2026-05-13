@@ -1,0 +1,56 @@
+/* ─── Kanagawa Dragon (rebelot/kanagawa.nvim — high-contrast dark) ─── */
+[data-theme='kanagawa-dragon'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c5c9c5%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #0d0c0c;   /* dragonBlack0 */
+  --ctp-mantle:   #12120f;   /* dragonBlack1 */
+  --ctp-base:     #181616;   /* dragonBlack3 — main bg */
+  --ctp-surface0: #282727;   /* dragonBlack4 */
+  --ctp-surface1: #393836;   /* dragonBlack5 */
+  --ctp-surface2: #625e5a;   /* dragonBlack6 */
+  --ctp-overlay0: #737c73;   /* dragonAsh */
+  --ctp-overlay1: #9e9b93;   /* dragonGray2 */
+  --ctp-overlay2: #a6a69c;   /* dragonGray */
+  --ctp-text:     #c5c9c5;   /* dragonWhite */
+  --ctp-subtext1: #C8C093;   /* oldWhite */
+  --ctp-subtext0: #a6a69c;
+  --ctp-mauve:    #8992a7;   /* dragonViolet */
+  --ctp-lavender: #949fb5;   /* dragonTeal */
+  --ctp-pink:     #a292a3;   /* dragonPink */
+  --ctp-flamingo: #c4746e;   /* dragonRed */
+  --ctp-rosewater:#b6927b;   /* dragonOrange */
+  --ctp-blue:     #8ba4b0;   /* dragonBlue2 */
+  --ctp-sapphire: #8ba4b0;
+  --ctp-sky:      #8ea4a2;   /* dragonAqua */
+  --ctp-teal:     #8ea4a2;
+  --ctp-green:    #8a9a7b;   /* dragonGreen2 */
+  --ctp-yellow:   #c4b28a;   /* dragonYellow */
+  --ctp-peach:    #b98d7b;   /* dragonOrange2 */
+  --ctp-maroon:   #c4746e;
+  --ctp-red:      #c4746e;
+
+  --bg-app:           #181616;
+  --bg-sidebar:       #12120f;
+  --bg-card:          #282727;
+  --bg-hover:         #393836;
+  --bg-player:        #12120f;
+  --bg-glass:         rgba(24, 22, 22, 0.82);
+  --accent:           #8ba4b0;       /* dragonBlue2 */
+  --accent-dim:       rgba(139, 164, 176, 0.16);
+  --accent-glow:      rgba(139, 164, 176, 0.32);
+  --text-primary:     #c5c9c5;       /* dragonWhite */
+  --text-secondary:   #a6a69c;       /* dragonGray */
+  --text-muted:       #737c73;       /* dragonAsh */
+  --border:           #393836;
+  --border-subtle:    #282727;
+  --border-dropdown:  #625e5a;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #8a9a7b;       /* dragonGreen2 */
+  --warning:          #c4b28a;       /* dragonYellow */
+  --danger:           #c4746e;       /* dragonRed */
+  --waveform-played:    #8ba4b0;
+  --waveform-buffered:  #625e5a;
+  --waveform-unplayed:  #282727;
+}
+

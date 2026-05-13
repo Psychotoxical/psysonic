@@ -1,0 +1,259 @@
+/* ─── CyberLink PowerDVD ─── */
+/* Midnight navy-blue darkness — not flat black, but that specific cinema-hall depth */
+[data-theme='p-dvd'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%235a7090%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — midnight navy spectrum ── */
+  --ctp-crust: #020306;
+  /* cinema blackout */
+  --ctp-mantle: #060810;
+  /* control deck depth */
+  --ctp-base: #0a0d18;
+  /* main chassis — navy-black */
+  --ctp-surface0: #10141f;
+  --ctp-surface1: #171c2a;
+  --ctp-surface2: #1f2535;
+  --ctp-overlay0: #2c3548;
+  --ctp-overlay1: #3c4860;
+  --ctp-overlay2: #506078;
+  --ctp-text: #a8b8d0;
+  /* blue-tinted label silver */
+  --ctp-subtext1: #7890b0;
+  --ctp-subtext0: #506080;
+  /* PowerDVD blue spectrum */
+  --ctp-mauve: #0088e8;
+  /* PowerDVD blue — primary */
+  --ctp-lavender: #00a8ff;
+  --ctp-sky: #00ccff;
+  /* glow highlight */
+  --ctp-teal: #00b8cc;
+  --ctp-blue: #0070cc;
+  --ctp-sapphire: #0055aa;
+  --ctp-green: #00cc66;
+  --ctp-yellow: #ccaa00;
+  --ctp-peach: #e07040;
+  --ctp-pink: #cc5588;
+  --ctp-flamingo: #bb4466;
+  --ctp-rosewater: #cc6666;
+  --ctp-maroon: #aa3333;
+  --ctp-red: #cc2222;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #0a0d18;
+  --bg-sidebar: #060810;
+  --bg-card: #10141f;
+  --bg-hover: #171c2a;
+  --bg-player: #020306;
+  --bg-glass: rgba(10, 13, 24, 0.96);
+  --accent: #0088e8;
+  --accent-dim: rgba(0, 136, 232, 0.14);
+  --accent-glow: rgba(0, 136, 232, 0.40);
+  --text-primary: #a8b8d0;
+  --text-secondary: #6880a8;
+  --text-muted: #506080;
+  --border: #1a2030;
+  --border-subtle: #10141e;
+  --positive: #00cc66;
+  --warning: #ccaa00;
+  --danger: #cc2222;
+}
+
+/* ── App shell: very subtle navy depth gradient ── */
+[data-theme='p-dvd'] .app-shell {
+  background: linear-gradient(160deg, #0c1020 0%, #080c18 50%, #060910 100%);
+}
+
+/* ── Sidebar: darkest navy — control panel behind the disc tray ── */
+[data-theme='p-dvd'] .sidebar {
+  background: linear-gradient(180deg, #07091280 0%, #060810 40%, #050710 100%);
+  border-right: 1px solid #141824;
+  box-shadow: inset -1px 0 0 rgba(0, 136, 232, 0.08), 2px 0 12px rgba(0, 0, 0, 0.7);
+}
+
+/* Active nav: PowerDVD blue LED strip */
+[data-theme='p-dvd'] .nav-link.active {
+  color: #00a8ff;
+}
+
+[data-theme='p-dvd'] .nav-link.active::before {
+  background: #0088e8;
+  box-shadow: 0 0 8px rgba(0, 136, 232, 0.7);
+}
+
+/* ── Player bar: cinema control deck — pure black + blue accent top border ── */
+[data-theme='p-dvd'] .player-bar {
+  background: linear-gradient(180deg, #050710 0%, #020306 100%);
+  border-top: 1px solid #0a1828;
+  box-shadow:
+    inset 0 2px 0 rgba(0, 136, 232, 0.18),
+    inset 0 1px 0 rgba(0, 200, 255, 0.08),
+    0 -4px 24px rgba(0, 0, 0, 0.9);
+}
+
+/* Track name: PowerDVD blue LED display glow */
+[data-theme='p-dvd'] .player-track-name {
+  color: #00ccff;
+  text-shadow:
+    0 0 5px rgba(0, 204, 255, 0.95),
+    0 0 12px rgba(0, 136, 232, 0.70),
+    0 0 24px rgba(0, 100, 200, 0.35);
+  letter-spacing: 0.03em;
+}
+
+[data-theme='p-dvd'] .player-track-artist {
+  color: #0088e8;
+  text-shadow: 0 0 6px rgba(0, 136, 232, 0.60);
+  opacity: 1;
+}
+
+[data-theme='p-dvd'] .player-time {
+  color: #0088e8;
+  text-shadow: 0 0 5px rgba(0, 136, 232, 0.65);
+}
+
+/* ── Chrome transport buttons: silver against navy — the iconic contrast ── */
+[data-theme='p-dvd'] .player-btn,
+[data-theme='p-dvd'] .player-btn-primary {
+  background: linear-gradient(170deg, #e8e8e8 0%, #ffffff 30%, #c0c0c0 70%, #989898 100%);
+  color: #1a1a1a;
+  border: 1px solid #707070;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.8),
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='p-dvd'] .player-btn:hover,
+[data-theme='p-dvd'] .player-btn-primary:hover {
+  background: linear-gradient(170deg, #f5f5f5 0%, #ffffff 30%, #d0d0d0 70%, #aaaaaa 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.8),
+    0 1px 3px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 10px rgba(0, 136, 232, 0.20);
+}
+
+/* ── Regular buttons: navy panel style ── */
+[data-theme='p-dvd'] .btn {
+  background: linear-gradient(180deg, #171c2a 0%, #10141f 100%);
+  color: #a8b8d0;
+  border: 1px solid #1f2a3e;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme='p-dvd'] .btn:hover {
+  background: linear-gradient(180deg, #1f2535 0%, #171c2a 100%);
+  border-color: #2a3850;
+}
+
+[data-theme='p-dvd'] .btn-primary {
+  background: linear-gradient(180deg, #00a8ff 0%, #0070cc 100%);
+  color: #ffffff;
+  border: 1px solid #0055aa;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 1px 4px rgba(0, 0, 0, 0.5),
+    0 0 10px rgba(0, 136, 232, 0.35);
+}
+
+/* Active queue round buttons: white on blue */
+[data-theme='p-dvd'] .queue-round-btn.active {
+  color: #ffffff;
+}
+
+/* ── Cards / panels: navy inset ── */
+[data-theme='p-dvd'] .glass,
+[data-theme='p-dvd'] .card {
+  background: rgba(16, 20, 31, 0.90);
+  border: 1px solid #1a2030;
+  box-shadow: inset 0 1px 0 rgba(0, 136, 232, 0.04), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Content header: dark navy band ── */
+[data-theme='p-dvd'] .content-header {
+  background: linear-gradient(180deg, rgba(16, 20, 31, 0.80) 0%, rgba(10, 13, 24, 0.30) 100%);
+  border-bottom: 1px solid #1a2030;
+}
+
+/* ── Hover / active states: blue LED glow ── */
+[data-theme='p-dvd'] .track-row:hover,
+[data-theme='p-dvd'] .track-row.context-active {
+  background: rgba(0, 136, 232, 0.07);
+  box-shadow: inset 3px 0 0 #0088e8;
+}
+
+[data-theme='p-dvd'] .queue-item:hover,
+[data-theme='p-dvd'] .queue-item.context-active {
+  background: rgba(0, 136, 232, 0.07);
+}
+
+[data-theme='p-dvd'] .queue-item.active {
+  background: rgba(0, 136, 232, 0.12);
+  border-left: 2px solid #0088e8;
+}
+
+[data-theme='p-dvd'] .np-queue-item.active {
+  background: rgba(0, 136, 232, 0.08);
+}
+
+[data-theme='p-dvd'] .np-queue-item-active {
+  color: #00a8ff;
+}
+
+[data-theme='p-dvd'] .np-queue-item:hover,
+[data-theme='p-dvd'] .np-queue-item.context-active {
+  background: rgba(0, 136, 232, 0.06);
+}
+
+[data-theme='p-dvd'] .np-album-track.active .np-album-track-title,
+[data-theme='p-dvd'] .np-album-track.active .np-album-track-num {
+  color: #00a8ff;
+}
+
+[data-theme='p-dvd'] .artist-row:hover {
+  background: rgba(0, 136, 232, 0.06);
+  box-shadow: inset 3px 0 0 #0088e8;
+}
+
+[data-theme='p-dvd'] .playlist-row:hover {
+  background: rgba(0, 136, 232, 0.06);
+  box-shadow: inset 3px 0 0 #0088e8;
+}
+
+[data-theme='p-dvd'] .settings-tab:hover {
+  background: rgba(0, 136, 232, 0.08);
+  color: #00a8ff;
+}
+
+[data-theme='p-dvd'] .settings-tab.active {
+  background: rgba(0, 136, 232, 0.14);
+  color: #00a8ff;
+  border-color: #0088e8;
+}
+
+[data-theme='p-dvd'] .queue-tab-btn:hover {
+  background: rgba(0, 136, 232, 0.08);
+  color: #00a8ff;
+}
+
+[data-theme='p-dvd'] .custom-select-trigger:hover {
+  background: rgba(0, 136, 232, 0.08);
+}
+
+[data-theme='p-dvd'] .custom-select-option:hover {
+  background: rgba(0, 136, 232, 0.12);
+}
+
+[data-theme='p-dvd'] .artist-ext-link:hover {
+  background: rgba(0, 136, 232, 0.10);
+  border-color: #0088e8;
+}
+
+[data-theme='p-dvd'] .connection-type,
+[data-theme='p-dvd'] .connection-server {
+  color: #4880b8;
+}
+

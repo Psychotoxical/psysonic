@@ -1,0 +1,29 @@
+/* ─── Latte light-theme component overrides ─── */
+[data-theme='latte'] {
+  --border-dropdown: var(--border);
+  --shadow-dropdown: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme='latte'] .album-detail-back {
+  color: rgba(255, 255, 255, 0.85);
+}
+[data-theme='latte'] .album-detail-back:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+[data-theme='latte'] .np-artist-album { color: var(--text-secondary); }
+[data-theme='latte'] .np-badge { background: var(--bg-hover); color: var(--text-primary); }
+[data-theme='latte'] .np-star-btn { color: var(--text-muted); }
+[data-theme='latte'] .np-tag-cloud-header { color: var(--text-muted); }
+[data-theme='latte'] .np-tag { background: var(--bg-hover); color: var(--text-secondary); }
+[data-theme='latte'] .np-album-track:hover { background: var(--bg-hover); }
+[data-theme='latte'] .np-album-track.active { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+[data-theme='latte'] .np-album-track-num { color: var(--text-muted); }
+[data-theme='latte'] .np-album-track-title { color: var(--text-primary); }
+[data-theme='latte'] .np-album-track.active .np-album-track-title { color: var(--accent); }
+[data-theme='latte'] .np-album-track-dur { color: var(--text-muted); }
+[data-theme='latte'] .np-link:hover { color: var(--accent); }
+[data-theme='latte'] .np-radio-time { color: var(--text-muted); }
+[data-theme='latte'] .np-bio-text { color: var(--text-secondary); }
+

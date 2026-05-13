@@ -1,0 +1,55 @@
+/* ─── Nord – Aurora (Dark + Aurora Purple) ─── */
+[data-theme='nord-aurora'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23e5e9f0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+  /* Polar Night base */
+  --ctp-crust: #2e3440;
+  --ctp-mantle: #2e3440;
+  --ctp-base: #3b4252;
+  --ctp-surface0: #434c5e;
+  --ctp-surface1: #4c566a;
+  --ctp-surface2: #576070;
+  --ctp-overlay0: #7a8898;
+  --ctp-overlay1: #8894a4;
+  --ctp-overlay2: #96a2b0;
+  /* Snow Storm as text */
+  --ctp-text: #eceff4;
+  --ctp-subtext1: #e5e9f0;
+  --ctp-subtext0: #d8dee9;
+  /* Aurora accents — purple as mauve/lavender for button gradients */
+  --ctp-mauve: #b48ead;
+  --ctp-lavender: #a3be8c;
+  --ctp-pink: #b48ead;
+  --ctp-teal: #8fbcbb;
+  --ctp-sky: #88c0d0;
+  --ctp-sapphire: #81a1c1;
+  --ctp-blue: #5e81ac;
+  --ctp-red: #bf616a;
+  --ctp-maroon: #d08770;
+  --ctp-peach: #d08770;
+  --ctp-yellow: #ebcb8b;
+  --ctp-green: #a3be8c;
+  --ctp-flamingo: #bf616a;
+  --ctp-rosewater: #d08770;
+
+  --bg-app: #3b4252;
+  --bg-sidebar: #2e3440;
+  --bg-card: #434c5e;
+  --bg-hover: #4c566a;
+  --bg-player: #2e3440;
+  --bg-glass: rgba(59, 66, 82, 0.75);
+  --accent: #b48ead;
+  --accent-dim: rgba(180, 142, 173, 0.15);
+  --accent-glow: rgba(180, 142, 173, 0.3);
+  --text-primary: #eceff4;
+  --text-secondary: #e5e9f0;
+  --text-muted: #a0aab8;
+  --border: #434c5e;
+  --border-subtle: #3b4252;
+  --border-dropdown: #576070;
+  --shadow-dropdown: rgba(0, 0, 0, 0.55);
+  --positive: #a3be8c;
+  --warning: #ebcb8b;
+  --danger: #bf616a;
+}
+

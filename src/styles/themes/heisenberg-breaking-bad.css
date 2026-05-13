@@ -1,0 +1,209 @@
+/* ─── Heisenberg — Breaking Bad ─── */
+@keyframes crystal-pulse {
+
+  0%,
+  100% {
+    text-shadow:
+      0 0 6px rgba(78, 223, 47, 0.60),
+      0 0 18px rgba(78, 223, 47, 0.32),
+      0 0 40px rgba(78, 223, 47, 0.14);
+  }
+
+  50% {
+    text-shadow:
+      0 0 10px rgba(78, 223, 47, 0.80),
+      0 0 28px rgba(78, 223, 47, 0.48),
+      0 0 60px rgba(78, 223, 47, 0.22);
+  }
+}
+
+[data-theme='heisenberg'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2335d4f8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Breaking Bad palette — crystal blue, BB logo green, hazmat yellow */
+  --ctp-crust: #050709;
+  --ctp-mantle: #080b0e;
+  --ctp-base: #0b0e12;
+  --ctp-surface0: #141a22;
+  --ctp-surface1: #1e2830;
+  --ctp-surface2: #283440;
+  --ctp-overlay0: #3a4e60;
+  --ctp-overlay1: #5a7288;
+  --ctp-overlay2: #7a96a8;
+  --ctp-text: #e4f0f8;
+  --ctp-subtext1: #c0d8e8;
+  --ctp-subtext0: #8ab0c8;
+  --ctp-mauve: #35d4f8;
+  --ctp-lavender: #70e8ff;
+  --ctp-pink: #f05080;
+  --ctp-flamingo: #e84060;
+  --ctp-rosewater: #e4f0f8;
+  --ctp-green: #4edf2f;
+  --ctp-teal: #20c8b0;
+  --ctp-sky: #55ddff;
+  --ctp-blue: #35d4f8;
+  --ctp-sapphire: #1ab8e0;
+  --ctp-yellow: #f0c020;
+  --ctp-peach: #e88040;
+  --ctp-maroon: #a01820;
+  --ctp-red: #e03030;
+
+  --bg-app: #0b0e12;
+  --bg-sidebar: #060a0e;
+  --bg-card: #141a22;
+  --bg-hover: #1e2830;
+  --bg-player: #060809;
+  --bg-glass: rgba(8, 11, 14, 0.92);
+  --accent: #35d4f8;
+  --accent-dim: rgba(53, 212, 248, 0.12);
+  --accent-glow: rgba(53, 212, 248, 0.35);
+  --text-primary: #e4f0f8;
+  --text-secondary: #7a96a8;
+  --text-muted: #7aaabe;
+  --border: rgba(53, 212, 248, 0.14);
+  --border-subtle: rgba(53, 212, 248, 0.06);
+  --border-dropdown: rgba(53, 212, 248, 0.25);
+  --shadow-dropdown: rgba(0, 0, 0, 0.92);
+  --positive: #4edf2f;
+  --warning: #f0c020;
+  --danger: #e03030;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+/* App shell — periodic table grid (BB opening credits) */
+[data-theme='heisenberg'] .app-shell {
+  background-image:
+    linear-gradient(rgba(53, 212, 248, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(53, 212, 248, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Sidebar — darker lab space, hazmat tape diagonal (very subtle) */
+[data-theme='heisenberg'] .sidebar {
+  background: #060a0e;
+  border-right: 1px solid rgba(53, 212, 248, 0.14);
+  background-image:
+    repeating-linear-gradient(45deg,
+      transparent 0px,
+      transparent 20px,
+      rgba(240, 192, 32, 0.028) 20px,
+      rgba(240, 192, 32, 0.028) 22px);
+}
+
+/* Player bar — lab fluorescent: crystal blue top glow */
+[data-theme='heisenberg'] .player-bar {
+  background: #060809;
+  border-top: 2px solid #35d4f8;
+  box-shadow: 0 -8px 32px rgba(53, 212, 248, 0.14), 0 -1px 0 rgba(0, 0, 0, 0.9);
+}
+
+/* Track name — BB logo green glow (the Br/Ba element box color) */
+[data-theme='heisenberg'] .player-track-name {
+  color: #4edf2f;
+  animation: crystal-pulse 3s ease-in-out infinite;
+}
+
+/* Artist name — hazmat suit yellow */
+[data-theme='heisenberg'] .player-artist-name {
+  color: #f0c020;
+}
+
+/* Nav active — BB green left bar */
+[data-theme='heisenberg'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(78, 223, 47, 0.12) 0%, transparent 100%);
+  border-left: 3px solid #4edf2f;
+  color: #4edf2f;
+}
+
+[data-theme='heisenberg'] .nav-link:hover:not(.active) {
+  background: linear-gradient(90deg, rgba(53, 212, 248, 0.06) 0%, transparent 100%);
+  border-left: 3px solid rgba(53, 212, 248, 0.28);
+}
+
+/* Content header */
+[data-theme='heisenberg'] .content-header {
+  border-bottom: 1px solid rgba(53, 212, 248, 0.10);
+}
+
+/* Cards — blue crystal border on hover */
+[data-theme='heisenberg'] .album-card:hover,
+[data-theme='heisenberg'] .artist-card:hover {
+  box-shadow: 0 0 0 1px rgba(53, 212, 248, 0.50), 0 4px 20px rgba(53, 212, 248, 0.14);
+}
+
+/* Track / queue rows */
+[data-theme='heisenberg'] .track-row:hover,
+[data-theme='heisenberg'] .queue-item:hover {
+  box-shadow: inset 2px 0 0 #35d4f8;
+  background: rgba(53, 212, 248, 0.05);
+}
+
+/* Primary play button — crystal blue gradient */
+[data-theme='heisenberg'] .player-btn-primary {
+  background: linear-gradient(180deg, #60e4ff 0%, #35d4f8 50%, #18b8e0 100%);
+  color: #060809;
+  box-shadow: 0 0 16px rgba(53, 212, 248, 0.45);
+  border: 1px solid #14a8d0;
+}
+
+[data-theme='heisenberg'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #7aecff 0%, #50deff 50%, #28caf0 100%);
+  box-shadow: 0 0 26px rgba(53, 212, 248, 0.70);
+}
+
+/* btn-primary */
+[data-theme='heisenberg'] .btn-primary {
+  background: linear-gradient(180deg, #60e4ff 0%, #35d4f8 50%, #18b8e0 100%);
+  color: #060809;
+  border: 1px solid #14a8d0;
+}
+
+[data-theme='heisenberg'] .btn-primary:hover {
+  background: linear-gradient(180deg, #7aecff 0%, #50deff 50%, #28caf0 100%);
+}
+
+/* Hero play button */
+[data-theme='heisenberg'] .hero-play-btn {
+  background: linear-gradient(180deg, #60e4ff 0%, #35d4f8 50%, #18b8e0 100%);
+  color: #060809;
+  border: 1px solid #14a8d0;
+  box-shadow: 0 2px 16px rgba(53, 212, 248, 0.45);
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+[data-theme='heisenberg'] .hero-play-btn:hover {
+  background: linear-gradient(180deg, #7aecff 0%, #50deff 50%, #28caf0 100%);
+  box-shadow: 0 4px 26px rgba(53, 212, 248, 0.68);
+  transform: scale(1.02);
+}
+
+/* Album card overlay button */
+[data-theme='heisenberg'] .album-card-details-btn {
+  background: linear-gradient(180deg, #60e4ff 0%, #35d4f8 50%, #18b8e0 100%);
+  color: #060809;
+  border: 1px solid #14a8d0;
+  box-shadow: 0 2px 12px rgba(53, 212, 248, 0.40);
+}
+
+/* Scrollbar — thin blue crystal */
+[data-theme='heisenberg'] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+[data-theme='heisenberg'] ::-webkit-scrollbar-track {
+  background: #080b0e;
+}
+
+[data-theme='heisenberg'] ::-webkit-scrollbar-thumb {
+  background: rgba(53, 212, 248, 0.35);
+  border-radius: 3px;
+}
+
+[data-theme='heisenberg'] ::-webkit-scrollbar-thumb:hover {
+  background: #35d4f8;
+}
+

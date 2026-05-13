@@ -1,0 +1,7 @@
+/* ─── Scrollable area ─── */
+.scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+}
+

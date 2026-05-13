@@ -1,0 +1,72 @@
+/* ─── Obsidian Gold ─── */
+[data-theme='obsidian-gold'] {
+  color-scheme: dark;
+
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23c9a227' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+
+  /* Backgrounds */
+  --ctp-crust:    #050505;
+  --ctp-mantle:   #0a0907;
+  --ctp-base:     #0f0d09;
+  --ctp-surface0: #15120d;
+  --ctp-surface1: #1d1811;
+  --ctp-surface2: #262016;
+
+  /* Overlays */
+  --ctp-overlay0: #4f4218;
+  --ctp-overlay1: #635223;
+  --ctp-overlay2: #6f5a1c;
+
+  /* Text */
+  --ctp-text:     #f8f4e8;
+  --ctp-subtext1: #dbc98d;
+  --ctp-subtext0: #b89f56;
+
+  /* Gold Accent */
+  --ctp-teal:      #c9a227;
+  --ctp-sky:       #d4af37;
+  --ctp-sapphire:  #b8922d;
+  --ctp-blue:      #8f6e22;
+  --ctp-lavender:  #e0b84f;
+  --ctp-mauve:     #b8922d;
+  --ctp-pink:      #8f6e22;
+  --ctp-flamingo:  #e0b84f;
+  --ctp-rosewater: #b8922d;
+
+  /* Semantic */
+  --ctp-red:     #ff5c5c;
+  --ctp-maroon:  #ff9b57;
+  --ctp-peach:   #ff9b57;
+  --ctp-yellow:  #e0b84f;
+  --ctp-green:   #57d98c;
+
+  /* UI Tokens */
+  --bg-app:      #0f0d09;
+  --bg-sidebar:  #0a0907;
+  --bg-card:     #15120d;
+  --bg-hover:    #1d1811;
+  --bg-player:   #0a0907;
+  --bg-glass:    rgba(15, 13, 9, 0.82);
+
+  /* Accent */
+  --accent:      #c9a227;
+  --accent-dim:  rgba(201, 162, 39, 0.06);
+  --accent-glow: rgba(201, 162, 39, 0.12);
+
+  /* Text UI */
+  --text-primary:   #f8f4e8;
+  --text-secondary: #b89f56;
+  --text-muted:     #7a6830;
+
+  /* Borders */
+  --border:          #262016;
+  --border-subtle:   #1d1811;
+  --border-dropdown: #31281a;
+  --shadow-dropdown: rgba(0, 0, 0, 0.92);
+
+  /* Status */
+  --positive: #57d98c;
+  --warning:  #e0b84f;
+  --danger:   #ff5c5c;
+}
+

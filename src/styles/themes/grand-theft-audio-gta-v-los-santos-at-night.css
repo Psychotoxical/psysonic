@@ -1,0 +1,225 @@
+/* ─── Grand Theft Audio — GTA V / Los Santos at Night ─── */
+/* Money green + Wanted-level gold + LS asphalt dark           */
+[data-theme='grand-theft-audio'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2357b05a%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* LS asphalt — almost black with a warm urban undertone */
+  --ctp-crust: #030303;
+  --ctp-mantle: #080808;
+  --ctp-base: #0e0e0e;
+  --ctp-surface0: #161616;
+  --ctp-surface1: #202020;
+  --ctp-surface2: #2c2c2c;
+  --ctp-overlay0: #707070;
+  --ctp-overlay1: #909090;
+  --ctp-overlay2: #b0b0b0;
+  --ctp-text: #d8d8d8;
+  --ctp-subtext1: #b8b8b8;
+  --ctp-subtext0: #888888;
+
+  /* GTA palette */
+  --ctp-green: #57b05a;
+  /* money green — health bar */
+  --ctp-mauve: #57b05a;
+  --ctp-teal: #3d9e40;
+  --ctp-yellow: #ffd700;
+  /* wanted stars — 5-star gold */
+  --ctp-peach: #ffb800;
+  /* Los Santos Customs orange */
+  --ctp-flamingo: #ffb800;
+  --ctp-rosewater: #ffb800;
+  --ctp-red: #e02020;
+  /* wasted / busted red */
+  --ctp-maroon: #c01818;
+  --ctp-blue: #4a9fd4;
+  /* armor bar blue */
+  --ctp-sapphire: #3a8fc4;
+  --ctp-sky: #4a9fd4;
+  --ctp-lavender: #57b05a;
+  --ctp-pink: #e02020;
+
+  --bg-app: #0e0e0e;
+  --bg-sidebar: #080808;
+  /* minimap dark */
+  --bg-card: #161616;
+  --bg-hover: rgba(87, 176, 90, 0.08);
+  --bg-player: #030303;
+  /* HUD strip */
+  --bg-glass: rgba(8, 8, 8, 0.95);
+
+  --accent: #57b05a;
+  /* money green */
+  --accent-dim: rgba(87, 176, 90, 0.14);
+  --accent-glow: rgba(87, 176, 90, 0.45);
+  --volume-accent: #ffd700;
+  /* wanted-gold for volume knob */
+
+  --text-primary: #d8d8d8;
+  --text-secondary: #ffd700;
+  /* wanted-level gold — the key differentiator */
+  --text-muted: #707070;
+  --border: #242424;
+  --border-subtle: #161616;
+  --shadow-dropdown: rgba(0, 0, 0, 0.9);
+
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+}
+
+/* Sidebar = minimap panel: dark border + subtle city-grid stripe */
+[data-theme='grand-theft-audio'] .sidebar {
+  border-right: 2px solid #57b05a;
+  background-image: repeating-linear-gradient(135deg,
+      transparent,
+      transparent 40px,
+      rgba(87, 176, 90, 0.018) 40px,
+      rgba(87, 176, 90, 0.018) 41px);
+}
+
+/* Player bar = GTA HUD strip: green health line + gold secondary */
+[data-theme='grand-theft-audio'] .player-bar {
+  border-top: 2px solid #57b05a;
+  box-shadow:
+    0 -1px 0 rgba(255, 215, 0, 0.25),
+    0 -8px 30px rgba(87, 176, 90, 0.08);
+}
+
+/* Track name = money counter — green + uppercase */
+[data-theme='grand-theft-audio'] .player-track-name {
+  color: #57b05a;
+  text-shadow: 0 0 10px rgba(87, 176, 90, 0.6), 0 0 24px rgba(87, 176, 90, 0.25);
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+/* Artist = wanted-gold, like the bounty/level display */
+[data-theme='grand-theft-audio'] .player-track-artist {
+  color: #ffd700;
+}
+
+/* Active nav link: money-green gradient + glow bar */
+[data-theme='grand-theft-audio'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(87, 176, 90, 0.18) 0%, transparent 100%);
+  color: #57b05a;
+}
+
+[data-theme='grand-theft-audio'] .nav-link.active::before {
+  width: 3px;
+  box-shadow: 2px 0 12px rgba(87, 176, 90, 0.6);
+}
+
+/* Buttons: blocky GTA UI style */
+[data-theme='grand-theft-audio'] .btn-primary {
+  background: #57b05a;
+  color: #030303;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  border: none;
+}
+
+[data-theme='grand-theft-audio'] .btn-primary:hover {
+  background: #6abf6e;
+}
+
+/* Queue active = health-bar green left strip */
+[data-theme='grand-theft-audio'] .queue-item.active {
+  background: rgba(87, 176, 90, 0.08);
+  box-shadow: inset 3px 0 0 #57b05a;
+}
+
+[data-theme='grand-theft-audio'] .np-queue-item.active {
+  background: rgba(87, 176, 90, 0.07);
+}
+
+[data-theme='grand-theft-audio'] .np-queue-item-active {
+  color: #57b05a;
+  text-shadow: 0 0 8px rgba(87, 176, 90, 0.55);
+}
+
+/* Now-playing active track = gold (5-star wanted) */
+[data-theme='grand-theft-audio'] .np-album-track.active .np-album-track-title,
+[data-theme='grand-theft-audio'] .np-album-track.active .np-album-track-num {
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+
+/* Hover rows */
+[data-theme='grand-theft-audio'] .track-row:hover,
+[data-theme='grand-theft-audio'] .track-row.context-active {
+  background: rgba(87, 176, 90, 0.07) !important;
+  box-shadow: inset 3px 0 0 #57b05a;
+}
+
+[data-theme='grand-theft-audio'] .queue-item:hover,
+[data-theme='grand-theft-audio'] .queue-item.context-active {
+  background: rgba(87, 176, 90, 0.08) !important;
+  box-shadow: inset 3px 0 0 #57b05a;
+}
+
+[data-theme='grand-theft-audio'] .np-queue-item:hover,
+[data-theme='grand-theft-audio'] .np-queue-item.context-active {
+  background: rgba(87, 176, 90, 0.07);
+  box-shadow: inset 2px 0 0 #57b05a;
+}
+
+[data-theme='grand-theft-audio'] .artist-row:hover {
+  background: rgba(87, 176, 90, 0.07);
+  box-shadow: inset 3px 0 0 #57b05a;
+}
+
+[data-theme='grand-theft-audio'] .playlist-row:hover {
+  background: rgba(87, 176, 90, 0.07);
+  box-shadow: inset 3px 0 0 #57b05a;
+}
+
+/* Settings tabs: gold active = 5-star screen */
+[data-theme='grand-theft-audio'] .settings-tab:hover {
+  background: rgba(87, 176, 90, 0.07);
+  color: #57b05a;
+}
+
+[data-theme='grand-theft-audio'] .settings-tab.active {
+  background: rgba(255, 215, 0, 0.07);
+  color: #ffd700;
+  box-shadow: inset 3px 0 0 #ffd700;
+}
+
+/* Queue tab */
+[data-theme='grand-theft-audio'] .queue-tab-btn:hover {
+  background: rgba(87, 176, 90, 0.07);
+  color: #57b05a;
+}
+
+/* Dropdowns */
+[data-theme='grand-theft-audio'] .custom-select-trigger:hover {
+  background: rgba(87, 176, 90, 0.07);
+}
+
+[data-theme='grand-theft-audio'] .custom-select-option:hover {
+  background: rgba(87, 176, 90, 0.1) !important;
+  color: #57b05a !important;
+}
+
+/* Artist pills = LS Customs orange */
+[data-theme='grand-theft-audio'] .artist-ext-link:hover {
+  background: rgba(255, 184, 0, 0.1);
+  color: #ffb800 !important;
+  border-color: rgba(255, 184, 0, 0.4) !important;
+}
+
+/* Queue album title = gold */
+[data-theme='grand-theft-audio'] .queue-meta-album {
+  color: #ffd700;
+}
+
+/* Connection indicators */
+[data-theme='grand-theft-audio'] .connection-type,
+[data-theme='grand-theft-audio'] .connection-server {
+  color: #ffd700;
+}
+

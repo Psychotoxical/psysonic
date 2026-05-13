@@ -1,0 +1,96 @@
+/* ─── Star Rating ─── */
+.star-rating {
+  display: flex;
+  gap: 2px;
+  color: var(--ctp-overlay1);
+  justify-content: center;
+  width: 100%;
+}
+
+.star-rating .star.filled {
+  color: var(--ctp-yellow);
+}
+
+.star-rating .star:hover {
+  color: var(--ctp-yellow);
+  cursor: pointer;
+}
+
+/* While clearing: no yellow hover until pointer leaves or next click */
+.star-rating--suppress-hover .star:hover {
+  color: var(--ctp-overlay1);
+}
+
+.star-rating--disabled {
+  opacity: 0.55;
+}
+
+.star-rating--disabled .star:hover {
+  color: inherit;
+  cursor: not-allowed;
+}
+
+.star-rating .star {
+  transform-origin: center center;
+}
+
+.star-rating .star.star--locked {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.star-rating .star.star--locked:hover {
+  color: var(--ctp-overlay1);
+  cursor: default;
+}
+
+@keyframes star-rating-star-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  45% {
+    transform: scale(1.3);
+    opacity: 0.88;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.star-rating .star.star--pulse {
+  animation: star-rating-star-pulse 0.38s ease-out;
+}
+
+@keyframes star-rating-star-clear-shrink {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  55% {
+    transform: scale(0.58);
+    opacity: 0.28;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.star-rating .star.star--clear-shrink {
+  animation: star-rating-star-clear-shrink 0.44s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .star-rating .star.star--pulse,
+  .star-rating .star.star--clear-shrink {
+    animation: none;
+  }
+}
+

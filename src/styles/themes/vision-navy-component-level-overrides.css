@@ -1,0 +1,43 @@
+/* ─── Vision Navy — component-level overrides ──────────────────────────── */
+
+/* Column resize grip (tracklist) — was #1a2e48 on #112038 = 1.2:1 */
+[data-theme='vision-navy'] .col-resize-handle::after {
+  background: var(--ctp-overlay1); /* #7e96b4 → 5.2:1 on bg-card */
+  width: 2px;
+}
+
+/* Badges — opaque background per theme feedback */
+[data-theme='vision-navy'] .badge,
+[data-theme='vision-navy'] .album-detail-badge {
+  background: var(--ctp-surface2);
+  color: var(--accent);
+  border: 1px solid var(--ctp-overlay0);
+}
+
+/* Queue items on the very dark sidebar (#060e1c) — force light text */
+[data-theme='vision-navy'] .queue-item-title,
+[data-theme='vision-navy'] .queue-current-info h3 {
+  color: var(--text-primary);
+}
+[data-theme='vision-navy'] .queue-item-artist,
+[data-theme='vision-navy'] .queue-item-duration,
+[data-theme='vision-navy'] .queue-current-sub,
+[data-theme='vision-navy'] .queue-tab-btn {
+  color: var(--text-secondary);
+}
+
+/* Focus ring — keyboard navigation indicator with AAA contrast */
+[data-theme='vision-navy'] *:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Scrollbar thumb — explicit contrast (auto-hide still applies) */
+[data-theme='vision-navy'] ::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay0);
+}
+[data-theme='vision-navy'] *:hover::-webkit-scrollbar-thumb,
+[data-theme='vision-navy'] .is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay2);
+}
+

@@ -1,0 +1,284 @@
+/* ─── MS-DOS ─── */
+@keyframes dos-blink {
+
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+[data-theme='dos'] {
+  color-scheme: dark;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23AAAAAA%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Pure ANSI color palette */
+  --ctp-crust: #000000;
+  --ctp-mantle: #000080;
+  --ctp-base: #0000AA;
+  --ctp-surface0: #000080;
+  --ctp-surface1: #0000AA;
+  --ctp-surface2: #0000CC;
+  --ctp-overlay0: #8888AA;
+  --ctp-overlay1: #BBBBCC;
+  --ctp-overlay2: #E8E8E8;
+  --ctp-text: #E8E8E8;
+  --ctp-subtext1: #BBBBCC;
+  --ctp-subtext0: #8888AA;
+  --ctp-mauve: #FF55FF;
+  --ctp-lavender: #FF55FF;
+  --ctp-pink: #FF55FF;
+  --ctp-flamingo: #FF5555;
+  --ctp-rosewater: #FFFFFF;
+  --ctp-green: #55FF55;
+  --ctp-teal: #55FFFF;
+  --ctp-sky: #55FFFF;
+  --ctp-blue: #5555FF;
+  --ctp-sapphire: #5555FF;
+  --ctp-yellow: #FFFF55;
+  --ctp-peach: #FF5555;
+  --ctp-maroon: #AA0000;
+  --ctp-red: #FF5555;
+
+  --bg-app: #0000AA;
+  --bg-sidebar: #000080;
+  --bg-card: #000080;
+  --bg-hover: rgba(170, 170, 170, 0.15);
+  --bg-player: #000000;
+  --bg-glass: rgba(0, 0, 128, 0.95);
+  --accent: #FFFF55;
+  --accent-dim: rgba(255, 255, 85, 0.15);
+  --accent-glow: rgba(255, 255, 85, 0.3);
+  --text-primary: #E8E8E8;
+  --text-secondary: #BBBBCC;
+  --text-muted: #8888AA;
+  --border: #AAAAAA;
+  --border-subtle: #4444AA;
+  --border-dropdown: #AAAAAA;
+  --shadow-dropdown: rgba(0, 0, 0, 0.95);
+  --positive: #55FF55;
+  --warning: #FFFF55;
+  --danger: #FF5555;
+  /* Square everything — no rounded corners in DOS */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-full: 0px;
+}
+
+/* Monospace override — html inherits to most elements; form controls need explicit override */
+[data-theme='dos'] button,
+[data-theme='dos'] input,
+[data-theme='dos'] textarea,
+[data-theme='dos'] select {
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+}
+
+/* Sidebar — dark navy with CRT scanlines, thick grey right border like a DOS panel edge */
+[data-theme='dos'] .sidebar {
+  background-color: #000080;
+  background-image: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.20) 0px,
+      rgba(0, 0, 0, 0.20) 1px,
+      transparent 1px,
+      transparent 3px);
+  border-right: 2px solid #AAAAAA;
+}
+
+/* Active nav — classic DOS inverted selection */
+[data-theme='dos'] .nav-link.active {
+  background: #AAAAAA;
+  color: #000080;
+  border-left: none;
+  font-weight: 700;
+}
+
+[data-theme='dos'] .nav-link:hover:not(.active) {
+  background: rgba(170, 170, 170, 0.18);
+  color: #FFFF55;
+}
+
+/* Player bar — pure black, the C:\> command prompt */
+[data-theme='dos'] .player-bar {
+  background-color: #000000;
+  background-image: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.20) 0px,
+      rgba(0, 0, 0, 0.20) 1px,
+      transparent 1px,
+      transparent 3px);
+  border-top: 2px solid #AAAAAA;
+  box-shadow: none;
+}
+
+/* Track name — bright yellow with blinking block cursor */
+[data-theme='dos'] .player-track-name {
+  color: #FFFF55;
+  text-shadow: none;
+}
+
+[data-theme='dos'] .player-track-name::after {
+  content: '\258B';
+  animation: dos-blink 1s step-end infinite;
+  margin-left: 3px;
+  font-size: 0.8em;
+  vertical-align: baseline;
+}
+
+/* Artist name — bright cyan (ANSI 11) */
+[data-theme='dos'] .player-artist-name {
+  color: #55FFFF;
+}
+
+/* Content header — simple grey border, no ornate gradient */
+[data-theme='dos'] .content-header {
+  border-bottom: 1px solid #AAAAAA;
+}
+
+/* Album/artist cards — flat navy panels with grey border */
+[data-theme='dos'] .album-card,
+[data-theme='dos'] .artist-card {
+  background: #000080;
+  border: 1px solid #AAAAAA;
+  box-shadow: none;
+}
+
+[data-theme='dos'] .album-card:hover,
+[data-theme='dos'] .artist-card:hover {
+  background: #0000AA;
+  border-color: #FFFFFF;
+  box-shadow: none;
+}
+
+/* Track / queue row hover — inverted DOS selection */
+[data-theme='dos'] .track-row:hover,
+[data-theme='dos'] .queue-item:hover {
+  background: #AAAAAA !important;
+  color: #000080;
+  box-shadow: none;
+}
+
+/* Primary play button — flat grey, sharp, DOS dialog style */
+[data-theme='dos'] .player-btn-primary {
+  background: #AAAAAA;
+  color: #000000;
+  border: 2px solid #FFFFFF;
+  box-shadow: none;
+}
+
+[data-theme='dos'] .player-btn-primary:hover {
+  background: #FFFFFF;
+  color: #000000;
+  box-shadow: none;
+  transform: none;
+}
+
+/* btn-primary — uppercase DOS dialog button */
+[data-theme='dos'] .btn-primary {
+  background: #AAAAAA;
+  color: #000000;
+  border: 1px solid #FFFFFF;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  box-shadow: none;
+}
+
+[data-theme='dos'] .btn-primary:hover {
+  background: #FFFFFF;
+  color: #000000;
+  box-shadow: none;
+}
+
+/* btn-surface */
+[data-theme='dos'] .btn-surface,
+[data-theme='dos'] .btn {
+  border: 1px solid #AAAAAA;
+  box-shadow: none;
+}
+
+/* Hero play button */
+[data-theme='dos'] .hero-play-btn {
+  background: #AAAAAA;
+  color: #000000;
+  border: 2px solid #FFFFFF;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  box-shadow: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+[data-theme='dos'] .hero-play-btn:hover {
+  background: #FFFFFF;
+  color: #000000;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+/* Album card overlay play button */
+[data-theme='dos'] .album-card-details-btn {
+  background: #AAAAAA;
+  color: #000000;
+  border: 2px solid #FFFFFF;
+  box-shadow: none;
+}
+
+[data-theme='dos'] .album-card-details-btn:hover {
+  background: #FFFFFF;
+  color: #000000;
+}
+
+/* Queue round buttons — square in DOS */
+[data-theme='dos'] .queue-round-btn {
+  border: 1px solid #AAAAAA;
+  box-shadow: none;
+}
+
+[data-theme='dos'] .queue-round-btn.active {
+  background: #AAAAAA;
+  color: #000000;
+  border-color: #FFFFFF;
+  box-shadow: none;
+}
+
+/* Input fields */
+[data-theme='dos'] input,
+[data-theme='dos'] textarea {
+  background: #000080;
+  border: 1px solid #AAAAAA;
+  border-radius: 0;
+}
+
+[data-theme='dos'] input:focus,
+[data-theme='dos'] textarea:focus {
+  border-color: #FFFF55;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Scrollbar — wide 16px DOS style with sharp thumb */
+[data-theme='dos'] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+[data-theme='dos'] ::-webkit-scrollbar-track {
+  background: #000080;
+  border-left: 1px solid #AAAAAA;
+}
+
+[data-theme='dos'] ::-webkit-scrollbar-thumb {
+  background: #AAAAAA;
+  border-radius: 0;
+  border: 1px solid #FFFFFF;
+}
+
+[data-theme='dos'] ::-webkit-scrollbar-thumb:hover {
+  background: #FFFFFF;
+}
+
+

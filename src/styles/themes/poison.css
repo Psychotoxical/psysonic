@@ -1,0 +1,74 @@
+/* ─── Poison ─── */
+[data-theme='poison'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%231bd655%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — charcoal grays + phosphor green ── */
+  --ctp-crust: #0e0e0e;
+  --ctp-mantle: #161616;
+  --ctp-base: #1f1f1f;
+  --ctp-surface0: #282828;
+  --ctp-surface1: #323232;
+  --ctp-surface2: #3e3e3e;
+  --ctp-overlay0: #525252;
+  --ctp-overlay1: #686868;
+  --ctp-overlay2: #848484;
+  --ctp-text: #d0d0cc;
+  --ctp-subtext1: #a8a8a4;
+  --ctp-subtext0: #787874;
+  /* Phosphor green accent — the Winamp LED display color */
+  --ctp-mauve: #1bd655;
+  --ctp-lavender: #28e860;
+  --ctp-green: #1bd655;
+  --ctp-teal: #1ab8a8;
+  --ctp-sky: #58a8e0;
+  --ctp-blue: #4888d0;
+  --ctp-sapphire: #3870b8;
+  --ctp-pink: #c86888;
+  --ctp-flamingo: #b85858;
+  --ctp-rosewater: #c88080;
+  --ctp-yellow: #c8a830;
+  --ctp-peach: #c07838;
+  --ctp-maroon: #a03030;
+  --ctp-red: #c03030;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #1f1f1f;
+  --bg-sidebar: #161616;
+  --bg-card: #282828;
+  --bg-hover: #323232;
+  --bg-player: #0e0e0e;
+  --bg-glass: rgba(22, 22, 22, 0.90);
+  --accent: #1bd655;
+  --accent-dim: rgba(27, 214, 85, 0.12);
+  --accent-glow: rgba(27, 214, 85, 0.35);
+  --text-primary: #d0d0cc;
+  --text-secondary: #a8a8a4;
+  --text-muted: #909090;
+  --border: #3a3a38;
+  --border-subtle: #282826;
+  --positive: #1bd655;
+  --warning: #c8a830;
+  --danger: #c03030;
+}
+
+/* ── Winamp: LED display glow + tactile buttons ── */
+[data-theme='poison'] .player-track-name {
+  text-shadow: 0 0 8px rgba(27, 214, 85, 0.7), 0 0 2px rgba(27, 214, 85, 0.4);
+  color: #1bd655;
+}
+
+[data-theme='poison'] .player-track-artist {
+  color: #1bd655;
+  opacity: 0.7;
+}
+
+[data-theme='poison'] .btn {
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='poison'] .player-btn,
+[data-theme='poison'] .player-btn-primary {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+

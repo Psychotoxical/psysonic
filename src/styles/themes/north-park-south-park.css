@@ -1,0 +1,337 @@
+/* ─── North Park — South Park ─── */
+/* Construction paper flat aesthetic — paper-cream main, Colorado mountain-blue sidebar,
+   Kenny orange accent, South Park sky blue player accents. Light, no dark mode. */
+[data-theme='north-park'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FF8C00%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — Kenny orange, South Park sky, Colorado Rockies ── */
+  --ctp-crust: #0D2040;
+  --ctp-mantle: #142D50;
+  --ctp-base: #F5F1E8;
+  /* construction paper cream */
+  --ctp-surface0: #EDE9DE;
+  --ctp-surface1: #E5E0D2;
+  --ctp-surface2: #D8D2C0;
+  --ctp-overlay0: #8090A8;
+  --ctp-overlay1: #5A6A80;
+  --ctp-overlay2: #4A526A;
+  --ctp-text: #1A1A2E;
+  --ctp-subtext1: #3A3A5A;
+  --ctp-subtext0: #4A526A;
+  --ctp-mauve: #FF8C00;
+  /* Kenny orange */
+  --ctp-lavender: #FFB030;
+  --ctp-pink: #FF6A00;
+  --ctp-flamingo: #FF5500;
+  --ctp-rosewater: #FFD080;
+  --ctp-green: #3D9A2A;
+  /* Kyle's green hat */
+  --ctp-teal: #2080A0;
+  --ctp-sky: #87CEEB;
+  /* South Park sky */
+  --ctp-blue: #1E4080;
+  --ctp-sapphire: #1B3D6E;
+  --ctp-yellow: #FFD700;
+  --ctp-peach: #FF8C00;
+  --ctp-maroon: #CC4400;
+  --ctp-red: #CC2200;
+  /* Cartman red */
+
+  --bg-app: #F5F1E8;
+  /* construction paper cream */
+  --bg-sidebar: #1B3D6E;
+  /* Colorado Rockies night blue */
+  --bg-card: #FFFFFF;
+  --bg-hover: #EDE9DE;
+  --bg-player: #102A50;
+  /* deeper mountain blue */
+  --bg-glass: rgba(245, 241, 232, 0.94);
+  --accent: #FF8C00;
+  /* Kenny orange */
+  --accent-dim: rgba(255, 140, 0, 0.13);
+  --accent-glow: rgba(255, 140, 0, 0.30);
+  --text-primary: #1A1A2E;
+  --text-secondary: #4A526A;
+  --text-muted: #8090A8;
+  --border: rgba(27, 61, 110, 0.14);
+  --border-subtle: rgba(27, 61, 110, 0.08);
+  --border-dropdown: rgba(255, 140, 0, 0.28);
+  --shadow-dropdown: rgba(0, 20, 60, 0.18);
+  --positive: #3D9A2A;
+  --warning: #E8A000;
+  --danger: #CC2200;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Logo: Kenny orange → South Park yellow */
+  --logo-color-start: #FF8C00;
+  --logo-color-end: #FFD700;
+}
+
+/* Sidebar — Colorado mountain blue, orange nav accents */
+[data-theme='north-park'] .sidebar {
+  background: #1B3D6E;
+  border-right: none;
+}
+
+/* Nav links: default text light on dark sidebar */
+[data-theme='north-park'] .nav-link {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme='north-park'] .nav-link.active {
+  background: rgba(255, 140, 0, 0.18);
+  border-left: 3px solid #FF8C00;
+  color: #FF8C00;
+}
+
+[data-theme='north-park'] .nav-link:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.09);
+  border-left: 3px solid rgba(255, 140, 0, 0.45);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Player bar — deep mountain blue, Kenny orange top stripe */
+[data-theme='north-park'] .player-bar {
+  background: #102A50;
+  border-top: 3px solid #FF8C00;
+  box-shadow: 0 -2px 20px rgba(0, 20, 60, 0.30);
+}
+
+/* Track name — Kenny orange */
+[data-theme='north-park'] .player-track-name {
+  color: #FF8C00;
+}
+
+/* Artist name — South Park sky blue */
+[data-theme='north-park'] .player-artist-name {
+  color: #87CEEB;
+}
+
+/* Content header — warm paper border */
+[data-theme='north-park'] .content-header {
+  border-bottom: 1px solid rgba(27, 61, 110, 0.12);
+}
+
+/* Cards — clean white cutouts with paper shadow */
+[data-theme='north-park'] .album-card,
+[data-theme='north-park'] .artist-card {
+  background: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0, 20, 60, 0.08);
+}
+
+[data-theme='north-park'] .album-card:hover,
+[data-theme='north-park'] .artist-card:hover {
+  box-shadow: 0 0 0 2px #FF8C00, 0 4px 16px rgba(0, 20, 60, 0.12);
+}
+
+/* Track rows (light main area) */
+[data-theme='north-park'] .track-row:hover {
+  background: #EDE9DE;
+  box-shadow: inset 2px 0 0 #FF8C00;
+}
+
+/* Queue items (dark blue sidebar — keep bg dark, text stays white) */
+[data-theme='north-park'] .queue-item:hover {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 2px 0 0 #FF8C00;
+}
+
+/* Flat primary button — orange, no gradient */
+[data-theme='north-park'] .player-btn-primary {
+  background: #FF8C00;
+  color: #FFFFFF;
+  box-shadow: none;
+  border: none;
+}
+
+[data-theme='north-park'] .player-btn-primary:hover {
+  background: #E07800;
+  box-shadow: 0 0 14px rgba(255, 140, 0, 0.40);
+}
+
+[data-theme='north-park'] .btn-primary {
+  background: #FF8C00;
+  color: #FFFFFF;
+  border: none;
+}
+
+[data-theme='north-park'] .btn-primary:hover {
+  background: #E07800;
+}
+
+[data-theme='north-park'] .hero-play-btn {
+  background: #FF8C00;
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 2px 14px rgba(255, 140, 0, 0.35);
+}
+
+[data-theme='north-park'] .hero-play-btn:hover {
+  background: #E07800;
+  box-shadow: 0 4px 22px rgba(255, 140, 0, 0.55);
+  transform: scale(1.02);
+}
+
+[data-theme='north-park'] .album-card-details-btn {
+  background: #FF8C00;
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 2px 10px rgba(255, 140, 0, 0.30);
+}
+
+/* Badge — orange pill */
+[data-theme='north-park'] .badge,
+[data-theme='north-park'] .album-detail-badge {
+  background: #FF8C00;
+  color: #FFFFFF;
+}
+
+/* Settings tabs */
+[data-theme='north-park'] .settings-tab:hover {
+  background: rgba(255, 140, 0, 0.08);
+  color: #FF8C00;
+}
+
+[data-theme='north-park'] .settings-tab.active {
+  background: rgba(255, 140, 0, 0.13);
+  color: #FF8C00;
+  border-color: #FF8C00;
+}
+
+[data-theme='north-park'] .queue-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.90);
+}
+
+/* Misc interactive */
+[data-theme='north-park'] .custom-select-trigger:hover {
+  background: #EDE9DE;
+}
+
+[data-theme='north-park'] .custom-select-option:hover {
+  background: rgba(255, 140, 0, 0.10);
+}
+
+[data-theme='north-park'] .artist-row:hover {
+  background: rgba(255, 140, 0, 0.07);
+  box-shadow: inset 3px 0 0 #FF8C00;
+}
+
+[data-theme='north-park'] .playlist-row:hover {
+  background: rgba(255, 140, 0, 0.07);
+  box-shadow: inset 3px 0 0 #FF8C00;
+}
+
+/* Connection indicators — muted on light bg */
+[data-theme='north-park'] .connection-type,
+[data-theme='north-park'] .connection-server {
+  color: #7A8A9A;
+}
+
+/* Queue panel — dark sidebar, light text overrides */
+[data-theme='north-park'] .queue-panel {
+  background: #1B3D6E;
+}
+
+[data-theme='north-park'] .queue-item-title {
+  color: rgba(255, 255, 255, 0.90);
+}
+
+[data-theme='north-park'] .queue-item-artist,
+[data-theme='north-park'] .queue-item-duration {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+[data-theme='north-park'] .queue-item.active .queue-item-artist,
+[data-theme='north-park'] .queue-item.active .queue-item-duration {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme='north-park'] .queue-divider span {
+  color: rgba(255, 255, 255, 0.38) !important;
+}
+
+[data-theme='north-park'] .queue-current-info h3 {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme='north-park'] .queue-current-sub {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='north-park'] .queue-current-cover .fallback {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+[data-theme='north-park'] .queue-tab-btn {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+[data-theme='north-park'] .queue-tab-btn.active {
+  color: #FF8C00;
+}
+
+[data-theme='north-park'] .queue-round-btn.active {
+  color: #FFFFFF;
+}
+
+[data-theme='north-park'] .queue-action-btn {
+  color: rgba(255, 255, 255, 0.60);
+}
+
+[data-theme='north-park'] .queue-action-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* Back button + hero text — needs high contrast on dark overlay at top of album header */
+[data-theme='north-park'] .album-detail-back {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme='north-park'] .album-detail-back:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+[data-theme='north-park'] .album-detail-info {
+  color: rgba(255, 255, 255, 0.80);
+}
+
+/* Artist name in hero — soften the orange to a warm amber, less glaring */
+[data-theme='north-park'] .album-detail-artist,
+[data-theme='north-park'] .album-detail-artist-link {
+  color: #FFAB40;
+}
+
+[data-theme='north-park'] .album-detail-artist-link:hover {
+  color: #FFD080;
+}
+
+/* np-album-track (Now Playing page) */
+[data-theme='north-park'] .np-album-track.active .np-album-track-title,
+[data-theme='north-park'] .np-album-track.active .np-album-track-num {
+  color: #FF8C00;
+}
+
+/* Scrollbar — thin, orange thumb */
+[data-theme='north-park'] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+[data-theme='north-park'] ::-webkit-scrollbar-track {
+  background: #EDE9DE;
+}
+
+[data-theme='north-park'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 140, 0, 0.35);
+  border-radius: 3px;
+}
+
+[data-theme='north-park'] ::-webkit-scrollbar-thumb:hover {
+  background: #FF8C00;
+}
+

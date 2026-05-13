@@ -1,0 +1,460 @@
+/* ─── Windows 7 Aero Glass ─── */
+[data-theme='aero-glass'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%234c607a%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #05080f;
+  --ctp-mantle: #0d1a2e;
+  --ctp-base: #b8cfe8;
+  --ctp-surface0: #ccdaea;
+  --ctp-surface1: #d8e6f2;
+  --ctp-surface2: #e4f0f8;
+  --ctp-overlay0: #a0bcd8;
+  --ctp-overlay1: #7aa0c0;
+  --ctp-overlay2: #5a84a8;
+  --ctp-text: #0d1a2e;
+  --ctp-subtext1: #1e3250;
+  --ctp-subtext0: #3a5070;
+  --ctp-mauve: #1878e8;
+  --ctp-lavender: #3399ff;
+  --ctp-sky: #5bb3ff;
+  --ctp-blue: #1d4268;
+  --ctp-sapphire: #1366c8;
+  --ctp-teal: #0099aa;
+  --ctp-green: #107c10;
+  --ctp-yellow: #f7c948;
+  --ctp-peach: #e8890c;
+  --ctp-pink: #e3008c;
+  --ctp-flamingo: #c50f1f;
+  --ctp-rosewater: #da3b01;
+  --ctp-maroon: #a4262c;
+  --ctp-red: #c42b1c;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #b8cfe8;
+  --bg-sidebar: rgba(210, 228, 248, 0.55);
+  --bg-card: rgba(225, 238, 252, 0.65);
+  --bg-hover: rgba(24, 120, 232, 0.85);
+  --bg-player: #05080f;
+  --bg-glass: rgba(210, 228, 248, 0.82);
+  --accent: #1878e8;
+  --accent-dim: rgba(24, 120, 232, 0.14);
+  --accent-glow: rgba(24, 120, 232, 0.40);
+  --volume-accent: #1878e8;
+  --text-primary: #0d1a2e;
+  --text-secondary: #1e3250;
+  --text-muted: #7090b8;
+  --border: rgba(130, 175, 220, 0.65);
+  --border-subtle: rgba(160, 200, 240, 0.45);
+  --positive: #107c10;
+  --warning: #c87400;
+  --danger: #c42b1c;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+/* ── Background: W7 sky with depth ── */
+[data-theme='aero-glass'] .app-shell {
+  background: linear-gradient(160deg, #c8e2f5 0%, #b5cfe4 45%, #9fc0db 100%);
+}
+
+/* ── Sidebar: Aero glass panel — frosted translucent ── */
+[data-theme='aero-glass'] .sidebar {
+  background: rgba(210, 232, 252, 0.52);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(150, 190, 230, 0.55);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.75),
+    inset 1px 0 0 rgba(255, 255, 255, 0.25),
+    2px 0 8px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Player bar: authentic W7 taskbar — near-black glass ── */
+[data-theme='aero-glass'] .player-bar {
+  background: linear-gradient(180deg,
+      rgba(12, 18, 32, 0.96) 0%,
+      rgba(6, 10, 20, 0.99) 100%);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border-top: 1px solid rgba(80, 155, 235, 0.60);
+  box-shadow:
+    inset 0 1px 0 rgba(100, 180, 255, 0.28),
+    inset 0 2px 0 rgba(255, 255, 255, 0.06),
+    0 -2px 16px rgba(0, 0, 0, 0.55);
+}
+
+/* Track info: white on near-black, blue glow */
+[data-theme='aero-glass'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(80, 160, 255, 0.65), 0 1px 2px rgba(0, 0, 0, 0.60);
+  font-weight: 600;
+}
+
+[data-theme='aero-glass'] .player-track-artist {
+  color: #88b8e0;
+  opacity: 1;
+}
+
+[data-theme='aero-glass'] .player-time {
+  color: #88b8e0;
+}
+
+/* ── Transport buttons: Aero glass gel circles ── */
+[data-theme='aero-glass'] .player-btn,
+[data-theme='aero-glass'] .player-btn-primary {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.80) 0%,
+      rgba(195, 228, 255, 0.82) 48%,
+      rgba(80, 160, 235, 0.92) 50%,
+      rgba(30, 110, 205, 0.96) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(20, 75, 180, 0.55);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.90),
+    0 2px 6px rgba(0, 0, 0, 0.40),
+    0 0 0 1px rgba(80, 150, 230, 0.25);
+}
+
+[data-theme='aero-glass'] .player-btn:hover,
+[data-theme='aero-glass'] .player-btn-primary:hover {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(215, 240, 255, 0.90) 48%,
+      rgba(105, 178, 248, 0.95) 50%,
+      rgba(50, 130, 220, 0.99) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 3px 10px rgba(0, 0, 0, 0.40),
+    0 0 12px rgba(51, 153, 255, 0.45);
+}
+
+/* ── Regular buttons: Aero frosted glass ── */
+[data-theme='aero-glass'] .btn,
+[data-theme='aero-glass'] .btn-surface,
+[data-theme='aero-glass'] .btn-ghost {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.85) 0%,
+      rgba(255, 255, 255, 0.85) 48%,
+      rgba(190, 220, 248, 0.90) 50%,
+      rgba(155, 198, 240, 0.94) 100%);
+  color: #0d1a2e;
+  border: 1px solid rgba(120, 170, 220, 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.50),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+  border-radius: 5px;
+}
+
+[data-theme='aero-glass'] .btn:hover,
+[data-theme='aero-glass'] .btn-surface:hover,
+[data-theme='aero-glass'] .btn-ghost:hover {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(255, 255, 255, 0.96) 48%,
+      rgba(210, 235, 255, 0.95) 50%,
+      rgba(175, 215, 252, 0.98) 100%);
+  border-color: rgba(24, 120, 232, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 1px 4px rgba(0, 0, 0, 0.20),
+    0 0 8px rgba(24, 120, 232, 0.22);
+}
+
+/* ── Primary button: Aero blue gel ── */
+[data-theme='aero-glass'] .btn-primary {
+  background: linear-gradient(180deg,
+      rgba(110, 185, 255, 0.92) 0%,
+      rgba(70, 155, 245, 0.92) 48%,
+      rgba(24, 100, 205, 0.96) 50%,
+      rgba(12, 72, 175, 0.99) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(12, 60, 155, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 1px 4px rgba(0, 0, 0, 0.30),
+    0 0 10px rgba(24, 120, 232, 0.38);
+  border-radius: 5px;
+}
+
+[data-theme='aero-glass'] .btn-primary:hover {
+  background: linear-gradient(180deg,
+      rgba(140, 200, 255, 0.95) 0%,
+      rgba(90, 170, 255, 0.95) 48%,
+      rgba(40, 120, 225, 0.98) 50%,
+      rgba(24, 95, 195, 1) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 1px 5px rgba(0, 0, 0, 0.30),
+    0 0 14px rgba(24, 120, 232, 0.50);
+}
+
+/* ── Hero / album-card buttons: frosted glass ── */
+[data-theme='aero-glass'] .hero-play-btn,
+[data-theme='aero-glass'] .album-card-details-btn {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.82) 0%,
+      rgba(190, 220, 248, 0.88) 48%,
+      rgba(140, 190, 235, 0.92) 50%,
+      rgba(100, 160, 220, 0.95) 100%);
+  color: #0d1a2e;
+  border: 1px solid rgba(100, 160, 220, 0.60);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.90), 0 1px 3px rgba(0, 0, 0, 0.20);
+}
+
+[data-theme='aero-glass'] .hero-play-btn:hover,
+[data-theme='aero-glass'] .album-card-details-btn:hover {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(215, 238, 255, 0.95) 50%,
+      rgba(165, 210, 250, 0.98) 100%);
+  border-color: rgba(24, 120, 232, 0.70);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 0 8px rgba(24, 120, 232, 0.25);
+}
+
+/* ── Queue toolbar round buttons: Aero glass ── */
+[data-theme='aero-glass'] .queue-round-btn {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.80) 0%,
+      rgba(185, 218, 248, 0.88) 50%,
+      rgba(140, 190, 235, 0.92) 100%);
+  color: #1e3250;
+  border: 1px solid rgba(110, 165, 220, 0.60);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.90), 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme='aero-glass'] .queue-round-btn:hover:not(:disabled):not(.active) {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(210, 235, 255, 0.95) 50%,
+      rgba(165, 208, 250, 0.98) 100%);
+  border-color: rgba(24, 120, 232, 0.65);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 0 8px rgba(24, 120, 232, 0.25);
+  color: #0d1a2e;
+}
+
+[data-theme='aero-glass'] .queue-round-btn.active {
+  background: linear-gradient(180deg,
+      rgba(110, 180, 255, 0.90) 0%,
+      rgba(24, 100, 210, 0.96) 100%);
+  color: #ffffff;
+  border-color: rgba(12, 60, 155, 0.70);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 8px rgba(24, 120, 232, 0.50);
+}
+
+/* ── Cards: frosted glass panels ── */
+[data-theme='aero-glass'] .card {
+  background: rgba(225, 240, 255, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(160, 200, 240, 0.60);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.80),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+}
+
+/* ── Content header: Aero chrome strip ── */
+[data-theme='aero-glass'] .content-header {
+  background: rgba(210, 232, 252, 0.58);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(150, 195, 240, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.70),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.10);
+}
+
+/* Connection indicators: dark navy, readable on glass */
+[data-theme='aero-glass'] .connection-type,
+[data-theme='aero-glass'] .connection-server {
+  color: #0d1a2e;
+}
+
+/* ── Theme accordion: glass hover ── */
+[data-theme='aero-glass'] .theme-accordion-header:hover {
+  background: rgba(24, 120, 232, 0.18);
+  color: #0d1a2e;
+}
+
+[data-theme='aero-glass'] .theme-accordion-open .theme-accordion-header {
+  background: rgba(24, 120, 232, 0.22);
+  color: #0d1a2e;
+}
+
+/* ── Progress bar: Aero blue ── */
+[data-theme='aero-glass'] .progress-bar-track {
+  background: rgba(150, 195, 235, 0.45);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='aero-glass'] .progress-bar-fill {
+  background: linear-gradient(180deg,
+      rgba(110, 185, 255, 0.95) 0%,
+      rgba(24, 120, 232, 0.98) 50%,
+      rgba(12, 90, 200, 1) 100%);
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(24, 120, 232, 0.50);
+}
+
+/* ── Scrollbar: W7 thin glass style ── */
+[data-theme='aero-glass'] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-theme='aero-glass'] ::-webkit-scrollbar-track {
+  background: rgba(175, 210, 245, 0.25);
+  border-radius: 5px;
+}
+
+[data-theme='aero-glass'] ::-webkit-scrollbar-thumb {
+  background: rgba(110, 168, 225, 0.60);
+  border: 1px solid rgba(80, 140, 200, 0.45);
+  border-radius: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+[data-theme='aero-glass'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(24, 120, 232, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.50), 0 0 4px rgba(24, 120, 232, 0.30);
+}
+
+/* ── Glass / dropdowns: frosted glass panel ── */
+[data-theme='aero-glass'] .glass {
+  background: rgba(218, 236, 255, 0.88) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  border: 1px solid rgba(150, 195, 240, 0.65) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    2px 2px 12px rgba(0, 0, 0, 0.18) !important;
+  border-radius: 8px !important;
+}
+
+[data-theme='aero-glass'] .glass [style*="var(--bg-hover)"] {
+  background: rgba(24, 120, 232, 0.20) !important;
+  border-radius: 4px !important;
+}
+
+[data-theme='aero-glass'] .glass [style*="var(--text-primary)"] {
+  color: #0d1a2e !important;
+}
+
+[data-theme='aero-glass'] .glass [style*="var(--text-secondary)"] {
+  color: #1e3250 !important;
+}
+
+[data-theme='aero-glass'] .glass [style*="var(--text-muted)"] {
+  color: #3a5070 !important;
+}
+
+/* ── Hover / selection: Aero blue glass ── */
+[data-theme='aero-glass'] .queue-tab-btn:hover {
+  background: rgba(24, 120, 232, 0.18);
+  color: #0d1a2e;
+}
+
+[data-theme='aero-glass'] .settings-tab:hover {
+  background: rgba(24, 120, 232, 0.18);
+  color: #0d1a2e;
+}
+
+[data-theme='aero-glass'] .settings-tab.active {
+  background: rgba(24, 120, 232, 0.85);
+  color: #ffffff;
+}
+
+[data-theme='aero-glass'] .custom-select-trigger:hover {
+  background: rgba(24, 120, 232, 0.15);
+}
+
+[data-theme='aero-glass'] .custom-select-option:hover {
+  background: rgba(24, 120, 232, 0.85) !important;
+  color: #ffffff !important;
+}
+
+[data-theme='aero-glass'] .artist-ext-link:hover {
+  background: rgba(24, 120, 232, 0.85);
+  color: #ffffff !important;
+}
+
+[data-theme='aero-glass'] .np-action-btn:hover {
+  background: rgba(24, 120, 232, 0.18);
+}
+
+[data-theme='aero-glass'] .np-queue-item:hover,
+[data-theme='aero-glass'] .np-queue-item.context-active {
+  background: rgba(24, 120, 232, 0.85);
+  color: #ffffff;
+}
+
+[data-theme='aero-glass'] .track-row:hover,
+[data-theme='aero-glass'] .track-row.context-active {
+  background: rgba(24, 120, 232, 0.85) !important;
+}
+
+[data-theme='aero-glass'] .track-row:hover *,
+[data-theme='aero-glass'] .track-row.context-active * {
+  color: #ffffff !important;
+}
+
+[data-theme='aero-glass'] .artist-row:hover {
+  background: rgba(24, 120, 232, 0.85);
+  color: #ffffff;
+}
+
+[data-theme='aero-glass'] .playlist-row:hover {
+  background: rgba(24, 120, 232, 0.85);
+}
+
+[data-theme='aero-glass'] .playlist-row:hover,
+[data-theme='aero-glass'] .playlist-row:hover * {
+  color: #ffffff;
+}
+
+[data-theme='aero-glass'] .queue-item:hover,
+[data-theme='aero-glass'] .queue-item.context-active {
+  background: rgba(24, 120, 232, 0.85) !important;
+}
+
+[data-theme='aero-glass'] .queue-item:hover .queue-item-title,
+[data-theme='aero-glass'] .queue-item:hover .queue-item-artist,
+[data-theme='aero-glass'] .queue-item:hover .queue-item-duration,
+[data-theme='aero-glass'] .queue-item.context-active .queue-item-title,
+[data-theme='aero-glass'] .queue-item.context-active .queue-item-artist,
+[data-theme='aero-glass'] .queue-item.context-active .queue-item-duration {
+  color: #ffffff;
+}
+
+/* ── Active queue / now-playing items ── */
+[data-theme='aero-glass'] .queue-item.active {
+  background: rgba(24, 120, 232, 0.14);
+  color: #1366c8;
+}
+
+[data-theme='aero-glass'] .queue-item.active .queue-item-artist,
+[data-theme='aero-glass'] .queue-item.active .queue-item-duration {
+  color: #1878e8;
+  opacity: 0.85;
+}
+
+[data-theme='aero-glass'] .np-queue-item-active {
+  color: #1366c8;
+}
+
+[data-theme='aero-glass'] .np-queue-item.active {
+  background: rgba(24, 120, 232, 0.10);
+}
+
+[data-theme='aero-glass'] .np-album-track.active .np-album-track-title,
+[data-theme='aero-glass'] .np-album-track.active .np-album-track-num {
+  color: #1366c8;
+}
+

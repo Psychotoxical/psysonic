@@ -1,0 +1,24 @@
+/* ─── Input Search ─── */
+.input-search {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  padding-left: 36px;
+  background: var(--ctp-base);
+  border: 1px solid var(--ctp-overlay0);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  outline: none;
+}
+
+.input-search::placeholder {
+  color: var(--text-muted);
+}
+
+.input-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+

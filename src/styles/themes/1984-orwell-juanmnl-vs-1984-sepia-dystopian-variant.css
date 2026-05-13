@@ -1,0 +1,56 @@
+/* ─── 1984 Orwell (juanmnl/vs-1984 — sepia / dystopian variant) ─── */
+[data-theme='vs-1984-orwell'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f1f1f1%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #1f1c18;
+  --ctp-mantle:   #292521;   /* sideBar.background */
+  --ctp-base:     #2e2923;   /* editor.background */
+  --ctp-surface0: #3a342c;
+  --ctp-surface1: #463e34;
+  --ctp-surface2: #574d40;
+  --ctp-overlay0: #7a6a52;
+  --ctp-overlay1: #b39773;
+  --ctp-overlay2: #d8c39c;
+  --ctp-text:     #f1f1f1;
+  --ctp-subtext1: #fcd395;
+  --ctp-subtext0: #fcbe95;
+  --ctp-mauve:    #fcd395;
+  --ctp-lavender: #fcbe95;
+  --ctp-pink:     #e74946;
+  --ctp-flamingo: #e74946;
+  --ctp-rosewater:#fcbe95;
+  --ctp-blue:     #fcd395;
+  --ctp-sapphire: #fcbe95;
+  --ctp-sky:      #F7D88B;
+  --ctp-teal:     #fcd395;
+  --ctp-green:    #fcd395;
+  --ctp-yellow:   #F7D88B;
+  --ctp-peach:    #fcbe95;
+  --ctp-maroon:   #e74946;
+  --ctp-red:      #e74946;
+
+  --bg-app:           #2e2923;
+  --bg-sidebar:       #292521;
+  --bg-card:          #3a342c;
+  --bg-hover:         #463e34;
+  --bg-player:        #292521;
+  --bg-glass:         rgba(46, 41, 35, 0.82);
+  --accent:           #fcd395;       /* cream-gold */
+  --accent-dim:       rgba(252, 211, 149, 0.16);
+  --accent-glow:      rgba(252, 211, 149, 0.32);
+  --text-primary:     #f1f1f1;
+  --text-secondary:   #fcd395;
+  --text-muted:       #b39773;
+  --border:           #463e34;
+  --border-subtle:    #3a342c;
+  --border-dropdown:  #574d40;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #F7D88B;
+  --warning:          #fcbe95;
+  --danger:           #e74946;
+  --waveform-played:    #fcd395;
+  --waveform-buffered:  #7a6a52;
+  --waveform-unplayed:  #3a342c;
+}
+

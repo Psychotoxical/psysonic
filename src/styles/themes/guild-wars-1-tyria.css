@@ -1,0 +1,206 @@
+/* ─── Guild Wars 1 — Tyria ─── */
+[data-theme='gw1'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c8960c%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Palette — aged Tyrian stone, ornate gold, Searing crimson */
+  --ctp-crust: #060402;
+  --ctp-mantle: #0a0806;
+  --ctp-base: #0e0b08;
+  --ctp-surface0: #1a1208;
+  --ctp-surface1: #261b0c;
+  --ctp-surface2: #342510;
+  --ctp-overlay0: #5a4830;
+  --ctp-overlay1: #7a6448;
+  --ctp-overlay2: #9a8060;
+  --ctp-text: #f0e4c4;
+  --ctp-subtext1: #d4c49a;
+  --ctp-subtext0: #b0a07a;
+  --ctp-mauve: #c8960c;
+  --ctp-lavender: #e8b820;
+  --ctp-pink: #c0321a;
+  --ctp-flamingo: #d4780c;
+  --ctp-rosewater: #f0e4c4;
+  --ctp-green: #5a8030;
+  --ctp-teal: #3a6858;
+  --ctp-sky: #7aaccc;
+  --ctp-blue: #3a6898;
+  --ctp-sapphire: #3a6898;
+  --ctp-yellow: #e8c840;
+  --ctp-peach: #d4780c;
+  --ctp-maroon: #8b1515;
+  --ctp-red: #c0321a;
+
+  --bg-app: #0e0b08;
+  --bg-sidebar: #0a0806;
+  --bg-card: #1a1208;
+  --bg-hover: #261b0c;
+  --bg-player: #060402;
+  --bg-glass: rgba(14, 11, 8, 0.88);
+  --accent: #c8960c;
+  --accent-dim: rgba(200, 150, 12, 0.15);
+  --accent-glow: rgba(200, 150, 12, 0.35);
+  --text-primary: #f0e4c4;
+  --text-secondary: #9a8060;
+  --text-muted: #a08858;
+  --border: rgba(200, 150, 12, 0.28);
+  --border-subtle: rgba(200, 150, 12, 0.10);
+  --border-dropdown: rgba(200, 150, 12, 0.35);
+  --shadow-dropdown: rgba(0, 0, 0, 0.85);
+  --positive: #5a8030;
+  --warning: #d4780c;
+  --danger: #c0321a;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+}
+
+/* App shell — solid dark stone base (grid moved to sidebar-only for perf) */
+
+/* Sidebar — worn leather with faint horizontal stone lines */
+[data-theme='gw1'] .sidebar {
+  border-right: 1px solid rgba(200, 150, 12, 0.35);
+  background: linear-gradient(180deg, #0c0906 0%, #080604 100%);
+  background-image: repeating-linear-gradient(0deg,
+      rgba(200, 150, 12, 0.04) 0px,
+      transparent 1px,
+      transparent 48px,
+      rgba(200, 150, 12, 0.04) 49px);
+}
+
+/* Player bar — the GW1 skill bar: deepest black, gold top border */
+[data-theme='gw1'] .player-bar {
+  background: #060402;
+  border-top: 2px solid #c8960c;
+  box-shadow: 0 -6px 28px rgba(200, 150, 12, 0.14), 0 -1px 0 rgba(0, 0, 0, 0.9);
+}
+
+/* Track name — Tyrian item-name gold glow, Cinzel serif */
+[data-theme='gw1'] .player-track-name {
+  color: #e8b820;
+  text-shadow: 0 0 10px rgba(232, 184, 32, 0.55), 0 0 22px rgba(200, 150, 12, 0.25);
+  font-family: 'Cinzel', 'Palatino Linotype', Georgia, serif;
+  letter-spacing: 0.03em;
+}
+
+/* Artist name — faded parchment, not competing with gold */
+[data-theme='gw1'] .player-artist-name {
+  color: #9a8060;
+}
+
+/* Nav active — left gold bar like GW1 menu selection */
+[data-theme='gw1'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(200, 150, 12, 0.20) 0%, transparent 100%);
+  border-left: 3px solid #c8960c;
+  color: #e8b820;
+}
+
+[data-theme='gw1'] .nav-link:hover:not(.active) {
+  background: linear-gradient(90deg, rgba(200, 150, 12, 0.09) 0%, transparent 100%);
+  border-left: 3px solid rgba(200, 150, 12, 0.35);
+}
+
+/* Content header — ornate double gold rule */
+[data-theme='gw1'] .content-header {
+  border-bottom: 1px solid rgba(200, 150, 12, 0.22);
+  position: relative;
+}
+
+[data-theme='gw1'] .content-header::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(200, 150, 12, 0.7) 20%, rgba(232, 184, 32, 0.9) 50%, rgba(200, 150, 12, 0.7) 80%, transparent 100%);
+}
+
+/* Cards — dark leather panels with subtle gold frame */
+[data-theme='gw1'] .album-card,
+[data-theme='gw1'] .artist-card {
+  box-shadow: inset 0 0 0 1px rgba(200, 150, 12, 0.18);
+}
+
+[data-theme='gw1'] .album-card:hover,
+[data-theme='gw1'] .artist-card:hover {
+  box-shadow: inset 0 0 0 1px rgba(200, 150, 12, 0.55), 0 4px 20px rgba(200, 150, 12, 0.18);
+}
+
+/* Queue / track rows — gold left accent bar on hover */
+[data-theme='gw1'] .track-row:hover,
+[data-theme='gw1'] .queue-item:hover {
+  box-shadow: inset 2px 0 0 #c8960c;
+  background: rgba(200, 150, 12, 0.08);
+}
+
+/* Primary play button — hammered gold like GW1 UI buttons */
+[data-theme='gw1'] .player-btn-primary {
+  background: linear-gradient(180deg, #e8b820 0%, #c8960c 50%, #a87808 100%);
+  color: #060402;
+  box-shadow: 0 0 14px rgba(200, 150, 12, 0.45);
+  border: 1px solid #906606;
+}
+
+[data-theme='gw1'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #f0c830 0%, #d8a818 50%, #b88818 100%);
+  box-shadow: 0 0 22px rgba(200, 150, 12, 0.65);
+}
+
+/* btn-primary (play album, etc.) */
+[data-theme='gw1'] .btn-primary {
+  background: linear-gradient(180deg, #e8b820 0%, #c8960c 50%, #a87808 100%);
+  color: #060402;
+  border: 1px solid #906606;
+}
+
+[data-theme='gw1'] .btn-primary:hover {
+  background: linear-gradient(180deg, #f0c830 0%, #d8a818 50%, #b88818 100%);
+}
+
+/* Hero play button — Cinzel font, gold, no flash on hover */
+[data-theme='gw1'] .hero-play-btn {
+  background: linear-gradient(180deg, #e8b820 0%, #c8960c 50%, #a87808 100%);
+  color: #060402;
+  border: 1px solid #906606;
+  box-shadow: 0 2px 14px rgba(200, 150, 12, 0.45);
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.05em;
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+[data-theme='gw1'] .hero-play-btn:hover {
+  background: linear-gradient(180deg, #f0c830 0%, #d8a818 50%, #b88818 100%);
+  box-shadow: 0 4px 22px rgba(200, 150, 12, 0.65);
+  transform: scale(1.02);
+}
+
+/* Album card overlay play button */
+[data-theme='gw1'] .album-card-details-btn {
+  background: linear-gradient(180deg, #e8b820 0%, #c8960c 50%, #a87808 100%);
+  color: #060402;
+  border: 1px solid #906606;
+  box-shadow: 0 2px 10px rgba(200, 150, 12, 0.5);
+}
+
+/* Scrollbar — dark stone with gold thumb */
+[data-theme='gw1'] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+[data-theme='gw1'] ::-webkit-scrollbar-track {
+  background: #0a0806;
+  border-left: 1px solid rgba(200, 150, 12, 0.08);
+}
+
+[data-theme='gw1'] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c8960c, #a87808);
+  border-radius: 3px;
+}
+
+[data-theme='gw1'] ::-webkit-scrollbar-thumb:hover {
+  background: #e8b820;
+}
+
+

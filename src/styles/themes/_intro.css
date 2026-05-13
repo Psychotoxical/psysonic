@@ -1,0 +1,33 @@
+/* ─────────────────────────────────────────────────────────────
+   Psysonic – Design System
+   Catppuccin Mocha Color Palette + Inter Typography
+   ───────────────────────────────────────────────────────────── */
+
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/inter/wght-italic.css';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/outfit';
+@import '@fontsource-variable/dm-sans';
+@import '@fontsource-variable/dm-sans/wght-italic.css';
+@import '@fontsource-variable/nunito';
+@import '@fontsource-variable/nunito/wght-italic.css';
+@import '@fontsource-variable/rubik';
+@import '@fontsource-variable/rubik/wght-italic.css';
+@import '@fontsource-variable/figtree';
+@import '@fontsource-variable/figtree/wght-italic.css';
+@import '@fontsource-variable/manrope';
+@import '@fontsource-variable/plus-jakarta-sans';
+@import '@fontsource-variable/plus-jakarta-sans/wght-italic.css';
+@import '@fontsource-variable/lexend';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/jetbrains-mono/wght-italic.css';
+@import '@fontsource-variable/golos-text';
+@import '@fontsource-variable/unbounded';
+/* OpenDyslexic — non-variable font with discrete weights/styles. Latin only,
+   no Cyrillic / no CJK. Selected via Settings as a dyslexia-friendly option. */
+@import '@fontsource/opendyslexic/400.css';
+@import '@fontsource/opendyslexic/700.css';
+@import '@fontsource/opendyslexic/400-italic.css';
+@import '@fontsource/opendyslexic/700-italic.css';
+

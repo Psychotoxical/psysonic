@@ -1,0 +1,187 @@
+/* ─── Vintage Tube Radio — 1950s Bakelite & Vacuum Tube ─── */
+[data-theme='vintage-tube-radio'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23BCAAA4%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #1E110A;
+  /* deep warm black-brown — dial background */
+  --ctp-mantle: #5D4037;
+  /* speaker cloth brown — sidebar */
+  --ctp-base: #3E2723;
+  /* polished bakelite — chassis */
+  --ctp-surface0: #4E342E;
+  --ctp-surface1: #5D4037;
+  --ctp-surface2: #6D4C41;
+  --ctp-overlay0: #795548;
+  --ctp-overlay1: #8D6E63;
+  --ctp-overlay2: #A1887F;
+  --ctp-text: #FFECB3;
+  /* ivory/cream — dial lettering */
+  --ctp-subtext1: #D7CCC8;
+  --ctp-subtext0: #BCAAA4;
+  /* aged ivory — secondary labels */
+  /* Tube glow + tarnished brass accents */
+  --ctp-mauve: #FF6F00;
+  /* vacuum tube orange — primary accent */
+  --ctp-lavender: #FF8F00;
+  --ctp-yellow: #FFC107;
+  /* warm dial backlight */
+  --ctp-peach: #FFB300;
+  --ctp-green: #558B2F;
+  --ctp-teal: #00695C;
+  --ctp-sky: #B08D57;
+  /* tarnished brass */
+  --ctp-blue: #5C6BC0;
+  --ctp-sapphire: #3949AB;
+  --ctp-pink: #C2185B;
+  --ctp-flamingo: #AD1457;
+  --ctp-rosewater: #E91E63;
+  --ctp-maroon: #B71C1C;
+  --ctp-red: #C62828;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #3E2723;
+  --bg-sidebar: #5D4037;
+  --bg-card: #4E342E;
+  --bg-hover: #5D4037;
+  --bg-player: #1E110A;
+  --bg-glass: rgba(62, 39, 35, 0.92);
+  --accent: #FF6F00;
+  --accent-dim: rgba(255, 111, 0, 0.15);
+  --accent-glow: rgba(255, 111, 0, 0.40);
+  --text-primary: #FFECB3;
+  --text-secondary: #BCAAA4;
+  --text-muted: #b09880;
+  --border: #B08D57;
+  /* tarnished brass */
+  --border-subtle: #4E342E;
+  --positive: #558B2F;
+  --warning: #FFC107;
+  --danger: #C62828;
+}
+
+/* ── Tube Radio: polished bakelite chassis texture ── */
+[data-theme='vintage-tube-radio'] .app-shell {
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(255, 111, 0, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(255, 193, 7, 0.03) 0%, transparent 50%),
+    #3E2723;
+}
+
+/* Sidebar: speaker cloth — soft radial texture */
+[data-theme='vintage-tube-radio'] .sidebar {
+  background:
+    repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.12) 0px,
+      rgba(0, 0, 0, 0.12) 1px,
+      transparent 1px,
+      transparent 4px),
+    repeating-linear-gradient(90deg,
+      rgba(0, 0, 0, 0.08) 0px,
+      rgba(0, 0, 0, 0.08) 1px,
+      transparent 1px,
+      transparent 4px),
+    #5D4037;
+  border-right: 2px solid #B08D57;
+  box-shadow: inset -2px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Frequency dial (Player Bar) ── */
+[data-theme='vintage-tube-radio'] .player-bar {
+  background: #1E110A;
+  border-top: 2px solid #B08D57;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 193, 7, 0.08),
+    0 -3px 20px rgba(0, 0, 0, 0.7);
+}
+
+/* Track name: warm tube-glow */
+[data-theme='vintage-tube-radio'] .player-track-name {
+  color: #FFC107;
+  text-shadow:
+    0 0 6px rgba(255, 193, 7, 0.90),
+    0 0 14px rgba(255, 111, 0, 0.60),
+    0 0 28px rgba(255, 111, 0, 0.30);
+  letter-spacing: 0.04em;
+}
+
+[data-theme='vintage-tube-radio'] .player-track-artist {
+  color: #FF8F00;
+  text-shadow: 0 0 6px rgba(255, 111, 0, 0.50);
+  opacity: 1;
+}
+
+[data-theme='vintage-tube-radio'] .player-time {
+  color: #FF8F00;
+  text-shadow: 0 0 5px rgba(255, 111, 0, 0.55);
+}
+
+/* ── Transport buttons: turned brass knobs ── */
+[data-theme='vintage-tube-radio'] .player-btn,
+[data-theme='vintage-tube-radio'] .player-btn-primary {
+  background: radial-gradient(circle at 38% 32%, #d4a843 0%, #b08d57 45%, #7a5e2a 100%);
+  color: #1E110A;
+  border: 1px solid #7a5e2a;
+  box-shadow:
+    0 3px 7px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 220, 120, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='vintage-tube-radio'] .player-btn:hover,
+[data-theme='vintage-tube-radio'] .player-btn-primary:hover {
+  background: radial-gradient(circle at 38% 32%, #e8bc55 0%, #c09a65 45%, #8a6e38 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 230, 140, 0.65),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ── Regular buttons: bakelite style ── */
+[data-theme='vintage-tube-radio'] .btn {
+  background: linear-gradient(180deg, #4E342E 0%, #3E2723 100%);
+  color: #FFECB3;
+  border: 1px solid #B08D57;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 150, 0.10),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='vintage-tube-radio'] .btn:hover {
+  background: linear-gradient(180deg, #5D4037 0%, #4E342E 100%);
+}
+
+[data-theme='vintage-tube-radio'] .btn-primary {
+  background: linear-gradient(180deg, #FF8F00 0%, #E65100 100%);
+  color: #1E110A;
+  border: 1px solid #BF360C;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 120, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.4),
+    0 0 10px rgba(255, 111, 0, 0.30);
+}
+
+/* Active queue buttons: dark text on orange */
+[data-theme='vintage-tube-radio'] .queue-round-btn.active {
+  color: #1E110A;
+}
+
+/* Cards / panels: inset bakelite */
+[data-theme='vintage-tube-radio'] .glass,
+[data-theme='vintage-tube-radio'] .card {
+  background: rgba(78, 52, 46, 0.80);
+  border: 1px solid #B08D57;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 150, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Content header: warm band */
+[data-theme='vintage-tube-radio'] .content-header {
+  background: linear-gradient(180deg, rgba(93, 64, 55, 0.60) 0%, rgba(62, 39, 35, 0.20) 100%);
+  border-bottom: 1px solid #B08D57;
+}
+

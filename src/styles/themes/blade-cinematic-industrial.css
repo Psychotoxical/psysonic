@@ -1,0 +1,342 @@
+/* ─────────────────────────────────────────────────────────────
+   Blade — Cinematic Industrial
+   ───────────────────────────────────────────────────────────── */
+
+[data-theme='blade'] {
+  color-scheme: dark;
+
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a0a0a0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #050505;
+  --ctp-mantle: #0a0a0a;
+  --ctp-base: #121212;
+  --ctp-surface0: #1a1a1a;
+  --ctp-surface1: #252525;
+  --ctp-surface2: #333333;
+  --ctp-overlay0: #4a4a4a;
+  --ctp-overlay1: #707070;
+  --ctp-overlay2: #909090;
+  --ctp-text: #e0e0e0;
+  --ctp-subtext1: #b0b0b0;
+  --ctp-subtext0: #888888;
+  --ctp-mauve: #b30000;
+  --ctp-lavender: #ff1a1a;
+  --ctp-green: #00ff66;
+  --ctp-teal: #1abc9c;
+  --ctp-sky: #3498db;
+  --ctp-blue: #2980b9;
+  --ctp-sapphire: #1f618d;
+  --ctp-pink: #e91e63;
+  --ctp-flamingo: #f06292;
+  --ctp-rosewater: #f8bbd0;
+  --ctp-yellow: #f1c40f;
+  --ctp-peach: #e67e22;
+  --ctp-maroon: #800000;
+  --ctp-red: #ff0000;
+
+  --bg-app: #121212;
+  --bg-sidebar: #0a0a0a;
+  --bg-card: #1a1a1a;
+  --bg-hover: rgba(179, 0, 0, 0.1);
+  --bg-player: #050505;
+  --bg-glass: rgba(10, 10, 10, 0.85);
+
+  --accent: #b30000;
+  --accent-dim: rgba(179, 0, 0, 0.15);
+  --accent-glow: rgba(179, 0, 0, 0.4);
+
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-muted: #888888;
+
+  --border: #2a2a2a;
+  --border-subtle: #1a1a1a;
+
+  --positive: #00ff66;
+  --warning: #f1c40f;
+  --danger: #ff0000;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+[data-theme='blade'] .player-bar {
+  border-top: 1px solid #222;
+  background: linear-gradient(to bottom, #0a0a0a 0%, #050505 100%);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.8);
+}
+
+[data-theme='blade'] .sidebar {
+  border-right: 1px solid #1a1a1a;
+}
+
+[data-theme='blade'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(179, 0, 0, 0.2) 0%, transparent 100%);
+  color: #fff;
+}
+
+[data-theme='blade'] .nav-link.active::before {
+  box-shadow: 0 0 8px rgba(179, 0, 0, 0.5);
+}
+
+[data-theme='blade'] .player-track-name {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(179, 0, 0, 0.3);
+}
+
+[data-theme='blade'] .btn-primary {
+  background: linear-gradient(135deg, #b30000 0%, #800000 100%);
+  border: 1px solid rgba(255, 26, 26, 0.2);
+  color: #fff;
+}
+
+/* ── T-800 — Terminator 2: Judgment Day ─────────────────────── */
+/* Endoskeleton HUD red + machine data green + industrial dark   */
+[data-theme='t-800'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ff2000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Industrial dark — machine oil, scorched steel, warm black */
+  --ctp-crust: #080606;
+  --ctp-mantle: #0e0a0a;
+  --ctp-base: #140e0e;
+  --ctp-surface0: #1e1414;
+  --ctp-surface1: #281c1c;
+  --ctp-surface2: #342424;
+  --ctp-overlay0: #584040;
+  --ctp-overlay1: #806060;
+  --ctp-overlay2: #a88888;
+  --ctp-text: #e8d8c8;
+  /* CRT terminal warm white */
+  --ctp-subtext1: #c8b8a0;
+  --ctp-subtext0: #a08888;
+
+  /* T2 palette */
+  --ctp-red: #ff2000;
+  /* T-800 eye / HUD targeting red */
+  --ctp-maroon: #cc1800;
+  --ctp-flamingo: #ff4020;
+  --ctp-mauve: #ff2000;
+  --ctp-lavender: #ff5040;
+  --ctp-pink: #ff4020;
+  --ctp-rosewater: #ff8060;
+  --ctp-green: #00e040;
+  /* machine data readout green */
+  --ctp-teal: #00b830;
+  --ctp-sky: #40ff80;
+  --ctp-yellow: #f0a000;
+  /* Judgment Day fire / nuclear orange */
+  --ctp-peach: #ff6000;
+  /* napalm / explosion */
+  --ctp-blue: #2040c0;
+  /* future war laser / Skynet */
+  --ctp-sapphire: #1830a0;
+
+  --bg-app: #140e0e;
+  /* scorched industrial dark */
+  --bg-sidebar: #0e0a0a;
+  /* machine interior */
+  --bg-card: #1e1414;
+  --bg-hover: rgba(255, 32, 0, 0.08);
+  --bg-player: #080606;
+  /* endoskeleton chassis */
+  --bg-glass: rgba(14, 10, 10, 0.96);
+
+  --accent: #ff2000;
+  /* T-800 eye red */
+  --accent-dim: rgba(255, 32, 0, 0.12);
+  --accent-glow: rgba(255, 32, 0, 0.5);
+  --volume-accent: #00e040;
+  /* data-green for volume */
+
+  --text-primary: #e8d8c8;
+  /* warm terminal white */
+  --text-secondary: #00e040;
+  /* machine data green */
+  --text-muted: #584040;
+  --border: #2a1a1a;
+  --border-subtle: #1e1414;
+  --shadow-dropdown: rgba(0, 0, 0, 0.9);
+
+  --positive: #00e040;
+  --warning: #f0a000;
+  --danger: #ff2000;
+
+  --radius-sm: 0px;
+  --radius-md: 1px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+}
+
+/* Sidebar = endoskeleton interior: scan-line texture + red glow */
+[data-theme='t-800'] .sidebar {
+  border-right: 2px solid #ff2000;
+  box-shadow: 2px 0 16px rgba(255, 32, 0, 0.1);
+  background-image: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 3px,
+      rgba(255, 32, 0, 0.025) 3px,
+      rgba(255, 32, 0, 0.025) 4px);
+}
+
+/* Player bar = HUD targeting display */
+[data-theme='t-800'] .player-bar {
+  border-top: 2px solid #ff2000;
+  box-shadow:
+    0 -1px 0 rgba(0, 224, 64, 0.2),
+    0 -8px 28px rgba(255, 32, 0, 0.1);
+}
+
+/* Track name = TARGET ACQUIRED — red HUD uppercase */
+[data-theme='t-800'] .player-track-name {
+  color: #ff2000;
+  text-shadow: 0 0 10px rgba(255, 32, 0, 0.75), 0 0 28px rgba(255, 32, 0, 0.3);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* Artist = machine data readout green */
+[data-theme='t-800'] .player-track-artist {
+  color: #00e040;
+}
+
+/* Queue album = Judgment Day orange */
+[data-theme='t-800'] .queue-meta-album {
+  color: #f0a000;
+}
+
+/* Active nav: red HUD left bar */
+[data-theme='t-800'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(255, 32, 0, 0.15) 0%, transparent 100%);
+  color: #ff2000;
+}
+
+[data-theme='t-800'] .nav-link.active::before {
+  width: 3px;
+  box-shadow: 2px 0 12px rgba(255, 32, 0, 0.65);
+}
+
+/* Buttons: dark steel with red */
+[data-theme='t-800'] .btn-primary {
+  background: #ff2000;
+  color: #080606;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border: none;
+  border-radius: 1px;
+}
+
+[data-theme='t-800'] .btn-primary:hover {
+  background: #ff4020;
+  box-shadow: 0 0 18px rgba(255, 32, 0, 0.5);
+}
+
+/* Play button = T-800 eye glow */
+[data-theme='t-800'] .player-btn-primary {
+  background: #ff2000;
+  box-shadow: 0 0 16px rgba(255, 32, 0, 0.5);
+  color: #080606;
+}
+
+[data-theme='t-800'] .player-btn-primary:hover {
+  box-shadow: 0 0 26px rgba(255, 32, 0, 0.7);
+}
+
+/* Queue active = targeting lock — red left bar */
+[data-theme='t-800'] .queue-item.active {
+  background: rgba(255, 32, 0, 0.08);
+  box-shadow: inset 3px 0 0 #ff2000;
+}
+
+[data-theme='t-800'] .np-queue-item.active {
+  background: rgba(255, 32, 0, 0.07);
+}
+
+[data-theme='t-800'] .np-queue-item-active {
+  color: #ff2000;
+  text-shadow: 0 0 8px rgba(255, 32, 0, 0.6);
+}
+
+/* Now-playing active track = data green */
+[data-theme='t-800'] .np-album-track.active .np-album-track-title,
+[data-theme='t-800'] .np-album-track.active .np-album-track-num {
+  color: #00e040;
+  text-shadow: 0 0 8px rgba(0, 224, 64, 0.5);
+}
+
+/* Hover rows */
+[data-theme='t-800'] .track-row:hover,
+[data-theme='t-800'] .track-row.context-active {
+  background: rgba(255, 32, 0, 0.07) !important;
+  box-shadow: inset 3px 0 0 #ff2000;
+}
+
+[data-theme='t-800'] .queue-item:hover,
+[data-theme='t-800'] .queue-item.context-active {
+  background: rgba(255, 32, 0, 0.07) !important;
+  box-shadow: inset 3px 0 0 #ff2000;
+}
+
+[data-theme='t-800'] .np-queue-item:hover,
+[data-theme='t-800'] .np-queue-item.context-active {
+  background: rgba(255, 32, 0, 0.07);
+  box-shadow: inset 2px 0 0 #ff2000;
+}
+
+[data-theme='t-800'] .artist-row:hover {
+  background: rgba(255, 32, 0, 0.06);
+  box-shadow: inset 3px 0 0 #ff2000;
+}
+
+[data-theme='t-800'] .playlist-row:hover {
+  background: rgba(255, 32, 0, 0.06);
+  box-shadow: inset 3px 0 0 #ff2000;
+}
+
+/* Settings tabs: data-green active = SYSTEM ONLINE */
+[data-theme='t-800'] .settings-tab:hover {
+  background: rgba(255, 32, 0, 0.07);
+  color: #ff2000;
+}
+
+[data-theme='t-800'] .settings-tab.active {
+  background: rgba(0, 224, 64, 0.07);
+  color: #00e040;
+  box-shadow: inset 3px 0 0 #00e040;
+}
+
+/* Queue tabs */
+[data-theme='t-800'] .queue-tab-btn:hover {
+  background: rgba(255, 32, 0, 0.07);
+  color: #ff2000;
+}
+
+/* Dropdowns */
+[data-theme='t-800'] .custom-select-trigger:hover {
+  background: rgba(255, 32, 0, 0.07);
+}
+
+[data-theme='t-800'] .custom-select-option:hover {
+  background: rgba(255, 32, 0, 0.1) !important;
+  color: #ff2000 !important;
+}
+
+/* Artist pills = Skynet blue */
+[data-theme='t-800'] .artist-ext-link:hover {
+  background: rgba(32, 64, 192, 0.15);
+  color: #4060e0 !important;
+  border-color: rgba(32, 64, 192, 0.4) !important;
+}
+
+/* Connection indicators */
+[data-theme='t-800'] .connection-type,
+[data-theme='t-800'] .connection-server {
+  color: #00e040;
+}
+

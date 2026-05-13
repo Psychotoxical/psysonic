@@ -1,0 +1,476 @@
+/* ─── W98 ─── */
+[data-theme='w98'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Authentische W98 Palette ──
+     Contrast audit:
+       text-primary  on bg-card   13.84:1 AAA ✓
+       text-primary  on bg-app    4.42:1  AA  ✓ (album-detail page lives here)
+       positive      on bg-card    5.24:1 AA  ✓ (deepened from #008000 at 2.62:1 ❌)
+       warning       on bg-card    5.61:1 AA  ✓ (deep amber, was #808000 at 2.61:1 ❌)
+       danger        on bg-card    4.61:1 AA  ✓ (deepened from #ff0000 at 2.62:1 ❌)
+       accent (navy) on bg-card    9.97:1 AAA ✓
+     Border-subtle was #d4d0c8 (1.0:1, invisible) → #a0a0a0.
+     The brand --ctp-* palette is preserved verbatim as the canonical W98
+     system colour set; only the semantic tokens are lifted.
+     text-secondary/muted are intentionally kept at #000000: pages such as
+     AlbumDetail render text on bg-app teal (#008080) where any lift below
+     pure black drops below AA. W98 historically used bold/italic, not
+     colour value, for text hierarchy.
+  */
+  --ctp-crust: #808080;
+  --ctp-mantle: #a0a0a0;
+  --ctp-base: #d4d0c8;
+  /* Echtes W98 Button Face */
+  --ctp-surface0: #ffffff;
+  --ctp-surface1: #ececec;
+  --ctp-surface2: #d4d0c8;
+  --ctp-overlay0: #808080;
+  --ctp-overlay1: #404040;
+  --ctp-overlay2: #000000;
+  --ctp-text: #000000;
+  --ctp-subtext1: #000000;
+  --ctp-subtext0: #404040;
+
+  --ctp-mauve: #000080;
+  --ctp-lavender: #0000cc;
+  --ctp-green: #008000;
+  --ctp-teal: #008080;
+  --ctp-sky: #0000ff;
+  --ctp-blue: #0000ff;
+  --ctp-sapphire: #000080;
+  --ctp-pink: #ff00ff;
+  --ctp-flamingo: #ff00ff;
+  --ctp-rosewater: #d4d0c8;
+  --ctp-yellow: #808000;
+  --ctp-peach: #ff8000;
+  --ctp-maroon: #800000;
+  --ctp-red: #ff0000;
+
+  --bg-app: #008080;
+  /* Teal Desktop */
+  --bg-sidebar: #d4d0c8;
+  --bg-card: #d4d0c8;
+  --bg-hover: #000080;
+  --bg-player: #d4d0c8;
+  --bg-glass: rgba(212, 208, 200, 0.95);
+
+  --accent: #000080;
+  --accent-dim: rgba(0, 0, 128, 0.12);
+  --accent-glow: transparent;
+  --volume-accent: #000080;
+
+  --text-primary: #000000;
+  --text-secondary: #000000;       /* W98 uses bold/italic for hierarchy, not lighter colour —
+                                      lifting fails on bg-app teal (#008080) where any non-black
+                                      tone drops below AA (e.g. #404040 = 2.09:1). */
+  --text-muted: #000000;
+
+  --border: #808080;
+  --border-subtle: #a0a0a0;        /* 1.73:1 perceptible, was #d4d0c8 (1.0:1 invisible) */
+  --border-dropdown: #000000;
+  --shadow-dropdown: rgba(0, 0, 0, 0.4);
+
+  --positive: #005000;             /* 5.24:1 AA ✓, deepened from #008000 (2.62:1 ❌) */
+  --warning: #5a4500;              /* 5.61:1 AA ✓, deep amber, was #808000 (2.61:1 ❌) */
+  --danger: #b00000;               /* 4.61:1 AA ✓, deepened from #ff0000 (2.62:1 ❌) */
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-full: 0px;
+}
+
+/* Teal Desktop (nur der äußere Shell-Rahmen) */
+[data-theme='w98'] .app-shell {
+  background-color: #008080;
+}
+
+/* Column resize grip — default --ctp-surface1 (#ececec) on bg-card (#d4d0c8)
+   is 1.23:1 (invisible). Use the W98 dialog border grey for a chunky 2 px
+   grip that matches the rest of the W98 furniture. */
+[data-theme='w98'] .col-resize-handle::after {
+  background: #808080;
+  width: 2px;
+}
+
+
+/* ── 3D Bevel: Raised ── */
+[data-theme='w98'] .sidebar,
+[data-theme='w98'] .player-bar,
+[data-theme='w98'] .card {
+  background: #d4d0c8;
+  border: 1px solid #000000;
+  box-shadow:
+    inset 1px 1px #ffffff,
+    inset -1px -1px #808080,
+    inset 2px 2px #dfdfdf,
+    inset -2px -2px #404040;
+}
+
+[data-theme='w98'] .sidebar {
+  border-right: 2px solid #000000;
+}
+
+/* Player Bar Titelbalken: ikonischer W98 Gradient für den Song-Titel */
+[data-theme='w98'] .player-track-name {
+  background: linear-gradient(to right, #09246d, #a6c4e8);
+  color: #ffffff !important;
+  padding: 1px 6px;
+  font-weight: bold;
+}
+
+[data-theme='w98'] .player-track-artist,
+[data-theme='w98'] .player-time {
+  color: #000000 !important;
+}
+
+/* Nav */
+[data-theme='w98'] .nav-link.active {
+  background: #000080 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='w98'] .nav-link.active svg {
+  color: #ffffff !important;
+}
+
+[data-theme='w98'] .nav-link:hover:not(.active) {
+  background: #000080 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='w98'] .nav-link:hover:not(.active) svg {
+  color: #ffffff !important;
+}
+
+/* Alle Buttons: 3D Raised Bevel */
+[data-theme='w98'] .btn,
+[data-theme='w98'] .btn-primary,
+[data-theme='w98'] .btn-surface,
+[data-theme='w98'] .btn-ghost,
+[data-theme='w98'] .hero-play-btn,
+[data-theme='w98'] .queue-round-btn,
+[data-theme='w98'] .player-btn,
+[data-theme='w98'] .album-card-details-btn {
+  background: #d4d0c8 !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
+  border-radius: 0 !important;
+  box-shadow:
+    inset 1px 1px #ffffff,
+    inset -1px -1px #808080,
+    inset 2px 2px #dfdfdf,
+    inset -2px -2px #404040 !important;
+  text-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+/* Gedrückt: Bevel umkehren */
+[data-theme='w98'] .btn:active,
+[data-theme='w98'] .btn-primary:active,
+[data-theme='w98'] .btn-surface:active,
+[data-theme='w98'] .btn-ghost:active,
+[data-theme='w98'] .hero-play-btn:active,
+[data-theme='w98'] .queue-round-btn:active,
+[data-theme='w98'] .player-btn:active,
+[data-theme='w98'] .album-card-details-btn:active {
+  box-shadow:
+    inset 1px 1px #808080,
+    inset -1px -1px #ffffff,
+    inset 2px 2px #404040,
+    inset -2px -2px #dfdfdf !important;
+}
+
+/* Hover: heller */
+[data-theme='w98'] .btn:hover,
+[data-theme='w98'] .btn-primary:hover,
+[data-theme='w98'] .btn-surface:hover,
+[data-theme='w98'] .btn-ghost:hover,
+[data-theme='w98'] .hero-play-btn:hover,
+[data-theme='w98'] .album-card-details-btn:hover {
+  background: #e4e0d8 !important;
+  color: #000000 !important;
+}
+
+/* Aktive Queue-Buttons: navy, sunken */
+[data-theme='w98'] .queue-round-btn.active {
+  background: #000080 !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 1px 1px #808080,
+    inset -1px -1px #ffffff,
+    inset 2px 2px #404040,
+    inset -2px -2px #dfdfdf !important;
+}
+
+[data-theme='w98'] .queue-round-btn:hover:not(:disabled):not(.active) {
+  background: #e4e0d8 !important;
+  color: #000000 !important;
+}
+
+/* Progress Bar: eingesunkene Rille, navy Fill */
+[data-theme='w98'] .progress-bar-track {
+  background: #ffffff;
+  box-shadow: inset 1px 1px #808080, inset -1px -1px #ffffff;
+  border-radius: 0;
+}
+
+[data-theme='w98'] .progress-bar-fill {
+  background: #000080;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Scrollbar */
+[data-theme='w98'] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+[data-theme='w98'] ::-webkit-scrollbar-track {
+  background: #d4d0c8;
+}
+
+[data-theme='w98'] ::-webkit-scrollbar-thumb {
+  background: #d4d0c8;
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080;
+}
+
+[data-theme='w98'] ::-webkit-scrollbar-button {
+  background: #d4d0c8;
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080;
+}
+
+/* Queue Tab */
+[data-theme='w98'] .queue-tab-btn:hover {
+  background: #e4e0d8;
+  color: #000000;
+}
+
+/* Hero */
+[data-theme='w98'] .hero-eyebrow {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme='w98'] .hero-meta .badge {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Settings */
+[data-theme='w98'] .settings-tab:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .theme-accordion-header:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .theme-accordion-open .theme-accordion-header {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .theme-accordion-open .theme-accordion-chevron {
+  color: #ffffff;
+}
+
+/* Dropdowns */
+[data-theme='w98'] .custom-select-trigger:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .custom-select-option:hover {
+  background: #000080 !important;
+  color: #ffffff !important;
+}
+
+/* Various hovers → navy + white */
+[data-theme='w98'] .artist-ext-link:hover {
+  background: #000080;
+  color: #ffffff !important;
+}
+
+[data-theme='w98'] .changelog-summary:hover {
+  color: #000080;
+}
+
+[data-theme='w98'] .changelog-code {
+  background: #ffffff;
+  color: #000080;
+  border: 1px solid #808080;
+}
+
+[data-theme='w98'] .keybind-badge {
+  background: #d4d0c8 !important;
+  color: #000000 !important;
+  border: 1px solid #808080 !important;
+}
+
+[data-theme='w98'] .eq-ctrl-btn {
+  background: #d4d0c8;
+  color: #000000;
+  border: 1px solid #808080;
+  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080;
+}
+
+[data-theme='w98'] .eq-ctrl-btn:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .genre-keyword-badge {
+  background: #d4d0c8 !important;
+  color: #000000 !important;
+  border: 1px solid #808080 !important;
+}
+
+[data-theme='w98'] .toggle-track::before {
+  background: #d4d0c8;
+  border: 1px solid #808080;
+}
+
+[data-theme='w98'] .np-title {
+  color: #000080 !important;
+}
+
+[data-theme='w98'] .np-action-btn:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .np-queue-item:hover,
+[data-theme='w98'] .np-queue-item.context-active {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .track-row:hover,
+[data-theme='w98'] .track-row.context-active {
+  background: #000080 !important;
+}
+
+[data-theme='w98'] .track-row:hover *,
+[data-theme='w98'] .track-row.context-active * {
+  color: #ffffff !important;
+}
+
+[data-theme='w98'] .artist-row:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .year-toggle:hover {
+  color: #000080;
+}
+
+[data-theme='w98'] .playlist-row:hover {
+  background: #000080;
+}
+
+[data-theme='w98'] .playlist-row:hover,
+[data-theme='w98'] .playlist-row:hover * {
+  color: #ffffff;
+}
+
+[data-theme='w98'] .help-question:hover {
+  color: #000080;
+}
+
+[data-theme='w98'] .help-item-open .help-question {
+  color: #000080;
+  font-weight: bold;
+}
+
+[data-theme='w98'] .help-item-open .help-chevron {
+  color: #000080;
+}
+
+[data-theme='w98'] .queue-item:hover,
+[data-theme='w98'] .queue-item.context-active {
+  background: #000080 !important;
+}
+
+[data-theme='w98'] .queue-item:hover .queue-item-title,
+[data-theme='w98'] .queue-item:hover .queue-item-artist,
+[data-theme='w98'] .queue-item:hover .queue-item-duration,
+[data-theme='w98'] .queue-item.context-active .queue-item-title,
+[data-theme='w98'] .queue-item.context-active .queue-item-artist,
+[data-theme='w98'] .queue-item.context-active .queue-item-duration {
+  color: #ffffff;
+}
+
+[data-theme='w98'] .player-btn:hover {
+  background: #000080;
+  color: #ffffff;
+}
+
+[data-theme='w98'] .player-btn-primary {
+  background: #d4d0c8 !important;
+  color: #000000 !important;
+}
+
+[data-theme='w98'] .player-btn-primary:hover {
+  background: #000080 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='w98'] .search-result-item:hover,
+[data-theme='w98'] .search-result-item.active {
+  background: #000080;
+}
+
+[data-theme='w98'] .search-result-item:hover .search-result-name,
+[data-theme='w98'] .search-result-item:hover .search-result-sub,
+[data-theme='w98'] .search-result-item.active .search-result-name,
+[data-theme='w98'] .search-result-item.active .search-result-sub {
+  color: #ffffff;
+}
+
+[data-theme='w98'] .collapse-btn {
+  border-color: #808080 !important;
+}
+
+[data-theme='w98'] .collapse-btn:hover {
+  background: #000080 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='w98'] .album-row-nav .nav-btn:hover:not(.disabled) {
+  background: #000080;
+  color: #ffffff;
+}
+
+/* Live-Dropdown: kein backdrop-blur (saugt teal durch), solider W98-Hintergrund */
+[data-theme='w98'] .glass {
+  background: #d4d0c8 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080, 2px 2px 4px rgba(0, 0, 0, 0.3);
+  color: #000000;
+}
+
+/* Stream-Einträge: --bg-hover ist navy → Override auf W98-Grau mit Bevel */
+[data-theme='w98'] .glass [style*="var(--bg-hover)"] {
+  background: #ece8e0 !important;
+  border: 1px solid #808080;
+  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080;
+  border-radius: 0 !important;
+}
+
+/* Inline-color-Overrides für Text in Stream-Einträgen */
+[data-theme='w98'] .glass [style*="var(--text-primary)"],
+[data-theme='w98'] .glass [style*="var(--text-secondary)"],
+[data-theme='w98'] .glass [style*="var(--text-muted)"] {
+  color: #000000 !important;
+}
+

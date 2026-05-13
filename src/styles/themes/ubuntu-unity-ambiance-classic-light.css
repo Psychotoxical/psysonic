@@ -1,0 +1,77 @@
+/* ─── Ubuntu — Unity Ambiance (Classic Light) ─── */
+/* Warm human desktop: aubergine launcher + orange accent + warm off-white content */
+[data-theme='ubuntu-ambiance'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%237d6e68%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — warm human spectrum ── */
+  --ctp-crust: #1a000f;
+  /* panel blackout aubergine */
+  --ctp-mantle: #2c001e;
+  /* Ubuntu top/bottom panel */
+  --ctp-base: #f4efea;
+  /* Ambiance window warm off-white */
+  --ctp-surface0: #ede8e2;
+  --ctp-surface1: #e4dfd8;
+  --ctp-surface2: #d8d0c8;
+  --ctp-overlay0: #c0b0a0;
+  --ctp-overlay1: #a89080;
+  --ctp-overlay2: #907870;
+  --ctp-text: #3d2b2b;
+  /* warm dark brown — human, not pure black */
+  --ctp-subtext1: #5d4e48;
+  --ctp-subtext0: #7d6e68;
+  /* Ubuntu color spectrum */
+  --ctp-mauve: #e95420;
+  /* Ubuntu Orange — the soul of Ubuntu */
+  --ctp-lavender: #f06030;
+  --ctp-sky: #f07050;
+  --ctp-peach: #e95420;
+  --ctp-teal: #06989a;
+  --ctp-blue: #3465a4;
+  --ctp-sapphire: #204a87;
+  --ctp-green: #4e9a06;
+  /* Ubuntu success green */
+  --ctp-yellow: #c4a000;
+  --ctp-pink: #cc1e4a;
+  --ctp-flamingo: #a52828;
+  --ctp-maroon: #800000;
+  --ctp-red: #cc0000;
+  --ctp-rosewater: #cc4444;
+
+  /* ── Semantic tokens ──
+     Contrast audit (vs. --bg-app #f4efea, L≈0.868):
+       text-primary   11.7:1 AAA ✓
+       text-secondary  7.0:1 AAA ✓
+       text-muted      5.4:1 AA  ✓ (raised from 4.4:1 — was below AA)
+       positive        4.7:1 AA  ✓ (raised from 3.1:1)
+       warning         5.4:1 AA  ✓ (raised from 2.2:1 — was below all thresholds)
+       danger          5.2:1 AA  ✓
+       accent (orange) 3.2:1 UI  ✓ (Ubuntu brand, text-on-orange needs dark fg)
+  */
+  --bg-app: #f4efea;
+  /* warm Ambiance window */
+  --bg-sidebar: #3d1f3d;
+  /* Unity Launcher — dark aubergine */
+  --bg-card: #ede8e2;
+  --bg-hover: #e4ddd5;
+  --bg-player: #2c001e;
+  /* Ubuntu panel — blackest aubergine */
+  --bg-glass: rgba(244, 239, 234, 0.94);
+  --accent: #e95420;
+  /* Ubuntu Orange — brand identity, 3.2:1 UI-pass (prefer dark fg on orange) */
+  --accent-dim: rgba(233, 84, 32, 0.12);
+  --accent-glow: rgba(233, 84, 32, 0.30);
+  --text-primary: #3d2b2b;
+  --text-secondary: #5d4e48;
+  --text-muted: #6a5a53;     /* 5.4:1 AA ✓, was #7d6e68 at 4.4:1 (below AA) */
+  --border: #a89080;         /* 2.5:1, consistent with Ubuntu Warm Grey */
+  --border-subtle: #c8bbac;  /* ~1.7:1 structural but perceptible */
+  --positive: #2e7a00;       /* 4.7:1 AA ✓, darkened from #4e9a06 (3.1:1) */
+  --warning: #855900;        /* 5.4:1 AA ✓, warm amber matching palette, was #c4a000 (2.2:1) */
+  --danger: #cc0000;         /* 5.2:1 AA ✓ */
+  --waveform-played:   #e95420;
+  --waveform-buffered: #a89080;
+  --waveform-unplayed: #d8d0c8;
+}
+

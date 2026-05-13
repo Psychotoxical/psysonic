@@ -1,0 +1,81 @@
+/* ─── D'oh-matic ─── */
+[data-theme='doh-matic'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #FFD90F;
+  --ctp-mantle: #BAE1FF;
+  --ctp-base: #FFFDF0;
+  --ctp-surface0: #F0F8FF;
+  --ctp-surface1: #E0EFFF;
+  --ctp-surface2: #D0E5FF;
+  --ctp-overlay0: #999999;
+  --ctp-overlay1: #777777;
+  --ctp-overlay2: #555555;
+  --ctp-text: #222222;
+  --ctp-subtext1: #444444;
+  --ctp-subtext0: #666666;
+  --ctp-mauve: #1F75FE;
+  --ctp-lavender: #4D91FF;
+  --ctp-pink: #F14E96;
+  --ctp-flamingo: #F14E96;
+  --ctp-rosewater: #FFD90F;
+  --ctp-green: #4AC948;
+  --ctp-teal: #00BFAF;
+  --ctp-sky: #4D91FF;
+  --ctp-blue: #1F75FE;
+  --ctp-sapphire: #1F75FE;
+  --ctp-yellow: #FFD90F;
+  --ctp-peach: #F26522;
+  --ctp-maroon: #CC0000;
+  --ctp-red: #ED1C24;
+
+  --bg-app: #FFFDF0;
+  --bg-sidebar: #BAE1FF;
+  --bg-card: #FFFFFF;
+  --bg-hover: rgba(31, 117, 254, 0.1);
+  --bg-player: #FFD90F;
+  --bg-glass: rgba(255, 253, 240, 0.8);
+  --accent: #1F75FE;
+  --accent-dim: rgba(31, 117, 254, 0.15);
+  --accent-glow: rgba(31, 117, 254, 0.3);
+  --text-primary: #222222;
+  --text-secondary: #444444;
+  --text-muted: #555555;
+  --border: #222222;
+  --border-subtle: rgba(0, 0, 0, 0.1);
+  --border-dropdown: #cccccc;
+  --shadow-dropdown: rgba(0, 0, 0, 0.15);
+  --positive: #4AC948;
+  --warning: #F26522;
+  --danger: #ED1C24;
+  --radius-md: 12px;
+}
+
+[data-theme='doh-matic'] .sidebar {
+  border-right: 2px solid #222222;
+}
+
+[data-theme='doh-matic'] .player-bar {
+  border-top: 3px solid #222222;
+}
+
+[data-theme='doh-matic'] .player-track-name,
+[data-theme='doh-matic'] .player-track-artist,
+[data-theme='doh-matic'] .player-time {
+  color: #222222 !important;
+}
+
+[data-theme='doh-matic'] .player-btn {
+  color: #222222;
+}
+
+[data-theme='doh-matic'] .btn-primary:hover {
+  background-color: var(--ctp-pink);
+  border-color: #222222;
+}
+
+[data-theme='doh-matic'] .btn-surface:hover {
+  background: #D0E5FF;
+}
+

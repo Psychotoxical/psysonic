@@ -1,0 +1,53 @@
+/* ─── Duskfox ─── */
+[data-theme='duskfox'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23e0def4%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #191726;
+  --ctp-mantle: #191726;
+  --ctp-base: #232136;
+  --ctp-surface0: #2d2a45;
+  --ctp-surface1: #373354;
+  --ctp-surface2: #4b4673;
+  --ctp-overlay0: #817c9c;
+  --ctp-overlay1: #6e6a86;
+  --ctp-overlay2: #cdcbe0;
+  --ctp-text: #e0def4;
+  --ctp-subtext1: #cdcbe0;
+  --ctp-subtext0: #817c9c;
+  --ctp-mauve: #c4a7e7;
+  --ctp-lavender: #c4a7e7;
+  --ctp-pink: #eb98c3;
+  --ctp-flamingo: #eb6f92;
+  --ctp-rosewater: #ea9a97;
+  --ctp-blue: #569fba;
+  --ctp-sapphire: #569fba;
+  --ctp-sky: #9ccfd8;
+  --ctp-teal: #9ccfd8;
+  --ctp-green: #a3be8c;
+  --ctp-yellow: #f6c177;
+  --ctp-peach: #ea9a97;
+  --ctp-maroon: #eb6f92;
+  --ctp-red: #eb6f92;
+
+  --bg-app: #232136;
+  --bg-sidebar: #191726;
+  --bg-card: #2d2a45;
+  --bg-hover: #373354;
+  --bg-player: #191726;
+  --bg-glass: rgba(35, 33, 54, 0.75);
+  --accent: #c4a7e7;
+  --accent-dim: rgba(196, 167, 231, 0.15);
+  --accent-glow: rgba(196, 167, 231, 0.3);
+  --text-primary: #e0def4;
+  --text-secondary: #cdcbe0;
+  --text-muted: #817c9c;
+  --border: #373354;
+  --border-subtle: #2d2a45;
+  --border-dropdown: #4b4673;
+  --shadow-dropdown: rgba(0, 0, 0, 0.6);
+  --positive: #a3be8c;
+  --warning: #f6c177;
+  --danger: #eb6f92;
+}
+

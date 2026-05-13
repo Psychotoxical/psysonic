@@ -1,0 +1,39 @@
+/* ─── Input ─── */
+.input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--ctp-base);
+  border: 1px solid var(--ctp-overlay0);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+select.input.input:focus {
+  background-image: var(--select-arrow);
+  /* Keep arrow on focus */
+}
+

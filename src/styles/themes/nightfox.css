@@ -1,0 +1,53 @@
+/* ─── Nightfox ─── */
+[data-theme='nightfox'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23cdcecf%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #131a24;
+  --ctp-mantle: #131a24;
+  --ctp-base: #192330;
+  --ctp-surface0: #212e3f;
+  --ctp-surface1: #29394f;
+  --ctp-surface2: #39506d;
+  --ctp-overlay0: #71839b;
+  --ctp-overlay1: #71839b;
+  --ctp-overlay2: #aeafb0;
+  --ctp-text: #cdcecf;
+  --ctp-subtext1: #aeafb0;
+  --ctp-subtext0: #71839b;
+  --ctp-mauve: #9d79d6;
+  --ctp-lavender: #719cd6;
+  --ctp-pink: #d67ad2;
+  --ctp-flamingo: #d67ad2;
+  --ctp-rosewater: #d67ad2;
+  --ctp-blue: #719cd6;
+  --ctp-sapphire: #9d79d6;
+  --ctp-sky: #63cdcf;
+  --ctp-teal: #63cdcf;
+  --ctp-green: #81b29a;
+  --ctp-yellow: #dbc074;
+  --ctp-peach: #f4a261;
+  --ctp-maroon: #c94f6d;
+  --ctp-red: #c94f6d;
+
+  --bg-app: #192330;
+  --bg-sidebar: #131a24;
+  --bg-card: #212e3f;
+  --bg-hover: #29394f;
+  --bg-player: #131a24;
+  --bg-glass: rgba(25, 35, 48, 0.75);
+  --accent: #719cd6;
+  --accent-dim: rgba(113, 156, 214, 0.15);
+  --accent-glow: rgba(113, 156, 214, 0.3);
+  --text-primary: #cdcecf;
+  --text-secondary: #aeafb0;
+  --text-muted: #738091;
+  --border: #29394f;
+  --border-subtle: #212e3f;
+  --border-dropdown: #39506d;
+  --shadow-dropdown: rgba(0, 0, 0, 0.6);
+  --positive: #81b29a;
+  --warning: #dbc074;
+  --danger: #c94f6d;
+}
+

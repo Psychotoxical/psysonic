@@ -1,0 +1,1079 @@
+/* ─── Dune — Arrakis ─── */
+[data-theme='dune'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c8780a%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — two-temperature Arrakis ── */
+  /* Warm: spice / sand / desert sun */
+  --ctp-crust: #0a0804;
+  --ctp-mantle: #120e06;
+  --ctp-base: #1c1408;
+  --ctp-surface0: #2e1e0a;
+  --ctp-surface1: #3e2a0e;
+  --ctp-surface2: #503614;
+  /* Cool: sietch / rock shadow / Fremen darkness */
+  --ctp-overlay0: #2a2440;
+  --ctp-overlay1: #4a4268;
+  --ctp-overlay2: #6a6090;
+  /* Text: aged parchment, scrolls of the Bene Gesserit */
+  --ctp-text: #f0deb0;
+  --ctp-subtext1: #d8c090;
+  --ctp-subtext0: #b09060;
+  /* Accent palette */
+  --ctp-mauve: #c8780a;
+  /* spice melange — cinnamon rust */
+  --ctp-lavender: #e8a020;
+  /* spice shimmer — bright amber */
+  --ctp-yellow: #f5cc50;
+  /* spice flare */
+  --ctp-peach: #aa5a08;
+  /* deep spice shadow */
+  --ctp-green: #7a8c40;
+  /* Caladan seagrass (far memory) */
+  --ctp-teal: #1a80c0;
+  /* Fremen eye blue — spice prescience */
+  --ctp-sky: #2090d0;
+  /* Guild Navigator blue */
+  --ctp-blue: #1468a8;
+  /* sietch pool depth */
+  --ctp-sapphire: #0e4a80;
+  /* deep cave water */
+  --ctp-pink: #c84060;
+  --ctp-flamingo: #e06080;
+  --ctp-rosewater: #f0c0a0;
+  --ctp-red: #cc2800;
+  --ctp-maroon: #8c1c00;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #1c1408;
+  --bg-sidebar: #0e0c1a;
+  /* sietch interior — cool rock */
+  --bg-card: #2e1e0a;
+  --bg-hover: rgba(200, 120, 10, 0.14);
+  --bg-player: #0e0a04;
+  --bg-glass: rgba(10, 8, 4, 0.96);
+  --accent: #c8780a;
+  --accent-dim: rgba(200, 120, 10, 0.12);
+  --accent-glow: rgba(200, 120, 10, 0.40);
+  --volume-accent: #c8780a;
+  --text-primary: #f0deb0;
+  --text-secondary: #d8c090;
+  --text-muted: #a89870;
+  --border: rgba(200, 120, 10, 0.22);
+  --border-subtle: rgba(200, 120, 10, 0.10);
+  --positive: #7a8c40;
+  --warning: #f5cc50;
+  --danger: #cc2800;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+/* ── App shell: Arrakis desert horizon at dusk ── */
+/* Sky (cool/dark at top) fading into burning sand (warm at bottom) */
+[data-theme='dune'] .app-shell {
+  background: linear-gradient(180deg,
+      #12101c 0%,
+      #1a1408 30%,
+      #201608 60%,
+      #281e0a 100%);
+}
+
+/* ── Sidebar: sietch interior — cold carved rock ── */
+/* The Fremen lived in caves cut from rock — cool, dark, shadows of blue and purple */
+[data-theme='dune'] .sidebar {
+  background: linear-gradient(180deg, #141228 0%, #0e0c1c 40%, #0c0a16 100%);
+  border-right: 1px solid rgba(200, 120, 10, 0.22);
+  box-shadow:
+    inset -3px 0 10px rgba(200, 100, 8, 0.07),
+    2px 0 8px rgba(0, 0, 0, 0.50);
+}
+
+/* Nav text: parchment on cool rock */
+[data-theme='dune'] .nav-link {
+  color: #b09060;
+}
+
+[data-theme='dune'] .nav-link:hover {
+  background: rgba(200, 120, 10, 0.10);
+  color: #d8c090;
+}
+
+[data-theme='dune'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(200, 120, 10, 0.20) 0%, transparent 100%);
+  color: #e8a020;
+  border-left: 2px solid #c8780a;
+  box-shadow: inset 4px 0 14px rgba(200, 120, 10, 0.10);
+}
+
+[data-theme='dune'] .nav-link.active::before {
+  background: #c8780a;
+  box-shadow: 0 0 10px rgba(200, 120, 10, 0.70);
+}
+
+[data-theme='dune'] .nav-link.active svg {
+  color: #c8780a;
+}
+
+[data-theme='dune'] .nav-section-label {
+  color: #4a4268;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.70em;
+}
+
+/* ── Player bar: spice harvester console — deep amber warmth ── */
+[data-theme='dune'] .player-bar {
+  background: linear-gradient(180deg, #140e04 0%, #0a0802 100%);
+  border-top: 2px solid rgba(200, 120, 10, 0.50);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 180, 40, 0.16),
+    0 -8px 40px rgba(180, 100, 8, 0.16),
+    0 -2px 80px rgba(20, 100, 160, 0.04);
+}
+
+/* Track name: the spice calls — amber prophetic glow */
+[data-theme='dune'] .player-track-name {
+  color: #e8a020;
+  text-shadow:
+    0 0 8px rgba(232, 160, 32, 0.75),
+    0 0 20px rgba(200, 120, 10, 0.40),
+    0 0 40px rgba(200, 120, 10, 0.15);
+  letter-spacing: 0.04em;
+}
+
+/* Artist: deeper spice cinnamon */
+[data-theme='dune'] .player-track-artist {
+  color: #aa7030;
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(170, 112, 48, 0.45);
+}
+
+[data-theme='dune'] .player-time {
+  color: #7a5020;
+}
+
+/* ── Transport buttons: Fremen tech — minimal, earth-worn ── */
+[data-theme='dune'] .player-btn,
+[data-theme='dune'] .player-btn-primary {
+  background: linear-gradient(180deg, #2e1e0a 0%, #1e1406 100%);
+  color: #c8780a;
+  border: 1px solid rgba(200, 120, 10, 0.38);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 0 rgba(240, 180, 40, 0.08), 0 2px 6px rgba(0, 0, 0, 0.50);
+}
+
+[data-theme='dune'] .player-btn:hover,
+[data-theme='dune'] .player-btn-primary:hover {
+  background: rgba(200, 120, 10, 0.14);
+  border-color: #c8780a;
+  color: #e8a020;
+  box-shadow:
+    0 0 14px rgba(200, 120, 10, 0.42),
+    inset 0 0 8px rgba(200, 100, 8, 0.08);
+}
+
+/* ── Regular buttons: desert stone / carved bone ── */
+[data-theme='dune'] .btn,
+[data-theme='dune'] .btn-surface,
+[data-theme='dune'] .btn-ghost {
+  background: linear-gradient(180deg, #2e1e0a 0%, #221608 100%);
+  color: #d8c090;
+  border: 1px solid rgba(200, 120, 10, 0.30);
+  box-shadow: inset 0 1px 0 rgba(240, 200, 80, 0.06), 0 1px 4px rgba(0, 0, 0, 0.40);
+  border-radius: 3px;
+}
+
+[data-theme='dune'] .btn:hover,
+[data-theme='dune'] .btn-surface:hover,
+[data-theme='dune'] .btn-ghost:hover {
+  background: rgba(200, 120, 10, 0.12);
+  border-color: rgba(200, 120, 10, 0.65);
+  color: #f0deb0;
+  box-shadow: 0 0 10px rgba(200, 120, 10, 0.24), inset 0 0 6px rgba(200, 100, 8, 0.05);
+}
+
+/* ── Primary button: spice melange — the most precious thing ── */
+[data-theme='dune'] .btn-primary {
+  background: linear-gradient(180deg, #b86808 0%, #884e04 100%);
+  color: #ffe8a0;
+  border: 1px solid #d08010;
+  box-shadow: 0 0 14px rgba(200, 120, 10, 0.35), inset 0 1px 0 rgba(255, 220, 80, 0.20);
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+[data-theme='dune'] .btn-primary:hover {
+  background: linear-gradient(180deg, #d07a10 0%, #a05e06 100%);
+  box-shadow: 0 0 22px rgba(200, 120, 10, 0.55), inset 0 1px 0 rgba(255, 220, 80, 0.25);
+}
+
+/* ── Hero / album buttons ── */
+[data-theme='dune'] .hero-play-btn,
+[data-theme='dune'] .album-card-details-btn {
+  background: rgba(200, 120, 10, 0.12);
+  color: #c8780a;
+  border: 1px solid rgba(200, 120, 10, 0.36);
+  box-shadow: inset 0 1px 0 rgba(240, 180, 40, 0.06);
+}
+
+[data-theme='dune'] .hero-play-btn:hover,
+[data-theme='dune'] .album-card-details-btn:hover {
+  background: rgba(200, 120, 10, 0.20);
+  border-color: #c8780a;
+  box-shadow: 0 0 12px rgba(200, 120, 10, 0.38);
+}
+
+/* ── Queue round buttons ── */
+[data-theme='dune'] .queue-round-btn {
+  background: linear-gradient(180deg, #2e1e0a 0%, #1e1406 100%);
+  color: #8a6030;
+  border: 1px solid rgba(200, 120, 10, 0.24);
+}
+
+[data-theme='dune'] .queue-round-btn:hover:not(:disabled):not(.active) {
+  background: rgba(200, 120, 10, 0.10);
+  border-color: rgba(200, 120, 10, 0.55);
+  color: #c8780a;
+  box-shadow: 0 0 10px rgba(200, 120, 10, 0.22);
+}
+
+[data-theme='dune'] .queue-round-btn.active {
+  background: rgba(200, 120, 10, 0.20);
+  border-color: #c8780a;
+  color: #e8a020;
+  box-shadow: 0 0 12px rgba(200, 120, 10, 0.42), inset 0 0 6px rgba(200, 100, 8, 0.08);
+}
+
+/* ── Cards: ancient stone / sand-worn rock ── */
+[data-theme='dune'] .card {
+  background: linear-gradient(180deg, #2e1e0a 0%, #281808 100%);
+  border: 1px solid rgba(200, 120, 10, 0.16);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(240, 200, 80, 0.04),
+    inset 0 0 24px rgba(200, 100, 8, 0.03),
+    0 2px 10px rgba(0, 0, 0, 0.50);
+}
+
+/* ── Content header: sietch entrance — cool rock above warm desert ── */
+/* The contrast between the cold header and warm body is intentional — Arrakis duality */
+[data-theme='dune'] .content-header {
+  background: linear-gradient(180deg, #151228 0%, #12101e 100%);
+  border-bottom: 1px solid rgba(200, 120, 10, 0.24);
+  box-shadow: 0 3px 16px rgba(200, 100, 8, 0.06);
+}
+
+/* Text on cool header: light but warm */
+[data-theme='dune'] .content-header .page-title,
+[data-theme='dune'] .content-header h1,
+[data-theme='dune'] .content-header h2 {
+  color: #d8c090;
+}
+
+/* ── Connection indicators: parchment legible ── */
+[data-theme='dune'] .connection-type,
+[data-theme='dune'] .connection-server {
+  color: #b09060;
+}
+
+/* ── Theme accordion ── */
+[data-theme='dune'] .theme-accordion-header:hover {
+  background: rgba(200, 120, 10, 0.10);
+  color: #e8a020;
+}
+
+[data-theme='dune'] .theme-accordion-open .theme-accordion-header {
+  background: rgba(200, 120, 10, 0.14);
+  color: #e8a020;
+}
+
+[data-theme='dune'] .theme-accordion-open .theme-accordion-chevron {
+  color: #c8780a;
+}
+
+/* ── Progress bar: spice flowing — from deep rust to bright amber ── */
+[data-theme='dune'] .progress-bar-track {
+  background: #1a1006;
+  border: 1px solid rgba(200, 120, 10, 0.22);
+  border-radius: 2px;
+}
+
+[data-theme='dune'] .progress-bar-fill {
+  background: linear-gradient(90deg,
+      #6a3604 0%,
+      #a85a08 30%,
+      #c8780a 65%,
+      #e8a020 85%,
+      #f5cc50 100%);
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(200, 120, 10, 0.55), 0 0 3px rgba(240, 200, 60, 0.40);
+}
+
+/* ── Scrollbar: sand grain — thin, warm, minimal ── */
+[data-theme='dune'] ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+[data-theme='dune'] ::-webkit-scrollbar-track {
+  background: #0a0804;
+}
+
+[data-theme='dune'] ::-webkit-scrollbar-thumb {
+  background: rgba(200, 120, 10, 0.30);
+  border-radius: 2px;
+  border: 1px solid rgba(200, 120, 10, 0.16);
+}
+
+[data-theme='dune'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(200, 120, 10, 0.55);
+  box-shadow: 0 0 5px rgba(200, 120, 10, 0.40);
+}
+
+/* ── Glass / dropdowns: deep sand shelter ── */
+[data-theme='dune'] .glass {
+  background: rgba(10, 8, 4, 0.97) !important;
+  backdrop-filter: none !important;
+  border: 1px solid rgba(200, 120, 10, 0.30) !important;
+  box-shadow:
+    0 0 20px rgba(180, 100, 8, 0.10),
+    inset 0 0 16px rgba(200, 100, 8, 0.02) !important;
+  border-radius: 4px !important;
+}
+
+[data-theme='dune'] .glass [style*="var(--bg-hover)"] {
+  background: rgba(200, 120, 10, 0.12) !important;
+  border-radius: 2px !important;
+}
+
+[data-theme='dune'] .glass [style*="var(--text-primary)"] {
+  color: #f0deb0 !important;
+}
+
+[data-theme='dune'] .glass [style*="var(--text-secondary)"] {
+  color: #d8c090 !important;
+}
+
+[data-theme='dune'] .glass [style*="var(--text-muted)"] {
+  color: #6a5830 !important;
+}
+
+/* ── Hover / selection: spice glow — warm amber indicator bar ── */
+[data-theme='dune'] .queue-tab-btn:hover {
+  background: rgba(200, 120, 10, 0.10);
+  color: #c8780a;
+}
+
+[data-theme='dune'] .settings-tab:hover {
+  background: rgba(200, 120, 10, 0.10);
+  color: #c8780a;
+}
+
+[data-theme='dune'] .settings-tab.active {
+  background: rgba(200, 120, 10, 0.16);
+  color: #e8a020;
+  box-shadow: inset 2px 0 0 #c8780a;
+}
+
+[data-theme='dune'] .custom-select-trigger:hover {
+  background: rgba(200, 120, 10, 0.10);
+}
+
+[data-theme='dune'] .custom-select-option:hover {
+  background: rgba(200, 120, 10, 0.14) !important;
+  color: #e8a020 !important;
+}
+
+[data-theme='dune'] .artist-ext-link:hover {
+  background: rgba(200, 120, 10, 0.10);
+  color: #c8780a !important;
+  border-color: rgba(200, 120, 10, 0.45) !important;
+}
+
+[data-theme='dune'] .np-action-btn:hover {
+  background: rgba(200, 120, 10, 0.10);
+}
+
+[data-theme='dune'] .np-queue-item:hover,
+[data-theme='dune'] .np-queue-item.context-active {
+  background: rgba(200, 120, 10, 0.12);
+  box-shadow: inset 2px 0 0 #c8780a;
+}
+
+[data-theme='dune'] .track-row:hover,
+[data-theme='dune'] .track-row.context-active {
+  background: rgba(200, 120, 10, 0.09) !important;
+  box-shadow: inset 2px 0 0 #c8780a;
+}
+
+[data-theme='dune'] .artist-row:hover {
+  background: rgba(200, 120, 10, 0.09);
+  box-shadow: inset 2px 0 0 #c8780a;
+}
+
+[data-theme='dune'] .playlist-row:hover {
+  background: rgba(200, 120, 10, 0.09);
+  box-shadow: inset 2px 0 0 #c8780a;
+}
+
+[data-theme='dune'] .queue-item:hover,
+[data-theme='dune'] .queue-item.context-active {
+  background: rgba(200, 120, 10, 0.10) !important;
+  box-shadow: inset 2px 0 0 #c8780a;
+}
+
+[data-theme='dune'] .queue-item:hover .queue-item-title,
+[data-theme='dune'] .queue-item:hover .queue-item-artist,
+[data-theme='dune'] .queue-item:hover .queue-item-duration,
+[data-theme='dune'] .queue-item.context-active .queue-item-title,
+[data-theme='dune'] .queue-item.context-active .queue-item-artist,
+[data-theme='dune'] .queue-item.context-active .queue-item-duration {
+  color: #c8780a;
+}
+
+/* ── Active queue / now-playing: the worm has come ── */
+[data-theme='dune'] .queue-item.active {
+  background: rgba(200, 120, 10, 0.08);
+  box-shadow: inset 2px 0 0 #c8780a;
+}
+
+[data-theme='dune'] .np-queue-item-active {
+  color: #c8780a;
+  text-shadow: 0 0 8px rgba(200, 120, 10, 0.55);
+}
+
+[data-theme='dune'] .np-queue-item.active {
+  background: rgba(200, 120, 10, 0.08);
+}
+
+[data-theme='dune'] .np-album-track.active .np-album-track-title,
+[data-theme='dune'] .np-album-track.active .np-album-track-num {
+  color: #c8780a;
+  text-shadow: 0 0 8px rgba(200, 120, 10, 0.50);
+}
+
+/* ── TetraStack (Games) — 7-tetromino NES Tetris ─────────────── */
+/* I=cyan  O=yellow  T=purple  S=green  Z=red  J=blue  L=orange  */
+[data-theme='tetrastack'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2300f0f0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Dark navy — NES Tetris backdrop, not pure black */
+  --ctp-crust: #000008;
+  --ctp-mantle: #00000e;
+  --ctp-base: #060614;
+  --ctp-surface0: #0d0d22;
+  --ctp-surface1: #141432;
+  --ctp-surface2: #1e1e48;
+  --ctp-overlay0: #3a3a6a;
+  --ctp-overlay1: #6060a8;
+  --ctp-overlay2: #9090cc;
+  --ctp-text: #ffffff;
+  --ctp-subtext1: #d0d0ff;
+  --ctp-subtext0: #9090cc;
+
+  /* 7 Tetromino colours mapped to palette slots */
+  --ctp-sky: #00f0f0;
+  /* I-piece  — cyan   */
+  --ctp-teal: #00f0f0;
+  --ctp-yellow: #f0d000;
+  /* O-piece  — yellow */
+  --ctp-mauve: #c070ff;
+  /* T-piece  — purple */
+  --ctp-lavender: #c070ff;
+  --ctp-pink: #c070ff;
+  --ctp-green: #00d000;
+  /* S-piece  — green  */
+  --ctp-red: #f02000;
+  /* Z-piece  — red    */
+  --ctp-flamingo: #f02000;
+  --ctp-maroon: #f02000;
+  --ctp-blue: #4090ff;
+  /* J-piece  — blue   */
+  --ctp-sapphire: #4090ff;
+  --ctp-peach: #f07800;
+  /* L-piece  — orange */
+  --ctp-rosewater: #f07800;
+
+  --bg-app: #060614;
+  --bg-sidebar: #00000e;
+  --bg-card: #0d0d22;
+  --bg-hover: rgba(0, 240, 240, 0.07);
+  --bg-player: #000008;
+  --bg-glass: rgba(6, 6, 20, 0.96);
+
+  --accent: #00f0f0;
+  /* I-piece cyan */
+  --accent-dim: rgba(0, 240, 240, 0.12);
+  --accent-glow: rgba(0, 240, 240, 0.5);
+  --volume-accent: #f0d000;
+  /* O-piece yellow — classic score-panel feel */
+
+  --text-primary: #ffffff;
+  --text-secondary: #f0d000;
+  /* O-piece yellow — like the score readout */
+  --text-muted: #7878b8;
+  --border: #1e1e48;
+  --border-subtle: #0d0d22;
+
+  /* All corners square — every element is a block */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+/* 30 px grid — Tetris block scale */
+[data-theme='tetrastack'] .app-shell {
+  background-image:
+    linear-gradient(rgba(0, 240, 240, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 240, 0.04) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+/* Sidebar = the score/next-piece panel */
+[data-theme='tetrastack'] .sidebar {
+  border-right: 3px solid #00f0f0;
+}
+
+/* Player bar = bottom of the well */
+[data-theme='tetrastack'] .player-bar {
+  border-top: 3px solid #00f0f0;
+  box-shadow:
+    0 -2px 0 #c070ff,
+    0 -8px 24px rgba(0, 240, 240, 0.12);
+}
+
+/* NES block shading on cards — lighter top-left, darker bottom-right */
+[data-theme='tetrastack'] .card,
+[data-theme='tetrastack'] .glass,
+[data-theme='tetrastack'] .settings-card {
+  border: 1px solid #1e1e48 !important;
+  border-radius: 0 !important;
+  box-shadow:
+    inset -3px -3px 0 rgba(0, 0, 0, 0.55),
+    inset 3px 3px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Buttons: block-shaped, NES-style press effect */
+[data-theme='tetrastack'] .btn-primary {
+  background: #00f0f0;
+  color: #000000;
+  border: none;
+  border-radius: 0;
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.5), inset 3px 3px 0 rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+[data-theme='tetrastack'] .btn-primary:hover {
+  background: #30ffff;
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.4), inset 3px 3px 0 rgba(255, 255, 255, 0.45);
+}
+
+[data-theme='tetrastack'] .btn-surface {
+  border-radius: 0;
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.5), inset 2px 2px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Track name = I-piece glow */
+[data-theme='tetrastack'] .player-track-name {
+  color: #00f0f0;
+  text-shadow: 0 0 8px rgba(0, 240, 240, 0.7), 0 0 20px rgba(0, 240, 240, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Artist name = L-piece orange */
+[data-theme='tetrastack'] .player-track-artist {
+  color: #f07800;
+}
+
+/* Album title in queue = T-piece purple */
+[data-theme='tetrastack'] .queue-meta-album {
+  color: #c070ff;
+}
+
+/* Active queue item = I-piece left border */
+[data-theme='tetrastack'] .queue-item.active {
+  background: rgba(0, 240, 240, 0.07);
+  box-shadow: inset 3px 0 0 #00f0f0;
+}
+
+[data-theme='tetrastack'] .np-queue-item-active {
+  color: #00f0f0;
+  text-shadow: 0 0 8px rgba(0, 240, 240, 0.6);
+}
+
+[data-theme='tetrastack'] .np-queue-item.active {
+  background: rgba(0, 240, 240, 0.07);
+}
+
+/* Hover rows: subtle block highlight */
+[data-theme='tetrastack'] .track-row:hover,
+[data-theme='tetrastack'] .track-row.context-active {
+  background: rgba(0, 240, 240, 0.06) !important;
+  box-shadow: inset 3px 0 0 #00f0f0;
+}
+
+[data-theme='tetrastack'] .queue-item:hover,
+[data-theme='tetrastack'] .queue-item.context-active {
+  background: rgba(0, 240, 240, 0.07) !important;
+  box-shadow: inset 3px 0 0 #00f0f0;
+}
+
+[data-theme='tetrastack'] .np-queue-item:hover,
+[data-theme='tetrastack'] .np-queue-item.context-active {
+  background: rgba(0, 240, 240, 0.07);
+  box-shadow: inset 2px 0 0 #00f0f0;
+}
+
+[data-theme='tetrastack'] .artist-row:hover {
+  background: rgba(0, 240, 240, 0.06);
+  box-shadow: inset 3px 0 0 #00f0f0;
+}
+
+[data-theme='tetrastack'] .playlist-row:hover {
+  background: rgba(0, 240, 240, 0.06);
+  box-shadow: inset 3px 0 0 #00f0f0;
+}
+
+/* Settings tabs: active = S-piece green left border */
+[data-theme='tetrastack'] .settings-tab:hover {
+  background: rgba(0, 240, 240, 0.06);
+  color: #00f0f0;
+}
+
+[data-theme='tetrastack'] .settings-tab.active {
+  background: rgba(0, 208, 0, 0.08);
+  color: #00d000;
+  box-shadow: inset 3px 0 0 #00d000;
+}
+
+/* Queue tabs */
+[data-theme='tetrastack'] .queue-tab-btn:hover {
+  background: rgba(0, 240, 240, 0.06);
+  color: #00f0f0;
+}
+
+/* Dropdowns / selects */
+[data-theme='tetrastack'] .custom-select-trigger:hover {
+  background: rgba(0, 240, 240, 0.06);
+}
+
+[data-theme='tetrastack'] .custom-select-option:hover {
+  background: rgba(0, 240, 240, 0.1) !important;
+  color: #00f0f0 !important;
+}
+
+/* Artist pill links = J-piece blue */
+[data-theme='tetrastack'] .artist-ext-link:hover {
+  background: rgba(0, 96, 240, 0.1);
+  color: #4090ff !important;
+  border-color: rgba(64, 144, 255, 0.4) !important;
+}
+
+/* Now playing active track = Z-piece red accent */
+[data-theme='tetrastack'] .np-album-track.active .np-album-track-title,
+[data-theme='tetrastack'] .np-album-track.active .np-album-track-num {
+  color: #f02000;
+  text-shadow: 0 0 8px rgba(240, 32, 0, 0.5);
+}
+
+/* Connection indicators */
+[data-theme='tetrastack'] .connection-type,
+[data-theme='tetrastack'] .connection-server {
+  color: #f0d000;
+}
+
+/* Sidebar section labels */
+[data-theme='tetrastack'] .nav-section-label {
+  color: rgba(0, 240, 240, 0.45);
+}
+
+/* Queue tab buttons (Lyrics / Warteschlange) — inactive */
+[data-theme='tetrastack'] .queue-tab-btn {
+  color: #6060a8;
+}
+
+/* Queue: inactive song artist */
+[data-theme='tetrastack'] .queue-item-artist {
+  color: #6060a8;
+}
+
+/* Queue: "Nächste Titel" divider */
+[data-theme='tetrastack'] .queue-divider span {
+  color: #6060a8 !important;
+}
+
+/* ── The Book (Social Media) ────────────────────────────────── */
+[data-theme='the-book'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2365676B%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #FFFFFF;
+  --ctp-mantle: #FFFFFF;
+  --ctp-base: #F0F2F5;
+  --ctp-surface0: #E4E6EB;
+  --ctp-surface1: #D8DADF;
+  --ctp-surface2: #CED0D4;
+  --ctp-overlay0: #B0B3B8;
+  --ctp-overlay1: #4B4C4F;
+  --ctp-overlay2: #3A3B3D;
+  --ctp-text: #050505;
+  --ctp-subtext1: #44464A;
+  --ctp-subtext0: #65676B;
+
+  --ctp-mauve: #1877F2;
+  --ctp-lavender: #2D88FF;
+  --ctp-green: #42B72A;
+  --ctp-yellow: #F7B125;
+  --ctp-red: #FA383E;
+  --ctp-blue: #1877F2;
+  --ctp-teal: #00A400;
+  --ctp-sky: #45BD62;
+  --ctp-sapphire: #0064D1;
+  --ctp-pink: #F33E58;
+  --ctp-flamingo: #F33E58;
+  --ctp-rosewater: #F0F2F5;
+  --ctp-maroon: #B12425;
+  --ctp-peach: #F7B125;
+
+  --bg-app: #F0F2F5;
+  --bg-sidebar: #1877F2;
+  --bg-card: #FFFFFF;
+  --bg-hover: #F2F2F2;
+  --bg-player: #FFFFFF;
+  --bg-glass: rgba(255, 255, 255, 0.9);
+
+  --accent: #1877F2;
+  --accent-dim: rgba(24, 119, 242, 0.1);
+  --accent-glow: rgba(24, 119, 242, 0.2);
+  --volume-accent: #1877F2;
+
+  --text-primary: #050505;
+  --text-secondary: #44464A;
+  --text-muted: #65676B;
+  --border: #CED0D4;
+  --border-subtle: #E4E6EB;
+
+  --positive: #42B72A;
+  --warning: #F7B125;
+  --danger: #FA383E;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-dropdown: 0 12px 28px 0 rgba(0, 0, 0, 0.1), 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='the-book'] .player-bar {
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme='the-book'] .sidebar {
+  border-right: none;
+}
+
+[data-theme='the-book'] .sidebar .nav-link {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme='the-book'] .sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+[data-theme='the-book'] .sidebar .nav-link.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+[data-theme='the-book'] .sidebar .nav-section-label {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='the-book'] .sidebar-brand .brand-name {
+  -webkit-text-fill-color: #ffffff;
+  color: #ffffff;
+}
+
+[data-theme='the-book'] .sidebar {
+  --accent: #ffffff;
+  --ctp-blue: #ffffff;
+}
+
+/* Queue panel — white text on blue background */
+[data-theme='the-book'] .queue-item-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme='the-book'] .queue-item-artist,
+[data-theme='the-book'] .queue-item-duration {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='the-book'] .queue-item:hover .queue-item-title,
+[data-theme='the-book'] .queue-item.context-active .queue-item-title {
+  color: #ffffff;
+}
+
+[data-theme='the-book'] .queue-item.active .queue-item-title {
+  color: #ffffff;
+}
+
+[data-theme='the-book'] .queue-item.active .queue-item-artist,
+[data-theme='the-book'] .queue-item.active .queue-item-duration {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme='the-book'] .queue-item:hover,
+[data-theme='the-book'] .queue-item.context-active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='the-book'] .queue-header,
+[data-theme='the-book'] .queue-header h2 {
+  color: var(--text-primary);
+}
+
+[data-theme='the-book'] .queue-current-info h3 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme='the-book'] .queue-current-sub {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+[data-theme='the-book'] .collapse-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+[data-theme='the-book'] .player-track-name,
+[data-theme='the-book'] .player-track-artist,
+[data-theme='the-book'] .player-time {
+  color: var(--text-primary) !important;
+}
+
+
+[data-theme='the-book'] .card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Album chip — opaque Facebook blue pill */
+[data-theme='the-book'] .badge,
+[data-theme='the-book'] .album-detail-badge {
+  background: #1877F2;
+  color: #ffffff;
+}
+
+/* Back button — opaque Facebook-style pill */
+[data-theme='the-book'] .album-detail-back {
+  background: #E7F3FF;
+  color: #1877F2;
+}
+[data-theme='the-book'] .album-detail-back:hover {
+  background: #D8EAFD;
+  color: #0d6ae0;
+}
+
+/* Queue/Lyrics tab bar — white text on blue sidebar */
+[data-theme='the-book'] .queue-tab-btn {
+  color: rgba(255, 255, 255, 0.65);
+}
+[data-theme='the-book'] .queue-tab-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+[data-theme='the-book'] .queue-tab-btn.active {
+  color: #ffffff;
+}
+
+/* ── ReadIt (Social Media) ──────────────────────────────────── */
+[data-theme='readit'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FF4500%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #030303;
+  --ctp-mantle: #1A1A1B;
+  --ctp-base: #030303;
+  --ctp-surface0: #1A1A1B;
+  --ctp-surface1: #272729;
+  --ctp-surface2: #343536;
+  --ctp-overlay0: #818384;
+  --ctp-overlay1: #D7DADC;
+  --ctp-overlay2: #FFFFFF;
+  --ctp-text: #D7DADC;
+  --ctp-subtext1: #D7DADC;
+  --ctp-subtext0: #818384;
+
+  --ctp-mauve: #FF4500;
+  --ctp-lavender: #FF581A;
+  --ctp-green: #46D160;
+  --ctp-yellow: #FFD635;
+  --ctp-red: #FF4500;
+  --ctp-blue: #0079D3;
+  --ctp-teal: #00AD96;
+  --ctp-sky: #7193FF;
+  --ctp-sapphire: #3E5EB3;
+  --ctp-pink: #FF66AC;
+  --ctp-flamingo: #FF8280;
+  --ctp-rosewater: #FFB3A6;
+  --ctp-maroon: #EA0027;
+  --ctp-peach: #FFB000;
+
+  --bg-app: #030303;
+  --bg-sidebar: #1A1A1B;
+  --bg-card: #1A1A1B;
+  --bg-hover: #272729;
+  --bg-player: #1A1A1B;
+  --bg-glass: rgba(26, 26, 27, 0.9);
+
+  --accent: #FF4500;
+  --accent-dim: rgba(255, 69, 0, 0.1);
+  --accent-glow: rgba(255, 69, 0, 0.3);
+  --volume-accent: #FF4500;
+
+  --text-primary: #D7DADC;
+  --text-secondary: #D7DADC;
+  --text-muted: #818384;
+  --border: #343536;
+  --border-subtle: #272729;
+
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+[data-theme='readit'] .player-bar {
+  border-top: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+
+[data-theme='readit'] .sidebar {
+  border-right: 1px solid var(--border);
+}
+
+[data-theme='readit'] .nav-link.active {
+  background: transparent;
+  color: var(--accent);
+}
+
+[data-theme='readit'] .nav-link.active::before {
+  background: var(--accent) !important;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+}
+
+[data-theme='readit'] .btn-primary {
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+
+[data-theme='readit'] .btn-primary:hover {
+  background: var(--ctp-lavender);
+}
+
+[data-theme='readit'] .card {
+  border: 1px solid var(--border);
+}
+
+[data-theme='readit'] .queue-item.active {
+  border-left: 2px solid var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── Insta (Social Media) ───────────────────────────────────── */
+[data-theme='insta'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FFFFFF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #000000;
+  --ctp-mantle: #000000;
+  --ctp-base: #121212;
+  --ctp-surface0: #1A1A1A;
+  --ctp-surface1: #262626;
+  --ctp-surface2: #363636;
+  --ctp-overlay0: #737373;
+  --ctp-overlay1: #A8A8A8;
+  --ctp-overlay2: #C7C7C7;
+  --ctp-text: #F5F5F5;
+  --ctp-subtext1: #DBDBDB;
+  --ctp-subtext0: #8E8E8E;
+
+  --ctp-mauve: #E1306C;
+  --ctp-lavender: #C13584;
+  --ctp-green: #0095F6;
+  --ctp-yellow: #FFD600;
+  --ctp-red: #ED4956;
+  --ctp-peach: #F56040;
+  --ctp-flamingo: #FD1D1D;
+  --ctp-blue: #0095F6;
+  --ctp-teal: #0095F6;
+  --ctp-sky: #C13584;
+  --ctp-sapphire: #833ab4;
+  --ctp-pink: #E1306C;
+  --ctp-rosewater: #fcb045;
+  --ctp-maroon: #ED4956;
+
+  --bg-app: #121212;
+  --bg-sidebar: #000000;
+  --bg-card: #1A1A1A;
+  --bg-hover: #262626;
+  --bg-player: #000000;
+  --bg-glass: rgba(0, 0, 0, 0.85);
+
+  --accent: #E1306C;
+  --accent-dim: rgba(225, 48, 108, 0.15);
+  --accent-glow: rgba(225, 48, 108, 0.35);
+  --volume-accent: #E1306C;
+
+  --text-primary: #F5F5F5;
+  --text-secondary: #A8A8A8;
+  --text-muted: #737373;
+  --border: #262626;
+  --border-subtle: #1A1A1A;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 22px;
+}
+
+[data-theme='insta'] .progress-bar-fill {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%) !important;
+}
+
+[data-theme='insta'] .nav-link.active::before {
+  background: linear-gradient(to bottom, #833ab4, #fd1d1d, #fcb045) !important;
+  width: 3px;
+}
+
+[data-theme='insta'] .player-bar {
+  border-top: 1px solid var(--border);
+}
+
+[data-theme='insta'] .btn-primary:hover {
+  background: linear-gradient(45deg, #f09433, #dc2743, #bc1888) !important;
+  border-color: transparent;
+}
+
+[data-theme='insta'] .sidebar {
+  border-right: 1px solid var(--border);
+}
+
+/* ── Hill Valley 85 (Movies) ────────────────────────────────── */

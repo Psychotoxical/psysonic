@@ -1,0 +1,56 @@
+/* ─── 1984 (juanmnl/vs-1984 — default dark, deep-blue cyberpunk) ─── */
+[data-theme='vs-1984'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23f1f1f1%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #050620;
+  --ctp-mantle:   #070825;   /* sideBar.background */
+  --ctp-base:     #0d0f31;   /* editor.background */
+  --ctp-surface0: #161a4a;   /* card elevation */
+  --ctp-surface1: #1f2560;
+  --ctp-surface2: #2a3275;
+  --ctp-overlay0: #3B4D66;   /* lineNumber */
+  --ctp-overlay1: #525863;   /* comment */
+  --ctp-overlay2: #96A1FF;   /* variable */
+  --ctp-text:     #f1f1f1;
+  --ctp-subtext1: #d6d8ff;
+  --ctp-subtext0: #96A1FF;
+  --ctp-mauve:    #FF16B0;   /* keyword pink */
+  --ctp-lavender: #96A1FF;   /* variable */
+  --ctp-pink:     #FF16B0;
+  --ctp-flamingo: #DF81FC;   /* string */
+  --ctp-rosewater:#DF81FC;
+  --ctp-blue:     #46BDFF;   /* focusBorder / accent */
+  --ctp-sapphire: #46BDFF;
+  --ctp-sky:      #46BDFF;
+  --ctp-teal:     #46BDFF;
+  --ctp-green:    #B3F361;   /* cursor green */
+  --ctp-yellow:   #DF81FC;
+  --ctp-peach:    #FF16B0;
+  --ctp-maroon:   #FF16B0;
+  --ctp-red:      #FF16B0;
+
+  --bg-app:           #0d0f31;
+  --bg-sidebar:       #070825;
+  --bg-card:          #161a4a;
+  --bg-hover:         #1f2560;
+  --bg-player:        #070825;
+  --bg-glass:         rgba(13, 15, 49, 0.82);
+  --accent:           #46BDFF;       /* signature 1984 cyan-blue */
+  --accent-dim:       rgba(70, 189, 255, 0.16);
+  --accent-glow:      rgba(70, 189, 255, 0.32);
+  --text-primary:     #f1f1f1;
+  --text-secondary:   #96A1FF;
+  --text-muted:       #525863;       /* comment */
+  --border:           #1f2560;
+  --border-subtle:    #161a4a;
+  --border-dropdown:  #2a3275;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.7);
+  --positive:         #B3F361;       /* cursor green */
+  --warning:          #DF81FC;       /* string magenta */
+  --danger:           #FF16B0;       /* keyword pink */
+  --waveform-played:    #46BDFF;
+  --waveform-buffered:  #3B4D66;
+  --waveform-unplayed:  #161a4a;
+}
+

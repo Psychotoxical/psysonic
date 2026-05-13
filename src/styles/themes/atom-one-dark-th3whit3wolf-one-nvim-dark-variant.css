@@ -1,0 +1,56 @@
+/* ─── Atom One Dark (Th3Whit3Wolf/one-nvim — dark variant) ─── */
+[data-theme='one-dark'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23abb2bf%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #181a1f;   /* vertsplit */
+  --ctp-mantle:   #21252b;   /* sidebar tone (Atom IDE convention) */
+  --ctp-base:     #282c34;   /* syntax_bg */
+  --ctp-surface0: #2c323c;   /* syntax_cursor */
+  --ctp-surface1: #333841;   /* pmenu */
+  --ctp-surface2: #3e4452;   /* visual_grey */
+  --ctp-overlay0: #4b5263;   /* mono_4 */
+  --ctp-overlay1: #5c6370;   /* mono_3 */
+  --ctp-overlay2: #828997;   /* mono_2 */
+  --ctp-text:     #abb2bf;   /* mono_1 */
+  --ctp-subtext1: #828997;
+  --ctp-subtext0: #636d83;   /* syntax_gutter */
+  --ctp-mauve:    #c678dd;   /* hue_3 */
+  --ctp-lavender: #528bff;   /* syntax_accent */
+  --ctp-pink:     #d291e4;
+  --ctp-flamingo: #e06c75;   /* hue_5 */
+  --ctp-rosewater:#d19a66;   /* hue_6 */
+  --ctp-blue:     #61afef;   /* hue_2 */
+  --ctp-sapphire: #56b6c2;   /* hue_1 */
+  --ctp-sky:      #56b6c2;
+  --ctp-teal:     #56b6c2;
+  --ctp-green:    #98c379;   /* hue_4 */
+  --ctp-yellow:   #e5c07b;   /* hue_6_2 */
+  --ctp-peach:    #d19a66;
+  --ctp-maroon:   #be5046;   /* hue_5_2 */
+  --ctp-red:      #e06c75;
+
+  --bg-app:           #282c34;
+  --bg-sidebar:       #21252b;
+  --bg-card:          #2c323c;
+  --bg-hover:         #3e4452;
+  --bg-player:        #21252b;
+  --bg-glass:         rgba(40, 44, 52, 0.78);
+  --accent:           #61afef;       /* hue_2 — signature One Dark blue */
+  --accent-dim:       rgba(97, 175, 239, 0.16);
+  --accent-glow:      rgba(97, 175, 239, 0.32);
+  --text-primary:     #abb2bf;       /* mono_1 */
+  --text-secondary:   #828997;       /* mono_2 */
+  --text-muted:       #5c6370;       /* mono_3 */
+  --border:           #3e4452;
+  --border-subtle:    #2c323c;
+  --border-dropdown:  #4b5263;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.6);
+  --positive:         #98c379;       /* hue_4 */
+  --warning:          #e5c07b;       /* hue_6_2 */
+  --danger:           #e06c75;       /* hue_5 */
+  --waveform-played:    #61afef;
+  --waveform-buffered:  #4b5263;
+  --waveform-unplayed:  #2c323c;
+}
+

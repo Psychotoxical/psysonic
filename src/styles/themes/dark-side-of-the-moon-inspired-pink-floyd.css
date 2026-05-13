@@ -1,0 +1,286 @@
+/* ─── Dark Side of the Moon (inspired) — Pink Floyd ─── */
+/* Pure void-black + prism spectrum. No colour except the rainbow.
+   Accent: spectrum cyan. Spectrum gradient as player-bar top border.
+   Track name: white (the input light beam). Performance: no patterns, no animations. */
+[data-theme='dark-side-of-the-moon'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%239B30FF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — void black + prism spectrum ── */
+  --ctp-crust: #000000;
+  --ctp-mantle: #010101;
+  --ctp-base: #050505;
+  --ctp-surface0: #0A0A0A;
+  --ctp-surface1: #111111;
+  --ctp-surface2: #1A1A1A;
+  --ctp-overlay0: #333333;
+  --ctp-overlay1: #4A4A4A;
+  --ctp-overlay2: #686868;
+  --ctp-text: #F0F0F0;
+  --ctp-subtext1: #C8C8C8;
+  --ctp-subtext0: #A0A0A0;
+  --ctp-mauve: #9B30FF;
+  /* spectrum violet — primary accent */
+  --ctp-lavender: #7B00FF;
+  /* spectrum violet */
+  --ctp-pink: #FF2400;
+  /* spectrum red */
+  --ctp-flamingo: #FF7700;
+  /* spectrum orange */
+  --ctp-rosewater: #FFFFFF;
+  /* the input light beam */
+  --ctp-green: #72FF00;
+  /* spectrum green */
+  --ctp-teal: #00C8FF;
+  --ctp-sky: #9B30FF;
+  --ctp-blue: #0040FF;
+  /* spectrum blue */
+  --ctp-sapphire: #0060DD;
+  --ctp-yellow: #FFE600;
+  /* spectrum yellow */
+  --ctp-peach: #FF7700;
+  --ctp-maroon: #CC1800;
+  --ctp-red: #FF2400;
+
+  --bg-app: #050505;
+  --bg-sidebar: #020202;
+  --bg-card: #0D0D0D;
+  --bg-hover: #141414;
+  --bg-player: #010101;
+  --bg-glass: rgba(5, 5, 5, 0.96);
+  --accent: #9B30FF;
+  /* spectrum violet */
+  --accent-dim: rgba(155, 48, 255, 0.10);
+  --accent-glow: rgba(155, 48, 255, 0.28);
+  --text-primary: #F0F0F0;
+  --text-secondary: #A0A0A0;
+  --text-muted: #555555;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-dropdown: rgba(155, 48, 255, 0.22);
+  --shadow-dropdown: rgba(0, 0, 0, 0.99);
+  --positive: #72FF00;
+  --warning: #FFE600;
+  --danger: #FF2400;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* Waveform — cyan played, dark unplayed */
+  --waveform-played: #9B30FF;
+  --waveform-buffered: rgba(255, 255, 255, 0.07);
+  --waveform-unplayed: rgba(255, 255, 255, 0.04);
+
+  /* Logo — orange → cyan (the spectrum itself) */
+  --logo-color-start: #FF7700;
+  --logo-color-end: #9B30FF;
+}
+
+/* Player bar — void black, spectrum rainbow top border via ::before */
+[data-theme='dark-side-of-the-moon'] .player-bar {
+  background: #010101;
+  border-top: none;
+  position: relative;
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark-side-of-the-moon'] .player-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+      #FF2400 0%,
+      #FF7700 17%,
+      #FFE600 33%,
+      #72FF00 50%,
+      #00C8FF 67%,
+      #0040FF 83%,
+      #7B00FF 100%);
+}
+
+/* Track name — the white input light beam */
+[data-theme='dark-side-of-the-moon'] .player-track-name {
+  color: #FFFFFF;
+}
+
+/* Artist name — neutral dim */
+[data-theme='dark-side-of-the-moon'] .player-artist-name {
+  color: #888888;
+}
+
+/* Sidebar — pure void */
+[data-theme='dark-side-of-the-moon'] .sidebar {
+  background: #020202;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark-side-of-the-moon'] .nav-link.active {
+  background: rgba(0, 229, 255, 0.08);
+  border-left: 3px solid #00E5FF;
+  color: #00E5FF;
+}
+
+[data-theme='dark-side-of-the-moon'] .nav-link:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid rgba(0, 229, 255, 0.30);
+  color: #F0F0F0;
+}
+
+/* Cards */
+[data-theme='dark-side-of-the-moon'] .album-card,
+[data-theme='dark-side-of-the-moon'] .artist-card {
+  background: #0D0D0D;
+}
+
+[data-theme='dark-side-of-the-moon'] .album-card:hover,
+[data-theme='dark-side-of-the-moon'] .artist-card:hover {
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.40), 0 4px 20px rgba(0, 229, 255, 0.08);
+}
+
+/* Track / queue rows */
+[data-theme='dark-side-of-the-moon'] .track-row:hover,
+[data-theme='dark-side-of-the-moon'] .queue-item:hover {
+  background: #141414;
+  box-shadow: inset 2px 0 0 #00E5FF;
+}
+
+/* Buttons — flat cyan, no gradient */
+[data-theme='dark-side-of-the-moon'] .player-btn-primary {
+  background: #00E5FF;
+  color: #010101;
+  box-shadow: none;
+  border: none;
+}
+
+[data-theme='dark-side-of-the-moon'] .player-btn-primary:hover {
+  background: #33EEFF;
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.40);
+}
+
+[data-theme='dark-side-of-the-moon'] .btn-primary {
+  background: #00E5FF;
+  color: #010101;
+  border: none;
+}
+
+[data-theme='dark-side-of-the-moon'] .btn-primary:hover {
+  background: #33EEFF;
+}
+
+[data-theme='dark-side-of-the-moon'] .hero-play-btn {
+  background: #00E5FF;
+  color: #010101;
+  border: none;
+  box-shadow: 0 2px 16px rgba(0, 229, 255, 0.30);
+}
+
+[data-theme='dark-side-of-the-moon'] .hero-play-btn:hover {
+  background: #33EEFF;
+  box-shadow: 0 4px 26px rgba(0, 229, 255, 0.50);
+  transform: scale(1.02);
+}
+
+[data-theme='dark-side-of-the-moon'] .album-card-details-btn {
+  background: #00E5FF;
+  color: #010101;
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 229, 255, 0.25);
+}
+
+/* Badge */
+[data-theme='dark-side-of-the-moon'] .badge,
+[data-theme='dark-side-of-the-moon'] .album-detail-badge {
+  background: #00E5FF;
+  color: #010101;
+}
+
+/* Settings + queue tabs */
+[data-theme='dark-side-of-the-moon'] .settings-tab:hover {
+  background: rgba(155, 48, 255, 0.07);
+  color: #9B30FF;
+}
+
+[data-theme='dark-side-of-the-moon'] .settings-tab.active {
+  background: rgba(155, 48, 255, 0.12);
+  color: #9B30FF;
+  border-color: #9B30FF;
+}
+
+[data-theme='dark-side-of-the-moon'] .queue-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark-side-of-the-moon'] .queue-tab-btn.active {
+  color: #9B30FF;
+}
+
+[data-theme='dark-side-of-the-moon'] .queue-round-btn.active {
+  color: #010101;
+}
+
+/* Misc interactive */
+[data-theme='dark-side-of-the-moon'] .custom-select-trigger:hover {
+  background: #141414;
+}
+
+[data-theme='dark-side-of-the-moon'] .custom-select-option:hover {
+  background: rgba(155, 48, 255, 0.08);
+}
+
+[data-theme='dark-side-of-the-moon'] .artist-row:hover {
+  background: rgba(155, 48, 255, 0.05);
+  box-shadow: inset 3px 0 0 #9B30FF;
+}
+
+[data-theme='dark-side-of-the-moon'] .playlist-row:hover {
+  background: rgba(155, 48, 255, 0.05);
+  box-shadow: inset 3px 0 0 #9B30FF;
+}
+
+[data-theme='dark-side-of-the-moon'] .artist-ext-link:hover {
+  background: rgba(155, 48, 255, 0.07);
+  border-color: #9B30FF;
+}
+
+/* Album detail header — year/genre/info too dark on near-black bg, brighten */
+[data-theme='dark-side-of-the-moon'] .album-detail-info {
+  color: #888888;
+}
+
+/* np-album-track */
+[data-theme='dark-side-of-the-moon'] .np-album-track.active .np-album-track-title,
+[data-theme='dark-side-of-the-moon'] .np-album-track.active .np-album-track-num {
+  color: #9B30FF;
+}
+
+/* Scrollbar — minimal, cyan thumb */
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar-track {
+  background: #020202;
+}
+
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar-thumb {
+  background: rgba(155, 48, 255, 0.25);
+  border-radius: 2px;
+}
+
+[data-theme='dark-side-of-the-moon'] ::-webkit-scrollbar-thumb:hover {
+  background: #9B30FF;
+}
+
+/* Connection indicators */
+[data-theme='dark-side-of-the-moon'] .connection-type {
+  color: #999999;
+}
+
+[data-theme='dark-side-of-the-moon'] .connection-server {
+  color: #777777;
+}
+

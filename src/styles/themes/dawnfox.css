@@ -1,0 +1,53 @@
+/* ─── Dawnfox ─── */
+[data-theme='dawnfox'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23575279%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #ebe5df;
+  --ctp-mantle: #ebe5df;
+  --ctp-base: #faf4ed;
+  --ctp-surface0: #ebe0df;
+  --ctp-surface1: #ebdfe4;
+  --ctp-surface2: #bdbfc9;
+  --ctp-overlay0: #9893a5;
+  --ctp-overlay1: #a8a3b3;
+  --ctp-overlay2: #625c87;
+  --ctp-text: #575279;
+  --ctp-subtext1: #4c4769;
+  --ctp-subtext0: #625c87;
+  --ctp-mauve: #907aa9;
+  --ctp-lavender: #575279;
+  --ctp-pink: #d685af;
+  --ctp-flamingo: #d7827e;
+  --ctp-rosewater: #d7827e;
+  --ctp-blue: #286983;
+  --ctp-sapphire: #286983;
+  --ctp-sky: #56949f;
+  --ctp-teal: #56949f;
+  --ctp-green: #618774;
+  --ctp-yellow: #ea9d34;
+  --ctp-peach: #d7827e;
+  --ctp-maroon: #b4637a;
+  --ctp-red: #b4637a;
+
+  --bg-app: #faf4ed;
+  --bg-sidebar: #ebe5df;
+  --bg-card: #ebe0df;
+  --bg-hover: #ebdfe4;
+  --bg-player: #ebe5df;
+  --bg-glass: rgba(250, 244, 237, 0.92);
+  --accent: #907aa9;
+  --accent-dim: rgba(144, 122, 169, 0.12);
+  --accent-glow: rgba(144, 122, 169, 0.25);
+  --text-primary: #575279;
+  --text-secondary: #625c87;
+  --text-muted: #9893a5;
+  --border: #ebdfe4;
+  --border-subtle: #ebe0df;
+  --border-dropdown: #bdbfc9;
+  --shadow-dropdown: rgba(0, 0, 0, 0.15);
+  --positive: #618774;
+  --warning: #ea9d34;
+  --danger: #b4637a;
+}
+

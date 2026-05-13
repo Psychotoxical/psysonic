@@ -1,0 +1,68 @@
+/* ─── Midnight Blue ─── */
+[data-theme='midnight-blue'] {
+  color-scheme: dark;
+
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2360a5fa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+
+  /* Backgrounds */
+  --ctp-crust:    #07090f;
+  --ctp-mantle:   #090c14;
+  --ctp-base:     #0d1420;
+  --ctp-surface0: #111a28;
+  --ctp-surface1: #162030;
+  --ctp-surface2: #1c2838;
+
+  /* Overlays */
+  --ctp-overlay0: #2a3d5a;
+  --ctp-overlay1: #3a507a;
+  --ctp-overlay2: #4a659a;
+
+  /* Text */
+  --ctp-text:     #ccd8f0;
+  --ctp-subtext1: #9ab0d8;
+  --ctp-subtext0: #6888b0;
+
+  /* Light blue accent */
+  --ctp-teal:      #60a5fa;
+  --ctp-sky:       #60a5fa;
+  --ctp-sapphire:  #4a90e8;
+  --ctp-blue:      #3878d0;
+  --ctp-lavender:  #60a5fa;
+  --ctp-mauve:     #4a90e8;
+  --ctp-pink:      #3878d0;
+  --ctp-flamingo:  #60a5fa;
+  --ctp-rosewater: #4a90e8;
+
+  /* Semantic */
+  --ctp-red:     #e07070;
+  --ctp-maroon:  #d09050;
+  --ctp-peach:   #d09050;
+  --ctp-yellow:  #c8b850;
+  --ctp-green:   #60c880;
+
+  /* UI tokens */
+  --bg-app:      #0d1420;
+  --bg-sidebar:  #090c14;
+  --bg-card:     #111a28;
+  --bg-hover:    #162030;
+  --bg-player:   #090c14;
+  --bg-glass:    rgba(13, 20, 32, 0.95);
+
+  --accent:      #60a5fa;
+  --accent-dim:  rgba(96, 165, 250, 0.07);
+  --accent-glow: rgba(96, 165, 250, 0.14);
+
+  --text-primary:   #ccd8f0;
+  --text-secondary: #6888b0;
+  --text-muted:     #50627e;
+
+  --border:          #1c2838;
+  --border-subtle:   #111a28;
+  --border-dropdown: #223040;
+  --shadow-dropdown: rgba(0, 0, 0, 0.90);
+
+  --positive: #60c880;
+  --warning:  #c8b850;
+  --danger:   #e07070;
+}
+

@@ -1,0 +1,371 @@
+/* ─── The Matrix — Morpheus ─── */
+[data-theme='morpheus'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2300ff41%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #000000;
+  --ctp-mantle: #020502;
+  --ctp-base: #050905;
+  --ctp-surface0: #0a120a;
+  --ctp-surface1: #0f1c0f;
+  --ctp-surface2: #162416;
+  --ctp-overlay0: #003b00;
+  --ctp-overlay1: #008f11;
+  --ctp-overlay2: #00cc33;
+  --ctp-text: #00ff41;
+  --ctp-subtext1: #00cc33;
+  --ctp-subtext0: #008f11;
+  --ctp-mauve: #00ff41;
+  --ctp-lavender: #adff2f;
+  --ctp-green: #00ff41;
+  --ctp-teal: #20c20e;
+  --ctp-sky: #00ff41;
+  --ctp-blue: #00ff41;
+  --ctp-sapphire: #008f11;
+  --ctp-pink: #003b00;
+  --ctp-flamingo: #003b00;
+  --ctp-rosewater: #d2ff00;
+  --ctp-yellow: #adff2f;
+  --ctp-peach: #00ff41;
+  --ctp-maroon: #003b00;
+  --ctp-red: #ff0033;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #050905;
+  --bg-sidebar: #000000;
+  --bg-card: #0a120a;
+  --bg-hover: rgba(0, 255, 65, 0.10);
+  --bg-player: #000000;
+  --bg-glass: rgba(0, 8, 0, 0.96);
+  --accent: #00ff41;
+  --accent-dim: rgba(0, 255, 65, 0.12);
+  --accent-glow: rgba(0, 255, 65, 0.45);
+  --volume-accent: #00ff41;
+  --text-primary: #00ff41;
+  --text-secondary: #00cc33;
+  --text-muted: #22cc44;
+  --border: #003b00;
+  --border-subtle: #001a00;
+  --positive: #00ff41;
+  --warning: #adff2f;
+  --danger: #ff0033;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 2px;
+}
+
+/* ── App shell: solid dark base (scanlines moved to sidebar for perf) ── */
+[data-theme='morpheus'] .app-shell {
+  background-color: #050905;
+}
+
+/* ── Sidebar: black with code-column ghost pattern ── */
+[data-theme='morpheus'] .sidebar {
+  background-color: #000000;
+  background-image: repeating-linear-gradient(90deg, transparent 0px, transparent 19px,
+      rgba(0, 255, 65, 0.03) 19px, rgba(0, 255, 65, 0.03) 20px);
+  border-right: 1px solid #003b00;
+}
+
+/* Nav links */
+[data-theme='morpheus'] .nav-link {
+  color: #00cc33;
+}
+
+[data-theme='morpheus'] .nav-link:hover {
+  background: rgba(0, 255, 65, 0.08);
+  color: #00ff41;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.50);
+}
+
+[data-theme='morpheus'] .nav-link.active {
+  background: rgba(0, 255, 65, 0.10);
+  color: #00ff41;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.45);
+}
+
+[data-theme='morpheus'] .nav-link.active::before {
+  background: #00ff41;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.70);
+}
+
+[data-theme='morpheus'] .nav-section-label {
+  color: #003b00;
+}
+
+/* ── Player bar: black glass with phosphor glow ── */
+[data-theme='morpheus'] .player-bar {
+  background: #000000;
+  border-top: 1px solid rgba(0, 255, 65, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 255, 65, 0.12),
+    0 -4px 24px rgba(0, 255, 65, 0.06);
+}
+
+/* Track info: phosphor CRT glow */
+[data-theme='morpheus'] .player-track-name {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  color: #00ff41;
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.70), 0 0 20px rgba(0, 255, 65, 0.30);
+  letter-spacing: 0.04em;
+}
+
+[data-theme='morpheus'] .player-track-artist,
+[data-theme='morpheus'] .player-time {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  color: #00cc33;
+  opacity: 0.85;
+}
+
+/* ── Transport buttons: terminal command style ── */
+[data-theme='morpheus'] .player-btn,
+[data-theme='morpheus'] .player-btn-primary {
+  background: #000000;
+  color: #00ff41;
+  border: 1px solid #003b00;
+  border-radius: 2px;
+  box-shadow: inset 0 0 6px rgba(0, 255, 65, 0.05);
+}
+
+[data-theme='morpheus'] .player-btn:hover,
+[data-theme='morpheus'] .player-btn-primary:hover {
+  background: rgba(0, 255, 65, 0.08);
+  border-color: #00ff41;
+  box-shadow:
+    0 0 12px rgba(0, 255, 65, 0.35),
+    inset 0 0 8px rgba(0, 255, 65, 0.08);
+  color: #00ff41;
+}
+
+/* ── All buttons: terminal style ── */
+[data-theme='morpheus'] .btn,
+[data-theme='morpheus'] .btn-surface,
+[data-theme='morpheus'] .btn-ghost,
+[data-theme='morpheus'] .btn-primary,
+[data-theme='morpheus'] .hero-play-btn,
+[data-theme='morpheus'] .album-card-details-btn,
+[data-theme='morpheus'] .queue-round-btn {
+  background: #000000;
+  color: #00ff41;
+  border: 1px solid #003b00;
+  border-radius: 0;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  box-shadow: none;
+}
+
+[data-theme='morpheus'] .btn:hover,
+[data-theme='morpheus'] .btn-surface:hover,
+[data-theme='morpheus'] .btn-ghost:hover,
+[data-theme='morpheus'] .btn-primary:hover,
+[data-theme='morpheus'] .hero-play-btn:hover,
+[data-theme='morpheus'] .album-card-details-btn:hover {
+  background: rgba(0, 255, 65, 0.08);
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.28), inset 0 0 8px rgba(0, 255, 65, 0.05);
+}
+
+[data-theme='morpheus'] .btn-primary {
+  border-color: #00cc33;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.20);
+}
+
+[data-theme='morpheus'] .btn-primary:hover {
+  border-color: #00ff41;
+  box-shadow: 0 0 16px rgba(0, 255, 65, 0.45), inset 0 0 10px rgba(0, 255, 65, 0.08);
+}
+
+/* Queue round button active: bright green */
+[data-theme='morpheus'] .queue-round-btn:hover:not(:disabled):not(.active) {
+  background: rgba(0, 255, 65, 0.08);
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.28);
+}
+
+[data-theme='morpheus'] .queue-round-btn.active {
+  background: rgba(0, 255, 65, 0.15);
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.40), inset 0 0 8px rgba(0, 255, 65, 0.08);
+}
+
+/* ── Cards: dark terminal panels ── */
+[data-theme='morpheus'] .card {
+  background: #0a120a;
+  border: 1px solid #003b00;
+  border-radius: 0;
+  box-shadow: inset 0 0 24px rgba(0, 255, 65, 0.02), 0 0 12px rgba(0, 0, 0, 0.60);
+}
+
+/* ── Content header: terminal prompt bar ── */
+[data-theme='morpheus'] .content-header {
+  background: #000000;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.25);
+  box-shadow: 0 2px 16px rgba(0, 255, 65, 0.04);
+}
+
+/* ── Theme accordion: terminal hover ── */
+[data-theme='morpheus'] .theme-accordion-header:hover {
+  background: rgba(0, 255, 65, 0.08);
+  color: #00ff41;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.40);
+}
+
+[data-theme='morpheus'] .theme-accordion-open .theme-accordion-header {
+  background: rgba(0, 255, 65, 0.10);
+  color: #00ff41;
+}
+
+[data-theme='morpheus'] .theme-accordion-open .theme-accordion-chevron {
+  color: #00ff41;
+}
+
+/* ── Progress bar: terminal loading bar ── */
+[data-theme='morpheus'] .progress-bar-track {
+  background: #001a00;
+  border: 1px solid #003b00;
+  border-radius: 0;
+}
+
+[data-theme='morpheus'] .progress-bar-fill {
+  background: #00ff41;
+  border-radius: 0;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.60), 0 0 2px rgba(0, 255, 65, 1);
+}
+
+/* ── Scrollbar: CRT terminal style ── */
+[data-theme='morpheus'] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+[data-theme='morpheus'] ::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+[data-theme='morpheus'] ::-webkit-scrollbar-thumb {
+  background: #003b00;
+  border: 1px solid rgba(0, 255, 65, 0.30);
+}
+
+[data-theme='morpheus'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 65, 0.25);
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.40);
+}
+
+/* ── Glass / dropdowns: black terminal window ── */
+[data-theme='morpheus'] .glass {
+  background: rgba(0, 8, 0, 0.97) !important;
+  backdrop-filter: none !important;
+  border: 1px solid rgba(0, 255, 65, 0.28) !important;
+  box-shadow:
+    0 0 20px rgba(0, 255, 65, 0.08),
+    inset 0 0 16px rgba(0, 255, 65, 0.02) !important;
+  border-radius: 0 !important;
+}
+
+[data-theme='morpheus'] .glass [style*="var(--bg-hover)"] {
+  background: rgba(0, 255, 65, 0.10) !important;
+  border-radius: 0 !important;
+}
+
+[data-theme='morpheus'] .glass [style*="var(--text-primary)"] {
+  color: #00ff41 !important;
+}
+
+[data-theme='morpheus'] .glass [style*="var(--text-secondary)"] {
+  color: #00cc33 !important;
+}
+
+[data-theme='morpheus'] .glass [style*="var(--text-muted)"] {
+  color: #006b10 !important;
+}
+
+/* ── Hover / selection: phosphor glow highlight ── */
+[data-theme='morpheus'] .queue-tab-btn:hover {
+  background: rgba(0, 255, 65, 0.08);
+  color: #00ff41;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.40);
+}
+
+[data-theme='morpheus'] .settings-tab:hover {
+  background: rgba(0, 255, 65, 0.08);
+  color: #00ff41;
+}
+
+[data-theme='morpheus'] .settings-tab.active {
+  background: rgba(0, 255, 65, 0.12);
+  color: #00ff41;
+  box-shadow: inset 2px 0 0 #00ff41;
+}
+
+[data-theme='morpheus'] .custom-select-trigger:hover {
+  background: rgba(0, 255, 65, 0.08);
+}
+
+[data-theme='morpheus'] .custom-select-option:hover {
+  background: rgba(0, 255, 65, 0.12) !important;
+  color: #00ff41 !important;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.40) !important;
+}
+
+[data-theme='morpheus'] .artist-ext-link:hover {
+  background: rgba(0, 255, 65, 0.10);
+  color: #00ff41 !important;
+  border-color: #00ff41 !important;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.40);
+}
+
+[data-theme='morpheus'] .np-action-btn:hover {
+  background: rgba(0, 255, 65, 0.08);
+}
+
+[data-theme='morpheus'] .np-queue-item:hover,
+[data-theme='morpheus'] .np-queue-item.context-active {
+  background: rgba(0, 255, 65, 0.10);
+  box-shadow: inset 2px 0 0 #00ff41;
+}
+
+[data-theme='morpheus'] .track-row:hover,
+[data-theme='morpheus'] .track-row.context-active {
+  background: rgba(0, 255, 65, 0.08) !important;
+  box-shadow: inset 2px 0 0 #00ff41;
+}
+
+[data-theme='morpheus'] .artist-row:hover {
+  background: rgba(0, 255, 65, 0.08);
+  box-shadow: inset 2px 0 0 #00ff41;
+}
+
+[data-theme='morpheus'] .playlist-row:hover {
+  background: rgba(0, 255, 65, 0.08);
+  box-shadow: inset 2px 0 0 #00ff41;
+}
+
+[data-theme='morpheus'] .queue-item:hover,
+[data-theme='morpheus'] .queue-item.context-active {
+  background: rgba(0, 255, 65, 0.10) !important;
+  box-shadow: inset 2px 0 0 #00ff41;
+}
+
+/* ── Active queue item: glowing green ── */
+[data-theme='morpheus'] .queue-item.active {
+  background: rgba(0, 255, 65, 0.08);
+  box-shadow: inset 2px 0 0 #00ff41, 0 0 8px rgba(0, 255, 65, 0.06);
+}
+
+[data-theme='morpheus'] .np-queue-item-active {
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.60);
+}
+
+[data-theme='morpheus'] .np-queue-item.active {
+  background: rgba(0, 255, 65, 0.08);
+}
+
+[data-theme='morpheus'] .np-album-track.active .np-album-track-title,
+[data-theme='morpheus'] .np-album-track.active .np-album-track-num {
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.60);
+}
+

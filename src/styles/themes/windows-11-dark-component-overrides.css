@@ -1,0 +1,525 @@
+/* ─── Windows 11 Dark — component overrides ─────────────────────────────
+   Raise column grip + structural borders to perceptible contrasts that
+   match Fluent v2 Stroke tokens, and hand-tune a handful of elements
+   that hardcode the old accent.                                        */
+
+/* Column resize grip — was #363636 on #2c2c2c = 1.16:1 (invisible) */
+[data-theme='w11'] .col-resize-handle::after {
+  background: var(--ctp-overlay1);  /* #a0a0a0 → 6.3:1 on bg-card */
+  width: 2px;
+}
+
+/* Focus ring — Fluent keyboard focus indicator */
+[data-theme='w11'] *:focus-visible {
+  outline: 2px solid var(--accent-text);  /* #60cdff — high contrast */
+  outline-offset: 2px;
+}
+
+/* Scrollbar thumb — Fluent neutral, perceptible against dark surfaces */
+[data-theme='w11'] ::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay0);
+}
+[data-theme='w11'] *:hover::-webkit-scrollbar-thumb,
+[data-theme='w11'] .is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay2);
+}
+
+/* Connection indicators inherit secondary colour (readability improved via
+   raised --text-secondary). No background box (they're inline spans). */
+[data-theme='w11'] .connection-type {
+  color: var(--text-primary);
+}
+[data-theme='w11'] .connection-server {
+  color: var(--text-secondary);
+}
+
+/* Track name — pure white (Fluent is minimal, uses true white not off-white) */
+[data-theme='w11'] .player-track-name,
+[data-theme='w11'] .queue-track-title {
+  color: #ffffff;
+}
+
+/* Sidebar — Mica-like: very slightly lighter than app bg, Fluent Divider Dark */
+[data-theme='w11'] .sidebar {
+  background-color: #2b2b2b;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Nav active — Fluent accent fill, rounded */
+[data-theme='w11'] .sidebar-nav-item.active {
+  background: rgba(0, 120, 212, 0.22);
+  border-left: 3px solid #0078d4;
+}
+
+/* Player bar — taskbar-inspired: very dark, Fluent Divider Dark */
+[data-theme='w11'] .player-bar {
+  background-color: #1c1c1c;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+/* App-shell — flat, no gradient (Fluent dark is clean/minimal) */
+[data-theme='w11'] .app-shell {
+  background: none;
+}
+
+/* Cards — Fluent hover: slight elevation via border brightening */
+[data-theme='w11'] .album-card:hover,
+[data-theme='w11'] .artist-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+
+/* ── Barb & Ken (Games) ─────────────────────────────────────── */
+[data-theme='barb-and-ken'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FF1B8D%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Barbieland palette */
+  --ctp-crust: #07000b;
+  --ctp-mantle: #110009;
+  --ctp-base: #1a000f;
+  --ctp-surface0: #2e0019;
+  --ctp-surface1: #450026;
+  --ctp-surface2: #5c0032;
+  --ctp-overlay0: #8c1455;
+  --ctp-overlay1: #b82070;
+  --ctp-overlay2: #d93d8a;
+  --ctp-text: #ffe6f3;
+  --ctp-subtext1: #ffb8da;
+  --ctp-subtext0: #ff80be;
+
+  /* Barbie Pink spectrum */
+  --ctp-mauve: #FF1B8D;
+  --ctp-pink: #FF69B4;
+  --ctp-flamingo: #FF1493;
+  --ctp-rosewater: #FFD6EC;
+  --ctp-lavender: #FFB3D9;
+  --ctp-maroon: #c4005e;
+  --ctp-red: #FF4466;
+
+  /* Ken — powder blue as accent-2 */
+  --ctp-blue: #89CFF0;
+  --ctp-sapphire: #5BC8F5;
+  --ctp-sky: #AAE8FF;
+  --ctp-teal: #70d8f2;
+
+  --ctp-green: #a6e3a1;
+  --ctp-yellow: #FFE4A8;
+  --ctp-peach: #FFB8D0;
+
+  --bg-app: #1a000f;
+  --bg-sidebar: #110009;
+  --bg-card: #2e0019;
+  --bg-hover: rgba(255, 27, 141, 0.12);
+  --bg-player: #07000b;
+  --bg-glass: rgba(26, 0, 15, 0.88);
+
+  --accent: #FF1B8D;
+  --accent-dim: rgba(255, 27, 141, 0.15);
+  --accent-glow: rgba(255, 27, 141, 0.45);
+  --volume-accent: #89CFF0;
+
+  --text-primary: #ffe6f3;
+  --text-secondary: #ffb8da;
+  --text-muted: #7a3055;
+  --border: rgba(255, 27, 141, 0.28);
+  --border-subtle: rgba(255, 27, 141, 0.12);
+  --border-dropdown: rgba(255, 27, 141, 0.3);
+  --shadow-dropdown: rgba(7, 0, 11, 0.9);
+
+  --positive: #a6e3a1;
+  --warning: #FFE4A8;
+  --danger: #FF4466;
+
+  /* Bubbly, soft rounding — very Barbie */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+}
+
+/* Polka-dot sidebar — Barbie's dreamhouse wallpaper */
+[data-theme='barb-and-ken'] .sidebar {
+  background:
+    radial-gradient(circle, rgba(255, 27, 141, 0.18) 2px, transparent 2px),
+    radial-gradient(circle, rgba(137, 207, 240, 0.10) 2px, transparent 2px),
+    linear-gradient(180deg, #110009 0%, #1a000f 100%);
+  background-size: 22px 22px, 22px 22px, 100% 100%;
+  background-position: 0 0, 11px 11px, 0 0;
+  border-right: 1px solid rgba(255, 27, 141, 0.35);
+}
+
+/* Player bar — deep magenta gradient, hot pink top border */
+[data-theme='barb-and-ken'] .player-bar {
+  background: linear-gradient(180deg, #1a000f 0%, #07000b 100%);
+  border-top: 2px solid #FF1B8D;
+  box-shadow: 0 -6px 24px rgba(255, 27, 141, 0.18);
+}
+
+/* Track name — glitter shimmer */
+@keyframes barbie-shimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+[data-theme='barb-and-ken'] .player-track-name {
+  background: linear-gradient(90deg,
+      #FF1B8D 0%,
+      #FF69B4 25%,
+      #ffffff 50%,
+      #FF69B4 75%,
+      #FF1B8D 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: barbie-shimmer 4s linear infinite;
+  font-weight: 700;
+}
+
+/* Artist name — Ken blue */
+[data-theme='barb-and-ken'] .player-artist-name {
+  color: #89CFF0;
+}
+
+/* Active nav — pink left border glow */
+[data-theme='barb-and-ken'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(255, 27, 141, 0.22) 0%, transparent 100%);
+  color: #FF69B4 !important;
+  border-left: 3px solid #FF1B8D;
+  text-shadow: 0 0 8px rgba(255, 27, 141, 0.4);
+}
+
+[data-theme='barb-and-ken'] .nav-link:hover:not(.active) {
+  background: rgba(255, 27, 141, 0.08);
+}
+
+/* Content header — subtle pink rule */
+[data-theme='barb-and-ken'] .content-header {
+  border-bottom: 1px solid rgba(255, 27, 141, 0.2);
+  background: rgba(26, 0, 15, 0.6);
+  backdrop-filter: blur(12px);
+}
+
+/* Primary buttons — hot pink gradient */
+[data-theme='barb-and-ken'] .btn-primary,
+[data-theme='barb-and-ken'] .player-btn-primary,
+[data-theme='barb-and-ken'] .hero-play-btn {
+  background: linear-gradient(135deg, #FF1B8D 0%, #FF69B4 100%);
+  box-shadow: 0 4px 16px rgba(255, 27, 141, 0.45);
+  color: #fff !important;
+  border: none;
+}
+
+[data-theme='barb-and-ken'] .btn-primary:hover,
+[data-theme='barb-and-ken'] .player-btn-primary:hover,
+[data-theme='barb-and-ken'] .hero-play-btn:hover {
+  background: linear-gradient(135deg, #e5007a 0%, #FF1B8D 100%);
+  box-shadow: 0 6px 22px rgba(255, 27, 141, 0.60);
+}
+
+/* Cards — pink border glow on hover */
+[data-theme='barb-and-ken'] .album-card,
+[data-theme='barb-and-ken'] .artist-card,
+[data-theme='barb-and-ken'] .card,
+[data-theme='barb-and-ken'] .settings-card {
+  border: 1px solid rgba(255, 27, 141, 0.18);
+}
+
+[data-theme='barb-and-ken'] .album-card:hover,
+[data-theme='barb-and-ken'] .artist-card:hover {
+  border-color: rgba(255, 27, 141, 0.50);
+  box-shadow: 0 4px 20px rgba(255, 27, 141, 0.20);
+}
+
+/* Queue active item */
+[data-theme='barb-and-ken'] .queue-item.active {
+  background: rgba(255, 27, 141, 0.08);
+  border-left: 3px solid #FF1B8D;
+}
+
+[data-theme='barb-and-ken'] .queue-item.active .queue-item-title {
+  color: #FF69B4;
+}
+
+[data-theme='barb-and-ken'] .queue-item.active .queue-item-artist,
+[data-theme='barb-and-ken'] .queue-item.active .queue-item-duration {
+  color: #89CFF0;
+}
+
+/* Track rows */
+[data-theme='barb-and-ken'] .track-row:hover,
+[data-theme='barb-and-ken'] .queue-item:hover {
+  background: rgba(255, 27, 141, 0.07);
+}
+
+/* Album detail header cover button — Ken blue glow on hover */
+[data-theme='barb-and-ken'] .album-detail-cover-btn:hover {
+  box-shadow: 0 0 24px rgba(137, 207, 240, 0.35);
+}
+
+/* Star (favorite) icon — gold kept, but override to hot pink */
+[data-theme='barb-and-ken'] .color-star-active {
+  --color-star-active: #FF69B4;
+}
+
+/* Scrollbar — thin hot pink */
+[data-theme='barb-and-ken'] ::-webkit-scrollbar {
+  width: 5px;
+}
+
+[data-theme='barb-and-ken'] ::-webkit-scrollbar-track {
+  background: #07000b;
+}
+
+[data-theme='barb-and-ken'] ::-webkit-scrollbar-thumb {
+  background: #FF1B8D;
+  border-radius: 3px;
+}
+
+[data-theme='barb-and-ken'] ::-webkit-scrollbar-thumb:hover {
+  background: #FF69B4;
+}
+
+/* Connection indicators */
+[data-theme='barb-and-ken'] .connection-type,
+[data-theme='barb-and-ken'] .connection-server {
+  color: #7a3055;
+}
+
+/* ── Toy Tale (Movies) ──────────────────────────────────────── */
+[data-theme='toy-tale'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FFD600%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Warm toy-box palette */
+  --ctp-crust: #080603;
+  --ctp-mantle: #100d08;
+  --ctp-base: #1a1208;
+  --ctp-surface0: #2a1c10;
+  --ctp-surface1: #3a2818;
+  --ctp-surface2: #4a3422;
+  --ctp-overlay0: #7a5a35;
+  --ctp-overlay1: #9a7848;
+  --ctp-overlay2: #b89060;
+  --ctp-text: #f0e8d8;
+  --ctp-subtext1: #d8c8a8;
+  --ctp-subtext0: #c0a880;
+
+  /* Woody gold */
+  --ctp-mauve: #FFD600;
+  --ctp-yellow: #FFD600;
+  --ctp-peach: #FFA000;
+  --ctp-rosewater: #FFE0A0;
+
+  /* Buzz Lightyear purple + green */
+  --ctp-lavender: #9B72D6;
+  --ctp-blue: #7B4FD6;
+  --ctp-sapphire: #5c35a0;
+  --ctp-sky: #4FC3F7;
+  --ctp-teal: #4CAF50;
+  --ctp-green: #4CAF50;
+
+  --ctp-pink: #FF6B9D;
+  --ctp-flamingo: #FF4488;
+  --ctp-maroon: #b71c1c;
+  --ctp-red: #e53935;
+
+  --bg-app: #1a1208;
+  --bg-sidebar: #1e3a5f;
+  /* Andy's sky-blue wallpaper */
+  --bg-card: #2a1c10;
+  --bg-hover: rgba(255, 214, 0, 0.10);
+  --bg-player: #0d0a06;
+  --bg-glass: rgba(26, 18, 8, 0.90);
+
+  --accent: #FFD600;
+  --accent-dim: rgba(255, 214, 0, 0.15);
+  --accent-glow: rgba(255, 214, 0, 0.40);
+  --volume-accent: #7B4FD6;
+  /* Buzz purple */
+
+  --text-primary: #f0e8d8;
+  --text-secondary: #c8a878;
+  --text-muted: #6a5030;
+  --border: rgba(255, 214, 0, 0.22);
+  --border-subtle: rgba(255, 214, 0, 0.10);
+  --border-dropdown: rgba(255, 214, 0, 0.25);
+  --shadow-dropdown: rgba(8, 6, 3, 0.92);
+
+  --positive: #4CAF50;
+  --warning: #FFA000;
+  --danger: #e53935;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* Sidebar — Andy's iconic cloud wallpaper in sky blue */
+[data-theme='toy-tale'] .sidebar {
+  background:
+    radial-gradient(ellipse 70px 42px at 18% 12%, rgba(255, 255, 255, 0.14) 0%, transparent 100%),
+    radial-gradient(ellipse 45px 28px at 38% 18%, rgba(255, 255, 255, 0.09) 0%, transparent 100%),
+    radial-gradient(ellipse 80px 50px at 72% 10%, rgba(255, 255, 255, 0.12) 0%, transparent 100%),
+    radial-gradient(ellipse 55px 32px at 85% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 100%),
+    radial-gradient(ellipse 65px 40px at 12% 55%, rgba(255, 255, 255, 0.10) 0%, transparent 100%),
+    radial-gradient(ellipse 48px 30px at 55% 68%, rgba(255, 255, 255, 0.08) 0%, transparent 100%),
+    radial-gradient(ellipse 72px 44px at 80% 75%, rgba(255, 255, 255, 0.11) 0%, transparent 100%),
+    linear-gradient(180deg, #1e3a5f 0%, #274d78 100%);
+  border-right: 1px solid rgba(255, 214, 0, 0.20);
+}
+
+/* Nav links need lighter text on blue sidebar */
+[data-theme='toy-tale'] .nav-link {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+[data-theme='toy-tale'] .nav-link:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+}
+
+[data-theme='toy-tale'] .nav-link.active {
+  background: rgba(255, 214, 0, 0.20);
+  border-left: 3px solid #FFD600;
+  color: #FFD600 !important;
+  text-shadow: 0 0 8px rgba(255, 214, 0, 0.4);
+}
+
+[data-theme='toy-tale'] .sidebar-logo,
+[data-theme='toy-tale'] .sidebar-title {
+  color: #fff;
+}
+
+/* Player bar — dark toy-chest wood */
+[data-theme='toy-tale'] .player-bar {
+  background: linear-gradient(180deg, #1a1208 0%, #0d0a06 100%);
+  border-top: 2px solid #FFD600;
+  box-shadow: 0 -6px 20px rgba(255, 214, 0, 0.10);
+}
+
+/* Track name — Woody sheriff star gold */
+[data-theme='toy-tale'] .player-track-name {
+  color: #FFD600;
+  text-shadow: 0 0 10px rgba(255, 214, 0, 0.45);
+  font-weight: 700;
+}
+
+/* Artist name — warm cowboy tan */
+[data-theme='toy-tale'] .player-artist-name {
+  color: #c8a060;
+}
+
+/* Content header */
+[data-theme='toy-tale'] .content-header {
+  border-bottom: 1px solid rgba(255, 214, 0, 0.18);
+}
+
+/* Primary buttons — Woody yellow */
+[data-theme='toy-tale'] .btn-primary,
+[data-theme='toy-tale'] .player-btn-primary,
+[data-theme='toy-tale'] .hero-play-btn {
+  background: linear-gradient(135deg, #FFD600 0%, #FFA000 100%);
+  color: #1a1208 !important;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(255, 214, 0, 0.35);
+  border: none;
+}
+
+[data-theme='toy-tale'] .btn-primary:hover,
+[data-theme='toy-tale'] .player-btn-primary:hover,
+[data-theme='toy-tale'] .hero-play-btn:hover {
+  background: linear-gradient(135deg, #ffe033 0%, #FFD600 100%);
+  box-shadow: 0 6px 20px rgba(255, 214, 0, 0.50);
+}
+
+/* Cards */
+[data-theme='toy-tale'] .album-card,
+[data-theme='toy-tale'] .artist-card,
+[data-theme='toy-tale'] .card,
+[data-theme='toy-tale'] .settings-card {
+  border: 1px solid rgba(255, 214, 0, 0.16);
+}
+
+[data-theme='toy-tale'] .album-card:hover,
+[data-theme='toy-tale'] .artist-card:hover {
+  border-color: rgba(255, 214, 0, 0.42);
+  box-shadow: 0 4px 18px rgba(255, 214, 0, 0.14);
+}
+
+/* Track rows */
+[data-theme='toy-tale'] .track-row:hover,
+[data-theme='toy-tale'] .queue-item:hover {
+  background: rgba(255, 214, 0, 0.06);
+}
+
+/* Queue active item — Buzz purple accent */
+[data-theme='toy-tale'] .queue-item.active {
+  background: rgba(123, 79, 214, 0.12);
+  border-left: 3px solid #7B4FD6;
+}
+
+[data-theme='toy-tale'] .queue-item.active .queue-item-title {
+  color: #FFD600;
+}
+
+[data-theme='toy-tale'] .queue-item.active .queue-item-artist,
+[data-theme='toy-tale'] .queue-item.active .queue-item-duration {
+  color: #9B72D6;
+}
+
+/* Scrollbar — Woody brown */
+[data-theme='toy-tale'] ::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-theme='toy-tale'] ::-webkit-scrollbar-track {
+  background: #0d0a06;
+}
+
+[data-theme='toy-tale'] ::-webkit-scrollbar-thumb {
+  background: #7a5a35;
+  border-radius: 3px;
+}
+
+[data-theme='toy-tale'] ::-webkit-scrollbar-thumb:hover {
+  background: #FFD600;
+}
+
+/* Connection indicators */
+[data-theme='toy-tale'] .connection-type,
+[data-theme='toy-tale'] .connection-server {
+  color: #6a5030;
+}
+
+/* Sidebar section labels (sky-blue bg needs light text) */
+[data-theme='toy-tale'] .nav-section-label {
+  color: rgba(200, 230, 255, 0.55);
+}
+
+/* Queue tab buttons (Lyrics / Warteschlange) — inactive */
+[data-theme='toy-tale'] .queue-tab-btn {
+  color: #b89060;
+}
+
+[data-theme='toy-tale'] .queue-tab-btn:hover {
+  color: #f0e8d8;
+}
+
+/* Queue: inactive song artist */
+[data-theme='toy-tale'] .queue-item-artist {
+  color: #9a7848;
+}
+
+/* Queue: "Nächste Titel" divider */
+[data-theme='toy-tale'] .queue-divider span {
+  color: #b89060 !important;
+}
+

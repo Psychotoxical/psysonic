@@ -1,0 +1,482 @@
+/* ─── Windows XP Luna Teal ─── */
+[data-theme='luna-teal'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23444444%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #0041b8;
+  --ctp-mantle: #0055e5;
+  --ctp-base: #ece9d8;
+  --ctp-surface0: #ffffff;
+  --ctp-surface1: #f5f3ec;
+  --ctp-surface2: #ece9d8;
+  --ctp-overlay0: #c0bba8;
+  --ctp-overlay1: #8a8675;
+  --ctp-overlay2: #5e5a4c;
+  --ctp-text: #000000;
+  --ctp-subtext1: #1a1a1a;
+  --ctp-subtext0: #444444;
+  --ctp-mauve: #3c9d29;
+  --ctp-lavender: #52b83c;
+  --ctp-green: #3c9d29;
+  --ctp-teal: #007c8a;
+  --ctp-sky: #316ac5;
+  --ctp-blue: #0055e5;
+  --ctp-sapphire: #0041b8;
+  --ctp-pink: #cc2288;
+  --ctp-flamingo: #cc2020;
+  --ctp-rosewater: #dd4400;
+  --ctp-yellow: #b87800;
+  --ctp-peach: #cc6600;
+  --ctp-maroon: #aa1111;
+  --ctp-red: #cc1111;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #ece9d8;
+  --bg-sidebar: #c8daf5;
+  --bg-card: #ffffff;
+  --bg-hover: #316ac5;
+  --bg-player: #1248b8;
+  --bg-glass: rgba(255, 255, 255, 0.97);
+  --accent: #3c9d29;
+  --accent-dim: rgba(60, 157, 41, 0.14);
+  --accent-glow: rgba(60, 157, 41, 0.35);
+  --volume-accent: #3c9d29;
+  --text-primary: #000000;
+  --text-secondary: #333333;
+  --text-muted: #555555;
+  --border: #003399;
+  --border-subtle: #aca899;
+  --positive: #3c9d29;
+  --warning: #b87800;
+  --danger: #cc1111;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+/* ── App shell: XP sandy desktop ── */
+[data-theme='luna-teal'] .app-shell {
+  background: #ece9d8;
+}
+
+/* ── Sidebar: XP Explorer task pane / Folders panel ── */
+[data-theme='luna-teal'] .sidebar {
+  background: linear-gradient(180deg, #d8e8fa 0%, #c0d4f5 40%, #b0c8f0 100%);
+  border-right: 1px solid #7090c0;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.60), 2px 0 4px rgba(0, 0, 0, 0.14);
+}
+
+/* Sidebar text: dark navy on ice blue — with white text-shadow for legibility */
+[data-theme='luna-teal'] .sidebar-link,
+[data-theme='luna-teal'] .sidebar-section-title,
+[data-theme='luna-teal'] .sidebar-logo-text,
+[data-theme='luna-teal'] .nav-section-label,
+[data-theme='luna-teal'] .brand-name {
+  color: #002060;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+}
+
+/* Nav links */
+[data-theme='luna-teal'] .nav-link {
+  color: #001850;
+}
+
+[data-theme='luna-teal'] .nav-link:hover {
+  background: rgba(255, 255, 255, 0.45);
+  color: #000000;
+  border-radius: 3px;
+}
+
+[data-theme='luna-teal'] .nav-link.active {
+  background: #316ac5;
+  color: #ffffff;
+  border-radius: 3px;
+  text-shadow: none;
+}
+
+[data-theme='luna-teal'] .nav-link.active::before {
+  background: #ffffff;
+}
+
+[data-theme='luna-teal'] .nav-link.active svg,
+[data-theme='luna-teal'] .nav-link:hover svg {
+  opacity: 1;
+}
+
+/* Now Playing nav link */
+[data-theme='luna-teal'] .nav-link-nowplaying {
+  background: rgba(0, 0, 80, 0.10);
+  color: #001850;
+}
+
+[data-theme='luna-teal'] .nav-link-nowplaying:hover {
+  background: rgba(255, 255, 255, 0.45);
+  color: #000000;
+}
+
+[data-theme='luna-teal'] .nav-link-nowplaying.active {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+/* ── Player bar: authentic XP Luna taskbar blue ── */
+[data-theme='luna-teal'] .player-bar {
+  background: linear-gradient(180deg,
+      #4b8ee8 0%,
+      #2568d4 8%,
+      #1a56c4 30%,
+      #1248b8 70%,
+      #0e3da8 85%,
+      #1248b8 100%);
+  border-top: 1px solid #7aaaff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 2px 0 rgba(255, 255, 255, 0.18),
+    0 -2px 8px rgba(0, 0, 0, 0.30);
+}
+
+/* Track name: white with XP glow */
+[data-theme='luna-teal'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.60), 0 0 10px rgba(120, 180, 255, 0.40);
+  font-weight: 700;
+}
+
+[data-theme='luna-teal'] .player-track-artist {
+  color: #b8d4ff;
+  opacity: 1;
+}
+
+[data-theme='luna-teal'] .player-time {
+  color: #b8d4ff;
+}
+
+/* ── Transport buttons: XP Luna gel circles ── */
+[data-theme='luna-teal'] .player-btn,
+[data-theme='luna-teal'] .player-btn-primary {
+  background: linear-gradient(180deg,
+      #80aaff 0%,
+      #4477ee 45%,
+      #1a50dd 50%,
+      #0c3bb8 100%);
+  color: #ffffff;
+  border: 1px solid #002288;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='luna-teal'] .player-btn:hover,
+[data-theme='luna-teal'] .player-btn-primary:hover {
+  background: linear-gradient(180deg,
+      #99bbff 0%,
+      #5588ff 45%,
+      #2264ee 50%,
+      #1a52d0 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 3px 8px rgba(0, 0, 0, 0.40),
+    0 0 10px rgba(80, 140, 255, 0.40);
+}
+
+/* ── Regular buttons: XP bevel style ── */
+[data-theme='luna-teal'] .btn,
+[data-theme='luna-teal'] .btn-surface,
+[data-theme='luna-teal'] .btn-ghost {
+  background: linear-gradient(180deg, #f5f3ec 0%, #ece9d8 48%, #ddd9c8 50%, #d0cdb8 100%);
+  color: #000000;
+  border: 1px solid #888480;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 1px 0 0 rgba(255, 255, 255, 0.70),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+  border-radius: 3px;
+}
+
+[data-theme='luna-teal'] .btn:hover,
+[data-theme='luna-teal'] .btn-surface:hover,
+[data-theme='luna-teal'] .btn-ghost:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 48%, #e4e0d0 50%, #d8d4c4 100%);
+  border-color: #0055e5;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Primary button: XP green gel ── */
+[data-theme='luna-teal'] .btn-primary {
+  background: linear-gradient(180deg,
+      #66dd50 0%,
+      #3c9d29 45%,
+      #2e8020 50%,
+      #1e6015 100%);
+  color: #ffffff;
+  border: 1px solid #1a5010;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 3px rgba(0, 0, 0, 0.30);
+  border-radius: 4px;
+}
+
+[data-theme='luna-teal'] .btn-primary:hover {
+  background: linear-gradient(180deg,
+      #80ee68 0%,
+      #4db035 45%,
+      #3a9028 50%,
+      #2e8020 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.60),
+    0 1px 4px rgba(0, 0, 0, 0.30),
+    0 0 8px rgba(60, 157, 41, 0.40);
+}
+
+/* ── Hero / album-card play buttons ── */
+[data-theme='luna-teal'] .hero-play-btn,
+[data-theme='luna-teal'] .album-card-details-btn {
+  background: linear-gradient(180deg, #f5f3ec 0%, #d0cdb8 100%);
+  color: #000000;
+  border: 1px solid #888480;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 1px 2px rgba(0, 0, 0, 0.20);
+}
+
+[data-theme='luna-teal'] .hero-play-btn:hover,
+[data-theme='luna-teal'] .album-card-details-btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #ddd9c8 100%);
+  border-color: #0055e5;
+}
+
+/* ── Queue toolbar round buttons ── */
+[data-theme='luna-teal'] .queue-round-btn {
+  background: linear-gradient(180deg, #f5f3ec 0%, #d0cdb8 100%);
+  color: #333333;
+  border: 1px solid #888480;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.90), 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme='luna-teal'] .queue-round-btn:hover:not(:disabled):not(.active) {
+  background: linear-gradient(180deg, #ffffff 0%, #e0ddd0 100%);
+  border-color: #0055e5;
+  color: #000000;
+}
+
+[data-theme='luna-teal'] .queue-round-btn.active {
+  background: #316ac5;
+  color: #ffffff;
+  border-color: #0033aa;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.30), 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* ── Cards: XP white window interior ── */
+[data-theme='luna-teal'] .card {
+  background: #ffffff;
+  border: 1px solid #aca899;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 1px 3px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+/* ── Content header: XP title bar gradient ── */
+[data-theme='luna-teal'] .content-header {
+  background: linear-gradient(180deg,
+      #5a9aee 0%,
+      #2a6ad4 25%,
+      #1a56c4 50%,
+      #0e48b8 75%,
+      #0a3aaa 100%);
+  border-bottom: 1px solid #0033aa;
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.40), 0 2px 4px rgba(0, 0, 0, 0.18);
+}
+
+/* Connection indicators: white on blue header */
+[data-theme='luna-teal'] .connection-type,
+[data-theme='luna-teal'] .connection-server {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.50);
+}
+
+/* ── Theme accordion: XP selection blue ── */
+[data-theme='luna-teal'] .theme-accordion-header:hover {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .theme-accordion-open .theme-accordion-header {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .theme-accordion-open .theme-accordion-chevron {
+  color: #ffffff;
+}
+
+/* ── Progress bar: XP green ── */
+[data-theme='luna-teal'] .progress-bar-track {
+  background: #aca899;
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme='luna-teal'] .progress-bar-fill {
+  background: linear-gradient(180deg, #52cc3c 0%, #3c9d29 50%, #2e8020 100%);
+  border-radius: 2px;
+}
+
+/* ── Scrollbar: XP 16px system style ── */
+[data-theme='luna-teal'] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+[data-theme='luna-teal'] ::-webkit-scrollbar-track {
+  background: #ece9d8;
+  border-left: 1px solid #aca899;
+}
+
+[data-theme='luna-teal'] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(to right, #c8c4b8 0%, #e0ddd0 40%, #c0bbb4 100%);
+  border: 1px solid #888480;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #888480;
+  border-radius: 2px;
+}
+
+[data-theme='luna-teal'] ::-webkit-scrollbar-button {
+  background: linear-gradient(180deg, #f0ede0 0%, #d8d4c4 100%);
+  border: 1px solid #888480;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #888480;
+}
+
+/* ── Glass / dropdowns: solid XP dialog style ── */
+[data-theme='luna-teal'] .glass {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  border: 1px solid #aca899 !important;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.28) !important;
+  border-radius: 4px !important;
+}
+
+[data-theme='luna-teal'] .glass [style*="var(--bg-hover)"] {
+  background: #316ac5 !important;
+  border-radius: 0 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='luna-teal'] .glass [style*="var(--text-primary)"] {
+  color: #000000 !important;
+}
+
+[data-theme='luna-teal'] .glass [style*="var(--text-secondary)"] {
+  color: #333333 !important;
+}
+
+[data-theme='luna-teal'] .glass [style*="var(--text-muted)"] {
+  color: #555555 !important;
+}
+
+/* ── Hover / selection: XP classic blue ── */
+[data-theme='luna-teal'] .queue-tab-btn:hover {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .settings-tab:hover {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .settings-tab.active {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .custom-select-trigger:hover {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .custom-select-option:hover {
+  background: #316ac5 !important;
+  color: #ffffff !important;
+}
+
+[data-theme='luna-teal'] .artist-ext-link:hover {
+  background: #316ac5;
+  color: #ffffff !important;
+}
+
+[data-theme='luna-teal'] .np-action-btn:hover {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .np-queue-item:hover,
+[data-theme='luna-teal'] .np-queue-item.context-active {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .track-row:hover,
+[data-theme='luna-teal'] .track-row.context-active {
+  background: #316ac5 !important;
+}
+
+[data-theme='luna-teal'] .track-row:hover *,
+[data-theme='luna-teal'] .track-row.context-active * {
+  color: #ffffff !important;
+}
+
+[data-theme='luna-teal'] .artist-row:hover {
+  background: #316ac5;
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .playlist-row:hover {
+  background: #316ac5;
+}
+
+[data-theme='luna-teal'] .playlist-row:hover,
+[data-theme='luna-teal'] .playlist-row:hover * {
+  color: #ffffff;
+}
+
+[data-theme='luna-teal'] .queue-item:hover,
+[data-theme='luna-teal'] .queue-item.context-active {
+  background: #316ac5 !important;
+}
+
+[data-theme='luna-teal'] .queue-item:hover .queue-item-title,
+[data-theme='luna-teal'] .queue-item:hover .queue-item-artist,
+[data-theme='luna-teal'] .queue-item:hover .queue-item-duration,
+[data-theme='luna-teal'] .queue-item.context-active .queue-item-title,
+[data-theme='luna-teal'] .queue-item.context-active .queue-item-artist,
+[data-theme='luna-teal'] .queue-item.context-active .queue-item-duration {
+  color: #ffffff;
+}
+
+/* ── Active queue / now-playing items ── */
+[data-theme='luna-teal'] .queue-item.active {
+  background: rgba(49, 106, 197, 0.12);
+  color: #0041b8;
+}
+
+[data-theme='luna-teal'] .queue-item.active .queue-item-artist,
+[data-theme='luna-teal'] .queue-item.active .queue-item-duration {
+  color: #0055e5;
+  opacity: 0.85;
+}
+
+[data-theme='luna-teal'] .np-queue-item-active {
+  color: #0041b8;
+}
+
+[data-theme='luna-teal'] .np-queue-item.active {
+  background: rgba(49, 106, 197, 0.10);
+}
+
+[data-theme='luna-teal'] .np-album-track.active .np-album-track-title,
+[data-theme='luna-teal'] .np-album-track.active .np-album-track-num {
+  color: #0041b8;
+}
+

@@ -1,0 +1,68 @@
+/* ─── Copper Oxide ─── */
+[data-theme='copper-oxide'] {
+  color-scheme: dark;
+
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2345b8b0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+
+  /* Backgrounds */
+  --ctp-crust:    #080f0e;
+  --ctp-mantle:   #0c1614;
+  --ctp-base:     #101a18;
+  --ctp-surface0: #131f1c;
+  --ctp-surface1: #1a2e2b;
+  --ctp-surface2: #203c38;
+
+  /* Overlays */
+  --ctp-overlay0: #256860;
+  --ctp-overlay1: #358880;
+  --ctp-overlay2: #45a89a;
+
+  /* Text */
+  --ctp-text:     #d8f0ee;
+  --ctp-subtext1: #a0d8d4;
+  --ctp-subtext0: #68b8b0;
+
+  /* Teal accent */
+  --ctp-teal:      #4ecdc4;
+  --ctp-sky:       #4ecdc4;
+  --ctp-sapphire:  #35a09a;
+  --ctp-blue:      #207870;
+  --ctp-lavender:  #4ecdc4;
+  --ctp-mauve:     #35a09a;
+  --ctp-pink:      #207870;
+  --ctp-flamingo:  #4ecdc4;
+  --ctp-rosewater: #35a09a;
+
+  /* Semantic */
+  --ctp-red:     #ff4444;
+  --ctp-maroon:  #ff8844;
+  --ctp-peach:   #ff8844;
+  --ctp-yellow:  #ffcc44;
+  --ctp-green:   #44ff88;
+
+  /* UI tokens */
+  --bg-app:      #101a18;
+  --bg-sidebar:  #0c1614;
+  --bg-card:     #131f1c;
+  --bg-hover:    #1a2e2b;
+  --bg-player:   #0c1614;
+  --bg-glass:    rgba(16, 26, 24, 0.95);
+
+  --accent:      #45b8b0;
+  --accent-dim:  rgba(78, 205, 196, 0.07);
+  --accent-glow: rgba(78, 205, 196, 0.14);
+
+  --text-primary:   #d8f0ee;
+  --text-secondary: #68b8b0;
+  --text-muted:     #256860;
+
+  --border:          #1a2e2b;
+  --border-subtle:   #131f1c;
+  --border-dropdown: #203c38;
+  --shadow-dropdown: rgba(0, 0, 0, 0.90);
+
+  --positive: #44ff88;
+  --warning:  #ffcc44;
+  --danger:   #ff4444;
+}
+

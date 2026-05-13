@@ -1,0 +1,67 @@
+/* ─── Classic Winamp — Winamp 2.x Base Skin ─── */
+[data-theme='wnamp'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23d4d4dc%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ──
+     Contrast audit (vs. --bg-app #2b2b3a, L≈0.025):
+       text-primary   9.6:1  AAA ✓ (raised from 8.5:1)
+       text-secondary 5.5:1  AA  ✓
+       text-muted     4.7:1  AA  ✓ (was 5.6:1 but BRIGHTER than secondary — hierarchy fixed)
+       accent (gold)  8.4:1  AAA ✓
+       positive       6.6:1  AA+ ✓
+       danger         4.9:1  AA  ✓ (raised from 2.46:1 — was below AA)
+     Column grip + border-subtle raised from 1.0:1 / 1.19:1 — see overrides.
+  */
+  --ctp-crust: #000000;
+  --ctp-mantle: #1e1e28;
+  --ctp-base: #2b2b3a;
+  --ctp-surface0: #353545;
+  --ctp-surface1: #4a4a60;         /* raised from #404055 for visible borders/grips */
+  --ctp-surface2: #5a5a78;
+  --ctp-overlay0: #7676a0;         /* raised from #5a5a75 */
+  --ctp-overlay1: #8a8a96;
+  --ctp-overlay2: #a4a4b4;
+  --ctp-text: #d4d4dc;             /* raised from #c8c8d0 for 9.6:1 */
+  --ctp-subtext1: #b4b4c0;
+  --ctp-subtext0: #8a8a96;
+  /* Winamp iconic LCD green + gold accent */
+  --ctp-mauve: #d4cc46;
+  --ctp-lavender: #e0d860;
+  --ctp-green: #00ff00;
+  --ctp-teal: #00cc88;
+  --ctp-sky: #5ab8e0;
+  --ctp-blue: #4898d0;
+  --ctp-sapphire: #3878b8;
+  --ctp-pink: #c06888;
+  --ctp-flamingo: #b85858;
+  --ctp-rosewater: #c88080;
+  --ctp-yellow: #e8c050;
+  --ctp-peach: #d08840;
+  --ctp-maroon: #ff6b6b;           /* raised from #a03030 — AA compliant */
+  --ctp-red: #ff6b6b;              /* raised from #c03030 — 4.9:1 AA ✓ */
+
+  /* ── Semantic tokens ── */
+  --bg-app: #2b2b3a;
+  --bg-sidebar: #1e1e28;
+  --bg-card: #353545;
+  --bg-hover: #484860;             /* raised from #404055 — 1.6:1 vs card, spürbarer Hover */
+  --bg-player: #000000;
+  --bg-glass: rgba(43, 43, 58, 0.92);
+  --accent: #d4cc46;
+  --accent-dim: rgba(212, 204, 70, 0.18);
+  --accent-glow: rgba(212, 204, 70, 0.40);
+  --volume-accent: #de9b35;
+  --text-primary: #d4d4dc;
+  --text-secondary: #b4b4c0;       /* raised from #a0a0ac for better AA margin */
+  --text-muted: #949ab0;           /* 4.7:1 AA ✓, now DIMMER than secondary (hierarchy fixed) */
+  --border: #7676a0;               /* 2.7:1 vs bg-card — visible (was 1.79:1) */
+  --border-subtle: #484860;        /* 1.5:1 — was #353545 identical with bg-card (1.0:1!) */
+  --positive: #00cc66;
+  --warning: #d4cc46;
+  --danger: #ff6b6b;               /* 4.9:1 AA ✓, was #c03030 (2.46:1 FAIL) */
+  --waveform-played:   #d4cc46;
+  --waveform-buffered: #8a8a96;
+  --waveform-unplayed: #4a4a60;
+}
+

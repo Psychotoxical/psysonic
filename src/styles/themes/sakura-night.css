@@ -1,0 +1,66 @@
+/* ─── Sakura Night ─── */
+[data-theme='sakura-night'] {
+  color-scheme: dark;
+
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23d8a6bc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+
+  /* Backgrounds */
+  --ctp-crust:    #10090c;
+  --ctp-mantle:   #160d12;
+  --ctp-base:     #1c1218;
+  --ctp-surface0: #241821;
+  --ctp-surface1: #2f202b;
+  --ctp-surface2: #3c2937;
+
+  /* Overlays */
+  --ctp-overlay0: #6f4d5d;
+  --ctp-overlay1: #8d6476;
+  --ctp-overlay2: #ab7c8f;
+
+  /* Text */
+  --ctp-text:     #fff0f5;
+  --ctp-subtext1: #e3c5d0;
+  --ctp-subtext0: #bc93a4;
+
+  /* Cherry blossom accent */
+  --ctp-teal:      #d8a6bc;
+  --ctp-sky:       #d8a6bc;
+  --ctp-sapphire:  #b98399;
+  --ctp-blue:      #99687d;
+  --ctp-lavender:  #e3b8cb;
+  --ctp-mauve:     #b98399;
+  --ctp-pink:      #99687d;
+  --ctp-flamingo:  #e3b8cb;
+  --ctp-rosewater: #b98399;
+
+  --ctp-red:     #e27b7b;
+  --ctp-maroon:  #d49a73;
+  --ctp-peach:   #d49a73;
+  --ctp-yellow:  #d8bf73;
+  --ctp-green:   #74b68a;
+
+  --bg-app:      #1c1218;
+  --bg-sidebar:  #160d12;
+  --bg-card:     #241821;
+  --bg-hover:    #2f202b;
+  --bg-player:   #160d12;
+  --bg-glass:    rgba(28,18,24,0.82);
+
+  --accent:      #d8a6bc;
+  --accent-dim:  rgba(216,166,188,0.05);
+  --accent-glow: rgba(216,166,188,0.08);
+
+  --text-primary:   #fff0f5;
+  --text-secondary: #bc93a4;
+  --text-muted:     #6f4d5d;
+
+  --border:          #3c2937;
+  --border-subtle:   #2f202b;
+  --border-dropdown: #493341;
+  --shadow-dropdown: rgba(0,0,0,0.72);
+
+  --positive: #74b68a;
+  --warning:  #d8bf73;
+  --danger:   #e27b7b;
+}
+

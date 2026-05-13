@@ -1,0 +1,413 @@
+/* ─── Windows Vista — Aero Glass ─── */
+/* Pure CSS glass illusion: layered gradients + strategic box-shadows, no backdrop-filter */
+[data-theme='wista'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%234870a8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #010308;
+  --ctp-mantle: #050b1a;
+  --ctp-base: #eef3fc;
+  /* Vista window interior — ice blue-white */
+  --ctp-surface0: #e2ecf8;
+  --ctp-surface1: #d5e4f5;
+  --ctp-surface2: #c5d8f0;
+  --ctp-overlay0: #a8c4e0;
+  --ctp-overlay1: #88a8cc;
+  --ctp-overlay2: #6888b0;
+  --ctp-text: #0d1d3c;
+  /* deep navy — readable on ice bg */
+  --ctp-subtext1: #2a4878;
+  --ctp-subtext0: #4870a8;
+  /* Vista Aero blue spectrum */
+  --ctp-mauve: #1565c8;
+  /* Vista Aero blue — THE accent */
+  --ctp-lavender: #2880e0;
+  --ctp-sky: #5aaaf8;
+  /* selection/highlight blue */
+  --ctp-teal: #1890b8;
+  --ctp-blue: #0e50a8;
+  --ctp-sapphire: #0848a0;
+  --ctp-green: #1a8020;
+  --ctp-yellow: #c8980c;
+  --ctp-peach: #d06818;
+  --ctp-pink: #c03878;
+  --ctp-flamingo: #a82860;
+  --ctp-rosewater: #c04848;
+  --ctp-maroon: #903030;
+  --ctp-red: #c02020;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #eef3fc;
+  --bg-sidebar: #0e1e3e;
+  /* deep navy glass — Vista nav pane in dark mode */
+  --bg-card: #e2ecf8;
+  --bg-hover: rgba(21, 101, 200, 0.09);
+  --bg-player: #050810;
+  /* Vista taskbar — black glass */
+  --bg-glass: rgba(238, 243, 252, 0.94);
+  --accent: #1565c8;
+  --accent-dim: rgba(21, 101, 200, 0.12);
+  --accent-glow: rgba(21, 101, 200, 0.40);
+  --text-primary: #0d1d3c;
+  --text-secondary: #2a4878;
+  --text-muted: #3f6aa0;
+  /* slight lift from #4870a8 to clear AA on bg-card (4.23 → 4.65) */
+  --border: rgba(100, 160, 220, 0.45);
+  --border-subtle: rgba(140, 190, 240, 0.30);
+  --positive: #1a8020;
+  --warning: #735a00;
+  /* deeper Vista gold — #c8980c was 2.37:1 on bg-app, now 5.91:1 */
+  --danger: #c02020;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  /* Waveform: Vista blue progress bar */
+  --waveform-played: #1565c8;
+  --waveform-buffered: #5aaaf8;
+  --waveform-unplayed: #c5d8f0;
+}
+
+/* ── App shell: Vista desktop — soft blue gradient ── */
+[data-theme='wista'] .app-shell {
+  background: linear-gradient(160deg, #dce8f8 0%, #e5eefa 50%, #eef3fc 100%);
+}
+
+/* ── Sidebar: Aero glass nav pane ──
+   Three layers: 1) top specular reflection, 2) deep navy base, 3) edge highlight via box-shadow */
+[data-theme='wista'] .sidebar {
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.08) 20%,
+      rgba(255, 255, 255, 0.00) 55%,
+      rgba(0, 20, 60, 0.12) 100%),
+    linear-gradient(180deg, #1a3368 0%, #0e1e3e 45%, #0a1830 100%);
+  border-right: 1px solid rgba(120, 180, 255, 0.55);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.28),
+    inset 1px 0 0 rgba(255, 255, 255, 0.10),
+    2px 0 18px rgba(0, 0, 0, 0.40);
+}
+
+/* Sidebar text: light on dark glass */
+[data-theme='wista'] .nav-link {
+  color: rgba(210, 228, 255, 0.72);
+}
+
+[data-theme='wista'] .nav-link:hover {
+  background: rgba(255, 255, 255, 0.11);
+  color: #ffffff;
+}
+
+[data-theme='wista'] .nav-link.active {
+  background: rgba(21, 101, 200, 0.38);
+  color: #ffffff;
+}
+
+[data-theme='wista'] .nav-link.active::before {
+  background: #5aaaf8;
+  box-shadow: 0 0 10px rgba(90, 170, 248, 0.85);
+}
+
+[data-theme='wista'] .sidebar-logo-text,
+[data-theme='wista'] .sidebar-bottom a,
+[data-theme='wista'] .sidebar-bottom button {
+  color: rgba(210, 228, 255, 0.70);
+}
+
+[data-theme='wista'] {
+  --logo-color-start: #ffffff;
+  --logo-color-end: #a8ccff;
+}
+
+[data-theme='wista'] .sidebar-version {
+  color: rgba(210, 228, 255, 0.35);
+}
+
+/* ── Player bar: Vista Aero taskbar ──
+   Black glass + intense blue glow on top border — the most iconic Vista element */
+[data-theme='wista'] .player-bar {
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.00) 18%,
+      rgba(0, 0, 0, 0.00) 82%,
+      rgba(0, 0, 0, 0.18) 100%),
+    linear-gradient(180deg, #0c1828 0%, #050810 100%);
+  border-top: 1px solid rgba(80, 155, 255, 0.70);
+  box-shadow:
+    inset 0 1px 0 rgba(140, 200, 255, 0.55),
+    inset 0 2px 0 rgba(255, 255, 255, 0.14),
+    0 -4px 24px rgba(0, 0, 0, 0.70);
+}
+
+/* Player text: white on black glass */
+[data-theme='wista'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(100, 170, 255, 0.65), 0 1px 2px rgba(0, 0, 0, 0.60);
+  font-weight: 600;
+}
+
+[data-theme='wista'] .player-track-artist {
+  color: #88b8e8;
+  opacity: 1;
+}
+
+[data-theme='wista'] .player-time {
+  color: #88b8e8;
+}
+
+/* ── Transport buttons: Vista glass orbs ──
+   Top half: white → ice-blue reflection | Bottom half: royal blue deep — the iconic split */
+[data-theme='wista'] .player-btn,
+[data-theme='wista'] .player-btn-primary {
+  background: linear-gradient(180deg,
+      #daeeff 0%,
+      #b8d8ff 44%,
+      #3a91f8 50%,
+      #0f58d7 100%);
+  color: #ffffff;
+  border: 1px solid rgba(10, 65, 180, 0.70);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 2px 8px rgba(0, 0, 0, 0.50),
+    0 0 0 1px rgba(80, 140, 255, 0.20);
+}
+
+[data-theme='wista'] .player-btn:hover,
+[data-theme='wista'] .player-btn-primary:hover {
+  background: linear-gradient(180deg,
+      #e8f4ff 0%,
+      #c8e4ff 44%,
+      #58a8ff 50%,
+      #2070e8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.80),
+    0 3px 12px rgba(0, 0, 0, 0.50),
+    0 0 16px rgba(80, 150, 255, 0.35);
+}
+
+/* ── Content-area buttons: Vista dialog glass ── */
+[data-theme='wista'] .btn {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(238, 248, 255, 0.95) 44%,
+      rgba(195, 222, 248, 0.90) 50%,
+      rgba(168, 205, 240, 0.85) 100%);
+  color: #0d1d3c;
+  border: 1px solid rgba(100, 160, 220, 0.68);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.90),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme='wista'] .btn:hover {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 1.00) 0%,
+      rgba(245, 252, 255, 0.98) 44%,
+      rgba(210, 233, 255, 0.95) 50%,
+      rgba(180, 220, 252, 0.92) 100%);
+  border-color: rgba(80, 140, 220, 0.80);
+}
+
+[data-theme='wista'] .btn-primary {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(190, 222, 255, 0.92) 44%,
+      rgba(48, 130, 240, 0.96) 50%,
+      rgba(15, 78, 210, 0.99) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(10, 60, 180, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 0 8px rgba(21, 101, 200, 0.22);
+}
+
+[data-theme='wista'] .btn-primary:hover {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 1.00) 0%,
+      rgba(210, 235, 255, 0.95) 44%,
+      rgba(68, 148, 255, 0.97) 50%,
+      rgba(30, 95, 225, 1.00) 100%);
+}
+
+/* ── Cards/panels: Vista frosted glass panel ── */
+[data-theme='wista'] .glass,
+[data-theme='wista'] .card {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.88) 0%,
+      rgba(225, 240, 255, 0.82) 100%);
+  border: 1px solid rgba(130, 182, 232, 0.60);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 2px 8px rgba(21, 101, 200, 0.10);
+}
+
+/* ── Content header: Vista titlebar / toolbar band ── */
+[data-theme='wista'] .content-header {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(232, 245, 255, 0.72) 100%);
+  border-bottom: 1px solid rgba(150, 198, 238, 0.65);
+  box-shadow: 0 1px 4px rgba(21, 101, 200, 0.10);
+}
+
+/* ── Album badge: Vista blue pill ── */
+[data-theme='wista'] .badge,
+[data-theme='wista'] .album-detail-badge {
+  background: #1565c8;
+  color: #ffffff;
+}
+
+/* ── Scrollbar: Vista light-blue style ── */
+[data-theme='wista'] ::-webkit-scrollbar-track {
+  background: #d5e4f5;
+}
+
+[data-theme='wista'] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #90b8e0 0%, #6898c8 100%);
+  border-radius: 4px;
+}
+
+[data-theme='wista'] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #a8ccf0 0%, #80a8e0 100%);
+}
+
+/* ── Hover / active states: Vista selection blue ── */
+[data-theme='wista'] .track-row:hover,
+[data-theme='wista'] .track-row.context-active {
+  background: rgba(21, 101, 200, 0.08);
+  box-shadow: inset 3px 0 0 #1565c8;
+}
+
+[data-theme='wista'] .queue-item:hover,
+[data-theme='wista'] .queue-item.context-active {
+  background: rgba(90, 170, 248, 0.18);
+}
+
+[data-theme='wista'] .queue-item.active {
+  background: rgba(21, 101, 200, 0.28);
+  border-left: 2px solid #5aaaf8;
+}
+
+[data-theme='wista'] .np-queue-item.active {
+  background: rgba(21, 101, 200, 0.10);
+}
+
+[data-theme='wista'] .np-queue-item-active {
+  color: #1565c8;
+}
+
+[data-theme='wista'] .np-queue-item:hover,
+[data-theme='wista'] .np-queue-item.context-active {
+  background: rgba(21, 101, 200, 0.07);
+}
+
+[data-theme='wista'] .np-album-track.active .np-album-track-title,
+[data-theme='wista'] .np-album-track.active .np-album-track-num {
+  color: #1565c8;
+}
+
+[data-theme='wista'] .artist-row:hover {
+  background: rgba(21, 101, 200, 0.07);
+  box-shadow: inset 3px 0 0 #1565c8;
+}
+
+[data-theme='wista'] .playlist-row:hover {
+  background: rgba(21, 101, 200, 0.07);
+  box-shadow: inset 3px 0 0 #1565c8;
+}
+
+[data-theme='wista'] .settings-tab:hover {
+  background: rgba(21, 101, 200, 0.08);
+  color: #1565c8;
+}
+
+[data-theme='wista'] .settings-tab.active {
+  background: rgba(21, 101, 200, 0.14);
+  color: #1565c8;
+  border-color: #1565c8;
+}
+
+[data-theme='wista'] .queue-tab-btn:hover {
+  background: rgba(21, 101, 200, 0.08);
+  color: #1565c8;
+}
+
+[data-theme='wista'] .custom-select-trigger:hover {
+  background: rgba(21, 101, 200, 0.08);
+}
+
+[data-theme='wista'] .custom-select-option:hover {
+  background: rgba(21, 101, 200, 0.12);
+}
+
+[data-theme='wista'] .artist-ext-link:hover {
+  background: rgba(21, 101, 200, 0.10);
+  border-color: #1565c8;
+}
+
+/* ── Queue: dark glass sidebar → light text ── */
+[data-theme='wista'] .queue-item-title {
+  color: rgba(210, 228, 255, 0.90);
+}
+
+[data-theme='wista'] .queue-item-artist,
+[data-theme='wista'] .queue-item-duration {
+  color: rgba(170, 205, 250, 0.55);
+}
+
+[data-theme='wista'] .queue-item.active .queue-item-artist,
+[data-theme='wista'] .queue-item.active .queue-item-duration {
+  color: rgba(190, 218, 255, 0.75);
+}
+
+[data-theme='wista'] .queue-divider span {
+  color: rgba(180, 210, 255, 0.38) !important;
+}
+
+[data-theme='wista'] .queue-current-info h3 {
+  color: rgba(220, 235, 255, 0.92);
+}
+
+[data-theme='wista'] .queue-current-sub {
+  color: rgba(180, 210, 252, 0.58);
+}
+
+[data-theme='wista'] .queue-tab-btn {
+  color: rgba(200, 220, 255, 0.62);
+}
+
+[data-theme='wista'] .queue-tab-btn.active {
+  color: #5aaaf8;
+}
+
+[data-theme='wista'] .queue-round-btn.active {
+  color: #050810;
+}
+
+/* Connection indicators: muted Vista blue on light bg */
+[data-theme='wista'] .connection-type,
+[data-theme='wista'] .connection-server {
+  color: #6090b8;
+}
+
+/* Lyrics pane sits inside the queue panel (bg-sidebar = #0e1e3e deep navy).
+   Default --text-primary / --text-muted are near-navy and invisible there —
+   explicit light tokens get the pane back to AA+. */
+[data-theme='wista'] .lyrics-line,
+[data-theme='wista'] .lyrics-status,
+[data-theme='wista'] .lyrics-word-synced .lyrics-line {
+  color: #aac8f0;
+}
+[data-theme='wista'] .lyrics-line.active,
+[data-theme='wista'] .lyrics-word-synced .lyrics-line.active {
+  color: #ffffff;
+}
+[data-theme='wista'] .lyrics-line.completed {
+  color: #aac8f0;
+}
+

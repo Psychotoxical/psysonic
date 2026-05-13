@@ -1,0 +1,56 @@
+/* ─── Kanagawa Wave (rebelot/kanagawa.nvim — default dark) ─── */
+[data-theme='kanagawa-wave'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23DCD7BA%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust:    #16161D;   /* sumiInk0 */
+  --ctp-mantle:   #181820;   /* sumiInk1 */
+  --ctp-base:     #1F1F28;   /* sumiInk3 — main bg */
+  --ctp-surface0: #2A2A37;   /* sumiInk4 */
+  --ctp-surface1: #363646;   /* sumiInk5 */
+  --ctp-surface2: #54546D;   /* sumiInk6 */
+  --ctp-overlay0: #727169;   /* fujiGray */
+  --ctp-overlay1: #938AA9;   /* springViolet1 */
+  --ctp-overlay2: #C8C093;   /* oldWhite */
+  --ctp-text:     #DCD7BA;   /* fujiWhite */
+  --ctp-subtext1: #C8C093;   /* oldWhite */
+  --ctp-subtext0: #9CABCA;   /* springViolet2 */
+  --ctp-mauve:    #957FB8;   /* oniViolet */
+  --ctp-lavender: #b8b4d0;   /* oniViolet2 */
+  --ctp-pink:     #D27E99;   /* sakuraPink */
+  --ctp-flamingo: #E46876;   /* waveRed */
+  --ctp-rosewater:#FFA066;   /* surimiOrange */
+  --ctp-blue:     #7E9CD8;   /* crystalBlue */
+  --ctp-sapphire: #7FB4CA;   /* springBlue */
+  --ctp-sky:      #A3D4D5;   /* lightBlue */
+  --ctp-teal:     #7AA89F;   /* waveAqua2 */
+  --ctp-green:    #98BB6C;   /* springGreen */
+  --ctp-yellow:   #E6C384;   /* carpYellow */
+  --ctp-peach:    #FFA066;   /* surimiOrange */
+  --ctp-maroon:   #FF5D62;   /* peachRed */
+  --ctp-red:      #E46876;   /* waveRed */
+
+  --bg-app:           #1F1F28;
+  --bg-sidebar:       #181820;
+  --bg-card:          #2A2A37;
+  --bg-hover:         #363646;
+  --bg-player:        #181820;
+  --bg-glass:         rgba(31, 31, 40, 0.78);
+  --accent:           #7E9CD8;       /* crystalBlue — signature Kanagawa accent */
+  --accent-dim:       rgba(126, 156, 216, 0.16);
+  --accent-glow:      rgba(126, 156, 216, 0.32);
+  --text-primary:     #DCD7BA;       /* fujiWhite */
+  --text-secondary:   #C8C093;       /* oldWhite */
+  --text-muted:       #727169;       /* fujiGray */
+  --border:           #363646;
+  --border-subtle:    #2A2A37;
+  --border-dropdown:  #54546D;
+  --shadow-dropdown:  rgba(0, 0, 0, 0.6);
+  --positive:         #98BB6C;       /* springGreen */
+  --warning:          #E6C384;       /* carpYellow */
+  --danger:           #E46876;       /* waveRed */
+  --waveform-played:    #7E9CD8;
+  --waveform-buffered:  #54546D;
+  --waveform-unplayed:  #2A2A37;
+}
+

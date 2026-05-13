@@ -1,0 +1,149 @@
+/* ─── macOS Ventura Light ─── */
+[data-theme='cupertino-light'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23636366%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Palette */
+  --ctp-crust: #f5f5f7;
+  --ctp-mantle: #e8e8ed;
+  --ctp-base: #ffffff;
+  --ctp-surface0: #f2f2f7;
+  --ctp-surface1: #e5e5ea;
+  --ctp-surface2: #d1d1d6;
+  --ctp-overlay0: #8e8e93;
+  --ctp-overlay1: #6c6c70;
+  --ctp-overlay2: #48484a;
+  --ctp-text: #1c1c1e;
+  --ctp-subtext1: #3a3a3c;
+  --ctp-subtext0: #636366;
+  --ctp-mauve: #0071e3;
+  --ctp-lavender: #2c9af0;
+  --ctp-green: #34c759;
+  --ctp-teal: #5ac8fa;
+  --ctp-sky: #32ade6;
+  --ctp-blue: #0071e3;
+  --ctp-sapphire: #0051a8;
+  --ctp-pink: #ff2d55;
+  --ctp-flamingo: #ff6b81;
+  --ctp-rosewater: #ffd6d6;
+  --ctp-yellow: #ffd60a;
+  --ctp-peach: #ff9f0a;
+  --ctp-maroon: #c0392b;
+  --ctp-red: #ff3b30;
+
+  /* Semantic tokens */
+  --bg-app: #ffffff;
+  --bg-sidebar: #f2f2f7;
+  --bg-card: #ffffff;
+  --bg-hover: #f2f2f7;
+  --bg-player: rgba(255, 255, 255, 0.85);
+  --bg-glass: rgba(255, 255, 255, 0.72);
+  --accent: #0071e3;
+  --accent-dim: rgba(0, 113, 227, 0.12);
+  --accent-glow: rgba(0, 113, 227, 0.30);
+  --text-primary: #1c1c1e;
+  --text-secondary: #3a3a3c;
+  --text-muted: #6d6d72;
+  --border: #d1d1d6;
+  --border-subtle: #e5e5ea;
+  --positive: #34c759;
+  --warning: #ff9f0a;
+  --danger: #ff3b30;
+
+  --shadow-dropdown: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='cupertino-light'] .app-shell {
+  background: #f2f2f7;
+}
+
+[data-theme='cupertino-light'] .sidebar {
+  background: rgba(242, 242, 247, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='cupertino-light'] .player-bar {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* Player text: dark on light bar */
+[data-theme='cupertino-light'] .player-track-name {
+  color: #1c1c1e;
+}
+
+[data-theme='cupertino-light'] .player-track-artist {
+  color: #636366;
+}
+
+[data-theme='cupertino-light'] .player-time {
+  color: #636366;
+}
+
+[data-theme='cupertino-light'] .player-btn {
+  color: #1c1c1e;
+}
+
+[data-theme='cupertino-light'] .player-btn:hover {
+  color: #0071e3;
+  background: rgba(0, 113, 227, 0.10);
+}
+
+[data-theme='cupertino-light'] .player-btn-primary {
+  color: #ffffff;
+  background: #0071e3;
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.35);
+}
+
+[data-theme='cupertino-light'] .player-btn-primary:hover {
+  background: #0077ed;
+  box-shadow: 0 4px 12px rgba(0, 113, 227, 0.45);
+}
+
+/* Nav links */
+[data-theme='cupertino-light'] .nav-link {
+  color: #3a3a3c;
+}
+
+[data-theme='cupertino-light'] .nav-link:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #1c1c1e;
+}
+
+[data-theme='cupertino-light'] .nav-link.active {
+  background: #0071e3;
+  color: #ffffff;
+  border-left-color: transparent;
+  border-radius: 8px;
+}
+
+[data-theme='cupertino-light'] .nav-link.active::before {
+  display: none;
+}
+
+[data-theme='cupertino-light'] .nav-link-nowplaying {
+  color: #0071e3;
+  font-weight: 600;
+}
+
+/* Queue active */
+[data-theme='cupertino-light'] .queue-item.active {
+  background: rgba(0, 113, 227, 0.10);
+  color: #0071e3;
+}
+
+/* NowPlaying overrides */
+[data-theme='cupertino-light'] .np-queue-item-active {
+  color: #0071e3;
+}
+
+[data-theme='cupertino-light'] .np-album-track.active .np-album-track-title,
+[data-theme='cupertino-light'] .np-album-track.active .np-album-track-num {
+  color: #0071e3;
+}
+

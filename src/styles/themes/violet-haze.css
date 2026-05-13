@@ -1,0 +1,68 @@
+/* ─── Violet Haze ─── */
+[data-theme='violet-haze'] {
+  color-scheme: dark;
+
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23b4a0ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+
+  /* Backgrounds */
+  --ctp-crust:    #09070f;
+  --ctp-mantle:   #0d0a16;
+  --ctp-base:     #100d1a;
+  --ctp-surface0: #171425;
+  --ctp-surface1: #1d1930;
+  --ctp-surface2: #26203d;
+
+  /* Overlays */
+  --ctp-overlay0: #4c4270;
+  --ctp-overlay1: #65558f;
+  --ctp-overlay2: #7d69aa;
+
+  /* Text */
+  --ctp-text:     #f3efff;
+  --ctp-subtext1: #d2c7f5;
+  --ctp-subtext0: #a696d6;
+
+  /* Softer violet accent */
+  --ctp-teal:      #b8a7ff;
+  --ctp-sky:       #b8a7ff;
+  --ctp-sapphire:  #9c89e8;
+  --ctp-blue:      #7f6ac8;
+  --ctp-lavender:  #c4b5fd;
+  --ctp-mauve:     #9c89e8;
+  --ctp-pink:      #7f6ac8;
+  --ctp-flamingo:  #c4b5fd;
+  --ctp-rosewater: #9c89e8;
+
+  /* Semantic */
+  --ctp-red:     #ff6b6b;
+  --ctp-maroon:  #ff9f68;
+  --ctp-peach:   #ff9f68;
+  --ctp-yellow:  #ffd166;
+  --ctp-green:   #4ade80;
+
+  /* UI */
+  --bg-app:      #12101d;
+  --bg-sidebar:  #0d0a16;
+  --bg-card:     #171425;
+  --bg-hover:    #211c35;
+  --bg-player:   #0d0a16;
+  --bg-glass:    rgba(18,16,29,0.78);
+
+  --accent:      #b4a0ff;
+  --accent-dim:  rgba(184,167,255,0.06);
+  --accent-glow: rgba(184,167,255,0.10);
+
+  --text-primary:   #f3efff;
+  --text-secondary: #a696d6;
+  --text-muted:     #65558f;
+
+  --border:          #26203d;
+  --border-subtle:   #1d1930;
+  --border-dropdown: #31284c;
+  --shadow-dropdown: rgba(0,0,0,0.88);
+
+  --positive: #4ade80;
+  --warning:  #ffd166;
+  --danger:   #ff6b6b;
+}
+

@@ -1,0 +1,61 @@
+/* ─── Psychowave — Synthwave / Retrowave ─── */
+[data-theme='psychowave'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23b09ee0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #0d0c1a;
+  --ctp-mantle: #110f22;
+  --ctp-base: #161428;
+  --ctp-surface0: #1f1c38;
+  --ctp-surface1: #2a2750;
+  --ctp-surface2: #383468;
+  --ctp-overlay0: #4a4580;
+  --ctp-overlay1: #6460a8;
+  --ctp-overlay2: #8078c8;
+  /* Text */
+  --ctp-text: #e6e0f6;
+  --ctp-subtext1: #b09ee0;
+  --ctp-subtext0: #8878c0;
+  /* Accents — muted synthwave palette */
+  --ctp-mauve: #a06ae0;
+  /* soft violet — primary accent */
+  --ctp-lavender: #7878d8;
+  /* muted indigo — gradient end */
+  --ctp-pink: #c060a8;
+  /* dusty rose */
+  --ctp-flamingo: #c07090;
+  --ctp-rosewater: #c89090;
+  --ctp-blue: #58a8e8;
+  /* steel blue */
+  --ctp-sapphire: #4880c8;
+  --ctp-sky: #60c0d8;
+  --ctp-teal: #40a8a8;
+  --ctp-green: #58c878;
+  /* soft mint green */
+  --ctp-yellow: #c8a848;
+  /* muted gold */
+  --ctp-peach: #c87848;
+  --ctp-maroon: #c05868;
+  --ctp-red: #b04060;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #161428;
+  --bg-sidebar: #110f22;
+  --bg-card: #1f1c38;
+  --bg-hover: #2a2750;
+  --bg-player: #0d0c1a;
+  --bg-glass: rgba(22, 20, 40, 0.85);
+  --accent: #a06ae0;
+  --accent-dim: rgba(160, 106, 224, 0.12);
+  --accent-glow: rgba(160, 106, 224, 0.30);
+  --text-primary: #e6e0f6;
+  --text-secondary: #b09ee0;
+  --text-muted: #706898;
+  --border: #383468;
+  --border-subtle: #1f1c38;
+  --positive: #58c878;
+  --warning: #c8a848;
+  --danger: #b04060;
+}
+

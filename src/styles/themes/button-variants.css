@@ -1,0 +1,74 @@
+/* ─── Button Variants ─── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--ctp-crust);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-glow);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-surface {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--ctp-surface1);
+}
+
+.btn-surface:hover {
+  background: var(--bg-hover);
+  border-color: var(--ctp-overlay0);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn-danger:hover {
+  background: var(--danger);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.btn-danger:active {
+  transform: translateY(0);
+}
+
+.btn-sm {
+  padding: 3px 8px;
+  font-size: 12px;
+  gap: var(--space-1);
+}
+

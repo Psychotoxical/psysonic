@@ -1,0 +1,104 @@
+/* ─── Dzr0 ─── */
+[data-theme='dzr0'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23A238FF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #E5E5E9;
+  --ctp-mantle: #F5F5F7;
+  --ctp-base: #FFFFFF;
+  --ctp-surface0: #F0F0F3;
+  --ctp-surface1: #E8E8EC;
+  --ctp-surface2: #D8D8DF;
+  --ctp-overlay0: #9E9EAF;
+  --ctp-overlay1: #7C7C8F;
+  --ctp-overlay2: #5D5D70;
+  --ctp-text: #121216;
+  --ctp-subtext1: #4A4A5A;
+  --ctp-subtext0: #6A6A7A;
+
+  --ctp-mauve: #A238FF;
+  --ctp-lavender: #B86BFF;
+  --ctp-green: #00C171;
+  --ctp-teal: #00C171;
+  --ctp-sky: #3D91F4;
+  --ctp-blue: #2E77D0;
+  --ctp-sapphire: #1C5599;
+  --ctp-pink: #EF3B5D;
+  --ctp-flamingo: #EF3B5D;
+  --ctp-rosewater: #FFC8C8;
+  --ctp-yellow: #FFCC00;
+  --ctp-peach: #FF7A00;
+  --ctp-maroon: #B22A2A;
+  --ctp-red: #EF3B5D;
+
+  --bg-app: #FFFFFF;
+  --bg-sidebar: #F5F5F7;
+  --bg-card: #FBFBFC;
+  --bg-hover: #F0F0F3;
+  --bg-player: #FFFFFF;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+
+  --accent: #A238FF;
+  --accent-dim: rgba(162, 56, 255, 0.12);
+  --accent-glow: rgba(162, 56, 255, 0.25);
+  --volume-accent: #A238FF;
+
+  --text-primary: #121216;
+  --text-secondary: #4A4A5A;
+  --text-muted: #6B6B7A;
+
+  --border: #E2E2E9;
+  --border-subtle: #F0F0F5;
+
+  --positive: #00C171;
+  --warning: #FFCC00;
+  --danger: #EF3B5D;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+  --transition-fast: 150ms ease;
+  --transition-med: 250ms ease;
+  --transition-slow: 350ms ease;
+
+  --sidebar-width: 220px;
+  --player-height: 88px;
+}
+
+[data-theme='dzr0'] .player-bar {
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme='dzr0'] .player-track-name,
+[data-theme='dzr0'] .player-time,
+[data-theme='dzr0'] .player-track-artist {
+  color: var(--text-primary) !important;
+}
+
+[data-theme='dzr0'] .sidebar {
+  border-right: 1px solid var(--border-subtle);
+}
+
+[data-theme='dzr0'] .nav-link:hover {
+  background-color: var(--bg-hover);
+  color: var(--accent);
+}
+
+[data-theme='dzr0'] .nav-link.active {
+  background-color: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-theme='dzr0'] .btn-primary {
+  color: #FFFFFF !important;
+}
+

@@ -1,0 +1,313 @@
+/* ─── Ubuntu Ambiance — component-level overrides ─────────────────────── */
+
+/* Column resize grip — was #e4dfd8 on #ede8e2 = 1.08:1 (invisible)
+   Use the warm grey overlay tone, 2.5:1 — works for a light theme grip. */
+[data-theme='ubuntu-ambiance'] .col-resize-handle::after {
+  background: #a89080;
+  width: 2px;
+}
+
+/* Focus ring — keyboard navigation, Ubuntu Orange at AAA against light bg
+   for the outline itself (not text, so 3:1 UI threshold applies). */
+[data-theme='ubuntu-ambiance'] *:focus-visible {
+  outline: 2px solid #e95420;
+  outline-offset: 2px;
+}
+
+/* Scrollbar thumb — visible against warm off-white */
+[data-theme='ubuntu-ambiance'] ::-webkit-scrollbar-thumb {
+  background: #a89080;
+}
+[data-theme='ubuntu-ambiance'] *:hover::-webkit-scrollbar-thumb,
+[data-theme='ubuntu-ambiance'] .is-scrolling::-webkit-scrollbar-thumb {
+  background: #7d6e68;
+}
+
+/* ── App shell: warm Ambiance off-white ── */
+[data-theme='ubuntu-ambiance'] .app-shell {
+  background: #f4efea;
+}
+
+/* ── Sidebar: Unity Launcher dark aubergine ── */
+[data-theme='ubuntu-ambiance'] .sidebar {
+  background: linear-gradient(180deg, #3d1f3d 0%, #2e162e 100%);
+  border-right: 1px solid #1a0a1a;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Sidebar text: light on dark aubergine */
+[data-theme='ubuntu-ambiance'] .sidebar-logo-text,
+[data-theme='ubuntu-ambiance'] .nav-link,
+[data-theme='ubuntu-ambiance'] .sidebar-bottom a,
+[data-theme='ubuntu-ambiance'] .sidebar-bottom button {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme='ubuntu-ambiance'] .nav-link:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+}
+
+[data-theme='ubuntu-ambiance'] .nav-link.active {
+  background: rgba(233, 84, 32, 0.22);
+  color: #ffffff;
+}
+
+[data-theme='ubuntu-ambiance'] .nav-link.active::before {
+  background: #e95420;
+  box-shadow: 0 0 8px rgba(233, 84, 32, 0.60);
+}
+
+[data-theme='ubuntu-ambiance'] {
+  --logo-color-start: #ffffff;
+  --logo-color-end: #ffb090;
+}
+
+[data-theme='ubuntu-ambiance'] .sidebar-logo-icon {
+  color: #e95420;
+}
+
+/* Sidebar version / muted labels */
+[data-theme='ubuntu-ambiance'] .sidebar-version,
+[data-theme='ubuntu-ambiance'] .update-toast {
+  color: rgba(255, 255, 255, 0.40);
+}
+
+/* ── Player bar: Ubuntu panel — darkest aubergine ── */
+[data-theme='ubuntu-ambiance'] .player-bar {
+  background: linear-gradient(180deg, #2c001e 0%, #1a000f 100%);
+  border-top: 1px solid #3d0828;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 -3px 16px rgba(0, 0, 0, 0.50);
+}
+
+/* Player text: light on dark panel */
+[data-theme='ubuntu-ambiance'] .player-track-name {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='ubuntu-ambiance'] .player-track-artist {
+  color: rgba(255, 255, 255, 0.60);
+  opacity: 1;
+}
+
+[data-theme='ubuntu-ambiance'] .player-time {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Transport buttons: Ubuntu Orange on dark panel */
+[data-theme='ubuntu-ambiance'] .player-btn,
+[data-theme='ubuntu-ambiance'] .player-btn-primary {
+  background: linear-gradient(180deg, #f06030 0%, #e95420 50%, #d44418 100%);
+  color: #ffffff;
+  border: 1px solid #b83010;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.20);
+}
+
+[data-theme='ubuntu-ambiance'] .player-btn:hover,
+[data-theme='ubuntu-ambiance'] .player-btn-primary:hover {
+  background: linear-gradient(180deg, #f87040 0%, #f06030 50%, #e04828 100%);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+
+/* ── Content area buttons: Ambiance GTK style ── */
+[data-theme='ubuntu-ambiance'] .btn {
+  background: linear-gradient(180deg, #f0ebe5 0%, #e4dfd8 100%);
+  color: #3d2b2b;
+  border: 1px solid #b8a898;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70), 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='ubuntu-ambiance'] .btn:hover {
+  background: linear-gradient(180deg, #f8f3ed 0%, #ede8e2 100%);
+  border-color: #a89888;
+}
+
+[data-theme='ubuntu-ambiance'] .btn-primary {
+  background: linear-gradient(180deg, #f06030 0%, #e95420 100%);
+  color: #ffffff;
+  border: 1px solid #b83010;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    0 0 0 0px rgba(233, 84, 32, 0);
+}
+
+[data-theme='ubuntu-ambiance'] .btn-primary:hover {
+  background: linear-gradient(180deg, #f87040 0%, #f06030 100%);
+}
+
+/* ── Content header: warm Ambiance title band ── */
+[data-theme='ubuntu-ambiance'] .content-header {
+  background: linear-gradient(180deg, rgba(244, 239, 234, 1) 0%, rgba(237, 232, 226, 0.60) 100%);
+  border-bottom: 1px solid #c8b8a8;
+}
+
+/* ── Cards / panels ── */
+[data-theme='ubuntu-ambiance'] .glass,
+[data-theme='ubuntu-ambiance'] .card {
+  background: rgba(237, 232, 226, 0.88);
+  border: 1px solid #c8b8a8;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.60), 0 1px 4px rgba(0, 0, 0, 0.10);
+}
+
+/* ── Hover / active states: orange accent ── */
+[data-theme='ubuntu-ambiance'] .track-row:hover,
+[data-theme='ubuntu-ambiance'] .track-row.context-active {
+  background: rgba(233, 84, 32, 0.07);
+  box-shadow: inset 3px 0 0 #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .queue-item:hover,
+[data-theme='ubuntu-ambiance'] .queue-item.context-active {
+  background: rgba(233, 84, 32, 0.07);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-item.active {
+  background: rgba(233, 84, 32, 0.12);
+  border-left: 2px solid #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .np-queue-item.active {
+  background: rgba(233, 84, 32, 0.08);
+}
+
+[data-theme='ubuntu-ambiance'] .np-queue-item-active {
+  color: #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .np-queue-item:hover,
+[data-theme='ubuntu-ambiance'] .np-queue-item.context-active {
+  background: rgba(233, 84, 32, 0.06);
+}
+
+[data-theme='ubuntu-ambiance'] .np-album-track.active .np-album-track-title,
+[data-theme='ubuntu-ambiance'] .np-album-track.active .np-album-track-num {
+  color: #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .artist-row:hover {
+  background: rgba(233, 84, 32, 0.06);
+  box-shadow: inset 3px 0 0 #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .playlist-row:hover {
+  background: rgba(233, 84, 32, 0.06);
+  box-shadow: inset 3px 0 0 #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .settings-tab:hover {
+  background: rgba(233, 84, 32, 0.08);
+  color: #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .settings-tab.active {
+  background: rgba(233, 84, 32, 0.14);
+  color: #e95420;
+  border-color: #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .queue-tab-btn:hover {
+  background: rgba(233, 84, 32, 0.08);
+  color: #e95420;
+}
+
+[data-theme='ubuntu-ambiance'] .custom-select-trigger:hover {
+  background: rgba(233, 84, 32, 0.07);
+}
+
+[data-theme='ubuntu-ambiance'] .custom-select-option:hover {
+  background: rgba(233, 84, 32, 0.10);
+}
+
+[data-theme='ubuntu-ambiance'] .artist-ext-link:hover {
+  background: rgba(233, 84, 32, 0.09);
+  border-color: #e95420;
+}
+
+/* Queue panel on dark player area */
+[data-theme='ubuntu-ambiance'] .queue-round-btn.active {
+  color: #ffffff;
+}
+
+/* Connection indicators: warm muted on light bg */
+[data-theme='ubuntu-ambiance'] .connection-type,
+[data-theme='ubuntu-ambiance'] .connection-server {
+  color: #907860;
+}
+
+/* ── Album chip: opaque orange pill so it reads on both dark hero and light bg ── */
+[data-theme='ubuntu-ambiance'] .badge,
+[data-theme='ubuntu-ambiance'] .album-detail-badge {
+  background: #e95420;
+  color: #ffffff;
+}
+
+/* ── Queue panel: on dark aubergine bg — all text must be light ── */
+/* Header + toolbar sit on --bg-app (light) — fine as-is */
+/* List, meta box, divider sit on --bg-sidebar (dark aubergine) */
+
+[data-theme='ubuntu-ambiance'] .queue-item-title {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-item-artist,
+[data-theme='ubuntu-ambiance'] .queue-item-duration {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-item.active .queue-item-artist,
+[data-theme='ubuntu-ambiance'] .queue-item.active .queue-item-duration {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-divider span {
+  color: rgba(255, 255, 255, 0.40) !important;
+}
+
+/* Meta box (current track info) on dark aubergine */
+[data-theme='ubuntu-ambiance'] .queue-current-info h3 {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-current-sub {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-current-cover .fallback {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Tabs sit on dark bg too */
+[data-theme='ubuntu-ambiance'] .queue-tab-btn {
+  color: rgba(255, 255, 255, 0.60);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.90);
+}
+
+[data-theme='ubuntu-ambiance'] .queue-tab-btn.active {
+  color: #e95420;
+}
+
+/* Action buttons in header (on light --bg-app) */
+[data-theme='ubuntu-ambiance'] .queue-action-btn {
+  color: #7d6e68;
+}
+
+[data-theme='ubuntu-ambiance'] .queue-action-btn:hover:not(:disabled) {
+  color: #3d2b2b;
+}
+
+/* ─────────────────────────────────────────── */
+

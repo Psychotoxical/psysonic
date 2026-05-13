@@ -1,0 +1,84 @@
+/* ─── V-Tactical ─── */
+[data-theme='v-tactical'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23708599%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #090c0e;
+  --ctp-mantle: #0d1114;
+  --ctp-base: #161c22;
+  --ctp-surface0: #1f2830;
+  --ctp-surface1: #2a3640;
+  --ctp-surface2: #3a4a58;
+  --ctp-overlay0: #526371;
+  --ctp-overlay1: #708599;
+  --ctp-overlay2: #8da4b8;
+  --ctp-text: #e1e9ef;
+  --ctp-subtext1: #b0c1d1;
+  --ctp-subtext0: #8da4b8;
+  --ctp-mauve: #ff8a00;
+  --ctp-lavender: #ffaa45;
+  --ctp-pink: #bf616a;
+  --ctp-flamingo: #d08770;
+  --ctp-rosewater: #e1e9ef;
+  --ctp-green: #a3be8c;
+  --ctp-teal: #88c0d0;
+  --ctp-sky: #81a1c1;
+  --ctp-blue: #5e81ac;
+  --ctp-sapphire: #5e81ac;
+  --ctp-yellow: #ebcb8b;
+  --ctp-peach: #d08770;
+  --ctp-maroon: #bf616a;
+  --ctp-red: #bf616a;
+
+  --bg-app: #161c22;
+  --bg-sidebar: #0d1114;
+  --bg-card: #1f2830;
+  --bg-hover: rgba(255, 138, 0, 0.1);
+  --bg-player: #090c0e;
+  --bg-glass: rgba(13, 17, 20, 0.85);
+  --accent: #ff8a00;
+  --accent-dim: rgba(255, 138, 0, 0.15);
+  --accent-glow: rgba(255, 138, 0, 0.4);
+  --text-primary: #e1e9ef;
+  --text-secondary: #b0c1d1;
+  --text-muted: #708599;
+  --border: #3a4a58;
+  --border-subtle: #1f2830;
+  --border-dropdown: #3a4a58;
+  --shadow-dropdown: rgba(0, 0, 0, 0.7);
+  --positive: #a3be8c;
+  --warning: #ebcb8b;
+  --danger: #bf616a;
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+}
+
+[data-theme='v-tactical'] .sidebar {
+  border-right: 1px solid var(--border);
+}
+
+[data-theme='v-tactical'] .player-bar {
+  border-top: 2px solid var(--accent);
+  background: linear-gradient(180deg, #0d1114 0%, #090c0e 100%);
+}
+
+[data-theme='v-tactical'] .player-track-name {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent-glow);
+}
+
+[data-theme='v-tactical'] .nav-link.active {
+  background: linear-gradient(90deg, rgba(255, 138, 0, 0.15) 0%, transparent 100%);
+  border-left: 3px solid var(--accent);
+}
+
+[data-theme='v-tactical'] .btn-primary {
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+

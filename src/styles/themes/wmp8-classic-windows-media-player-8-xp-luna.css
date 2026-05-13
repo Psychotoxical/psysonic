@@ -1,0 +1,170 @@
+/* ─── WMP8 Classic — Windows Media Player 8 / XP Luna ─── */
+[data-theme='winmedplayer'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23c2d4f2%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #000000;
+  /* black — LCD display / playlist */
+  --ctp-mantle: #1a3060;
+  /* darkest blue — sidebar */
+  --ctp-base: #3a62a5;
+  /* Luna blue — main body (dark enough for white text) */
+  --ctp-surface0: #4a72b8;
+  --ctp-surface1: #5480cc;
+  --ctp-surface2: #6090d8;
+  --ctp-overlay0: #7090c0;
+  --ctp-overlay1: #8aaad8;
+  --ctp-overlay2: #a0c0e8;
+  --ctp-text: #ffffff;
+  --ctp-subtext1: #dce8ff;
+  --ctp-subtext0: #b8d0f8;
+  /* WMP green + XP blue-cool palette */
+  --ctp-mauve: #45ff00;
+  /* WMP poison green — primary accent */
+  --ctp-lavender: #70ff40;
+  --ctp-green: #30dd00;
+  --ctp-teal: #00cc88;
+  --ctp-sky: #88ccff;
+  --ctp-blue: #5599ee;
+  --ctp-sapphire: #3378cc;
+  --ctp-pink: #ff88cc;
+  --ctp-flamingo: #ff7788;
+  --ctp-rosewater: #ffaabb;
+  --ctp-yellow: #ffdd44;
+  --ctp-peach: #ff9944;
+  --ctp-maroon: #dd4455;
+  --ctp-red: #ee3344;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #3a62a5;
+  /* ~12% luminance → white contrast 6:1 */
+  --bg-sidebar: #1a3060;
+  --bg-card: #4a72b8;
+  --bg-hover: #5480cc;
+  --bg-player: #000000;
+  --bg-glass: rgba(30, 58, 110, 0.88);
+  --accent: #45ff00;
+  --accent-dim: rgba(69, 255, 0, 0.15);
+  --accent-glow: rgba(69, 255, 0, 0.45);
+  --text-primary: #ffffff;
+  --text-secondary: #dce8ff;
+  --text-muted: #e8f0ff;
+  /* lifted from #b8d0f8 — clears AA on Luna-blue bg-app and dark sidebar */
+  --border: #071027;
+  /* darkened from #2a5090 to meet 3:1 UI threshold on all main surfaces */
+  --border-subtle: #4a72b8;
+  --positive: #30dd00;
+  --warning: #ffdd44;
+  --danger: #ee3344;
+}
+
+/* ── WMP8: Luna-style gradients + skeuomorphic detail ── */
+
+/* Sidebar: deep WMP task-pane blue */
+[data-theme='winmedplayer'] .sidebar {
+  background: linear-gradient(180deg, #244080 0%, #1a3060 60%, #0e2048 100%);
+  border-right: 2px solid #0e2048;
+  box-shadow: inset -1px 0 0 rgba(120, 160, 220, 0.2);
+}
+
+/* Main body: Luna blue */
+[data-theme='winmedplayer'] .app-shell {
+  background: linear-gradient(160deg, #4a72b8 0%, #3a62a5 40%, #2e5498 100%);
+}
+
+/* Player bar: black LCD display with green glow ambience */
+[data-theme='winmedplayer'] .player-bar {
+  background: #000000;
+  border-top: 2px solid #1a3060;
+  box-shadow: inset 0 1px 0 rgba(69, 255, 0, 0.06), 0 -2px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Track name: WMP green glow */
+[data-theme='winmedplayer'] .player-track-name {
+  color: #45ff00;
+  text-shadow:
+    0 0 8px rgba(69, 255, 0, 0.80),
+    0 0 16px rgba(69, 255, 0, 0.40),
+    0 0 2px rgba(69, 255, 0, 0.60);
+  letter-spacing: 0.03em;
+}
+
+[data-theme='winmedplayer'] .player-track-artist {
+  color: #30dd00;
+  opacity: 0.85;
+  text-shadow: 0 0 4px rgba(69, 255, 0, 0.4);
+}
+
+/* Transport buttons: round, radial metallic gradient, drop shadow */
+[data-theme='winmedplayer'] .player-btn,
+[data-theme='winmedplayer'] .player-btn-primary {
+  background: radial-gradient(circle at 38% 32%, #c8dcf8 0%, #8aacdc 40%, #4870b8 100%);
+  color: #ffffff;
+  border-radius: 50%;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 50, 0.3);
+  border: 1px solid #2a5090;
+}
+
+[data-theme='winmedplayer'] .player-btn:hover,
+[data-theme='winmedplayer'] .player-btn-primary:hover {
+  background: radial-gradient(circle at 38% 32%, #d8ecff 0%, #a0c0ee 40%, #5888d0 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(0, 0, 50, 0.3);
+}
+
+/* Regular buttons: Luna soft rounded pill */
+[data-theme='winmedplayer'] .btn {
+  background: linear-gradient(180deg, #b8d0f0 0%, #7898d8 55%, #5878c0 100%);
+  color: #ffffff;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 80, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 1px solid #3a60b0;
+}
+
+[data-theme='winmedplayer'] .btn:hover {
+  background: linear-gradient(180deg, #cce0ff 0%, #90aaee 55%, #6888d0 100%);
+}
+
+[data-theme='winmedplayer'] .btn-primary {
+  background: linear-gradient(180deg, #70ff40 0%, #38cc00 55%, #28aa00 100%);
+  color: #003300;
+  border: 1px solid #208800;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 60, 0, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    0 0 8px rgba(69, 255, 0, 0.25);
+}
+
+/* Active queue round buttons: green bg, dark text */
+[data-theme='winmedplayer'] .queue-round-btn.active {
+  color: #003300;
+}
+
+/* Cards / glass panels: slightly elevated with border */
+[data-theme='winmedplayer'] .glass,
+[data-theme='winmedplayer'] .card {
+  background: rgba(90, 128, 190, 0.55);
+  border: 1px solid rgba(160, 190, 230, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Content header: slightly darker Luna band */
+[data-theme='winmedplayer'] .content-header {
+  background: linear-gradient(180deg, rgba(58, 98, 165, 0.55) 0%, rgba(58, 98, 165, 0.2) 100%);
+  border-bottom: 1px solid #6888c2;
+}
+

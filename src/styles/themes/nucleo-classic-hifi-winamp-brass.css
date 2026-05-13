@@ -1,0 +1,111 @@
+/* ─── Nucleo — Classic HiFi / Winamp Brass ─── */
+[data-theme='nucleo'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%238c7356%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette ── */
+  --ctp-crust: #c8a458;
+  --ctp-mantle: #dfc08f;
+  --ctp-base: #e9d3ac;
+  --ctp-surface0: #eedbb8;
+  --ctp-surface1: #f5e4c3;
+  --ctp-surface2: #f9ecd4;
+  --ctp-overlay0: #b09060;
+  --ctp-overlay1: #987848;
+  --ctp-overlay2: #805c30;
+  --ctp-text: #2c1e10;
+  --ctp-subtext1: #5a3e20;
+  --ctp-subtext0: #8c7356;
+  /* Accents — burnished brass + warm tones */
+  --ctp-mauve: #7a5218;
+  /* dark burnished brass — primary accent */
+  --ctp-lavender: #9a6a28;
+  /* mid brass — hover/lighter variant */
+  --ctp-pink: #c06880;
+  --ctp-flamingo: #c06050;
+  --ctp-rosewater: #d08070;
+  --ctp-blue: #5878a8;
+  /* muted steel blue */
+  --ctp-sapphire: #4868a0;
+  --ctp-sky: #6898b8;
+  --ctp-teal: #487878;
+  --ctp-green: #587838;
+  /* muted olive */
+  --ctp-yellow: #a88020;
+  /* dark burnished gold */
+  --ctp-peach: #b87040;
+  --ctp-maroon: #903030;
+  --ctp-red: #a03828;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #f5e4c3;
+  --bg-sidebar: #e9d3ac;
+  --bg-card: #eedbb8;
+  --bg-hover: #e3cc9e;
+  --bg-player: #dfc08f;
+  --bg-glass: rgba(245, 228, 195, 0.90);
+  --accent: #7a5218;
+  --accent-dim: rgba(122, 82, 24, 0.15);
+  --accent-glow: rgba(122, 82, 24, 0.30);
+  --text-primary: #2c1e10;
+  --text-secondary: #5a3e20;
+  --text-muted: #6b5636;
+  --border: #765a38;
+  --border-subtle: #dfc08f;
+  --positive: #3e5820;
+  --warning: #7a5b0e;
+  --danger: #a03828;
+}
+
+/* ── Nucleo: skeuomorphic detail layer ── */
+[data-theme='nucleo'] .sidebar {
+  background-image: repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.06) 0px,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px,
+      transparent 5px);
+}
+
+[data-theme='nucleo'] .player-bar {
+  background-image: repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.05) 0px,
+      rgba(255, 255, 255, 0.05) 1px,
+      transparent 1px,
+      transparent 5px);
+}
+
+[data-theme='nucleo'] .player-track-name {
+  text-shadow: 0 0 10px rgba(255, 244, 219, 0.75), 0 0 2px rgba(255, 244, 219, 0.4);
+}
+
+[data-theme='nucleo'] .btn {
+  box-shadow: 0 2px 4px rgba(44, 30, 16, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+[data-theme='nucleo'] .btn-surface {
+  background: #c8a860;
+  color: #2c1e10;
+}
+
+[data-theme='nucleo'] .btn-surface:hover {
+  background: #b89448;
+}
+
+[data-theme='nucleo'] .btn-ghost:hover {
+  background: #c8a860;
+  color: #2c1e10;
+}
+
+[data-theme='nucleo'] .player-btn,
+[data-theme='nucleo'] .player-btn-primary {
+  box-shadow: 0 2px 5px rgba(44, 30, 16, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Column resize grip — default --ctp-surface1 (#f5e4c3) on bg-card (#eedbb8)
+   is 1.08:1 (invisible on this warm cream palette). Use --border (#765a38,
+   4.70:1) to get a perceptible bronze grip that matches the brass accents. */
+[data-theme='nucleo'] .col-resize-handle::after {
+  background: var(--border);
+  width: 2px;
+}
+

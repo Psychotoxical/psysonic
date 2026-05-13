@@ -1,0 +1,303 @@
+/* ─── Windows 10 — Fluent Design Light ─── */
+/* Clean flat white + the iconic near-black taskbar + Windows blue #0078D4 */
+[data-theme='w10'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23767676%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Palette — Windows 10 neutral + Fluent blue ── */
+  --ctp-crust: #1c1c1c;
+  /* taskbar near-black */
+  --ctp-mantle: #2b2b2b;
+  --ctp-base: #ffffff;
+  /* window white */
+  --ctp-surface0: #f3f3f3;
+  /* nav pane / secondary bg */
+  --ctp-surface1: #ebebeb;
+  --ctp-surface2: #d6d6d6;
+  /* borders, dividers */
+  --ctp-overlay0: #767676;
+  /* muted / disabled */
+  --ctp-overlay1: #4a4a4a;
+  --ctp-overlay2: #2b2b2b;
+  --ctp-text: #000000;
+  /* primary text — true black */
+  --ctp-subtext1: #1b1b1b;
+  --ctp-subtext0: #5d5d5d;
+  /* Windows Fluent blue spectrum */
+  --ctp-mauve: #0078d4;
+  /* Windows blue — THE accent */
+  --ctp-lavender: #2e95d3;
+  --ctp-sky: #cce4f7;
+  /* selection highlight */
+  --ctp-teal: #008272;
+  --ctp-blue: #0063b1;
+  --ctp-sapphire: #003e92;
+  --ctp-green: #107c10;
+  --ctp-yellow: #ffb900;
+  --ctp-peach: #d83b01;
+  --ctp-pink: #e3008c;
+  --ctp-flamingo: #c239b3;
+  --ctp-rosewater: #ef6950;
+  --ctp-maroon: #a80000;
+  --ctp-red: #d13438;
+
+  /* ── Semantic tokens ── */
+  --bg-app: #ffffff;
+  --bg-sidebar: #f3f3f3;
+  --bg-card: #ffffff;
+  --bg-hover: #e8e8e8;
+  --bg-player: #1c1c1c;
+  /* taskbar */
+  --bg-glass: rgba(255, 255, 255, 0.90);
+  --accent: #0078d4;
+  --accent-dim: rgba(0, 120, 212, 0.10);
+  --accent-glow: rgba(0, 120, 212, 0.28);
+  --text-primary: #000000;
+  --text-secondary: #1b1b1b;
+  --text-muted: #767676;
+  --border: #d6d6d6;
+  --border-subtle: #ebebeb;
+  --positive: #107c10;
+  --warning: #ffb900;
+  --danger: #d13438;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  /* Waveform: Windows blue progress */
+  --waveform-played: #0078d4;
+  --waveform-buffered: #80bbea;
+  --waveform-unplayed: #d6d6d6;
+}
+
+/* ── App shell: W10 desktop — clean off-white ── */
+[data-theme='w10'] .app-shell {
+  background: #f3f3f3;
+}
+
+/* ── Sidebar: W10 Navigation Pane — flat light gray ── */
+[data-theme='w10'] .sidebar {
+  background: #f3f3f3;
+  border-right: 1px solid #d6d6d6;
+  box-shadow: none;
+}
+
+/* Nav links: dark on light pane */
+[data-theme='w10'] .nav-link {
+  color: #1b1b1b;
+}
+
+[data-theme='w10'] .nav-link:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #000000;
+}
+
+[data-theme='w10'] .nav-link.active {
+  background: rgba(0, 120, 212, 0.10);
+  color: #0078d4;
+}
+
+[data-theme='w10'] .nav-link.active::before {
+  background: #0078d4;
+  box-shadow: none;
+}
+
+/* ── Player bar: W10 Taskbar — near-black flat + accent stripe ── */
+[data-theme='w10'] .player-bar {
+  background: #1c1c1c;
+  border-top: 2px solid #0078d4;
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.50);
+}
+
+/* Player text: white on dark taskbar */
+[data-theme='w10'] .player-track-name {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+[data-theme='w10'] .player-track-artist {
+  color: rgba(255, 255, 255, 0.65);
+  opacity: 1;
+}
+
+[data-theme='w10'] .player-time {
+  color: rgba(255, 255, 255, 0.60);
+}
+
+/* Transport: flat ghosted icons on dark bar */
+[data-theme='w10'] .player-btn {
+  color: rgba(255, 255, 255, 0.82);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+[data-theme='w10'] .player-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+[data-theme='w10'] .player-btn-primary {
+  background: #0078d4;
+  color: #ffffff;
+  border: none;
+  box-shadow: none;
+}
+
+[data-theme='w10'] .player-btn-primary:hover {
+  background: #1684d8;
+  box-shadow: none;
+}
+
+/* ── Content-area buttons: W10 flat button style ── */
+[data-theme='w10'] .btn {
+  background: #ffffff;
+  color: #1b1b1b;
+  border: 1px solid #d6d6d6;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+[data-theme='w10'] .btn:hover {
+  background: #f3f3f3;
+  border-color: #767676;
+  box-shadow: none;
+}
+
+[data-theme='w10'] .btn-primary {
+  background: #0078d4;
+  color: #ffffff;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+[data-theme='w10'] .btn-primary:hover {
+  background: #006cbd;
+  box-shadow: none;
+}
+
+[data-theme='w10'] .btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: #1b1b1b;
+}
+
+[data-theme='w10'] .btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: transparent;
+}
+
+[data-theme='w10'] .btn-surface {
+  background: #ffffff;
+  color: #1b1b1b;
+  border: 1px solid #d6d6d6;
+}
+
+[data-theme='w10'] .btn-surface:hover {
+  background: #f3f3f3;
+  border-color: #767676;
+}
+
+/* Cards: white, flat border, very subtle lift */
+[data-theme='w10'] .glass,
+[data-theme='w10'] .card {
+  background: #ffffff;
+  border: 1px solid #d6d6d6;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Content header */
+[data-theme='w10'] .content-header {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #d6d6d6;
+}
+
+/* Album badge: Windows blue */
+[data-theme='w10'] .badge,
+[data-theme='w10'] .album-detail-badge {
+  background: #0078d4;
+  color: #ffffff;
+}
+
+/* ── Hover / active states ── */
+[data-theme='w10'] .track-row:hover,
+[data-theme='w10'] .track-row.context-active {
+  background: rgba(0, 120, 212, 0.06);
+  box-shadow: inset 3px 0 0 #0078d4;
+}
+
+[data-theme='w10'] .queue-item:hover,
+[data-theme='w10'] .queue-item.context-active {
+  background: rgba(0, 120, 212, 0.07);
+}
+
+[data-theme='w10'] .queue-item.active {
+  background: rgba(0, 120, 212, 0.10);
+  border-left: 2px solid #0078d4;
+}
+
+[data-theme='w10'] .np-queue-item.active {
+  background: rgba(0, 120, 212, 0.08);
+}
+
+[data-theme='w10'] .np-queue-item-active {
+  color: #0078d4;
+}
+
+[data-theme='w10'] .np-queue-item:hover,
+[data-theme='w10'] .np-queue-item.context-active {
+  background: rgba(0, 120, 212, 0.05);
+}
+
+[data-theme='w10'] .np-album-track.active .np-album-track-title,
+[data-theme='w10'] .np-album-track.active .np-album-track-num {
+  color: #0078d4;
+}
+
+[data-theme='w10'] .artist-row:hover {
+  background: rgba(0, 120, 212, 0.06);
+  box-shadow: inset 3px 0 0 #0078d4;
+}
+
+[data-theme='w10'] .playlist-row:hover {
+  background: rgba(0, 120, 212, 0.06);
+  box-shadow: inset 3px 0 0 #0078d4;
+}
+
+[data-theme='w10'] .settings-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0078d4;
+}
+
+[data-theme='w10'] .settings-tab.active {
+  background: rgba(0, 120, 212, 0.10);
+  color: #0078d4;
+  border-color: #0078d4;
+}
+
+[data-theme='w10'] .queue-tab-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0078d4;
+}
+
+[data-theme='w10'] .custom-select-trigger:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='w10'] .custom-select-option:hover {
+  background: rgba(0, 120, 212, 0.08);
+}
+
+[data-theme='w10'] .artist-ext-link:hover {
+  background: rgba(0, 120, 212, 0.08);
+  border-color: #0078d4;
+}
+
+/* Connection info: readable on light sidebar */
+[data-theme='w10'] .connection-type,
+[data-theme='w10'] .connection-server {
+  color: #5d5d5d;
+}
+
+/* ─────────────────────────────────────────── */
+

@@ -1,0 +1,627 @@
+/* ─── Unix Shell ─── */
+@keyframes unix-cursor-blink {
+
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+[data-theme='unix'] {
+  color-scheme: dark;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2322C55E%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ANSI colors mapped to semantic palette */
+  --ctp-crust: #000000;
+  --ctp-mantle: #0a0a0a;
+  --ctp-base: #111111;
+  --ctp-surface0: #1a1a1a;
+  --ctp-surface1: #222222;
+  --ctp-surface2: #2e2e2e;
+  --ctp-overlay0: #666666;
+  --ctp-overlay1: #888888;
+  --ctp-overlay2: #AAAAAA;
+  --ctp-text: #C8C8C8;
+  --ctp-subtext1: #AAAAAA;
+  --ctp-subtext0: #888888;
+  --ctp-mauve: #C678DD;
+  --ctp-lavender: #5588FF;
+  --ctp-pink: #E06C75;
+  --ctp-flamingo: #FF6B6B;
+  --ctp-rosewater: #FFFFFF;
+  --ctp-green: #22C55E;
+  --ctp-teal: #55FFFF;
+  --ctp-sky: #55FFFF;
+  --ctp-blue: #5588FF;
+  --ctp-sapphire: #5588FF;
+  --ctp-yellow: #E5C07B;
+  --ctp-peach: #E06C75;
+  --ctp-maroon: #AA0000;
+  --ctp-red: #E06C75;
+
+  --bg-app: #000000;
+  --bg-sidebar: #0a0a0a;
+  --bg-card: #111111;
+  --bg-hover: #1a1a1a;
+  --bg-player: #000000;
+  --bg-glass: rgba(0, 0, 0, 0.92);
+  --accent: #22C55E;
+  --accent-dim: rgba(34, 197, 94, 0.10);
+  --accent-glow: rgba(34, 197, 94, 0.25);
+  --text-primary: #C8C8C8;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+  --border: #222222;
+  --border-subtle: #1a1a1a;
+  --border-dropdown: #333333;
+  --shadow-dropdown: rgba(0, 0, 0, 0.95);
+  --positive: #22C55E;
+  --warning: #E5C07B;
+  --danger: #E06C75;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-full: 0px;
+}
+
+/* Monospace override — html inherits to most elements; form controls need explicit override */
+[data-theme='unix'] button,
+[data-theme='unix'] input,
+[data-theme='unix'] textarea,
+[data-theme='unix'] select {
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+}
+
+/* Sidebar — slightly off-black, thin separator */
+[data-theme='unix'] .sidebar {
+  background: #0a0a0a;
+  border-right: 1px solid #222222;
+}
+
+/* Nav active — green left bar */
+[data-theme='unix'] .nav-link.active {
+  background: rgba(34, 197, 94, 0.10);
+  border-left: 2px solid #22C55E;
+  color: #22C55E;
+}
+
+[data-theme='unix'] .nav-link:hover:not(.active) {
+  background: rgba(34, 197, 94, 0.05);
+  color: #C8C8C8;
+}
+
+/* Player bar — pure black, thin grey separator */
+[data-theme='unix'] .player-bar {
+  background-color: #000000;
+  background-image: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.10) 0px,
+      rgba(0, 0, 0, 0.10) 1px,
+      transparent 1px,
+      transparent 2px);
+  border-top: 1px solid #222222;
+  box-shadow: none;
+}
+
+/* Track name — white text, green $ prompt prefix, blinking _ cursor */
+[data-theme='unix'] .player-track-name {
+  color: #FFFFFF;
+  text-shadow: none;
+}
+
+[data-theme='unix'] .player-track-name::before {
+  content: '$ ';
+  color: #22C55E;
+  font-weight: 700;
+}
+
+[data-theme='unix'] .player-track-name::after {
+  content: '_';
+  animation: unix-cursor-blink 1s step-end infinite;
+  color: #C8C8C8;
+  margin-left: 1px;
+}
+
+/* Artist name — ANSI bright blue (ls directory color) */
+[data-theme='unix'] .player-artist-name {
+  color: #5588FF;
+}
+
+/* Content header — minimal grey rule */
+[data-theme='unix'] .content-header {
+  border-bottom: 1px solid #1e1e1e;
+}
+
+/* Album/artist cards — dark panel, fine border */
+[data-theme='unix'] .album-card,
+[data-theme='unix'] .artist-card {
+  background: #111111;
+  border: 1px solid #1e1e1e;
+  box-shadow: none;
+}
+
+[data-theme='unix'] .album-card:hover,
+[data-theme='unix'] .artist-card:hover {
+  background: #1a1a1a;
+  border-color: #22C55E;
+  box-shadow: none;
+}
+
+/* Track / queue row hover — green left accent */
+[data-theme='unix'] .track-row:hover,
+[data-theme='unix'] .queue-item:hover {
+  background: rgba(34, 197, 94, 0.06);
+  box-shadow: inset 2px 0 0 #22C55E;
+}
+
+/* Primary play button — solid green */
+[data-theme='unix'] .player-btn-primary {
+  background: #22C55E;
+  color: #000000;
+  border: none;
+  box-shadow: none;
+}
+
+[data-theme='unix'] .player-btn-primary:hover {
+  background: #16A34A;
+  box-shadow: none;
+  transform: none;
+}
+
+/* btn-primary */
+[data-theme='unix'] .btn-primary {
+  background: #22C55E;
+  color: #000000;
+  border: none;
+  box-shadow: none;
+}
+
+[data-theme='unix'] .btn-primary:hover {
+  background: #16A34A;
+  box-shadow: none;
+}
+
+/* Hero play button */
+[data-theme='unix'] .hero-play-btn {
+  background: #22C55E;
+  color: #000000;
+  border: none;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  box-shadow: none;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+[data-theme='unix'] .hero-play-btn:hover {
+  background: #16A34A;
+  transform: scale(1.02);
+  filter: none;
+  box-shadow: none;
+}
+
+/* Album card overlay button */
+[data-theme='unix'] .album-card-details-btn {
+  background: #22C55E;
+  color: #000000;
+  border: none;
+  box-shadow: none;
+}
+
+[data-theme='unix'] .album-card-details-btn:hover {
+  background: #16A34A;
+}
+
+/* Queue round buttons */
+[data-theme='unix'] .queue-round-btn {
+  border: 1px solid #222222;
+  box-shadow: none;
+}
+
+[data-theme='unix'] .queue-round-btn.active {
+  background: #22C55E;
+  color: #000000;
+  border-color: #22C55E;
+  box-shadow: none;
+}
+
+/* Input fields */
+[data-theme='unix'] input,
+[data-theme='unix'] textarea {
+  background: #0a0a0a;
+  border: 1px solid #222222;
+  border-radius: 0;
+}
+
+[data-theme='unix'] input:focus,
+[data-theme='unix'] textarea:focus {
+  border-color: #22C55E;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Scrollbar — thin 6px, modern terminal style */
+[data-theme='unix'] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+[data-theme='unix'] ::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+[data-theme='unix'] ::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 0;
+}
+
+[data-theme='unix'] ::-webkit-scrollbar-thumb:hover {
+  background: #22C55E;
+}
+
+/* Connection indicator — server name and Last.fm username */
+[data-theme='unix'] .connection-type,
+[data-theme='unix'] .connection-server {
+  color: #888888;
+}
+
+/* Connection indicators + Now Playing username */
+[data-theme='spider-tech'] .connection-type,
+[data-theme='spider-tech'] .connection-server {
+  color: #9080a8;
+}
+
+/* Connection indicators */
+[data-theme='dos'] .connection-type,
+[data-theme='dos'] .connection-server {
+  color: #AAAAAA;
+}
+
+/* Track row hover — all child text to navy so nothing drowns on grey */
+[data-theme='dos'] .track-row:hover .track-title,
+[data-theme='dos'] .track-row:hover .track-num,
+[data-theme='dos'] .track-row:hover .track-artist,
+[data-theme='dos'] .track-row:hover .track-duration,
+[data-theme='dos'] .track-row:hover .track-codec,
+[data-theme='dos'] .track-row:hover button,
+[data-theme='dos'] .track-row.context-active .track-title,
+[data-theme='dos'] .track-row.context-active .track-num,
+[data-theme='dos'] .track-row.context-active .track-artist,
+[data-theme='dos'] .track-row.context-active .track-duration,
+[data-theme='dos'] .track-row.context-active .track-codec,
+[data-theme='dos'] .track-row.context-active button {
+  color: #000080 !important;
+  background: transparent !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HORDE — World of Warcraft, Durotar blood-red earth, forge-fire
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme='horde'] {
+  /* Catppuccin-compatible palette — dark blood-iron */
+  --ctp-base: #1a0500;
+  --ctp-mantle: #140300;
+  --ctp-crust: #0e0200;
+  --ctp-surface0: #2e0a02;
+  --ctp-surface1: #3e1104;
+  --ctp-surface2: #521806;
+  --ctp-overlay0: #8a5030;
+  --ctp-overlay1: #a06038;
+  --ctp-overlay2: #b87048;
+  --ctp-subtext0: #c88850;
+  --ctp-subtext1: #d89860;
+  --ctp-text: #e8d4b8;
+  --ctp-lavender: #cc4422;
+  --ctp-blue: #cc2200;
+  --ctp-sapphire: #aa1800;
+  --ctp-sky: #dd3300;
+  --ctp-teal: #cc5500;
+  --ctp-green: #887722;
+  --ctp-yellow: #ffd890;
+  --ctp-peach: #ff8844;
+  --ctp-maroon: #991100;
+  --ctp-red: #cc2200;
+  --ctp-mauve: #cc4422;
+  --ctp-pink: #dd5533;
+  --ctp-flamingo: #ee6644;
+  --ctp-rosewater: #ffaa66;
+
+  /* Semantic tokens */
+  --bg-app: #1a0500;
+  --bg-sidebar: #110300;
+  --bg-player: #120400;
+  --bg-card: #2e0a02;
+  --bg-card-hover: #3e1104;
+  --bg-input: #2e0a02;
+  --bg-overlay: rgba(26, 5, 0, 0.92);
+  --bg-selection: rgba(204, 34, 0, 0.25);
+  --border-subtle: rgba(140, 60, 20, 0.30);
+  --border-default: rgba(180, 80, 30, 0.35);
+  --border-strong: rgba(220, 120, 50, 0.50);
+  --text-primary: #e8d4b8;
+  --text-secondary: #c09070;
+  --text-muted: #a07848;
+  --text-disabled: #5a3820;
+  --accent: #cc2200;
+  --accent-hover: #e02800;
+  --accent-glow: rgba(204, 34, 0, 0.35);
+  --accent-subtle: rgba(204, 34, 0, 0.15);
+  --danger: #ff4422;
+  --success: #887722;
+  --warning: #ff8844;
+  --nav-active-bg: rgba(204, 34, 0, 0.22);
+  --nav-active-text: #ffd890;
+  --scrollbar-thumb: rgba(140, 50, 10, 0.60);
+  --scrollbar-track: transparent;
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.70);
+  --shadow-player: 0 -4px 20px rgba(150, 30, 0, 0.25);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+}
+
+/* Track name — blood-gold glow, as if lit by forge-fire */
+[data-theme='horde'] .player-track-name,
+[data-theme='horde'] .queue-track-title {
+  color: #ffd890;
+  text-shadow: 0 0 16px rgba(220, 80, 0, 0.55), 0 0 4px rgba(220, 80, 0, 0.25);
+}
+
+/* Sidebar — iron plate lines + subtle red glow on active */
+[data-theme='horde'] .sidebar {
+  background-color: #110300;
+  border-right: 1px solid rgba(140, 40, 10, 0.35);
+}
+
+/* Nav active — ember glow */
+[data-theme='horde'] .sidebar-nav-item.active {
+  background: rgba(204, 34, 0, 0.20);
+  border-left: 3px solid #cc2200;
+  box-shadow: inset 0 0 12px rgba(204, 34, 0, 0.10);
+}
+
+/* Player bar — forge-fire glow from below */
+[data-theme='horde'] .player-bar {
+  background-color: #120400;
+  background-image: linear-gradient(to bottom, rgba(80, 10, 0, 0.35), transparent);
+  border-top: 1px solid rgba(180, 60, 20, 0.40);
+  box-shadow: 0 -4px 24px rgba(150, 30, 0, 0.30);
+}
+
+/* App-shell — safe single-pass radial, no repeating */
+[data-theme='horde'] .app-shell {
+  background: radial-gradient(ellipse at 65% 110%, rgba(160, 25, 0, 0.18) 0%, transparent 55%);
+}
+
+/* Cards — iron-tinted hover */
+[data-theme='horde'] .album-card:hover,
+[data-theme='horde'] .artist-card:hover {
+  box-shadow: 0 4px 18px rgba(180, 40, 0, 0.30);
+  border-color: rgba(200, 60, 10, 0.50);
+}
+
+/* Connection indicators */
+[data-theme='horde'] .connection-type,
+[data-theme='horde'] .connection-server {
+  color: #a07848;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   ALLIANCE — World of Warcraft, Stormwind navy, cathedral stone & gold
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme='alliance'] {
+  /* Catppuccin-compatible palette — deep navy / cathedral stone */
+  --ctp-base: #06101e;
+  --ctp-mantle: #040c18;
+  --ctp-crust: #020810;
+  --ctp-surface0: #0c1e34;
+  --ctp-surface1: #122440;
+  --ctp-surface2: #1a2e50;
+  --ctp-overlay0: #506888;
+  --ctp-overlay1: #607898;
+  --ctp-overlay2: #7088a8;
+  --ctp-subtext0: #8098b8;
+  --ctp-subtext1: #90a8c8;
+  --ctp-text: #d8e8f8;
+  --ctp-lavender: #5588cc;
+  --ctp-blue: #3388cc;
+  --ctp-sapphire: #2266aa;
+  --ctp-sky: #44aadd;
+  --ctp-teal: #3399cc;
+  --ctp-green: #88bb44;
+  --ctp-yellow: #f0c840;
+  --ctp-peach: #dd9944;
+  --ctp-maroon: #aa3322;
+  --ctp-red: #cc4433;
+  --ctp-mauve: #7766cc;
+  --ctp-pink: #997acc;
+  --ctp-flamingo: #aa88cc;
+  --ctp-rosewater: #bbaacc;
+
+  /* Semantic tokens */
+  --bg-app: #06101e;
+  --bg-sidebar: #040c18;
+  --bg-player: #050e1a;
+  --bg-card: #0c1e34;
+  --bg-card-hover: #122440;
+  --bg-input: #0c1e34;
+  --bg-overlay: rgba(6, 16, 30, 0.92);
+  --bg-selection: rgba(51, 136, 204, 0.25);
+  --border-subtle: rgba(60, 100, 160, 0.28);
+  --border-default: rgba(80, 120, 180, 0.35);
+  --border-strong: rgba(120, 160, 210, 0.50);
+  --text-primary: #d8e8f8;
+  --text-secondary: #8098b8;
+  --text-muted: #6880a0;
+  --text-disabled: #2a3e58;
+  --accent: #3388cc;
+  --accent-hover: #4499dd;
+  --accent-glow: rgba(51, 136, 204, 0.35);
+  --accent-subtle: rgba(51, 136, 204, 0.15);
+  --danger: #cc4433;
+  --success: #88bb44;
+  --warning: #dd9944;
+  --nav-active-bg: rgba(51, 136, 204, 0.20);
+  --nav-active-text: #e8f4ff;
+  --scrollbar-thumb: rgba(60, 110, 180, 0.55);
+  --scrollbar-track: transparent;
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.60);
+  --shadow-player: 0 -4px 20px rgba(20, 70, 160, 0.22);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+}
+
+/* Track name — paladin holy-light glow */
+[data-theme='alliance'] .player-track-name,
+[data-theme='alliance'] .queue-track-title {
+  color: #e8f4ff;
+  text-shadow: 0 0 14px rgba(80, 160, 220, 0.50), 0 0 4px rgba(80, 160, 220, 0.20);
+}
+
+/* Sidebar — cathedral stone columns with gold right-border */
+[data-theme='alliance'] .sidebar {
+  background-color: #040c18;
+  border-right: 2px solid rgba(200, 170, 50, 0.30);
+}
+
+/* Nav active — royal blue with gold left accent */
+[data-theme='alliance'] .sidebar-nav-item.active {
+  background: rgba(51, 136, 204, 0.20);
+  border-left: 3px solid #f0c840;
+  box-shadow: inset 0 0 12px rgba(51, 136, 204, 0.10);
+}
+
+/* Player bar — paladin aura glow */
+[data-theme='alliance'] .player-bar {
+  background-color: #050e1a;
+  background-image: linear-gradient(to bottom, rgba(20, 60, 130, 0.30), transparent);
+  border-top: 1px solid rgba(100, 140, 200, 0.35);
+  box-shadow: 0 -4px 22px rgba(30, 80, 180, 0.22);
+}
+
+/* App-shell — safe single-pass radial, no repeating */
+[data-theme='alliance'] .app-shell {
+  background: radial-gradient(ellipse at 38% 110%, rgba(25, 70, 170, 0.15) 0%, transparent 55%);
+}
+
+/* Cards — blue-glow hover */
+[data-theme='alliance'] .album-card:hover,
+[data-theme='alliance'] .artist-card:hover {
+  box-shadow: 0 4px 18px rgba(40, 100, 200, 0.28);
+  border-color: rgba(80, 140, 210, 0.50);
+}
+
+/* Connection indicators */
+[data-theme='alliance'] .connection-type,
+[data-theme='alliance'] .connection-server {
+  color: #6880a0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   W11 — Windows 11 Fluent Design, dark mode, Mica material
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme='w11'] {
+  /* Catppuccin-compatible palette — Fluent v2 dark neutrals
+     Values aligned with Microsoft's actual Windows 11 Dark Mode tokens:
+       text primary    #ffffff (was #f3f3f3 — now matches W11 true white)
+       text secondary  #cfcfcf (was #9a9a9a — W11 Text Secondary Dark, 9.6:1)
+       text tertiary   #a0a0a0 (was #797979 — W11 Text Tertiary Dark, 6.3:1)
+       control strong  rgba(255,255,255,0.40) (was 0.18 — perceptible structural borders)
+       accent fill     #0078d4 kept (for buttons with white text, 4.3:1 AA)
+       accent text     via .w11-link helper → #60cdff (Fluent Accent Text Dark)
+       danger dark     #ff99a4 (Fluent Critical Foreground Dark, 8:1 AAA) */
+  --ctp-base: #202020;
+  --ctp-mantle: #1c1c1c;
+  --ctp-crust: #181818;
+  --ctp-surface0: #2c2c2c;
+  --ctp-surface1: #3b3b3b;    /* raised from #363636 for grip/border perceptibility */
+  --ctp-surface2: #454545;
+  --ctp-overlay0: #868686;    /* raised from #797979 */
+  --ctp-overlay1: #a0a0a0;
+  --ctp-overlay2: #b4b4b4;
+  --ctp-subtext0: #cfcfcf;
+  --ctp-subtext1: #e4e4e4;
+  --ctp-text: #ffffff;
+  --ctp-lavender: #6ccbf8;
+  --ctp-blue: #0078d4;
+  --ctp-sapphire: #0067c0;
+  --ctp-sky: #4cc2ff;
+  --ctp-teal: #00b7c3;
+  --ctp-green: #6ccb5f;
+  --ctp-yellow: #f9f1a5;
+  --ctp-peach: #f7630c;
+  --ctp-maroon: #ff99a4;     /* Fluent Critical Foreground Dark */
+  --ctp-red: #ff99a4;
+  --ctp-mauve: #8764b8;
+  --ctp-pink: #b146c2;
+  --ctp-flamingo: #e3008c;
+  --ctp-rosewater: #f5e1ff;
+
+  /* Semantic tokens */
+  --bg-app: #202020;
+  --bg-sidebar: #2b2b2b;
+  --bg-player: #1c1c1c;
+  --bg-card: #2c2c2c;
+  --bg-card-hover: #3b3b3b;
+  --bg-input: #2c2c2c;
+  --bg-overlay: rgba(32, 32, 32, 0.92);
+  --bg-selection: rgba(0, 120, 212, 0.30);
+  /* Borders — raised to match Fluent v2 Stroke Control tokens */
+  --bg-glass:        rgba(32, 32, 32, 0.92);
+  --border-subtle:   rgba(255, 255, 255, 0.08);  /* Stroke Divider Dark */
+  --border-default:  rgba(255, 255, 255, 0.18);  /* Stroke Control Default Dark */
+  --border-strong:   rgba(255, 255, 255, 0.40);  /* Stroke Control Strong Dark */
+  --border:          rgba(255, 255, 255, 0.18);
+  --text-primary:   #ffffff;     /* 15.9:1 — AAA ✓ (W11 true white) */
+  --text-secondary: #cfcfcf;     /* 9.6:1 — AAA ✓ (raised from 5.8:1) */
+  --text-muted:     #a0a0a0;     /* 6.3:1 — AAA near-miss (raised from 4.0:1 below AA) */
+  --text-disabled:  #5a5a5a;
+  --accent:         #0078d4;     /* W11 brand blue — kept for button fills (white text 4.3:1 AA) */
+  --accent-hover:   #1086e0;
+  --accent-text:    #60cdff;     /* Fluent Accent Text Dark — 7.2:1 AAA ✓ for link/text usage */
+  --accent-glow:    rgba(0, 120, 212, 0.30);
+  --accent-subtle:  rgba(0, 120, 212, 0.15);
+  --accent-dim:     rgba(0, 120, 212, 0.18);
+  --danger:         #ff99a4;     /* Fluent Critical Foreground Dark — 8.0:1 AAA ✓ */
+  --positive:       #6ccb5f;     /* W11 Success — 7.8:1 AAA ✓ */
+  --success:        #6ccb5f;
+  --warning:        #fce100;     /* W11 Caution Dark (brighter yellow) — 13.2:1 AAA ✓ */
+  --volume-accent:  #0078d4;
+  --nav-active-bg:  rgba(0, 120, 212, 0.22);
+  --nav-active-text: #ffffff;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.28);
+  --scrollbar-track: transparent;
+  --shadow-card:   0 2px 8px rgba(0, 0, 0, 0.50);
+  --shadow-player: 0 -1px 0 rgba(255, 255, 255, 0.08);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --waveform-played:    #60cdff;  /* Accent Text Dark — visible on dark bg */
+  --waveform-buffered:  #868686;
+  --waveform-unplayed:  #3b3b3b;
+}
+

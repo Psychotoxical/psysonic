@@ -1,0 +1,46 @@
+/* ─── Vision Dark — component-level overrides ─────────────────────────────
+   Selectors whose default colour (`--ctp-surface1` or `--ctp-surface0`)
+   collided with the theme's card background at <1.2:1 — raised here to
+   clear the 3:1 UI threshold required for colour-blind-safe AAA.         */
+
+/* Column resize grip (tracklist) — was #201c2c on #16131e = 1.1:1 */
+[data-theme='vision-dark'] .col-resize-handle::after {
+  background: var(--ctp-overlay1); /* #8a84a0 → 5.9:1 on bg-card */
+  width: 2px; /* doubled for colour-blind visibility */
+}
+
+/* Badges — opaque background per theme feedback */
+[data-theme='vision-dark'] .badge,
+[data-theme='vision-dark'] .album-detail-badge {
+  background: var(--ctp-surface2);
+  color: var(--accent);
+  border: 1px solid var(--ctp-overlay0);
+}
+
+/* Queue items on the very dark sidebar (#08060e) — force light text */
+[data-theme='vision-dark'] .queue-item-title,
+[data-theme='vision-dark'] .queue-current-info h3 {
+  color: var(--text-primary);
+}
+[data-theme='vision-dark'] .queue-item-artist,
+[data-theme='vision-dark'] .queue-item-duration,
+[data-theme='vision-dark'] .queue-current-sub,
+[data-theme='vision-dark'] .queue-tab-btn {
+  color: var(--text-secondary);
+}
+
+/* Focus ring — keyboard navigation indicator with AAA contrast */
+[data-theme='vision-dark'] *:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Scrollbar thumb — explicit contrast (auto-hide still applies) */
+[data-theme='vision-dark'] ::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay0);
+}
+[data-theme='vision-dark'] *:hover::-webkit-scrollbar-thumb,
+[data-theme='vision-dark'] .is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--ctp-overlay2);
+}
+

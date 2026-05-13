@@ -1,0 +1,13 @@
+/* ─── Card ─── */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.card:hover {
+  box-shadow: inset 0 0 0 1px var(--border), var(--shadow-md);
+}
+
