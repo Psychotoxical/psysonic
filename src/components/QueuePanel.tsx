@@ -1,15 +1,13 @@
 import { getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
-import { registerQueueListScrollTopReader, consumePendingQueueListScrollTop } from '../store/queueUndo';
 import { songToTrack } from '../utils/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
-import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useOrbitStore } from '../store/orbitStore';
 import OrbitGuestQueue from './OrbitGuestQueue';
 import OrbitQueueHead from './OrbitQueueHead';
 import HostApprovalQueue from './HostApprovalQueue';
-import { Play, MicVocal, ListMusic, Radio, Info } from 'lucide-react';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +21,6 @@ import { useLyricsStore } from '../store/lyricsStore';
 import LyricsPane from './LyricsPane';
 import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
-import OverlayScrollArea from './OverlayScrollArea';
 import { useLuckyMixStore } from '../store/luckyMixStore';
 import { useQueueToolbarStore } from '../store/queueToolbarStore';
 import {
@@ -38,6 +35,8 @@ import { useQueuePanelDrag } from '../hooks/useQueuePanelDrag';
 import { useQueueLufsTgtPopover } from '../hooks/useQueueLufsTgtPopover';
 import { QueueToolbar } from './queuePanel/QueueToolbar';
 import { QueueList } from './queuePanel/QueueList';
+import { QueueTabBar } from './queuePanel/QueueTabBar';
+import { useQueueAutoScroll } from '../hooks/useQueueAutoScroll';
 
 export default function QueuePanel() {
   const orbitRole = useOrbitStore(s => s.role);
@@ -93,7 +92,6 @@ function QueuePanelHostOrSolo() {
   const currentCoverSrc = useCachedUrl(currentCoverFetchUrl, currentCoverCacheKey);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
   const playTrack = usePlayerStore(s => s.playTrack);
-  const toggleQueue = usePlayerStore(s => s.toggleQueue);
   const clearQueue = usePlayerStore(s => s.clearQueue);
 
   const reorderQueue = usePlayerStore(s => s.reorderQueue);
@@ -123,7 +121,6 @@ function QueuePanelHostOrSolo() {
   const setGaplessEnabled = useAuthStore(s => s.setGaplessEnabled);
   const setInfiniteQueueEnabled = useAuthStore(s => s.setInfiniteQueueEnabled);
   const normalizationEngine = useAuthStore(s => s.normalizationEngine);
-  const replayGainMode = useAuthStore(s => s.replayGainMode);
 
   const activeTab  = useLyricsStore(s => s.activeTab);
   const setTab     = useLyricsStore(s => s.setTab);
@@ -149,22 +146,6 @@ function QueuePanelHostOrSolo() {
   } = useQueueLufsTgtPopover(expandReplayGain);
 
   const queueListRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    registerQueueListScrollTopReader(() => queueListRef.current?.scrollTop);
-    return () => registerQueueListScrollTopReader(null);
-  }, []);
-
-  useLayoutEffect(() => {
-    const top = consumePendingQueueListScrollTop();
-    if (top === undefined) return;
-    const el = queueListRef.current;
-    if (!el) return;
-    suppressNextAutoScrollRef.current = true;
-    el.scrollTop = top;
-    el.dispatchEvent(new Event('scroll', { bubbles: false }));
-  }, [queue, queueIndex, currentTrack?.id]);
-
   const asideRef = useRef<HTMLElement>(null);
 
   const {
@@ -182,21 +163,14 @@ function QueuePanelHostOrSolo() {
     removeTrack,
   });
 
-  useEffect(function queueAutoScroll() {
-    if (suppressNextAutoScrollRef.current) {
-      suppressNextAutoScrollRef.current = false;
-      return;
-    }
-    if (!queueListRef.current || queueIndex < 0) return;
-    if (activeTab !== 'queue') return;
-    const songs = queueListRef.current!.querySelectorAll<HTMLElement>('[data-queue-idx]');
-    const nextSong = songs[queueIndex + 1];
-    if (!nextSong) return;
-    nextSong.scrollIntoView({ block: "start", behavior: "instant" });
-    requestAnimationFrame(() => {
-      queueListRef.current?.dispatchEvent(new Event('scroll', { bubbles: false }));
-    });
-  }, [currentTrack, activeTab]);
+  useQueueAutoScroll({
+    queue,
+    queueIndex,
+    currentTrack,
+    activeTab,
+    queueListRef,
+    suppressNextAutoScrollRef,
+  });
 
   const [activePlaylist, setActivePlaylist] = useState<{ id: string; name: string } | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -363,32 +337,7 @@ function QueuePanelHostOrSolo() {
         <NowPlayingInfo />
       )}
 
-      <div className="queue-tab-bar">
-        <button
-          className={`queue-tab-btn${activeTab === 'queue' ? ' active' : ''}`}
-          onClick={() => setTab('queue')}
-          aria-label={t('queue.title')}
-        >
-          <ListMusic size={14} />
-          {t('queue.title')}
-        </button>
-        <button
-          className={`queue-tab-btn${activeTab === 'lyrics' ? ' active' : ''}`}
-          onClick={() => setTab('lyrics')}
-          aria-label={t('player.lyrics')}
-        >
-          <MicVocal size={14} />
-          {t('player.lyrics')}
-        </button>
-        <button
-          className={`queue-tab-btn${activeTab === 'info' ? ' active' : ''}`}
-          onClick={() => setTab('info')}
-          aria-label={t('nowPlayingInfo.tab')}
-        >
-          <Info size={14} />
-          {t('nowPlayingInfo.tab')}
-        </button>
-      </div>
+      <QueueTabBar activeTab={activeTab} setTab={setTab} t={t} />
 
       {saveModalOpen && (
         <SavePlaylistModal
