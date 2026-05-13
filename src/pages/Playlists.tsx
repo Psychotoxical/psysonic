@@ -15,18 +15,19 @@ import StarRating from '../components/StarRating';
 import { useTranslation } from 'react-i18next';
 import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
 import { showToast } from '../utils/toast';
-import { ndCreateSmartPlaylist, ndGetSmartPlaylist, ndListSmartPlaylists, ndUpdateSmartPlaylist } from '../api/navidromeSmart';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 
 import {
-  SMART_PREFIX, LIMIT_MAX, YEAR_MIN, YEAR_MAX,
-  defaultSmartFilters, parseSmartRulesToFilters, buildSmartRulesPayload,
-  isSmartPlaylistName, displayPlaylistName, clampYear,
+  defaultSmartFilters, displayPlaylistName, isSmartPlaylistName,
   type SmartFilters, type PendingSmartPlaylist,
 } from '../utils/playlistsSmart';
 import { PlaylistSmartCoverCell, PlaylistCardMainCover } from '../components/playlists/PlaylistCoverImages';
 import { useSmartCoverCollage } from '../hooks/useSmartCoverCollage';
 import { usePlaylistsLibraryScopeCounts } from '../hooks/usePlaylistsLibraryScopeCounts';
+import { usePendingSmartPolling } from '../hooks/usePendingSmartPolling';
+import { runPlaylistsOpenSmartEditor } from '../utils/runPlaylistsOpenSmartEditor';
+import { runPlaylistsSaveSmart } from '../utils/runPlaylistsSaveSmart';
+import PlaylistsSmartEditor from '../components/playlists/PlaylistsSmartEditor';
 
 function formatDuration(seconds: number): string {
   return formatHumanHoursMinutes(seconds);
@@ -115,179 +116,20 @@ export default function Playlists() {
     setNewName('');
   };
 
-  const handleOpenSmartEditor = async (pl: SubsonicPlaylist) => {
-    if (!isNavidromeServer || !isSmartPlaylistName(pl.name)) return;
-    setCreatingSmartBusy(true);
-    try {
-      let target: { id: string; name: string; rules?: Record<string, unknown> } | null = null;
-      try {
-        // Prefer direct endpoint for this playlist: returns freshest rules.
-        const direct = await ndGetSmartPlaylist(pl.id);
-        if (direct.id && (direct.rules || isSmartPlaylistName(direct.name))) target = direct;
-      } catch {
-        // Fallback to list endpoint below.
-      }
-      if (!target) {
-        const smart = await ndListSmartPlaylists();
-        target = smart.find((v) =>
-          v.id === pl.id ||
-          v.name === pl.name ||
-          displayPlaylistName(v.name) === displayPlaylistName(pl.name),
-        ) ?? null;
-      }
-      if (target) {
-        setSmartFilters(parseSmartRulesToFilters(target.rules, target.name));
-        setEditingSmartId(target.id);
-      } else {
-        // Fallback: allow editing even if Navidrome smart list endpoint
-        // doesn't return this playlist (shared/migrated/legacy edge cases).
-        setSmartFilters({
-          ...defaultSmartFilters,
-          name: displayPlaylistName(pl.name),
-        });
-        setEditingSmartId(pl.id);
-      }
-      setGenreQuery('');
-      setCreating(false);
-      setCreatingSmart(true);
-    } catch {
-      // Degrade gracefully instead of blocking the editor on transient/API errors.
-      setSmartFilters({
-        ...defaultSmartFilters,
-        name: displayPlaylistName(pl.name),
-      });
-      setGenreQuery('');
-      setEditingSmartId(pl.id);
-      setCreating(false);
-      setCreatingSmart(true);
-      showToast(t('smartPlaylists.loadFailed'), 3500, 'warning');
-    } finally {
-      setCreatingSmartBusy(false);
-    }
-  };
+  const handleOpenSmartEditor = (pl: SubsonicPlaylist) => runPlaylistsOpenSmartEditor({
+    pl, isNavidromeServer, t,
+    setSmartFilters, setEditingSmartId, setGenreQuery,
+    setCreating, setCreatingSmart, setCreatingSmartBusy,
+  });
 
-  const handleCreateSmart = async () => {
-    if (!isNavidromeServer) {
-      showToast(t('smartPlaylists.navidromeOnly'), 3500, 'error');
-      return;
-    }
-    setCreatingSmartBusy(true);
-    try {
-      let baseName = smartFilters.name.trim() || `mix-${new Date().toISOString().slice(0, 10)}`;
-      if (!editingSmartId) {
-        const existingNames = new Set(playlists.map((p) => (p.name ?? '').toLowerCase()));
-        const requestedBaseName = baseName;
-        let ordinal = 2;
-        while (existingNames.has(`${SMART_PREFIX}${baseName}`.toLowerCase())) {
-          baseName = `${requestedBaseName}-${ordinal}`;
-          ordinal += 1;
-        }
-      }
-      const rules = buildSmartRulesPayload(smartFilters);
-      const fullName = `${SMART_PREFIX}${baseName}`;
-      if (editingSmartId) {
-        await ndUpdateSmartPlaylist(editingSmartId, fullName, rules, true);
-      } else {
-        await ndCreateSmartPlaylist(fullName, rules, true);
-      }
-      await fetchPlaylists();
-      const createdName = fullName;
-      const updatedId = editingSmartId;
-      setPendingSmart(prev => {
-        const existing = prev.find(p => p.id === updatedId || p.name === createdName);
-        if (existing) return prev;
-        const created = usePlaylistStore.getState().playlists.find((p) => p.id === updatedId || p.name === createdName);
-        return [
-          ...prev,
-          {
-            name: createdName,
-            id: updatedId ?? created?.id,
-            firstSeenCoverArt: created?.coverArt,
-            attempts: 0,
-          },
-        ];
-      });
-      setCreatingSmart(false);
-      setEditingSmartId(null);
-      setSmartFilters(defaultSmartFilters);
-      setGenreQuery('');
-      if (updatedId) showToast(t('smartPlaylists.updated', { name: createdName }), 3500, 'success');
-      else showToast(t('smartPlaylists.created', { name: createdName }), 3500, 'success');
-    } catch {
-      showToast(editingSmartId ? t('smartPlaylists.updateFailed') : t('smartPlaylists.createFailed'), 3500, 'error');
-    } finally {
-      setCreatingSmartBusy(false);
-    }
-  };
+  const handleCreateSmart = () => runPlaylistsSaveSmart({
+    isNavidromeServer, smartFilters, editingSmartId, playlists, fetchPlaylists, t,
+    setPendingSmart, setCreatingSmart, setEditingSmartId, setSmartFilters,
+    setGenreQuery, setCreatingSmartBusy,
+  });
 
   // Smart playlist rules are processed asynchronously on server.
-  // Poll list every 10s and keep waiting through Navidrome placeholder cover.
-  useEffect(() => {
-    if (pendingSmart.length === 0) return;
-    const interval = window.setInterval(async () => {
-      await fetchPlaylists();
-      const listNow = usePlaylistStore.getState().playlists;
-      const hydrated = pendingSmart.map(item => {
-        if (item.id) return item;
-        const found = listNow.find(p => p.name === item.name);
-        return found ? { ...item, id: found.id } : item;
-      });
-      // Detail endpoint tends to reflect fresh metadata earlier than list endpoint.
-      const ids = hydrated.map(p => p.id).filter((v): v is string => Boolean(v));
-      const details = await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const { playlist } = await getPlaylist(id);
-            return playlist;
-          } catch {
-            return null;
-          }
-        }),
-      );
-      const freshById = new Map(
-        details.filter((p): p is SubsonicPlaylist => p !== null).map(p => [p.id, p]),
-      );
-      if (freshById.size > 0) {
-        usePlaylistStore.setState((s) => ({
-          playlists: s.playlists.map((p) => {
-            const fresh = freshById.get(p.id);
-            return fresh ? { ...p, ...fresh } : p;
-          }),
-        }));
-      }
-      const current = usePlaylistStore.getState().playlists;
-      setPendingSmart(() => {
-        const next: PendingSmartPlaylist[] = [];
-        for (const item of hydrated) {
-          const pl = item.id
-            ? current.find(p => p.id === item.id)
-            : current.find(p => p.name === item.name);
-          if (!pl) {
-            next.push({ ...item, attempts: item.attempts + 1 });
-            continue;
-          }
-          const songCount = pl.songCount ?? 0;
-          const currentCover = pl.coverArt;
-          const firstCover = item.firstSeenCoverArt ?? currentCover;
-          const placeholderStillThere = Boolean(firstCover) && currentCover === firstCover;
-          // Wait until we see actual content and cover changed from the first placeholder-ish cover.
-          // Fallback timeout keeps UI from waiting forever on servers that never update cover id.
-          const hardTimeoutReached = item.attempts >= 18; // ~3 minutes (18 * 10s)
-          const ready = songCount > 0 && (!placeholderStillThere || hardTimeoutReached);
-          if (!ready) {
-            next.push({
-              ...item,
-              id: pl.id,
-              firstSeenCoverArt: firstCover,
-              attempts: item.attempts + 1,
-            });
-          }
-        }
-        return next;
-      });
-    }, 10000);
-    return () => window.clearInterval(interval);
-  }, [pendingSmart, fetchPlaylists]);
+  usePendingSmartPolling(pendingSmart, setPendingSmart, fetchPlaylists);
 
   const handlePlay = async (e: React.MouseEvent, pl: SubsonicPlaylist) => {
     e.stopPropagation();
@@ -512,107 +354,18 @@ export default function Playlists() {
         </div>
       </div>
       {creatingSmart && (
-        <div style={{ marginBottom: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem', background: 'var(--bg-card)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionBasic')}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <input className="input" placeholder={t('smartPlaylists.name')} value={smartFilters.name} onChange={e => setSmartFilters(v => ({ ...v, name: e.target.value }))} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                  <input className="input" type="number" min={1} max={LIMIT_MAX} placeholder={t('smartPlaylists.limit')} value={smartFilters.limit} onChange={e => setSmartFilters(v => ({ ...v, limit: e.target.value }))} />
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.limitHint', { max: LIMIT_MAX })}</span>
-                </div>
-                <select className="input" value={smartFilters.sort} onChange={e => setSmartFilters(v => ({ ...v, sort: e.target.value }))}>
-                  <option value="+random">{t('smartPlaylists.sortRandom')}</option>
-                  <option value="+title">{t('smartPlaylists.sortTitleAsc')}</option>
-                  <option value="-title">{t('smartPlaylists.sortTitleDesc')}</option>
-                  <option value="-year">{t('smartPlaylists.sortYearDesc')}</option>
-                  <option value="+year">{t('smartPlaylists.sortYearAsc')}</option>
-                  <option value="-playcount">{t('smartPlaylists.sortPlayCountDesc')}</option>
-                </select>
-              </div>
-            </section>
-            <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionGenres')}</div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('smartPlaylists.genreMode')}</span>
-                <button className={`btn ${smartFilters.genreMode === 'include' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'include' }))}>{t('smartPlaylists.genreModeInclude')}</button>
-                <button className={`btn ${smartFilters.genreMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'exclude' }))}>{t('smartPlaylists.genreModeExclude')}</button>
-              </div>
-              <input className="input" placeholder={t('smartPlaylists.genreSearchPlaceholder')} value={genreQuery} onChange={e => setGenreQuery(e.target.value)} style={{ marginBottom: '0.75rem' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.5rem', minHeight: 120 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t('smartPlaylists.availableGenres')}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    {availableGenres.map(g => (
-                      <button key={g} className="btn btn-surface" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setSmartFilters(v => ({ ...v, selectedGenres: [...v.selectedGenres, g] }))}>{g}</button>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.5rem', minHeight: 120 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t('smartPlaylists.selectedGenres')}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    {smartFilters.selectedGenres.map(g => (
-                      <button key={g} className="btn btn-surface" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setSmartFilters(v => ({ ...v, selectedGenres: v.selectedGenres.filter(x => x !== g) }))}>× {g}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-            <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionYearsAndFilters')}</div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('smartPlaylists.yearMode')}</span>
-                <button className={`btn ${smartFilters.yearMode === 'include' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'include' }))}>{t('smartPlaylists.yearModeInclude')}</button>
-                <button className={`btn ${smartFilters.yearMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'exclude' }))}>{t('smartPlaylists.yearModeExclude')}</button>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
-                <span>{t('smartPlaylists.fromYear')}: {smartFilters.yearFrom}</span>
-                <span>{t('smartPlaylists.toYear')}: {smartFilters.yearTo}</span>
-              </div>
-              <div className="dual-year-range">
-                <div className="dual-year-range__track" />
-                <div className="dual-year-range__selected" style={{ left: `${((smartFilters.yearFrom - YEAR_MIN) / (YEAR_MAX - YEAR_MIN)) * 100}%`, right: `${100 - ((smartFilters.yearTo - YEAR_MIN) / (YEAR_MAX - YEAR_MIN)) * 100}%` }} />
-                <input type="range" min={YEAR_MIN} max={YEAR_MAX} value={smartFilters.yearFrom} onChange={e => setSmartFilters(v => ({ ...v, yearFrom: Math.min(clampYear(Number(e.target.value)), v.yearTo) }))} />
-                <input type="range" min={YEAR_MIN} max={YEAR_MAX} value={smartFilters.yearTo} onChange={e => setSmartFilters(v => ({ ...v, yearTo: Math.max(clampYear(Number(e.target.value)), v.yearFrom) }))} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.75rem' }}>
-                <input className="input" placeholder={t('smartPlaylists.artistContains')} value={smartFilters.artistContains} onChange={e => setSmartFilters(v => ({ ...v, artistContains: e.target.value }))} />
-                <input className="input" placeholder={t('smartPlaylists.albumContains')} value={smartFilters.albumContains} onChange={e => setSmartFilters(v => ({ ...v, albumContains: e.target.value }))} />
-                <input className="input" placeholder={t('smartPlaylists.titleContains')} value={smartFilters.titleContains} onChange={e => setSmartFilters(v => ({ ...v, titleContains: e.target.value }))} />
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.minRating')}: {smartFilters.minRating}★</div>
-                <StarRating value={smartFilters.minRating} onChange={rating => setSmartFilters(v => ({ ...v, minRating: rating }))} ariaLabel={t('smartPlaylists.minRatingAria')} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.minRatingHint')}</span>
-              </div>
-              <div style={{ marginTop: '0.75rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input type="checkbox" checked={smartFilters.excludeUnrated} onChange={e => setSmartFilters(v => ({ ...v, excludeUnrated: e.target.checked }))} />
-                  {t('smartPlaylists.excludeUnrated')}
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input type="checkbox" checked={smartFilters.compilationOnly} onChange={e => setSmartFilters(v => ({ ...v, compilationOnly: e.target.checked }))} />
-                  {t('smartPlaylists.compilationOnly')}
-                </label>
-              </div>
-            </section>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button
-                className="btn btn-surface"
-                onClick={() => {
-                  setCreatingSmart(false);
-                  setEditingSmartId(null);
-                  setSmartFilters(defaultSmartFilters);
-                  setGenreQuery('');
-                }}
-              >
-                {t('playlists.cancel')}
-              </button>
-              <button className="btn btn-primary" onClick={handleCreateSmart} disabled={creatingSmartBusy}>
-                <Plus size={15} /> {editingSmartId ? t('smartPlaylists.save') : t('smartPlaylists.create')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <PlaylistsSmartEditor
+          smartFilters={smartFilters}
+          setSmartFilters={setSmartFilters}
+          availableGenres={availableGenres}
+          genreQuery={genreQuery}
+          setGenreQuery={setGenreQuery}
+          editingSmartId={editingSmartId}
+          creatingSmartBusy={creatingSmartBusy}
+          setCreatingSmart={setCreatingSmart}
+          setEditingSmartId={setEditingSmartId}
+          onSave={handleCreateSmart}
+        />
       )}
 
       {/* ── Grid ── */}
