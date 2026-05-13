@@ -12,6 +12,7 @@ import { useAuthStore } from '../store/authStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { useAlbumDetailData } from '../hooks/useAlbumDetailData';
 import { useAlbumOfflineState } from '../hooks/useAlbumOfflineState';
+import { useAlbumDetailSort } from '../hooks/useAlbumDetailSort';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { join } from '@tauri-apps/api/path';
@@ -59,9 +60,6 @@ export default function AlbumDetail() {
 
   const [albumEntityRating, setAlbumEntityRating] = useState(0);
   const [filterText, setFilterText] = useState('');
-  const [sortKey, setSortKey] = useState<'natural' | 'title' | 'artist' | 'album' | 'favorite' | 'rating' | 'duration'>('natural');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [sortClickCount, setSortClickCount] = useState(0);
   const [showPlPicker, setShowPlPicker] = useState(false);
   const selectedCount = useSelectionStore(s => s.selectedIds.size);
   const inSelectMode = selectedCount > 0;
@@ -246,64 +244,19 @@ const handleShuffleAll = () => {
     deleteAlbum(album.album.id, serverId);
   };
 
-  const handleSort = (key: typeof sortKey) => {
-    if (key === 'natural') return;
-    if (sortKey === key) {
-      const nextCount = sortClickCount + 1;
-      if (nextCount >= 3) {
-        setSortKey('natural');
-        setSortDir('asc');
-        setSortClickCount(0);
-      } else {
-        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-        setSortClickCount(nextCount);
-      }
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-      setSortClickCount(1);
-    }
-  };
-
   // Must be before early returns — hooks must be called unconditionally.
   const mergedStarredSongs = useMemo(() => new Set([
     ...[...starredSongs].filter(id => starredOverrides[id] !== false),
     ...Object.entries(starredOverrides).filter(([, v]) => v).map(([k]) => k),
   ]), [starredSongs, starredOverrides]);
 
-  const displayedSongs = useMemo(() => {
-    if (!album) return [];
-    const q = filterText.trim().toLowerCase();
-    if (!q && sortKey === 'natural') return album.songs;
-    let result = [...album.songs];
-    if (q) result = result.filter(s => s.title.toLowerCase().includes(q) || (s.artist ?? '').toLowerCase().includes(q));
-    if (sortKey !== 'natural') {
-      result.sort((a, b) => {
-        let av: string | number;
-        let bv: string | number;
-        switch (sortKey) {
-          case 'title': av = a.title; bv = b.title; break;
-          case 'artist': av = a.artist ?? ''; bv = b.artist ?? ''; break;
-          case 'album': av = a.album ?? ''; bv = b.album ?? ''; break;
-          case 'favorite':
-            av = mergedStarredSongs.has(a.id) ? 1 : 0;
-            bv = mergedStarredSongs.has(b.id) ? 1 : 0;
-            break;
-          case 'rating':
-            av = ratings[a.id] ?? userRatingOverrides[a.id] ?? a.userRating ?? 0;
-            bv = ratings[b.id] ?? userRatingOverrides[b.id] ?? b.userRating ?? 0;
-            break;
-          case 'duration': av = a.duration ?? 0; bv = b.duration ?? 0; break;
-          default: av = a.title; bv = b.title;
-        }
-        if (typeof av === 'number' && typeof bv === 'number') {
-          return sortDir === 'asc' ? av - bv : bv - av;
-        }
-        return sortDir === 'asc' ? (av as string).localeCompare(bv as string) : (bv as string).localeCompare(av as string);
-      });
-    }
-    return result;
-  }, [album, filterText, sortKey, sortDir, mergedStarredSongs, ratings, userRatingOverrides]);
+  const { sortKey, sortDir, handleSort, displayedSongs } = useAlbumDetailSort({
+    songs: album?.songs,
+    filterText,
+    starredSongs: mergedStarredSongs,
+    ratings,
+    userRatingOverrides,
+  });
 
   // Hooks must be called unconditionally — derive from nullable album state.
   // useMemo is required: buildCoverArtUrl generates a new salt on every call, so without
