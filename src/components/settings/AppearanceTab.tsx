@@ -10,7 +10,7 @@ import { IS_LINUX, IS_WINDOWS } from '../../utils/platform';
 import CustomSelect from '../CustomSelect';
 import SettingsSubSection from '../SettingsSubSection';
 import ThemePicker, { THEME_GROUPS } from '../ThemePicker';
-import { SeekbarPreview } from '../WaveformSeek';
+import { SeekbarPreview } from '../WaveformSeekPreview';
 
 export function AppearanceTab() {
   const { t, i18n } = useTranslation();
