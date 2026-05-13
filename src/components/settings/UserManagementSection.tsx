@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { RotateCcw, Shield, Trash2, User, UserPlus, Users, Wand2, X } from 'lucide-react';
+import { RotateCcw, UserPlus, Users, X } from 'lucide-react';
 import {
   ndUpdateUser,
   type NdUser,
@@ -13,10 +13,10 @@ import {
   encodeServerMagicString,
 } from '../../utils/serverMagicString';
 import { shortHostFromServerUrl } from '../../utils/serverDisplayName';
-import { formatLastSeen } from '../../utils/userMgmtHelpers';
 import { useUserMgmtData } from '../../hooks/useUserMgmtData';
 import { useUserMgmtActions } from '../../hooks/useUserMgmtActions';
 import { UserForm } from './UserForm';
+import { UserMgmtRow } from './userMgmt/UserMgmtRow';
 
 export function UserManagementSection({
   serverUrl,
@@ -114,94 +114,23 @@ export function UserManagementSection({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {users.map(u => {
-                const isSelf = u.userName === currentUsername;
-                const libNames = u.isAdmin
-                  ? null
-                  : u.libraryIds.length === 0
-                    ? t('settings.userMgmtNoLibraries')
-                    : libraries.filter(l => u.libraryIds.includes(l.id)).map(l => l.name).join(', ');
-                const lastSeen = formatLastSeen(u.lastAccessAt, i18n.language, t('settings.userMgmtNeverSeen'));
-                const lastSeenAbsolute = u.lastAccessAt
-                  ? new Date(u.lastAccessAt).toLocaleString(i18n.language)
-                  : '';
-                return (
-                  <div
-                    key={u.id}
-                    className="settings-card user-row"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => { if (!busy) setEditing(u); }}
-                    onKeyDown={(e) => {
-                      if ((e.key === 'Enter' || e.key === ' ') && !busy) {
-                        e.preventDefault();
-                        setEditing(u);
-                      }
-                    }}
-                    style={{
-                      padding: '6px 10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: busy ? 'default' : 'pointer',
-                    }}
-                  >
-                    <User size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, fontSize: 13, flexShrink: 0 }}>{u.userName}</span>
-                    {u.name && u.name !== u.userName && (
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>· {u.name}</span>
-                    )}
-                    {isSelf && (
-                      <span style={{ fontSize: 10, background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '1px 6px', borderRadius: 10, fontWeight: 600, flexShrink: 0 }}>
-                        {t('settings.userMgmtYouBadge')}
-                      </span>
-                    )}
-                    {u.isAdmin && (
-                      <span
-                        style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)', color: 'var(--text-primary)', flexShrink: 0 }}
-                        data-tooltip={t('settings.userMgmtRoleAdmin')}
-                      >
-                        <Shield size={10} />
-                        {t('settings.userMgmtAdminBadge')}
-                      </span>
-                    )}
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>
-                      {libNames || ''}
-                    </span>
-                    {!u.isAdmin && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        style={{ padding: '2px 6px', flexShrink: 0 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMagicRowUser(u);
-                          setMagicRowPassword('');
-                        }}
-                        disabled={busy}
-                        data-tooltip={t('settings.userMgmtMagicStringGenerate')}
-                      >
-                        <Wand2 size={14} />
-                      </button>
-                    )}
-                    <span
-                      style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}
-                      data-tooltip={lastSeenAbsolute || undefined}
-                    >
-                      {lastSeen}
-                    </span>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ color: 'var(--danger)', padding: '2px 6px', flexShrink: 0 }}
-                      onClick={(e) => { e.stopPropagation(); setConfirmingDelete(u); }}
-                      disabled={busy || isSelf}
-                      data-tooltip={t('settings.userMgmtDelete')}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                );
-              })}
+              {users.map(u => (
+                <UserMgmtRow
+                  key={u.id}
+                  user={u}
+                  libraries={libraries}
+                  isSelf={u.userName === currentUsername}
+                  busy={busy}
+                  onEdit={setEditing}
+                  onRequestDelete={setConfirmingDelete}
+                  onRequestMagic={(target) => {
+                    setMagicRowUser(target);
+                    setMagicRowPassword('');
+                  }}
+                  t={t}
+                  i18n={i18n}
+                />
+              ))}
             </div>
           )}
         </>
