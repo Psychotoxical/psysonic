@@ -1,6 +1,6 @@
 import { getArtists } from '../api/subsonicArtists';
 import type { SubsonicArtist } from '../api/subsonicTypes';
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Images, CheckSquare2, Check } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';
@@ -17,9 +17,9 @@ import {
   ARTIST_LIST_LAST_IN_LETTER_EST,
   ARTIST_LIST_LETTER_ROW_EST,
   ARTIST_LIST_ROW_EST,
-  type ArtistListFlatRow,
 } from '../utils/artistsHelpers';
 import { ArtistCardAvatar, ArtistRowAvatar } from '../components/artists/ArtistAvatars';
+import { useArtistsFiltering } from '../hooks/useArtistsFiltering';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
@@ -81,32 +81,9 @@ export default function Artists() {
     setVisibleCount(PAGE_SIZE);
   }, [filter, letterFilter, starredOnly, viewMode, PAGE_SIZE]);
 
-  const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  // Filter pipeline — memoised so unrelated state changes (selection mode,
-  // viewMode, etc.) don't re-iterate the full artists array. With 5000+
-  // artists each re-render walked the list twice without this.
-  const filtered = useMemo(() => {
-    let out = artists;
-    if (letterFilter !== ALL_SENTINEL) {
-      out = out.filter(a => {
-        const first = a.name[0]?.toUpperCase() ?? '#';
-        const isAlpha = /^[A-Z]$/.test(first);
-        if (letterFilter === '#') return !isAlpha;
-        return first === letterFilter;
-      });
-    }
-    if (filter) {
-      const needle = filter.toLowerCase();
-      out = out.filter(a => a.name.toLowerCase().includes(needle));
-    }
-    if (starredOnly) {
-      out = out.filter(a => a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred);
-    }
-    return out;
-  }, [artists, letterFilter, filter, starredOnly, starredOverrides]);
-
-  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
-  const hasMore = visibleCount < filtered.length;
+  const {
+    filtered, visible, hasMore, groups, letters, artistListFlatRows,
+  } = useArtistsFiltering({ artists, filter, letterFilter, starredOnly, visibleCount, viewMode });
 
   // Intersection Observer for infinite scroll (after hasMore declaration)
   useEffect(() => {
@@ -117,33 +94,6 @@ export default function Artists() {
     if (observerTarget.current) observer.observe(observerTarget.current);
     return () => observer.disconnect();
   }, [loadMore, hasMore]);
-
-  // Group by first letter (for list view) — only recompute when the visible
-  // slice or the view mode actually changes. Skipped entirely in grid view.
-  const { groups, letters } = useMemo(() => {
-    if (viewMode !== 'list') return { groups: {} as Record<string, SubsonicArtist[]>, letters: [] as string[] };
-    const g: Record<string, SubsonicArtist[]> = {};
-    for (const a of visible) {
-      const letter = a.name[0]?.toUpperCase() ?? '#';
-      const key = /^[A-Z]$/.test(letter) ? letter : '#';
-      if (!g[key]) g[key] = [];
-      g[key].push(a);
-    }
-    return { groups: g, letters: Object.keys(g).sort() };
-  }, [visible, viewMode]);
-
-  const artistListFlatRows = useMemo((): ArtistListFlatRow[] => {
-    if (viewMode !== 'list') return [];
-    const out: ArtistListFlatRow[] = [];
-    for (const letter of letters) {
-      out.push({ kind: 'letter', letter });
-      const group = groups[letter];
-      for (let i = 0; i < group.length; i++) {
-        out.push({ kind: 'artist', artist: group[i], isLastInLetter: i === group.length - 1 });
-      }
-    }
-    return out;
-  }, [viewMode, letters, groups]);
 
   const mainScrollViewportHeight = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
   /** Mixed row heights; smallest typical step ≈ artist row — one viewport of extra indices each side. */
