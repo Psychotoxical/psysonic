@@ -33,6 +33,7 @@ import { formatTime } from '../utils/playerBarHelpers';
 import { PlaybackTime, RemainingTime } from './playerBar/PlaybackClock';
 import { PlayerTrackInfo } from './playerBar/PlayerTrackInfo';
 import { PlayerTransportControls } from './playerBar/PlayerTransportControls';
+import { PlayerSeekbarSection } from './playerBar/PlayerSeekbarSection';
 
 export default function PlayerBar() {
   const { t } = useTranslation();
@@ -340,56 +341,16 @@ export default function PlayerBar() {
         t={t}
       />
 
-      {/* Waveform Seekbar / Radio live bar */}
-      <div className="player-waveform-section">
-        {isRadio ? (
-          <>
-            {radioMeta.source === 'azuracast' && radioMeta.elapsed != null && radioMeta.duration != null && radioMeta.duration > 0 ? (
-              <>
-                <span className="player-time">{formatTime(radioMeta.elapsed)}</span>
-                <div className="player-waveform-wrap">
-                  <div className="radio-progress-bar">
-                    <div
-                      className="radio-progress-fill"
-                      style={{ width: `${Math.min(100, (radioMeta.elapsed / radioMeta.duration) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-                <span className="player-time">{formatTime(radioMeta.duration)}</span>
-              </>
-            ) : (
-              <>
-                <PlaybackTime className="player-time" />
-                <div className="player-waveform-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="radio-live-badge">{t('radio.live')}</span>
-                </div>
-                <span className="player-time" style={{ opacity: 0 }}>0:00</span>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <PlaybackTime className="player-time" />
-            <div className="player-waveform-wrap">
-              {perfFlags.disableWaveformCanvas
-                ? <div className="radio-progress-bar" aria-hidden />
-                : <WaveformSeek trackId={currentTrack?.id} />}
-            </div>
-            <span
-              className="player-time player-time-toggle"
-              onClick={() => {
-                const newVal = !localShowRemaining;
-                setLocalShowRemaining(newVal);
-                useThemeStore.getState().setShowRemainingTime(newVal);
-              }}
-              data-tooltip={localShowRemaining ? t('player.showDuration') : t('player.showRemainingTime')}
-            >
-              {localShowRemaining ? <RemainingTime duration={duration} /> : formatTime(duration)}
-              <ArrowLeftRight size={10} style={{ marginLeft: 4, opacity: 0.6 }} />
-            </span>
-          </>
-        )}
-      </div>
+      <PlayerSeekbarSection
+        isRadio={isRadio}
+        radioMeta={radioMeta}
+        trackId={currentTrack?.id}
+        duration={duration}
+        localShowRemaining={localShowRemaining}
+        setLocalShowRemaining={setLocalShowRemaining}
+        disableWaveformCanvas={perfFlags.disableWaveformCanvas}
+        t={t}
+      />
 
       {utilityOverflow ? (
         <div className="player-overflow-wrap">
