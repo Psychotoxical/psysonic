@@ -41,6 +41,8 @@ import type { SpotifyCsvTrack } from '../utils/spotifyCsvImport';
 import { runPlaylistCsvImport } from '../utils/runPlaylistCsvImport';
 import PlaylistEditModal from '../components/playlist/PlaylistEditModal';
 import CsvImportReportModal from '../components/playlist/CsvImportReportModal';
+import PlaylistSongSearchPanel from '../components/playlist/PlaylistSongSearchPanel';
+import PlaylistSuggestions from '../components/playlist/PlaylistSuggestions';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -56,12 +58,6 @@ const PL_COLUMNS: readonly ColDef[] = [
 ];
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration']);
-
-function PlaylistSearchResultThumb({ coverArt }: { coverArt: string }) {
-  const src = useMemo(() => buildCoverArtUrl(coverArt, 40), [coverArt]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 40), [coverArt]);
-  return <CachedImage src={src} cacheKey={cacheKey} alt="" className="playlist-search-thumb" />;
-}
 
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>();
@@ -791,102 +787,20 @@ export default function PlaylistDetail() {
 
       {/* ── Song search panel ── */}
       {searchOpen && (
-        <div className="playlist-search-panel">
-          <div className="playlist-search-input-wrap">
-            <input
-              className="input"
-              placeholder={t('playlists.searchPlaceholder')}
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              autoFocus
-            />
-            {searchQuery && (
-              <button className="live-search-clear" onClick={() => { setSearchQuery(''); setSearchResults([]); }}>
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          {searching && <div style={{ textAlign: 'center', padding: '0.75rem' }}><div className="spinner" /></div>}
-          {!searching && searchQuery && searchResults.length === 0 && (
-            <div className="empty-state" style={{ padding: '0.5rem 0' }}>{t('playlists.noResults')}</div>
-          )}
-          {selectedSearchIds.size > 0 && (
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', background: 'color-mix(in srgb, var(--accent) 10%, transparent)', borderRadius: 'var(--radius-sm)', margin: '0.25rem 0' }}>
-              <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, flex: 1 }}>
-                {t('common.bulkSelected', { count: selectedSearchIds.size })}
-              </span>
-              <button
-                className="btn btn-sm btn-ghost"
-                style={{ fontSize: 12 }}
-                onClick={() => setSelectedSearchIds(new Set())}
-              >
-                {t('common.clearSelection')}
-              </button>
-              <div style={{ position: 'relative' }}>
-                <button
-                  className="btn btn-sm btn-primary"
-                  style={{ fontSize: 12 }}
-                  onClick={() => setSearchPlPickerOpen(v => !v)}
-                >
-                  <ListPlus size={13} /> {t('contextMenu.addToPlaylist')}
-                </button>
-                {searchPlPickerOpen && (
-                  <AddToPlaylistSubmenu
-                    songIds={[...selectedSearchIds]}
-                    dropDown
-                    onDone={() => { setSearchPlPickerOpen(false); setSelectedSearchIds(new Set()); }}
-                  />
-                )}
-              </div>
-              <button
-                className="btn btn-sm btn-primary"
-                style={{ fontSize: 12 }}
-                onClick={() => {
-                  searchResults
-                    .filter(s => selectedSearchIds.has(s.id))
-                    .forEach(s => addSong(s));
-                  setSelectedSearchIds(new Set());
-                }}
-              >
-                <Check size={13} /> {t('playlists.addSelected')}
-              </button>
-            </div>
-          )}
-          {searchResults.map(song => {
-            const isSelected = selectedSearchIds.has(song.id);
-              return (
-                <div
-                  key={song.id}
-                  className={`playlist-search-row${isSelected ? ' playlist-search-row--selected' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => addSong(song)}
-                  onContextMenu={e => {
-                    e.preventDefault();
-                    setContextMenuSongId(song.id);
-                    openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
-                  }}
-                >
-                <input
-                  type="checkbox"
-                  className="playlist-search-checkbox"
-                  checked={isSelected}
-                  onClick={e => e.stopPropagation()}
-                  onChange={() => setSelectedSearchIds(prev => {
-                    const next = new Set(prev);
-                    next.has(song.id) ? next.delete(song.id) : next.add(song.id);
-                    return next;
-                  })}
-                />
-                <PlaylistSearchResultThumb coverArt={song.coverArt ?? ''} />
-                <div className="playlist-search-info">
-                  <span className="playlist-search-title">{song.title}</span>
-                  <span className="playlist-search-artist">{song.artist} · <span className="playlist-search-album">{song.album}</span></span>
-                </div>
-                <span className="playlist-search-duration">{formatDuration(song.duration ?? 0)}</span>
-              </div>
-            );
-          })}
-        </div>
+        <PlaylistSongSearchPanel
+          query={searchQuery}
+          setQuery={setSearchQuery}
+          searching={searching}
+          searchResults={searchResults}
+          setSearchResults={setSearchResults}
+          selectedSearchIds={selectedSearchIds}
+          setSelectedSearchIds={setSelectedSearchIds}
+          searchPlPickerOpen={searchPlPickerOpen}
+          setSearchPlPickerOpen={setSearchPlPickerOpen}
+          contextMenuSongId={contextMenuSongId}
+          setContextMenuSongId={setContextMenuSongId}
+          addSong={addSong}
+        />
       )}
 
       {/* ── Filter / sort toolbar ── */}
@@ -1244,137 +1158,21 @@ export default function PlaylistDetail() {
       </div>
 
       {/* ── Suggestions ── */}
-      <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">
-        <div className="playlist-suggestions-header">
-          <div className="playlist-suggestions-title">
-            <h2 className="section-title" style={{ marginBottom: 0 }}>{t('playlists.suggestions')}</h2>
-            <span className="playlist-suggestions-hint">{t('playlists.suggestionsHint')}</span>
-          </div>
-          <button
-            className="btn btn-surface"
-            onClick={() => loadSuggestions(songs)}
-            disabled={loadingSuggestions || songs.length === 0}
-            data-tooltip={t('playlists.refreshSuggestions')}
-          >
-            <RefreshCw size={14} className={loadingSuggestions ? 'spin-slow' : ''} />
-            {t('playlists.refreshSuggestions')}
-          </button>
-        </div>
-
-        {!loadingSuggestions && suggestions.filter(s => !existingIds.has(s.id)).length === 0 && (
-          <div className="empty-state" style={{ padding: '1.5rem 0', fontSize: '0.85rem' }}>{t('playlists.noSuggestions')}</div>
-        )}
-
-        {suggestions.filter(s => !existingIds.has(s.id)).length > 0 && (
-          <>
-            <div className="tracklist-header tracklist-va" style={{ ...gridStyle, marginTop: 'var(--space-3)' }}>
-              {visibleCols.map((colDef, colIndex) => {
-                const key = colDef.key;
-                const isCentered = PL_CENTERED.has(key);
-                const label = colDef.i18nKey ? t(`albumDetail.${colDef.i18nKey}`) : '';
-                if (key === 'num') return <div key="num" className="col-center">#</div>;
-                if (key === 'title') return <div key="title" style={{ paddingLeft: 12 }}>{label}</div>;
-                if (key === 'delete') return <div key="delete" />;
-                if (key === 'favorite' || key === 'rating') return <div key={key} />;
-                return <div key={key} className={isCentered ? 'col-center' : ''} style={!isCentered ? { paddingLeft: 12 } : undefined}>{label}</div>;
-              })}
-            </div>
-
-            {suggestions.filter(s => !existingIds.has(s.id)).map((song, idx) => (
-              <div
-                key={song.id}
-                className={`track-row track-row-va tracklist-playlist${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                style={gridStyle}
-                onMouseEnter={() => setHoveredSuggestionId(song.id)}
-                onMouseLeave={() => setHoveredSuggestionId(null)}
-                onDoubleClick={e => {
-                  if ((e.target as HTMLElement).closest('button, a, input')) return;
-                  addSong(song);
-                }}
-                onContextMenu={e => {
-                  e.preventDefault();
-                  setContextMenuSongId(song.id);
-                  openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
-                }}
-              >
-                {visibleCols.map(colDef => {
-                  switch (colDef.key) {
-                    case 'num': return <div key="num" className="track-num" style={{ color: 'var(--text-muted)' }}>{idx + 1}</div>;
-                    case 'title': return (
-                      <div key="title" className="track-info track-info-suggestion">
-                        <button
-                          className="playlist-suggestion-play-btn"
-                          onClick={e => {
-                            e.stopPropagation();
-                            const { queue, queueIndex, currentTrack, playTrack } = usePlayerStore.getState();
-                            const track = songToTrack(song);
-                            if (!currentTrack || queue.length === 0) {
-                              playTrack(track, [track]);
-                              return;
-                            }
-                            const insertAt = Math.min(queueIndex + 1, queue.length);
-                            const newQueue = [
-                              ...queue.slice(0, insertAt),
-                              track,
-                              ...queue.slice(insertAt),
-                            ];
-                            playTrack(track, newQueue);
-                          }}
-                          data-tooltip={t('playlists.playNextSuggestion')}
-                          aria-label={t('playlists.playNextSuggestion')}
-                        >
-                          <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
-                        </button>
-                        <button
-                          className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
-                          onClick={e => { e.stopPropagation(); startPreview(song); }}
-                          data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                          aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                        >
-                          <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
-                            <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
-                            <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
-                          </svg>
-                          {previewingId === song.id
-                            ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
-                            : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
-                        </button>
-                        <span className="track-title">{song.title}</span>
-                      </div>
-                    );
-                    case 'artist': return (
-                      <div key="artist" className="track-artist-cell">
-                        <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}>{song.artist}</span>
-                      </div>
-                    );
-                    case 'album': return (
-                      <div key="album" className="track-artist-cell">
-                        <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => { if (song.albumId) { e.stopPropagation(); navigate(`/album/${song.albumId}`); } }}>{song.album}</span>
-                      </div>
-                    );
-                    case 'favorite': return <div key="favorite" />;
-                    case 'rating': return <div key="rating" />;
-                    case 'duration': return <div key="duration" className="track-duration">{formatDuration(song.duration ?? 0)}</div>;
-                    case 'format': return (
-                      <div key="format" className="track-meta">
-                        {(song.suffix || (showBitrate && song.bitRate)) && <span className="track-codec">{codecLabel(song, showBitrate)}</span>}
-                      </div>
-                    );
-                    case 'delete': return (
-                      <div key="delete" className="playlist-row-delete-cell">
-                        <button className="playlist-row-delete-btn" style={{ color: hoveredSuggestionId === song.id ? 'var(--accent)' : undefined }} onClick={e => { e.stopPropagation(); addSong(song); }} data-tooltip={t('playlists.addSong')} data-tooltip-pos="left">
-                          <Plus size={13} />
-                        </button>
-                      </div>
-                    );
-                    default: return null;
-                  }
-                })}
-              </div>
-            ))}
-          </>
-        )}
-      </div>
+      <PlaylistSuggestions
+        songs={songs}
+        suggestions={suggestions}
+        existingIds={existingIds}
+        loadingSuggestions={loadingSuggestions}
+        loadSuggestions={loadSuggestions}
+        visibleCols={visibleCols}
+        gridStyle={gridStyle}
+        contextMenuSongId={contextMenuSongId}
+        setContextMenuSongId={setContextMenuSongId}
+        hoveredSuggestionId={hoveredSuggestionId}
+        setHoveredSuggestionId={setHoveredSuggestionId}
+        addSong={addSong}
+        startPreview={startPreview}
+      />
 
       {editingMeta && playlist && (
         <PlaylistEditModal
