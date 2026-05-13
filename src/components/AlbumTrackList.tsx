@@ -2,7 +2,7 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AudioLines, Check, ChevronDown, RotateCcw } from 'lucide-react';
+import { Check, ChevronDown, RotateCcw } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -12,12 +12,12 @@ import { useSelectionStore } from '../store/selectionStore';
 import {
   CENTERED_COLS,
   COLUMNS,
-  formatDuration,
   isSortable,
   type ColKey,
   type SortKey,
 } from '../utils/albumTrackListHelpers';
 import { TrackRow } from './albumTrackList/TrackRow';
+import { AlbumTrackListMobile } from './albumTrackList/AlbumTrackListMobile';
 
 export type { SortKey } from '../utils/albumTrackListHelpers';
 
@@ -259,47 +259,19 @@ export default function AlbumTrackList({
     );
   };
 
-  // ── Mobile tracklist ──────────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div className="tracklist-mobile">
-        {discNums.map(discNum => (
-          <div key={discNum}>
-            {isMultiDisc && (
-              <div className="disc-header">
-                <span className="disc-icon">💿</span> CD {discNum}
-              </div>
-            )}
-            {discs.get(discNum)!.map(song => {
-              const isActive = currentTrackId === song.id;
-              return (
-                <div
-                  key={song.id}
-                  className={`tracklist-mobile-row${isActive ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
-                  onClick={() => onPlaySong(song)}
-                  onContextMenu={e => {
-                    e.preventDefault();
-                    setContextMenuSongId(song.id);
-                    onContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
-                  }}
-                >
-                  <div className="tracklist-mobile-main">
-                    {isActive && isPlaying ? (
-                      <span className="tracklist-mobile-eq">
-                        <AudioLines className="eq-bars" size={14} />
-                      </span>
-                    ) : (
-                      <span className="tracklist-mobile-num">{song.track ?? ''}</span>
-                    )}
-                    <span className="tracklist-mobile-title">{song.title}</span>
-                  </div>
-                  <span className="tracklist-mobile-duration">{formatDuration(song.duration)}</span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
+      <AlbumTrackListMobile
+        discNums={discNums}
+        discs={discs}
+        isMultiDisc={isMultiDisc}
+        currentTrackId={currentTrackId}
+        isPlaying={isPlaying}
+        contextMenuSongId={contextMenuSongId}
+        setContextMenuSongId={setContextMenuSongId}
+        onPlaySong={onPlaySong}
+        onContextMenu={onContextMenu}
+      />
     );
   }
 
