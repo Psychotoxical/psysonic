@@ -1,0 +1,56 @@
+/* ─ Bulk Select ─ */
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--accent-dim, color-mix(in srgb, var(--accent) 15%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-2);
+}
+.bulk-action-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: auto;
+}
+.bulk-pl-picker-wrap {
+  position: relative;
+}
+
+.bulk-check {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 3px;
+  background: transparent;
+  vertical-align: middle;
+  flex-shrink: 0;
+  transition: border-color 0.1s, background 0.1s;
+}
+.bulk-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23fff' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 10px 10px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.track-row.bulk-selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+.track-row.bulk-selected:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+}
+
+/* Drop indicator line */
+.playlist-drop-indicator {
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  margin: 1px 0;
+  pointer-events: all;
+}
+

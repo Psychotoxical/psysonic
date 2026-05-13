@@ -1,0 +1,98 @@
+/* ─── Album Header — Mobile Actions ─── */
+.album-detail-actions-mobile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.album-actions-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 20px;
+}
+
+.album-actions-row--secondary {
+  gap: 16px;
+}
+
+/* Base icon button */
+.album-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), filter var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.album-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+}
+
+/* Play — largest, accent fill */
+.album-icon-btn--play {
+  width: 54px;
+  height: 54px;
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.album-icon-btn--play:hover {
+  background: var(--accent);
+  filter: brightness(1.12);
+  color: #fff;
+}
+
+/* Queue — medium, slightly more prominent than secondary */
+.album-icon-btn--queue {
+  width: 46px;
+  height: 46px;
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+}
+
+/* Secondary (smaller) icon buttons */
+.album-icon-btn--sm {
+  width: 36px;
+  height: 36px;
+}
+
+.album-icon-btn.is-starred {
+  color: var(--color-star-active, var(--accent));
+}
+
+.album-icon-btn.album-icon-btn--active {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Download progress inline */
+.album-icon-btn.album-icon-btn--progress {
+  width: auto;
+  border-radius: 21px;
+  padding: 0 12px;
+  gap: 6px;
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.album-icon-btn-pct {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+

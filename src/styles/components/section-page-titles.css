@@ -1,0 +1,7 @@
+/* ─── Section / Page titles ─── */
+.app-shell[data-mobile] .section-title,
+.app-shell[data-mobile] .page-title,
+.app-shell[data-mobile] .section-title-link {
+  font-size: 17px;
+}
+

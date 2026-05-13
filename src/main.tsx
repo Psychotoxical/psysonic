@@ -5,7 +5,7 @@ import { runPreReactBootstrap } from './app/bootstrap';
 import './i18n';
 import './styles/themes/index.css';
 import './styles/layout.css';
-import './styles/components.css';
+import './styles/components/index.css';
 import './styles/tracks.css';
 
 runPreReactBootstrap();

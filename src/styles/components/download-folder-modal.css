@@ -1,0 +1,45 @@
+/* ─ Download folder modal ─ */
+.download-folder-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-input, var(--bg-sidebar));
+  margin-bottom: 12px;
+}
+
+.download-folder-path {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-all;
+  min-width: 0;
+}
+
+.download-folder-path:empty::before,
+.download-folder-path[data-empty]::before {
+  color: var(--text-muted);
+}
+
+.download-remember-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 4px;
+}
+
+.download-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+

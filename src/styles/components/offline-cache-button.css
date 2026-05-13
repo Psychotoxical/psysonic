@@ -1,0 +1,22 @@
+/* ─ Offline cache button ─ */
+.offline-cache-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.offline-cache-btn--cached {
+  color: var(--color-star-active, var(--accent));
+  border-color: var(--color-star-active, var(--accent));
+}
+
+.offline-cache-btn--progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0.75;
+  padding: 6px 10px;
+}
+

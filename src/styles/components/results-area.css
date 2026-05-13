@@ -1,0 +1,14 @@
+/* ─── Results area ─── */
+.mobile-search-results {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.mobile-search-noresults {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+

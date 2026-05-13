@@ -1,0 +1,58 @@
+/* ─── Artist Detail page ─── */
+.app-shell[data-mobile] .artist-detail-header {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.app-shell[data-mobile] .artist-detail-avatar {
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+}
+
+.app-shell[data-mobile] .artist-detail-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding-top: 0;
+}
+
+.app-shell[data-mobile] .artist-detail-entity-rating {
+  justify-content: center;
+}
+
+.app-shell[data-mobile] .artist-detail-links {
+  justify-content: center;
+}
+
+.artist-release-group {
+  margin-bottom: 1.5rem;
+}
+
+.artist-release-group__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.artist-release-group__header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.artist-release-group__count {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+
+.app-shell[data-mobile] .album-grid-wrap--artist {
+  grid-template-columns: repeat(2, 1fr);
+}
+

@@ -1,0 +1,55 @@
+/* ─ Radio Browser Directory ─ */
+.radio-browser-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 6px;
+  border-radius: var(--radius);
+  transition: background 0.12s;
+  cursor: default;
+}
+.radio-browser-result.clickable { cursor: pointer; }
+.radio-browser-result.clickable:hover { background: var(--bg-hover); }
+.radio-browser-result.added { opacity: 0.6; }
+.radio-browser-action {
+  flex-shrink: 0;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.radio-browser-favicon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.radio-browser-favicon--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  color: var(--text-muted);
+}
+.radio-browser-info {
+  flex: 1;
+  min-width: 0;
+}
+.radio-browser-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.radio-browser-tags {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+

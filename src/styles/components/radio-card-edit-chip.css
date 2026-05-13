@@ -1,0 +1,33 @@
+/* ─ Radio card edit chip ─ */
+.radio-card-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  color: var(--ctp-surface1);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.radio-card-chip:hover {
+  background: var(--accent);
+  color: var(--ctp-crust);
+}
+
+/* Radio card: buttons row always pinned to bottom */
+.radio-card {
+  display: flex;
+  flex-direction: column;
+}
+.radio-card .album-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.radio-card .album-card-artist {
+  margin-top: auto;
+}
+

@@ -1,0 +1,815 @@
+/* ─ Mini Player window ───────────────────────────────────────────────────── */
+/* ── Mini player shell ── outermost wrapper that fills the window ── */
+.mini-player-shell {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Belt-and-suspenders: WebKit/WebView2 occasionally lets descendants pick up
+   user-select: auto from UA defaults (especially inside <button>). Force it
+   off for every node in the mini so neither mouse-drag nor Ctrl+A can ever
+   highlight track meta or titlebar text. */
+.mini-player-shell,
+.mini-player-shell * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Custom in-page titlebar.
+   Win/Linux: full bar with drag region, track title, and action buttons.
+   macOS:     slim transparent bar holding only the action buttons; the
+              native titlebar above already shows title + close. ── */
+.mini-player__titlebar {
+  flex-shrink: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 10px;
+  background: color-mix(in srgb, var(--bg-app) 85%, var(--bg-card) 15%);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.mini-player__titlebar--mac {
+  height: 22px;
+  padding: 0 6px;
+  background: transparent;
+  border-bottom: none;
+  justify-content: flex-end;
+}
+.mini-player__titlebar-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+}
+.mini-player__titlebar-spacer {
+  flex: 1;
+}
+.mini-player__titlebar-btn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.mini-player__titlebar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.mini-player__titlebar-btn--active {
+  color: var(--accent);
+}
+.mini-player__titlebar-btn--close:hover {
+  background: var(--danger);
+  color: var(--ctp-base);
+}
+
+.mini-player {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.mini-player__meta {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.mini-player__art {
+  flex: 0 0 84px;
+  width: 84px;
+  height: 84px;
+  aspect-ratio: 1;
+  background: var(--bg-card);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.mini-player__art img,
+.mini-player__art-fallback {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mini-player__art-fallback {
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+}
+
+.mini-player__meta-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.mini-player__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-player__artist,
+.mini-player__album,
+.mini-player__year {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 0 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mini-player__toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.mini-player__volume-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.mini-player__volume-popover {
+  /* Positioned via inline `style` (createPortal'd to document.body, so
+     `position: fixed` + computed left/top from the trigger button's rect).
+     Falls back gracefully if inline style is missing. */
+  position: fixed;
+  z-index: 99998;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.mini-player__volume-pct {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: center;
+}
+
+.mini-player__volume-bar {
+  position: relative;
+  width: 5px;
+  height: 110px;
+  background: var(--ctp-surface1);
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  /* Visual hit-box wider than the strip so dragging is forgiving. */
+  padding: 0 6px;
+  background-clip: content-box;
+  box-sizing: content-box;
+}
+
+.mini-player__volume-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 6px;
+  width: 5px;
+  background: var(--volume-accent, var(--accent));
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.mini-player__bottom {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* When the queue is closed there is no flex-grow sibling to fill the
+     extra space — push the bottom to the actual bottom of the player so
+     the controls + progress always sit on the floor. When the queue IS
+     open, queue takes flex: 1 and this margin collapses to 0. */
+  margin-top: auto;
+}
+
+.mini-player__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.mini-player__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.mini-player__btn:hover {
+  background: var(--bg-hover);
+}
+.mini-player__btn--primary {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: var(--ctp-crust);
+}
+.mini-player__btn--primary:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
+.mini-player__progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.mini-player__progress-time {
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+}
+.mini-player__progress-track {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ctp-surface1);
+  overflow: hidden;
+}
+.mini-player__progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s linear;
+}
+
+
+.mini-queue-wrap.overlay-scroll {
+  flex: 1 1 auto;
+  background: var(--bg-card);
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.mini-queue.overlay-scroll__viewport {
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  box-sizing: border-box;
+}
+
+.mini-queue__empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mini-queue__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.mini-queue__item:hover {
+  background: var(--bg-hover);
+}
+
+.mini-queue__item--ctx {
+  background: var(--bg-hover);
+}
+
+.mini-queue__item--current {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.mini-queue__num {
+  flex-shrink: 0;
+  width: 20px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mini-queue__item--current .mini-queue__num {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.mini-queue__meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-queue__title {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-queue__artist {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-queue__item--current .mini-queue__artist {
+  color: var(--accent);
+  opacity: 0.8;
+}
+.mini-player__tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.mini-player__tool:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--accent);
+}
+.mini-player__tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.mini-player__tool--active {
+  color: var(--ctp-base);
+  background: var(--accent);
+}
+.mini-player__tool--active:hover:not(:disabled) {
+  color: var(--ctp-base);
+  background: var(--accent);
+}
+
+/* Window completely invisible (tab hidden via Visibility API, or Tauri
+   `win.hide()`): pausing every animation is safe because the user is not
+   looking. */
+html[data-app-hidden="true"] *,
+html[data-app-hidden="true"] *::before,
+html[data-app-hidden="true"] *::after,
+html[data-psy-native-hidden="true"] *,
+html[data-psy-native-hidden="true"] *::before,
+html[data-psy-native-hidden="true"] *::after {
+  animation-play-state: paused !important;
+}
+
+/* Window visible but unfocused (alt-tab, click into another app): only
+   pause the heaviest known infinite animations to save GPU. The previous
+   `*`-selector variant fired a repaint over every node and triggered a
+   stale-blur HMR rendering bug on WebKitGTK + no-compositing.
+   Note: queue `.eq-bars` are intentionally NOT in this list — three small
+   `scaleY` transforms cost nothing GPU-wise, but pausing them looked like
+   a "frozen UI" bug to users on WMs that drop window focus on hover. */
+html[data-app-blurred="true"] .player-marquee,
+html[data-app-blurred="true"] .marquee-text,
+html[data-app-blurred="true"] .np-dot-pulse,
+html[data-app-blurred="true"] .fs-mesh-blob,
+html[data-app-blurred="true"] .fs-portrait-wrap,
+html[data-app-blurred="true"] .spin {
+  animation-play-state: paused !important;
+}
+
+html[data-perf-disable-blur="true"] *,
+html[data-perf-disable-blur="true"] *::before,
+html[data-perf-disable-blur="true"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-perf-disable-animations="true"] *,
+html[data-perf-disable-animations="true"] *::before,
+html[data-perf-disable-animations="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+html[data-perf-disable-overlay-scroll="true"] .overlay-scroll__rail {
+  display: none !important;
+}
+
+html[data-perf-disable-mainstage-header="true"] .page-sticky-header,
+html[data-perf-disable-mainstage-header="true"] .tracks-header {
+  display: none !important;
+}
+
+/* Home artwork diagnostics: keep images, strip expensive card compositing effects. */
+.home-lite-artwork .album-card,
+.home-lite-artwork .song-card {
+  box-shadow: inset 0 0 0 1px var(--border-subtle) !important;
+  transition: none !important;
+  transform: none !important;
+  contain: layout paint;
+}
+
+.home-lite-artwork .album-card:hover,
+.home-lite-artwork .song-card:hover {
+  transform: none !important;
+  box-shadow: inset 0 0 0 1px var(--border-subtle) !important;
+}
+
+.home-lite-artwork .album-card-cover img,
+.home-lite-artwork .song-card-cover img {
+  transition: none !important;
+  transform: none !important;
+}
+
+.home-lite-artwork .album-card-play-overlay,
+.home-lite-artwork .song-card-play-overlay {
+  display: none !important;
+}
+
+.home-lite-artwork .album-row-section,
+.home-lite-artwork .song-row-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 340px;
+}
+
+/* Home artwork diagnostic mode: keep images, remove rounded clipping/masks. */
+html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .album-card,
+html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card,
+html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .album-card-cover,
+html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-cover,
+html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .album-card-cover img,
+html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-cover img,
+.home-flat-artwork-clip.home-lite-artwork .album-card,
+.home-flat-artwork-clip.home-lite-artwork .song-card,
+.home-flat-artwork-clip.home-lite-artwork .album-card-cover,
+.home-flat-artwork-clip.home-lite-artwork .song-card-cover,
+.home-flat-artwork-clip.home-lite-artwork .album-card-cover img,
+.home-flat-artwork-clip.home-lite-artwork .song-card-cover img {
+  border-radius: 0 !important;
+  clip-path: none !important;
+}
+
+/* ── Now Playing Info panel ──────────────────────────────────────────────── */
+.np-info {
+  flex: 1;
+  min-height: 0;
+}
+
+.np-info__viewport {
+  overflow-x: hidden;
+  padding: 6px 16px 20px;
+  display: block;
+  color: var(--text-primary);
+  text-align: left;
+  min-width: 0;
+}
+
+.np-info-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.np-info-section {
+  display: block;
+  padding: 18px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle, var(--ctp-surface0)) 70%, transparent);
+}
+.np-info-section > * + * { margin-top: 12px; }
+.np-info-section:last-child {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+.np-info-section:first-child {
+  padding-top: 10px;
+}
+
+.np-info-section-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+/* Artist card */
+.np-info-artist-image-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.np-info-artist-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.np-info-artist-body {
+  display: block;
+}
+.np-info-artist-body > * + * { margin-top: 8px; }
+.np-info-artist-name {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-align: left;
+}
+.np-info-artist-bio {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  text-align: left;
+}
+.np-info-artist-bio.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.np-info-link-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  margin: -2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+.np-info-link-btn:hover { text-decoration: underline; }
+
+/* Credits / contributors — stacked: name prominent, role muted underneath */
+.np-info-credits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: block;
+}
+.np-info-credit-row {
+  display: block;
+  padding: 0;
+  text-align: left;
+}
+.np-info-credit-row + .np-info-credit-row { margin-top: 10px; }
+.np-info-credit-names {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: left;
+  line-height: 1.3;
+}
+.np-info-credit-role {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-transform: capitalize;
+  text-align: left;
+  margin-top: 1px;
+}
+
+/* Tour */
+.np-info-tour {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: block;
+}
+.np-info-tour > .np-info-tour-item + .np-info-tour-item { margin-top: 6px; }
+.np-info-tour-item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: none;
+  text-align: left;
+  width: 100%;
+  min-width: 0;        /* allow children to shrink past their min-content */
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.np-info-tour-item:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+}
+.np-info-tour-date {
+  flex-shrink: 0;
+  width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0 5px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  line-height: 1;
+}
+.np-info-tour-date-month {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.np-info-tour-date-day {
+  font-size: 19px;
+  font-weight: 700;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.np-info-tour-meta {
+  /* `flex: 1 1 0` + `min-width: 0` is the canonical fix for the flex
+   * truncation bug — without `flex-basis: 0` the meta column inherits
+   * its intrinsic width from the longest venue/place text, which then
+   * overflows the parent ul on WebKit. */
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+.np-info-tour-venue {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.np-info-tour-place {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: left;
+}
+.np-info-tour-when { color: var(--text-secondary); }
+.np-info-tour-sep { opacity: 0.55; margin: 0 2px; }
+.np-info-tour-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 0;
+  text-align: left;
+}
+.np-info-tour-credit {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  text-align: right;
+  opacity: 0.55;
+  letter-spacing: 0.02em;
+}
+.np-info-tour-more {
+  align-self: center;
+  margin-top: 4px;
+  padding: 6px 14px;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.np-info-tour-more:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent);
+}
+
+/* Bandsintown opt-in prompt — shown in place of tour list when toggle is off */
+.np-info-bandsintown-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.np-info-bandsintown-prompt-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.np-info-bandsintown-prompt-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: help;
+  border-radius: 50%;
+  padding: 2px;
+  transition: color 0.15s, background 0.15s;
+}
+.np-info-bandsintown-prompt-info:hover,
+.np-info-bandsintown-prompt-info:focus-visible {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  outline: none;
+}
+.np-info-bandsintown-prompt-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.np-info-bandsintown-prompt-btn {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 6px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  color: var(--ctp-base, #1e1e2e);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+.np-info-bandsintown-prompt-btn:hover { filter: brightness(1.08); }
+

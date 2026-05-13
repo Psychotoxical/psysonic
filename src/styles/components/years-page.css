@@ -1,0 +1,36 @@
+/* ─ Years Page ─ */
+.decade-heading {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.year-section {
+  margin-bottom: var(--space-3);
+}
+
+.year-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  width: 100%;
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  transition: background var(--transition-fast);
+}
+
+.year-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.year-label {
+  font-variant-numeric: tabular-nums;
+}
+

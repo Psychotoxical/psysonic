@@ -1,0 +1,61 @@
+/* ─ Composer Grid (text-only, compact) ─
+ * Composers carry no useful imagery — visual is just noise. Strip the avatar,
+ * keep the name as the visual anchor with the participation count below. */
+.composer-grid-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.composer-grid-wrap > .composer-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 78px;
+}
+
+.composer-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  padding: var(--space-3) var(--space-3);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 200ms ease,
+    background 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.composer-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.4);
+}
+
+.composer-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* Reserve two name lines so the participation row stays vertically aligned
+   * across the grid, regardless of whether the name wraps or not. */
+  min-height: calc(14px * 1.25 * 2);
+}
+
+.composer-card-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+

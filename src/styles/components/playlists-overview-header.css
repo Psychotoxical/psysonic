@@ -1,0 +1,10 @@
+/* ─ Playlists overview header ─ */
+.playlists-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+

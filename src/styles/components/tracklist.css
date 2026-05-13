@@ -1,0 +1,732 @@
+/* ─ Tracklist ─ */
+.tracklist {
+  padding: 0 var(--space-6) var(--space-6);
+  overflow-x: auto;
+}
+
+.tracklist-header-wrapper {
+  position: relative;
+}
+
+.col-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.tracklist-header {
+  display: grid;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-2);
+}
+
+.track-row {
+  display: grid;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  user-select: none;
+  contain: layout style;
+  overflow: hidden;
+}
+
+.tracklist-total {
+  display: grid;
+  align-items: center;
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.tracklist-total-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: right;
+}
+
+.tracklist-total-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ── Column resize handle ── */
+/* Positioned flush with the right edge of its header cell.
+   The ::after pseudo-element renders the visible 1 px divider line. */
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.col-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  border-radius: 1px;
+  background: var(--ctp-surface1);
+  transition: background 0.15s;
+}
+
+.col-resize-handle:hover::after,
+.col-resize-handle:active::after {
+  background: var(--accent);
+}
+
+/* ── Column visibility picker ── */
+.tracklist-col-picker-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--space-6);
+  margin-bottom: 4px;
+  z-index: 50;
+}
+
+.tracklist-col-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tracklist-col-picker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.tracklist-col-picker-btn:hover {
+  opacity: 1;
+  background: var(--ctp-surface0);
+  color: var(--text-primary);
+}
+
+.tracklist-col-picker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  min-width: 160px;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.tracklist-col-picker-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 4px 8px 6px;
+}
+
+.tracklist-col-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.tracklist-col-picker-item:hover {
+  background: var(--ctp-surface0);
+  color: var(--text-primary);
+}
+
+.tracklist-col-picker-item.active {
+  color: var(--accent);
+}
+
+.tracklist-col-picker-check {
+  width: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.tracklist-col-picker-divider {
+  height: 1px;
+  background: var(--ctp-surface1);
+  margin: 4px 0;
+}
+
+.tracklist-col-picker-reset {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.tracklist-col-picker-reset:hover {
+  background: var(--ctp-surface0);
+  color: var(--text-primary);
+}
+
+/* Delete button in playlist row */
+.playlist-row-delete-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playlist-row-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.track-row:hover .playlist-row-delete-btn,
+.track-row.context-active .playlist-row-delete-btn {
+  opacity: 1;
+}
+
+.playlist-row-delete-btn:hover {
+  color: var(--danger);
+}
+
+/* In suggestion rows the + btn is always visible at muted opacity */
+.playlist-suggestions .playlist-row-delete-btn {
+  opacity: 0.45;
+}
+
+.playlist-suggestions .track-row:hover .playlist-row-delete-btn {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Suggestion-row action buttons — sit left of the track title */
+.track-info-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.playlist-suggestion-play-btn {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--ctp-crust);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.playlist-suggestion-play-btn:hover {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.playlist-suggestion-play-icon {
+  display: block;
+  /* optical center for right-weighted triangle */
+  transform: translateX(0.5px);
+}
+
+.playlist-suggestion-preview-btn {
+  position: relative;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+/* Hide track preview controls inside an active Orbit session — preview
+   playback shares the audio engine with the orbit-driven main player and
+   the two would step on each other. The defensive guard in
+   `previewStore.startPreview` catches keyboard / programmatic callers. */
+[data-orbit-active] .playlist-suggestion-preview-btn {
+  display: none;
+}
+
+/* Guest in an Orbit session: seekbar is read-only — sync follows the host.
+   `pointer-events: none` blocks click / drag / wheel / hover; the dimmed
+   look + not-allowed cursor (set on the parent so it shows when hovered
+   over the now-inert child) signal "this control is not yours". */
+[data-orbit-role="guest"] .waveform-seek-container {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+[data-orbit-role="guest"] .waveform-seek-container > * {
+  pointer-events: none;
+}
+
+.playlist-suggestions .track-row:hover .playlist-suggestion-preview-btn,
+.playlist-suggestion-preview-btn:hover,
+.playlist-suggestion-preview-btn.is-previewing {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.playlist-suggestion-preview-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: rotate(-90deg);
+}
+
+.playlist-suggestion-preview-ring-track {
+  fill: none;
+  stroke: var(--ctp-overlay0);
+  stroke-width: 1.5;
+}
+
+.playlist-suggestion-preview-ring-progress {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  /* circumference = 2π × 10.5 ≈ 65.97 */
+  stroke-dasharray: 65.97;
+  stroke-dashoffset: 65.97;
+  stroke-linecap: round;
+}
+
+.playlist-suggestion-preview-icon {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+/* Play triangle is right-weighted; nudge for optical center */
+.playlist-suggestion-preview-icon-play {
+  transform: translateX(0.5px);
+}
+
+/* Loading state: the engine is still downloading/decoding/seeking. A short
+   rotating arc (~25% of the circumference) signals "pending" without
+   pretending to be progress. 150 ms delay suppresses the spinner for
+   small/cached files where audio starts almost instantly. */
+.playlist-suggestion-preview-btn.is-previewing:not(.audio-started) .playlist-suggestion-preview-ring-progress {
+  /* circumference = 2π × 10.5 ≈ 65.97 → 25% arc + 75% gap */
+  stroke-dasharray: 16.5 49.5;
+  stroke-dashoffset: 0;
+  animation: playlist-preview-loading 1.1s linear infinite;
+  animation-delay: 150ms;
+}
+
+@keyframes playlist-preview-loading {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -65.97; }
+}
+
+/* Animation runs only after `audio-started` is added — i.e. once the engine
+   emitted `audio:preview-start` for this track. Prevents the ring from
+   sprinting ahead of audio during the engine's download/decode/seek warmup. */
+.playlist-suggestion-preview-btn.audio-started .playlist-suggestion-preview-ring-progress {
+  animation: playlist-preview-progress var(--preview-duration, 30s) linear forwards;
+}
+
+/* Settings opt-out: a single root attribute hides every inline preview button
+   without forcing every tracklist to plumb the flag through props. Master
+   wins — when off, every preview button is hidden regardless of per-location
+   state. */
+html[data-track-previews="off"] .playlist-suggestion-preview-btn {
+  display: none;
+}
+
+/* Per-location hide: each tracklist container marks its scope via
+   `data-preview-loc="<id>"`. When the matching root attribute is "off", only
+   buttons inside that scope disappear. Attribute names are stored lowercase
+   by the DOM so `randomMix` becomes `randommix`. */
+html[data-track-previews-suggestions="off"] [data-preview-loc="suggestions"] .playlist-suggestion-preview-btn,
+html[data-track-previews-albums="off"]      [data-preview-loc="albums"]      .playlist-suggestion-preview-btn,
+html[data-track-previews-playlists="off"]   [data-preview-loc="playlists"]   .playlist-suggestion-preview-btn,
+html[data-track-previews-favorites="off"]   [data-preview-loc="favorites"]   .playlist-suggestion-preview-btn,
+html[data-track-previews-artist="off"]      [data-preview-loc="artist"]      .playlist-suggestion-preview-btn,
+html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .playlist-suggestion-preview-btn {
+  display: none;
+}
+
+@keyframes playlist-preview-progress {
+  from { stroke-dashoffset: 65.97; }
+  to { stroke-dashoffset: 0; }
+}
+
+.track-row:hover,
+.track-row.context-active {
+  background: var(--bg-hover);
+}
+
+.track-row.active {
+  background: var(--accent-dim);
+}
+
+.track-row.active:hover {
+  background: var(--accent-dim);
+}
+
+.track-row>* {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.track-num {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.track-num .bulk-check {
+  position: absolute;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.track-num .bulk-check.bulk-check-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.track-row:hover .track-num .bulk-check {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Default: show track number */
+.track-num-number {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Play icon: hidden by default */
+.track-num-play {
+  display: none;
+  align-items: center;
+  color: var(--text-primary);
+}
+
+/* Eq-bars wrapper */
+.track-num-eq {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ── Hover (non-active row): hide number, show play icon ── */
+.track-row:hover .track-num-number       { display: none; }
+.track-row:hover .track-num-play         { display: flex; }
+
+/* ── Active (currently playing): hide number, show eq-bars ── */
+.track-num.track-num-active .track-num-number { display: none; }
+.track-num.track-num-active .track-num-number { color: var(--accent); } /* kept for when visible */
+
+/* ── Active + hover: hide eq-bars, show play icon ── */
+.track-row:hover .track-num.track-num-active .track-num-eq  { display: none; }
+.track-row:hover .track-num.track-num-active .track-num-play { display: flex; }
+
+/* Paused state: show play icon statically (no hover needed) */
+.track-num.track-num-paused .track-num-play { display: flex; opacity: 0.5; }
+.track-row:hover .track-num.track-num-paused .track-num-play { opacity: 1; }
+
+/* ── Tracklists with inline action buttons (AlbumTrackList & co.) ──────────
+   Track number stays static instead of swapping to a play icon on hover.
+   The dedicated Play + Preview buttons in the title cell take over both
+   click-to-play and click-to-preview.  Active+playing rows still show the
+   eq-bars, active+paused rows fall back to the static number.
+   These rules MUST come after the legacy `.track-row:hover` swap rules so
+   the cascade overrides them. */
+.track-row-with-actions:hover .track-num-number { display: inline; }
+.track-row-with-actions .track-num { cursor: default; }
+.track-row-with-actions .track-num.track-num-active .track-num-number { display: inline; }
+.track-row-with-actions:hover .track-num.track-num-active .track-num-eq { display: flex; }
+
+/* Mirror the suggestion preview-button hover-highlight here so the icon
+   reaches full opacity / accent colour when the row is hovered. */
+.track-row-with-actions:hover .playlist-suggestion-preview-btn {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* "Now playing" indicator — Lucide AudioLines icon coloured with the active
+ * accent. Was an animated three-bar transform setup; the per-frame opacity +
+ * scaleY repaints fell back to software composite on WebKitGTK without
+ * compositing (NVIDIA proprietary + WEBKIT_DISABLE_COMPOSITING_MODE=1) and
+ * pegged the WebProcess at ~80% CPU on AlbumDetail with a long tracklist. */
+.eq-bars {
+  color: var(--accent);
+  display: block;
+}
+
+/* CD / Disc separator */
+.disc-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-3) var(--space-2);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.disc-header:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+.disc-icon {
+  font-size: 16px;
+}
+
+
+.track-info {
+  min-width: 0;
+}
+
+.track-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.track-artist-cell {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+.track-artist {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artist-link {
+  cursor: pointer;
+}
+.track-artist-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.track-artist-sep {
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.track-codec {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-size {
+  color: var(--text-muted);
+}
+
+.track-duration {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.track-meta {
+  display: flex;
+  align-items: center;
+}
+
+.track-meta .track-codec {
+  margin-top: 0;
+}
+
+.track-genre {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-star-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.track-star-btn {
+  padding: 4px;
+  height: auto;
+  min-height: unset;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.track-star-btn:hover,
+.track-star-btn.is-starred {
+  color: var(--color-star-active, var(--accent));
+}
+
+.album-detail-star-btn {
+  transition: color var(--transition-fast), border-color var(--transition-fast) !important;
+}
+
+.album-detail-star-btn:hover {
+  color: var(--color-star-active, var(--accent)) !important;
+}
+
+.album-detail-star-btn.is-starred {
+  color: var(--color-star-active, var(--accent)) !important;
+  border: 1px solid var(--color-star-active, var(--accent)) !important;
+}
+
+/* ── Random Mix — clickable artist name ── */
+.rm-artist-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: transparent;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+.rm-artist-btn:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+.rm-artist-btn.is-blocked {
+  color: var(--danger);
+  text-decoration-color: var(--danger);
+  cursor: default;
+}
+.rm-artist-btn.just-added {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+/* ── Random Mix — genre pill chip ── */
+.rm-genre-chip {
+  display: inline-block;
+  background: var(--bg-hover);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  transition: background 0.15s, color 0.15s;
+}
+.rm-genre-chip:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}
+.rm-genre-chip.is-blocked {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+  cursor: default;
+}
+.rm-genre-chip.just-added {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}
+

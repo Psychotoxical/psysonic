@@ -1,0 +1,6 @@
+/* ─── Live Search — full width ─── */
+.app-shell[data-mobile] .live-search {
+  max-width: none;
+  min-width: 0;
+}
+

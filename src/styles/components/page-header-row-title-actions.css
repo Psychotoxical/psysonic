@@ -1,0 +1,14 @@
+/* ─ Page header row (title + actions) ─ */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.page-header .page-title {
+  margin-bottom: 0;
+}
+

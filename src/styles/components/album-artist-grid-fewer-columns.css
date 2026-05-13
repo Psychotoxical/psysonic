@@ -1,0 +1,16 @@
+/* ─── Album / Artist Grid — fewer columns ─── */
+.app-shell[data-mobile] .album-grid-wrap {
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 30%), 1fr));
+  gap: var(--space-3);
+}
+
+/* Horizontal scroll rows — smaller cards */
+.app-shell[data-mobile] .album-grid .album-card,
+.app-shell[data-mobile] .album-grid .artist-card {
+  flex: 0 0 130px;
+}
+
+.app-shell[data-mobile] .album-card-more {
+  flex: 0 0 130px;
+}
+

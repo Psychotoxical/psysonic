@@ -1,0 +1,240 @@
+/* ─ Album Row Container ─ */
+.album-row-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: relative;
+}
+
+.album-row-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.album-row-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.album-row-nav .nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.album-row-nav .nav-btn:hover:not(.disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.album-row-nav .nav-btn.disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.album-grid-wrapper {
+  position: relative;
+}
+
+.album-grid {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-4);
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  /* Hide scrollbar for Webkit */
+  -webkit-overflow-scrolling: touch;
+}
+
+.album-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.album-grid {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.album-grid-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.album-grid-wrap .album-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 220px;
+}
+
+/* Same wrap as Albums grid; defer layout/paint for off-screen artist tiles (helps scroll on WebKit/Linux). */
+.album-grid-wrap > .artist-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 220px;
+}
+
+
+@media (min-width: 1024px) {
+  .album-grid-wrap {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}
+
+.album-grid .album-card,
+.album-grid .artist-card {
+  flex: 0 0 clamp(140px, 15vw, 180px);
+  scroll-snap-align: start;
+}
+
+/* Horizontal rails can hold many off-screen cards; skip their paint/layout until visible. */
+.album-grid .album-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 240px;
+}
+
+.album-grid .artist-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 240px;
+}
+
+.album-card-more {
+  flex: 0 0 clamp(140px, 15vw, 180px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background: var(--bg-hover);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: all var(--transition-base);
+}
+
+.album-card-more:hover {
+  background: var(--ctp-surface0);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.album-card-cover-badges-tr {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.album-card-offline-badge {
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--accent) 85%, transparent);
+  color: var(--ctp-crust);
+  border-radius: var(--radius-sm);
+  padding: 3px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.album-card-new-badge {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: var(--ctp-crust);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.album-card-play-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.album-card:hover .album-card-play-overlay {
+  opacity: 1;
+}
+
+.album-card-details-btn {
+  background: var(--accent);
+  color: var(--ctp-crust);
+  border: none;
+  padding: 8px 20px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform var(--transition-fast), background var(--transition-fast);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.album-card-details-btn:hover {
+  transform: scale(1.05);
+  background: var(--accent);
+}
+
+
+/* ── Album card selection ── */
+.album-card--selectable {
+  cursor: pointer;
+}
+
+.album-card--selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.album-card-select-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 2px solid rgba(255,255,255,0.7);
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.album-card-select-check--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ctp-crust);
+}
+

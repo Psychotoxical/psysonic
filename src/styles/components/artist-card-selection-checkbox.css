@@ -1,0 +1,108 @@
+/* ─── Artist Card Selection Checkbox ─── */
+.artist-card {
+  position: relative;
+}
+
+.artist-card-select-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.artist-card-select-check--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ctp-crust);
+}
+
+/* ── Albums selection bar (portal) ── */
+.albums-selection-bar {
+  position: fixed;
+  bottom: calc(var(--player-height) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 8px 14px;
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+}
+
+.albums-selection-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-right: 4px;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.albums-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.albums-selection-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.album-card-info {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.album-card-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.album-card-artist {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.album-card-year {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.album-card-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.album-card-rating-stars {
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  line-height: 1;
+}
+

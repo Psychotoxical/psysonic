@@ -1,0 +1,447 @@
+/* ─ Help Page ─ */
+.help-columns {
+  columns: 2;
+  column-gap: 1.25rem;
+}
+
+@media (max-width: 1200px) {
+  .help-columns {
+    columns: 1;
+  }
+}
+
+.help-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  width: 280px;
+  max-width: 100%;
+  transition: border-color var(--transition-fast);
+}
+
+.help-search:focus-within {
+  border-color: var(--accent);
+}
+
+.help-search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.help-search-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 2px 0;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.help-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.help-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.help-search-clear:hover {
+  color: var(--text-primary);
+}
+
+.help-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ── Theme Accordion ─────────────────────────────────────────────────────── */
+
+.theme-accordion {
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-accordion-item {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.theme-accordion-item:last-child {
+  border-bottom: none;
+}
+
+.theme-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  padding: 10px var(--space-4);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border-left: 3px solid transparent;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.theme-accordion-header:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.theme-accordion-open .theme-accordion-header {
+  color: var(--accent);
+  background: var(--bg-hover);
+  border-left: 3px solid var(--accent);
+  padding-left: calc(var(--space-5) + 3px);
+}
+
+.theme-accordion-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.theme-accordion-open .theme-accordion-chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.theme-accordion-content {
+  padding: 14px var(--space-4) var(--space-4) calc(var(--space-4) + 3px);
+  background: var(--bg-app);
+  border-top: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent);
+}
+
+.theme-accordion-active-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: 8px;
+  vertical-align: middle;
+  opacity: 0.8;
+}
+
+/* ── Theme Family Header (subgroup label inside an accordion) ───────────── */
+
+.theme-family-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 2px;
+}
+
+/* ── Theme Card (individual theme preview button) ───────────────────────── */
+
+.theme-card-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-card-preview {
+  width: 100%;
+  height: 46px;
+  border-radius: 8px;
+  overflow: hidden;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: outline-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+/* Hover: dim accent ring + subtle lift */
+.theme-card-btn:hover .theme-card-preview {
+  outline-color: var(--accent-glow);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  transform: scale(1.04);
+}
+
+/* Active: full accent ring + glow */
+.theme-card-preview.is-active {
+  outline-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow, rgba(0,0,0,0.2));
+}
+
+/* Active + hover: keep strong ring, keep lift */
+.theme-card-btn:hover .theme-card-preview.is-active {
+  outline-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow, rgba(0,0,0,0.3));
+  transform: scale(1.04);
+}
+
+.theme-card-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  text-align: center;
+  line-height: 1.2;
+  word-break: break-word;
+  transition: color var(--transition-fast), font-weight 0s;
+}
+
+.theme-card-btn:hover .theme-card-label {
+  color: var(--text-primary);
+}
+
+.theme-card-label.is-active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Queue Tab Bar ────────────────────────────────────────────────────────── */
+
+.queue-tab-bar {
+  display: flex;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.queue-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color 0.15s, background 0.15s;
+}
+
+.queue-tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.queue-tab-btn.active { color: var(--accent); }
+
+/* ── Lyrics Pane (sidebar) ────────────────────────────────────────────────── */
+
+.lyrics-pane {
+  flex: 1;
+  min-height: 0;
+}
+
+.lyrics-pane__viewport {
+  overflow-x: hidden;
+  /* scroll-behavior intentionally left to auto — JS drives smooth scroll imperatively */
+  padding: 16px 16px 8px;
+}
+
+.lyrics-pane-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lyrics-status {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 40px 0;
+}
+
+.lyrics-synced {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 24px 0 40px;   /* top pad lets first line start below centre, bottom lets last line scroll up */
+}
+
+.lyrics-line {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 5px 8px;
+  border-radius: 6px;
+  line-height: 1.55;
+  cursor: default;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  min-width: 0;
+  transform-origin: center center;
+  /* All transitions are compositor-friendly */
+  transition:
+    color      350ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform  350ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    opacity    350ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    text-shadow 350ms ease;
+  transform: scale(0.92);
+  opacity: 0.75;
+}
+
+.lyrics-line.completed {
+  color: var(--text-muted);
+  transform: scale(0.88);
+  opacity: 0.55;
+}
+
+.lyrics-line.active {
+  color: var(--text-primary);
+  font-weight: 700;
+  transform: scale(1);
+  opacity: 1;
+  text-shadow: 0 0 20px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.lyrics-line:hover:not(.active) {
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+/* Word-sync: neutralise line colour so only individual words pop */
+.lyrics-word-synced .lyrics-line {
+  color: var(--text-muted);
+}
+.lyrics-word-synced .lyrics-line.active {
+  color: var(--text-muted);
+  text-shadow: none;
+}
+.lyrics-word-synced .lyrics-line.completed {
+  color: var(--text-muted);
+}
+
+.lyrics-word {
+  display: inline;
+  transition: color 160ms ease, text-shadow 160ms ease;
+  color: inherit;
+  white-space: pre-wrap;
+}
+.lyrics-word.played {
+  color: var(--text-secondary);
+}
+.lyrics-word.active {
+  color: var(--text-primary);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.lyrics-plain {
+  padding: 4px 0 16px;
+}
+
+.lyrics-plain-line {
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+.lyrics-source {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 8px 0 4px;
+  opacity: 0.6;
+}
+
+
+/* ── Help ─────────────────────────────────────────────────────────────────── */
+
+.help-item {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.help-item:last-child {
+  border-bottom: none;
+}
+
+.help-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  padding: 10px var(--space-4);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border-left: 3px solid transparent;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.help-question:hover {
+  background: var(--bg-hover);
+}
+
+.help-item-open .help-question {
+  color: var(--accent);
+  background: var(--bg-hover);
+  border-left: 3px solid var(--accent);
+  padding-left: calc(var(--space-5) + 3px);
+}
+
+.help-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.help-item-open .help-chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.help-answer {
+  padding: 10px var(--space-4) var(--space-4) calc(var(--space-4) + 3px);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  background: var(--bg-app);
+  border-top: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent);
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 2px var(--space-3);
+  margin: 0 calc(var(--space-3) * -1);
+  border-radius: var(--radius-sm);
+  transition: background 120ms ease;
+}
+.settings-toggle-row:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+

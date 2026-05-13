@@ -1,0 +1,7 @@
+/* ─ CSS Tooltips ─ */
+/* Tooltips are handled by TooltipPortal (React portal) — no CSS pseudo-elements needed */
+[data-tooltip] {
+  position: relative;
+}
+
+

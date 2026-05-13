@@ -1,0 +1,281 @@
+/* ─ Sidebar Customizer ─ */
+.sidebar-customizer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 8px var(--space-4);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+  cursor: default;
+}
+
+.sidebar-customizer-row:hover {
+  background: var(--bg-hover);
+}
+
+.sidebar-customizer-row.drag-over {
+  background: var(--accent-dim);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.sidebar-customizer-row.dragging {
+  opacity: 0.4;
+}
+
+.sidebar-customizer-grip {
+  cursor: grab;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  -webkit-user-drag: none;
+}
+
+.sidebar-customizer-grip:active {
+  cursor: grabbing;
+}
+
+.sidebar-customizer-block-label {
+  padding: 6px var(--space-4) 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.sidebar-customizer-fixed-hint {
+  padding: 8px var(--space-4) 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.settings-about {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-about-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.about-psysonic-logo-lol-hit {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 14px;
+  line-height: 0;
+}
+
+.about-psysonic-logo-lol-hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.about-psysonic-lol-close {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: 100001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-full);
+  background: #1e293b;
+  color: #f8fafc;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px #0f172a,
+    0 6px 24px rgba(0, 0, 0, 0.5);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.about-psysonic-lol-close:hover {
+  background: #334155;
+  border-color: #f8fafc;
+  color: #fff;
+}
+
+.about-psysonic-lol-close:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.about-psysonic-lol-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  box-sizing: border-box;
+  isolation: isolate;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+/* Opaque panel + fixed palette so contrast holds on every app theme. */
+.about-psysonic-lol-panel {
+  width: min(26rem, calc(100vw - 2.5rem));
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  border-radius: 18px;
+  border: 2px solid #334155;
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --logo-color-start: #a78bfa;
+  --logo-color-end: #38bdf8;
+}
+
+.about-psysonic-lol-logo-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1) 0 var(--space-4);
+  margin: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.about-psysonic-lol-logo-mark {
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 16px rgba(0, 0, 0, 0.55));
+}
+
+.about-psysonic-lol-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: #f8fafc;
+}
+
+.about-psysonic-lol-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4.5vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.about-psysonic-lol-lede {
+  margin: 0;
+  font-size: clamp(0.9rem, 2.4vw, 1rem);
+  line-height: 1.55;
+  color: #e2e8f0;
+  max-width: 24em;
+  margin-inline: auto;
+  text-wrap: balance;
+}
+
+.about-psysonic-lol-inline-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  color: #38bdf8;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.about-psysonic-lol-inline-link:hover {
+  color: #7dd3fc;
+}
+
+.about-psysonic-lol-signoff {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+  font-style: italic;
+}
+
+.about-psysonic-lol-ps {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #94a3b8;
+  padding-top: var(--space-2);
+  border-top: 1px solid #334155;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--ctp-surface2);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-base);
+}
+
+.toggle-track::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: transform var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.toggle-switch:hover .toggle-track {
+  background: var(--ctp-overlay0);
+}
+
+.toggle-switch input:checked+.toggle-track {
+  background: var(--accent);
+}
+
+.toggle-switch:hover input:checked+.toggle-track {
+  filter: brightness(1.15);
+}
+
+.toggle-switch input:checked+.toggle-track::before {
+  transform: translateX(20px);
+}
+

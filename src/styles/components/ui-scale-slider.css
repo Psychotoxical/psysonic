@@ -1,0 +1,271 @@
+/* ─── UI Scale Slider ─── */
+.ui-scale-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-subtle);
+  outline: none;
+  cursor: pointer;
+}
+
+.ui-scale-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.ui-scale-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ── Folder Browser (Miller Columns) ──────────────────────────────────────── */
+
+.folder-browser {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  height: 100%;
+}
+
+.folder-browser-title {
+  padding: 1.5rem 1.5rem 0.75rem;
+  flex-shrink: 0;
+}
+
+.folder-browser-columns {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* height fallback for browsers that don't support flex: 1 correctly here */
+  height: calc(100vh - var(--player-height, 88px) - var(--titlebar-height, 0px) - 70px);
+  border-top: 1px solid var(--border-subtle);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 35%, var(--text-muted)) transparent;
+}
+
+.folder-browser-columns:focus,
+.folder-browser-columns:focus-visible {
+  outline: none;
+}
+
+.folder-browser-columns::-webkit-scrollbar {
+  height: 8px;
+}
+
+.folder-browser-columns::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.folder-browser-columns::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 35%, var(--text-muted));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.folder-col {
+  flex: 1 1 220px;
+  min-width: 200px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--border-subtle);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 35%, var(--text-muted)) transparent;
+  transition: min-width 0.18s ease, max-width 0.18s ease, flex-basis 0.18s ease, flex-grow 0.18s ease;
+}
+
+.folder-browser-columns--compact .folder-col {
+  flex: 0 0 var(--folder-col-width, 220px);
+  min-width: var(--folder-col-width, 220px);
+  max-width: var(--folder-col-width, 220px);
+}
+
+.folder-col.folder-col--compact {
+  flex-basis: 56px;
+  min-width: 56px;
+  max-width: 56px;
+}
+
+.folder-col.folder-col--compact .folder-col-row {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+}
+
+.folder-col.folder-col--compact .folder-col-name,
+.folder-col.folder-col--compact .folder-col-chevron {
+  display: none;
+}
+
+.folder-col.folder-col--compact .folder-col-icon {
+  opacity: 0.95;
+}
+
+.folder-col::-webkit-scrollbar {
+  width: 8px;
+}
+
+.folder-col::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.folder-col::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 35%, var(--text-muted));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.folder-col::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 55%, var(--text-primary));
+}
+
+.folder-col-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.folder-col-filter {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.35rem 0.45rem;
+  background: color-mix(in srgb, var(--bg-app) 92%, transparent);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.folder-col-filter-input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.folder-col-filter-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border-subtle));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.folder-col.folder-col--compact .folder-col-filter {
+  display: none;
+}
+
+.folder-col-error {
+  color: var(--danger, #f38ba8);
+}
+
+.folder-col-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.38rem 0.6rem 0.38rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.folder-col-row:hover {
+  background: var(--bg-hover, color-mix(in srgb, var(--accent) 8%, transparent));
+}
+
+.folder-browser-columns.keyboard-nav-active .folder-col-row:hover:not(.selected):not(.context-active):not(.keyboard-active) {
+  background: none;
+}
+
+/* Context-menu anchor only — does not replace Miller “open” selection (accent). */
+.folder-col-row.context-active:not(.selected) {
+  background: var(--bg-hover, color-mix(in srgb, var(--accent) 8%, transparent));
+}
+
+.folder-col-row.keyboard-active:not(.selected) {
+  background: var(--bg-hover, color-mix(in srgb, var(--accent) 8%, transparent));
+}
+
+.folder-col-row.selected {
+  background: var(--accent);
+  color: oklch(from var(--accent) clamp(0, (0.58 - l) * 100, 1) 0 h);
+}
+
+.folder-col-row.selected .folder-col-chevron {
+  color: oklch(from var(--accent) clamp(0, (0.58 - l) * 100, 1) 0 h / 0.7);
+}
+
+.folder-col-icon {
+  flex-shrink: 0;
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+}
+
+.folder-col-row.selected .folder-col-icon {
+  opacity: 1;
+}
+
+.folder-col-row.now-playing .folder-col-name {
+  font-weight: 600;
+}
+
+.folder-col-playing-icon {
+  animation: folderTrackPulse 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.folder-col-path-playing-icon {
+  animation: folderTrackPulse 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.folder-col-path-playing-icon svg {
+  stroke-width: 2.6;
+  filter: saturate(1.08) contrast(1.06);
+}
+
+@keyframes folderTrackPulse {
+  0% { transform: scale(1); opacity: 0.92; }
+  50% { transform: scale(1.16); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.92; }
+}
+
+.folder-col-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-col-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+

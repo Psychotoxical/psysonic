@@ -1,0 +1,154 @@
+/* ─ Playlist Search Panel ─ */
+.playlist-search-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  animation: fade-in-down 0.15s ease;
+}
+
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.playlist-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.playlist-search-input-wrap .input {
+  width: 100%;
+  padding-right: 36px;
+}
+
+.playlist-search-input-wrap .live-search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+}
+
+.playlist-search-row {
+  display: grid;
+  grid-template-columns: 18px 36px 1fr auto 52px 28px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.playlist-search-row:hover {
+  background: var(--bg-hover);
+}
+
+.playlist-search-row--selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.playlist-search-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.playlist-search-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+  background: var(--bg-hover);
+  flex-shrink: 0;
+}
+
+.playlist-search-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.playlist-search-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+.playlist-search-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-search-album {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-search-duration {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.playlist-search-add-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.playlist-search-add-btn:hover {
+  background: var(--accent);
+  color: var(--ctp-base);
+}
+
+.playlist-suggestions {
+  margin-top: var(--space-6);
+}
+
+.playlist-suggestions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.playlist-suggestions-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.playlist-suggestions-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+

@@ -1,0 +1,34 @@
+/* ─── Hero — mobile ─── */
+.app-shell[data-mobile] .hero,
+.app-shell[data-mobile] .hero-placeholder {
+  height: 290px;
+}
+
+/* Stronger bottom gradient so white text stays readable without a cover */
+.app-shell[data-mobile] .hero-overlay {
+  background:
+    linear-gradient(to top,
+      rgba(0, 0, 0, 0.90) 0%,
+      rgba(0, 0, 0, 0.55) 45%,
+      rgba(0, 0, 0, 0.22) 100%);
+}
+
+.app-shell[data-mobile] .hero-content {
+  padding: var(--space-4);
+  padding-bottom: 44px; /* keep buttons clear of the pagination dots */
+  gap: 0;
+  align-items: flex-end;
+}
+
+.app-shell[data-mobile] .hero-title {
+  font-size: clamp(17px, 5vw, 22px);
+  max-width: 100%;
+}
+
+/* Circular action buttons on mobile hero */
+.hero-actions-mobile {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+

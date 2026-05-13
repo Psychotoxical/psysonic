@@ -1,0 +1,81 @@
+/* ─ Context Menu Submenu ─ */
+.context-menu-item--submenu {
+  position: relative;
+}
+
+.context-menu-item--submenu.active,
+.context-menu-item--submenu:hover {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.context-submenu {
+  position: absolute;
+  top: -4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) 0;
+  min-width: 190px;
+  max-width: 250px;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  z-index: 10001;
+}
+
+.context-submenu-empty {
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.context-submenu-new {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.context-submenu-create {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-1) var(--space-2);
+}
+
+.context-submenu-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 3px 7px;
+  outline: none;
+}
+
+.context-submenu-input::placeholder {
+  color: var(--text-muted);
+}
+
+.context-submenu-create-btn {
+  flex-shrink: 0;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--ctp-crust);
+  padding: 4px 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: opacity var(--transition-fast);
+}
+
+.context-submenu-create-btn:hover {
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE COMPONENT OVERRIDES  (< 800px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+

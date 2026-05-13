@@ -1,0 +1,104 @@
+/* ─ Normalization block (per-mode sub-section) ─ */
+.settings-segmented {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.settings-segmented > .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 13px;
+  padding: 8px 16px;
+}
+.settings-segmented > .btn-ghost {
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+.settings-segmented > .btn-ghost:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.settings-norm-block .btn-ghost {
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+.settings-norm-block .btn-ghost:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.settings-norm-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.2rem 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.settings-norm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.settings-norm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.settings-norm-row > input[type="range"] {
+  flex: 1;
+  min-width: 120px;
+}
+
+.settings-norm-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 160px;
+}
+
+.settings-norm-value {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 56px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-norm-help {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 720px;
+}
+
+.settings-norm-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding: 0.75rem 0.9rem;
+  border-left: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin-top: 0.3rem;
+}
+
+@media (max-width: 640px) {
+  .settings-norm-label {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+}
+
+.settings-section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--space-2) 0;
+}
+

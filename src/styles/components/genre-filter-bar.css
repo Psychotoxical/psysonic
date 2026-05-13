@@ -1,0 +1,107 @@
+/* ─ Genre Filter Bar ─ */
+.genre-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 0.35rem;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--ctp-crust);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.genre-filter-popover {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.genre-filter-popover__search {
+  padding: 0.55rem 0.6rem 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.genre-filter-popover__search input {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.genre-filter-popover__search input:focus {
+  border-color: var(--accent);
+}
+
+.genre-filter-popover__list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 0;
+}
+
+.genre-filter-popover__option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.genre-filter-popover__option:hover {
+  background: var(--bg-hover);
+}
+
+.genre-filter-popover__option--selected {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.genre-filter-popover__check {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--ctp-crust);
+  background: transparent;
+}
+
+.genre-filter-popover__option--selected .genre-filter-popover__check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.genre-filter-popover__empty {
+  padding: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.genre-filter-popover__footer {
+  padding: 0.4rem 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: flex-end;
+}
+

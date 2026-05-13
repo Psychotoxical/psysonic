@@ -1,0 +1,155 @@
+/* ─ Modal ─ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 17, 27, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  z-index: 9999;
+  animation: fadeIn 150ms ease both;
+}
+
+/* Perf probe must not blur/composite the whole app while profiling. */
+.modal-overlay--perf-probe {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(17, 17, 27, 0.96);
+  animation: none;
+}
+
+.modal-content {
+  background: var(--ctp-surface0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  animation: fadeIn 200ms ease both;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Modal CSV Import - siempre centrado */
+.modal-overlay--csv {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding-top: 0 !important;
+}
+
+.modal-close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  color: var(--text-muted);
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-title {
+  margin-bottom: 1rem;
+  font-family: var(--font-display);
+}
+
+.sidebar-perf-modal {
+  max-width: 560px;
+}
+
+.sidebar-perf-modal__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.sidebar-perf-modal__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.sidebar-perf-modal__item input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+.sidebar-perf-modal__phase {
+  margin-top: 10px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 78%, transparent);
+}
+
+.sidebar-perf-modal__phase--nested {
+  margin-left: 10px;
+  margin-right: 2px;
+  padding-top: 6px;
+  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 68%, transparent);
+}
+
+.sidebar-perf-modal__phase-title {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  user-select: none;
+  list-style: none;
+}
+
+.sidebar-perf-modal__phase-title::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-perf-modal__cpu {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 80%, transparent);
+}
+
+.sidebar-perf-modal__cpu-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.sidebar-perf-modal__cpu-row {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.sidebar-perf-modal__subhead {
+  margin-top: 10px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sidebar-perf-modal__actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+

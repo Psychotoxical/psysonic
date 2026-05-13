@@ -1,0 +1,294 @@
+/* ─── Cover Lightbox ─── */
+.cover-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  box-sizing: border-box;
+  cursor: zoom-out;
+  backdrop-filter: blur(6px);
+}
+
+.cover-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.8);
+  cursor: default;
+}
+
+.cover-lightbox-close {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  z-index: 1;
+}
+
+.cover-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.album-cover-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  font-size: 48px;
+  color: var(--text-muted);
+}
+
+/* ── Playlist 2×2 cover grid ── */
+.playlist-cover-grid {
+  flex-shrink: 0;
+  width: clamp(120px, 15vw, 200px);
+  height: clamp(120px, 15vw, 200px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+/* In playlist cards, the 2x2 grid must fill the full cover area. */
+.album-card-cover > .playlist-cover-grid {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.playlist-cover-cell {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.playlist-cover-cell--empty {
+  background: var(--bg-hover);
+}
+
+.album-detail-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.album-detail-title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 3vw, 32px);
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin: var(--space-2) 0 var(--space-1);
+  overflow-wrap: break-word;
+}
+
+.album-detail-artist {
+  font-size: clamp(13px, 1.5vw, 16px);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.album-detail-artist-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--transition-fast), text-decoration var(--transition-fast);
+}
+
+.album-detail-artist-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.album-detail-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: var(--space-2) 0 var(--space-2);
+}
+
+.album-detail-entity-rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+/* Inline with label: do not stretch to full row width */
+.album-detail-entity-rating .star-rating {
+  width: auto;
+  justify-content: flex-start;
+}
+
+.album-detail-entity-rating-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.artist-detail-entity-rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.artist-detail-entity-rating .star-rating {
+  width: auto;
+  justify-content: flex-start;
+}
+
+.artist-detail-entity-rating-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.album-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  row-gap: var(--space-2);
+}
+
+.album-detail-actions-primary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.album-detail-content {
+  position: relative;
+  z-index: 1;
+}
+
+.album-detail-badge {
+  margin-bottom: 0.5rem;
+  background: var(--accent);
+  color: var(--ctp-crust);
+}
+
+.album-detail-back {
+  margin-bottom: 1rem;
+  gap: 6px;
+}
+
+.album-track-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 0 16px 8px;
+  flex-wrap: wrap;
+}
+
+.album-track-toolbar-filter {
+  position: relative;
+  flex: 1 1 160px;
+  max-width: 260px;
+}
+
+.album-track-toolbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+}
+
+.album-info-dot {
+  margin: 0 4px;
+}
+
+.album-related {
+  padding: 0 var(--space-6) var(--space-8);
+}
+
+.album-related-divider {
+  border-top: 1px solid var(--border-subtle);
+  margin-bottom: 2rem;
+}
+
+.album-related-title {
+  margin-bottom: 1rem;
+}
+
+.download-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(203, 166, 247, 0.08);
+  border: 1px solid rgba(203, 166, 247, 0.2);
+  border-radius: var(--radius-full);
+  padding: 3px 10px 3px 8px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.download-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  min-width: 180px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.download-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.download-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ctp-mauve), var(--ctp-blue));
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+.download-progress-pct {
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+

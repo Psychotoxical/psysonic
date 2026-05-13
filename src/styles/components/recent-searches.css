@@ -1,0 +1,18 @@
+/* ─── Recent searches ─── */
+.mobile-search-recent-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.mobile-search-recent-remove:hover {
+  opacity: 1;
+}
+

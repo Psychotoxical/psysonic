@@ -1,0 +1,239 @@
+/* ─ Playlist edit modal ─ */
+.playlist-edit-modal {
+  max-width: 560px;
+}
+
+.playlist-edit-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+/* Clickable cover wrap in the hero (opens modal) */
+.playlist-hero-cover {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.playlist-hero-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  border-radius: inherit;
+}
+
+.playlist-hero-cover:hover .playlist-hero-cover-overlay {
+  opacity: 1;
+}
+
+/* Cover area inside the modal */
+.playlist-edit-cover-wrap {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.playlist-edit-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.playlist-edit-cover-wrap:hover .playlist-edit-cover-overlay {
+  opacity: 1;
+}
+
+.playlist-edit-cover-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+
+.playlist-edit-cover-menu-item {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: background 120ms ease;
+}
+
+.playlist-edit-cover-menu-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.playlist-edit-cover-menu-item--danger {
+  color: var(--ctp-red, #f38ba8);
+}
+
+/* Right side fields */
+.playlist-edit-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playlist-edit-name-input {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.playlist-edit-desc-input {
+  resize: none;
+  min-height: 80px;
+  font-size: 13px;
+}
+
+/* Footer */
+.playlist-edit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  gap: 12px;
+}
+
+.artist-bio {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  user-select: text;
+}
+
+.artist-bio a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Artist Detail Page */
+.artist-detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.artist-detail-avatar {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-card);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+}
+
+.artist-detail-avatar-btn {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.artist-detail-avatar-btn:hover {
+  transform: scale(1.04);
+  filter: brightness(1.08);
+}
+
+/* Camera overlay for uploading a new artist image */
+.artist-avatar-upload-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+  z-index: 2;
+}
+.artist-detail-avatar:hover .artist-avatar-upload-overlay {
+  opacity: 1;
+}
+.artist-avatar-upload-overlay:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.artist-detail-meta {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.5rem;
+}
+
+.artist-detail-links {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.artist-ext-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.artist-ext-link:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+/* Bio section */
+/* Artist Detail bio — reuses np-info-card + np-artist-bio-row */
+.artist-bio-card {
+  margin-bottom: 2rem;
+}
+
+

@@ -1,0 +1,38 @@
+/* ─ Section titles ─ */
+.section-title,
+.page-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.section-title-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.section-title-link:hover {
+  color: var(--accent);
+}
+
+.section-title-chevron {
+  opacity: 0.45;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.section-title-link:hover .section-title-chevron {
+  opacity: 1;
+  transform: translateX(2px);
+}
+

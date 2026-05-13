@@ -1,0 +1,69 @@
+/* ─── Tracklist — compact Title + Artist rows ─── */
+.app-shell[data-mobile] .tracklist-header {
+  display: none;
+}
+
+.app-shell[data-mobile] .track-row {
+  display: grid !important;
+  grid-template-columns: 44px 1fr 50px !important;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 0;
+  min-height: 52px;
+  padding: 6px 0;
+}
+
+/* play button / number */
+.app-shell[data-mobile] .track-row > :nth-child(1) {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+/* title cell */
+.app-shell[data-mobile] .track-row > :nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  padding-bottom: 1px;
+}
+
+/* artist cell — shown as subtitle */
+.app-shell[data-mobile] .track-row > :nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  overflow: hidden;
+}
+
+/* duration — last child, right column */
+.app-shell[data-mobile] .track-row > :last-child {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  justify-self: end;
+  display: flex !important;
+}
+
+/* hide album, genre, star and any extra columns */
+.app-shell[data-mobile] .track-row > :nth-child(n+4):not(:last-child) {
+  display: none !important;
+}
+
+/* artist button/span as subtitle */
+.app-shell[data-mobile] .track-row .track-artist-cell .rm-artist-btn,
+.app-shell[data-mobile] .track-row .track-artist-cell .track-artist {
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: default;
+}
+

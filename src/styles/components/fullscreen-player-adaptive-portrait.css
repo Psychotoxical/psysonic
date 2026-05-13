@@ -1,0 +1,956 @@
+/* ─────────────────────────────────────────
+   Fullscreen Player — Adaptive Portrait
+──────────────────────────────────────────── */
+.fs-player {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  overflow: hidden;
+  contain: layout style paint;
+  animation: fsIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  background: #06060e;
+  /* Promote to own compositor layer immediately on mount */
+  will-change: transform, opacity;
+}
+
+@keyframes fsIn {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes mesh-aura-a {
+  0%   { transform: translate(0,    0  ); }
+  33%  { transform: translate(5%,  -6% ); }
+  66%  { transform: translate(-3%,  2% ); }
+  100% { transform: translate(0,    0  ); }
+}
+
+@keyframes mesh-aura-b {
+  0%   { transform: translate(0,   0  ); }
+  50%  { transform: translate(-6%, 5% ); }
+  100% { transform: translate(0,   0  ); }
+}
+
+@keyframes portrait-drift {
+  0%, 100% { transform: translateY(0    ); }
+  50%       { transform: translateY(-10px); }
+}
+
+.fs-mesh-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #06060e;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Blobs are real divs — no will-change/filter to avoid software compositing layers */
+.fs-mesh-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.fs-mesh-blob-a {
+  /* Oversized so panning never exposes the dark base underneath */
+  width: 130%;
+  height: 130%;
+  left: -35%;
+  bottom: -35%;
+  /* opacity on the element avoids color-mix(…, transparent) WebKit artifacts —
+     interpolating to the CSS keyword 'transparent' (rgba(0,0,0,0)) produces a
+     visible halo ring at the gradient boundary on WebKitGTK. */
+  background: radial-gradient(ellipse,
+    var(--dynamic-fs-accent, var(--accent)) 0%,
+    transparent 70%);
+  opacity: 0.14;
+  animation: mesh-aura-a 26s ease-in-out infinite;
+  animation-delay: 350ms;
+  transition: opacity 400ms ease-in-out;
+}
+
+.fs-mesh-blob-b {
+  width: 100%;
+  height: 110%;
+  right: -25%;
+  top: -25%;
+  background: radial-gradient(ellipse,
+    var(--dynamic-fs-accent, var(--accent)) 0%,
+    transparent 70%);
+  opacity: 0.08;
+  animation: mesh-aura-b 20s ease-in-out infinite;
+  animation-delay: 350ms;
+  transition: opacity 400ms ease-in-out;
+}
+
+/* ── Artist portrait — right half, object-fit: contain ── */
+.fs-portrait-wrap {
+  position: absolute;
+  right: 4vw;
+  top: 4vw;
+  bottom: 8vw;
+  width: 46%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  /* No overflow:hidden / border-radius — object-fit:contain never overflows, and
+     rounding the wrap visually clips wide images. */
+  transform: translateZ(0);
+  /* Thin left-edge fade to blend into the scrim — keep image fully visible */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.6) 6%,
+    #000 16%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.6) 6%,
+    #000 16%
+  );
+}
+
+.fs-portrait {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  filter: drop-shadow(-24px 0 48px rgba(0, 0, 0, 0.85));
+  transition: opacity 1000ms ease-in-out;
+  will-change: transform;
+  animation: portrait-drift 22s ease-in-out infinite;
+  animation-delay: 350ms;
+  display: block;
+}
+
+/* Subtle darkening overlay — plain div paint, no GPU cost.
+   Alpha driven by --fs-portrait-dim (set via inline style on .fs-player). */
+.fs-portrait-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, var(--fs-portrait-dim, 0.28));
+}
+
+/* ── Horizontal scrim — dark left edge for text legibility ── */
+.fs-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgba(6, 6, 14, 0.88) 0%,
+    rgba(6, 6, 14, 0.65) 32%,
+    rgba(6, 6, 14, 0.18) 58%,
+    transparent 78%
+  );
+}
+
+/* ── Close button ── */
+.fs-close {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  z-index: 10;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.fs-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* ── Info cluster — bottom-left quadrant ── */
+.fs-cluster {
+  position: absolute;
+  bottom: 72px;
+  left: clamp(28px, 4vw, 64px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 85vw;
+}
+
+/* Album art — small, rounded, glowing */
+.fs-art-wrap {
+  position: relative;           /* stacking context for crossfade layers */
+  width: clamp(120px, 10vw, 180px);
+  height: clamp(120px, 10vw, 180px);
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 0 28px color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 30%);
+  transition: box-shadow 200ms ease-in-out;
+}
+
+/* Each layer is absolutely stacked — layers crossfade via opacity */
+.fs-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 300ms ease;
+}
+
+.fs-art-placeholder {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Track title — massive, font-black, primary — now on top */
+.fs-track-title {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4.5vw, 68px);
+  font-weight: 900;
+  color: var(--dynamic-fs-accent, var(--accent));
+  margin: 0;
+  line-height: 1.05;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.5), 0 0 40px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  transition: color 200ms ease-in-out, text-shadow 200ms ease-in-out;
+}
+
+/* Artist name — secondary, below track title */
+.fs-artist-name {
+  font-family: var(--font-display);
+  font-size: clamp(13px, 1.5vw, 22px);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0;
+  line-height: 1.3;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Metadata row */
+.fs-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: clamp(11px, 1vw, 13px);
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 4px;
+}
+
+.fs-meta-dot {
+  opacity: 0.4;
+}
+
+/* Controls row — left-aligned */
+.fs-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.fs-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  transition: all var(--transition-fast), color 200ms ease-in-out, background-color 200ms ease-in-out;
+  background: transparent;
+}
+
+.fs-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.fs-btn.active {
+  color: var(--dynamic-fs-accent, var(--accent));
+}
+
+.fs-btn-sm {
+  width: 28px;
+  height: 28px;
+}
+
+.fs-btn-play {
+  width: 52px;
+  height: 52px;
+  background: var(--dynamic-fs-accent, var(--accent));
+  color: var(--ctp-crust);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 20px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
+}
+
+.fs-btn-play:hover {
+  background: var(--dynamic-fs-accent, var(--accent));
+  color: var(--ctp-crust);
+  transform: scale(1.1);
+  filter: brightness(1.12);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 28px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
+}
+
+.fs-btn-heart:hover,
+.fs-btn-heart.active {
+  color: var(--dynamic-fs-accent, var(--color-star-active, var(--accent)));
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Full-width seekbar — pinned to bottom edge ── */
+.fs-seekbar-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+}
+
+.fs-seekbar-times {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 16px 5px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+}
+
+.fs-seekbar {
+  position: relative;
+  height: 3px;
+  cursor: pointer;
+  transition: height 120ms ease;
+}
+
+.fs-seekbar:hover {
+  height: 5px;
+}
+
+.fs-seekbar-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fs-seekbar-buf {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.fs-seekbar-played {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: var(--dynamic-fs-accent, var(--accent));
+  box-shadow: 0 0 15px var(--dynamic-fs-accent, var(--accent-glow, var(--accent)));
+  pointer-events: none;
+  transition: background-color 200ms ease-in-out, box-shadow 200ms ease-in-out;
+}
+
+.fs-seekbar input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ── Idle-fade — only the close button hides; cluster + seekbar always visible ── */
+.fs-player[data-idle="true"] .fs-close {
+  opacity: 0.05;
+  pointer-events: none;
+  transition: opacity 900ms ease;
+}
+
+.fs-player[data-idle="false"] .fs-close {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 200ms ease;
+}
+
+/* ── Apple Music-style fullscreen lyrics ─────────────────────────────────────
+   Full-screen scrollable list. Active line scrolls to ~35% from top.
+   User scroll pauses auto-scroll for 4 s. Word-sync via imperative DOM updates. */
+
+.fsa-lyrics-container {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  padding: 0 clamp(28px, 5vw, 72px);
+  overscroll-behavior-x: none;
+  /* pointer-events on children only — container itself scrollable */
+  pointer-events: auto;
+}
+
+.fsa-lyrics-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Top padding — clears the close button (44 px) + some breathing room */
+.fsa-lyrics-top-pad {
+  height: 80px;
+  pointer-events: none;
+}
+
+/* Bottom padding — lets last line scroll to ~35% from top even on short tracks */
+.fsa-lyrics-bottom-pad {
+  height: 60vh;
+  pointer-events: none;
+}
+
+/* ── Line base styles ── */
+.fsa-lyric-line {
+  /* Fixed font-size avoids layout reflow on active-line switch.
+     Visual "size" difference is done via transform: scale below. */
+  font-size: clamp(1.4rem, 3.2vh, 3rem);
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.28);
+  margin-bottom: 0.45em;
+  cursor: pointer;
+  user-select: none;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  min-width: 0;
+  max-width: 100%;
+  transform-origin: left center;
+  /* All visual changes are compositor-friendly (color, text-shadow, transform) */
+  transition:
+    color      380ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    text-shadow 380ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform   380ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    opacity     380ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform: scale(0.9);
+  opacity: 0.9;
+}
+
+.fsa-lyric-line:hover {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Past: subtly smaller and more faded */
+.fsa-lyric-line.fsal-past {
+  color: rgba(255, 255, 255, 0.16);
+  transform: scale(0.86);
+  opacity: 0.7;
+}
+
+/* Active: full scale, bright, glowing — font-weight snaps (no layout cost on same size) */
+.fsa-lyric-line.fsal-active {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.96);
+  transform: scale(1);
+  opacity: 1;
+  text-shadow:
+    0 0 48px color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 25%),
+    0 2px 18px rgba(0, 0, 0, 0.55);
+}
+
+/* Word-sync — active line dims base so only lit words pop */
+.fsa-lyric-line.fsal-active .fsa-lyric-word {
+  color: rgba(255, 255, 255, 0.28);
+  text-shadow: none;
+}
+
+.fsa-lyric-word {
+  display: inline;
+  white-space: pre-wrap;  /* preserves trailing spaces from lyricsplus tokens, allows wrapping */
+  transition: color 160ms ease, text-shadow 160ms ease;
+}
+
+.fsa-lyric-line.fsal-active .fsa-lyric-word.played {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.fsa-lyric-line.fsal-active .fsa-lyric-word.active {
+  color: #ffffff;
+  text-shadow: 0 0 32px color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)), transparent 10%);
+}
+
+/* Plain (unsynced) lyrics */
+.fsa-plain-lyrics {
+  pointer-events: none;
+}
+
+/* Fade the bottom of the scroll viewport when showing plain lyrics */
+.fsa-lyrics-container--plain {
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+.fsa-plain-line {
+  font-size: clamp(1.1rem, 2.5vh, 2.2rem);
+  font-weight: 500;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.72);
+  margin: 0 0 0.2em;
+  word-break: break-word;
+}
+
+/* ── Gradient fades — top and bottom chrome ──────────────────────────────── */
+
+/* Top fade: covers close button area; pointer-events none so button stays clickable */
+.fsa-fade-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 110px;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(6, 6, 14, 0.92) 0%,
+    rgba(6, 6, 14, 0.5)  55%,
+    transparent 100%
+  );
+}
+
+/* Bottom fade: sits above lyrics (same z-index, later in DOM) but under cluster */
+.fsa-fade-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45vh;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(6, 6, 14, 0.55) 40%,
+    rgba(6, 6, 14, 0.88) 72%,
+    rgba(6, 6, 14, 0.96) 100%
+  );
+}
+
+/* ── Layout overrides when lyrics mode is active ────────────────────────── */
+
+/* Hide portrait — lyrics use the full width */
+.fs-player[data-lyrics] .fs-portrait-wrap {
+  display: none;
+}
+
+/* Scrim is redundant without the portrait — hide it */
+.fs-player[data-lyrics] .fs-scrim {
+  display: none;
+}
+
+/* ── Lyrics settings popover (above mic button) ─────────────────────────────── */
+
+/* The panel itself — floated above the mic button.
+   Rendered inside position:relative wrapper (the button wrapper).
+   z-index: 9 sits above the backdrop (8). */
+.fslm-panel {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: 230px;
+  z-index: 9;
+  background: #14141d;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  animation: fslmIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: bottom right;
+}
+
+@keyframes fslmIn {
+  from { opacity: 0; transform: scale(0.88) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+
+/* Toggle row */
+.fslm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.fslm-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Style selector */
+.fslm-style-row {
+  display: flex;
+  gap: 7px;
+  transition: opacity 200ms ease;
+}
+
+.fslm-disabled .fslm-style-row,
+.fslm-style-row.fslm-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.fslm-style-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.fslm-style-btn:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.fslm-style-active {
+  /* accent colors set inline via accentColor prop */
+}
+
+.fslm-style-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.fslm-style-desc {
+  display: block;
+  font-size: 10px;
+  margin-top: 3px;
+  opacity: 0.7;
+  line-height: 1.3;
+}
+
+/* Small arrow pointing down toward the button */
+.fslm-arrow {
+  position: absolute;
+  bottom: -6px;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  background: rgba(18, 18, 28, 0.88);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transform: rotate(45deg);
+}
+
+/* ── Classic 5-line rail (Rail style) ───────────────────────────────────────── */
+
+.fsr-lyrics-overlay {
+  position: absolute;
+  top: 15vh;
+  left: clamp(28px, 4vw, 64px);
+  right: 52%;
+  height: 30vh;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout style;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+}
+
+.fsr-lyrics-rail {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  will-change: transform;
+  transition: transform 500ms ease-out;
+}
+
+.fsr-lyric-line {
+  height: 6vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-size: 2vh;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.22);
+  font-weight: 400;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 280ms ease, text-shadow 280ms ease, transform 280ms ease;
+  transform-origin: left center;
+  user-select: none;
+}
+
+.fsr-lyric-line:hover { color: rgba(255, 255, 255, 0.5); }
+
+.fsr-lyric-line.fsrl-past { color: rgba(255, 255, 255, 0.1); }
+
+.fsr-lyric-line.fsrl-active {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 0 28px var(--accent-glow, var(--accent)), 0 1px 8px rgba(0, 0, 0, 0.6);
+  transform: scaleX(1.015);
+}
+
+.fsr-lyric-line.fsrl-active .fsr-lyric-word {
+  color: rgba(255, 255, 255, 0.35);
+  text-shadow: none;
+}
+
+.fsr-lyric-word {
+  display: inline;
+  white-space: pre;
+  transition: color 0.18s ease, text-shadow 0.18s ease;
+}
+
+.fsr-lyric-line.fsrl-active .fsr-lyric-word.played { color: rgba(255, 255, 255, 0.75); }
+.fsr-lyric-line.fsrl-active .fsr-lyric-word.active {
+  color: #ffffff;
+  text-shadow: 0 0 28px var(--accent-glow, var(--accent)), 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+html.no-compositing .fsr-lyrics-overlay { -webkit-mask-image: none; mask-image: none; }
+html.no-compositing .fsr-lyrics-rail    { will-change: auto; }
+
+/* ── no-compositing overrides ─────────────────────────────────────────────────
+   Applied only when WEBKIT_DISABLE_COMPOSITING_MODE=1 is set (Arch Linux etc).
+   Replaces GPU-only effects (backdrop-filter, CSS filter, mask-image) with
+   software-friendly equivalents so the fullscreen player stays responsive.     */
+
+/* fs-player: remove will-change — without GPU compositor it only wastes RAM */
+html.no-compositing .fs-player {
+  will-change: auto;
+}
+
+/* Close button: replace frosted-glass blur with flat semi-opaque background */
+html.no-compositing .fs-close {
+  backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* Portrait: remove CSS filter (drop-shadow), will-change and drift animation */
+html.no-compositing .fs-portrait {
+  filter: none;
+  will-change: auto;
+  animation: none;
+}
+
+/* Portrait wrap: replace mask-image fade with a pseudo-element overlay gradient.
+   pointer-events: none on wrap means the overlay never blocks clicks. */
+html.no-compositing .fs-portrait-wrap {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+html.no-compositing .fs-portrait-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    #06060e 0%,
+    rgba(6, 6, 14, 0.4) 6%,
+    transparent 16%
+  );
+}
+
+/* Lyrics fade overlays: gradient-only, no backdrop-filter — fine in no-compositing */
+
+/* Mesh blobs: stop animations — in software mode each frame composites surfaces
+   larger than the screen (blob-a is 130 × 130 % of the viewport); on high-DPI
+   displays this saturates the CPU and drops the player to ~10 FPS.
+   Static gradients are preserved; only the slow pan animation is removed. */
+html.no-compositing .fs-mesh-blob {
+  animation: none;
+}
+
+/* Seekbar played bar: remove box-shadow — its width changes on every playback
+   tick; in software rendering each change triggers a box-shadow repaint. */
+html.no-compositing .fs-seekbar-played {
+  box-shadow: none;
+}
+
+/* Chat */
+.chat-popup {
+  position: absolute;
+  width: 340px;
+  height: 480px;
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;
+  overflow: hidden;
+  animation: slideInDown 0.2s ease-out;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface1);
+}
+
+.chat-popup-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-message-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-message-row.me {
+  align-items: flex-end;
+}
+
+.chat-message-row.other {
+  align-items: flex-start;
+}
+
+.chat-message-bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.chat-message-row.me .chat-message-bubble {
+  background: var(--accent);
+  color: var(--mantle);
+  border-bottom-right-radius: 4px;
+}
+
+.chat-message-row.other .chat-message-bubble {
+  background: var(--surface2);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-message-author {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+  opacity: 0.8;
+}
+
+.chat-message-time {
+  font-size: 0.7rem;
+  margin-top: 4px;
+  text-align: right;
+  opacity: 0.7;
+}
+
+.chat-popup-input {
+  display: flex;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface1);
+  gap: 8px;
+}
+
+.chat-popup-input input {
+  flex: 1;
+  background: var(--crust);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.chat-popup-input input:focus {
+  border-color: var(--accent);
+}
+
+.chat-popup-input button {
+  background: var(--accent);
+  color: var(--mantle);
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.chat-popup-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

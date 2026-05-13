@@ -1,0 +1,474 @@
+/* ─ Playback delay (sleep / delayed start) modal ─ */
+.playback-delay-modal {
+  max-height: min(85vh, 560px);
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+  animation: playback-delay-modal-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes playback-delay-modal-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);  }
+}
+
+/* Mood-tint: subtle gradient overlay behind content, differs per mode. */
+.playback-delay-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background: radial-gradient(
+    ellipse at top right,
+    color-mix(in srgb, var(--pd-accent, var(--accent)) 14%, transparent) 0%,
+    transparent 55%
+  );
+  z-index: 0;
+}
+
+/* Raise content above the ::before mood tint, but do NOT touch .modal-close
+   — it must keep its absolute top-right positioning. */
+.playback-delay-modal > *:not(.modal-close) { position: relative; z-index: 1; }
+
+/* Scoped polish for the close button in this modal: circular glass chip with
+   subtle hover lift + rotation. Does not touch the global .modal-close, so
+   other modals keep their existing look. */
+.playback-delay-modal > .modal-close {
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--text-muted);
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.playback-delay-modal > .modal-close:hover {
+  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 16%, transparent);
+  border-color: color-mix(in srgb, var(--pd-accent, var(--accent)) 40%, transparent);
+  color: var(--pd-accent, var(--accent));
+  transform: rotate(90deg);
+}
+
+.playback-delay-modal > .modal-close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pd-accent, var(--accent)) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.playback-delay-modal > .modal-close:active {
+  transform: rotate(90deg) scale(0.94);
+}
+
+.playback-delay-modal--pause { --pd-accent: var(--ctp-lavender, #b4befe); }
+.playback-delay-modal--start { --pd-accent: var(--ctp-peach, #fab387); }
+.playback-delay-modal--idle  { --pd-accent: var(--ctp-overlay1, #7f849c); }
+
+.playback-delay-modal__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 var(--space-4);
+  padding-right: 2rem;
+}
+
+.playback-delay-modal__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 18%, transparent);
+  color: var(--pd-accent, var(--accent));
+  flex-shrink: 0;
+}
+
+.playback-delay-modal__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.playback-delay-modal-overlay--anchored {
+  padding: 0;
+}
+
+.playback-transport-play-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+/* ── Preview-active state on the player bar ─────────────────────────
+   Combo of two cues so it's unmistakable that a preview is sounding:
+   1) accent top-border on the bar itself
+   2) tiny "Preview" pill above the title in the track-info cell */
+.player-bar.is-previewing {
+  box-shadow: inset 0 2px 0 0 var(--accent), 0 -1px 0 0 var(--bg-border);
+}
+
+.player-preview-label {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ctp-crust);
+  background: var(--accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-bottom: 3px;
+  line-height: 1.3;
+  user-select: none;
+}
+
+/* ── Preview-active state on the play button ────────────────────────
+   While a track preview is sounding, the player-bar play button mirrors
+   the inline preview button used in tracklists: hollow circle + chevron
+   icon + countdown ring. Click still resumes main playback (which the
+   Rust audio engine cancels the preview for, see audio.rs). */
+.player-btn-primary.is-previewing {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.player-btn-primary.is-previewing:hover {
+  background: var(--bg-hover, transparent);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.player-btn-preview-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: rotate(-90deg);
+  z-index: 1;
+}
+
+.player-btn-preview-ring-track {
+  fill: none;
+  stroke: var(--ctp-overlay0);
+  stroke-width: 4;
+}
+
+.player-btn-preview-ring-progress {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+
+/* Loading spinner — same logic as the tracklist ring above. The SVG uses
+   pathLength="100", so the circumference is normalised: 25 unit arc + 75
+   unit gap, with the offset rolling from 0 to -100. */
+.player-bar.is-previewing:not(.audio-started) .player-btn-preview-ring-progress {
+  stroke-dasharray: 25 75;
+  stroke-dashoffset: 0;
+  animation: player-preview-loading 1.1s linear infinite;
+  animation-delay: 150ms;
+}
+
+@keyframes player-preview-loading {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -100; }
+}
+
+/* Animation gated on the player-bar `audio-started` flag (set after the
+   engine emits `audio:preview-start`). Same rationale as the tracklist
+   preview ring above. */
+.player-bar.audio-started .player-btn-preview-ring-progress {
+  animation: player-preview-progress var(--preview-duration, 30s) linear forwards;
+}
+
+@keyframes player-preview-progress {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── Custom-minutes input with inline "min" suffix ──────────────────── */
+.playback-delay-custom__field {
+  position: relative;
+  flex: 1 1 100px;
+  min-width: 0;
+  display: flex;
+}
+
+.playback-delay-custom__field .playback-delay-custom__input {
+  flex: 1 1 auto;
+  padding-right: 2.4rem;
+}
+
+.playback-delay-custom__suffix {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  opacity: 0.7;
+  letter-spacing: 0.02em;
+}
+
+/* ── Live preview: "Pauses at 23:47" ────────────────────────────────── */
+.playback-delay-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: var(--space-3);
+  min-height: 1.35rem;
+  line-height: 1.35rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  transition: opacity 150ms ease;
+  white-space: nowrap;
+}
+
+.playback-delay-preview[data-empty="true"] { opacity: 0; }
+.playback-delay-preview[data-empty="false"] { opacity: 1; }
+
+.playback-delay-preview__label { letter-spacing: 0.01em; }
+
+.playback-delay-preview__time {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pd-accent, var(--accent));
+  letter-spacing: -0.01em;
+}
+
+/* ── Circular progress ring around play/pause ────────────────────────── */
+.playback-schedule-ring {
+  display: block;
+}
+
+.playback-schedule-ring__svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 42%, transparent));
+}
+
+.playback-schedule-ring__track {
+  stroke: color-mix(in srgb, var(--text-primary) 10%, transparent);
+}
+
+.playback-schedule-ring__fill {
+  transition: stroke-dashoffset 480ms linear;
+}
+
+/* Unified accent gradient for both modes — the Moon / Sunrise icon in the
+   button carries the mode distinction, so the ring stays consistent with
+   the rest of the app. */
+.playback-schedule-ring__grad-a { stop-color: var(--accent); }
+.playback-schedule-ring__grad-b { stop-color: var(--ctp-lavender, #b4befe); }
+
+/* Replaces the Play/Pause icon while a schedule timer is armed. Two-line
+   stack: mode icon (Moon for sleep, Sunrise for delayed-start) above the
+   countdown text. The mode icon + ring colour jointly signal which timer
+   is running. Three size variants mirror the three player views. */
+.player-btn-schedule-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  line-height: 1;
+}
+
+.player-btn-schedule-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  min-width: 2.2em;
+  text-align: center;
+  color: currentColor;
+}
+
+.player-btn-schedule-stack--fs      { gap: 3px; }
+.player-btn-schedule-time--fs       { font-size: 0.92rem; }
+.player-btn-schedule-stack--mobile  { gap: 3px; }
+.player-btn-schedule-time--mobile   { font-size: 1rem; }
+
+.playback-delay-section__head--tight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  min-height: 0;
+}
+
+.playback-delay-inline-cancel {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.playback-delay-chips--compact {
+  margin-bottom: var(--space-4);
+  gap: 5px;
+}
+
+.playback-delay-custom--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: 0;
+}
+
+.playback-delay-custom--inline .playback-delay-custom__input {
+  flex: 1 1 100px;
+  min-width: 0;
+}
+
+.playback-delay-idle {
+  margin-bottom: var(--space-2);
+}
+
+.playback-delay-idle .playback-delay-muted:first-child {
+  margin-top: 0;
+}
+
+.playback-delay-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--ctp-base) 40%, transparent);
+}
+
+.playback-delay-section--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.playback-delay-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.playback-delay-section__title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.playback-delay-section__countdown {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.playback-delay-muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.playback-delay-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+}
+
+.playback-delay-chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: var(--ctp-surface1);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 120ms ease,
+    box-shadow 150ms ease;
+}
+
+.playback-delay-chip:hover {
+  border-color: color-mix(in srgb, var(--pd-accent, var(--accent)) 55%, var(--border));
+  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 14%, var(--ctp-surface1));
+  color: var(--pd-accent, var(--accent));
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--pd-accent, var(--accent)) 22%, transparent);
+}
+
+.playback-delay-chip:active { transform: translateY(0); }
+
+.playback-delay-chip--on {
+  border-color: var(--pd-accent, var(--accent));
+  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 22%, var(--ctp-surface1));
+  color: var(--pd-accent, var(--accent));
+}
+
+.playback-delay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.playback-delay-custom__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+.playback-delay-custom__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.playback-delay-custom__input {
+  flex: 1 1 120px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  background: var(--ctp-base);
+  color: var(--text-primary);
+}
+
+.playback-delay-custom__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+

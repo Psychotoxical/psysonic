@@ -1,0 +1,23 @@
+/* ─ Artists page alphabet bar ─ */
+.artists-alpha-btn {
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.artists-alpha-btn:not(.artists-alpha-btn--active):hover {
+  background: var(--accent);
+  color: var(--ctp-crust);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.artists-alpha-btn--active {
+  background: var(--accent);
+  color: var(--ctp-crust);
+  border-color: var(--accent);
+}
+.alphabet-filter-btn.empty { opacity: 0.28; pointer-events: none; }
+

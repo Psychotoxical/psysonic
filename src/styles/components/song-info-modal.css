@@ -1,0 +1,86 @@
+/* ─ Song Info Modal ─ */
+.song-info-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9990;
+}
+.song-info-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9991;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  max-height: 80vh;
+  background: var(--bg-card, var(--bg-secondary));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.song-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.song-info-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+.song-info-close {
+  padding: 4px;
+  color: var(--text-muted);
+}
+.song-info-body {
+  overflow-y: auto;
+  padding: 12px 4px 16px;
+}
+.song-info-loading {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 24px;
+}
+.song-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.song-info-label {
+  color: var(--text-muted);
+  padding: 4px 16px 4px 16px;
+  white-space: nowrap;
+  vertical-align: top;
+  width: 140px;
+  font-size: 12px;
+}
+.song-info-value {
+  color: var(--text-primary);
+  padding: 4px 16px 4px 8px;
+  word-break: break-all;
+}
+/* Double-click copies; avoid browser selecting word on dblclick */
+.song-info-value--no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.song-info-divider {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.song-info-path {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+

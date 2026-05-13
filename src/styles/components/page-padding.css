@@ -1,0 +1,5 @@
+/* ─── Page padding ─── */
+.app-shell[data-mobile] .content-body {
+  padding: var(--space-4) !important;
+}
+

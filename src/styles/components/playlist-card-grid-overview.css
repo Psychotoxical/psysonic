@@ -1,0 +1,60 @@
+/* ─ Playlist Card (Grid Overview) ─ */
+.playlist-card-icon {
+  color: var(--accent);
+  opacity: 0.6;
+}
+
+/* Playlist card actions (edit/delete) — visible on hover */
+.playlist-card-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  z-index: 6;
+}
+
+.album-card:hover .playlist-card-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.playlist-card-action {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+.playlist-card-action--edit:hover {
+  background: rgba(90, 120, 255, 0.85);
+  color: #fff;
+}
+
+.playlist-card-action--delete:hover {
+  background: rgba(220, 60, 60, 0.85);
+  color: #fff;
+}
+
+.playlist-card-action--delete-confirm {
+  background: #dc3c3c !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45);
+  animation: delete-confirm-pulse 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes delete-confirm-pulse {
+  from { background: #dc3c3c; }
+  to   { background: #ff2222; }
+}
+

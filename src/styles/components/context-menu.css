@@ -1,0 +1,101 @@
+/* ─ Context Menu ─ */
+.context-menu {
+  position: fixed;
+  z-index: 10000;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) 0;
+  min-width: 200px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(16px);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.context-menu-item {
+  padding: var(--space-2) var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.context-menu-item:hover {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.context-menu-item.context-menu-keyboard-active,
+.context-menu-rating-row.context-menu-keyboard-active {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.context-menu-item.context-menu-keyboard-active {
+  box-shadow: inset 2px 0 0 var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.context-menu-rating-row.context-menu-keyboard-active {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-2));
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.context-menu-rating-row.context-menu-keyboard-active .context-menu-rating-icon {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-1) 0;
+}
+
+.context-menu-rating-row {
+  /* Match .context-menu-item padding so the row lines up with other entries */
+  padding: var(--space-2) var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+}
+
+.context-menu-rating-row .context-menu-rating-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  opacity: 0.95;
+}
+
+.context-menu-rating-row .context-menu-rating-icon svg {
+  display: block;
+}
+
+.context-menu-rating-row .star-rating {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  justify-content: flex-start;
+  align-items: center;
+  line-height: 1;
+}
+
+.context-menu-rating-row .star-rating .star {
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1em;
+  min-height: 1em;
+}
+

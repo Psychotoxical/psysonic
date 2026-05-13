@@ -1,0 +1,636 @@
+/* ─── Now Playing Page ─────────────────────────────────────── */
+.np-page {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  background:
+    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--accent) 10%, var(--bg-main)) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, color-mix(in srgb, var(--ctp-blue) 8%, var(--bg-main)) 0%, transparent 60%),
+    var(--bg-main);
+}
+
+/* Main scrollable content */
+.np-main {
+  flex: 1;
+  min-height: 0;
+}
+
+.np-main__viewport {
+  padding: 28px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Hero card: 3-column (cover+info | EQ | tag cloud) ── */
+.np-hero-card {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 28px;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+/* Left column: meta info, big text */
+.np-hero-left {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.np-hero-cover-wrap {
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.np-hero-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  justify-content: center;
+}
+
+/* Right column: tag cloud */
+.np-tag-cloud {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+}
+
+.np-tag-cloud-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  justify-content: flex-end;
+  align-items: center;
+  overflow: visible;
+}
+
+.np-tag-cloud-header {
+  width: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 10px;
+  text-align: right;
+}
+
+.np-tag {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.np-tag-accent {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+.np-tag-clickable {
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.np-tag-clickable:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: white;
+}
+
+/* ── Info cards (artist / album) ── */
+.np-info-card {
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.np-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.np-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255, 255, 255, 0.70);
+  margin: 0;
+}
+
+.np-card-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.np-card-link:hover { opacity: 0.75; }
+
+/* ── Artist bio ── */
+.np-artist-bio-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.np-artist-thumb {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.np-bio-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 1.5rem;
+}
+
+.np-bio-text {
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.72);
+  user-select: text;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.np-bio-text.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow-y: auto;
+  max-height: 300px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ctp-teal) transparent;
+}
+
+.np-bio-text.expanded::-webkit-scrollbar {
+  width: 4px;
+}
+
+.np-bio-text.expanded::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.np-bio-text.expanded::-webkit-scrollbar-thumb {
+  background: var(--ctp-teal);
+  border-radius: 2px;
+}
+
+.np-bio-text a { color: var(--accent); }
+
+.np-bio-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 0;
+  align-self: flex-start;
+  opacity: 0.8;
+}
+.np-bio-toggle:hover { opacity: 1; }
+
+.app-shell[data-mobile] .np-artist-bio-row {
+  flex-direction: column;
+}
+
+.app-shell[data-mobile] .np-artist-thumb {
+  width: 56px;
+  height: 56px;
+}
+
+.app-shell[data-mobile] .np-bio-wrap {
+  padding-right: 0;
+}
+
+/* ── Album tracklist ── */
+.np-album-tracklist {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.np-album-track {
+  display: grid;
+  grid-template-columns: 28px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.np-album-track:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.np-album-track.active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.np-album-track-num {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.np-album-track.active .np-album-track-num {
+  color: var(--accent);
+}
+
+.np-album-track-title {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.80);
+}
+.np-album-track.active .np-album-track-title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.np-album-track-dur {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── Queue Sidebar ── */
+.np-queue-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  position: relative;
+  z-index: 1;
+}
+
+.np-qs-header {
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.np-qs-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+}
+
+.np-qs-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.40);
+  margin-top: 2px;
+}
+
+.np-qs-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.np-qs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.np-qs-item {
+  display: grid;
+  grid-template-columns: 26px 1fr 36px 22px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.np-qs-item:hover,
+.np-qs-item.context-active {
+  background: rgba(255, 255, 255, 0.06);
+}
+.np-qs-item.active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.np-qs-num {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.30);
+  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.np-qs-info {
+  min-width: 0;
+}
+
+.np-qs-track-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.80);
+  line-height: 1.3;
+}
+.np-qs-track-title.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.np-qs-track-artist {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 1px;
+}
+
+.np-qs-dur {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.30);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── Shared np- classes (kept) ── */
+/* Hero (old, kept for NpBg) */
+.np-hero {
+  position: relative;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+
+.np-hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  padding: 28px 56px 32px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Cover */
+.np-cover-wrap {
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.np-cover {
+  position: relative;
+  z-index: 1;
+  width: 280px;
+  height: 280px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.np-cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+/* Info column (legacy, kept for compat) */
+.np-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: white;
+  max-width: 600px;
+}
+
+.np-title {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: white;
+}
+
+.np-artist-album {
+  font-size: 19px;
+  color: rgba(255, 255, 255, 0.75);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px;
+  align-items: center;
+}
+
+.np-link:hover {
+  color: white;
+  text-decoration: underline;
+}
+
+.np-sep {
+  opacity: 0.4;
+}
+
+.np-tech-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.np-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+}
+
+.np-star-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  color: white;
+  transition: transform 0.15s;
+}
+
+.np-star-btn:hover {
+  transform: scale(1.2);
+}
+
+/* Progress */
+.np-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.np-waveform {
+  flex: 1;
+}
+
+.np-time {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 36px;
+}
+
+/* Controls */
+.np-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.np-ctrl-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.75);
+  display: flex;
+  align-items: center;
+  padding: 6px;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+
+.np-ctrl-btn:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.np-ctrl-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.np-ctrl-btn.np-ctrl-active {
+  color: var(--accent);
+}
+
+.np-ctrl-lg {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.np-ctrl-play {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: white;
+  color: var(--bg-app);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.np-ctrl-play:hover {
+  transform: scale(1.07);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Volume */
+.np-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.np-volume-slider {
+  width: 120px;
+  accent-color: white;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.np-volume-slider:hover {
+  opacity: 1;
+}
+
+.np-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 40px 0;
+}
+

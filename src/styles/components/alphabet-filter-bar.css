@@ -1,0 +1,23 @@
+/* ─ Alphabet Filter Bar ─ */
+.alphabet-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+.alphabet-filter-btn {
+  min-width: 26px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.alphabet-filter-btn:hover { background: var(--bg-hover); }
+.alphabet-filter-btn.active { background: var(--accent); color: var(--ctp-crust); }
+

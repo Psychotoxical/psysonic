@@ -1,0 +1,110 @@
+/* ─ Lucky Mix pips (shared by the inline queue-lucky-cube indicator) ─ */
+.lucky-mix-pip {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.lucky-mix-pip--tl { top: 16px; left: 16px; }
+.lucky-mix-pip--tr { top: 16px; right: 16px; }
+.lucky-mix-pip--bl { bottom: 16px; left: 16px; }
+.lucky-mix-pip--br { bottom: 16px; right: 16px; }
+.lucky-mix-pip--center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.queue-lucky-loading {
+  margin: 2px 10px 4px;
+  display: flex;
+  justify-content: center;
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  width: calc(100% - 20px);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.queue-lucky-loading:hover {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+}
+.queue-lucky-loading:hover .queue-lucky-cube {
+  opacity: 0.55;
+}
+
+.queue-lucky-loading__dice {
+  position: relative;
+  width: 56px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+.queue-lucky-cube {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, #fff 65%, var(--accent) 35%);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--accent) 66%, #fff 34%) 0%,
+    color-mix(in srgb, var(--accent) 84%, #000 16%) 100%
+  );
+  box-shadow:
+    0 4px 9px rgba(0, 0, 0, 0.28),
+    inset -2px -3px 5px rgba(0, 0, 0, 0.18),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.18);
+}
+
+.queue-lucky-cube .lucky-mix-pip {
+  width: 3px;
+  height: 3px;
+}
+
+.queue-lucky-cube .lucky-mix-pip--tl { top: 4px; left: 4px; }
+.queue-lucky-cube .lucky-mix-pip--tr { top: 4px; right: 4px; }
+.queue-lucky-cube .lucky-mix-pip--bl { bottom: 4px; left: 4px; }
+.queue-lucky-cube .lucky-mix-pip--br { bottom: 4px; right: 4px; }
+
+.queue-lucky-cube--a {
+  left: 0;
+  top: 11px;
+  animation: queueLuckyCubeA 760ms ease-in-out infinite;
+}
+
+.queue-lucky-cube--b {
+  left: 18px;
+  top: 3px;
+  animation: queueLuckyCubeB 690ms ease-in-out infinite;
+}
+
+.queue-lucky-cube--c {
+  left: 36px;
+  top: 11px;
+  animation: queueLuckyCubeC 830ms ease-in-out infinite;
+}
+
+@keyframes queueLuckyCubeA {
+  0% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(-10deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+@keyframes queueLuckyCubeB {
+  0% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(10deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+@keyframes queueLuckyCubeC {
+  0% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(12deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+

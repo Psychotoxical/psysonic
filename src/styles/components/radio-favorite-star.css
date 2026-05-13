@@ -1,0 +1,5 @@
+/* ─ Radio favorite star ─ */
+.radio-favorite-btn { color: rgba(255, 255, 255, 0.35); }
+.radio-favorite-btn:hover { color: rgba(255, 255, 255, 0.8); }
+.radio-favorite-btn.active { color: var(--accent); }
+

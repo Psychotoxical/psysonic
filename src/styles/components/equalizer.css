@@ -1,0 +1,36 @@
+/* ─ Equalizer ─ */
+.eq-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 660px;
+}
+
+.eq-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.eq-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.eq-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eq-preset-select {
+  padding: 5px 10px;
+  font-size: 12px;
+  min-width: 140px;
+}
+
