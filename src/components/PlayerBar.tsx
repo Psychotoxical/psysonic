@@ -603,6 +603,7 @@ export default function PlayerBar() {
         </div>
       ) : (
         <>
+          {/* EQ Button */}
           {showBarEqualizer && (
             <button
               className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}
@@ -614,6 +615,7 @@ export default function PlayerBar() {
             </button>
           )}
 
+          {/* Mini Player */}
           {showBarMiniPlayer && (
             <button
               className="player-btn player-btn-sm"
@@ -677,6 +679,7 @@ export default function PlayerBar() {
         >
           {utilityMenuMode === 'full' && (showBarEqualizer || showBarMiniPlayer) && (
             <div className="player-overflow-menu-row">
+              {/* EQ Button */}
               {showBarEqualizer && (
                 <button
                   className={`player-overflow-menu-btn${eqOpen ? ' active' : ''}`}
@@ -689,6 +692,7 @@ export default function PlayerBar() {
                   {t('player.equalizer')}
                 </button>
               )}
+              {/* Mini Player */}
               {showBarMiniPlayer && (
                 <button
                   className="player-overflow-menu-btn"
