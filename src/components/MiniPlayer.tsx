@@ -1,10 +1,8 @@
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
-import { ListMusic, Volume2, VolumeX, Shuffle, Infinity as InfinityIcon, Waves, MoveRight } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';
@@ -22,6 +20,8 @@ import {
 import { MiniTitlebar } from './miniPlayer/MiniTitlebar';
 import { MiniMeta } from './miniPlayer/MiniMeta';
 import { MiniControls } from './miniPlayer/MiniControls';
+import { MiniToolbar } from './miniPlayer/MiniToolbar';
+import { useMiniVolumePopover } from '../hooks/useMiniVolumePopover';
 
 interface ProgressPayload {
   current_time: number;
@@ -39,7 +39,6 @@ export default function MiniPlayer() {
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [queueOpen, setQueueOpen] = useState(readQueueOpen);
   const [volume, setVolumeState] = useState(() => initialSnapshot().volume);
-  const [volumeOpen, setVolumeOpen] = useState(false);
   const ticker = useRef<number | null>(null);
   const queueScrollRef = useRef<HTMLDivElement>(null);
   const miniQueueWrapRef = useRef<HTMLDivElement>(null);
@@ -54,9 +53,7 @@ export default function MiniPlayer() {
     };
     return registerQueueDragHitTest(hitTest);
   }, [queueOpen]);
-  const volumeBtnRef = useRef<HTMLButtonElement>(null);
-  const volumePopRef = useRef<HTMLDivElement>(null);
-  const [volumePopStyle, setVolumePopStyle] = useState<React.CSSProperties>({});
+  const { volumeOpen, setVolumeOpen, volumePopStyle, volumeBtnRef, volumePopRef } = useMiniVolumePopover();
   const hiddenRef = useRef(false);
   const isHidden = useWindowVisibility();
   useEffect(() => { hiddenRef.current = isHidden; }, [isHidden]);
@@ -228,70 +225,6 @@ export default function MiniPlayer() {
     handleVolumeChange(volume === 0 ? 1 : 0);
   };
 
-  // Position the portaled volume popover relative to its trigger button.
-  // Auto-flip above when there is not enough room below (mini window is short).
-  const updateVolumePopStyle = () => {
-    if (!volumeBtnRef.current) return;
-    const rect = volumeBtnRef.current.getBoundingClientRect();
-    const MARGIN = 6;
-    const POP_W = 40;
-    const POP_H = 150;
-    const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
-    const spaceAbove = rect.top - MARGIN;
-    const useAbove = spaceBelow < POP_H && spaceAbove > spaceBelow;
-    const left = Math.min(
-      Math.max(rect.left + rect.width / 2 - POP_W / 2, 6),
-      window.innerWidth - POP_W - 6,
-    );
-    setVolumePopStyle({
-      position: 'fixed',
-      left,
-      width: POP_W,
-      ...(useAbove
-        ? { bottom: window.innerHeight - rect.top + MARGIN }
-        : { top: rect.bottom + MARGIN }),
-      zIndex: 99998,
-    });
-  };
-
-  useLayoutEffect(() => {
-    if (!volumeOpen) return;
-    updateVolumePopStyle();
-  }, [volumeOpen]);
-
-  useEffect(() => {
-    if (!volumeOpen) return;
-    const onReposition = () => updateVolumePopStyle();
-    window.addEventListener('resize', onReposition);
-    window.addEventListener('scroll', onReposition, true);
-    return () => {
-      window.removeEventListener('resize', onReposition);
-      window.removeEventListener('scroll', onReposition, true);
-    };
-  }, [volumeOpen]);
-
-  // Close the volume popover on outside click / Escape. The popover is now
-  // portaled, so check both the trigger button and the popover ref.
-  useEffect(() => {
-    if (!volumeOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        !volumeBtnRef.current?.contains(target) &&
-        !volumePopRef.current?.contains(target)
-      ) setVolumeOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setVolumeOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [volumeOpen]);
-
   const toggleOnTop = async () => {
     const next = !alwaysOnTop;
     setAlwaysOnTop(next);
@@ -432,126 +365,20 @@ export default function MiniPlayer() {
       <div className={`mini-player${queueOpen ? ' mini-player--queue-open' : ''}`}>
         <MiniMeta track={track} miniCoverSrc={miniCoverSrc} miniCoverKey={miniCoverKey} />
 
-        <div className="mini-player__toolbar" data-tauri-drag-region="false">
-          <div className="mini-player__volume-wrap">
-            <button
-              ref={volumeBtnRef}
-              type="button"
-              className={`mini-player__tool${volumeOpen ? ' mini-player__tool--active' : ''}`}
-              onClick={() => setVolumeOpen(v => !v)}
-              onContextMenu={(e) => { e.preventDefault(); toggleMute(); }}
-              data-tauri-drag-region="false"
-              data-tooltip={volume === 0 ? t('player.volume') : `${t('player.volume')} ${Math.round(volume * 100)}%`}
-              aria-label={t('player.volume')}
-            >
-              {volume === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}
-            </button>
-            {volumeOpen && createPortal(
-              <div
-                ref={volumePopRef}
-                className="mini-player__volume-popover"
-                style={volumePopStyle}
-                data-tauri-drag-region="false"
-              >
-                <span className="mini-player__volume-pct">{Math.round(volume * 100)}%</span>
-                <div
-                  className="mini-player__volume-bar"
-                  role="slider"
-                  aria-label={t('player.volume')}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(volume * 100)}
-                  onMouseDown={(e) => {
-                    const target = e.currentTarget;
-                    const setFromY = (clientY: number) => {
-                      const rect = target.getBoundingClientRect();
-                      const ratio = 1 - (clientY - rect.top) / rect.height;
-                      handleVolumeChange(ratio);
-                    };
-                    setFromY(e.clientY);
-                    const onMove = (me: MouseEvent) => setFromY(me.clientY);
-                    const onUp = () => {
-                      document.removeEventListener('mousemove', onMove);
-                      document.removeEventListener('mouseup', onUp);
-                    };
-                    document.addEventListener('mousemove', onMove);
-                    document.addEventListener('mouseup', onUp);
-                  }}
-                  onWheel={(e) => {
-                    e.preventDefault();
-                    handleVolumeChange(volume + (e.deltaY > 0 ? -0.05 : 0.05));
-                  }}
-                >
-                  <div
-                    className="mini-player__volume-bar-fill"
-                    style={{ height: `${Math.round(volume * 100)}%` }}
-                  />
-                </div>
-              </div>,
-              document.body,
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="mini-player__tool"
-            onClick={() => emit('mini:shuffle').catch(() => {})}
-            disabled={state.queue.length < 2}
-            data-tauri-drag-region="false"
-            data-tooltip={t('queue.shuffle')}
-            aria-label={t('queue.shuffle')}
-          >
-            <Shuffle size={13} />
-          </button>
-
-          <span className="mini-player__toolbar-sep" aria-hidden />
-
-          <button
-            type="button"
-            className={`mini-player__tool${state.gaplessEnabled ? ' mini-player__tool--active' : ''}`}
-            onClick={() => emit('mini:set-gapless', { value: !state.gaplessEnabled }).catch(() => {})}
-            data-tauri-drag-region="false"
-            data-tooltip={t('queue.gapless')}
-            aria-label={t('queue.gapless')}
-          >
-            <MoveRight size={13} />
-          </button>
-
-          <button
-            type="button"
-            className={`mini-player__tool${state.crossfadeEnabled ? ' mini-player__tool--active' : ''}`}
-            onClick={() => emit('mini:set-crossfade', { value: !state.crossfadeEnabled }).catch(() => {})}
-            data-tauri-drag-region="false"
-            data-tooltip={t('queue.crossfade')}
-            aria-label={t('queue.crossfade')}
-          >
-            <Waves size={13} />
-          </button>
-
-          <button
-            type="button"
-            className={`mini-player__tool${state.infiniteQueueEnabled ? ' mini-player__tool--active' : ''}`}
-            onClick={() => emit('mini:set-infinite-queue', { value: !state.infiniteQueueEnabled }).catch(() => {})}
-            data-tauri-drag-region="false"
-            data-tooltip={t('queue.infiniteQueue')}
-            aria-label={t('queue.infiniteQueue')}
-          >
-            <InfinityIcon size={13} />
-          </button>
-
-          <span className="mini-player__toolbar-sep" aria-hidden />
-
-          <button
-            type="button"
-            className={`mini-player__tool${queueOpen ? ' mini-player__tool--active' : ''}`}
-            onClick={toggleQueue}
-            data-tauri-drag-region="false"
-            data-tooltip={queueOpen ? t('miniPlayer.hideQueue') : t('miniPlayer.showQueue')}
-            aria-label={queueOpen ? t('miniPlayer.hideQueue') : t('miniPlayer.showQueue')}
-          >
-            <ListMusic size={13} />
-          </button>
-        </div>
+        <MiniToolbar
+          state={state}
+          volume={volume}
+          volumeOpen={volumeOpen}
+          setVolumeOpen={setVolumeOpen}
+          volumeBtnRef={volumeBtnRef}
+          volumePopRef={volumePopRef}
+          volumePopStyle={volumePopStyle}
+          handleVolumeChange={handleVolumeChange}
+          toggleMute={toggleMute}
+          queueOpen={queueOpen}
+          toggleQueue={toggleQueue}
+          t={t}
+        />
 
         {queueOpen && (
         <OverlayScrollArea
