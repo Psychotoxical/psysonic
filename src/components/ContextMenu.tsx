@@ -45,6 +45,7 @@ import {
   startInstantMix as startInstantMixAction,
   startRadio as startRadioAction,
 } from '../utils/contextMenuActions';
+import { useContextMenuKeyboardNav } from '../hooks/useContextMenuKeyboardNav';
 
 export { AddToPlaylistSubmenu };
 
@@ -128,87 +129,6 @@ export default function ContextMenu() {
     }
   }, [contextMenu.isOpen, closeContextMenu]);
 
-  const getMenuNavItems = useCallback(
-    (scope: 'main' | 'submenu' = 'main') => {
-      if (!menuRef.current) return [];
-      if (scope === 'submenu') {
-        const sub = menuRef.current.querySelector<HTMLElement>('.context-submenu');
-        if (!sub || sub.offsetParent === null) return [];
-        return Array.from(
-          sub.querySelectorAll<HTMLElement>('.context-menu-item, .context-submenu-create-btn'),
-        ).filter(el => el.offsetParent !== null);
-      }
-      return Array.from(menuRef.current.children)
-        .filter((el): el is HTMLElement =>
-          el instanceof HTMLElement &&
-          (el.classList.contains('context-menu-item') || el.classList.contains('context-menu-rating-row')) &&
-          el.offsetParent !== null,
-        );
-    },
-    [],
-  );
-
-  const focusMenuItemAt = useCallback((scope: 'main' | 'submenu', index: number) => {
-    const items = getMenuNavItems(scope);
-    if (items.length === 0) return;
-    menuRef.current
-      ?.querySelectorAll<HTMLElement>('.context-menu-keyboard-active')
-      .forEach(el => el.classList.remove('context-menu-keyboard-active'));
-    const safeIdx = ((index % items.length) + items.length) % items.length;
-    const target = items[safeIdx];
-    target.classList.add('context-menu-keyboard-active');
-    target.tabIndex = -1;
-    target.focus({ preventScroll: true });
-    target.scrollIntoView({ block: 'nearest' });
-  }, [getMenuNavItems]);
-
-  useEffect(() => {
-    if (!contextMenu.isOpen) return;
-    requestAnimationFrame(() => {
-      menuRef.current?.focus({ preventScroll: true });
-      // Do not pre-highlight any menu row; keyboard outline appears only
-      // after explicit arrow navigation.
-    });
-  }, [contextMenu.isOpen]);
-
-  // Outside-click closes the menu without occluding the underlying UI. The
-  // previous implementation rendered a transparent fullscreen backdrop, which
-  // also blocked right-clicks from reaching elements *under* it — so users
-  // couldn't reposition the menu by right-clicking another row.
-  useEffect(() => {
-    if (!contextMenu.isOpen) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (menuRef.current?.contains(target)) return;
-      closeContextMenu();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [contextMenu.isOpen, closeContextMenu]);
-
-  useEffect(() => {
-    if (!pendingSubmenuKeyboardFocus || !playlistSubmenuOpen) return;
-    let cancelled = false;
-    const tryFocus = (attemptsLeft: number) => {
-      if (cancelled) return;
-      const items = getMenuNavItems('submenu');
-      if (items.length > 0) {
-        focusMenuItemAt('submenu', 0);
-        setPendingSubmenuKeyboardFocus(false);
-        return;
-      }
-      if (attemptsLeft <= 0) {
-        setPendingSubmenuKeyboardFocus(false);
-        return;
-      }
-      requestAnimationFrame(() => tryFocus(attemptsLeft - 1));
-    };
-    requestAnimationFrame(() => tryFocus(8));
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingSubmenuKeyboardFocus, playlistSubmenuOpen, getMenuNavItems, focusMenuItemAt]);
 
   const { type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride } = contextMenu;
 
@@ -308,97 +228,20 @@ export default function ContextMenu() {
     }
   }, [applySongRating, applyAlbumRating, applyArtistRating, type, item]);
 
-  const onMenuKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    const active = document.activeElement as HTMLElement | null;
-    const ratingRow = active?.closest('.context-menu-rating-row') as HTMLElement | null;
-
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      closeContextMenu();
-      return;
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (ratingRow) {
-        const kind = ratingRow.dataset.ratingKind as ('song' | 'album' | 'artist' | undefined);
-        const id = ratingRow.dataset.ratingId;
-        if (!kind || !id) return;
-        if (ratingRow.dataset.ratingDisabled === 'true') return;
-        const value = keyboardRating && keyboardRating.kind === kind && keyboardRating.id === id
-          ? keyboardRating.value
-          : getRatingValueByKind(kind, id);
-        commitRatingByKind(kind, id, value);
-        setKeyboardRating({ kind, id, value });
-        return;
-      }
-      active?.click();
-      return;
-    }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      if (ratingRow) {
-        const kind = ratingRow.dataset.ratingKind as ('song' | 'album' | 'artist' | undefined);
-        const id = ratingRow.dataset.ratingId;
-        if (!kind || !id) return;
-        if (ratingRow.dataset.ratingDisabled === 'true') return;
-        e.preventDefault();
-        e.stopPropagation();
-        const currentValue = keyboardRating && keyboardRating.kind === kind && keyboardRating.id === id
-          ? keyboardRating.value
-          : getRatingValueByKind(kind, id);
-        const delta = e.key === 'ArrowRight' ? 1 : -1;
-        const nextValue = Math.max(0, Math.min(5, currentValue + delta));
-        setKeyboardRating({ kind, id, value: nextValue });
-        return;
-      }
-    }
-    if (e.key === 'ArrowRight') {
-      const trigger = active?.closest('.context-menu-item--submenu') as HTMLElement | null;
-      const triggerId = trigger?.dataset.playlistTriggerId;
-      if (!trigger || !triggerId) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setPlaylistSongIds([triggerId]);
-      setPlaylistSubmenuOpen(true);
-      setPendingSubmenuKeyboardFocus(true);
-      return;
-    }
-    if (e.key === 'ArrowLeft') {
-      const sub = active?.closest('.context-submenu') as HTMLElement | null;
-      if (!sub) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const triggerId = sub.dataset.parentTriggerId;
-      setPlaylistSubmenuOpen(false);
-      requestAnimationFrame(() => {
-        const trigger = triggerId
-          ? Array.from(menuRef.current?.querySelectorAll<HTMLElement>('.context-menu-item--submenu') ?? [])
-              .find(el => el.dataset.playlistTriggerId === triggerId) ?? null
-          : null;
-        if (trigger) {
-          menuRef.current
-            ?.querySelectorAll<HTMLElement>('.context-menu-keyboard-active')
-            .forEach(el => el.classList.remove('context-menu-keyboard-active'));
-          trigger.classList.add('context-menu-keyboard-active');
-          trigger.focus({ preventScroll: true });
-        }
-      });
-      return;
-    }
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    e.preventDefault();
-    e.stopPropagation();
-    const scope: 'main' | 'submenu' = active?.closest('.context-submenu') ? 'submenu' : 'main';
-    const items = getMenuNavItems(scope);
-    if (items.length === 0) return;
-    const activeIdx = items.findIndex(el => el === document.activeElement);
-    const nextIdx =
-      activeIdx >= 0
-        ? (e.key === 'ArrowDown' ? activeIdx + 1 : activeIdx - 1)
-        : (e.key === 'ArrowDown' ? 0 : items.length - 1);
-    focusMenuItemAt(scope, nextIdx);
-  }, [closeContextMenu, keyboardRating, getRatingValueByKind, commitRatingByKind, getMenuNavItems, focusMenuItemAt]);
+  const { onMenuKeyDown } = useContextMenuKeyboardNav({
+    menuRef,
+    isOpen: contextMenu.isOpen,
+    closeContextMenu,
+    keyboardRating,
+    setKeyboardRating,
+    getRatingValueByKind,
+    commitRatingByKind,
+    playlistSubmenuOpen,
+    setPlaylistSubmenuOpen,
+    setPlaylistSongIds,
+    pendingSubmenuKeyboardFocus,
+    setPendingSubmenuKeyboardFocus,
+  });
 
   const handleAction = async (action: () => void | Promise<void>) => {
     closeContextMenu();
