@@ -1,17 +1,16 @@
 import type { SubsonicSong } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTracklistColumns } from '../utils/useTracklistColumns';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
-import { useDragDrop } from '../contexts/DragDropContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useSelectionStore } from '../store/selectionStore';
 import {
   COLUMNS,
   type SortKey,
 } from '../utils/albumTrackListHelpers';
+import { useAlbumTrackListSelection } from '../hooks/useAlbumTrackListSelection';
 import { TrackRow } from './albumTrackList/TrackRow';
 import { AlbumTrackListMobile } from './albumTrackList/AlbumTrackListMobile';
 import { TracklistColumnPicker } from './albumTrackList/TracklistColumnPicker';
@@ -63,86 +62,20 @@ export default function AlbumTrackList({
   const isMobile = useIsMobile();
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const contextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
-  const psyDrag = useDragDrop();
 
-  // Selection state lives in selectionStore — only the toggled row re-renders (O(1)).
-  const selectedCount = useSelectionStore(s => s.selectedIds.size);
-  const inSelectMode = selectedCount > 0;
-  const allSelected = selectedCount === songs.length && songs.length > 0;
-  const lastSelectedIdxRef = useRef<number | null>(null);
-
-  // ── Column state ──────────────────────────────────────────────────────────
   const {
     colVisible, visibleCols, gridStyle,
     startResize, toggleColumn, resetColumns,
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   } = useTracklistColumns(COLUMNS, 'psysonic_tracklist_columns');
 
-  // Clear selection when the song list changes (different album / filter applied).
-  useEffect(() => {
-    useSelectionStore.getState().clearAll();
-    lastSelectedIdxRef.current = null;
-  }, [songs]);
+  const {
+    inSelectMode, allSelected, onToggleSelect, onDragStart, toggleAll,
+  } = useAlbumTrackListSelection({ songs, tracklistRef });
 
   useEffect(() => {
     if (!contextMenuOpen) setContextMenuSongId(null);
   }, [contextMenuOpen]);
-
-  // Clear selection on click outside the tracklist (header, album art, etc.)
-  useEffect(() => {
-    if (!inSelectMode) return;
-    const handler = (e: MouseEvent) => {
-      if (tracklistRef.current && !tracklistRef.current.contains(e.target as Node)) {
-        useSelectionStore.getState().clearAll();
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [inSelectMode, tracklistRef]);
-
-  // ── Stable callbacks passed to memoised TrackRow ──────────────────────────
-
-  const onToggleSelect = useCallback((id: string, globalIdx: number, shift: boolean) => {
-    useSelectionStore.getState().setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (shift && lastSelectedIdxRef.current !== null) {
-        const from = Math.min(lastSelectedIdxRef.current, globalIdx);
-        const to   = Math.max(lastSelectedIdxRef.current, globalIdx);
-        songs.slice(from, to + 1).forEach(s => next.add(s.id));
-      } else {
-        next.has(id) ? next.delete(id) : next.add(id);
-      }
-      lastSelectedIdxRef.current = globalIdx;
-      return next;
-    });
-  }, [songs]);
-
-  // Drag: if the dragged song is part of the selection, drag all selected songs.
-  const onDragStart = useCallback((song: SubsonicSong, me: MouseEvent) => {
-    const { selectedIds } = useSelectionStore.getState();
-    if (selectedIds.has(song.id) && selectedIds.size > 1) {
-      const tracks = songs
-        .filter(s => selectedIds.has(s.id))
-        .map(s => songToTrack(s));
-      psyDrag.startDrag(
-        { data: JSON.stringify({ type: 'songs', tracks }), label: `${tracks.length} Songs` },
-        me.clientX, me.clientY,
-      );
-    } else {
-      psyDrag.startDrag(
-        { data: JSON.stringify({ type: 'song', track: songToTrack(song) }), label: song.title },
-        me.clientX, me.clientY,
-      );
-    }
-  }, [songs, psyDrag]);
-
-  const toggleAll = useCallback(() => {
-    if (allSelected) {
-      useSelectionStore.getState().clearAll();
-    } else {
-      useSelectionStore.getState().setSelectedIds(() => new Set(songs.map(s => s.id)));
-    }
-  }, [allSelected, songs]);
 
   // ── Disc grouping ─────────────────────────────────────────────────────────
   const discs = new Map<number, SubsonicSong[]>();
