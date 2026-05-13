@@ -1,6 +1,6 @@
 import { getArtists } from '../api/subsonicArtists';
 import type { SubsonicArtist } from '../api/subsonicTypes';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Images, CheckSquare2, Check } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';
@@ -20,6 +20,7 @@ import {
 } from '../utils/artistsHelpers';
 import { ArtistCardAvatar, ArtistRowAvatar } from '../components/artists/ArtistAvatars';
 import { useArtistsFiltering } from '../hooks/useArtistsFiltering';
+import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
@@ -33,9 +34,14 @@ export default function Artists() {
 
   const showArtistImages = useAuthStore(s => s.showArtistImages);
   const PAGE_SIZE = showArtistImages ? 50 : 100; // Smaller with images to reduce I/O
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const observerTarget = useRef<HTMLDivElement>(null);
+  const {
+    visibleCount,
+    loadingMore,
+    observerTarget,
+  } = useArtistsInfiniteScroll({
+    pageSize: PAGE_SIZE,
+    resetDeps: [filter, letterFilter, starredOnly, viewMode],
+  });
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
@@ -69,31 +75,9 @@ export default function Artists() {
     getArtists().then(data => { setArtists(data); setLoading(false); }).catch(() => setLoading(false));
   }, [musicLibraryFilterVersion]);
 
-  const loadMore = useCallback(() => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    setVisibleCount(prev => prev + PAGE_SIZE);
-    setTimeout(() => setLoadingMore(false), 100);
-  }, [loadingMore, PAGE_SIZE]);
-
-  // Reset infinite scroll when filters or image setting change
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [filter, letterFilter, starredOnly, viewMode, PAGE_SIZE]);
-
   const {
     filtered, visible, hasMore, groups, letters, artistListFlatRows,
   } = useArtistsFiltering({ artists, filter, letterFilter, starredOnly, visibleCount, viewMode });
-
-  // Intersection Observer for infinite scroll (after hasMore declaration)
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => { if (entries[0].isIntersecting) loadMore(); },
-      { rootMargin: '200px' }
-    );
-    if (observerTarget.current) observer.observe(observerTarget.current);
-    return () => observer.disconnect();
-  }, [loadMore, hasMore]);
 
   const mainScrollViewportHeight = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
   /** Mixed row heights; smallest typical step ≈ artist row — one viewport of extra indices each side. */
