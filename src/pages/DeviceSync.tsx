@@ -1,7 +1,7 @@
-import { getPlaylists, getPlaylist } from '../api/subsonicPlaylists';
+import { getPlaylists } from '../api/subsonicPlaylists';
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getArtists, getArtist } from '../api/subsonicArtists';
-import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
+import { getAlbumList } from '../api/subsonicLibrary';
 import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist, SubsonicArtist } from '../api/subsonicTypes';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -20,105 +20,13 @@ import { search as searchSubsonic } from '../api/subsonicSearch';
 import { showToast } from '../utils/toast';
 import { IS_WINDOWS } from '../utils/platform';
 
-type SourceTab = 'playlists' | 'albums' | 'artists';
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-function uuid(): string { return crypto.randomUUID(); }
-
-// Same sanitize rules the Rust side uses (`sanitize_path_component`): strip
-// Windows-illegal chars and control chars, trim leading/trailing dots + spaces.
-// Kept in JS only for the migration flow — computes the *old* path under a
-// user-supplied template so we can diff against the current files on disk.
-function sanitizeComponent(s: string): string {
-  // eslint-disable-next-line no-control-regex
-  return s.replace(/[/\\:*?"<>|\x00-\x1f\x7f]/g, '_').replace(/^[. ]+|[. ]+$/g, '');
-}
-
-interface OldTemplateTrack {
-  artist: string;
-  album: string;
-  title: string;
-  trackNumber?: number;
-  discNumber?: number;
-  year?: number;
-  suffix: string;
-}
-
-/** Renders a track's path under a legacy (user-configurable) template. Used only
- *  for the migration preview — the live sync flow goes through Rust's fixed
- *  `build_track_path`. */
-function applyLegacyTemplate(template: string, track: OldTemplateTrack): string {
-  const relative = template
-    .replace(/\{artist\}/g,       sanitizeComponent(track.artist))
-    .replace(/\{album\}/g,        sanitizeComponent(track.album))
-    .replace(/\{title\}/g,        sanitizeComponent(track.title))
-    .replace(/\{track_number\}/g, track.trackNumber != null ? String(track.trackNumber).padStart(2, '0') : '')
-    .replace(/\{disc_number\}/g,  track.discNumber != null ? String(track.discNumber) : '')
-    .replace(/\{year\}/g,         track.year != null ? String(track.year) : '');
-  const withExt = `${relative}.${track.suffix}`;
-  return IS_WINDOWS ? withExt.replace(/\//g, '\\') : withExt;
-}
-
-async function fetchTracksForSource(source: DeviceSyncSource): Promise<SubsonicSong[]> {
-  if (source.type === 'playlist') { const { songs } = await getPlaylist(source.id); return songs; }
-  if (source.type === 'album')    { const { songs } = await getAlbum(source.id);    return songs; }
-  const { albums } = await getArtist(source.id);
-  // Parallel album fetches — Navidrome handles getAlbum requests in flight
-  // without serialising. Sequential awaits here multiplied a 50-album artist
-  // sync into 50 round-trips (~7 s blocking) before any device write started.
-  const results = await Promise.all(
-    albums.map(a => getAlbum(a.id).then(r => r.songs).catch(() => [] as SubsonicSong[])),
-  );
-  return results.flat();
-}
-
-/** Tracks that came from `calculate_sync_payload` may carry embedded playlist
- *  context so the follow-up `sync_batch_to_device` call knows to place them
- *  under `Playlists/{Name}/` instead of the album tree. */
-type SyncTrackMaybePlaylist = SubsonicSong & { _playlistName?: string; _playlistIndex?: number };
-
-function trackToSyncInfo(
-  track: SyncTrackMaybePlaylist,
-  url: string,
-  playlistCtx?: { name: string; index: number },
-) {
-  // Fall back to track artist when the file has no albumArtist tag — not every
-  // library is tagged with it. Treat empty strings as missing (some Subsonic
-  // servers return "" rather than omitting the field).
-  const albumArtist = (track.albumArtist?.trim() || track.artist?.trim() || '');
-  return {
-    id: track.id, url,
-    suffix: track.suffix ?? 'mp3',
-    artist: track.artist ?? '',
-    albumArtist,
-    album: track.album ?? '',
-    title: track.title ?? '',
-    trackNumber: track.track,
-    duration: track.duration,
-    playlistName: playlistCtx?.name ?? track._playlistName,
-    playlistIndex: playlistCtx?.index ?? track._playlistIndex,
-  };
-}
-
-type SyncStatus = 'synced' | 'pending' | 'deletion';
-
-interface RemovableDrive {
-  name: string;
-  mount_point: string;
-  available_space: number;
-  total_space: number;
-  file_system: string;
-  is_removable: boolean;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
+import {
+  uuid, formatBytes, trackToSyncInfo,
+  type SourceTab, type SyncStatus, type RemovableDrive,
+} from '../utils/deviceSyncHelpers';
+import { applyLegacyTemplate } from '../utils/deviceSyncLegacyTemplate';
+import { fetchTracksForSource } from '../utils/fetchTracksForSource';
+import BrowserRow from '../components/deviceSync/BrowserRow';
 
 // ─── component ───────────────────────────────────────────────────────────────
 
@@ -1267,23 +1175,5 @@ export default function DeviceSync() {
         </div>
       )}
     </div>
-  );
-}
-
-// ─── BrowserRow ──────────────────────────────────────────────────────────────
-
-function BrowserRow({ name, meta, selected, onToggle, indent }: {
-  name: string; meta?: string; selected: boolean; onToggle: () => void; indent?: boolean;
-}) {
-  return (
-    <button className={`device-sync-browser-row${selected ? ' selected' : ''}${indent ? ' indent' : ''}`} onClick={onToggle}>
-      <span className="device-sync-row-check">
-        {selected ? <CheckCircle2 size={14} /> : <span className="device-sync-row-circle" />}
-      </span>
-      <span className="device-sync-row-name">
-        {name}
-        {meta && <span className="device-sync-row-artist"> · {meta}</span>}
-      </span>
-    </button>
   );
 }
