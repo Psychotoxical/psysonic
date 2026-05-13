@@ -6,11 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useKeybindingsStore, matchInAppBinding } from '../store/keybindingsStore';
-import { useDragDrop, registerQueueDragHitTest } from '../contexts/DragDropContext';
+import { registerQueueDragHitTest } from '../contexts/DragDropContext';
 import { useWindowVisibility } from '../hooks/useWindowVisibility';
 import { IS_LINUX } from '../utils/platform';
 import MiniContextMenu from './MiniContextMenu';
-import OverlayScrollArea from './OverlayScrollArea';
 import type { MiniSyncPayload, MiniControlAction, MiniTrackInfo } from '../utils/miniPlayerBridge';
 import {
   COLLAPSED_SIZE, EXPANDED_SIZE, COLLAPSED_MIN, EXPANDED_MIN,
@@ -21,7 +20,9 @@ import { MiniTitlebar } from './miniPlayer/MiniTitlebar';
 import { MiniMeta } from './miniPlayer/MiniMeta';
 import { MiniControls } from './miniPlayer/MiniControls';
 import { MiniToolbar } from './miniPlayer/MiniToolbar';
+import { MiniQueue } from './miniPlayer/MiniQueue';
 import { useMiniVolumePopover } from '../hooks/useMiniVolumePopover';
+import { useMiniQueueDrag } from '../hooks/useMiniQueueDrag';
 
 interface ProgressPayload {
   current_time: number;
@@ -54,29 +55,18 @@ export default function MiniPlayer() {
     return registerQueueDragHitTest(hitTest);
   }, [queueOpen]);
   const { volumeOpen, setVolumeOpen, volumePopStyle, volumeBtnRef, volumePopRef } = useMiniVolumePopover();
+
+  const {
+    isReorderDrag, psyDragFromIdxRef, dropTarget, setDropTarget, dropTargetRef, startDrag,
+  } = useMiniQueueDrag({
+    queueOpen,
+    miniQueueWrapRef,
+    queueScrollRef,
+    fallbackQueueLen: state.queue.length,
+  });
   const hiddenRef = useRef(false);
   const isHidden = useWindowVisibility();
   useEffect(() => { hiddenRef.current = isHidden; }, [isHidden]);
-
-  // ── PsyDnD reorder ──
-  // Mirrors QueuePanel's pattern: mousedown threshold → startDrag, mousemove
-  // on the queue computes a drop indicator, psy-drop emits mini:reorder back
-  // to main where the source-of-truth store lives.
-  const { isDragging: isPsyDragging, startDrag, payload: psyPayload } = useDragDrop();
-  const psyDragFromIdxRef = useRef<number | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ idx: number; before: boolean } | null>(null);
-  const dropTargetRef = useRef<{ idx: number; before: boolean } | null>(null);
-
-  const isReorderDrag = isPsyDragging && !!psyPayload && (() => {
-    try { return JSON.parse(psyPayload.data).type === 'queue_reorder'; } catch { return false; }
-  })();
-
-  useEffect(() => {
-    if (!isPsyDragging) {
-      dropTargetRef.current = null;
-      setDropTarget(null);
-    }
-  }, [isPsyDragging]);
 
   // ── Context menu state ──
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; track: MiniTrackInfo; index: number } | null>(null);
@@ -265,71 +255,6 @@ export default function MiniPlayer() {
 
   const jumpTo = (index: number) => emit('mini:jump', { index }).catch(() => {});
 
-  // Listen for psy-drop on the queue. Only handles `queue_reorder` payloads
-  // since the mini player has no external drag sources. `queueOpen` must be
-  // in deps because the wrap (and thus queueScrollRef.current) only mounts
-  // when the queue is expanded — without it the ref is null on first run
-  // and the listener never attaches.
-  useEffect(() => {
-    if (!queueOpen) return;
-    const el = queueScrollRef.current;
-    if (!el) return;
-    const onPsyDrop = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail?.data) return;
-      let parsed: any = null;
-      try { parsed = JSON.parse(detail.data); } catch { return; }
-      const tgt = dropTargetRef.current;
-      dropTargetRef.current = null;
-      setDropTarget(null);
-      if (parsed.type !== 'queue_reorder') return;
-      const fromIdx = parsed.index as number;
-      psyDragFromIdxRef.current = null;
-      const queueLen = usePlayerStore.getState().queue.length || state.queue.length;
-      const insertIdx = tgt
-        ? (tgt.before ? tgt.idx : tgt.idx + 1)
-        : queueLen;
-      if (fromIdx === insertIdx || fromIdx === insertIdx - 1) return;
-      // Adjust target index if removing the source first shifts later items.
-      const adjusted = fromIdx < insertIdx ? insertIdx - 1 : insertIdx;
-      if (fromIdx === adjusted) return;
-      emit('mini:reorder', { from: fromIdx, to: adjusted }).catch(() => {});
-    };
-    el.addEventListener('psy-drop', onPsyDrop);
-    return () => el.removeEventListener('psy-drop', onPsyDrop);
-  }, [queueOpen, state.queue.length]);
-
-  // Drop outside the mini queue strip → remove (same UX as main QueuePanel).
-  useEffect(() => {
-    if (!queueOpen) return;
-    const onDocPsyDrop = (e: Event) => {
-      const d = (e as CustomEvent<{ data?: string; clientX?: number; clientY?: number }>).detail;
-      if (!d?.data) return;
-      const cx = d.clientX;
-      const cy = d.clientY;
-      if (typeof cx !== 'number' || typeof cy !== 'number') return;
-      let parsed: { type?: string; index?: number } | null = null;
-      try {
-        parsed = JSON.parse(d.data);
-      } catch {
-        return;
-      }
-      if (parsed?.type !== 'queue_reorder' || typeof parsed.index !== 'number') return;
-      const wrap = miniQueueWrapRef.current;
-      if (!wrap) return;
-      const r = wrap.getBoundingClientRect();
-      const inside =
-        cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
-      if (inside) return;
-      psyDragFromIdxRef.current = null;
-      dropTargetRef.current = null;
-      setDropTarget(null);
-      emit('mini:remove', { index: parsed.index }).catch(() => {});
-    };
-    document.addEventListener('psy-drop', onDocPsyDrop);
-    return () => document.removeEventListener('psy-drop', onDocPsyDrop);
-  }, [queueOpen]);
-
   // Auto-scroll the current track into view when the queue expands.
   useEffect(() => {
     if (!queueOpen) return;
@@ -381,93 +306,22 @@ export default function MiniPlayer() {
         />
 
         {queueOpen && (
-        <OverlayScrollArea
-          wrapRef={miniQueueWrapRef}
-          viewportRef={queueScrollRef}
-          className="mini-queue-wrap"
-          viewportClassName="mini-queue"
-          measureDeps={[queueOpen, state.queue.length]}
-          railInset="mini"
-          viewportScrollBehaviorAuto={isReorderDrag}
-          onMouseMove={(e) => {
-            if (!isReorderDrag || !queueScrollRef.current) return;
-            const items = queueScrollRef.current.querySelectorAll<HTMLElement>('[data-mq-idx]');
-            for (let i = 0; i < items.length; i++) {
-              const r = items[i].getBoundingClientRect();
-              if (e.clientY >= r.top && e.clientY <= r.bottom) {
-                const before = e.clientY < r.top + r.height / 2;
-                const idx = parseInt(items[i].dataset.mqIdx!, 10);
-                const t = { idx, before };
-                dropTargetRef.current = t;
-                setDropTarget(t);
-                return;
-              }
-            }
-            dropTargetRef.current = null;
-            setDropTarget(null);
-          }}
-        >
-            {state.queue.length === 0 ? (
-              <div className="mini-queue__empty">{t('miniPlayer.emptyQueue')}</div>
-            ) : (
-              state.queue.map((t, i) => {
-                let dragStyle: React.CSSProperties = {};
-                if (isReorderDrag && psyDragFromIdxRef.current === i) {
-                  dragStyle = { opacity: 0.4 };
-                } else if (isReorderDrag && dropTarget?.idx === i) {
-                  dragStyle = dropTarget.before
-                    ? { boxShadow: 'inset 0 2px 0 var(--accent)' }
-                    : { boxShadow: 'inset 0 -2px 0 var(--accent)' };
-                }
-                return (
-                  <button
-                    key={`${t.id}-${i}`}
-                    data-mq-idx={i}
-                    className={`mini-queue__item${i === state.queueIndex ? ' mini-queue__item--current' : ''}${ctxMenu?.index === i ? ' mini-queue__item--ctx' : ''}`}
-                    onClick={() => jumpTo(i)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setCtxMenu({ x: e.clientX, y: e.clientY, track: t, index: i });
-                    }}
-                    onMouseDown={(e) => {
-                      if (e.button !== 0) return;
-                      // Don't start drag while a click would also be valid —
-                      // the threshold check below upgrades to a drag once
-                      // the pointer leaves the deadband.
-                      const startX = e.clientX;
-                      const startY = e.clientY;
-                      const onMove = (me: MouseEvent) => {
-                        if (Math.abs(me.clientX - startX) > 5 || Math.abs(me.clientY - startY) > 5) {
-                          document.removeEventListener('mousemove', onMove);
-                          document.removeEventListener('mouseup', onUp);
-                          psyDragFromIdxRef.current = i;
-                          startDrag(
-                            { data: JSON.stringify({ type: 'queue_reorder', index: i }), label: t.title },
-                            me.clientX,
-                            me.clientY,
-                          );
-                        }
-                      };
-                      const onUp = () => {
-                        document.removeEventListener('mousemove', onMove);
-                        document.removeEventListener('mouseup', onUp);
-                      };
-                      document.addEventListener('mousemove', onMove);
-                      document.addEventListener('mouseup', onUp);
-                    }}
-                    style={dragStyle}
-                  >
-                    <span className="mini-queue__num">{i + 1}</span>
-                    <div className="mini-queue__meta">
-                      <div className="mini-queue__title">{t.title}</div>
-                      <div className="mini-queue__artist">{t.artist}</div>
-                    </div>
-                  </button>
-                );
-              })
-            )}
-        </OverlayScrollArea>
-      )}
+          <MiniQueue
+            state={state}
+            miniQueueWrapRef={miniQueueWrapRef}
+            queueScrollRef={queueScrollRef}
+            isReorderDrag={isReorderDrag}
+            psyDragFromIdxRef={psyDragFromIdxRef}
+            dropTarget={dropTarget}
+            setDropTarget={setDropTarget}
+            dropTargetRef={dropTargetRef}
+            startDrag={startDrag}
+            ctxIndex={ctxMenu?.index ?? null}
+            setCtxMenu={setCtxMenu}
+            jumpTo={jumpTo}
+            t={t}
+          />
+        )}
 
         <MiniControls
           isPlaying={isPlaying}
