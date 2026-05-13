@@ -17,6 +17,7 @@ import {
   getMixMinRatingsConfigFromAuth,
 } from '../utils/mixRatingFilter';
 import { AUDIOBOOK_GENRES, filterRandomMixSongs, formatRandomMixDuration } from '../utils/randomMixHelpers';
+import RandomMixHeader from '../components/randomMix/RandomMixHeader';
 
 export default function RandomMix() {
   const { t } = useTranslation();
@@ -167,41 +168,17 @@ export default function RandomMix() {
 
   return (
     <div className="content-body animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 className="page-title">{t('randomMix.title')}</h1>
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            className="btn btn-surface"
-            onClick={selectedGenre ? () => loadGenreMix(selectedGenre) : () => fetchSongs()}
-            disabled={selectedGenre ? genreMixLoading : loading}
-            data-tooltip={selectedGenre
-              ? t('randomMix.remixTooltipGenre', { genre: selectedGenre })
-              : t('randomMix.remixTooltip')
-            }
-          >
-            <RefreshCw size={18} className={(selectedGenre ? genreMixLoading : loading) ? 'spin' : ''} />
-            {selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}
-          </button>
-          {(() => {
-            const isGenreLoading = selectedGenre && !genreMixComplete;
-            const isDisabled = loading || (selectedGenre ? !genreMixComplete || genreMixSongs.length === 0 : filteredSongs.length === 0);
-            return (
-              <button
-                className={`btn ${isGenreLoading ? 'btn-surface' : 'btn-primary'}`}
-                onClick={handlePlayAll}
-                disabled={isDisabled}
-              >
-                {isGenreLoading ? (
-                  <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> {Math.min(genreMixSongs.length, randomMixSize)} / {randomMixSize}</>
-                ) : (
-                  <><Play size={18} fill="currentColor" /> {t('randomMix.playAll')}</>
-                )}
-              </button>
-            );
-          })()}
-        </div>
-      </div>
+      <RandomMixHeader
+        selectedGenre={selectedGenre}
+        loading={loading}
+        genreMixLoading={genreMixLoading}
+        genreMixComplete={genreMixComplete}
+        genreMixSongsLength={genreMixSongs.length}
+        filteredSongsLength={filteredSongs.length}
+        randomMixSize={randomMixSize}
+        onRefresh={selectedGenre ? () => loadGenreMix(selectedGenre) : () => fetchSongs()}
+        onPlayAll={handlePlayAll}
+      />
 
       {/* ── Filter + Genre Mix panel ─────────────────────────────── */}
       <div style={{
