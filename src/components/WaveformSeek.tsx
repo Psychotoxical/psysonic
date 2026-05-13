@@ -4,13 +4,14 @@ import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';
 import {
-  ANIMATED_STYLES, AnimState, INTERPOLATION_PAINT_MIN_MS,
+  ANIMATED_STYLES, AnimState,
   STATIC_REDRAW_FORCE_MS, STATIC_REDRAW_MIN_MS,
   fmt, invalidateColorCache, isBarQuantizedSeekStyle, makeAnimState,
   quantizeProgressByBars,
 } from '../utils/waveformSeekHelpers';
 import { drawSeekbar } from '../utils/waveformSeekRenderers';
 import { useWaveformHeights } from '../hooks/useWaveformHeights';
+import { useWaveformInterpolation } from '../hooks/useWaveformInterpolation';
 
 // ── main component ────────────────────────────────────────────────────────────
 //
@@ -195,80 +196,6 @@ export default function WaveformSeek({ trackId }: Props) {
     // Keep current visual position as-is; only reset timing anchor.
   }, [previewFreezesMainSeekbar]);
 
-  useEffect(() => {
-    if (!isPlaying || previewFreezesMainSeekbar || duration <= 0 || !isFinite(duration)) return;
-    // This effect is torn down while paused, so `progressAnchorRef.atMs` is not refreshed.
-    // On resume the first `tick` would add the entire pause duration to `elapsedSec` and
-    // overshoot the playhead until the next transport heartbeat corrects it.
-    const snap = getPlaybackProgressSnapshot();
-    const raw = snap.progress;
-    progressRef.current = raw;
-    progressAnchorRef.current = {
-      progress: raw,
-      atMs: performance.now(),
-    };
-    const resumeVisual = isBarQuantizedSeekStyle(styleRef.current)
-      ? quantizeProgressByBars(raw)
-      : raw;
-    visualTargetProgressRef.current = resumeVisual;
-    visualProgressRef.current = resumeVisual;
-
-    let rafId: number | null = null;
-    let lastPaintAt = 0;
-    const tick = (now: number) => {
-      if (document.hidden || window.__psyHidden) {
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-      if (isDragging.current) {
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-      const wheelPreviewFraction = wheelPreviewFractionRef.current;
-      if (wheelPreviewFraction != null && Date.now() < wheelPreviewUntilRef.current) {
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-      if (pendingCommittedSeekRef.current) {
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-      const anchor = progressAnchorRef.current;
-      const elapsedSec = Math.max(0, (now - anchor.atMs) / 1000);
-      const predicted = Math.max(0, Math.min(1, anchor.progress + elapsedSec / duration));
-      const nextTargetProgress = isBarQuantizedSeekStyle(styleRef.current)
-        ? quantizeProgressByBars(predicted)
-        : predicted;
-      if (Math.abs(nextTargetProgress - visualTargetProgressRef.current) > 0.000001) {
-        visualTargetProgressRef.current = nextTargetProgress;
-      }
-      const currentVisual = visualProgressRef.current;
-      const targetVisual = visualTargetProgressRef.current;
-      const delta = targetVisual - currentVisual;
-      if (Math.abs(delta) > 0.000001) {
-        const smoothing = isBarQuantizedSeekStyle(styleRef.current) ? 0.22 : 0.28;
-        const nextVisualProgress = Math.abs(delta) < 0.002
-          ? targetVisual
-          : currentVisual + delta * smoothing;
-        visualProgressRef.current = nextVisualProgress;
-        progressRef.current = nextVisualProgress;
-        const needsDirectDraw = !ANIMATED_STYLES.has(styleRef.current);
-        if (needsDirectDraw && now - lastPaintAt >= INTERPOLATION_PAINT_MIN_MS) {
-          const canvas = canvasRef.current;
-          if (canvas) {
-            drawSeekbar(canvas, styleRef.current, heightsRef.current, nextVisualProgress, bufferedRef.current, animStateRef.current);
-            lastPaintAt = now;
-          }
-        }
-      }
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
-    return () => {
-      if (rafId != null) cancelAnimationFrame(rafId);
-    };
-  }, [duration, isPlaying, previewFreezesMainSeekbar]);
-
   // Resize observer.
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -306,6 +233,14 @@ export default function WaveformSeek({ trackId }: Props) {
   const queuedWheelSeekFractionRef = useRef<number | null>(null);
   const wheelPreviewFractionRef = useRef<number | null>(null);
   const wheelPreviewUntilRef = useRef(0);
+
+  useWaveformInterpolation({
+    duration, isPlaying, previewFreezesMainSeekbar,
+    canvasRef, heightsRef, styleRef,
+    progressRef, bufferedRef, visualProgressRef, visualTargetProgressRef,
+    progressAnchorRef, animStateRef, isDraggingRef: isDragging,
+    wheelPreviewFractionRef, wheelPreviewUntilRef, pendingCommittedSeekRef,
+  });
 
   useEffect(() => () => {
     if (wheelSeekTimerRef.current != null) {
