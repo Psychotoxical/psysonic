@@ -1,0 +1,78 @@
+/* ─── Song Rail (mirrors album-row pattern) ───────────────────── */
+
+.song-row-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: relative;
+}
+
+.song-row-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.song-row-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.song-row-nav .nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.song-row-nav .nav-btn:hover:not(.disabled):not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.song-row-nav .nav-btn.disabled,
+.song-row-nav .nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.song-grid-wrapper {
+  position: relative;
+}
+
+.song-grid {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Keep off-screen rail cards out of paint/compositing work. */
+.song-grid .song-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 190px;
+}
+
+.song-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.song-row-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: var(--space-3) 0;
+}
+

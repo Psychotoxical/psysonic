@@ -1,0 +1,103 @@
+/* ─ Shared SongRow (used by Tracks Hub, SearchResults, AdvancedSearch) ─ */
+
+.song-list-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 110px 56px;
+  gap: var(--space-3);
+  align-items: center;
+  height: 52px;
+  padding: 0 var(--space-3);
+  font-size: 13px;
+  cursor: default;
+  transition: background var(--transition-fast);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.song-list-row:hover {
+  background: var(--bg-hover);
+}
+
+.song-list-row.is-current {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.song-list-row.is-current .song-list-row-title {
+  color: var(--accent);
+}
+
+.song-list-row--header {
+  height: 36px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  cursor: default;
+  background: transparent;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.song-list-row--header:hover {
+  background: transparent;
+}
+
+.song-list-row-cell {
+  min-width: 0;
+}
+
+.song-list-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.song-list-row-title {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.song-list-row-genre {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.song-list-row-duration {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.song-list-row-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.song-list-row-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.song-list-row-btn--play {
+  color: var(--accent);
+}
+
+.song-list-row-btn--play:hover {
+  background: var(--accent);
+  color: var(--ctp-crust, #11111b);
+}
+
+.song-list-row.is-current .song-list-row-btn--play {
+  color: var(--accent);
+}
+

@@ -1,0 +1,24 @@
+/* ─────────────────────────────────────────────────────────────────
+   Tracks Page — Hub view (rails on top + virtualized browse below)
+   ──────────────────────────────────────────────────────────────── */
+
+.tracks-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6, 1.5rem);
+  padding-bottom: var(--space-8, 2rem);
+}
+
+.tracks-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.tracks-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+

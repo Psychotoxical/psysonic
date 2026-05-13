@@ -1,0 +1,29 @@
+/* ─── Responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .tracks-hero {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .tracks-hero-cover {
+    flex: 0 0 140px;
+    width: 140px;
+    height: 140px;
+  }
+
+  .tracks-hero-actions {
+    justify-content: center;
+  }
+
+  .song-list-row {
+    grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) 56px;
+  }
+
+  .song-list-row-cell:nth-child(4),  /* album */
+  .song-list-row-cell:nth-child(5) { /* genre */
+    display: none;
+  }
+}
+

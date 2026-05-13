@@ -1,0 +1,106 @@
+/* ─── Song Card ───────────────────────────────────────────────── */
+
+.song-card {
+  position: relative;
+  flex: 0 0 140px;
+  width: 140px;
+  cursor: pointer;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  transition: box-shadow var(--transition-base);
+}
+
+.song-card:hover {
+  box-shadow: inset 0 0 0 1px var(--border), var(--shadow-md);
+}
+
+.song-card-cover {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--bg-hover);
+}
+
+.song-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.song-card-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.song-card-play-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.song-card:hover .song-card-play-overlay {
+  opacity: 1;
+}
+
+.song-card-action-btn {
+  background: var(--accent);
+  color: var(--ctp-crust);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full, 999px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.song-card-action-btn:hover {
+  transform: scale(1.08);
+}
+
+.song-card-info {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.song-card-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-card-artist {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-card-rating {
+  display: flex;
+  gap: 2px;
+  color: var(--accent);
+  margin-top: 4px;
+  line-height: 1;
+}
+

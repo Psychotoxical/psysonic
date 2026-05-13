@@ -1,0 +1,11 @@
+/* ─── Spinner helper ──────────────────────────────────────────── */
+
+@keyframes tracks-spin {
+  to { transform: rotate(360deg); }
+}
+
+.is-spinning {
+  animation: tracks-spin 1s linear infinite;
+  transform-origin: center;
+}
+
