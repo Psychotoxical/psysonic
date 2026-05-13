@@ -4,13 +4,13 @@ import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';
 import {
-  ANIMATED_STYLES, AnimState, BAR_COUNT, FLAT_WAVE_NORM, INTERPOLATION_PAINT_MIN_MS,
-  STATIC_REDRAW_FORCE_MS, STATIC_REDRAW_MIN_MS, WAVE_MORPH_MS,
-  binsToHeights, easeOutCubic, fmt, heightsNearlyEqual,
-  invalidateColorCache, isBarQuantizedSeekStyle, makeAnimState, makeFlatWaveHeights,
-  makeHeights, quantizeProgressByBars,
+  ANIMATED_STYLES, AnimState, INTERPOLATION_PAINT_MIN_MS,
+  STATIC_REDRAW_FORCE_MS, STATIC_REDRAW_MIN_MS,
+  fmt, invalidateColorCache, isBarQuantizedSeekStyle, makeAnimState,
+  quantizeProgressByBars,
 } from '../utils/waveformSeekHelpers';
 import { drawSeekbar } from '../utils/waveformSeekRenderers';
+import { useWaveformHeights } from '../hooks/useWaveformHeights';
 
 // ── main component ────────────────────────────────────────────────────────────
 //
@@ -27,12 +27,13 @@ interface Props {
   trackId: string | undefined;
 }
 
+const SEEK_COMMIT_GUARD_MS = 900;
+const SEEK_COMMIT_MIN_HOLD_MS = 320;
+const SEEK_COMMIT_PROGRESS_EPS = 0.02;
+const WHEEL_SEEK_STEP_SECONDS = 10;
+const WHEEL_SEEK_DEBOUNCE_MS = 350;
+
 export default function WaveformSeek({ trackId }: Props) {
-  const SEEK_COMMIT_GUARD_MS = 900;
-  const SEEK_COMMIT_MIN_HOLD_MS = 320;
-  const SEEK_COMMIT_PROGRESS_EPS = 0.02;
-  const WHEEL_SEEK_STEP_SECONDS = 10;
-  const WHEEL_SEEK_DEBOUNCE_MS = 350;
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const heightsRef   = useRef<Float32Array | null>(null);
   const progressRef  = useRef(getPlaybackProgressSnapshot().progress);
@@ -60,86 +61,11 @@ export default function WaveformSeek({ trackId }: Props) {
   const styleRef = useRef(seekbarStyle);
   styleRef.current = seekbarStyle;
 
-  useEffect(() => {
-    if (!trackId) {
-      heightsRef.current = null;
-      return;
-    }
-    // Pseudowave is the deterministic per-track-ID variant — no analysis needed,
-    // no morph animation, no flat-fallback. It just sits there looking like a
-    // waveform.
-    if (seekbarStyle === 'pseudowave') {
-      heightsRef.current = makeHeights(trackId);
-      const canvas = canvasRef.current;
-      if (canvas && !ANIMATED_STYLES.has(seekbarStyle)) {
-        drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
-      }
-      return;
-    }
-    if (waveformBins && waveformBins.length > 0) {
-      const h = binsToHeights(waveformBins);
-      const prev = heightsRef.current;
-      if (!prev || prev.length !== BAR_COUNT) {
-        heightsRef.current = h;
-        return;
-      }
-      if (heightsNearlyEqual(prev, h, 0.02)) {
-        heightsRef.current = h;
-        return;
-      }
-      const from = new Float32Array(prev);
-      const to = h;
-      const startedAt = performance.now();
-      let raf = 0;
-      const step = (now: number) => {
-        const p = easeOutCubic((now - startedAt) / WAVE_MORPH_MS);
-        const next = new Float32Array(BAR_COUNT);
-        for (let i = 0; i < BAR_COUNT; i++) {
-          next[i] = from[i] + (to[i] - from[i]) * p;
-        }
-        heightsRef.current = next;
-        if (!ANIMATED_STYLES.has(styleRef.current)) {
-          const canvas = canvasRef.current;
-          if (canvas) drawSeekbar(canvas, styleRef.current, next, progressRef.current, bufferedRef.current, animStateRef.current);
-        }
-        if (p < 1) raf = requestAnimationFrame(step);
-      };
-      raf = requestAnimationFrame(step);
-      return () => cancelAnimationFrame(raf);
-    }
-    if (heightsRef.current?.length === BAR_COUNT) {
-      const current = heightsRef.current;
-      let isAlreadyFlat = true;
-      for (let i = 0; i < BAR_COUNT; i++) {
-        if (Math.abs(current[i] - FLAT_WAVE_NORM) > 0.0001) {
-          isAlreadyFlat = false;
-          break;
-        }
-      }
-      if (isAlreadyFlat) return;
-      const from = new Float32Array(current);
-      const to = makeFlatWaveHeights();
-      const startedAt = performance.now();
-      let raf = 0;
-      const step = (now: number) => {
-        const p = easeOutCubic((now - startedAt) / WAVE_MORPH_MS);
-        const next = new Float32Array(BAR_COUNT);
-        for (let i = 0; i < BAR_COUNT; i++) {
-          next[i] = from[i] + (to[i] - from[i]) * p;
-        }
-        heightsRef.current = next;
-        if (!ANIMATED_STYLES.has(styleRef.current)) {
-          const canvas = canvasRef.current;
-          if (canvas) drawSeekbar(canvas, styleRef.current, next, progressRef.current, bufferedRef.current, animStateRef.current);
-        }
-        if (p < 1) raf = requestAnimationFrame(step);
-      };
-      raf = requestAnimationFrame(step);
-      return () => cancelAnimationFrame(raf);
-    }
-    // No analysis bins yet: render 500 flat bars immediately.
-    heightsRef.current = makeFlatWaveHeights();
-  }, [trackId, waveformBins, seekbarStyle]);
+  useWaveformHeights({
+    trackId, waveformBins, seekbarStyle,
+    heightsRef, canvasRef, styleRef, progressRef, bufferedRef, animStateRef,
+  });
+
 
   // Imperative subscription — no React re-renders from progress changes.
   // Static styles draw here; animated styles only update refs.
