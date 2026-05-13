@@ -41,6 +41,9 @@ import {
 } from '../utils/sidebarHelpers';
 import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnread';
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
+import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
+import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
+import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';
 
 
 export default function Sidebar({
@@ -83,7 +86,8 @@ export default function Sidebar({
   // Sidebar surfaces Lucky Mix as its own entry only in "separate" nav mode —
   // in hub mode it lives inside the Build-a-Mix landing page instead.
   const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
-  const [libraryDropdownOpen, setLibraryDropdownOpen] = useState(false);
+  const { libraryDropdownOpen, setLibraryDropdownOpen, dropdownRect, libraryTriggerRef } =
+    useSidebarLibraryDropdown();
   const [playlistsExpanded, setPlaylistsExpanded] = useState(false);
   const playlistsRaw = usePlaylistStore(s => s.playlists);
   const playlistsLoading = usePlaylistStore(s => s.playlistsLoading);
@@ -92,10 +96,8 @@ export default function Sidebar({
   const playlists = useMemo(() => {
     return [...playlistsRaw].sort((a, b) => a.name.localeCompare(b.name));
   }, [playlistsRaw]);
-  const [dropdownRect, setDropdownRect] = useState({ top: 0, left: 0, width: 0 });
-  const libraryTriggerRef = useRef<HTMLButtonElement>(null);
   const [sidebarViewportEl, setSidebarViewportEl] = useState<HTMLDivElement | null>(null);
-  const [isSidebarScrolling, setIsSidebarScrolling] = useState(false);
+  const isSidebarScrolling = useSidebarScrollVisible(sidebarViewportEl);
   const showLibraryPicker = !isCollapsed && isLoggedIn && musicFolders.length > 1;
 
   const filterId = serverId ? (musicLibraryFilterByServer[serverId] ?? 'all') : 'all';
@@ -149,61 +151,11 @@ export default function Sidebar({
     isLoggedIn,
     pathname: location.pathname,
   });
-  const [perfProbeOpen, setPerfProbeOpen] = useState(false);
+  const { perfProbeOpen, setPerfProbeOpen, perfCpu, perfDiagRates } = useSidebarPerfProbe();
   const perfFlags = usePerfProbeFlags();
-  const [perfCpu, setPerfCpu] = useState<{ app: number; webkit: number; supported: boolean } | null>(null);
-  const [perfDiagRates, setPerfDiagRates] = useState<{ progress: number; waveform: number; home: number } | null>(null);
-
-  useEffect(() => {
-    setPerfProbeTelemetryActive(perfProbeOpen);
-    return () => setPerfProbeTelemetryActive(false);
-  }, [perfProbeOpen]);
 
 
 
-
-  const updateDropdownPosition = useCallback(() => {
-    const el = libraryTriggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setDropdownRect({
-      top: r.bottom + 4,
-      left: r.left,
-      width: r.width,
-    });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!libraryDropdownOpen) return;
-    updateDropdownPosition();
-    const onWin = () => updateDropdownPosition();
-    window.addEventListener('resize', onWin);
-    window.addEventListener('scroll', onWin, true);
-    return () => {
-      window.removeEventListener('resize', onWin);
-      window.removeEventListener('scroll', onWin, true);
-    };
-  }, [libraryDropdownOpen, updateDropdownPosition]);
-
-  useEffect(() => {
-    if (!libraryDropdownOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (libraryTriggerRef.current?.contains(t)) return;
-      const panel = document.querySelector('.nav-library-dropdown-panel');
-      if (panel?.contains(t)) return;
-      setLibraryDropdownOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLibraryDropdownOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [libraryDropdownOpen]);
 
   const pickLibrary = (id: 'all' | string) => {
     setMusicLibraryFilter(id);
@@ -215,129 +167,6 @@ export default function Sidebar({
     if (!playlistsExpanded || !isLoggedIn) return;
     fetchPlaylists();
   }, [playlistsExpanded, isLoggedIn, fetchPlaylists]);
-
-  useEffect(() => {
-    if (!sidebarViewportEl) return;
-    let hideTimer: number | null = null;
-
-    const onScroll = () => {
-      setIsSidebarScrolling(true);
-      if (hideTimer != null) window.clearTimeout(hideTimer);
-      hideTimer = window.setTimeout(() => {
-        setIsSidebarScrolling(false);
-        hideTimer = null;
-      }, 180);
-    };
-
-    sidebarViewportEl.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      sidebarViewportEl.removeEventListener('scroll', onScroll);
-      if (hideTimer != null) window.clearTimeout(hideTimer);
-    };
-  }, [sidebarViewportEl]);
-
-  useEffect(() => {
-    if (!perfProbeOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPerfProbeOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [perfProbeOpen]);
-
-  useEffect(() => {
-    if (!perfProbeOpen) return;
-    type Snapshot = {
-      supported: boolean;
-      total_jiffies: number;
-      app_jiffies: number;
-      webkit_jiffies: number;
-      logical_cpus: number;
-    };
-    let cancelled = false;
-    let prev: Snapshot | null = null;
-    let prevCounters: { progress: number; waveform: number; home: number } | null = null;
-    let prevCountersAt = 0;
-    let timer: number | null = null;
-    const poll = async () => {
-      try {
-        const snap = await invoke<Snapshot>('performance_cpu_snapshot');
-        if (cancelled) return;
-        if (!snap.supported) {
-          setPerfCpu({ app: 0, webkit: 0, supported: false });
-          return;
-        }
-        if (prev) {
-          const totalDelta = snap.total_jiffies - prev.total_jiffies;
-          const appDelta = snap.app_jiffies - prev.app_jiffies;
-          const webkitDelta = snap.webkit_jiffies - prev.webkit_jiffies;
-          if (totalDelta > 0) {
-            const cpuScale = Math.max(1, snap.logical_cpus || 1) * 100;
-            const appPct = Math.max(0, Math.min(1000, (appDelta / totalDelta) * cpuScale));
-            const webkitPct = Math.max(0, Math.min(1000, (webkitDelta / totalDelta) * cpuScale));
-            setPerfCpu({
-              app: Number.isFinite(appPct) ? appPct : 0,
-              webkit: Number.isFinite(webkitPct) ? webkitPct : 0,
-              supported: true,
-            });
-          }
-        }
-        const now = Date.now();
-        const root = globalThis as unknown as { __psyPerfCounters?: Record<string, number> };
-        const counters = root.__psyPerfCounters ?? {};
-        const nextCounters = {
-          progress: counters.audioProgressEvents ?? 0,
-          waveform: counters.waveformDraws ?? 0,
-          home: counters.homeCommits ?? 0,
-        };
-        if (prevCounters && prevCountersAt > 0) {
-          const dt = Math.max(0.25, (now - prevCountersAt) / 1000);
-          setPerfDiagRates({
-            progress: (nextCounters.progress - prevCounters.progress) / dt,
-            waveform: (nextCounters.waveform - prevCounters.waveform) / dt,
-            home: (nextCounters.home - prevCounters.home) / dt,
-          });
-        }
-        prevCounters = nextCounters;
-        prevCountersAt = now;
-        prev = snap;
-      } catch {
-        if (!cancelled) setPerfCpu({ app: 0, webkit: 0, supported: false });
-      } finally {
-        if (!cancelled) timer = window.setTimeout(poll, 2000);
-      }
-    };
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer != null) window.clearTimeout(timer);
-    };
-  }, [perfProbeOpen]);
-
-  useEffect(() => {
-    if (!perfProbeOpen) {
-      setPerfCpu(null);
-      setPerfDiagRates(null);
-    }
-  }, [perfProbeOpen]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey)) return;
-      if (e.key.toLowerCase() !== 'd') return;
-      const target = e.target as HTMLElement | null;
-      if (target && (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT' ||
-        target.isContentEditable
-      )) return;
-      e.preventDefault();
-      setPerfProbeOpen(true);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   return (
     <>
@@ -399,7 +228,7 @@ export default function Sidebar({
               type="button"
               className={`nav-library-scope-trigger ${libraryTriggerPlain ? 'nav-library-scope-trigger--plain' : ''} ${libraryDropdownOpen ? 'nav-library-scope-trigger--open' : ''}`}
               onClick={() => {
-                setLibraryDropdownOpen(o => !o);
+                setLibraryDropdownOpen(!libraryDropdownOpen);
               }}
               aria-label={t('sidebar.libraryScope')}
               aria-expanded={libraryDropdownOpen}
