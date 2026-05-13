@@ -1,9 +1,6 @@
-import { probeEntityRatingSupport } from '../api/subsonicStarRating';
-import { getMusicFolders } from '../api/subsonicLibrary';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { PanelRight, PanelRightClose } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/Sidebar';
@@ -33,9 +30,12 @@ import OrbitSessionBar from '../components/OrbitSessionBar';
 import OrbitStartTrigger from '../components/OrbitStartTrigger';
 import { useOrbitHost } from '../hooks/useOrbitHost';
 import { useOrbitGuest } from '../hooks/useOrbitGuest';
+import { useOrbitBodyAttrs } from '../hooks/useOrbitBodyAttrs';
 import { usePlatformShellSetup } from '../hooks/usePlatformShellSetup';
-import { cleanupOrphanedOrbitPlaylists } from '../utils/orbit';
-import { useOrbitStore } from '../store/orbitStore';
+import { useWindowFullscreenState } from '../hooks/useWindowFullscreenState';
+import { useNowPlayingTrayTitle } from '../hooks/useNowPlayingTrayTitle';
+import { useTrayMenuI18n } from '../hooks/useTrayMenuI18n';
+import { useServerCapabilitiesProbe } from '../hooks/useServerCapabilitiesProbe';
 import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
@@ -58,48 +58,17 @@ import {
  * sync. Mounted under `<RequireAuth>` and shared across all routes.
  */
 export function AppShell() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
-  const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
+  const isWindowFullscreen = useWindowFullscreenState();
   const { isTilingWm } = usePlatformShellSetup();
 
   // Orbit session hooks: idle until the local store marks a role.
   useOrbitHost();
   useOrbitGuest();
-
-  // Body-level marker so global CSS can hide controls that don't make sense
-  // in an Orbit session (e.g. track preview — the preview engine and the
-  // shared playback would step on each other). Active for any role + any
-  // pre-`active` phase so the marker covers the whole join lifecycle.
-  const orbitRole = useOrbitStore(s => s.role);
-  const orbitPhase = useOrbitStore(s => s.phase);
-  useEffect(() => {
-    const inOrbit = (orbitRole === 'host' || orbitRole === 'guest')
-      && (orbitPhase === 'active' || orbitPhase === 'joining' || orbitPhase === 'starting');
-    if (inOrbit) {
-      document.documentElement.setAttribute('data-orbit-active', 'true');
-      // Also expose the role so CSS can target host-vs-guest UI states
-      // (e.g. guest seekbar is read-only — sync follows the host).
-      document.documentElement.setAttribute('data-orbit-role', orbitRole as string);
-    } else {
-      document.documentElement.removeAttribute('data-orbit-active');
-      document.documentElement.removeAttribute('data-orbit-role');
-    }
-  }, [orbitRole, orbitPhase]);
-
-  useEffect(() => {
-    const win = getCurrentWindow();
-    // Check initial state (e.g. app launched maximised / already fullscreen).
-    win.isFullscreen().then(setIsWindowFullscreen).catch(() => {});
-    let unlisten: (() => void) | undefined;
-    // onResized fires on every size change, including fullscreen enter/exit on
-    // all platforms.  We re-query isFullscreen() rather than inferring from
-    // the size so the flag is always accurate regardless of platform quirks.
-    win.onResized(() => {
-      win.isFullscreen().then(setIsWindowFullscreen).catch(() => {});
-    }).then(u => { unlisten = u; });
-    return () => { unlisten?.(); };
-  }, []);
+  useOrbitBodyAttrs();
+  useTrayMenuI18n();
+  useServerCapabilitiesProbe();
   const isFullscreenOpen = usePlayerStore(s => s.isFullscreenOpen);
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
@@ -112,11 +81,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
-  const isLoggedIn = useAuthStore(s => s.isLoggedIn);
-  const activeServerId = useAuthStore(s => s.activeServerId);
-  const setMusicFolders = useAuthStore(s => s.setMusicFolders);
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
-  const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
@@ -132,38 +97,6 @@ export function AppShell() {
     window.addEventListener('psy:navigate', onPsyNavigate);
     return () => window.removeEventListener('psy:navigate', onPsyNavigate);
   }, [navigate]);
-
-  useEffect(() => {
-    if (!isLoggedIn || !activeServerId) return;
-    const serverAtStart = activeServerId;
-    let cancelled = false;
-    (async () => {
-      const stillThisServer = () => !cancelled && useAuthStore.getState().activeServerId === serverAtStart;
-      try {
-        const folders = await getMusicFolders();
-        if (stillThisServer()) setMusicFolders(folders);
-      } catch {
-        if (stillThisServer()) setMusicFolders([]);
-      }
-      try {
-        const level = await probeEntityRatingSupport();
-        if (stillThisServer()) setEntityRatingSupport(serverAtStart, level);
-      } catch {
-        if (stillThisServer()) setEntityRatingSupport(serverAtStart, 'track_only');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoggedIn, activeServerId, setMusicFolders, setEntityRatingSupport]);
-
-  // Orbit orphan sweep — delete our own leftover session / outbox playlists
-  // from crashed or force-closed sessions so they don't clutter the ND
-  // playlist view. Runs once per login; safe and best-effort.
-  useEffect(() => {
-    if (!isLoggedIn || !activeServerId) return;
-    void cleanupOrphanedOrbitPlaylists();
-  }, [isLoggedIn, activeServerId]);
 
   // Reset scroll position on route change (main viewport is overlay scroll)
   useEffect(() => {
@@ -193,47 +126,7 @@ export function AppShell() {
     useEqStore.getState().syncToRust();
   }, []);
 
-  useEffect(() => {
-    const fn = async () => {
-      try {
-        const appWindow = getCurrentWindow();
-        if (currentTrack) {
-          const state = isPlaying ? '▶' : '⏸';
-          const title = `${state} ${currentTrack.artist} - ${currentTrack.title} | Psysonic`;
-          document.title = title;
-          await appWindow.setTitle(title);
-          await invoke('set_tray_tooltip', {
-            tooltip: `${currentTrack.artist} – ${currentTrack.title}`,
-            playbackState: isPlaying ? 'play' : 'pause',
-          }).catch(() => {});
-        } else {
-          document.title = 'Psysonic';
-          await appWindow.setTitle('Psysonic');
-          await invoke('set_tray_tooltip', {
-            tooltip: '',
-            playbackState: 'stop',
-          }).catch(() => {});
-        }
-      } catch (err) {}
-    };
-    fn();
-  }, [currentTrack, isPlaying]);
-
-  useEffect(() => {
-    const apply = () => {
-      invoke('set_tray_menu_labels', {
-        playPause: t('tray.playPause'),
-        next: t('tray.nextTrack'),
-        previous: t('tray.previousTrack'),
-        showHide: t('tray.showHide'),
-        quit: t('tray.exitPsysonic'),
-        nothingPlaying: t('tray.nothingPlaying'),
-      }).catch(() => {});
-    };
-    apply();
-    i18n.on('languageChanged', apply);
-    return () => { i18n.off('languageChanged', apply); };
-  }, [t, i18n]);
+  useNowPlayingTrayTitle(currentTrack, isPlaying);
 
   // Post-update changelog is now surfaced via a dismissible banner in the
   // sidebar (WhatsNewBanner) that links to the /whats-new page — no auto
