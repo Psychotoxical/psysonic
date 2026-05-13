@@ -1,8 +1,5 @@
-import { star, unstar } from '../api/subsonicStarRating';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
-import { getArtist, getArtistInfo, getTopSongs } from '../api/subsonicArtists';
-import { getSong, getAlbum } from '../api/subsonicLibrary';
-import type { SubsonicSong, SubsonicArtistInfo, SubsonicAlbum } from '../api/subsonicTypes';
+import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -12,13 +9,6 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { songToTrack } from '../utils/songToTrack';
-import {
-  lastfmIsConfigured,
-  lastfmGetTrackInfo, lastfmGetArtistStats,
-  lastfmLoveTrack, lastfmUnloveTrack,
-  type LastfmTrackInfo, type LastfmArtistStats,
-} from '../api/lastfm';
-import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import { useCachedUrl } from '../components/CachedImage';
 import CachedImage from '../components/CachedImage';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
@@ -36,7 +26,6 @@ import {
   buildContributorRows,
   type ContributorRow,
 } from '../utils/nowPlayingHelpers';
-import { makeCache } from '../utils/nowPlayingCache';
 import NpCardWrap from '../components/nowPlaying/NpCardWrap';
 import NpColumnEl from '../components/nowPlaying/NpColumnEl';
 import RadioView from '../components/nowPlaying/RadioView';
@@ -45,186 +34,10 @@ import ArtistCard from '../components/nowPlaying/ArtistCard';
 import AlbumCard from '../components/nowPlaying/AlbumCard';
 import TopSongsCard from '../components/nowPlaying/TopSongsCard';
 import CreditsCard from '../components/nowPlaying/CreditsCard';
-
-// ─── Module-level TTL caches (shared across mounts) ───────────────────────────
-
-const songMetaCache    = makeCache<SubsonicSong | null>();
-const artistInfoCache  = makeCache<SubsonicArtistInfo | null>();
-const albumCache       = makeCache<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null>();
-const topSongsCache    = makeCache<SubsonicSong[]>();
-const tourCache        = makeCache<BandsintownEvent[]>();
-const discographyCache = makeCache<SubsonicAlbum[]>();
-const lfmTrackCache    = makeCache<LastfmTrackInfo | null>();
-const lfmArtistCache   = makeCache<LastfmArtistStats | null>();
-
-// ─── Subcomponents (all memoized) ─────────────────────────────────────────────
-
-
-interface TourCardProps {
-  artistName: string;
-  enabled: boolean;
-  loading: boolean;
-  events: BandsintownEvent[];
-  onEnable: () => void;
-}
-
-const TourCard = memo(function TourCard({ artistName, enabled, loading, events, onEnable }: TourCardProps) {
-  const { t } = useTranslation();
-  const [showAll, setShowAll] = useState(false);
-  useEffect(() => { setShowAll(false); }, [artistName]);
-  const TOUR_LIMIT = 5;
-  const visible = showAll ? events : events.slice(0, TOUR_LIMIT);
-  const hidden = Math.max(0, events.length - visible.length);
-
-  return (
-    <div className="np-info-card np-dash-card">
-      <div className="np-card-header">
-        <h3 className="np-card-title">
-          <Calendar size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
-          {t('nowPlayingInfo.onTour', 'On tour')}
-        </h3>
-      </div>
-
-      {!enabled ? (
-        <div className="np-info-bandsintown-prompt">
-          <div className="np-info-bandsintown-prompt-title">
-            <span>{t('nowPlayingInfo.enableBandsintownPrompt', 'See upcoming tour dates?')}</span>
-            <span className="np-info-bandsintown-prompt-info"
-              data-tooltip={t('nowPlayingInfo.enableBandsintownPrivacy', 'When enabled, the current artist\'s name is sent to the Bandsintown API to fetch tour dates. No personal account information leaves your device.')}
-              data-tooltip-pos="bottom"
-              data-tooltip-wrap="true"
-              tabIndex={0}>
-              <Info size={13} />
-            </span>
-          </div>
-          <div className="np-info-bandsintown-prompt-desc">
-            {t('nowPlayingInfo.enableBandsintownPromptDesc', 'Optional. Loads concerts for the current artist via Bandsintown.')}
-          </div>
-          <button className="np-info-bandsintown-prompt-btn" onClick={onEnable}>
-            {t('nowPlayingInfo.enableBandsintownAction', 'Enable')}
-          </button>
-        </div>
-      ) : (
-        <>
-          {loading && events.length === 0 && (
-            <div className="np-info-tour-empty">{t('nowPlayingInfo.tourLoading', 'Loading…')}</div>
-          )}
-          {!loading && events.length === 0 && (
-            <div className="np-info-tour-empty">{t('nowPlayingInfo.noTourEvents', 'No upcoming shows')}</div>
-          )}
-          {visible.length > 0 && (
-            <ul className="np-info-tour">
-              {visible.map((ev, idx) => {
-                const parts = isoToParts(ev.datetime);
-                const place = [ev.venueCity, ev.venueRegion, ev.venueCountry].filter(Boolean).join(', ');
-                return (
-                  <li key={`${ev.datetime}-${ev.venueName}-${idx}`}
-                    className="np-info-tour-item"
-                    onClick={() => ev.url && shellOpen(ev.url).catch(() => {})}
-                    role={ev.url ? 'button' : undefined}
-                    tabIndex={ev.url ? 0 : undefined}>
-                    {parts && (
-                      <div className="np-info-tour-date">
-                        <div className="np-info-tour-date-month">{parts.month}</div>
-                        <div className="np-info-tour-date-day">{parts.day}</div>
-                      </div>
-                    )}
-                    <div className="np-info-tour-meta">
-                      <div className="np-info-tour-venue">{ev.venueName || place}</div>
-                      <div className="np-info-tour-place">
-                        {parts && <span className="np-info-tour-when">{parts.weekday}, {parts.time}</span>}
-                        {parts && place && <span className="np-info-tour-sep"> • </span>}
-                        <span>{place}</span>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {(hidden > 0 || (showAll && events.length > TOUR_LIMIT)) && (
-            <button className="np-info-tour-more" onClick={() => setShowAll(v => !v)}>
-              {showAll
-                ? t('nowPlayingInfo.showLessTours', 'Show less')
-                : t('nowPlayingInfo.showMoreTours', { defaultValue: 'Show {{count}} more', count: hidden })}
-            </button>
-          )}
-          <div className="np-info-tour-credit">{t('nowPlayingInfo.poweredByBandsintown', 'Tour data via Bandsintown')}</div>
-        </>
-      )}
-    </div>
-  );
-});
-
-// ─── Radio view (unchanged from previous implementation) ──────────────────────
-
-// ─── Discography card ────────────────────────────────────────────────────────
-
-interface DiscographyCardProps {
-  artistId?: string;
-  albums: SubsonicAlbum[];
-  currentAlbumId?: string;
-  onNavigate: (path: string) => void;
-}
-
-const DISC_GRID_COLS = 10;
-const DISC_INITIAL_ROWS = 2;
-const DISC_INITIAL = DISC_GRID_COLS * DISC_INITIAL_ROWS;
-
-const DiscographyCard = memo(function DiscographyCard({ artistId, albums, currentAlbumId, onNavigate }: DiscographyCardProps) {
-  const { t } = useTranslation();
-  const [showAll, setShowAll] = useState(false);
-  useEffect(() => { setShowAll(false); }, [artistId]);
-
-  if (albums.length === 0) return null;
-
-  // Chronological sort, newest first. Always clamp to initial rows; expansion is explicit.
-  const ordered = [...albums].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-  const visible = showAll ? ordered : ordered.slice(0, DISC_INITIAL);
-  const hiddenCount = Math.max(0, ordered.length - visible.length);
-
-  return (
-    <div className="np-info-card np-dash-card">
-      <div className="np-card-header">
-        <h3 className="np-card-title">
-          <Disc3 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
-          {t('nowPlaying.discography', 'Discography')}
-        </h3>
-        {artistId && (
-          <button className="np-card-link" onClick={() => onNavigate(`/artist/${artistId}`)}>
-            {t('nowPlaying.goToArtist')} <ExternalLink size={12} />
-          </button>
-        )}
-      </div>
-      <div className="np-dash-disc-grid">
-        {visible.map(a => {
-          const isActive = a.id === currentAlbumId;
-          const fetchUrl = a.coverArt ? buildCoverArtUrl(a.coverArt, 200) : '';
-          const key      = a.coverArt ? coverArtCacheKey(a.coverArt, 200) : '';
-          return (
-            <div key={a.id}
-              className={`np-dash-disc-tile${isActive ? ' active' : ''}`}
-              onClick={() => onNavigate(`/album/${a.id}`)}
-              data-tooltip={`${a.name}${a.year ? ` · ${a.year}` : ''}`}>
-              <div className="np-dash-disc-cover">
-                {fetchUrl && key
-                  ? <CachedImage src={fetchUrl} cacheKey={key} alt={a.name} className="np-dash-disc-img" />
-                  : <div className="np-dash-disc-fallback"><Music size={18} /></div>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {ordered.length > DISC_INITIAL && (
-        <button className="np-dash-tracklist-more" onClick={() => setShowAll(v => !v)}>
-          {showAll
-            ? t('nowPlaying.showLessTracks', 'Show less')
-            : t('nowPlaying.showMoreTracks', { defaultValue: 'Show {{count}} more', count: hiddenCount })}
-        </button>
-      )}
-    </div>
-  );
-});
+import TourCard from '../components/nowPlaying/TourCard';
+import DiscographyCard from '../components/nowPlaying/DiscographyCard';
+import { useNowPlayingFetchers } from '../hooks/useNowPlayingFetchers';
+import { useNowPlayingStarLove } from '../hooks/useNowPlayingStarLove';
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -256,131 +69,22 @@ export default function NowPlaying() {
   const albumId   = currentTrack?.albumId;
   const artistName = currentTrack?.artist ?? '';
 
-  // Entity state, seeded from TTL cache so same-artist song switches are instant
-  const [songMeta,   setSongMeta]   = useState<SubsonicSong | null>(() => songId ? songMetaCache.get(songId) ?? null : null);
-  const [artistInfo, setArtistInfo] = useState<SubsonicArtistInfo | null>(() => artistId ? artistInfoCache.get(artistId) ?? null : null);
-  const [albumData,  setAlbumData]  = useState<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null>(() => albumId ? albumCache.get(albumId) ?? null : null);
-  const [topSongs,   setTopSongs]   = useState<SubsonicSong[]>(() => artistName ? topSongsCache.get(artistName) ?? [] : []);
-  const [tourEvents, setTourEvents] = useState<BandsintownEvent[]>(() => artistName ? tourCache.get(artistName) ?? [] : []);
-  const [tourLoading, setTourLoading] = useState(false);
-  const [discography, setDiscography] = useState<SubsonicAlbum[]>(() => artistId ? discographyCache.get(artistId) ?? [] : []);
-  const [lfmTrack,   setLfmTrack]   = useState<LastfmTrackInfo | null>(null);
-  const [lfmArtist,  setLfmArtist]  = useState<LastfmArtistStats | null>(null);
+  // Entity fetchers (8 cached useEffects + their state)
+  const {
+    songMeta, artistInfo, albumData, topSongs,
+    tourEvents, tourLoading, discography,
+    lfmTrack, lfmArtist,
+  } = useNowPlayingFetchers({
+    songId, artistId, albumId, artistName,
+    enableBandsintown, audiomuseNavidromeEnabled,
+    lastfmUsername, currentTrack,
+  });
 
-  // Fetch batch per entity change (not per song switch — same-artist songs share artist/top/tour fetches)
-  useEffect(() => {
-    if (!songId) { setSongMeta(null); return; }
-    const cached = songMetaCache.get(songId);
-    if (cached !== undefined) { setSongMeta(cached); return; }
-    let cancelled = false;
-    getSong(songId)
-      .then(v => { if (!cancelled) { songMetaCache.set(songId, v ?? null); setSongMeta(v ?? null); } })
-      .catch(() => { if (!cancelled) { songMetaCache.set(songId, null); setSongMeta(null); } });
-    return () => { cancelled = true; };
-  }, [songId]);
-
-  useEffect(() => {
-    if (!artistId) { setArtistInfo(null); return; }
-    const cached = artistInfoCache.get(artistId);
-    if (cached !== undefined) { setArtistInfo(cached); return; }
-    let cancelled = false;
-    getArtistInfo(artistId, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
-      .then(v => { if (!cancelled) { artistInfoCache.set(artistId, v ?? null); setArtistInfo(v ?? null); } })
-      .catch(() => { if (!cancelled) { artistInfoCache.set(artistId, null); setArtistInfo(null); } });
-    return () => { cancelled = true; };
-  }, [artistId, audiomuseNavidromeEnabled]);
-
-  useEffect(() => {
-    if (!albumId) { setAlbumData(null); return; }
-    const cached = albumCache.get(albumId);
-    if (cached !== undefined) { setAlbumData(cached); return; }
-    let cancelled = false;
-    getAlbum(albumId)
-      .then(v => { if (!cancelled) { albumCache.set(albumId, v); setAlbumData(v); } })
-      .catch(() => { if (!cancelled) { albumCache.set(albumId, null); setAlbumData(null); } });
-    return () => { cancelled = true; };
-  }, [albumId]);
-
-  useEffect(() => {
-    if (!artistName) { setTopSongs([]); return; }
-    const cached = topSongsCache.get(artistName);
-    if (cached !== undefined) { setTopSongs(cached); return; }
-    let cancelled = false;
-    getTopSongs(artistName)
-      .then(v => { if (!cancelled) { topSongsCache.set(artistName, v); setTopSongs(v); } })
-      .catch(() => { if (!cancelled) { topSongsCache.set(artistName, []); setTopSongs([]); } });
-    return () => { cancelled = true; };
-  }, [artistName]);
-
-  useEffect(() => {
-    if (!enableBandsintown || !artistName) { setTourEvents([]); return; }
-    const cached = tourCache.get(artistName);
-    if (cached !== undefined) { setTourEvents(cached); setTourLoading(false); return; }
-    let cancelled = false;
-    setTourLoading(true);
-    fetchBandsintownEvents(artistName)
-      .then(v => { if (!cancelled) { tourCache.set(artistName, v); setTourEvents(v); } })
-      .finally(() => { if (!cancelled) setTourLoading(false); });
-    return () => { cancelled = true; };
-  }, [enableBandsintown, artistName]);
-
-  // Discography via getArtist
-  useEffect(() => {
-    if (!artistId) { setDiscography([]); return; }
-    const cached = discographyCache.get(artistId);
-    if (cached !== undefined) { setDiscography(cached); return; }
-    let cancelled = false;
-    getArtist(artistId)
-      .then(v => { if (!cancelled) { discographyCache.set(artistId, v.albums); setDiscography(v.albums); } })
-      .catch(() => { if (!cancelled) { discographyCache.set(artistId, []); setDiscography([]); } });
-    return () => { cancelled = true; };
-  }, [artistId]);
-
-  // Last.fm track info (per-track)
-  const lfmTrackKey = currentTrack ? `${currentTrack.artist} ${currentTrack.title} ${lastfmUsername}` : '';
-  useEffect(() => {
-    if (!lastfmIsConfigured() || !currentTrack) { setLfmTrack(null); return; }
-    const cached = lfmTrackCache.get(lfmTrackKey);
-    if (cached !== undefined) { setLfmTrack(cached); return; }
-    let cancelled = false;
-    lastfmGetTrackInfo(currentTrack.artist, currentTrack.title, lastfmUsername || undefined)
-      .then(v => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, v); setLfmTrack(v); } })
-      .catch(() => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, null); setLfmTrack(null); } });
-    return () => { cancelled = true; };
-  }, [lfmTrackKey, currentTrack, lastfmUsername]);
-
-  // Last.fm artist stats (per-artist — shared across same-artist tracks)
-  const lfmArtistKey = artistName ? `${artistName} ${lastfmUsername}` : '';
-  useEffect(() => {
-    if (!lastfmIsConfigured() || !artistName) { setLfmArtist(null); return; }
-    const cached = lfmArtistCache.get(lfmArtistKey);
-    if (cached !== undefined) { setLfmArtist(cached); return; }
-    let cancelled = false;
-    lastfmGetArtistStats(artistName, lastfmUsername || undefined)
-      .then(v => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, v); setLfmArtist(v); } })
-      .catch(() => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, null); setLfmArtist(null); } });
-    return () => { cancelled = true; };
-  }, [lfmArtistKey, artistName, lastfmUsername]);
-
-  // Star
-  const [starred, setStarred] = useState(false);
-  useEffect(() => { setStarred(!!songMeta?.starred); }, [songMeta]);
-  const toggleStar = useCallback(async () => {
-    if (!currentTrack) return;
-    if (starred) { await unstar(currentTrack.id, 'song'); setStarred(false); }
-    else         { await star(currentTrack.id,   'song'); setStarred(true);  }
-  }, [currentTrack, starred]);
-
-  // Last.fm love (seeded from track.getInfo, toggle via love/unlove)
+  // Star + Last.fm love + their toggle callbacks
   const lfmLoveEnabled = Boolean(lastfmUsername && lastfmSessionKey);
-  const [lfmLoved, setLfmLoved] = useState(false);
-  useEffect(() => { setLfmLoved(!!lfmTrack?.userLoved); }, [lfmTrack]);
-  const toggleLfmLove = useCallback(async () => {
-    if (!currentTrack || !lfmLoveEnabled) return;
-    const track = { title: currentTrack.title, artist: currentTrack.artist };
-    if (lfmLoved) { await lastfmUnloveTrack(track, lastfmSessionKey); setLfmLoved(false); }
-    else          { await lastfmLoveTrack  (track, lastfmSessionKey); setLfmLoved(true);  }
-  }, [currentTrack, lfmLoved, lfmLoveEnabled, lastfmSessionKey]);
+  const { starred, lfmLoved, toggleStar, toggleLfmLove } = useNowPlayingStarLove({
+    currentTrack, songMeta, lfmTrack, lfmLoveEnabled, lastfmSessionKey,
+  });
 
   const openLyrics = useCallback(() => {
     if (!isQueueVisible) toggleQueue();
