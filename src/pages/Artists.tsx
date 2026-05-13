@@ -1,13 +1,11 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getArtists } from '../api/subsonicArtists';
 import type { SubsonicArtist } from '../api/subsonicTypes';
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, List, Images, CheckSquare2, ListMusic, Check } from 'lucide-react';
+import { LayoutGrid, List, Images, CheckSquare2, Check } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
-import CachedImage from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
@@ -19,67 +17,9 @@ import {
   ARTIST_LIST_LAST_IN_LETTER_EST,
   ARTIST_LIST_LETTER_ROW_EST,
   ARTIST_LIST_ROW_EST,
-  nameColor,
-  nameInitial,
   type ArtistListFlatRow,
 } from '../utils/artistsHelpers';
-
-function ArtistCardAvatar({ artist, showImages }: { artist: SubsonicArtist; showImages: boolean }) {
-  const color = nameColor(artist.name);
-  const coverId = artist.coverArt || artist.id;
-  const { coverSrc, coverKey } = useMemo(
-    () => ({
-      coverSrc: coverId ? buildCoverArtUrl(coverId, 300) : '',
-      coverKey: coverId ? coverArtCacheKey(coverId, 300) : '',
-    }),
-    [coverId],
-  );
-  if (showImages && coverId) {
-    return (
-      <div className="artist-card-avatar">
-        <CachedImage
-          src={coverSrc}
-          cacheKey={coverKey}
-          alt={artist.name}
-        />
-      </div>
-    );
-  }
-  return (
-    <div className="artist-card-avatar artist-card-avatar-initial" style={{ borderColor: color }}>
-      <span style={{ color }}>{nameInitial(artist.name)}</span>
-    </div>
-  );
-}
-
-function ArtistRowAvatar({ artist, showImages }: { artist: SubsonicArtist; showImages: boolean }) {
-  const color = nameColor(artist.name);
-  const coverId = artist.coverArt || artist.id;
-  const { coverSrc, coverKey } = useMemo(
-    () => ({
-      coverSrc: coverId ? buildCoverArtUrl(coverId, 64) : '',
-      coverKey: coverId ? coverArtCacheKey(coverId, 64) : '',
-    }),
-    [coverId],
-  );
-  if (showImages && coverId) {
-    return (
-      <div className="artist-avatar">
-        <CachedImage
-          src={coverSrc}
-          cacheKey={coverKey}
-          alt={artist.name}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-        />
-      </div>
-    );
-  }
-  return (
-    <div className="artist-avatar artist-avatar-initial" style={{ borderColor: color }}>
-      <span style={{ color }}>{nameInitial(artist.name)}</span>
-    </div>
-  );
-}
+import { ArtistCardAvatar, ArtistRowAvatar } from '../components/artists/ArtistAvatars';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
