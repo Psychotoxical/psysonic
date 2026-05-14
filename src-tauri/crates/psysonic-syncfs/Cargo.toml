@@ -16,7 +16,7 @@ tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt", "time", "sync"] }
-reqwest = { version = "0.13", default-features = false, features = ["stream", "json", "rustls", "blocking"] }
+reqwest = { version = "0.13", default-features = false, features = ["stream", "json", "rustls", "blocking", "gzip", "brotli"] }
 futures-util = "0.3"
 sysinfo = { version = "0.38", default-features = false, features = ["disk"] }
 url = "2"
