@@ -284,6 +284,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ## Fixed
 
+### Statistics / playlists — duration totals rounded to the nearest minute again
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#710](https://github.com/Psychotoxical/psysonic/pull/710)**
+
+* Aggregate duration labels (album and playlist totals, total playtime in **Statistics**) could read up to ~59 s short and round the wrong way at the hour boundary — a 59:30 total showed **"59 m"** instead of **"1 h 0 m"**. A `format` helper consolidation had switched the shared formatter from rounding to truncating; the round-to-nearest-minute behaviour is restored.
+
 ### Artists — infinite scroll after first page
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#709](https://github.com/Psychotoxical/psysonic/pull/709)**
