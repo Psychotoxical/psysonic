@@ -1,5 +1,7 @@
+import { isNewer } from '../utils/componentHelpers/appUpdaterHelpers';
+
 // Credits list rendered on the Settings → System tab. Update via PR when adding a contributor.
-export const CONTRIBUTORS = [
+const CONTRIBUTOR_ENTRIES = [
   {
     github: 'jiezhuo',
     since: '1.21',
@@ -283,6 +285,22 @@ export const CONTRIBUTORS = [
     ],
   },
 ] as const;
+
+// PR number of a contributor's first listed contribution, used as the
+// tie-breaker when several contributors share the same `since` version.
+function firstContributionPr(entry: { contributions: readonly string[] }): number {
+  const match = entry.contributions[0]?.match(/PR #(\d+)/);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+
+// Rendered chronologically: ascending by the app version a contributor first
+// appeared in (`since`), then by their first-contribution PR number. Sorting
+// here keeps the order correct no matter where new entries land in the array.
+export const CONTRIBUTORS = [...CONTRIBUTOR_ENTRIES].sort((a, b) => {
+  if (isNewer(a.since, b.since)) return 1;
+  if (isNewer(b.since, a.since)) return -1;
+  return firstContributionPr(a) - firstContributionPr(b);
+});
 
 export const MAINTAINERS = [
   { github: 'Psychotoxical' },
