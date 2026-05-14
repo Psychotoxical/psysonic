@@ -118,6 +118,9 @@ export const useOfflineStore = create<OfflineState>()(
         const CONCURRENCY = 8;
         const trackIds = songs.map(s => s.id);
         const jobStore = useOfflineJobStore;
+        // Unique per run — keys the Rust-side cancellation flag so the X button
+        // can abort in-flight transfers, not just stop queuing new ones.
+        const downloadId = `${albumId}-${Date.now()}`;
 
         // Pre-flight: verify the target directory is accessible before queuing anything.
         const customDir = useAuthStore.getState().offlineDownloadDir || null;
@@ -149,6 +152,7 @@ export const useOfflineStore = create<OfflineState>()(
               trackIndex: i,
               totalTracks: songs.length,
               status: 'queued' as const,
+              downloadId,
             })),
           ],
         }));
@@ -160,7 +164,13 @@ export const useOfflineStore = create<OfflineState>()(
           // Abort if the user cancelled this download.
           if (cancelledDownloads.has(albumId)) {
             cancelledDownloads.delete(albumId);
+            // Persist whatever finished before the cancel so files already on
+            // disk are not orphaned, then drop the remaining jobs.
+            if (Object.keys(completedTracks).length > 0) {
+              set(state => ({ tracks: { ...state.tracks, ...completedTracks } }));
+            }
             jobStore.setState(state => ({ jobs: state.jobs.filter(j => j.albumId !== albumId) }));
+            invoke('clear_offline_cancel', { downloadId }).catch(() => {});
             return;
           }
 
@@ -180,6 +190,11 @@ export const useOfflineStore = create<OfflineState>()(
           const results = await Promise.all(
             batch.map(async song => {
               const suffix = song.suffix || 'mp3';
+              // Skip tracks not yet started once the user cancels mid-batch —
+              // the per-batch check above only catches whole batches.
+              if (cancelledDownloads.has(albumId)) {
+                return { song, suffix, localPath: null as string | null, error: 'CANCELLED' };
+              }
               try {
                 const localPath = await invoke<string>('download_track_offline', {
                   trackId: song.id,
@@ -187,6 +202,7 @@ export const useOfflineStore = create<OfflineState>()(
                   url: buildStreamUrl(song.id),
                   suffix,
                   customDir,
+                  downloadId,
                 });
                 return { song, suffix, localPath, error: null as string | null };
               } catch (err) {
@@ -233,6 +249,9 @@ export const useOfflineStore = create<OfflineState>()(
               if (j.albumId !== albumId) return j;
               const r = resultMap.get(j.trackId);
               if (!r) return j;
+              // A cancelled track is not a failure — leave the job for the
+              // cancel path to drop rather than flashing it red.
+              if (r.error === 'CANCELLED') return j;
               return { ...j, status: r.localPath ? 'done' : 'error' };
             }),
           }));
@@ -240,6 +259,7 @@ export const useOfflineStore = create<OfflineState>()(
 
         // Persist all completed tracks in ONE localStorage write.
         set(state => ({ tracks: { ...state.tracks, ...completedTracks } }));
+        invoke('clear_offline_cancel', { downloadId }).catch(() => {});
 
         // Clear completed jobs after a short delay.
         setTimeout(() => {

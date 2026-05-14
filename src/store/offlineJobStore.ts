@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface DownloadJob {
   trackId: string;
@@ -8,6 +9,8 @@ export interface DownloadJob {
   trackIndex: number;
   totalTracks: number;
   status: 'queued' | 'downloading' | 'done' | 'error';
+  /** Unique per `downloadAlbum` run — keys the Rust-side cancellation flag. */
+  downloadId: string;
 }
 
 interface OfflineJobState {
@@ -17,8 +20,16 @@ interface OfflineJobState {
   cancelAllDownloads: () => void;
 }
 
-// Module-level cancellation set — checked by downloadAlbum before each batch.
+// Module-level cancellation set — checked by downloadAlbum before each track.
 export const cancelledDownloads = new Set<string>();
+
+/** Tells Rust to abort any in-flight `download_track_offline` calls for these jobs. */
+function abortDownloadsInRust(jobs: DownloadJob[]) {
+  const downloadIds = [...new Set(jobs.map(j => j.downloadId).filter(Boolean))];
+  if (downloadIds.length > 0) {
+    invoke('cancel_offline_downloads', { downloadIds }).catch(() => {});
+  }
+}
 
 export const useOfflineJobStore = create<OfflineJobState>()((set, get) => ({
   jobs: [],
@@ -26,21 +37,24 @@ export const useOfflineJobStore = create<OfflineJobState>()((set, get) => ({
 
   cancelDownload: (albumId) => {
     cancelledDownloads.add(albumId);
-    // Remove queued (not yet started) jobs immediately so the counter drops.
+    // Abort the in-flight Rust transfers, then drop every job for this album
+    // (queued AND downloading) so the sidebar toast clears right away.
+    abortDownloadsInRust(get().jobs.filter(j => j.albumId === albumId));
     set(state => ({
-      jobs: state.jobs.filter(j => !(j.albumId === albumId && j.status === 'queued')),
+      jobs: state.jobs.filter(j => j.albumId !== albumId),
     }));
   },
 
   cancelAllDownloads: () => {
-    const unique = [...new Set(
-      get().jobs
-        .filter(j => j.status === 'queued' || j.status === 'downloading')
-        .map(j => j.albumId),
-    )];
-    unique.forEach(id => cancelledDownloads.add(id));
+    const active = get().jobs.filter(
+      j => j.status === 'queued' || j.status === 'downloading',
+    );
+    [...new Set(active.map(j => j.albumId))].forEach(id => cancelledDownloads.add(id));
+    abortDownloadsInRust(active);
+    // Keep only already-settled jobs (done/error) — the active ones are gone,
+    // so the toast disappears instead of lingering on stuck "downloading" rows.
     set(state => ({
-      jobs: state.jobs.filter(j => j.status !== 'queued'),
+      jobs: state.jobs.filter(j => j.status !== 'queued' && j.status !== 'downloading'),
     }));
   },
 }));
