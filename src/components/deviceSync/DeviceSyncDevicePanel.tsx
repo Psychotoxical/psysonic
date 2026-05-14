@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useDeviceSyncJobStore } from '../../store/deviceSyncJobStore';
 import type { DeviceSyncSource } from '../../store/deviceSyncStore';
-import type { SyncStatus } from '../../utils/deviceSyncHelpers';
+import type { SyncStatus } from '../../utils/deviceSync/deviceSyncHelpers';
 
 interface Props {
   sources: DeviceSyncSource[];

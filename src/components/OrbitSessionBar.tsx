@@ -1,5 +1,5 @@
 import { getSong } from '../api/subsonicLibrary';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useRef, useState } from 'react';
 import { X, RefreshCw, Shuffle, Settings2, Share2, HelpCircle, Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

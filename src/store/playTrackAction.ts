@@ -1,11 +1,11 @@
 import { reportNowPlaying } from '../api/subsonicScrobble';
 import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmUpdateNowPlaying } from '../api/lastfm';
-import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
+import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
-import { sameQueueTrackId } from '../utils/queueIdentity';
-import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
-import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
+import { sameQueueTrackId } from '../utils/playback/queueIdentity';
+import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
+import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
 import {
   bumpPlayGeneration,

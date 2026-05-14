@@ -16,7 +16,7 @@ import LyricsPane from './LyricsPane';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
 import PlaybackScheduleBadge from './PlaybackScheduleBadge';
-import { usePlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
+import { usePlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
 
 // ── Color extraction ──────────────────────────────────────────────────────────
 // Samples a 16×16 canvas to find the most vibrant (highest-saturation,

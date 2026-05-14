@@ -5,7 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { version } from '../../package.json';
 import changelogRaw from '../../CHANGELOG.md?raw';
 import { useAuthStore } from '../store/authStore';
-import { findChangelogReleaseEntry } from '../utils/changelogReleaseMatch';
+import { findChangelogReleaseEntry } from '../utils/changelog/changelogReleaseMatch';
 
 function renderInline(text: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);

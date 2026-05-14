@@ -1,7 +1,7 @@
 import React from 'react';
 import type { TFunction } from 'i18next';
 import type { ColDef } from '../../utils/useTracklistColumns';
-import { CENTERED_COLS, isSortable, type ColKey, type SortKey } from '../../utils/albumTrackListHelpers';
+import { CENTERED_COLS, isSortable, type ColKey, type SortKey } from '../../utils/componentHelpers/albumTrackListHelpers';
 
 interface Props {
   visibleCols: readonly ColDef[];

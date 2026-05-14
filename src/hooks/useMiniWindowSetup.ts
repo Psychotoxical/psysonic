@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { IS_LINUX } from '../utils/platform';
 import {
   EXPANDED_SIZE, EXPANDED_MIN, readStoredExpandedHeight,
-} from '../utils/miniPlayerHelpers';
+} from '../utils/componentHelpers/miniPlayerHelpers';
 
 /** Three window-bound setup effects bundled together:
  *  - Linux WebKitGTK smooth-scroll per-window (re-applies after auth hydrates

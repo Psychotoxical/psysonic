@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, Shield, Wand2 } from 'lucide-react';
 import { ndUpdateUser, type NdLibrary, type NdUser } from '../../api/navidromeAdmin';
-import { showToast } from '../../utils/toast';
+import { showToast } from '../../utils/ui/toast';
 import {
   copyTextToClipboard,
   encodeServerMagicString,
-} from '../../utils/serverMagicString';
-import { shortHostFromServerUrl } from '../../utils/serverDisplayName';
+} from '../../utils/server/serverMagicString';
+import { shortHostFromServerUrl } from '../../utils/server/serverDisplayName';
 
 export interface UserFormState {
   userName: string;

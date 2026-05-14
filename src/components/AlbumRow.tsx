@@ -4,7 +4,7 @@ import AlbumCard from './AlbumCard';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { dedupeById } from '../utils/dedupeById';
 
 interface Props {

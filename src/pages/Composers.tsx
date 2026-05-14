@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
 const ALL_SENTINEL = 'ALL';
 const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];

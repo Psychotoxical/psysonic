@@ -2,7 +2,7 @@ import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next';
 import { ExternalLink } from 'lucide-react';
 import type { SubsonicArtistInfo } from '../../api/subsonicTypes';
-import { isRealArtistImage, sanitizeHtml } from '../../utils/nowPlayingHelpers';
+import { isRealArtistImage, sanitizeHtml } from '../../utils/componentHelpers/nowPlayingHelpers';
 import CachedImage from '../CachedImage';
 
 interface ArtistCardProps {

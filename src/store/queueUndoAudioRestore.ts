@@ -1,8 +1,8 @@
 import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
-import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
-import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
-import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
+import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
+import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
+import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
 import { getPlayGeneration, setIsAudioPaused } from './engineState';
 import { touchHotCacheOnPlayback } from './hotCacheTouch';

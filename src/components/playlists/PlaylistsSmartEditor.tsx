@@ -5,7 +5,7 @@ import StarRating from '../StarRating';
 import {
   LIMIT_MAX, YEAR_MAX, YEAR_MIN, clampYear, defaultSmartFilters,
   type SmartFilters,
-} from '../../utils/playlistsSmart';
+} from '../../utils/playlist/playlistsSmart';
 
 interface Props {
   smartFilters: SmartFilters;

@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useSidebarStore, SidebarItemConfig } from '../../store/sidebarStore';
 import { useLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
-import { applySidebarDropReorder } from '../../utils/sidebarNavReorder';
+import { applySidebarDropReorder } from '../../utils/componentHelpers/sidebarNavReorder';
 
 type DropTarget = { idx: number; before: boolean; section: 'library' | 'system' } | null;
 

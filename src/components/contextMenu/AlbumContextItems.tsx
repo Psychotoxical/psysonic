@@ -5,7 +5,7 @@ import { getAlbum } from '../../api/subsonicLibrary';
 import { star, unstar } from '../../api/subsonicStarRating';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import { useAuthStore } from '../../store/authStore';
-import { songToTrack } from '../../utils/songToTrack';
+import { songToTrack } from '../../utils/playback/songToTrack';
 import StarRating from '../StarRating';
 import { AlbumToPlaylistSubmenu } from './AlbumArtistToPlaylistSubmenu';
 import { MultiAlbumToPlaylistSubmenu } from './MultiAlbumToPlaylistSubmenu';

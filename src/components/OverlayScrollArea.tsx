@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { computeOverlayScrollbarThumbMeta } from '../utils/overlayScrollbarMetrics';
-import { bindOverlayScrollbarThumbDrag } from '../utils/overlayScrollbarThumb';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { computeOverlayScrollbarThumbMeta } from '../utils/ui/overlayScrollbarMetrics';
+import { bindOverlayScrollbarThumbDrag } from '../utils/ui/overlayScrollbarThumb';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
 export type OverlayScrollRailInset = 'none' | 'mini' | 'panel';
 

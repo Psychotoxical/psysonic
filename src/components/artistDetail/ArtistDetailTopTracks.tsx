@@ -5,8 +5,8 @@ import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
-import { songToTrack } from '../../utils/songToTrack';
-import { formatDuration } from '../../utils/artistDetailHelpers';
+import { songToTrack } from '../../utils/playback/songToTrack';
+import { formatDuration } from '../../utils/componentHelpers/artistDetailHelpers';
 import ArtistSuggestionTrackCover from './ArtistSuggestionTrackCover';
 
 interface Props {

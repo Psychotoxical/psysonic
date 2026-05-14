@@ -1,4 +1,4 @@
-import { setPerfProbeFlag, type PerfProbeFlags } from '../../utils/perfFlags';
+import { setPerfProbeFlag, type PerfProbeFlags } from '../../utils/perf/perfFlags';
 
 export default function SidebarPerfProbePhase2({ perfFlags }: { perfFlags: PerfProbeFlags }) {
   return (

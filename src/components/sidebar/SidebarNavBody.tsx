@@ -5,7 +5,7 @@ import { AudioLines, ChevronRight, HardDriveDownload, PlayCircle, Settings, Spar
 import type { SidebarItemConfig } from '../../store/sidebarStore';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import WhatsNewBanner from '../WhatsNewBanner';
-import { displayPlaylistName, isSmartPlaylistName } from '../../utils/sidebarHelpers';
+import { displayPlaylistName, isSmartPlaylistName } from '../../utils/componentHelpers/sidebarHelpers';
 import SidebarLibraryPicker from './SidebarLibraryPicker';
 import SidebarActiveJobs from './SidebarActiveJobs';
 

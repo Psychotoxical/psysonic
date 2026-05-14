@@ -2,7 +2,7 @@ import { getPlaylist } from '../api/subsonicPlaylists';
 import { getGenres } from '../api/subsonicGenres';
 import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicGenre } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayerStore } from '../store/playerStore';
@@ -11,19 +11,19 @@ import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 
-import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
+import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import {
   defaultSmartFilters, isSmartPlaylistName,
   type SmartFilters, type PendingSmartPlaylist,
-} from '../utils/playlistsSmart';
+} from '../utils/playlist/playlistsSmart';
 import { useSmartCoverCollage } from '../hooks/useSmartCoverCollage';
 import { usePlaylistsLibraryScopeCounts } from '../hooks/usePlaylistsLibraryScopeCounts';
 import { usePendingSmartPolling } from '../hooks/usePendingSmartPolling';
-import { runPlaylistsOpenSmartEditor } from '../utils/runPlaylistsOpenSmartEditor';
-import { runPlaylistsSaveSmart } from '../utils/runPlaylistsSaveSmart';
+import { runPlaylistsOpenSmartEditor } from '../utils/playlist/runPlaylistsOpenSmartEditor';
+import { runPlaylistsSaveSmart } from '../utils/playlist/runPlaylistsSaveSmart';
 import {
   runPlaylistDelete, runPlaylistDeleteSelected, runPlaylistMergeSelected,
-} from '../utils/runPlaylistsActions';
+} from '../utils/playlist/runPlaylistsActions';
 import PlaylistsSmartEditor from '../components/playlists/PlaylistsSmartEditor';
 import PlaylistsHeader from '../components/playlists/PlaylistsHeader';
 import PlaylistCard from '../components/playlists/PlaylistCard';

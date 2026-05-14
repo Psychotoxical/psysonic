@@ -10,7 +10,7 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useAuthStore } from '../../store/authStore';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { extractCoverColors } from '../../utils/dynamicColors';
+import { extractCoverColors } from '../../utils/ui/dynamicColors';
 import CachedImage from '../CachedImage';
 import CoverLightbox from '../CoverLightbox';
 import LastfmIcon from '../LastfmIcon';

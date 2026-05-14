@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import { updateOrbitSettings, triggerOrbitShuffleNow } from '../utils/orbit';
 import { ORBIT_DEFAULT_SETTINGS, ORBIT_SHUFFLE_INTERVAL_PRESETS_MIN, type OrbitShuffleIntervalMin } from '../api/orbit';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 
 interface Props {
   anchorRef: React.RefObject<HTMLElement | null>;

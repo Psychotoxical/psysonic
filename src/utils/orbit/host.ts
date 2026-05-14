@@ -1,6 +1,6 @@
 import { createPlaylist, deletePlaylist } from '../../api/subsonicPlaylists';
 import { getSong } from '../../api/subsonicLibrary';
-import { songToTrack } from '../songToTrack';
+import { songToTrack } from '../playback/songToTrack';
 import { useAuthStore } from '../../store/authStore';
 import { useOrbitStore } from '../../store/orbitStore';
 import { usePlayerStore } from '../../store/playerStore';

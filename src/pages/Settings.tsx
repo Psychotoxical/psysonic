@@ -19,7 +19,7 @@ import { SystemTab } from '../components/settings/SystemTab';
 import { SETTINGS_INDEX, type Tab, matchScore, resolveTab } from '../components/settings/settingsTabs';
 import { UserManagementSection } from '../components/settings/UserManagementSection';
 import { ndLogin } from '../api/navidromeAdmin';
-import { type ServerMagicPayload } from '../utils/serverMagicString';
+import { type ServerMagicPayload } from '../utils/server/serverMagicString';
 
 
 export default function Settings() {

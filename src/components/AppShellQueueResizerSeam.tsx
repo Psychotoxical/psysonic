@@ -1,7 +1,7 @@
 import React from 'react';
 import type { TFunction } from 'i18next';
 import { PanelRight, PanelRightClose } from 'lucide-react';
-import { shouldSuppressQueueResizerMouseDown } from '../utils/appShellHelpers';
+import { shouldSuppressQueueResizerMouseDown } from '../utils/componentHelpers/appShellHelpers';
 
 interface Props {
   isQueueVisible: boolean;

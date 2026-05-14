@@ -5,7 +5,7 @@ import OverlayScrollArea from '../OverlayScrollArea';
 import { usePlayerStore } from '../../store/playerStore';
 import { useLuckyMixStore } from '../../store/luckyMixStore';
 import type { Track, PlayerState } from '../../store/playerStoreTypes';
-import { formatTime } from '../../utils/queuePanelHelpers';
+import { formatTime } from '../../utils/componentHelpers/queuePanelHelpers';
 
 type StartDrag = (
   payload: { data: string; label: string },

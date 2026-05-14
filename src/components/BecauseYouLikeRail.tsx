@@ -2,7 +2,7 @@ import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getArtist, getArtistInfo } from '../api/subsonicArtists';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,7 @@ import { Play, ListPlus, Music } from 'lucide-react';
 import CachedImage, { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
-import { playAlbum } from '../utils/playAlbum';
+import { playAlbum } from '../utils/playback/playAlbum';
 import AlbumRow from './AlbumRow';
 
 const ANCHOR_HISTORY_KEY_PREFIX = 'psysonic_because_anchor_history:';

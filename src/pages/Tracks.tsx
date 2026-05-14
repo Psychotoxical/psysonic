@@ -1,7 +1,7 @@
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, RefreshCw, Sparkles } from 'lucide-react';
@@ -11,9 +11,9 @@ import { usePlayerStore } from '../store/playerStore';
 import CachedImage from '../components/CachedImage';
 import SongRail from '../components/SongRail';
 import VirtualSongList from '../components/VirtualSongList';
-import { playSongNow } from '../utils/playSong';
+import { playSongNow } from '../utils/playback/playSong';
 import { ndListSongs, ndInvalidateSongsCache } from '../api/navidromeBrowse';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
 const RANDOM_RAIL_SIZE = 18;
 /** Over-fetch buffer so the client-side `userRating > 0` filter still leaves

@@ -8,8 +8,8 @@ import {
   STATIC_REDRAW_FORCE_MS, STATIC_REDRAW_MIN_MS,
   fmt, invalidateColorCache, isBarQuantizedSeekStyle, makeAnimState,
   quantizeProgressByBars,
-} from '../utils/waveformSeekHelpers';
-import { drawSeekbar } from '../utils/waveformSeekRenderers';
+} from '../utils/waveform/waveformSeekHelpers';
+import { drawSeekbar } from '../utils/waveform/waveformSeekRenderers';
 import { useWaveformHeights } from '../hooks/useWaveformHeights';
 import { useWaveformInterpolation } from '../hooks/useWaveformInterpolation';
 

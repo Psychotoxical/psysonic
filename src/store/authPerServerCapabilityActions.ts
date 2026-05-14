@@ -1,4 +1,4 @@
-import { isNavidromeAudiomuseSoftwareEligible } from '../utils/subsonicServerIdentity';
+import { isNavidromeAudiomuseSoftwareEligible } from '../utils/server/subsonicServerIdentity';
 import type { AuthState } from './authStoreTypes';
 
 type SetState = (

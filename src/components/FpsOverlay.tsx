@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { usePerfProbeFlag } from '../utils/perfFlags';
+import { usePerfProbeFlag } from '../utils/perf/perfFlags';
 
 const SAMPLE_MS = 500;
 

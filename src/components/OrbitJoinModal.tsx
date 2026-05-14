@@ -9,9 +9,9 @@ import {
   readOrbitState,
   joinOrbitSession,
 } from '../utils/orbit';
-import { switchActiveServer } from '../utils/switchActiveServer';
+import { switchActiveServer } from '../utils/server/switchActiveServer';
 import { useOrbitAccountPickerStore } from '../store/orbitAccountPickerStore';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 
 interface Props {
   onClose: () => void;

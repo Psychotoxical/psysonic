@@ -10,7 +10,7 @@ import { fetchLyricsPlus, hasWordSync } from '../api/lyricsplus';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useHotCacheStore } from '../store/hotCacheStore';
-import { getCachedLyrics, putCachedLyrics, lyricsCacheKey } from '../utils/lyricsPersistentCache';
+import { getCachedLyrics, putCachedLyrics, lyricsCacheKey } from '../utils/cache/lyricsPersistentCache';
 export type LyricsSource = 'server' | 'lrclib' | 'netease' | 'embedded' | 'lyricsplus';
 
 /**

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import { getPlaylist } from '../api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '../api/subsonicTypes';
-import { isSmartPlaylistName } from '../utils/playlistsSmart';
+import { isSmartPlaylistName } from '../utils/playlist/playlistsSmart';
 
 /**
  * Build the 2×2 cover collage for each smart playlist. Pulls each smart

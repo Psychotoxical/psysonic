@@ -3,7 +3,7 @@ import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AlbumCard from '../components/AlbumCard';
@@ -22,21 +22,21 @@ import { useTranslation } from 'react-i18next';
 import { lastfmIsConfigured } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
 import { invalidateCoverArt } from '../utils/imageCache';
-import { showToast } from '../utils/toast';
-import { copyEntityShareLink } from '../utils/copyEntityShareLink';
-import { extractCoverColors } from '../utils/dynamicColors';
+import { showToast } from '../utils/ui/toast';
+import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
+import { extractCoverColors } from '../utils/ui/dynamicColors';
 import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
 
-import { sanitizeHtml } from '../utils/artistDetailHelpers';
+import { sanitizeHtml } from '../utils/componentHelpers/artistDetailHelpers';
 import { useArtistDetailData } from '../hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '../hooks/useArtistSimilarArtists';
 import {
   runArtistDetailPlayAll, runArtistDetailShuffle, runArtistDetailStartRadio,
-} from '../utils/runArtistDetailPlay';
+} from '../utils/componentHelpers/runArtistDetailPlay';
 import {
   runArtistEntityRating, runArtistToggleStar, runArtistShare, runArtistImageUpload,
-} from '../utils/runArtistDetailActions';
+} from '../utils/componentHelpers/runArtistDetailActions';
 import ArtistDetailHero from '../components/artistDetail/ArtistDetailHero';
 import ArtistDetailTopTracks from '../components/artistDetail/ArtistDetailTopTracks';
 import ArtistDetailSimilarArtists from '../components/artistDetail/ArtistDetailSimilarArtists';

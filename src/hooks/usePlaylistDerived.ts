@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import type { Track } from '../store/playerStoreTypes';
 import { usePlayerStore } from '../store/playerStore';
-import { songToTrack } from '../utils/songToTrack';
-import { getDisplayedSongs, type PlaylistSortDir, type PlaylistSortKey } from '../utils/playlistDisplayedSongs';
+import { songToTrack } from '../utils/playback/songToTrack';
+import { getDisplayedSongs, type PlaylistSortDir, type PlaylistSortKey } from '../utils/playlist/playlistDisplayedSongs';
 
 export interface PlaylistDerivedOptions {
   filterText: string;

@@ -1,7 +1,7 @@
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
@@ -10,7 +10,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import CachedImage from './CachedImage';
-import { playAlbum } from '../utils/playAlbum';
+import { playAlbum } from '../utils/playback/playAlbum';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 

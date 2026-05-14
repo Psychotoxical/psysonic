@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { coerceWaveformBins } from '../utils/waveformParse';
+import { coerceWaveformBins } from '../utils/waveform/waveformParse';
 import { usePlayerStore } from './playerStore';
 import { getWaveformRefreshGen } from './waveformRefreshGen';
 

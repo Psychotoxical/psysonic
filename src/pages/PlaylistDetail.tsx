@@ -26,9 +26,9 @@ import {
   isSmartPlaylistName,
   displayPlaylistName,
   codecLabel,
-} from '../utils/playlistDetailHelpers';
-import type { SpotifyCsvTrack } from '../utils/spotifyCsvImport';
-import { runPlaylistCsvImport } from '../utils/runPlaylistCsvImport';
+} from '../utils/componentHelpers/playlistDetailHelpers';
+import type { SpotifyCsvTrack } from '../utils/playlist/spotifyCsvImport';
+import { runPlaylistCsvImport } from '../utils/playlist/runPlaylistCsvImport';
 import PlaylistEditModal from '../components/playlist/PlaylistEditModal';
 import CsvImportReportModal from '../components/playlist/CsvImportReportModal';
 import PlaylistSongSearchPanel from '../components/playlist/PlaylistSongSearchPanel';
@@ -36,11 +36,11 @@ import PlaylistSuggestions from '../components/playlist/PlaylistSuggestions';
 import PlaylistHero from '../components/playlist/PlaylistHero';
 import PlaylistTracklist from '../components/playlist/PlaylistTracklist';
 import PlaylistFilterToolbar from '../components/playlist/PlaylistFilterToolbar';
-import type { PlaylistSortKey, PlaylistSortDir } from '../utils/playlistDisplayedSongs';
-import { runPlaylistZipDownload } from '../utils/runPlaylistZipDownload';
-import { runPlaylistSaveMeta } from '../utils/runPlaylistSaveMeta';
-import { runPlaylistLoad } from '../utils/runPlaylistLoad';
-import { startPlaylistRowDrag } from '../utils/startPlaylistRowDrag';
+import type { PlaylistSortKey, PlaylistSortDir } from '../utils/playlist/playlistDisplayedSongs';
+import { runPlaylistZipDownload } from '../utils/playlist/runPlaylistZipDownload';
+import { runPlaylistSaveMeta } from '../utils/playlist/runPlaylistSaveMeta';
+import { runPlaylistLoad } from '../utils/playlist/runPlaylistLoad';
+import { startPlaylistRowDrag } from '../utils/playlist/startPlaylistRowDrag';
 import { usePlaylistCovers } from '../hooks/usePlaylistCovers';
 import { usePlaylistSelection } from '../hooks/usePlaylistSelection';
 import { usePlaylistSuggestions } from '../hooks/usePlaylistSuggestions';

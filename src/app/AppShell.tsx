@@ -50,11 +50,11 @@ import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { useFontStore } from '../store/fontStore';
 import { useEqStore } from '../store/eqStore';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
   persistSidebarCollapsed,
   readInitialSidebarCollapsed,
-} from '../utils/appShellHelpers';
+} from '../utils/componentHelpers/appShellHelpers';
 
 /**
  * The main webview's persistent layout: titlebar (Linux only) + sidebar +

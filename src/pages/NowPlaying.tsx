@@ -8,7 +8,7 @@ import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLyricsStore } from '../store/lyricsStore';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useCachedUrl } from '../components/CachedImage';
 import CachedImage from '../components/CachedImage';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
@@ -25,7 +25,7 @@ import {
   formatTime, formatCompact, isoToParts,
   buildContributorRows,
   type ContributorRow,
-} from '../utils/nowPlayingHelpers';
+} from '../utils/componentHelpers/nowPlayingHelpers';
 import NpCardWrap from '../components/nowPlaying/NpCardWrap';
 import NpColumnEl from '../components/nowPlaying/NpColumnEl';
 import RadioView from '../components/nowPlaying/RadioView';

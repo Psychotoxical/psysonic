@@ -3,7 +3,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import { ArrowUpCircle, CheckCircle2, ChevronDown, Download, FolderOpen, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { version as currentVersion } from '../../package.json';
-import { fmtBytes } from '../utils/appUpdaterHelpers';
+import { fmtBytes } from '../utils/componentHelpers/appUpdaterHelpers';
 import { useAppUpdater } from '../hooks/useAppUpdater';
 import Changelog from './appUpdater/Changelog';
 

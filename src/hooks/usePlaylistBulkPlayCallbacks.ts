@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { Track } from '../store/playerStoreTypes';
-import { enqueuePlaylistAll, playPlaylistAll, shufflePlaylistAll } from '../utils/playlistBulkPlayActions';
+import { enqueuePlaylistAll, playPlaylistAll, shufflePlaylistAll } from '../utils/playlist/playlistBulkPlayActions';
 
 export interface PlaylistBulkPlayCallbacksDeps {
   songsLength: number;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
-import { formatPlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
+import { formatPlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
 import { useWindowVisibility } from '../hooks/useWindowVisibility';
 
 export interface PlaybackScheduleBadgeProps {

@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import SidebarPerfProbePhase2 from './SidebarPerfProbePhase2';
-import { resetPerfProbeFlags, setPerfProbeFlag, type PerfProbeFlags } from '../../utils/perfFlags';
+import { resetPerfProbeFlags, setPerfProbeFlag, type PerfProbeFlags } from '../../utils/perf/perfFlags';
 
 interface PerfCpu {
   app: number;

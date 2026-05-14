@@ -1,5 +1,5 @@
-import { COVER_ART_REGISTERED_SIZES } from '../coverArtRegisteredSizes';
-import { downscaleCoverBlob } from '../coverBlobDownscale';
+import { COVER_ART_REGISTERED_SIZES } from '../cover/coverArtRegisteredSizes';
+import { downscaleCoverBlob } from '../cover/coverBlobDownscale';
 import { blobCache, rememberBlob } from './blobCache';
 import { purgeUrlEntry } from './urlPool';
 import { mapBlobsFromIDB, putBlob } from './idbStore';

@@ -1,6 +1,6 @@
-import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
-import { loudnessGainPlaceholderUntilCacheDb } from '../utils/loudnessPlaceholder';
-import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
+import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/audio/loudnessPreAnalysisSlider';
+import { loudnessGainPlaceholderUntilCacheDb } from '../utils/audio/loudnessPlaceholder';
+import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
 import {
   getCachedLoudnessGain,

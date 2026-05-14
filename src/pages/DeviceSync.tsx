@@ -10,13 +10,13 @@ import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { useDeviceSyncStore, DeviceSyncSource } from '../store/deviceSyncStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import { IS_WINDOWS } from '../utils/platform';
 
 import {
   formatBytes,
   type SourceTab,
-} from '../utils/deviceSyncHelpers';
+} from '../utils/deviceSync/deviceSyncHelpers';
 import { useDeviceSyncDrives } from '../hooks/useDeviceSyncDrives';
 import { useDeviceSyncSourceStatuses } from '../hooks/useDeviceSyncSourceStatuses';
 import { useDeviceSyncBrowser } from '../hooks/useDeviceSyncBrowser';
@@ -26,13 +26,13 @@ import {
   runDeviceSyncMigrationPreview,
   runDeviceSyncMigrationExecute,
   type MigrationPhase, type MigrationPair, type MigrationResult,
-} from '../utils/runDeviceSyncMigration';
+} from '../utils/deviceSync/runDeviceSyncMigration';
 import {
   runDeviceSyncSummaryPrompt,
   runDeviceSyncExecute,
   type SyncDelta,
-} from '../utils/runDeviceSyncExecution';
-import { runDeviceSyncChooseFolder } from '../utils/runDeviceSyncChooseFolder';
+} from '../utils/deviceSync/runDeviceSyncExecution';
+import { runDeviceSyncChooseFolder } from '../utils/deviceSync/runDeviceSyncChooseFolder';
 import DeviceSyncHeader from '../components/deviceSync/DeviceSyncHeader';
 import DeviceSyncPreSyncModal from '../components/deviceSync/DeviceSyncPreSyncModal';
 import DeviceSyncMigrationModal from '../components/deviceSync/DeviceSyncMigrationModal';

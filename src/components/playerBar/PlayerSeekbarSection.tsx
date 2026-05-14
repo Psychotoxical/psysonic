@@ -2,7 +2,7 @@ import { ArrowLeftRight } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import { useThemeStore } from '../../store/themeStore';
-import { formatTime } from '../../utils/playerBarHelpers';
+import { formatTime } from '../../utils/componentHelpers/playerBarHelpers';
 import WaveformSeek from '../WaveformSeek';
 import { PlaybackTime, RemainingTime } from './PlaybackClock';
 

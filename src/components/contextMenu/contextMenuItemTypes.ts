@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { SubsonicAlbum, SubsonicArtist } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
-import type { EntityShareKind } from '../../utils/shareLink';
+import type { EntityShareKind } from '../../utils/share/shareLink';
 
 export type RatingKind = 'song' | 'album' | 'artist';
 

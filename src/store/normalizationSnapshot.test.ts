@@ -21,7 +21,7 @@ vi.mock('./authStore', () => ({
   useAuthStore: { getState: () => authState },
 }));
 
-vi.mock('../utils/resolveReplayGainDb', () => ({
+vi.mock('../utils/audio/resolveReplayGainDb', () => ({
   resolveReplayGainDb: vi.fn(
     (track: Track) => (track as Track & { _testGain?: number | null })._testGain ?? null,
   ),
@@ -99,7 +99,7 @@ describe("engine='replaygain'", () => {
   });
 
   it('passes neighbour-track context for album-mode resolution', async () => {
-    const { resolveReplayGainDb } = await import('../utils/resolveReplayGainDb');
+    const { resolveReplayGainDb } = await import('../utils/audio/resolveReplayGainDb');
     const spy = vi.mocked(resolveReplayGainDb);
     spy.mockClear();
     authState.normalizationEngine = 'replaygain';
@@ -111,7 +111,7 @@ describe("engine='replaygain'", () => {
   });
 
   it('passes null for prev when queueIndex is 0', async () => {
-    const { resolveReplayGainDb } = await import('../utils/resolveReplayGainDb');
+    const { resolveReplayGainDb } = await import('../utils/audio/resolveReplayGainDb');
     const spy = vi.mocked(resolveReplayGainDb);
     spy.mockClear();
     authState.normalizationEngine = 'replaygain';
@@ -123,7 +123,7 @@ describe("engine='replaygain'", () => {
   });
 
   it('passes null for next when queueIndex is the last slot', async () => {
-    const { resolveReplayGainDb } = await import('../utils/resolveReplayGainDb');
+    const { resolveReplayGainDb } = await import('../utils/audio/resolveReplayGainDb');
     const spy = vi.mocked(resolveReplayGainDb);
     spy.mockClear();
     authState.normalizationEngine = 'replaygain';

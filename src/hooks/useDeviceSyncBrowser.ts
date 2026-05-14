@@ -6,7 +6,7 @@ import { search as searchSubsonic } from '../api/subsonicSearch';
 import type {
   SubsonicAlbum, SubsonicArtist, SubsonicPlaylist,
 } from '../api/subsonicTypes';
-import type { SourceTab } from '../utils/deviceSyncHelpers';
+import type { SourceTab } from '../utils/deviceSync/deviceSyncHelpers';
 
 export interface DeviceSyncBrowserResult {
   playlists: SubsonicPlaylist[];

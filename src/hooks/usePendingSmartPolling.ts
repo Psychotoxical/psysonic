@@ -3,7 +3,7 @@ import type React from 'react';
 import { getPlaylist } from '../api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '../api/subsonicTypes';
 import { usePlaylistStore } from '../store/playlistStore';
-import type { PendingSmartPlaylist } from '../utils/playlistsSmart';
+import type { PendingSmartPlaylist } from '../utils/playlist/playlistsSmart';
 
 /**
  * Poll Navidrome every 10 s for each pending smart playlist until its

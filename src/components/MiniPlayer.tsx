@@ -10,7 +10,7 @@ import {
   COLLAPSED_SIZE, EXPANDED_SIZE, COLLAPSED_MIN, EXPANDED_MIN,
   EXPANDED_H_KEY, QUEUE_OPEN_KEY,
   readStoredExpandedHeight, readQueueOpen, initialSnapshot,
-} from '../utils/miniPlayerHelpers';
+} from '../utils/componentHelpers/miniPlayerHelpers';
 import { MiniTitlebar } from './miniPlayer/MiniTitlebar';
 import { MiniMeta } from './miniPlayer/MiniMeta';
 import { MiniControls } from './miniPlayer/MiniControls';

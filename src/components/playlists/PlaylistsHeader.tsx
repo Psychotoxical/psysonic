@@ -4,7 +4,7 @@ import { CheckSquare2, Plus, Trash2 } from 'lucide-react';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import {
   defaultSmartFilters, type SmartFilters,
-} from '../../utils/playlistsSmart';
+} from '../../utils/playlist/playlistsSmart';
 
 interface Props {
   selectionMode: boolean;

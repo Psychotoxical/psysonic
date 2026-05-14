@@ -2,8 +2,8 @@ import React from 'react';
 import { AudioLines } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
-import { songToTrack } from '../../utils/songToTrack';
-import { formatDuration } from '../../utils/albumTrackListHelpers';
+import { songToTrack } from '../../utils/playback/songToTrack';
+import { formatDuration } from '../../utils/componentHelpers/albumTrackListHelpers';
 
 interface Props {
   discNums: number[];

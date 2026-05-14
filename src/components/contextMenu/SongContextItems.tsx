@@ -7,8 +7,8 @@ import { lastfmLoveTrack, lastfmUnloveTrack } from '../../api/lastfm';
 import type { Track } from '../../store/playerStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
-import { songToTrack } from '../../utils/songToTrack';
-import { showToast } from '../../utils/toast';
+import { songToTrack } from '../../utils/playback/songToTrack';
+import { showToast } from '../../utils/ui/toast';
 import { suggestOrbitTrack, hostEnqueueToOrbit, evaluateOrbitSuggestGate, OrbitSuggestBlockedError } from '../../utils/orbit';
 import LastfmIcon from '../LastfmIcon';
 import StarRating from '../StarRating';
@@ -166,7 +166,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               {playlistId && playlistSongIndex !== undefined && (
                 <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
                   const { getPlaylist, updatePlaylist } = await import('../../api/subsonicPlaylists');
-                  const { showToast } = await import('../../utils/toast');
+                  const { showToast } = await import('../../utils/ui/toast');
                   const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
                   try {
                     const { songs } = await getPlaylist(playlistId);

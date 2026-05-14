@@ -1,7 +1,7 @@
 import { getSimilarSongs2, getTopSongs } from '../api/subsonicArtists';
 import { invoke } from '@tauri-apps/api/core';
-import { buildInfiniteQueueCandidates } from '../utils/buildInfiniteQueueCandidates';
-import { songToTrack } from '../utils/songToTrack';
+import { buildInfiniteQueueCandidates } from '../utils/playback/buildInfiniteQueueCandidates';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useAuthStore } from './authStore';
 import { setIsAudioPaused } from './engineState';
 import {

@@ -6,7 +6,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 
 import type { TFunction } from 'i18next';
-import { formatPlaybackScheduleRemaining } from '../utils/playbackScheduleFormat';
+import { formatPlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
 
 function formatClockTime(ts: number): string {
   const d = new Date(ts);

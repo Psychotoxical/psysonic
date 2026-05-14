@@ -1,10 +1,10 @@
 import { getSong } from '../api/subsonicLibrary';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateLivePosition } from '../api/orbit';
-import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
-import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
-import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
-import { songToTrack } from '../utils/songToTrack';
+import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
+import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
+import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useAuthStore } from './authStore';
 import {
   bumpPlayGeneration,

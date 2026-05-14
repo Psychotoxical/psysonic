@@ -1,4 +1,4 @@
-import { clampStoredLoudnessPreAnalysisAttenuationRefDb } from '../utils/loudnessPreAnalysisSlider';
+import { clampStoredLoudnessPreAnalysisAttenuationRefDb } from '../utils/audio/loudnessPreAnalysisSlider';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
 import { usePlayerStore } from './playerStore';
 import type { AuthState } from './authStoreTypes';

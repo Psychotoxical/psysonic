@@ -2,7 +2,7 @@ import React from 'react';
 import { Shield, Trash2, User, Wand2 } from 'lucide-react';
 import type { i18n as I18nType, TFunction } from 'i18next';
 import type { NdLibrary, NdUser } from '../../../api/navidromeAdmin';
-import { formatLastSeen } from '../../../utils/userMgmtHelpers';
+import { formatLastSeen } from '../../../utils/componentHelpers/userMgmtHelpers';
 
 interface Props {
   user: NdUser;

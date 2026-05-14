@@ -1,5 +1,5 @@
 import { getSong } from '../api/subsonicLibrary';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useRef } from 'react';
 import { useOrbitStore } from '../store/orbitStore';
 import { useAuthStore } from '../store/authStore';

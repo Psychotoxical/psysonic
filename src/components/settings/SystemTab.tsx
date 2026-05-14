@@ -9,7 +9,7 @@ import i18n from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
 import type { LoggingMode } from '../../store/authStoreTypes';
 import { IS_LINUX } from '../../utils/platform';
-import { showToast } from '../../utils/toast';
+import { showToast } from '../../utils/ui/toast';
 import { AboutPsysonicBrandHeader } from '../AboutPsysonicLol';
 import CustomSelect from '../CustomSelect';
 import LicensesPanel from '../LicensesPanel';

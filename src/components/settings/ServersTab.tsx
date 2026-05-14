@@ -7,10 +7,10 @@ import { useAuthStore } from '../../store/authStore';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import { useDragDrop } from '../../contexts/DragDropContext';
-import { type ServerMagicPayload } from '../../utils/serverMagicString';
-import { showAudiomuseNavidromeServerSetting } from '../../utils/subsonicServerIdentity';
-import { serverListDisplayLabel } from '../../utils/serverDisplayName';
-import { switchActiveServer } from '../../utils/switchActiveServer';
+import { type ServerMagicPayload } from '../../utils/server/serverMagicString';
+import { showAudiomuseNavidromeServerSetting } from '../../utils/server/subsonicServerIdentity';
+import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
+import { switchActiveServer } from '../../utils/server/switchActiveServer';
 import { AddServerForm } from './AddServerForm';
 import { ServerGripHandle } from './ServerGripHandle';
 

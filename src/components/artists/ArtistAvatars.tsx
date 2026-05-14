@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
 import CachedImage from '../CachedImage';
-import { nameColor, nameInitial } from '../../utils/artistsHelpers';
+import { nameColor, nameInitial } from '../../utils/componentHelpers/artistsHelpers';
 
 interface AvatarProps {
   artist: SubsonicArtist;

@@ -1,5 +1,5 @@
 import { getSong } from '../api/subsonicLibrary';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useRef } from 'react';
 import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -18,7 +18,7 @@ import {
   type OrbitState,
   type OrbitQueueItem,
 } from '../api/orbit';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import i18n from '../i18n';
 import { pushOrbitEvent } from '../utils/orbitDiag';
 

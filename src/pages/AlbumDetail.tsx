@@ -2,7 +2,7 @@ import { buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl } from '../api/sub
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { getArtistInfo } from '../api/subsonicArtists';
 import type { SubsonicSong } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -22,9 +22,9 @@ import AlbumTrackList from '../components/AlbumTrackList';
 import { AlbumDetailToolbar } from '../components/albumDetail/AlbumDetailToolbar';
 import { useCachedUrl } from '../components/CachedImage';
 import { useTranslation } from 'react-i18next';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import { useSelectionStore } from '../store/selectionStore';
-import { sanitizeFilename } from '../utils/albumDetailHelpers';
+import { sanitizeFilename } from '../utils/componentHelpers/albumDetailHelpers';
 
 export default function AlbumDetail() {
   const { t } = useTranslation();

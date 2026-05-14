@@ -1,6 +1,6 @@
 import { getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
 import { useState, useRef, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
@@ -13,9 +13,9 @@ import { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { encodeSharePayload } from '../utils/shareLink';
-import { copyTextToClipboard } from '../utils/serverMagicString';
-import { showToast } from '../utils/toast';
+import { encodeSharePayload } from '../utils/share/shareLink';
+import { copyTextToClipboard } from '../utils/server/serverMagicString';
+import { showToast } from '../utils/ui/toast';
 import { useThemeStore } from '../store/themeStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import LyricsPane from './LyricsPane';
@@ -26,7 +26,7 @@ import { useQueueToolbarStore } from '../store/queueToolbarStore';
 import {
   DurationMode,
   formatTime,
-} from '../utils/queuePanelHelpers';
+} from '../utils/componentHelpers/queuePanelHelpers';
 import { SavePlaylistModal } from './queuePanel/SavePlaylistModal';
 import { LoadPlaylistModal } from './queuePanel/LoadPlaylistModal';
 import { QueueHeader } from './queuePanel/QueueHeader';

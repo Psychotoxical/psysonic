@@ -2,7 +2,7 @@ import React, { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Disc3, ExternalLink, Star } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
-import { formatTime, formatTotalDuration } from '../../utils/nowPlayingHelpers';
+import { formatTime, formatTotalDuration } from '../../utils/componentHelpers/nowPlayingHelpers';
 
 interface AlbumCardProps {
   album: SubsonicAlbum | null;

@@ -12,9 +12,9 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useHomeStore } from '../store/homeStore';
 import { useAuthStore } from '../store/authStore';
-import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mixRatingFilter';
-import { usePerfProbeFlags } from '../utils/perfFlags';
-import { bumpPerfCounter } from '../utils/perfTelemetry';
+import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mix/mixRatingFilter';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { dedupeById } from '../utils/dedupeById';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */

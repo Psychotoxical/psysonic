@@ -17,7 +17,7 @@ const { authState, invokeMock } = vi.hoisted(() => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('./authStore', () => ({ useAuthStore: { getState: () => authState } }));
-vi.mock('../utils/loudnessPreAnalysisSlider', () => ({
+vi.mock('../utils/audio/loudnessPreAnalysisSlider', () => ({
   effectiveLoudnessPreAnalysisAttenuationDb: (attenuation: number) => attenuation,
 }));
 

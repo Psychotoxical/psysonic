@@ -12,9 +12,9 @@ import { usePreviewStore } from '../../store/previewStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
-import { songToTrack } from '../../utils/songToTrack';
-import { codecLabel, formatDuration } from '../../utils/playlistDetailHelpers';
-import type { PlaylistSortKey, PlaylistSortDir } from '../../utils/playlistDisplayedSongs';
+import { songToTrack } from '../../utils/playback/songToTrack';
+import { codecLabel, formatDuration } from '../../utils/componentHelpers/playlistDetailHelpers';
+import type { PlaylistSortKey, PlaylistSortDir } from '../../utils/playlist/playlistDisplayedSongs';
 import StarRating from '../StarRating';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 

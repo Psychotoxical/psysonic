@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../../store/playbackProgress';
-import { formatTime } from '../../utils/fullscreenPlayerHelpers';
+import { formatTime } from '../../utils/componentHelpers/fullscreenPlayerHelpers';
 
 // Full-width seekbar — imperative DOM updates, zero React re-renders on tick.
 export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: number }) {

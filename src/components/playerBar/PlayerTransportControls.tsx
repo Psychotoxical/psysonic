@@ -6,7 +6,7 @@ import type { PlayerState } from '../../store/playerStoreTypes';
 import { usePreviewStore } from '../../store/previewStore';
 import PlaybackScheduleBadge from '../PlaybackScheduleBadge';
 import { usePlaybackDelayPress } from '../../hooks/usePlaybackDelayPress';
-import { usePlaybackScheduleRemaining } from '../../utils/playbackScheduleFormat';
+import { usePlaybackScheduleRemaining } from '../../utils/format/playbackScheduleFormat';
 
 type RepeatMode = PlayerState['repeatMode'];
 type PlayPauseBind = ReturnType<typeof usePlaybackDelayPress>['playPauseBind'];

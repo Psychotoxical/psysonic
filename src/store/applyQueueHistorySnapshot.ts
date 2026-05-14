@@ -1,6 +1,6 @@
 import { reportNowPlaying } from '../api/subsonicScrobble';
 import { invoke } from '@tauri-apps/api/core';
-import { getPlaybackSourceKind } from '../utils/resolvePlaybackUrl';
+import { getPlaybackSourceKind } from '../utils/playback/resolvePlaybackUrl';
 import { useAuthStore } from './authStore';
 import {
   bumpPlayGeneration,
@@ -10,7 +10,7 @@ import {
 import { clearPreloadingIds } from './gaplessPreloadState';
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
 import type { PlayerState } from './playerStoreTypes';
-import { sameQueueTrackId, shallowCloneQueueTracks } from '../utils/queueIdentity';
+import { sameQueueTrackId, shallowCloneQueueTracks } from '../utils/playback/queueIdentity';
 import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import {
   setPendingQueueListScrollTop,

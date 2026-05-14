@@ -3,13 +3,13 @@ import { ChevronDown, FolderOpen, HardDrive, Music, Waves } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Track } from '../../store/playerStoreTypes';
 import type { LoudnessLufsPreset, NormalizationEngine } from '../../store/authStoreTypes';
-import type { PlaybackSourceKind } from '../../utils/resolvePlaybackUrl';
+import type { PlaybackSourceKind } from '../../utils/playback/resolvePlaybackUrl';
 import {
   formatQueueReplayGainParts,
   renderStars,
-} from '../../utils/queuePanelHelpers';
-import { loudnessGainPlaceholderUntilCacheDb } from '../../utils/loudnessPlaceholder';
-import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/loudnessPreAnalysisSlider';
+} from '../../utils/componentHelpers/queuePanelHelpers';
+import { loudnessGainPlaceholderUntilCacheDb } from '../../utils/audio/loudnessPlaceholder';
+import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/loudnessPreAnalysisSlider';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
 
 interface Props {

@@ -22,7 +22,7 @@ vi.mock('../store/fontStore', () => ({
 vi.mock('../store/keybindingsStore', () => ({
   useKeybindingsStore: { persist: { rehydrate: keybindingsRehydrate } },
 }));
-vi.mock('../utils/perfFlags', () => ({
+vi.mock('../utils/perf/perfFlags', () => ({
   usePerfProbeFlags: () => ({ disableTooltipPortal: true }),
 }));
 vi.mock('../i18n', () => ({

@@ -8,12 +8,12 @@ import {
   type NdLibrary,
   type NdUser,
 } from '../api/navidromeAdmin';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import {
   copyTextToClipboard,
   encodeServerMagicString,
-} from '../utils/serverMagicString';
-import { shortHostFromServerUrl } from '../utils/serverDisplayName';
+} from '../utils/server/serverMagicString';
+import { shortHostFromServerUrl } from '../utils/server/serverDisplayName';
 import type { UserFormState } from '../components/settings/UserForm';
 
 interface UseUserMgmtActionsArgs {

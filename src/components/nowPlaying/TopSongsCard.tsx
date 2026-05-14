@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExternalLink, Play, TrendingUp } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
-import { formatTime } from '../../utils/nowPlayingHelpers';
+import { formatTime } from '../../utils/componentHelpers/nowPlayingHelpers';
 
 interface TopSongsCardProps {
   artistName: string;

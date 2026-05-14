@@ -11,8 +11,8 @@ import {
   DECODED_PASSWORD_VISUAL_MASK,
   encodeServerMagicString,
   type ServerMagicPayload,
-} from '../utils/serverMagicString';
-import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/serverDisplayName';
+} from '../utils/server/serverMagicString';
+import { shortHostFromServerUrl, serverListDisplayLabel } from '../utils/server/serverDisplayName';
 
 const PsysonicLogo = () => (
   <img src="/logo-psysonic.png" width="64" height="64" alt="Psysonic" style={{ borderRadius: 18 }} />

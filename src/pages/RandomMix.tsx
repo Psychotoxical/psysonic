@@ -1,7 +1,7 @@
 import { star, unstar } from '../api/subsonicStarRating';
 import { getGenres } from '../api/subsonicGenres';
 import type { SubsonicSong, SubsonicGenre } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useMemo, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
@@ -12,8 +12,8 @@ import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import {
   fetchRandomMixSongsUntilFull,
   getMixMinRatingsConfigFromAuth,
-} from '../utils/mixRatingFilter';
-import { AUDIOBOOK_GENRES, filterRandomMixSongs, formatRandomMixDuration } from '../utils/randomMixHelpers';
+} from '../utils/mix/mixRatingFilter';
+import { AUDIOBOOK_GENRES, filterRandomMixSongs, formatRandomMixDuration } from '../utils/componentHelpers/randomMixHelpers';
 import RandomMixHeader from '../components/randomMix/RandomMixHeader';
 import RandomMixFiltersPanel from '../components/randomMix/RandomMixFiltersPanel';
 import RandomMixGenrePanel from '../components/randomMix/RandomMixGenrePanel';

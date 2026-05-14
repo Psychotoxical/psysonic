@@ -6,8 +6,8 @@ import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import {
   displayPlaylistName, isSmartPlaylistName, type PendingSmartPlaylist,
-} from '../../utils/playlistsSmart';
-import { formatHumanHoursMinutes } from '../../utils/formatHumanDuration';
+} from '../../utils/playlist/playlistsSmart';
+import { formatHumanHoursMinutes } from '../../utils/format/formatHumanDuration';
 import { PlaylistCardMainCover, PlaylistSmartCoverCell } from './PlaylistCoverImages';
 
 interface Props {

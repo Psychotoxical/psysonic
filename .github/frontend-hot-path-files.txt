@@ -24,19 +24,19 @@
 #   - src/api/subsonic.ts                (13 % — F3 covered the URL-builder + parser surface; async API endpoints need axios mocking, deferred)
 
 # ── utils (already at or above threshold) ────────────────────────────
-src/utils/coverArtRegisteredSizes.ts
-src/utils/serverDisplayName.ts
-src/utils/serverMagicString.ts
-src/utils/shareLink.ts
-src/utils/dynamicColors.ts
-src/utils/resolvePlaybackUrl.ts
-src/utils/copyEntityShareLink.ts
+src/utils/cover/coverArtRegisteredSizes.ts
+src/utils/server/serverDisplayName.ts
+src/utils/server/serverMagicString.ts
+src/utils/share/shareLink.ts
+src/utils/ui/dynamicColors.ts
+src/utils/playback/resolvePlaybackUrl.ts
+src/utils/share/copyEntityShareLink.ts
 
 # ── M0: pure helpers extracted from playerStore.ts (2026-05-12) ──────
-src/utils/shuffleArray.ts
-src/utils/resolveReplayGainDb.ts
-src/utils/songToTrack.ts
-src/utils/buildInfiniteQueueCandidates.ts
+src/utils/playback/shuffleArray.ts
+src/utils/audio/resolveReplayGainDb.ts
+src/utils/playback/songToTrack.ts
+src/utils/playback/buildInfiniteQueueCandidates.ts
 
 # ── Phase B.1: pre-React bootstrap + window-kind detector (2026-05-12) ──
 src/app/windowKind.ts

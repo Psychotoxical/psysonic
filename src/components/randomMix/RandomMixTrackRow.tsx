@@ -5,7 +5,7 @@ import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
 import { usePreviewStore } from '../../store/previewStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
-import { formatRandomMixDuration } from '../../utils/randomMixHelpers';
+import { formatRandomMixDuration } from '../../utils/componentHelpers/randomMixHelpers';
 
 interface Props {
   song: SubsonicSong;

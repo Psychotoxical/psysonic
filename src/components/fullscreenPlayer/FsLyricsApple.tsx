@@ -6,7 +6,7 @@ import { useWordLyricsSync } from '../../hooks/useWordLyricsSync';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../../store/playbackProgress';
 import type { LrcLine } from '../../api/lrclib';
 import type { Track } from '../../store/playerStoreTypes';
-import { EaseScroller, targetForFraction } from '../../utils/easeScroll';
+import { EaseScroller, targetForFraction } from '../../utils/ui/easeScroll';
 
 // Apple Music-style fullscreen lyrics.
 // Full-screen scrollable list. Active line auto-scrolls to ~35% from top.

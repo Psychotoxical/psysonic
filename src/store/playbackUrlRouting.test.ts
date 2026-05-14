@@ -21,7 +21,7 @@ vi.mock('./offlineStore', () => ({
   },
 }));
 
-vi.mock('../utils/resolvePlaybackUrl', () => ({
+vi.mock('../utils/playback/resolvePlaybackUrl', () => ({
   resolvePlaybackUrl: vi.fn((trackId: string, serverId: string) => {
     if (offlineStoreState.localUrlByKey.has(`${serverId}:${trackId}`)) {
       return `psysonic-local://${serverId}/${trackId}`;

@@ -6,9 +6,9 @@ import { useNavigate } from 'react-router-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { ConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
-import { switchActiveServer } from '../utils/switchActiveServer';
-import { showToast } from '../utils/toast';
-import { serverListDisplayLabel } from '../utils/serverDisplayName';
+import { switchActiveServer } from '../utils/server/switchActiveServer';
+import { showToast } from '../utils/ui/toast';
+import { serverListDisplayLabel } from '../utils/server/serverDisplayName';
 
 interface Props {
   status: ConnectionStatus;

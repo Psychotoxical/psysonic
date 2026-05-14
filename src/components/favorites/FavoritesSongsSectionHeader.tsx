@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ListPlus, Play, SlidersHorizontal, X } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
-import { songToTrack } from '../../utils/songToTrack';
+import { songToTrack } from '../../utils/playback/songToTrack';
 import GenreFilterBar from '../GenreFilterBar';
 
 interface Props {

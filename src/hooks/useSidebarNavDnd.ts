@@ -6,12 +6,12 @@ import {
   getSystemItemsForReorder,
   isSidebarNavItemUserHideable,
   type SidebarNavDropTarget,
-} from '../utils/sidebarNavReorder';
+} from '../utils/componentHelpers/sidebarNavReorder';
 import {
   SIDEBAR_NAV_LONG_PRESS_MOVE_CANCEL_PX,
   SIDEBAR_NAV_LONG_PRESS_MS,
   isPointerOutsideAsideSidebar,
-} from '../utils/sidebarHelpers';
+} from '../utils/componentHelpers/sidebarHelpers';
 
 interface NavDndState {
   section: 'library' | 'system';

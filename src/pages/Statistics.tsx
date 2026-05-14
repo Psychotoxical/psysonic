@@ -3,7 +3,7 @@ import { getAlbumList } from '../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicGenre } from '../api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
 import { Share2 } from 'lucide-react';
-import { formatHumanHoursMinutes } from '../utils/formatHumanDuration';
+import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import AlbumRow from '../components/AlbumRow';
 import StatsExportModal from '../components/StatsExportModal';
 import { useTranslation } from 'react-i18next';

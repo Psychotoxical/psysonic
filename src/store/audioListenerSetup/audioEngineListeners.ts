@@ -1,7 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
-import { streamUrlTrackId } from '../../utils/resolvePlaybackUrl';
-import { normalizationAlmostEqual } from '../../utils/normalizationCompare';
-import { normalizeAnalysisTrackId } from '../../utils/queueIdentity';
+import { streamUrlTrackId } from '../../utils/playback/resolvePlaybackUrl';
+import { normalizationAlmostEqual } from '../../utils/audio/normalizationCompare';
+import { normalizeAnalysisTrackId } from '../../utils/playback/queueIdentity';
 import {
   handleAudioEnded,
   handleAudioError,

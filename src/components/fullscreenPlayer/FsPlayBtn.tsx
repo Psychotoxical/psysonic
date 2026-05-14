@@ -3,7 +3,7 @@ import { Moon, Pause, Play, Sunrise } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePlaybackDelayPress } from '../../hooks/usePlaybackDelayPress';
-import { usePlaybackScheduleRemaining } from '../../utils/playbackScheduleFormat';
+import { usePlaybackScheduleRemaining } from '../../utils/format/playbackScheduleFormat';
 import PlaybackDelayModal from '../PlaybackDelayModal';
 import PlaybackScheduleBadge from '../PlaybackScheduleBadge';
 

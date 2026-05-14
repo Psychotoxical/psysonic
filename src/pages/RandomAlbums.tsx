@@ -8,12 +8,12 @@ import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
-import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mixRatingFilter';
+import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mix/mixRatingFilter';
 import { useOfflineStore } from '../store/offlineStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 

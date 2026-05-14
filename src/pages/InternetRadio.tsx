@@ -11,7 +11,7 @@ import { invalidateCoverArt } from '../utils/imageCache';
 import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/plugin-shell';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import RadioToolbar, { type RadioSortBy } from '../components/internetRadio/RadioToolbar';
 import AlphabetFilterBar from '../components/internetRadio/AlphabetFilterBar';
 import RadioCard from '../components/internetRadio/RadioCard';

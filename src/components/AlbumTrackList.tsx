@@ -9,14 +9,14 @@ import { useSelectionStore } from '../store/selectionStore';
 import {
   COLUMNS,
   type SortKey,
-} from '../utils/albumTrackListHelpers';
+} from '../utils/componentHelpers/albumTrackListHelpers';
 import { useAlbumTrackListSelection } from '../hooks/useAlbumTrackListSelection';
 import { TrackRow } from './albumTrackList/TrackRow';
 import { AlbumTrackListMobile } from './albumTrackList/AlbumTrackListMobile';
 import { TracklistColumnPicker } from './albumTrackList/TracklistColumnPicker';
 import { TracklistHeaderRow } from './albumTrackList/TracklistHeaderRow';
 
-export type { SortKey } from '../utils/albumTrackListHelpers';
+export type { SortKey } from '../utils/componentHelpers/albumTrackListHelpers';
 
 interface AlbumTrackListProps {
   songs: SubsonicSong[];

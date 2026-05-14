@@ -1,6 +1,6 @@
 import type { PlayerState, Track } from './playerStoreTypes';
 import { useAuthStore } from './authStore';
-import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
+import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 /**
  * Compute the normalization fields that should land in the next state commit
  * when the runtime switches tracks or rewrites the queue. Three branches:

@@ -13,8 +13,8 @@ import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import { copyEntityShareLink } from '../utils/copyEntityShareLink';
-import { showToast } from '../utils/toast';
+import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
+import { showToast } from '../utils/ui/toast';
 
 /** Strip dangerous tags/attributes from server-provided HTML. Mirrors the
  *  ArtistDetail sanitiser — kept inline because it's a 10-liner not worth a

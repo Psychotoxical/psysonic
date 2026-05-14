@@ -2,7 +2,7 @@
 // `imageCache/`; this file keeps the orchestration entry points and re-exports
 // the public surface so existing call sites import from `imageCache` unchanged.
 import { useAuthStore } from '../store/authStore';
-import { COVER_ART_REGISTERED_SIZES } from './coverArtRegisteredSizes';
+import { COVER_ART_REGISTERED_SIZES } from './cover/coverArtRegisteredSizes';
 import { STORE_NAME } from './imageCache/constants';
 import { blobCache, inflightBlobGets, rememberBlob } from './imageCache/blobCache';
 import { purgeUrlEntry, clearAllUrlEntries } from './imageCache/urlPool';

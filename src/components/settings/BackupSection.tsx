@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, HardDrive, Upload } from 'lucide-react';
-import { exportBackup, importBackup } from '../../utils/backup';
-import { showToast } from '../../utils/toast';
+import { exportBackup, importBackup } from '../../utils/export/backup';
+import { showToast } from '../../utils/ui/toast';
 
 export function BackupSection() {
   const { t } = useTranslation();

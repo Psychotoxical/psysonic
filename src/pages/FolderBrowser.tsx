@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import {
   entryToAlbumIfPresent, entryToTrack,
   type Column, type ColumnKind, type NavPos,
-} from '../utils/folderBrowserHelpers';
+} from '../utils/componentHelpers/folderBrowserHelpers';
 import FolderBrowserColumn from '../components/folderBrowser/FolderBrowserColumn';
 import { useFolderBrowserNowPlayingPath } from '../hooks/useFolderBrowserNowPlayingPath';
 import { useFolderBrowserScrolling } from '../hooks/useFolderBrowserScrolling';

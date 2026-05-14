@@ -4,7 +4,7 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import type { TFunction } from 'i18next';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
 import type { PlayerState } from '../../store/playerStoreTypes';
-import type { ArtistListFlatRow } from '../../utils/artistsHelpers';
+import type { ArtistListFlatRow } from '../../utils/componentHelpers/artistsHelpers';
 import { ArtistRowAvatar } from './ArtistAvatars';
 
 interface RowProps {

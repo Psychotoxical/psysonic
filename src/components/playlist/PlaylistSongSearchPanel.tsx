@@ -4,8 +4,8 @@ import { Check, ListPlus, X } from 'lucide-react';
 import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
-import { songToTrack } from '../../utils/songToTrack';
-import { formatDuration } from '../../utils/playlistDetailHelpers';
+import { songToTrack } from '../../utils/playback/songToTrack';
+import { formatDuration } from '../../utils/componentHelpers/playlistDetailHelpers';
 import CachedImage from '../CachedImage';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 

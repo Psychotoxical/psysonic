@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff } from 'lucide-react';
 import type { ServerProfile } from '../../store/authStoreTypes';
-import { showToast } from '../../utils/toast';
+import { showToast } from '../../utils/ui/toast';
 import {
   decodeServerMagicString,
   encodeServerMagicString,
   DECODED_PASSWORD_VISUAL_MASK,
   type ServerMagicPayload,
-} from '../../utils/serverMagicString';
-import { shortHostFromServerUrl } from '../../utils/serverDisplayName';
+} from '../../utils/server/serverMagicString';
+import { shortHostFromServerUrl } from '../../utils/server/serverDisplayName';
 
 export function AddServerForm({
   onSave,

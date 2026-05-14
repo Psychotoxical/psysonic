@@ -5,7 +5,7 @@ import {
   isNavidromeAudiomuseSoftwareEligible,
   type InstantMixProbeResult,
   type SubsonicServerIdentity,
-} from '../utils/subsonicServerIdentity';
+} from '../utils/server/subsonicServerIdentity';
 import {
   SUBSONIC_CLIENT,
   api,

@@ -4,9 +4,9 @@ import { listen } from '@tauri-apps/api/event';
 import type { TFunction } from 'i18next';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
 import { useDeviceSyncStore } from '../store/deviceSyncStore';
-import { showToast } from '../utils/toast';
-import { trackToSyncInfo } from '../utils/deviceSyncHelpers';
-import { fetchTracksForSource } from '../utils/fetchTracksForSource';
+import { showToast } from '../utils/ui/toast';
+import { trackToSyncInfo } from '../utils/deviceSync/deviceSyncHelpers';
+import { fetchTracksForSource } from '../utils/playback/fetchTracksForSource';
 
 export function useDeviceSyncJobEvents(
   t: TFunction,

@@ -1,20 +1,20 @@
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getRandomAlbums, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus } from 'lucide-react';
 import CachedImage, { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
-import { playAlbum } from '../utils/playAlbum';
+import { playAlbum } from '../utils/playback/playAlbum';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useWindowVisibility } from '../hooks/useWindowVisibility';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mixRatingFilter';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mix/mixRatingFilter';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
 const INTERVAL_MS = 10000;
 const HERO_ALBUM_COUNT = 8;

@@ -13,7 +13,7 @@ import { useDownloadModalStore } from '../store/downloadModalStore';
 import { usePlayerStore } from '../store/playerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 

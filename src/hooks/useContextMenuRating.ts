@@ -3,7 +3,7 @@ import { setRating } from '../api/subsonicStarRating';
 import type { SubsonicAlbum, SubsonicArtist } from '../api/subsonicTypes';
 import type { Track } from '../store/playerStoreTypes';
 import { useAuthStore } from '../store/authStore';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 
 type RatingKind = 'song' | 'album' | 'artist';
 

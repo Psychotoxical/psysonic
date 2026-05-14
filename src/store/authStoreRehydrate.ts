@@ -2,7 +2,7 @@ import { IS_LINUX } from '../utils/platform';
 import {
   LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS,
   clampStoredLoudnessPreAnalysisAttenuationRefDb,
-} from '../utils/loudnessPreAnalysisSlider';
+} from '../utils/audio/loudnessPreAnalysisSlider';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
 import {
   clampMixFilterMinStars,

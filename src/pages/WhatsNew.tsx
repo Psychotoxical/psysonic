@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { version } from '../../package.json';
 import changelogRaw from '../../CHANGELOG.md?raw';
-import { findChangelogReleaseEntry } from '../utils/changelogReleaseMatch';
-import { renderChangelogBody } from '../utils/changelogMarkdown';
+import { findChangelogReleaseEntry } from '../utils/changelog/changelogReleaseMatch';
+import { renderChangelogBody } from '../utils/changelog/changelogMarkdown';
 
 export default function WhatsNew() {
   const { t } = useTranslation();

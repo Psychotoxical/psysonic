@@ -7,7 +7,7 @@ import {
   NEW_RELEASES_UNREAD_SAMPLE_SIZE,
   NEW_RELEASES_UNREAD_STORAGE_PREFIX,
   mergeSeenNewReleaseIdsCap,
-} from '../utils/sidebarHelpers';
+} from '../utils/componentHelpers/sidebarHelpers';
 
 interface Args {
   serverId: string;

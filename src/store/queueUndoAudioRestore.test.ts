@@ -37,9 +37,9 @@ const hoisted = vi.hoisted(() => {
 });
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: hoisted.invokeMock }));
-vi.mock('../utils/hotCacheGate', () => ({ setDeferHotCachePrefetch: hoisted.setDeferHotCachePrefetchMock }));
-vi.mock('../utils/resolvePlaybackUrl', () => ({ resolvePlaybackUrl: hoisted.resolvePlaybackUrlMock }));
-vi.mock('../utils/resolveReplayGainDb', () => ({ resolveReplayGainDb: hoisted.resolveReplayGainDbMock }));
+vi.mock('../utils/cache/hotCacheGate', () => ({ setDeferHotCachePrefetch: hoisted.setDeferHotCachePrefetchMock }));
+vi.mock('../utils/playback/resolvePlaybackUrl', () => ({ resolvePlaybackUrl: hoisted.resolvePlaybackUrlMock }));
+vi.mock('../utils/audio/resolveReplayGainDb', () => ({ resolveReplayGainDb: hoisted.resolveReplayGainDbMock }));
 vi.mock('./authStore', () => ({ useAuthStore: { getState: () => hoisted.auth } }));
 vi.mock('./engineState', () => ({
   getPlayGeneration: hoisted.getPlayGeneration,

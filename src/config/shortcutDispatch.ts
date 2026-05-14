@@ -1,8 +1,8 @@
 import { setRating } from '../api/subsonicStarRating';
 import i18n from '../i18n';
 import { usePlayerStore } from '../store/playerStore';
-import { showToast } from '../utils/toast';
-import { playByOpaqueId } from '../utils/playByOpaqueId';
+import { showToast } from '../utils/ui/toast';
+import { playByOpaqueId } from '../utils/playback/playByOpaqueId';
 import type { ActionContext, CliContext } from './shortcutTypes';
 import {
   SHORTCUT_ACTION_REGISTRY,

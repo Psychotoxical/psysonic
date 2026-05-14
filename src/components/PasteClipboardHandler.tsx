@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
-import { decodeSharePayloadFromText } from '../utils/shareLink';
-import { decodeServerMagicStringFromText } from '../utils/serverMagicString';
-import { applySharePastePayload } from '../utils/applySharePaste';
-import { showToast } from '../utils/toast';
+import { decodeSharePayloadFromText } from '../utils/share/shareLink';
+import { decodeServerMagicStringFromText } from '../utils/server/serverMagicString';
+import { applySharePastePayload } from '../utils/share/applySharePaste';
+import { showToast } from '../utils/ui/toast';
 import {
   parseOrbitShareLink,
   joinOrbitSession,
@@ -13,7 +13,7 @@ import {
   readOrbitState,
   OrbitJoinError,
 } from '../utils/orbit';
-import { switchActiveServer } from '../utils/switchActiveServer';
+import { switchActiveServer } from '../utils/server/switchActiveServer';
 import { useOrbitAccountPickerStore } from '../store/orbitAccountPickerStore';
 import ConfirmModal from './ConfirmModal';
 

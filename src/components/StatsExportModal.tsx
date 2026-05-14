@@ -6,13 +6,13 @@ import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import {
   exportAlbumCardBlob,
   renderAlbumCardCanvas,
   ExportFormat,
   ExportGridSize,
-} from '../utils/exportAlbumCard';
+} from '../utils/export/exportAlbumCard';
 
 interface Props {
   open: boolean;

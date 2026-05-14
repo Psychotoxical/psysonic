@@ -1,8 +1,8 @@
 import { getPlayQueue } from '../api/subsonicPlayQueue';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../i18n';
-import { songToTrack } from '../utils/songToTrack';
-import { showToast } from '../utils/toast';
+import { songToTrack } from '../utils/playback/songToTrack';
+import { showToast } from '../utils/ui/toast';
 import { useAuthStore } from './authStore';
 import {
   bumpPlayGeneration,

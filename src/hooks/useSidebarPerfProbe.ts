@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { setPerfProbeTelemetryActive } from '../utils/perfTelemetry';
+import { setPerfProbeTelemetryActive } from '../utils/perf/perfTelemetry';
 
 interface PerfCpu {
   app: number;

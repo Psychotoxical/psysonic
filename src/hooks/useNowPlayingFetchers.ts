@@ -7,7 +7,7 @@ import {
   lastfmGetArtistStats, lastfmGetTrackInfo, lastfmIsConfigured,
   type LastfmArtistStats, type LastfmTrackInfo,
 } from '../api/lastfm';
-import { makeCache } from '../utils/nowPlayingCache';
+import { makeCache } from '../utils/cache/nowPlayingCache';
 
 // Module-level TTL caches (shared across mounts)
 const songMetaCache    = makeCache<SubsonicSong | null>();

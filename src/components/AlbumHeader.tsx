@@ -9,8 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useThemeStore } from '../store/themeStore';
 import StarRating from './StarRating';
-import { copyEntityShareLink } from '../utils/copyEntityShareLink';
-import { showToast } from '../utils/toast';
+import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
+import { showToast } from '../utils/ui/toast';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 
 function formatDuration(seconds: number): string {

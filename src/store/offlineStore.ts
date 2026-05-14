@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from './authStore';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import { useOfflineJobStore, cancelledDownloads } from './offlineJobStore';
 import { emitAnalysisStorageChanged } from './analysisSync';
 

@@ -4,7 +4,7 @@ import { Save, Trash2, RotateCcw } from 'lucide-react';
 import CustomSelect from './CustomSelect';
 import { useEqStore, EQ_BANDS, BUILTIN_PRESETS } from '../store/eqStore';
 import { useThemeStore } from '../store/themeStore';
-import { drawCurve } from '../utils/eqCurve';
+import { drawCurve } from '../utils/audio/eqCurve';
 import VerticalFader from './equalizer/VerticalFader';
 import AutoEqSection from './equalizer/AutoEqSection';
 

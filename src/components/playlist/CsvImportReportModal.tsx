@@ -2,8 +2,8 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Download, X } from 'lucide-react';
-import { showToast } from '../../utils/toast';
-import type { SpotifyCsvTrack } from '../../utils/spotifyCsvImport';
+import { showToast } from '../../utils/ui/toast';
+import type { SpotifyCsvTrack } from '../../utils/playlist/spotifyCsvImport';
 
 interface CsvReportModalProps {
   report: {

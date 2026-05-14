@@ -2,7 +2,7 @@ import { initAudioListeners } from '../store/initAudioListeners';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import { WindowVisibilityProvider } from '../hooks/useWindowVisibility';
 import { DragDropProvider } from '../contexts/DragDropContext';
 import PasteClipboardHandler from '../components/PasteClipboardHandler';
@@ -69,7 +69,7 @@ export default function MainApp() {
   const handleExport = async (since: number) => {
     setExportPickerOpen(false);
     try {
-      const { exportNewAlbumsImage } = await import('../utils/exportNewAlbums');
+      const { exportNewAlbumsImage } = await import('../utils/export/exportNewAlbums');
       const result = await exportNewAlbumsImage(since);
       if (result) {
         const files = result.paths.length > 1 ? ` (${result.paths.length} Dateien)` : '';

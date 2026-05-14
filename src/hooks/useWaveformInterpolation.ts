@@ -4,8 +4,8 @@ import { getPlaybackProgressSnapshot } from '../store/playbackProgress';
 import {
   ANIMATED_STYLES, AnimState, INTERPOLATION_PAINT_MIN_MS,
   isBarQuantizedSeekStyle, quantizeProgressByBars,
-} from '../utils/waveformSeekHelpers';
-import { drawSeekbar } from '../utils/waveformSeekRenderers';
+} from '../utils/waveform/waveformSeekHelpers';
+import { drawSeekbar } from '../utils/waveform/waveformSeekRenderers';
 
 interface Args {
   duration: number;

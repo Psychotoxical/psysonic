@@ -2,12 +2,12 @@ import { reportNowPlaying, scrobbleSong } from '../api/subsonicScrobble';
 import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../api/lastfm';
-import { setDeferHotCachePrefetch } from '../utils/hotCacheGate';
-import { getPerfProbeFlags } from '../utils/perfFlags';
-import { bumpPerfCounter } from '../utils/perfTelemetry';
-import { resolvePlaybackUrl } from '../utils/resolvePlaybackUrl';
-import { resolveReplayGainDb } from '../utils/resolveReplayGainDb';
-import { showToast } from '../utils/toast';
+import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
+import { getPerfProbeFlags } from '../utils/perf/perfFlags';
+import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
+import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
+import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
+import { showToast } from '../utils/ui/toast';
 import { useAuthStore } from './authStore';
 import { getPlayGeneration, setIsAudioPaused } from './engineState';
 import {

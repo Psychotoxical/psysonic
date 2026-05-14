@@ -8,8 +8,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { ndGetSongPath } from '../api/navidromeAdmin';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import { copyTextToClipboard } from '../utils/serverMagicString';
-import { showToast } from '../utils/toast';
+import { copyTextToClipboard } from '../utils/server/serverMagicString';
+import { showToast } from '../utils/ui/toast';
 
 function formatDuration(s: number): string {
   const m = Math.floor(s / 60);

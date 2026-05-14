@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from './authStore';
-import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/loudnessPreAnalysisSlider';
+import { effectiveLoudnessPreAnalysisAttenuationDb } from '../utils/audio/loudnessPreAnalysisSlider';
 
 /**
  * Two IPC entry points to the Rust normalization pipeline that get hammered

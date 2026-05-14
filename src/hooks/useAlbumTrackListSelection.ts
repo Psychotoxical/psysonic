@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { useSelectionStore } from '../store/selectionStore';
 import { useDragDrop } from '../contexts/DragDropContext';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 
 interface UseAlbumTrackListSelectionArgs {
   songs: SubsonicSong[];

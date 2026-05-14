@@ -2,7 +2,7 @@ import type { EntityRatingSupportLevel } from '../api/subsonicTypes';
 import type {
   InstantMixProbeResult,
   SubsonicServerIdentity,
-} from '../utils/subsonicServerIdentity';
+} from '../utils/server/subsonicServerIdentity';
 
 export interface ServerProfile {
   id: string;

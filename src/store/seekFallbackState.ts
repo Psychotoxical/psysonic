@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { isRecoverableSeekError } from '../utils/seekErrors';
+import { isRecoverableSeekError } from '../utils/audio/seekErrors';
 import { usePlayerStore } from './playerStore';
 import { setSeekTarget } from './seekTargetState';
 

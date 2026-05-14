@@ -8,8 +8,8 @@ import { useHotCacheStore } from '../../store/hotCacheStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { clearImageCache, getImageCacheSize } from '../../utils/imageCache';
-import { formatBytes, snapHotCacheMb } from '../../utils/formatBytes';
-import { showToast } from '../../utils/toast';
+import { formatBytes, snapHotCacheMb } from '../../utils/format/formatBytes';
+import { showToast } from '../../utils/ui/toast';
 import SettingsSubSection from '../SettingsSubSection';
 
 export function StorageTab() {

@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../../store/playbackProgress';
-import { formatTime } from '../../utils/playerBarHelpers';
+import { formatTime } from '../../utils/componentHelpers/playerBarHelpers';
 
 /** Renders the playback clock without ever causing PlayerBar to re-render.
  *  Updates the DOM directly via an imperative store subscription. */

@@ -1,4 +1,4 @@
-import type { SubsonicServerIdentity } from '../utils/subsonicServerIdentity';
+import type { SubsonicServerIdentity } from '../utils/server/subsonicServerIdentity';
 
 export interface SubsonicAlbum {
   id: string;

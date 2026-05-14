@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
-import { serverListDisplayLabel } from '../utils/serverDisplayName';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { serverListDisplayLabel } from '../utils/server/serverDisplayName';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
 

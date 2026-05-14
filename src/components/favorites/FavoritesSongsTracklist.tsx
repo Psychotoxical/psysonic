@@ -12,7 +12,7 @@ import { usePreviewStore } from '../../store/previewStore';
 import { useSelectionStore } from '../../store/selectionStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
-import { songToTrack } from '../../utils/songToTrack';
+import { songToTrack } from '../../utils/playback/songToTrack';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 import StarRating from '../StarRating';
 

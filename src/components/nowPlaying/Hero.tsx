@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Headphones, Heart, MicVocal, Music, Star } from 'lucide-react';
 import type { LastfmArtistStats, LastfmTrackInfo } from '../../api/lastfm';
 import LastfmIcon from '../LastfmIcon';
-import { formatTime } from '../../utils/nowPlayingHelpers';
+import { formatTime } from '../../utils/componentHelpers/nowPlayingHelpers';
 
 interface HeroProps {
   track: { title: string; artist: string; album: string; year?: number;

@@ -4,8 +4,8 @@ import {
   AlertCircle, FolderOpen, HardDriveUpload, RefreshCw, Usb,
 } from 'lucide-react';
 import CustomSelect from '../CustomSelect';
-import type { RemovableDrive } from '../../utils/deviceSyncHelpers';
-import { formatBytes } from '../../utils/deviceSyncHelpers';
+import type { RemovableDrive } from '../../utils/deviceSync/deviceSyncHelpers';
+import { formatBytes } from '../../utils/deviceSync/deviceSyncHelpers';
 import type { DeviceSyncSource } from '../../store/deviceSyncStore';
 
 interface Props {

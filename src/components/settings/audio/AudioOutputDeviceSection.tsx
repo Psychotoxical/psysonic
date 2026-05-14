@@ -6,7 +6,7 @@ import CustomSelect from '../../CustomSelect';
 import SettingsSubSection from '../../SettingsSubSection';
 import { useAuthStore } from '../../../store/authStore';
 import { IS_MACOS } from '../../../utils/platform';
-import { buildAudioDeviceSelectOptions } from '../../../utils/audioDeviceLabels';
+import { buildAudioDeviceSelectOptions } from '../../../utils/audio/audioDeviceLabels';
 
 interface Props {
   audioDevices: string[];

@@ -5,14 +5,14 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import type { EntityShareKind } from '../utils/shareLink';
+import type { EntityShareKind } from '../utils/share/shareLink';
 import { AddToPlaylistSubmenu } from './contextMenu/AddToPlaylistSubmenu';
 import {
   copyShareLink as copyShareLinkAction,
   downloadAlbum as downloadAlbumAction,
   startInstantMix as startInstantMixAction,
   startRadio as startRadioAction,
-} from '../utils/contextMenuActions';
+} from '../utils/componentHelpers/contextMenuActions';
 import { useContextMenuKeyboardNav } from '../hooks/useContextMenuKeyboardNav';
 import { useContextMenuRating } from '../hooks/useContextMenuRating';
 import ContextMenuItems from './contextMenu/ContextMenuItems';

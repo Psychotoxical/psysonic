@@ -6,11 +6,11 @@ import { getArtist } from '../../api/subsonicArtists';
 import { getPlaylists } from '../../api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import { usePlaylistStore } from '../../store/playlistStore';
-import { showToast } from '../../utils/toast';
+import { showToast } from '../../utils/ui/toast';
 import {
   confirmAddAllDuplicates,
   isSmartPlaylistName,
-} from '../../utils/contextMenuHelpers';
+} from '../../utils/componentHelpers/contextMenuHelpers';
 
 interface Props {
   artistIds: string[];

@@ -10,14 +10,14 @@ import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
   ALL_SENTINEL,
   ALPHABET,
   ARTIST_LIST_LAST_IN_LETTER_EST,
   ARTIST_LIST_LETTER_ROW_EST,
   ARTIST_LIST_ROW_EST,
-} from '../utils/artistsHelpers';
+} from '../utils/componentHelpers/artistsHelpers';
 import { useArtistsFiltering } from '../hooks/useArtistsFiltering';
 import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
 import { ArtistsGridView } from '../components/artists/ArtistsGridView';

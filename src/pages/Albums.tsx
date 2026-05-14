@@ -2,7 +2,7 @@ import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbumsByGenre } from '../api/subsonicGenres';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
@@ -16,13 +16,13 @@ import { useDownloadModalStore } from '../store/downloadModalStore';
 import { usePlayerStore } from '../store/playerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { CheckSquare2, Download, HardDriveDownload, ListMusic, Disc3, ListPlus } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 
 const ALBUM_GRID_GAP_PX = 16; // matches --space-4

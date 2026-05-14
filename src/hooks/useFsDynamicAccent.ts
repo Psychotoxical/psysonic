@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { extractCoverColors } from '../utils/dynamicColors';
+import { extractCoverColors } from '../utils/ui/dynamicColors';
 
 // Module-level cache: artKey → accent color string.
 // Survives track changes so same-album songs reuse the extracted color instantly.

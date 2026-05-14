@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { useDragDrop } from '../contexts/DragDropContext';
-import { runPlaylistReorderDrop } from '../utils/runPlaylistReorderDrop';
+import { runPlaylistReorderDrop } from '../utils/playlist/runPlaylistReorderDrop';
 
 export interface PlaylistDnDReorderDeps {
   tracklistRef: React.RefObject<HTMLDivElement | null>;

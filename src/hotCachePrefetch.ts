@@ -9,7 +9,7 @@ import {
   bumpHotCachePreviousTrackGrace,
   clearHotCachePreviousGrace,
   getDeferHotCachePrefetch,
-} from './utils/hotCacheGate';
+} from './utils/cache/hotCacheGate';
 import {
   PREFETCH_AHEAD,
   type PrefetchJob,

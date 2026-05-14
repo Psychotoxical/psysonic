@@ -7,7 +7,7 @@ import {
   evaluateOrbitSuggestGate,
   OrbitSuggestBlockedError,
 } from '../utils/orbit';
-import { showToast } from '../utils/toast';
+import { showToast } from '../utils/ui/toast';
 
 /**
  * Shared behaviour for song rows that in "normal mode" swallow a full list

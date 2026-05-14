@@ -3,7 +3,7 @@ import { ChevronDown, ListMusic } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import type { Track } from '../../store/playerStoreTypes';
-import type { DurationMode } from '../../utils/queuePanelHelpers';
+import type { DurationMode } from '../../utils/componentHelpers/queuePanelHelpers';
 
 interface Props {
   queue: Track[];

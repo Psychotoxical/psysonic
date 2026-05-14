@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check, ChevronDown, RotateCcw } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { COLUMNS } from '../../utils/albumTrackListHelpers';
+import { COLUMNS } from '../../utils/componentHelpers/albumTrackListHelpers';
 
 interface Props {
   pickerRef: React.RefObject<HTMLDivElement | null>;

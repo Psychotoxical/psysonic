@@ -19,7 +19,7 @@ const hoisted = vi.hoisted(() => {
 });
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: hoisted.invokeMock }));
-vi.mock('../utils/seekErrors', () => ({ isRecoverableSeekError: hoisted.isRecoverableSeekErrorMock }));
+vi.mock('../utils/audio/seekErrors', () => ({ isRecoverableSeekError: hoisted.isRecoverableSeekErrorMock }));
 vi.mock('./seekTargetState', () => ({ setSeekTarget: hoisted.setSeekTargetMock }));
 vi.mock('./playerStore', () => ({
   usePlayerStore: { getState: hoisted.playerStateGet },

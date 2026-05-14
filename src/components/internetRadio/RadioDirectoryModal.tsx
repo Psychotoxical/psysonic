@@ -9,7 +9,7 @@ import {
 import {
   type InternetRadioStation, type RadioBrowserStation, RADIO_PAGE_SIZE,
 } from '../../api/subsonicTypes';
-import { showToast } from '../../utils/toast';
+import { showToast } from '../../utils/ui/toast';
 
 interface RadioDirectoryModalProps {
   onClose: () => void;

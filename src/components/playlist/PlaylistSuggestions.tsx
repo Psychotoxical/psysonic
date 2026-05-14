@@ -7,8 +7,8 @@ import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useThemeStore } from '../../store/themeStore';
-import { songToTrack } from '../../utils/songToTrack';
-import { codecLabel, formatDuration } from '../../utils/playlistDetailHelpers';
+import { songToTrack } from '../../utils/playback/songToTrack';
+import { codecLabel, formatDuration } from '../../utils/componentHelpers/playlistDetailHelpers';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration']);
 

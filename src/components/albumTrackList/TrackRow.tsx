@@ -5,12 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
-import { songToTrack } from '../../utils/songToTrack';
+import { songToTrack } from '../../utils/playback/songToTrack';
 import { useSelectionStore } from '../../store/selectionStore';
 import { useThemeStore } from '../../store/themeStore';
 import { usePreviewStore } from '../../store/previewStore';
 import StarRating from '../StarRating';
-import { codecLabel, formatDuration, type ColKey } from '../../utils/albumTrackListHelpers';
+import { codecLabel, formatDuration, type ColKey } from '../../utils/componentHelpers/albumTrackListHelpers';
 
 type ContextMenuFn = (
   x: number,

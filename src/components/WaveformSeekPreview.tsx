@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { SeekbarStyle } from '../store/authStoreTypes';
-import { makeAnimState, makeHeights } from '../utils/waveformSeekHelpers';
-import { drawSeekbar } from '../utils/waveformSeekRenderers';
+import { makeAnimState, makeHeights } from '../utils/waveform/waveformSeekHelpers';
+import { drawSeekbar } from '../utils/waveform/waveformSeekRenderers';
 
 interface Props {
   style: SeekbarStyle;

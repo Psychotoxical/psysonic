@@ -1,5 +1,5 @@
-import { resolvePlaybackUrl, type PlaybackSourceKind } from '../utils/resolvePlaybackUrl';
-import { sameQueueTrackId } from '../utils/queueIdentity';
+import { resolvePlaybackUrl, type PlaybackSourceKind } from '../utils/playback/resolvePlaybackUrl';
+import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import { useOfflineStore } from './offlineStore';
 
 /**

@@ -16,9 +16,9 @@ import OverlayScrollArea from './OverlayScrollArea';
 import {
   getLibraryItemsForReorder,
   getSystemItemsForReorder,
-} from '../utils/sidebarNavReorder';
+} from '../utils/componentHelpers/sidebarNavReorder';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
-import { usePerfProbeFlags } from '../utils/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnread';
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';

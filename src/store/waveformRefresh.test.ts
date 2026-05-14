@@ -22,7 +22,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: hoisted.invokeMock }));
-vi.mock('../utils/waveformParse', () => ({ coerceWaveformBins: hoisted.coerceWaveformBinsMock }));
+vi.mock('../utils/waveform/waveformParse', () => ({ coerceWaveformBins: hoisted.coerceWaveformBinsMock }));
 vi.mock('./playerStore', () => ({
   usePlayerStore: {
     getState: () => hoisted.playerSnapshot,

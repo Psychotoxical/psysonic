@@ -1,6 +1,6 @@
 import { setRating, unstar } from '../api/subsonicStarRating';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong, InternetRadioStation } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/songToTrack';
+import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
 import { TopFavoriteArtistsRow } from '../components/favorites/TopFavoriteArtists';

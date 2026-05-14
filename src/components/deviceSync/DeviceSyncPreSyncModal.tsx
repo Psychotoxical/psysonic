@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import type { SyncDelta } from '../../utils/runDeviceSyncExecution';
+import type { SyncDelta } from '../../utils/deviceSync/runDeviceSyncExecution';
 
 interface Props {
   preSyncOpen: boolean;

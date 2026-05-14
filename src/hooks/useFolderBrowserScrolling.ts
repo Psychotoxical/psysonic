@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Column, NavPos } from '../utils/folderBrowserHelpers';
+import type { Column, NavPos } from '../utils/componentHelpers/folderBrowserHelpers';
 
 interface Args {
   columns: Column[];

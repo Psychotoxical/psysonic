@@ -2,7 +2,7 @@ import type { Track } from './playerStoreTypes';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { isHotCachePreviousTrackUnderGrace } from '../utils/hotCacheGate';
+import { isHotCachePreviousTrackUnderGrace } from '../utils/cache/hotCacheGate';
 import { emitAnalysisStorageChanged } from './analysisSync';
 import { useAuthStore } from './authStore';
 

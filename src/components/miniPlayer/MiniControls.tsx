@@ -1,5 +1,5 @@
 import { Pause, Play, SkipBack, SkipForward } from 'lucide-react';
-import { fmt } from '../../utils/miniPlayerHelpers';
+import { fmt } from '../../utils/componentHelpers/miniPlayerHelpers';
 import type { MiniControlAction } from '../../utils/miniPlayerBridge';
 
 interface Props {

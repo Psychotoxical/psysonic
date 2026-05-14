@@ -10,7 +10,7 @@ import type { ZipDownload } from '../../store/zipDownloadStore';
 import { useThemeStore } from '../../store/themeStore';
 import {
   displayPlaylistName, formatSize, isSmartPlaylistName, totalDurationLabel,
-} from '../../utils/playlistDetailHelpers';
+} from '../../utils/componentHelpers/playlistDetailHelpers';
 import CachedImage from '../CachedImage';
 
 interface Props {
