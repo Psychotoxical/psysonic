@@ -30,6 +30,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ## Added
 
+### HTTP — gzip + brotli decompression for the Rust-side clients
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#704](https://github.com/Psychotoxical/psysonic/pull/704)**
+
+* Every HTTP client on the Rust side now advertises `Accept-Encoding` and transparently decodes compressed responses. The JSON-heavy endpoints — Navidrome native `/api`, Bandsintown, Radio-Browser, Last.fm — were the gap: the WebView's `axios` calls were already compressed, the Rust clients were not. Earlier curl measurements put the wire savings on those payloads at roughly **76–93 %**.
+* Implementation is a dependency-feature change only (`gzip` + `brotli` on `reqwest`) — no behaviour change beyond smaller transfers, and no extra cost on the clients that fetch already-compressed audio.
+
 ### Queue Toolbar — customizable button order + per-button visibility
 
 **By [@kveld9](https://github.com/kveld9), PR [#534](https://github.com/Psychotoxical/psysonic/pull/534)**
