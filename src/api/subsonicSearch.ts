@@ -6,6 +6,15 @@ import type {
   SubsonicSong,
 } from './subsonicTypes';
 
+/**
+ * search3 sometimes returns duplicate or junk artist rows with **zero** albums (e.g. Navidrome indexing).
+ * Drop only rows that explicitly report `albumCount === 0`; keep artists when the field is absent.
+ * Thanks to zunoz for the report on the Psysonic Discord.
+ */
+export function filterSearchArtistsWithNoAlbums(artists: SubsonicArtist[]): SubsonicArtist[] {
+  return artists.filter((a) => a.albumCount !== 0);
+}
+
 export async function search(query: string, options?: { albumCount?: number; artistCount?: number; songCount?: number }): Promise<SearchResults> {
   if (!query.trim()) return { artists: [], albums: [], songs: [] };
   const data = await api<{
@@ -22,7 +31,11 @@ export async function search(query: string, options?: { albumCount?: number; art
     ...libraryFilterParams(),
   });
   const r = data.searchResult3 ?? {};
-  return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };
+  return {
+    artists: filterSearchArtistsWithNoAlbums(r.artist ?? []),
+    albums: r.album ?? [],
+    songs: r.song ?? [],
+  };
 }
 
 /**
