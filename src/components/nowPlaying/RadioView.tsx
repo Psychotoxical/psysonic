@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Cast, Clock, Radio, SkipForward, Users } from 'lucide-react';
 import type { useRadioMetadata } from '../../hooks/useRadioMetadata';
 import { usePlayerStore } from '../../store/playerStore';
-import { formatTime } from '../../utils/componentHelpers/nowPlayingHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 type NonNullStoreField<K extends keyof ReturnType<typeof usePlayerStore.getState>> =
   NonNullable<ReturnType<typeof usePlayerStore.getState>[K]>;
@@ -38,11 +38,11 @@ const RadioView = memo(function RadioView({ radioMeta, currentRadio, resolvedCov
             </div>
             {radioMeta.source === 'azuracast' && radioMeta.elapsed != null && radioMeta.duration != null && radioMeta.duration > 0 && (
               <div className="np-radio-progress-wrap">
-                <span className="np-radio-time">{formatTime(radioMeta.elapsed)}</span>
+                <span className="np-radio-time">{formatTrackTime(radioMeta.elapsed)}</span>
                 <div className="np-radio-progress-bar">
                   <div className="np-radio-progress-fill" style={{ width: `${Math.min(100, (radioMeta.elapsed / radioMeta.duration) * 100)}%` }} />
                 </div>
-                <span className="np-radio-time">{formatTime(radioMeta.duration)}</span>
+                <span className="np-radio-time">{formatTrackTime(radioMeta.duration)}</span>
               </div>
             )}
           </div>

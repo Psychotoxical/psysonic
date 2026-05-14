@@ -1,9 +1,3 @@
-export function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 /** Strip dangerous tags/attributes from server-provided HTML */
 export function sanitizeHtml(html: string): string {
   const parser = new DOMParser();

@@ -20,7 +20,6 @@ import { useDragDrop } from '../contexts/DragDropContext';
 import { useTranslation } from 'react-i18next';
 import StarRating from '../components/StarRating';
 import {
-  formatDuration,
   formatSize,
   totalDurationLabel,
   isSmartPlaylistName,

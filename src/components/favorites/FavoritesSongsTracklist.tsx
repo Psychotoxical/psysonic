@@ -13,6 +13,7 @@ import { useSelectionStore } from '../../store/selectionStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 import StarRating from '../StarRating';
 
@@ -348,7 +349,7 @@ export default function FavoritesSongsTracklist({
                 );
                 case 'duration': return (
                   <div key="duration" className="track-duration">
-                    {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
+                    {formatTrackTime(song.duration)}
                   </div>
                 );
                 case 'remove': return (

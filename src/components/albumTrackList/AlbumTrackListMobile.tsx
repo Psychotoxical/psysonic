@@ -3,7 +3,7 @@ import { AudioLines } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../../utils/playback/songToTrack';
-import { formatDuration } from '../../utils/componentHelpers/albumTrackListHelpers';
+import { formatLongDuration } from '../../utils/format/formatDuration';
 
 interface Props {
   discNums: number[];
@@ -71,7 +71,7 @@ export function AlbumTrackListMobile({
                   )}
                   <span className="tracklist-mobile-title">{song.title}</span>
                 </div>
-                <span className="tracklist-mobile-duration">{formatDuration(song.duration)}</span>
+                <span className="tracklist-mobile-duration">{formatLongDuration(song.duration)}</span>
               </div>
             );
           })}

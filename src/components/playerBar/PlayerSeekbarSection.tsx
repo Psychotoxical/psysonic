@@ -2,7 +2,7 @@ import { ArrowLeftRight } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import { useThemeStore } from '../../store/themeStore';
-import { formatTime } from '../../utils/componentHelpers/playerBarHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 import WaveformSeek from '../WaveformSeek';
 import { PlaybackTime, RemainingTime } from './PlaybackClock';
 
@@ -27,7 +27,7 @@ export function PlayerSeekbarSection({
         <>
           {radioMeta.source === 'azuracast' && radioMeta.elapsed != null && radioMeta.duration != null && radioMeta.duration > 0 ? (
             <>
-              <span className="player-time">{formatTime(radioMeta.elapsed)}</span>
+              <span className="player-time">{formatTrackTime(radioMeta.elapsed)}</span>
               <div className="player-waveform-wrap">
                 <div className="radio-progress-bar">
                   <div
@@ -36,7 +36,7 @@ export function PlayerSeekbarSection({
                   />
                 </div>
               </div>
-              <span className="player-time">{formatTime(radioMeta.duration)}</span>
+              <span className="player-time">{formatTrackTime(radioMeta.duration)}</span>
             </>
           ) : (
             <>
@@ -65,7 +65,7 @@ export function PlayerSeekbarSection({
             }}
             data-tooltip={localShowRemaining ? t('player.showDuration') : t('player.showRemainingTime')}
           >
-            {localShowRemaining ? <RemainingTime duration={duration} /> : formatTime(duration)}
+            {localShowRemaining ? <RemainingTime duration={duration} /> : formatTrackTime(duration)}
             <ArrowLeftRight size={10} style={{ marginLeft: 4, opacity: 0.6 }} />
           </span>
         </>

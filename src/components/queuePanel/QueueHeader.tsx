@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import type { Track } from '../../store/playerStoreTypes';
 import type { DurationMode } from '../../utils/componentHelpers/queuePanelHelpers';
+import { formatLongDuration } from '../../utils/format/formatDuration';
 
 interface Props {
   queue: Track[];
@@ -34,12 +35,6 @@ export function QueueHeader({
 
   const remainingSecs = Math.max(0, (queue[queueIndex]?.duration ?? 0) - currentTime + futureTracksDuration);
 
-  const fmt = (secs: number) => {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return h > 0 ? `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}` : `${m}:${s.toString().padStart(2, "0")}`;
-  };
   const fmtEta = (secs: number) => {
     const finishTime = new Date(Date.now() + secs * 1000);
     return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(finishTime);
@@ -47,8 +42,8 @@ export function QueueHeader({
 
   let dur: string | null = null;
   if (queue.length > 0) {
-    if (durationMode === 'total') dur = fmt(Math.floor(totalSecs));
-    else if (durationMode === 'remaining') dur = `-${fmt(Math.floor(remainingSecs))}`;
+    if (durationMode === 'total') dur = formatLongDuration(Math.floor(totalSecs));
+    else if (durationMode === 'remaining') dur = `-${formatLongDuration(Math.floor(remainingSecs))}`;
     else dur = fmtEta(remainingSecs);
   }
 

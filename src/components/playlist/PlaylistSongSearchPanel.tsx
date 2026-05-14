@@ -5,7 +5,7 @@ import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl'
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
-import { formatDuration } from '../../utils/componentHelpers/playlistDetailHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 import CachedImage from '../CachedImage';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 
@@ -132,7 +132,7 @@ export default function PlaylistSongSearchPanel({
               <span className="playlist-search-title">{song.title}</span>
               <span className="playlist-search-artist">{song.artist} · <span className="playlist-search-album">{song.album}</span></span>
             </div>
-            <span className="playlist-search-duration">{formatDuration(song.duration ?? 0)}</span>
+            <span className="playlist-search-duration">{formatTrackTime(song.duration ?? 0)}</span>
           </div>
         );
       })}

@@ -10,12 +10,7 @@ import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { copyTextToClipboard } from '../utils/server/serverMagicString';
 import { showToast } from '../utils/ui/toast';
-
-function formatDuration(s: number): string {
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec.toString().padStart(2, '0')}`;
-}
+import { formatTrackTime } from '../utils/format/formatDuration';
 
 function formatSize(bytes?: number): string | null {
   if (!bytes) return null;
@@ -152,7 +147,7 @@ export default function SongInfoModal() {
                 )}
                 <Row label={t('songInfo.year')} value={song.year} />
                 <Row label={t('songInfo.genre')} value={song.genre} />
-                <Row label={t('songInfo.duration')} value={formatDuration(song.duration)} />
+                <Row label={t('songInfo.duration')} value={formatTrackTime(song.duration)} />
                 <Row label={t('songInfo.track')} value={trackLabel} />
 
                 <Divider />

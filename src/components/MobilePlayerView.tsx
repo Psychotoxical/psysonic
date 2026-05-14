@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCachedUrl } from './CachedImage';
+import { formatTrackTime } from '../utils/format/formatDuration';
 import LyricsPane from './LyricsPane';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
@@ -66,13 +67,6 @@ function useAlbumAccentColor(imageUrl: string): string {
   return color;
 }
 
-function formatTime(seconds: number): string {
-  if (!seconds || isNaN(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 // ── Queue Drawer ──────────────────────────────────────────────────────────────
 
 function QueueDrawer({ onClose }: { onClose: () => void }) {
@@ -119,7 +113,7 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
                     </div>
                     <div className="mq-item-artist truncate">{track.artist}</div>
                   </div>
-                  <span className="mq-item-dur">{formatTime(track.duration)}</span>
+                  <span className="mq-item-dur">{formatTrackTime(track.duration)}</span>
                 </div>
               );
             })
@@ -373,8 +367,8 @@ export default function MobilePlayerView() {
           <div className="mp-scrubber-thumb" style={{ left: `${effectiveProgress * 100}%` }} />
         </div>
         <div className="mp-scrubber-times">
-          <span>{formatTime(effectiveTime)}</span>
-          <span>-{formatTime(Math.max(0, duration - effectiveTime))}</span>
+          <span>{formatTrackTime(effectiveTime)}</span>
+          <span>-{formatTrackTime(Math.max(0, duration - effectiveTime))}</span>
         </div>
       </div>
 

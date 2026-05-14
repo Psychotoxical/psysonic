@@ -4,13 +4,6 @@ import type { Track } from '../../store/playerStoreTypes';
 
 export type DurationMode = 'total' | 'remaining' | 'eta';
 
-export function formatTime(seconds: number): string {
-  if (!seconds || isNaN(seconds)) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 export function formatQueueReplayGainParts(track: Track, t: TFunction): string[] {
   const parts: string[] = [];
   const fmtDb = (db: number) => `${db >= 0 ? '+' : ''}${db.toFixed(1)}`;

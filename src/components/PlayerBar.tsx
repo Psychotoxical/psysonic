@@ -28,7 +28,7 @@ import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 import { usePlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
 import { usePreviewStore } from '../store/previewStore';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
-import { formatTime } from '../utils/componentHelpers/playerBarHelpers';
+import { formatTrackTime } from '../utils/format/formatDuration';
 import { PlaybackTime, RemainingTime } from './playerBar/PlaybackClock';
 import { PlayerTrackInfo } from './playerBar/PlayerTrackInfo';
 import { PlayerTransportControls } from './playerBar/PlayerTransportControls';

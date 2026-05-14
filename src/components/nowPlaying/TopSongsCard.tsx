@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExternalLink, Play, TrendingUp } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
-import { formatTime } from '../../utils/componentHelpers/nowPlayingHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 interface TopSongsCardProps {
   artistName: string;
@@ -44,7 +44,7 @@ const TopSongsCard = memo(function TopSongsCard({ artistName, artistId, songs, c
                 <span className="np-dash-top-title truncate">{s.title}</span>
                 {s.album && <span className="np-dash-top-sub truncate">{s.album}</span>}
               </div>
-              <span className="np-dash-top-dur">{formatTime(s.duration)}</span>
+              <span className="np-dash-top-dur">{formatTrackTime(s.duration)}</span>
               <Play size={14} className="np-dash-top-play" />
             </div>
           );

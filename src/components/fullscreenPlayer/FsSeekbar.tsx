@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../../store/playbackProgress';
-import { formatTime } from '../../utils/componentHelpers/fullscreenPlayerHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 // Full-width seekbar — imperative DOM updates, zero React re-renders on tick.
 export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: number }) {
@@ -19,7 +19,7 @@ export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: numbe
     pendingSeekRef.current = p;
     if (timeRef.current) {
       const previewTime = duration > 0 ? p * duration : s.currentTime;
-      timeRef.current.textContent = formatTime(previewTime);
+      timeRef.current.textContent = formatTrackTime(previewTime);
     }
     if (playedRef.current) playedRef.current.style.width = `${p * 100}%`;
     if (bufRef.current) bufRef.current.style.width = `${Math.max(p * 100, s.buffered * 100)}%`;
@@ -36,7 +36,7 @@ export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: numbe
   useEffect(() => {
     const s = getPlaybackProgressSnapshot();
     const pct = s.progress * 100;
-    if (timeRef.current)   timeRef.current.textContent  = formatTime(s.currentTime);
+    if (timeRef.current)   timeRef.current.textContent  = formatTrackTime(s.currentTime);
     if (playedRef.current) playedRef.current.style.width = `${pct}%`;
     if (bufRef.current)    bufRef.current.style.width    = `${Math.max(pct, s.buffered * 100)}%`;
     if (inputRef.current)  inputRef.current.value        = String(s.progress);
@@ -44,7 +44,7 @@ export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: numbe
     return subscribePlaybackProgress(state => {
       if (isDraggingRef.current) return;
       const p = state.progress * 100;
-      if (timeRef.current)   timeRef.current.textContent  = formatTime(state.currentTime);
+      if (timeRef.current)   timeRef.current.textContent  = formatTrackTime(state.currentTime);
       if (playedRef.current) playedRef.current.style.width = `${p}%`;
       if (bufRef.current)    bufRef.current.style.width    = `${Math.max(p, state.buffered * 100)}%`;
       if (inputRef.current)  inputRef.current.value        = String(state.progress);
@@ -62,7 +62,7 @@ export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: numbe
     <div className="fs-seekbar-wrap">
       <div className="fs-seekbar-times">
         <span ref={timeRef} />
-        <span>{formatTime(duration)}</span>
+        <span>{formatTrackTime(duration)}</span>
       </div>
       <div className="fs-seekbar">
         <div className="fs-seekbar-bg" />

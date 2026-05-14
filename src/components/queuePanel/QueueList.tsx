@@ -5,7 +5,7 @@ import OverlayScrollArea from '../OverlayScrollArea';
 import { usePlayerStore } from '../../store/playerStore';
 import { useLuckyMixStore } from '../../store/luckyMixStore';
 import type { Track, PlayerState } from '../../store/playerStoreTypes';
-import { formatTime } from '../../utils/componentHelpers/queuePanelHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 type StartDrag = (
   payload: { data: string; label: string },
@@ -125,7 +125,7 @@ export function QueueList({
                 })()}
               </div>
               <div className="queue-item-duration">
-                {formatTime(track.duration)}
+                {formatTrackTime(track.duration)}
               </div>
             </div>
             {luckyRolling && isPlaying && (

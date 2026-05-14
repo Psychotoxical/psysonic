@@ -1,5 +1,5 @@
 import { Pause, Play, SkipBack, SkipForward } from 'lucide-react';
-import { fmt } from '../../utils/componentHelpers/miniPlayerHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 import type { MiniControlAction } from '../../utils/miniPlayerBridge';
 
 interface Props {
@@ -26,11 +26,11 @@ export function MiniControls({ isPlaying, currentTime, duration, progress, contr
       </div>
 
       <div className="mini-player__progress">
-        <div className="mini-player__progress-time">{fmt(currentTime)}</div>
+        <div className="mini-player__progress-time">{formatTrackTime(currentTime)}</div>
         <div className="mini-player__progress-track">
           <div className="mini-player__progress-fill" style={{ width: `${progress}%` }} />
         </div>
-        <div className="mini-player__progress-time">{fmt(duration)}</div>
+        <div className="mini-player__progress-time">{formatTrackTime(duration)}</div>
       </div>
     </div>
   );

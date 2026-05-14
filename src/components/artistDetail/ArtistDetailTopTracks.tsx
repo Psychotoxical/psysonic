@@ -6,7 +6,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
-import { formatDuration } from '../../utils/componentHelpers/artistDetailHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 import ArtistSuggestionTrackCover from './ArtistSuggestionTrackCover';
 
 interface Props {
@@ -100,7 +100,7 @@ export default function ArtistDetailTopTracks({ topSongs, marginTop, playTopSong
           {song.album}
         </div>
         <div className="track-duration" style={{ textAlign: 'right' }}>
-        {formatDuration(song.duration)}
+        {formatTrackTime(song.duration)}
          </div>
        </div>
        );

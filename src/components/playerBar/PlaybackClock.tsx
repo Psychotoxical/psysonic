@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../../store/playbackProgress';
-import { formatTime } from '../../utils/componentHelpers/playerBarHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 /** Renders the playback clock without ever causing PlayerBar to re-render.
  *  Updates the DOM directly via an imperative store subscription. */
@@ -8,10 +8,10 @@ export const PlaybackTime = memo(function PlaybackTime({ className }: { classNam
   const spanRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (spanRef.current) {
-      spanRef.current.textContent = formatTime(getPlaybackProgressSnapshot().currentTime);
+      spanRef.current.textContent = formatTrackTime(getPlaybackProgressSnapshot().currentTime);
     }
     return subscribePlaybackProgress(state => {
-      if (spanRef.current) spanRef.current.textContent = formatTime(state.currentTime);
+      if (spanRef.current) spanRef.current.textContent = formatTrackTime(state.currentTime);
     });
   }, []);
   return <span className={className} ref={spanRef} />;
@@ -25,7 +25,7 @@ export const RemainingTime = memo(function RemainingTime({ duration, className }
     const updateRemaining = () => {
       if (spanRef.current) {
         const remaining = Math.max(0, duration - getPlaybackProgressSnapshot().currentTime);
-        spanRef.current.textContent = `-${formatTime(remaining)}`;
+        spanRef.current.textContent = `-${formatTrackTime(remaining)}`;
       }
     };
     updateRemaining();

@@ -12,14 +12,7 @@ import StarRating from './StarRating';
 import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
 import { showToast } from '../utils/ui/toast';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+import { formatLongDuration } from '../utils/format/formatDuration';
 
 function formatSize(bytes?: number): string {
   if (!bytes) return '';
@@ -208,7 +201,7 @@ export default function AlbumHeader({
                 {info.year && <span>{info.year}</span>}
                 {info.genre && <span>· {info.genre}</span>}
                 <span>· {songs.length} Tracks</span>
-                <span>· {formatDuration(totalDuration)}</span>
+                <span>· {formatLongDuration(totalDuration)}</span>
                 {formatLabel && <span>· {formatLabel}</span>}
                 {info.recordLabel && (
                   <>

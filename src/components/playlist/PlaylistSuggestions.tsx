@@ -8,7 +8,8 @@ import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useThemeStore } from '../../store/themeStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
-import { codecLabel, formatDuration } from '../../utils/componentHelpers/playlistDetailHelpers';
+import { codecLabel } from '../../utils/componentHelpers/playlistDetailHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration']);
 
@@ -156,7 +157,7 @@ export default function PlaylistSuggestions({
                   );
                   case 'favorite': return <div key="favorite" />;
                   case 'rating': return <div key="rating" />;
-                  case 'duration': return <div key="duration" className="track-duration">{formatDuration(song.duration ?? 0)}</div>;
+                  case 'duration': return <div key="duration" className="track-duration">{formatTrackTime(song.duration ?? 0)}</div>;
                   case 'format': return (
                     <div key="format" className="track-meta">
                       {(song.suffix || (showBitrate && song.bitRate)) && <span className="track-codec">{codecLabel(song, showBitrate)}</span>}

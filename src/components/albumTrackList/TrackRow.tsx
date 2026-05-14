@@ -10,7 +10,8 @@ import { useSelectionStore } from '../../store/selectionStore';
 import { useThemeStore } from '../../store/themeStore';
 import { usePreviewStore } from '../../store/previewStore';
 import StarRating from '../StarRating';
-import { codecLabel, formatDuration, type ColKey } from '../../utils/componentHelpers/albumTrackListHelpers';
+import { codecLabel, type ColKey } from '../../utils/componentHelpers/albumTrackListHelpers';
+import { formatLongDuration } from '../../utils/format/formatDuration';
 
 type ContextMenuFn = (
   x: number,
@@ -173,7 +174,7 @@ export const TrackRow = React.memo(function TrackRow({
       case 'duration':
         return (
           <div key="duration" className="track-duration">
-            {formatDuration(song.duration)}
+            {formatLongDuration(song.duration)}
           </div>
         );
       case 'format':

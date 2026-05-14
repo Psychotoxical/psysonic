@@ -23,10 +23,7 @@ import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
 import { useLuckyMixStore } from '../store/luckyMixStore';
 import { useQueueToolbarStore } from '../store/queueToolbarStore';
-import {
-  DurationMode,
-  formatTime,
-} from '../utils/componentHelpers/queuePanelHelpers';
+import { DurationMode } from '../utils/componentHelpers/queuePanelHelpers';
 import { SavePlaylistModal } from './queuePanel/SavePlaylistModal';
 import { LoadPlaylistModal } from './queuePanel/LoadPlaylistModal';
 import { QueueHeader } from './queuePanel/QueueHeader';

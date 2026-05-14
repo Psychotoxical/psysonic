@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Headphones, Heart, MicVocal, Music, Star } from 'lucide-react';
 import type { LastfmArtistStats, LastfmTrackInfo } from '../../api/lastfm';
 import LastfmIcon from '../LastfmIcon';
-import { formatTime } from '../../utils/componentHelpers/nowPlayingHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 interface HeroProps {
   track: { title: string; artist: string; album: string; year?: number;
@@ -83,7 +83,7 @@ const Hero = memo(function Hero({ track, genre, playCount, userRatingOverride, l
           {track.samplingRate && <span className="np-badge">{(track.samplingRate / 1000).toFixed(1)} kHz</span>}
           {track.bitDepth && <span className="np-badge">{track.bitDepth}-bit</span>}
           {hiRes && <span className="np-badge np-badge-hires">Hi-Res</span>}
-          {track.duration > 0 && <span className="np-badge">{formatTime(track.duration)}</span>}
+          {track.duration > 0 && <span className="np-badge">{formatTrackTime(track.duration)}</span>}
         </div>
 
         <div className="np-dash-hero-actions">

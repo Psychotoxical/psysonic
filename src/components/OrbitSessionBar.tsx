@@ -19,6 +19,7 @@ import OrbitSettingsPopover from './OrbitSettingsPopover';
 import OrbitSharePopover from './OrbitSharePopover';
 import OrbitDiagnosticsPopover from './OrbitDiagnosticsPopover';
 import ConfirmModal from './ConfirmModal';
+import { formatTrackTime } from '../utils/format/formatDuration';
 
 /**
  * Orbit — top-strip session indicator.
@@ -34,11 +35,9 @@ import ConfirmModal from './ConfirmModal';
 
 const CATCH_UP_DRIFT_THRESHOLD_MS = 3_000;
 
+/** `m:ss` countdown from a millisecond value. */
 function formatCountdown(ms: number): string {
-  const clamped = Math.max(0, Math.round(ms / 1000));
-  const m = Math.floor(clamped / 60);
-  const s = clamped % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
+  return formatTrackTime(Math.round(ms / 1000));
 }
 
 export default function OrbitSessionBar() {

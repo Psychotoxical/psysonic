@@ -13,7 +13,8 @@ import { useThemeStore } from '../../store/themeStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
-import { codecLabel, formatDuration } from '../../utils/componentHelpers/playlistDetailHelpers';
+import { codecLabel } from '../../utils/componentHelpers/playlistDetailHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 import type { PlaylistSortKey, PlaylistSortDir } from '../../utils/playlist/playlistDisplayedSongs';
 import StarRating from '../StarRating';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
@@ -405,7 +406,7 @@ export default function PlaylistTracklist({
                   </div>
                 );
                 case 'rating': return <StarRating key="rating" value={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0} onChange={r => handleRate(song.id, r)} />;
-                case 'duration': return <div key="duration" className="track-duration">{formatDuration(song.duration ?? 0)}</div>;
+                case 'duration': return <div key="duration" className="track-duration">{formatTrackTime(song.duration ?? 0)}</div>;
                 case 'format': return (
                   <div key="format" className="track-meta">
                     {(song.suffix || (showBitrate && song.bitRate)) && <span className="track-codec">{codecLabel(song, showBitrate)}</span>}

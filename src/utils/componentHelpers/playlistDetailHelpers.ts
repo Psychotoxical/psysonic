@@ -9,12 +9,6 @@ export function sanitizeFilename(name: string): string {
     .substring(0, 200) || 'download';
 }
 
-export function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
 export function formatSize(bytes?: number): string {
   if (!bytes) return '';
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;

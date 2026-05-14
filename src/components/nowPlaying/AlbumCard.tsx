@@ -2,7 +2,8 @@ import React, { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Disc3, ExternalLink, Star } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
-import { formatTime, formatTotalDuration } from '../../utils/componentHelpers/nowPlayingHelpers';
+import { formatTotalDuration } from '../../utils/componentHelpers/nowPlayingHelpers';
+import { formatTrackTime } from '../../utils/format/formatDuration';
 
 interface AlbumCardProps {
   album: SubsonicAlbum | null;
@@ -79,7 +80,7 @@ const AlbumCard = memo(function AlbumCard({ album, songs, currentTrackId, albumN
                   : track.track ?? '—'}
               </span>
               <span className="np-album-track-title truncate">{track.title}</span>
-              <span className="np-album-track-dur">{formatTime(track.duration)}</span>
+              <span className="np-album-track-dur">{formatTrackTime(track.duration)}</span>
             </div>
           );
         })}
