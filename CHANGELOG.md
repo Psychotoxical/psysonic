@@ -255,6 +255,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Settings — contributors list sorted chronologically
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#700](https://github.com/Psychotoxical/psysonic/pull/700)**
+
+* The **Settings → System → Contributors** list rendered in raw insertion order, so the original maintainer (since v1.0.0) showed up last and the hand-maintained ordering drifted as new entries were appended. It is now sorted on render — ascending by the app version a contributor first appeared in, tie-broken by their first-contribution PR number — so it stays correct no matter where new entries land in the source list.
+
 ### Internet Radio — Add / Edit station modal no longer clipped on empty library
 
 **By [@cucadmuh](https://github.com/cucadmuh), thanks to voidboywannabe for the report on the Psysonic Discord, PR [#699](https://github.com/Psychotoxical/psysonic/pull/699)**
