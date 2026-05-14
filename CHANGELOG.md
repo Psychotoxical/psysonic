@@ -384,6 +384,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Fixes issue [#606](https://github.com/Psychotoxical/psysonic/issues/606): the small cover in the **player bar** (and other `CachedImage` surfaces) no longer flashes the browser **broken-image** placeholder for a split second when skipping tracks or changing the current queue item.
 
+### Album & player — split OpenSubsonic album credits and performers
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#696](https://github.com/Psychotoxical/psysonic/pull/696)**
+
+* Album detail **header** shows **multiple album artists** when the server sends OpenSubsonic **`albumArtists`** on the album or on child songs — each name links to its artist page instead of only the first id (issue [#552](https://github.com/Psychotoxical/psysonic/issues/552)).
+* **Player bar**, **mobile now playing**, and **mini player** copy **`artists`** through **`songToTrack`** so multi-performer tracks get **per-artist** links like the album tracklist column.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
