@@ -248,6 +248,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Offline downloads — the cancel button works again + the sidebar toast keeps its size
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#694](https://github.com/Psychotoxical/psysonic/pull/694)**
+
+* **The ✕ on the sidebar download toast now actually cancels the download.** It was only dropping not-yet-started tracks between batches of 8 — for an album of 8 or fewer tracks the check never ran a second time, so the click did nothing, and in-flight transfers ran to completion regardless. Cancellation now reaches the Rust side: a new `cancel_offline_downloads` command flips a per-download flag that `download_track_offline` checks after acquiring its slot and on every streamed chunk, so an in-progress transfer aborts mid-file (its `.part` file is cleaned up). The frontend also drops every job for the cancelled album immediately, so the toast disappears at once instead of lingering on stuck "downloading" rows. Tracks that had already finished before the cancel are kept rather than orphaned on disk.
+* **The download progress toast no longer gets squished when the main window is small.** It lives in the sidebar's vertical flex column and was missing `flex-shrink: 0`, so a short window compressed it; the label now also ellipsis-truncates on a narrow sidebar instead of overflowing.
+
 ### Orbit — guest playback fixes
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), reported by nzxl + RavingGrob, PR [#525](https://github.com/Psychotoxical/psysonic/pull/525)**
