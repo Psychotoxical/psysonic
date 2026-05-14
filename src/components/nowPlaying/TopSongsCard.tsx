@@ -35,7 +35,7 @@ const TopSongsCard = memo(function TopSongsCard({ artistName, artistId, songs, c
         {top.map((s, idx) => {
           const isActive = s.id === currentTrackId;
           return (
-            <div key={s.id}
+            <div key={`${s.id}-${idx}`}
               className={`np-dash-top-row${isActive ? ' active' : ''}`}
               onClick={() => onPlay(s)}
               data-tooltip={t('contextMenu.playNow')}>

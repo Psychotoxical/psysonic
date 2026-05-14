@@ -69,10 +69,10 @@ const AlbumCard = memo(function AlbumCard({ album, songs, currentTrackId, albumN
         </span>
       </div>
       <div className="np-album-tracklist">
-        {visibleSongs.map(track => {
+        {visibleSongs.map((track, idx) => {
           const isActive = track.id === currentTrackId;
           return (
-            <div key={track.id}
+            <div key={`${track.id}-${idx}`}
               className={`np-album-track${isActive ? ' active' : ''}`}>
               <span className="np-album-track-num">
                 {isActive

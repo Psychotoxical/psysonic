@@ -81,8 +81,8 @@ const ArtistCard = memo(function ArtistCard({ artistName, artistId, artistInfo, 
       {similar.length > 0 && (
         <div className="np-dash-similar">
           <div className="np-dash-chip-row">
-            {similar.slice(0, 12).map(a => (
-              <span key={a.id} className="np-chip"
+            {similar.slice(0, 12).map((a, idx) => (
+              <span key={`${a.id}-${idx}`} className="np-chip"
                 onClick={() => a.id && onNavigate(`/artist/${a.id}`)}
                 data-tooltip={t('nowPlaying.goToArtist')}>
                 {a.name}
