@@ -107,6 +107,7 @@ export const CONTRIBUTORS = [
       'CachedImage / useCachedUrl: blob URL only for matching cacheKey, layout load reset on key change; fixes broken player cover flash on track switch (#606) (PR #695)',
       'OpenSubsonic albumArtists in album header; track artists in player bar, mobile, mini + songToTrack (#552) (PR #696)',
       'Search: filter search3 artist rows with zero albums (report: zunoz on Psysonic Discord) (PR #697)',
+      'Internet Radio: portal add/edit station modal to document.body — fixes clipped modal on empty library (report: voidboywannabe on Psysonic Discord) (PR #699)',
     ],
   },
   {

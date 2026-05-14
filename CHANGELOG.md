@@ -255,6 +255,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Internet Radio — Add / Edit station modal no longer clipped on empty library
+
+**By [@cucadmuh](https://github.com/cucadmuh), thanks to voidboywannabe for the report on the Psysonic Discord, PR [#699](https://github.com/Psychotoxical/psysonic/pull/699)**
+
+* **Add Station** / **Edit** now mount **`RadioEditModal`** with **`createPortal(..., document.body)`** (same layering approach as **Search Directory**). Previously the overlay lived under nested **`.content-body`** with **`contain: paint`**, so on an **empty** station list the fixed overlay was **painted inside a short box** and looked cropped; after the first station the layout was tall enough that the bug was easy to miss.
+
 ### Search — hide duplicate artist hits with zero albums
 
 **By [@cucadmuh](https://github.com/cucadmuh), thanks to zunoz for the report on the Psysonic Discord, PR [#697](https://github.com/Psychotoxical/psysonic/pull/697)**
