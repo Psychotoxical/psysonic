@@ -289,6 +289,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * **Add Station** / **Edit** now mount **`RadioEditModal`** with **`createPortal(..., document.body)`** (same layering approach as **Search Directory**). Previously the overlay lived under nested **`.content-body`** with **`contain: paint`**, so on an **empty** station list the fixed overlay was **painted inside a short box** and looked cropped; after the first station the layout was tall enough that the bug was easy to miss.
 
+### Now Playing — stable list keys on dashboard cards (duplicate React `key` warnings)
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#703](https://github.com/Psychotoxical/psysonic/pull/703)**
+
+* **Similar artists**, the **track list inside the in-player album card**, and **Top songs** can all include **more than one row with the same Subsonic `id`** (server payloads are not always strictly deduped). Those lists used **`key={id}`**, which triggered **duplicate `key`** warnings in React devtools and made reconciliation depend on row order. Keys now combine **`id` with the list index** — rendering only; **no queue or playback change**.
+
 ### Search — hide duplicate artist hits with zero albums
 
 **By [@cucadmuh](https://github.com/cucadmuh), thanks to zunoz for the report on the Psysonic Discord, PR [#697](https://github.com/Psychotoxical/psysonic/pull/697)**

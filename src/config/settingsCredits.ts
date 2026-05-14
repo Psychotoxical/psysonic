@@ -110,6 +110,7 @@ const CONTRIBUTOR_ENTRIES = [
       'OpenSubsonic albumArtists in album header; track artists in player bar, mobile, mini + songToTrack (#552) (PR #696)',
       'Search: filter search3 artist rows with zero albums (report: zunoz on Psysonic Discord) (PR #697)',
       'Internet Radio: portal add/edit station modal to document.body — fixes clipped modal on empty library (report: voidboywannabe on Psysonic Discord) (PR #699)',
+      'Now Playing: composite list keys on similar artists, album-card tracklist, and top songs — avoids duplicate React keys when Subsonic repeats ids (PR #703)',
     ],
   },
   {
