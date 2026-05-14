@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Camera, Cast, Loader2, X } from 'lucide-react';
 import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
@@ -62,7 +63,9 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
     if (e.target === e.currentTarget) onClose();
   };
 
-  return (
+  /* Portal to document.body: nested .content-body uses contain:paint — in-tree
+   * modals are clipped when the station list is empty (short layout). Same pattern as RadioDirectoryModal. */
+  return createPortal(
     <div className="modal-overlay" style={{ alignItems: 'center', paddingTop: 0, overflowY: 'auto' }} onClick={handleOverlayClick}>
       <div
         className="modal-content"
@@ -158,6 +161,7 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
