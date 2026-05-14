@@ -4,12 +4,10 @@ import { useEffect, useRef } from 'react';
 import { useOrbitStore } from '../store/orbitStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import {
-  readOrbitState,
-  writeOrbitHeartbeat,
-} from '../utils/orbit';
-import { orbitOutboxPlaylistName, estimateLivePosition, type OrbitState } from '../api/orbit';
+import { readOrbitState } from '../utils/orbit';
+import { estimateLivePosition, type OrbitState } from '../api/orbit';
 import { pushOrbitEvent } from '../utils/orbitDiag';
+import { useOrbitOutboxHeartbeat } from './useOrbitOutboxHeartbeat';
 
 /**
  * Orbit — guest-side tick hook.
@@ -29,7 +27,6 @@ import { pushOrbitEvent } from '../utils/orbitDiag';
  */
 
 const STATE_READ_TICK_MS = 2_500;
-const HEARTBEAT_TICK_MS  = 10_000;
 /**
  * Host must be quiet (no state writes) for this long before we treat the
  * session as dead and auto-leave. Well above any normal network blip —
@@ -44,6 +41,7 @@ export function useOrbitGuest(): void {
   const sessionPlaylistId = useOrbitStore(s => s.sessionPlaylistId);
   const outboxPlaylistId  = useOrbitStore(s => s.outboxPlaylistId);
   const sessionId         = useOrbitStore(s => s.sessionId);
+  const myName            = useAuthStore(s => s.getActiveServer()?.username);
 
   const active = role === 'guest' && phase === 'active' && !!sessionPlaylistId;
 
@@ -362,20 +360,7 @@ export function useOrbitGuest(): void {
     };
   }, [active, sessionPlaylistId]);
 
-  // ── Heartbeat ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!active || !outboxPlaylistId || !sessionId) return;
-    const me = useAuthStore.getState().getActiveServer()?.username;
-    if (!me) return;
-    const outboxName = orbitOutboxPlaylistName(sessionId, me);
-
-    const beat = async () => {
-      try { await writeOrbitHeartbeat(outboxPlaylistId, outboxName); }
-      catch { /* best-effort */ }
-    };
-    void beat();
-
-    const id = window.setInterval(() => { void beat(); }, HEARTBEAT_TICK_MS);
-    return () => window.clearInterval(id);
-  }, [active, outboxPlaylistId, sessionId]);
+  // Outbox heartbeat — shared with the host hook; the guest's outbox is keyed
+  // by its own active-server username.
+  useOrbitOutboxHeartbeat(active, outboxPlaylistId, sessionId, myName);
 }

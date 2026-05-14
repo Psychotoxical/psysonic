@@ -5,7 +5,6 @@ import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore } from '../store/playerStore';
 import {
   writeOrbitState,
-  writeOrbitHeartbeat,
   sweepGuestOutboxes,
   applyOutboxSnapshotsToState,
   maybeShuffleQueue,
@@ -13,7 +12,6 @@ import {
   suggestionKey,
 } from '../utils/orbit';
 import {
-  orbitOutboxPlaylistName,
   ORBIT_PLAY_QUEUE_LIMIT,
   type OrbitState,
   type OrbitQueueItem,
@@ -21,6 +19,7 @@ import {
 import { showToast } from '../utils/ui/toast';
 import i18n from '../i18n';
 import { pushOrbitEvent } from '../utils/orbitDiag';
+import { useOrbitOutboxHeartbeat } from './useOrbitOutboxHeartbeat';
 
 /**
  * Orbit — host-side tick hook.
@@ -41,7 +40,6 @@ import { pushOrbitEvent } from '../utils/orbitDiag';
  */
 
 const STATE_TICK_MS     = 2_500;
-const HEARTBEAT_TICK_MS = 10_000;
 
 export function useOrbitHost(): void {
   const role              = useOrbitStore(s => s.role);
@@ -49,6 +47,7 @@ export function useOrbitHost(): void {
   const sessionPlaylistId = useOrbitStore(s => s.sessionPlaylistId);
   const outboxPlaylistId  = useOrbitStore(s => s.outboxPlaylistId);
   const sessionId         = useOrbitStore(s => s.sessionId);
+  const hostName          = useOrbitStore(s => s.state?.host);
 
   // Refs hold the last values we used to build the patch — cheap to
   // recompute against, no need to subscribe to every playerStore tick.
@@ -248,19 +247,7 @@ export function useOrbitHost(): void {
     };
   }, [active, sessionPlaylistId]);
 
-  useEffect(() => {
-    if (!active || !outboxPlaylistId || !sessionId) return;
-    const server = useOrbitStore.getState().state?.host;
-    if (!server) return;
-    const outboxName = orbitOutboxPlaylistName(sessionId, server);
-
-    const pushHeartbeat = async () => {
-      try { await writeOrbitHeartbeat(outboxPlaylistId, outboxName); }
-      catch { /* best-effort */ }
-    };
-    void pushHeartbeat();
-
-    const id = window.setInterval(() => { void pushHeartbeat(); }, HEARTBEAT_TICK_MS);
-    return () => window.clearInterval(id);
-  }, [active, outboxPlaylistId, sessionId]);
+  // Outbox heartbeat — shared with the guest hook; the host's outbox is keyed
+  // by its own `OrbitState.host` name.
+  useOrbitOutboxHeartbeat(active, outboxPlaylistId, sessionId, hostName);
 }
