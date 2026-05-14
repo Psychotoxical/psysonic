@@ -284,6 +284,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ## Fixed
 
+### Artists — infinite scroll after first page
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#709](https://github.com/Psychotoxical/psysonic/pull/709)**
+
+* The **Artists** page only mounts the bottom **`IntersectionObserver`** sentinel after **`getArtists`** finishes, while **`useArtistsInfiniteScroll`** subscribed in an effect keyed only on **`loadMore`**. Unlike **Albums**, that callback does not depend on **`loading`**, so its identity did not change when the sentinel first appeared — the observer never attached and **`visibleCount`** never grew past the first batch. The hook now uses a **callback ref** (subscribe on mount, disconnect on unmount) and sets **`root`** to **`#app-main-scroll-viewport`** so intersection matches the real scroll container.
+
 ### Playback — track no longer clipped at the end with gapless and crossfade off
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#708](https://github.com/Psychotoxical/psysonic/pull/708)**
