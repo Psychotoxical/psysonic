@@ -87,6 +87,15 @@ pub(super) fn spawn_progress_task<E: ProgressEmitter>(
     const PROGRESS_EMIT_MIN_MS: u64 = 1500;
     const PROGRESS_EMIT_MIN_DELTA_SECS: f64 = 0.9;
 
+    // Watchdog ceiling for the duration-hint near-end timer. Without crossfade,
+    // audio:ended fires from the sample-accurate `current_done` signal (see the
+    // exhaustion branch below), so this timer only matters as a fallback for a
+    // source that never signals exhaustion (stalled or malformed decoder). ~8 s
+    // past the point where near-end counting starts — far longer than any
+    // healthy track runs past its (floored) duration hint, so it never clips a
+    // real tail.
+    const END_WATCHDOG_TICKS: u32 = 80;
+
     tokio::spawn(async move {
         let mut near_end_ticks: u32 = 0;
         // Local done-flag reference; swapped on gapless transition.
@@ -166,9 +175,16 @@ pub(super) fn spawn_progress_task<E: ProgressEmitter>(
                     near_end_ticks = 0;
                     continue;
                 }
-                // Current source exhausted but no chain queued — the Sink is
-                // likely draining; audio:ended will fire on the next tick via
-                // the near-end logic below.
+                // Current source exhausted and no chain queued — this is the
+                // real, sample-accurate end of the track. Emit audio:ended now.
+                // The duration_hint-based near-end timer below would otherwise
+                // clip up to ~1 s off the tail: the Subsonic hint is floored to
+                // whole seconds while the decoded audio runs slightly longer.
+                // The timer stays only as the crossfade trigger and as a
+                // watchdog for sources that never signal exhaustion.
+                gen_counter.fetch_add(1, Ordering::SeqCst);
+                emitter.emit_ended();
+                break;
             }
 
             // ── Position from atomic sample counter ──────────────────────────
@@ -229,9 +245,20 @@ pub(super) fn spawn_progress_task<E: ProgressEmitter>(
                     if has_chain {
                         continue;
                     }
-                    gen_counter.fetch_add(1, Ordering::SeqCst);
-                    emitter.emit_ended();
-                    break;
+                    // With crossfade, audio:ended must fire *early* (cf_secs
+                    // before the real end, source not yet exhausted) so the
+                    // frontend can start the next track and fade between them
+                    // — the timer is the intended trigger here. Without
+                    // crossfade, the real end is detected sample-accurately
+                    // via `current_done` (handled in the exhaustion branch
+                    // above), so the timer only acts as a watchdog for a
+                    // source that never signals exhaustion — emitting on the
+                    // hint alone would clip up to ~1 s off the tail.
+                    if cf_enabled || near_end_ticks >= END_WATCHDOG_TICKS {
+                        gen_counter.fetch_add(1, Ordering::SeqCst);
+                        emitter.emit_ended();
+                        break;
+                    }
                 }
             } else {
                 near_end_ticks = 0;
@@ -458,5 +485,78 @@ mod tests {
         // Stop the task.
         h.gen_counter.store(99, Ordering::SeqCst);
         tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn done_without_chain_emits_ended_immediately() {
+        // Real track (duration_secs > 0), source exhausted, no chained
+        // successor: audio:ended must fire on the sample-accurate done flag —
+        // not be deferred to (or clipped by) the duration-hint near-end timer.
+        let h = TaskHarness::new(120.0);
+        h.done.store(true, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(emitter.ended_count(), 1, "audio:ended must fire on source exhaustion");
+        assert_eq!(emitter.track_switched_count(), 0, "no chain → no track switch");
+        assert!(
+            h.gen_counter.load(Ordering::SeqCst) > h.gen,
+            "generation counter must bump so following commands see the new gen"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn near_end_without_crossfade_waits_for_source_done() {
+        // Position playback past the (floored) duration hint with the source
+        // NOT yet exhausted and crossfade off. The duration-hint timer must
+        // NOT emit audio:ended — doing so would clip the real tail, since the
+        // decoded audio routinely runs slightly longer than the integer hint.
+        let h = TaskHarness::new(120.0);
+        // samples → pos_raw clamps to dur (120 s), well inside `dur - 1`.
+        let played = (120.0 * 44_100.0 * 2.0) as u64;
+        h.samples_played.store(played, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        // > 10 ticks: the timer's near-end counter is well past its 1 s mark.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        assert_eq!(
+            emitter.ended_count(),
+            0,
+            "audio:ended must NOT fire from the duration-hint timer before the source is done"
+        );
+
+        // Source actually exhausts → audio:ended fires now.
+        h.done.store(true, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(emitter.ended_count(), 1, "audio:ended fires once the source is exhausted");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn near_end_with_crossfade_emits_ended_on_timer() {
+        // With crossfade enabled, audio:ended must still fire from the timer
+        // ~cf_secs before the real end (the source is NOT exhausted yet) so the
+        // frontend can start the next track and fade between them.
+        let h = TaskHarness::new(120.0);
+        h.crossfade_enabled.store(true, Ordering::SeqCst);
+        h.crossfade_secs.store(5.0f32.to_bits(), Ordering::SeqCst);
+        // Position inside the crossfade window (>= dur - 5 s), source not done.
+        let played = (117.0 * 44_100.0 * 2.0) as u64;
+        h.samples_played.store(played, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        // 10 ticks ≈ 1 s to cross the near-end debounce.
+        tokio::time::sleep(Duration::from_millis(1300)).await;
+        assert_eq!(
+            emitter.ended_count(),
+            1,
+            "crossfade still relies on the timer to fire audio:ended early"
+        );
+        assert!(h.gen_counter.load(Ordering::SeqCst) > h.gen);
     }
 }
