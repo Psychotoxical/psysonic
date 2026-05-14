@@ -11,6 +11,18 @@
   font-size: 11px;
   color: var(--accent);
   overflow: hidden;
+  /* The sidebar nav is a flex column — without this the toast gets
+     vertically squished when the window is short. Keep its natural height. */
+  flex-shrink: 0;
+}
+
+/* Label degrades to an ellipsis when the sidebar is narrow instead of
+   overflowing or compressing the row. */
+.sidebar-offline-queue span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-offline-queue--collapsed {
