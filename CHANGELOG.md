@@ -284,6 +284,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ## Fixed
 
+### Playback — track no longer clipped at the end with gapless and crossfade off
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#708](https://github.com/Psychotoxical/psysonic/pull/708)**
+
+* With **gapless and crossfade both disabled**, the last up to **~1 second** of every track was cut off. The progress task ended playback on the **Subsonic duration hint**, which is floored to whole seconds, while the decoded audio almost always runs slightly longer — so the tail was lost. It now ends on the **sample-accurate** source-exhaustion signal that gapless already relies on. The duration-hint timer is kept only as the crossfade trigger (which must fire early) and as a watchdog for sources that never signal exhaustion — **no change** to gapless or crossfade behaviour.
+
 ### Settings — contributors list sorted chronologically
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#700](https://github.com/Psychotoxical/psysonic/pull/700)**
