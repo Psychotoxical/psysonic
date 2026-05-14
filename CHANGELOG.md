@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.46.0] - 2026-05-05
 
+## Under the Hood — Refactoring & Test Suite
+
+**By [@cucadmuh](https://github.com/cucadmuh) + [@Psychotoxical](https://github.com/Psychotoxical)**
+
+Alongside the user-facing changes, this release closes out a large engineering effort that touched almost every corner of the codebase. None of it changes how Psysonic behaves — it changes how fast and how safely the next features can land.
+
+* **Backend → Cargo workspace.** The Rust backend was lifted out of a single crate into five focused domain crates — audio, analysis, sync/offline, integrations and core. See *Backend — Cargo workspace with 5 domain crates* under **Changed** below for the full breakdown.
+* **Frontend modularization.** Around a hundred follow-up changes broke the largest "god-module" components, stores and stylesheets into small, single-purpose files, deduplicated shared helpers, and split the i18n locale and CSS bundles per namespace. Files that had grown hard and risky to touch are now focused modules.
+* **Automated test suite.** Psysonic now ships with a real test suite on both sides — `cargo test` across the Rust workspace and a Vitest suite on the frontend — backed by per-file coverage gates in CI that block a merge when a hot-path file regresses below threshold. Playback, queue, auth, the offline cache, the API layer and the core UI components are now pinned by characterization tests.
+
+Foundational work: faster reviews, narrower diffs, and a safety net under the parts of the app that matter most.
+
 ## Added
 
 ### Queue Toolbar — customizable button order + per-button visibility
