@@ -104,6 +104,7 @@ export const CONTRIBUTORS = [
       'Environment upgrade & hot-cache playback — replay via RAM/disk on same-track and queue-end resume, playback-source icon stays correct after resume/undo/gapless, sidebar new-releases 500-id cap merge, Windows tray double-click fix, lazy-loaded routes, rodio 0.22 migration (PR #463)',
       'Audio: post-sleep stream recovery (Windows + Linux) with poll-gap-armed stall watchdog; preview seekbar freeze + anti-jump on preview end; remove card hover lift and per-card GPU compositing hints (PR #476)',
       'Analysis queue control: prune stale http-backfill / cpu-seed jobs when tracks leave the playback queue, cap loudness backfill warmup to current + next 5 tracks, plus debug counters for diagnostics (PR #480)',
+      'CachedImage / useCachedUrl: blob URL only for matching cacheKey, layout load reset on key change; fixes broken player cover flash on track switch (#606) (PR #695)',
     ],
   },
   {

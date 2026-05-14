@@ -237,6 +237,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added eight new dark themes covering the colour families people most commonly ask for: **Obsidian Black**, **Carbon Grey**, **Volcanic Dark**, **Forest Green**, **Violet Haze**, **Copper Oxide**, **Sakura Night**, **Obsidian Gold**.
 * Light polish on the existing **AMOLED Black Pure** surface variables so card surfaces no longer collapse onto a pure-black background that read as a single flat slab.
 
+### Covers / image cache — `useCachedUrl` tied to `cacheKey`; `CachedImage` load gate
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#695](https://github.com/Psychotoxical/psysonic/pull/695)**
+
+* **`useCachedUrl`** only returns a shared blob URL when it still matches the **current** `cacheKey`, so a track change does not paint one frame with the **previous** track's object URL after refcount handling (player bar, queue header cover, Now Playing / mobile paths on the hook).
+* **`CachedImage`** clears the opacity **load** gate in **`useLayoutEffect`** when `cacheKey` changes so the first paint after a swap cannot briefly show the new `src` at full opacity before the gate runs.
+
 ## Removed
 
 ### Settings — Animations 3-state setting under Seekbar Style
@@ -370,6 +377,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * When the main window was closed to the tray and then re-opened via the **desktop / start-menu shortcut** (instead of the tray icon), the window came back but the **next navigation rendered a blank page**. Restoring via the **tray icon** worked correctly.
 * Root cause: closing to the tray injects a "pause rendering" snippet that sets `data-psy-native-hidden="true"` on `<html>` and pauses every CSS animation. The tray-icon restore path injects the matching "resume rendering" snippet before showing the window — the second-launch restore path (handled by the **single-instance plugin**) was **missing that step**, so route wrappers using `.animate-fade-in` (`animation: fadeIn … both`, starts at `opacity: 0`) stayed frozen invisible.
 * Fix: mirror the tray-icon restore path and resume rendering before `show()` in the single-instance callback. Both restore paths are now consistent.
+
+### Player UI — broken album-art icon when switching tracks
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#695](https://github.com/Psychotoxical/psysonic/pull/695)**
+
+* Fixes issue [#606](https://github.com/Psychotoxical/psysonic/issues/606): the small cover in the **player bar** (and other `CachedImage` surfaces) no longer flashes the browser **broken-image** placeholder for a split second when skipping tracks or changing the current queue item.
 
 ## [1.45.0] - 2026-05-04
 
