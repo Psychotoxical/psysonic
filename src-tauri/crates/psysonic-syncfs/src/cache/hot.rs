@@ -69,7 +69,7 @@ pub async fn download_track_hot_cache(
 
     // Stream directly to a .part file; rename on success to avoid partial files.
     let part_path = file_path.with_extension(format!("{suffix}.part"));
-    if let Err(e) = stream_to_file(response, &part_path).await {
+    if let Err(e) = stream_to_file(response, &part_path, None).await {
         let _ = tokio::fs::remove_file(&part_path).await;
         return Err(e);
     }

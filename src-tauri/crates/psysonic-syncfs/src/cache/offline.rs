@@ -1,8 +1,11 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use tauri::Manager;
 
 use psysonic_analysis::analysis_cache;
 use psysonic_analysis::analysis_runtime::enqueue_analysis_seed;
-use crate::DownloadSemaphore;
+use crate::{offline_cancel_flags, DownloadSemaphore};
 
 use crate::file_transfer::{finalize_streamed_download, subsonic_http_client};
 
@@ -48,12 +51,16 @@ pub(crate) async fn read_seed_bytes_if_needed(
 /// the cached path on hit, otherwise issues a GET via `client`, streams to
 /// `<cache_dir>/<track_id>.<suffix>` via a `.part` file, and returns the
 /// final path. Caller is responsible for the semaphore + analysis seeding.
+///
+/// `cancel`, when supplied, aborts the in-flight stream with `Err("CANCELLED")`
+/// (the `.part` file is cleaned up); `None` means the download is not cancellable.
 pub(crate) async fn download_track_to_cache_dir(
     cache_dir: &std::path::Path,
     track_id: &str,
     suffix: &str,
     url: &str,
     client: &reqwest::Client,
+    cancel: Option<&AtomicBool>,
 ) -> Result<std::path::PathBuf, String> {
     tokio::fs::create_dir_all(cache_dir)
         .await
@@ -70,7 +77,7 @@ pub(crate) async fn download_track_to_cache_dir(
     }
 
     let part_path = file_path.with_extension(format!("{suffix}.part"));
-    finalize_streamed_download(response, &file_path, &part_path).await?;
+    finalize_streamed_download(response, &file_path, &part_path, cancel).await?;
     Ok(file_path)
 }
 
@@ -98,12 +105,14 @@ pub(crate) fn resolve_offline_cache_dir(
 /// Returns the absolute file path so TypeScript can store it and later
 /// construct a `psysonic-local://<path>` URL for the audio engine.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri command surface — args map 1:1 to the JS call.
 pub async fn download_track_offline(
     track_id: String,
     server_id: String,
     url: String,
     suffix: String,
     custom_dir: Option<String>,
+    download_id: Option<String>,
     dl_sem: tauri::State<'_, DownloadSemaphore>,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
@@ -122,17 +131,66 @@ pub async fn download_track_offline(
         return Ok(path_str);
     }
 
+    // Resolve this download's cancellation flag. A missing `download_id` (e.g.
+    // an older caller) simply means the download cannot be cancelled.
+    let cancel_flag: Option<Arc<AtomicBool>> = download_id.as_deref().and_then(|id| {
+        offline_cancel_flags().lock().ok().map(|mut flags| {
+            flags
+                .entry(id.to_string())
+                .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+                .clone()
+        })
+    });
+
     // Acquire a download slot. The permit is held for the duration of the HTTP transfer
     // and released automatically when this function returns (success or error).
     let _permit = dl_sem.acquire().await.map_err(|e| e.to_string())?;
 
+    // Cancelled while parked on the semaphore — bail before opening a connection.
+    if cancel_flag.as_ref().is_some_and(|f| f.load(Ordering::Relaxed)) {
+        return Err("CANCELLED".to_string());
+    }
+
     let client = subsonic_http_client(std::time::Duration::from_secs(120))?;
-    let final_path =
-        download_track_to_cache_dir(&cache_dir, &track_id, &suffix, &url, &client).await?;
+    let final_path = download_track_to_cache_dir(
+        &cache_dir,
+        &track_id,
+        &suffix,
+        &url,
+        &client,
+        cancel_flag.as_deref(),
+    )
+    .await?;
 
     enqueue_analysis_seed_from_file(&app, &track_id, &final_path).await;
 
     Ok(path_str)
+}
+
+/// Marks the given offline-download ids as cancelled. In-flight
+/// `download_track_offline` calls abort their HTTP stream at the next chunk
+/// boundary; ones still parked on the download semaphore bail as soon as they
+/// acquire a slot. Mirrors `cancel_device_sync` for the device-sync side.
+#[tauri::command]
+pub fn cancel_offline_downloads(download_ids: Vec<String>) {
+    if let Ok(mut flags) = offline_cancel_flags().lock() {
+        for id in download_ids {
+            flags
+                .entry(id)
+                .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+                .store(true, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Drops a finished download's cancellation flag so the registry does not grow
+/// across a long session. The frontend calls this once an album/playlist
+/// download settles (completed or cancelled).
+#[tauri::command]
+pub fn clear_offline_cancel(download_id: String) {
+    if let Ok(mut flags) = offline_cancel_flags().lock() {
+        flags.remove(&download_id);
+    }
 }
 
 #[cfg(test)]
@@ -156,7 +214,7 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/stream/track-1", server.uri());
 
-        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client)
+        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None)
             .await
             .unwrap();
         assert!(path.exists());
@@ -176,7 +234,7 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/should-not-be-hit", server.uri());
 
-        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client)
+        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None)
             .await
             .unwrap();
         assert_eq!(path, pre_existing);
@@ -197,7 +255,7 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/stream/missing", server.uri());
 
-        let err = download_track_to_cache_dir(&cache_dir, "missing", "flac", &url, &client)
+        let err = download_track_to_cache_dir(&cache_dir, "missing", "flac", &url, &client, None)
             .await
             .unwrap_err();
         assert!(err.contains("HTTP 404"), "got {err}");
@@ -221,10 +279,34 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/track", server.uri());
 
-        download_track_to_cache_dir(&cache_dir, "t", "mp3", &url, &client)
+        download_track_to_cache_dir(&cache_dir, "t", "mp3", &url, &client, None)
             .await
             .unwrap();
         assert!(cache_dir.join("t.mp3").exists());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn download_to_cache_dir_aborts_and_cleans_up_when_cancelled() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/stream/track-1"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"flac body bytes".to_vec()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = dir.path().join("psysonic-offline").join("server-A");
+        let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
+        let url = format!("{}/stream/track-1", server.uri());
+
+        let cancel = AtomicBool::new(true);
+        let err =
+            download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, Some(&cancel))
+                .await
+                .unwrap_err();
+        assert_eq!(err, "CANCELLED");
+        assert!(!cache_dir.join("track-1.flac").exists(), "no final file on cancel");
+        assert!(!cache_dir.join("track-1.flac.part").exists(), "no .part orphan on cancel");
     }
 
     // ── delete_offline_track_with_boundary (AppHandle-free) ─────────────────

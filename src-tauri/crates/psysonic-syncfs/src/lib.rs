@@ -26,3 +26,13 @@ pub fn sync_cancel_flags() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
     static FLAGS: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
     FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
 }
+
+/// Per-download cancellation flags for offline album/playlist downloads,
+/// keyed by the frontend-supplied download id. Each `download_track_offline`
+/// call checks its flag (once after acquiring a slot, then on every chunk
+/// while streaming); `cancel_offline_downloads` flips it. Mirrors
+/// [`sync_cancel_flags`] for the device-sync side.
+pub fn offline_cancel_flags() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
+    static FLAGS: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
+    FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
+}

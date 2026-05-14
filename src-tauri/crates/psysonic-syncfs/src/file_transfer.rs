@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 /// Build a reqwest client with the standard Subsonic UA and a single overall timeout.
@@ -14,9 +15,15 @@ pub fn subsonic_http_client(timeout: Duration) -> Result<reqwest::Client, String
 
 /// Streams an HTTP response body to `dest_path` in chunks. Never buffers the full
 /// file in memory — keeps RAM flat regardless of file size.
+///
+/// When `cancel` is supplied, the flag is checked before each chunk write: a set
+/// flag aborts the transfer with `Err("CANCELLED")`, leaving the partial
+/// `dest_path` for the caller to clean up. `None` means the transfer cannot be
+/// cancelled (device-sync / hot-cache callers).
 pub async fn stream_to_file(
     response: reqwest::Response,
     dest_path: &Path,
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), String> {
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
@@ -26,6 +33,9 @@ pub async fn stream_to_file(
         .map_err(|e| e.to_string())?;
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {
+        if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            return Err("CANCELLED".to_string());
+        }
         let chunk = chunk.map_err(|e| e.to_string())?;
         file.write_all(&chunk).await.map_err(|e| e.to_string())?;
     }
@@ -35,7 +45,8 @@ pub async fn stream_to_file(
 
 /// Streams `response` to `part_path`, then renames `part_path` → `dest_path`.
 /// On any failure the partial `.part` file is best-effort removed so it does
-/// not linger on disk. Caller must ensure `dest_path.parent()` exists.
+/// not linger on disk — this includes a `cancel`-triggered abort. Caller must
+/// ensure `dest_path.parent()` exists.
 ///
 /// Note vs. previous inline implementations: the offline/device single-track
 /// flows used to leave a `.part` orphan if the final rename failed. This helper
@@ -44,8 +55,9 @@ pub async fn finalize_streamed_download(
     response: reqwest::Response,
     dest_path: &Path,
     part_path: &Path,
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), String> {
-    if let Err(e) = stream_to_file(response, part_path).await {
+    if let Err(e) = stream_to_file(response, part_path, cancel).await {
         let _ = tokio::fs::remove_file(part_path).await;
         return Err(e);
     }
@@ -97,7 +109,7 @@ mod tests {
         let response = reqwest::get(format!("{}/track.flac", server.uri()))
             .await
             .unwrap();
-        stream_to_file(response, &dest).await.unwrap();
+        stream_to_file(response, &dest, None).await.unwrap();
 
         let written = std::fs::read(&dest).unwrap();
         assert_eq!(written, body);
@@ -117,7 +129,7 @@ mod tests {
         let response = reqwest::get(format!("{}/empty", server.uri()))
             .await
             .unwrap();
-        stream_to_file(response, &dest).await.unwrap();
+        stream_to_file(response, &dest, None).await.unwrap();
         assert!(dest.exists());
         assert_eq!(std::fs::metadata(&dest).unwrap().len(), 0);
     }
@@ -136,7 +148,7 @@ mod tests {
         let response = reqwest::get(format!("{}/x", server.uri()))
             .await
             .unwrap();
-        let result = stream_to_file(response, &dest).await;
+        let result = stream_to_file(response, &dest, None).await;
         assert!(result.is_err(), "create on missing parent dir must err");
     }
 
@@ -159,7 +171,7 @@ mod tests {
             .await
             .unwrap();
 
-        finalize_streamed_download(response, &dest, &part).await.unwrap();
+        finalize_streamed_download(response, &dest, &part, None).await.unwrap();
         assert!(dest.exists(), "dest file must exist after success");
         assert!(!part.exists(), "part file must not linger");
         assert_eq!(std::fs::read(&dest).unwrap(), body);
@@ -186,9 +198,54 @@ mod tests {
             .await
             .unwrap();
 
-        let result = finalize_streamed_download(response, &dest, &part).await;
+        let result = finalize_streamed_download(response, &dest, &part, None).await;
         assert!(result.is_err(), "rename onto existing directory must fail");
         assert!(!part.exists(), "part file must be cleaned up after rename failure");
         assert!(dest.is_dir(), "the blocker directory itself stays untouched");
+    }
+
+    // ── cancellation ──────────────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stream_to_file_aborts_when_cancel_flag_is_already_set() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"body bytes".to_vec()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("track.flac");
+        let response = reqwest::get(format!("{}/track", server.uri()))
+            .await
+            .unwrap();
+
+        let cancel = AtomicBool::new(true);
+        let result = stream_to_file(response, &dest, Some(&cancel)).await;
+        assert_eq!(result.unwrap_err(), "CANCELLED");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn finalize_cleans_up_part_when_cancelled() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"body bytes".to_vec()))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("track.flac");
+        let part = dest.with_extension("flac.part");
+        let response = reqwest::get(format!("{}/track", server.uri()))
+            .await
+            .unwrap();
+
+        let cancel = AtomicBool::new(true);
+        let result = finalize_streamed_download(response, &dest, &part, Some(&cancel)).await;
+        assert_eq!(result.unwrap_err(), "CANCELLED");
+        assert!(!part.exists(), "cancelled transfer must not leave a .part orphan");
+        assert!(!dest.exists(), "cancelled transfer must not produce the final file");
     }
 }

@@ -417,6 +417,8 @@ pub fn run() {
             psysonic_analysis::commands::analysis_enqueue_seed_from_url,
             psysonic_analysis::commands::analysis_prune_pending_to_track_ids,
             psysonic_syncfs::cache::offline::download_track_offline,
+            psysonic_syncfs::cache::offline::cancel_offline_downloads,
+            psysonic_syncfs::cache::offline::clear_offline_cancel,
             psysonic_syncfs::cache::offline::delete_offline_track,
             psysonic_syncfs::cache::offline::get_offline_cache_size,
             psysonic_syncfs::cache::hot::download_track_hot_cache,

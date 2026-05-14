@@ -513,7 +513,7 @@ pub async fn sync_batch_to_device(
                 };
 
                 let part_path = dest_path.with_extension(format!("{}.part", track.suffix));
-                if let Err(e) = finalize_streamed_download(response, &dest_path, &part_path).await {
+                if let Err(e) = finalize_streamed_download(response, &dest_path, &part_path, None).await {
                     f.fetch_add(1, Ordering::Relaxed);
                     let _ = app2.emit("device:sync:progress", serde_json::json!({
                         "jobId": job, "trackId": track.id, "status": "error",

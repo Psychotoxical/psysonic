@@ -347,7 +347,7 @@ pub(crate) async fn sync_download_one_track(
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
     let part_path = dest_path.with_extension(format!("{}.part", suffix));
-    finalize_streamed_download(response, dest_path, &part_path).await?;
+    finalize_streamed_download(response, dest_path, &part_path, None).await?;
     Ok(true)
 }
 
