@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { acquireUrl, getCachedBlob, releaseUrl, subscribeCoverUpgraded } from '../utils/imageCache';
 
@@ -24,6 +24,9 @@ export const FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM = 1_000_000_000;
 /** Default IO lead — slightly before visible to reduce scroll-in jitter (tune per `CachedImage`). */
 export const DEFAULT_CACHED_IMAGE_PREPARE_MARGIN = '440px';
 
+/** Blob URL paired with the `cacheKey` it was acquired for (`useCachedUrl`). */
+type ResolvedSlice = { key: string | null; url: string };
+
 /**
  * Returns a shared, refcounted object URL for a cached image. Multiple
  * consumers of the same cacheKey see the exact same URL string, so the
@@ -48,13 +51,19 @@ export function useCachedUrl(
   const fetchUrlRef = useRef(fetchUrl);
   fetchUrlRef.current = fetchUrl;
 
-  // Synchronously acquire on first render when the blob is already hot. This
-  // makes the very first <img src> a blob URL, avoiding a fetchUrl→blobUrl
-  // swap that would trigger a redundant network request and decode pass.
-  const [resolved, setResolved] = useState(() => fetchUrl ? (acquireUrl(cacheKey) ?? '') : '');
+  // Pair blob URL with the `cacheKey` it belongs to. After `cacheKey` changes,
+  // React keeps old state for one render — returning that stale blob URL made
+  // `<img src>` point at a released object URL (broken image) until effects ran.
+  const [resolvedSlice, setResolvedSlice] = useState<ResolvedSlice>(() => {
+    if (!fetchUrl) return { key: null, url: '' };
+    const sync = acquireUrl(cacheKey);
+    return sync ? { key: cacheKey, url: sync } : { key: null, url: '' };
+  });
   // Tracks whichever cacheKey we currently hold a refcount on, so we know
   // exactly what to release on cleanup or when keys change.
-  const ownedKeyRef = useRef<string | null>(resolved ? cacheKey : null);
+  const ownedKeyRef = useRef<string | null>(
+    resolvedSlice.key === cacheKey && resolvedSlice.url ? cacheKey : null,
+  );
 
   const getPriorityRef = useRef(getPriority);
   getPriorityRef.current = getPriority;
@@ -70,7 +79,7 @@ export function useCachedUrl(
     const currentUrl = fetchUrlRef.current;
     if (!currentUrl) {
       release();
-      setResolved('');
+      setResolvedSlice({ key: null, url: '' });
       return release;
     }
 
@@ -86,19 +95,19 @@ export function useCachedUrl(
     const sync = acquireUrl(cacheKey);
     if (sync) {
       ownedKeyRef.current = cacheKey;
-      setResolved(sync);
+      setResolvedSlice({ key: cacheKey, url: sync });
       return release;
     }
 
     // Slow path: fetch (or read from IDB), then acquire.
-    setResolved('');
+    setResolvedSlice({ key: cacheKey, url: '' });
     const controller = new AbortController();
     getCachedBlob(currentUrl, cacheKey, controller.signal, () => getPriorityRef.current?.() ?? 0).then(blob => {
       if (controller.signal.aborted || !blob) return;
       const url = acquireUrl(cacheKey);
       if (!url) return;
       ownedKeyRef.current = cacheKey;
-      setResolved(url);
+      setResolvedSlice({ key: cacheKey, url });
     });
     return () => {
       controller.abort();
@@ -114,7 +123,7 @@ export function useCachedUrl(
       const refreshed = acquireUrl(cacheKey);
       if (refreshed) {
         ownedKeyRef.current = cacheKey;
-        setResolved(refreshed);
+        setResolvedSlice({ key: cacheKey, url: refreshed });
       }
     });
     return () => {
@@ -123,7 +132,9 @@ export function useCachedUrl(
     };
   }, [cacheKey, fetchUrl, fallbackToFetch]);
 
-  return fallbackToFetch ? (resolved || fetchUrl) : resolved;
+  const matched =
+    resolvedSlice.key === cacheKey && resolvedSlice.url ? resolvedSlice.url : '';
+  return fallbackToFetch ? (matched || fetchUrl) : matched;
 }
 
 export default function CachedImage({
@@ -190,7 +201,9 @@ export default function CachedImage({
 
   // Reset only when the logical image changes (cacheKey), not on fetchUrl→blobUrl
   // URL upgrades within the same image — avoids the end-of-load flash.
-  useEffect(() => {
+  // useLayoutEffect: one paint with `loaded` still true + a stale/wrong `src`
+  // showed a broken-cover flash in the player bar when switching tracks (#606).
+  useLayoutEffect(() => {
     setLoaded(false);
     setFallbackSrc(undefined);
   }, [cacheKey]);
