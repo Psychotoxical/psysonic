@@ -255,6 +255,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Search — hide duplicate artist hits with zero albums
+
+**By [@cucadmuh](https://github.com/cucadmuh), thanks to zunoz for the report on the Psysonic Discord, PR [#697](https://github.com/Psychotoxical/psysonic/pull/697)**
+
+* Subsonic **`search3`** sometimes returns extra **artist** rows that duplicate a real name but list **0 albums** (server-side indexing noise). **`search()`** now strips artists whose **`albumCount` is exactly `0`**. Rows with **no** `albumCount` field are kept so strict or legacy servers are unchanged.
+* Applies everywhere **`search()`** is used: header live search, mobile overlay, search results page, advanced search free-text query, and hooks that call **`search()`** (e.g. similarity fallbacks).
+
 ### Offline downloads — the cancel button works again + the sidebar toast keeps its size
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#694](https://github.com/Psychotoxical/psysonic/pull/694)**

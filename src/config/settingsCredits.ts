@@ -106,6 +106,7 @@ export const CONTRIBUTORS = [
       'Analysis queue control: prune stale http-backfill / cpu-seed jobs when tracks leave the playback queue, cap loudness backfill warmup to current + next 5 tracks, plus debug counters for diagnostics (PR #480)',
       'CachedImage / useCachedUrl: blob URL only for matching cacheKey, layout load reset on key change; fixes broken player cover flash on track switch (#606) (PR #695)',
       'OpenSubsonic albumArtists in album header; track artists in player bar, mobile, mini + songToTrack (#552) (PR #696)',
+      'Search: filter search3 artist rows with zero albums (report: zunoz on Psysonic Discord) (PR #697)',
     ],
   },
   {
