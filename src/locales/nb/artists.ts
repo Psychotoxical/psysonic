@@ -1,0 +1,18 @@
+export const artists = {
+  title: 'Artister',
+  search: 'Søk…',
+  all: 'Alle',
+  gridView: 'Rutenettvisning',
+  listView: 'Listevisning',
+  imagesOn: 'Artistbilder på - kan øke belastningen på nettverket og applikasjonen',
+  imagesOff: 'Artistbilder av - viser kun initialer',
+  loadMore: 'Last flere',
+  notFound: 'Ingen artister funnet.',
+  albumCount_one: '{{count}} album',
+  albumCount_other: '{{count}} album',
+  selectionCount: '{{count}} valgt',
+  select: 'Multivalg',
+  startSelect: 'Aktiver multivalg',
+  cancelSelect: 'Avbryt',
+  addToPlaylist: 'Legg til i spilleliste',
+};

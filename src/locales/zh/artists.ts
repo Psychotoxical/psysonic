@@ -1,0 +1,18 @@
+export const artists = {
+  title: '艺术家',
+  search: '搜索…',
+  all: '全部',
+  gridView: '网格视图',
+  listView: '列表视图',
+  imagesOn: '艺术家图片已开启 — 可能增加网络和系统负载',
+  imagesOff: '艺术家图片已关闭 — 仅显示首字母',
+  loadMore: '加载更多',
+  notFound: '未找到艺术家。',
+  albumCount_one: '{{count}} 张专辑',
+  albumCount_other: '{{count}} 张专辑',
+  selectionCount: '{{count}} 已选择',
+  select: '多选',
+  startSelect: '启用多选',
+  cancelSelect: '取消',
+  addToPlaylist: '添加到播放列表',
+};

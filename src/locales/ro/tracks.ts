@@ -1,0 +1,15 @@
+export const tracks = {
+  title: 'Piese',
+  subtitle: 'Răsfoiește. Caută. Descoperă.',
+  heroEyebrow: 'Piesa momentului',
+  heroReroll: 'Alege alta',
+  playSong: 'Redă',
+  enqueueSong: 'Adaugă în coadă',
+  railRandom: 'Alegere aleatorie',
+  railHighlyRated: 'Foarte apreciate',
+  browseTitle: 'Caută toate piesele',
+  browseUnsupported: "Acest server nu afișează toată librăria deodată. Folosește căutarea de mai sus pentru a găsi piese specifice.",
+  searchPlaceholder: 'Găsește o piesă după titlu, artist sau album…',
+  count_one: '{{count}} piesă',
+  count_other: '{{count}} piese',
+};

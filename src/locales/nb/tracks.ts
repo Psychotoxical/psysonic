@@ -1,0 +1,15 @@
+export const tracks = {
+  title: 'Spor',
+  subtitle: 'Bla. Søk. Oppdag.',
+  heroEyebrow: 'Sporet akkurat nå',
+  heroReroll: 'Velg et annet',
+  playSong: 'Spill av',
+  enqueueSong: 'Legg til i kø',
+  railRandom: 'Tilfeldig valg',
+  railHighlyRated: 'Høyt vurdert',
+  browseTitle: 'Bla gjennom alle spor',
+  browseUnsupported: 'Denne tjeneren lister ikke hele biblioteket på én gang. Bruk søket ovenfor for å finne bestemte spor.',
+  searchPlaceholder: 'Finn et spor etter tittel, artist eller album…',
+  count_one: '{{count}} spor',
+  count_other: '{{count}} spor',
+};

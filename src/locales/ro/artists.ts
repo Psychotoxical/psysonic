@@ -1,0 +1,18 @@
+export const artists = {
+  title: 'Artiști',
+  search: 'Caută…',
+  all: 'Tot',
+  gridView: 'Vizualizare grilă',
+  listView: 'Vizualizare listă',
+  imagesOn: 'Imagini artist pornit — poate mări încărcarea rețelei și a sistemului',
+  imagesOff: 'Imagini artist oprit — se arată doar inițialele',
+  loadMore: 'Încarcă mai mult',
+  notFound: 'Niciun artist găsit.',
+  albumCount_one: '{{count}} Album',
+  albumCount_other: '{{count}} Albume',
+  selectionCount: '{{count}} selectați',
+  select: 'Multi-selecție',
+  startSelect: 'Activează multi-selecția',
+  cancelSelect: 'Anulează',
+  addToPlaylist: 'Adaugă la Playlist',
+};

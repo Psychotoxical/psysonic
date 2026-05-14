@@ -1,0 +1,15 @@
+export const tracks = {
+  title: '曲目',
+  subtitle: '浏览。搜索。发现。',
+  heroEyebrow: '此刻精选',
+  heroReroll: '换一首',
+  playSong: '播放',
+  enqueueSong: '加入队列',
+  railRandom: '随机精选',
+  railHighlyRated: '高分推荐',
+  browseTitle: '浏览所有曲目',
+  browseUnsupported: '此服务器不支持一次性列出整个音乐库。使用上方的搜索来查找特定曲目。',
+  searchPlaceholder: '按标题、艺人或专辑搜索…',
+  count_one: '{{count}} 首曲目',
+  count_other: '{{count}} 首曲目',
+};

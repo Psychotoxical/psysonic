@@ -1,0 +1,18 @@
+export const sharePaste = {
+  notLoggedIn: 'Sign in and add the server before pasting a share link.',
+  noMatchingServer: 'No saved server matches this link. Add a server with this address: {{url}}',
+  trackUnavailable: 'This track was not found on the server.',
+  albumUnavailable: 'This album was not found on the server.',
+  artistUnavailable: 'This artist was not found on the server.',
+  composerUnavailable: 'This composer was not found on the server.',
+  openedTrack: 'Playing shared track.',
+  openedAlbum: 'Opening shared album.',
+  openedArtist: 'Opening shared artist.',
+  openedComposer: 'Opening shared composer.',
+  openedQueue_one: 'Playing {{count}} track from the share link.',
+  openedQueue_other: 'Playing {{count}} tracks from the share link.',
+  openedQueuePartial:
+    'Playing {{played}} of {{total}} tracks from the link ({{skipped}} not found on this server).',
+  queueAllUnavailable: 'None of the tracks from this link were found on the server.',
+  genericError: 'Could not open the share link.',
+};

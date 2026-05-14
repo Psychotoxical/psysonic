@@ -1,0 +1,15 @@
+export const tracks = {
+  title: 'Titres',
+  subtitle: 'Parcourir. Chercher. Découvrir.',
+  heroEyebrow: 'Titre du moment',
+  heroReroll: 'En choisir un autre',
+  playSong: 'Lire',
+  enqueueSong: 'Ajouter à la file',
+  railRandom: 'Sélection aléatoire',
+  railHighlyRated: 'Mieux notés',
+  browseTitle: 'Parcourir tous les titres',
+  browseUnsupported: 'Ce serveur ne liste pas toute la bibliothèque d\'un coup. Utilisez la recherche ci-dessus pour trouver des titres précis.',
+  searchPlaceholder: 'Chercher un titre par titre, artiste ou album…',
+  count_one: '{{count}} titre',
+  count_other: '{{count}} titres',
+};

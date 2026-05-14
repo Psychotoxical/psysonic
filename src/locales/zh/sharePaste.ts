@@ -1,0 +1,17 @@
+export const sharePaste = {
+  notLoggedIn: '请先登录并添加服务器，再粘贴分享链接。',
+  noMatchingServer: '没有已保存的服务器与此链接匹配。请添加使用该地址的服务器：{{url}}',
+  trackUnavailable: '在服务器上找不到此歌曲。',
+  albumUnavailable: '在服务器上找不到此专辑。',
+  artistUnavailable: '在服务器上找不到此艺术家。',
+  composerUnavailable: '在服务器上找不到此作曲家。',
+  openedTrack: '正在播放分享的歌曲。',
+  openedAlbum: '正在打开分享的专辑。',
+  openedArtist: '正在打开分享的艺术家。',
+  openedComposer: '正在打开分享的作曲家。',
+  openedQueue_one: '正在播放分享队列中的 {{count}} 首曲目。',
+  openedQueue_other: '正在播放分享队列中的 {{count}} 首曲目。',
+  openedQueuePartial: '正在播放链接中的 {{played}} / {{total}} 首曲目（{{skipped}} 首在此服务器上未找到）。',
+  queueAllUnavailable: '此链接中的曲目在服务器上均未找到。',
+  genericError: '无法打开分享链接。',
+};

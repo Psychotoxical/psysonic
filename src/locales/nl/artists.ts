@@ -1,0 +1,18 @@
+export const artists = {
+  title: 'Artiesten',
+  search: 'Zoeken…',
+  all: 'Alle',
+  gridView: 'Rasterweergave',
+  listView: 'Lijstweergave',
+  imagesOn: 'Artiestafbeeldingen aan — kan netwerk- en systeembelasting verhogen',
+  imagesOff: 'Artiestafbeeldingen uit — toont alleen initialen',
+  loadMore: 'Meer laden',
+  notFound: 'Geen artiesten gevonden.',
+  albumCount_one: '{{count}} album',
+  albumCount_other: '{{count}} albums',
+  selectionCount: '{{count}} geselecteerd',
+  select: 'Meervoudige selectie',
+  startSelect: 'Meervoudige selectie inschakelen',
+  cancelSelect: 'Annuleren',
+  addToPlaylist: 'Toevoegen aan playlist',
+};

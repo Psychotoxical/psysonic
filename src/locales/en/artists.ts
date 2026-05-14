@@ -1,0 +1,18 @@
+export const artists = {
+  title: 'Artists',
+  search: 'Search…',
+  all: 'All',
+  gridView: 'Grid view',
+  listView: 'List view',
+  imagesOn: 'Artist images on — may increase network and system load',
+  imagesOff: 'Artist images off — showing initials only',
+  loadMore: 'Load more',
+  notFound: 'No artists found.',
+  albumCount_one: '{{count}} Album',
+  albumCount_other: '{{count}} Albums',
+  selectionCount: '{{count}} selected',
+  select: 'Multi-select',
+  startSelect: 'Enable multi-select',
+  cancelSelect: 'Cancel',
+  addToPlaylist: 'Add to Playlist',
+};

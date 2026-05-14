@@ -1,0 +1,18 @@
+export const artists = {
+  title: 'Künstler',
+  search: 'Suchen…',
+  all: 'Alle',
+  gridView: 'Gitteransicht',
+  listView: 'Listenansicht',
+  imagesOn: 'Künstlerbilder aktiv — kann Netzwerk- und Systemlast erhöhen',
+  imagesOff: 'Künstlerbilder deaktiviert — zeigt nur Initialen',
+  loadMore: 'Mehr laden',
+  notFound: 'Keine Künstler gefunden.',
+  albumCount_one: '{{count}} Album',
+  albumCount_other: '{{count}} Alben',
+  selectionCount: '{{count}} ausgewählt',
+  select: 'Mehrfachauswahl',
+  startSelect: 'Mehrfachauswahl aktivieren',
+  cancelSelect: 'Abbrechen',
+  addToPlaylist: 'Zur Playlist hinzufügen',
+};

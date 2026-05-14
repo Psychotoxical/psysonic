@@ -1,0 +1,17 @@
+export const tracks = {
+  title: 'Треки',
+  subtitle: 'Листать. Искать. Открывать.',
+  heroEyebrow: 'Трек момента',
+  heroReroll: 'Выбрать другой',
+  playSong: 'Воспроизвести',
+  enqueueSong: 'В очередь',
+  railRandom: 'Случайная подборка',
+  railHighlyRated: 'Высоко оценённые',
+  browseTitle: 'Просмотреть все треки',
+  browseUnsupported: 'Этот сервер не возвращает всю библиотеку сразу. Воспользуйтесь поиском выше, чтобы найти конкретные треки.',
+  searchPlaceholder: 'Найти трек по названию, исполнителю или альбому…',
+  count_one: '{{count}} трек',
+  count_few: '{{count}} трека',
+  count_many: '{{count}} треков',
+  count_other: '{{count}} треков',
+};
