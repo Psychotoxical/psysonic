@@ -85,6 +85,14 @@ describe('songToTrack', () => {
     expect(t.replayGainPeak).toBeUndefined();
   });
 
+  it('copies OpenSubsonic artists when present', () => {
+    const song = makeSubsonicSong({
+      artists: [{ id: 'a1', name: 'Feat' }, { id: 'a2', name: 'Main' }],
+    });
+    const t = songToTrack(song);
+    expect(t.artists).toEqual(song.artists);
+  });
+
   it('does not invent fields that the Subsonic song lacks', () => {
     const song = makeSubsonicSong({});
     const t = songToTrack(song);
@@ -92,5 +100,6 @@ describe('songToTrack', () => {
     expect(t.autoAdded).toBeUndefined();
     expect(t.radioAdded).toBeUndefined();
     expect(t.playNextAdded).toBeUndefined();
+    expect(t.artists).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
 import { buildCoverArtUrl } from '../api/subsonicStreamUrl';
-import type { EntityRatingSupportLevel, SubsonicSong } from '../api/subsonicTypes';
+import type { EntityRatingSupportLevel, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
@@ -15,6 +15,7 @@ import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 import { formatLongDuration } from '../utils/format/formatDuration';
 import { formatMb } from '../utils/format/formatBytes';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
+import { OpenArtistRefInline } from './OpenArtistRefInline';
 
 function BioModal({ bio, onClose }: { bio: string; onClose: () => void }) {
   const { t } = useTranslation();
@@ -44,6 +45,8 @@ interface AlbumInfo {
 
 interface AlbumHeaderProps {
   info: AlbumInfo;
+  /** OpenSubsonic album credits (derived from album + songs). */
+  headerArtistRefs: SubsonicOpenArtistRef[];
   songs: SubsonicSong[];
   coverUrl: string;
   coverKey: string;
@@ -71,6 +74,7 @@ interface AlbumHeaderProps {
 
 export default function AlbumHeader({
   info,
+  headerArtistRefs,
   songs,
   coverUrl,
   coverKey,
@@ -166,13 +170,12 @@ export default function AlbumHeader({
               )}
               <h1 className="album-detail-title">{info.name}</h1>
               <p className="album-detail-artist">
-                <button
-                  className="album-detail-artist-link"
-                  data-tooltip={t('albumDetail.goToArtist', { artist: info.artist })}
-                  onClick={() => navigate(`/artist/${info.artistId}`)}
-                >
-                  {info.artist}
-                </button>
+                <OpenArtistRefInline
+                  refs={headerArtistRefs}
+                  fallbackName={info.artist}
+                  onGoArtist={id => navigate(`/artist/${id}`)}
+                  linkClassName="album-detail-artist-link"
+                />
               </p>
               <div className="album-detail-info">
                 {info.year && <span>{info.year}</span>}

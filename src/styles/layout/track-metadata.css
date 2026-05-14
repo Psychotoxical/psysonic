@@ -25,6 +25,20 @@
   margin-top: 2px;
 }
 
+.mp-artist .open-artist-ref-sep {
+  color: var(--text-muted);
+}
+
+.mp-artist-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.mp-artist-link:hover {
+  text-decoration: underline;
+}
+
 .mp-track-info {
   font-size: 12px;
   color: var(--text-muted);

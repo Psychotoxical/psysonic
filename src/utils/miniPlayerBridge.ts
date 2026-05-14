@@ -2,6 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, emitTo } from '@tauri-apps/api/event';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
+import type { SubsonicOpenArtistRef } from '../api/subsonicTypes';
 
 export const MINI_WINDOW_LABEL = 'mini';
 
@@ -9,6 +10,8 @@ export interface MiniTrackInfo {
   id: string;
   title: string;
   artist: string;
+  /** OpenSubsonic performer refs when the main queue carried them. */
+  artists?: SubsonicOpenArtistRef[];
   album: string;
   albumId?: string;
   artistId?: string;
@@ -41,6 +44,7 @@ function toMini(t: any): MiniTrackInfo {
     id: t.id,
     title: t.title,
     artist: t.artist,
+    artists: Array.isArray(t.artists) && t.artists.length > 0 ? t.artists : undefined,
     album: t.album,
     albumId: t.albumId,
     artistId: t.artistId,
@@ -87,6 +91,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
       payload.track?.id ?? '',
       payload.isPlaying,
       payload.track?.starred ?? '',
+      (payload.track?.artists ?? []).map((a: SubsonicOpenArtistRef) => a.id ?? a.name).join('|'),
       payload.queueIndex,
       payload.volume,
       payload.gaplessEnabled,

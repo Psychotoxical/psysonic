@@ -152,6 +152,9 @@ export default function PlayerBar() {
   const displayCoverArt = showPreviewMeta ? previewingTrack!.coverArt : currentTrack?.coverArt;
   const displayTitle = showPreviewMeta ? previewingTrack!.title : (currentTrack?.title ?? t('player.noTitle'));
   const displayArtist = showPreviewMeta ? previewingTrack!.artist : (currentTrack?.artist ?? '—');
+  const displayArtistRefs = !showPreviewMeta && currentTrack?.artists && currentTrack.artists.length > 0
+    ? currentTrack.artists
+    : undefined;
 
   const coverSrc = useMemo(() => displayCoverArt ? buildCoverArtUrl(displayCoverArt, 128) : '', [displayCoverArt]);
   const coverKey = displayCoverArt ? coverArtCacheKey(displayCoverArt, 128) : '';
@@ -206,6 +209,7 @@ export default function PlayerBar() {
         displayCoverArt={displayCoverArt}
         displayTitle={displayTitle}
         displayArtist={displayArtist}
+        displayArtistRefs={displayArtistRefs}
         showPreviewMeta={showPreviewMeta}
         previewingTrack={previewingTrack}
         isStarred={isStarred}

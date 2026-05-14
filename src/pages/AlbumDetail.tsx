@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/ui/toast';
 import { useSelectionStore } from '../store/selectionStore';
 import { sanitizeFilename } from '../utils/componentHelpers/albumDetailHelpers';
+import { deriveAlbumHeaderArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
 
 export default function AlbumDetail() {
   const { t } = useTranslation();
@@ -279,12 +280,14 @@ const handleShuffleAll = () => {
   if (!album) return <div className="empty-state">{t('albumDetail.notFound')}</div>;
 
   const { album: info, songs } = album;
+  const headerArtistRefs = deriveAlbumHeaderArtistRefs(info, songs);
   const hasVariousArtists = songs.some(s => s.artist !== info.artist);
 
   return (
     <div className="album-detail animate-fade-in">
       <AlbumHeader
         info={info}
+        headerArtistRefs={headerArtistRefs}
         songs={songs}
         coverUrl={coverUrl}
         coverKey={coverKey}

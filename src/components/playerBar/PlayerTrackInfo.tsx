@@ -1,13 +1,14 @@
 import { Cast, Heart, Maximize2, Music } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { setRating } from '../../api/subsonicStarRating';
-import type { InternetRadioStation, SubsonicAlbum } from '../../api/subsonicTypes';
+import type { InternetRadioStation, SubsonicAlbum, SubsonicOpenArtistRef } from '../../api/subsonicTypes';
 import type { PlayerState, Track } from '../../store/playerStoreTypes';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import type { PreviewingTrack } from '../../store/previewStore';
 import CachedImage from '../CachedImage';
 import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
+import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import StarRating from '../StarRating';
 
 interface Props {
@@ -22,6 +23,8 @@ interface Props {
   displayCoverArt: string | undefined;
   displayTitle: string;
   displayArtist: string;
+  /** When set (OpenSubsonic `artists` on the playing track), render split links like album track rows. */
+  displayArtistRefs?: SubsonicOpenArtistRef[];
   showPreviewMeta: boolean;
   previewingTrack: PreviewingTrack | null;
   isStarred: boolean;
@@ -39,7 +42,7 @@ interface Props {
 
 export function PlayerTrackInfo({
   currentTrack, currentRadio, isRadio, radioMeta, radioCoverSrc, radioCoverKey,
-  coverSrc, coverKey, displayCoverArt, displayTitle, displayArtist,
+  coverSrc, coverKey, displayCoverArt, displayTitle, displayArtist, displayArtistRefs,
   showPreviewMeta, previewingTrack, isStarred, toggleStar,
   lastfmSessionKey, lastfmLoved, toggleLastfmLove,
   userRatingOverrides, setUserRatingOverride, toggleFullscreen,
@@ -116,16 +119,29 @@ export function PlayerTrackInfo({
               }
             : undefined}
         />
-        <MarqueeText
-          text={isRadio
-            ? (radioMeta.currentTitle && currentRadio?.name
-                ? currentRadio.name
-                : t('radio.liveStream'))
-            : displayArtist}
-          className="player-track-artist"
-          style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.artistId ? 'pointer' : 'default' }}
-          onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
-        />
+        {!isRadio && displayArtistRefs && displayArtistRefs.length > 0 ? (
+          <div className="marquee-wrap player-track-artist">
+            <OpenArtistRefInline
+              refs={displayArtistRefs}
+              fallbackName={displayArtist}
+              onGoArtist={id => navigate(`/artist/${id}`)}
+              as="none"
+              linkTag="span"
+              linkClassName="player-artist-link"
+            />
+          </div>
+        ) : (
+          <MarqueeText
+            text={isRadio
+              ? (radioMeta.currentTitle && currentRadio?.name
+                  ? currentRadio.name
+                  : t('radio.liveStream'))
+              : displayArtist}
+            className="player-track-artist"
+            style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.artistId ? 'pointer' : 'default' }}
+            onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
+          />
+        )}
         {currentTrack && !isRadio && !showPreviewMeta && (
           <StarRating
             value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}

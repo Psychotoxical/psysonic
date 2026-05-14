@@ -147,6 +147,20 @@
   text-overflow: ellipsis;
 }
 
+.mini-player__artist .open-artist-ref-sep {
+  color: var(--text-muted);
+}
+
+.mini-player__artist-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.mini-player__artist-link:hover {
+  text-decoration: underline;
+}
+
 .mini-player__toolbar {
   display: flex;
   align-items: center;

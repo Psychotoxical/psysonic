@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useCachedUrl } from './CachedImage';
+import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { formatTrackTime } from '../utils/format/formatDuration';
 import LyricsPane from './LyricsPane';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
@@ -326,12 +327,33 @@ export default function MobilePlayerView() {
       <div className="mp-meta">
         <div className="mp-meta-text">
           <div className="mp-title truncate">{currentTrack.title}</div>
-          <div
-            className="mp-artist truncate"
-            onClick={() => currentTrack.artistId && navigate(`/artist/${currentTrack.artistId}`)}
-            style={{ cursor: currentTrack.artistId ? 'pointer' : 'default' }}
-          >
-            {currentTrack.artist}
+          <div className="mp-artist truncate">
+            {currentTrack.artists && currentTrack.artists.length > 0 ? (
+              <OpenArtistRefInline
+                refs={currentTrack.artists}
+                fallbackName={currentTrack.artist}
+                onGoArtist={id => navigate(`/artist/${id}`)}
+                as="none"
+                linkTag="span"
+                linkClassName="mp-artist-link"
+              />
+            ) : (
+              <span
+                role={currentTrack.artistId ? 'link' : undefined}
+                tabIndex={currentTrack.artistId ? 0 : undefined}
+                onClick={() => currentTrack.artistId && navigate(`/artist/${currentTrack.artistId}`)}
+                onKeyDown={e => {
+                  if (!currentTrack.artistId) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate(`/artist/${currentTrack.artistId}`);
+                  }
+                }}
+                style={{ cursor: currentTrack.artistId ? 'pointer' : 'default' }}
+              >
+                {currentTrack.artist}
+              </span>
+            )}
           </div>
           {(() => {
             const parts = [

@@ -20,6 +20,8 @@ export interface SubsonicAlbum {
   isCompilation?: boolean;
   /** OpenSubsonic: release types from MusicBrainz tags (e.g. "Album", "EP", "Single", "Compilation", "Live"). */
   releaseTypes?: string[];
+  /** OpenSubsonic: album-level credits (Navidrome may attach on album and/or child songs). */
+  albumArtists?: SubsonicOpenArtistRef[];
 }
 
 /** OpenSubsonic `artists` / `albumArtists` entries on a child song (may include `userRating`). */

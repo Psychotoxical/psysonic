@@ -170,6 +170,20 @@ html[data-platform="windows"] .player-bar.floating {
   margin-top: 2px;
 }
 
+.player-track-artist .open-artist-ref-sep {
+  color: var(--text-muted);
+}
+
+.player-track-artist .player-artist-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.player-track-artist .player-artist-link:hover {
+  text-decoration: underline;
+}
+
 .player-track-rating {
   margin-top: 4px;
   width: auto;

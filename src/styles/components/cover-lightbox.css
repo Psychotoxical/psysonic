@@ -122,6 +122,11 @@
   text-decoration: underline;
 }
 
+.album-detail-artist .open-artist-ref-sep {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .album-detail-info {
   display: flex;
   flex-wrap: wrap;

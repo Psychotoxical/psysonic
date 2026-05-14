@@ -1,4 +1,4 @@
-import type { InternetRadioStation } from '../api/subsonicTypes';
+import type { InternetRadioStation, SubsonicOpenArtistRef } from '../api/subsonicTypes';
 import type { PlaybackSourceKind } from '../utils/playback/resolvePlaybackUrl';
 
 export interface Track {
@@ -8,6 +8,8 @@ export interface Track {
   album: string;
   albumId: string;
   artistId?: string;
+  /** OpenSubsonic `artists` on the child song — multiple performers with ids. */
+  artists?: SubsonicOpenArtistRef[];
   duration: number;
   coverArt?: string;
   track?: number;

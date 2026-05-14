@@ -8,6 +8,7 @@ export function songToTrack(song: SubsonicSong): Track {
     album: song.album,
     albumId: song.albumId,
     artistId: song.artistId,
+    artists: song.artists && song.artists.length > 0 ? song.artists : undefined,
     duration: song.duration,
     coverArt: song.coverArt,
     track: song.track,
