@@ -12,6 +12,7 @@ import CachedImage, { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playback/playAlbum';
+import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import AlbumRow from './AlbumRow';
 
 const ANCHOR_HISTORY_KEY_PREFIX = 'psysonic_because_anchor_history:';
@@ -72,13 +73,6 @@ function buildAnchorPool(sources: SubsonicAlbum[][], limit: number): Anchor[] {
   return out;
 }
 
-function formatAlbumDuration(seconds: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
-  const totalMin = Math.max(0, Math.round(seconds / 60));
-  const hours = Math.floor(totalMin / 60);
-  const minutes = totalMin % 60;
-  if (hours > 0) return t('common.durationHoursMinutes', { hours, minutes });
-  return t('common.durationMinutesOnly', { minutes: totalMin });
-}
 
 /** Both rotation memories are **per-server** — server A and server B keep
  *  independent state, so switching servers doesn't snap the anchor cooldown
@@ -353,7 +347,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
         <div className="because-card-meta">
           {album.year ? <span>{album.year}</span> : null}
           {album.songCount ? <span>{t('home.becauseYouLikeTracks', { count: album.songCount })}</span> : null}
-          {album.duration ? <span>{formatAlbumDuration(album.duration, t)}</span> : null}
+          {album.duration ? <span>{formatHumanHoursMinutes(album.duration)}</span> : null}
         </div>
       </div>
     </div>

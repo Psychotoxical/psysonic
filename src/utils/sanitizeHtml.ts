@@ -1,4 +1,8 @@
-/** Strip dangerous tags/attributes from server-provided HTML */
+/**
+ * Strip dangerous tags / attributes from server-provided HTML (artist & album
+ * biographies). Removes embedded/active elements and `on*` / `javascript:` /
+ * `data:` handlers before the result is fed to `dangerouslySetInnerHTML`.
+ */
 export function sanitizeHtml(html: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
@@ -7,7 +11,11 @@ export function sanitizeHtml(html: string): string {
     Array.from(el.attributes).forEach(attr => {
       const name = attr.name.toLowerCase();
       const val = attr.value.toLowerCase().trim();
-      if (name.startsWith('on') || (name === 'href' && (val.startsWith('javascript:') || val.startsWith('data:'))) || (name === 'src' && (val.startsWith('javascript:') || val.startsWith('data:')))) {
+      if (
+        name.startsWith('on') ||
+        (name === 'href' && (val.startsWith('javascript:') || val.startsWith('data:'))) ||
+        (name === 'src' && (val.startsWith('javascript:') || val.startsWith('data:')))
+      ) {
         el.removeAttribute(attr.name);
       }
     });

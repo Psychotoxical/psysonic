@@ -3,7 +3,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import { ArrowUpCircle, CheckCircle2, ChevronDown, Download, FolderOpen, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { version as currentVersion } from '../../package.json';
-import { fmtBytes } from '../utils/componentHelpers/appUpdaterHelpers';
+import { formatBytes } from '../utils/format/formatBytes';
 import { useAppUpdater } from '../hooks/useAppUpdater';
 import Changelog from './appUpdater/Changelog';
 
@@ -112,8 +112,8 @@ export default function AppUpdater() {
                   </div>
                   <span className="app-updater-pct">{pct}%</span>
                   <span className="update-modal-dl-bytes">
-                    {fmtBytes(dlProgress.bytes)}
-                    {dlProgress.total > 0 && ` / ${fmtBytes(dlProgress.total)}`}
+                    {formatBytes(dlProgress.bytes)}
+                    {dlProgress.total > 0 && ` / ${formatBytes(dlProgress.total)}`}
                   </span>
                 </div>
               )}
@@ -139,7 +139,7 @@ export default function AppUpdater() {
               {dlState === 'idle' && (
                 <div className="update-modal-asset">
                   <span className="update-modal-asset-name">{asset.name}</span>
-                  <span className="update-modal-asset-size">{fmtBytes(asset.size)}</span>
+                  <span className="update-modal-asset-size">{formatBytes(asset.size)}</span>
                 </div>
               )}
               {dlState === 'downloading' && (
@@ -149,8 +149,8 @@ export default function AppUpdater() {
                   </div>
                   <span className="app-updater-pct">{pct}%</span>
                   <span className="update-modal-dl-bytes">
-                    {fmtBytes(dlProgress.bytes)}
-                    {dlProgress.total > 0 && ` / ${fmtBytes(dlProgress.total)}`}
+                    {formatBytes(dlProgress.bytes)}
+                    {dlProgress.total > 0 && ` / ${formatBytes(dlProgress.total)}`}
                   </span>
                 </div>
               )}

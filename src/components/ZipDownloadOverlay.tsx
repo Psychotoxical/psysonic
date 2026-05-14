@@ -2,11 +2,7 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { HardDriveDownload, Check, X } from 'lucide-react';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
-
-function formatMB(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+import { formatBytes } from '../utils/format/formatBytes';
 
 function ZipDownloadItem({ id }: { id: string }) {
   const dismiss = useZipDownloadStore(s => s.dismiss);
@@ -47,9 +43,9 @@ function ZipDownloadItem({ id }: { id: string }) {
       {!item.done && !item.error && (
         <>
           <div className="zip-dl-info">
-            {formatMB(item.bytes)}
+            {formatBytes(item.bytes)}
             {item.total !== null && item.total > 0 && (
-              <> / {formatMB(item.total)} &nbsp;({pct!.toFixed(0)}%)</>
+              <> / {formatBytes(item.total)} &nbsp;({pct!.toFixed(0)}%)</>
             )}
           </div>
           <div className={`zip-dl-track${isIndeterminate ? ' zip-dl-indeterminate' : ''}`}>

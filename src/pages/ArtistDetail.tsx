@@ -28,7 +28,7 @@ import { extractCoverColors } from '../utils/ui/dynamicColors';
 import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
 
-import { sanitizeHtml } from '../utils/componentHelpers/artistDetailHelpers';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { useArtistDetailData } from '../hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '../hooks/useArtistSimilarArtists';
 import {

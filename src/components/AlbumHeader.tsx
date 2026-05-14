@@ -13,31 +13,8 @@ import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
 import { showToast } from '../utils/ui/toast';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 import { formatLongDuration } from '../utils/format/formatDuration';
-
-function formatSize(bytes?: number): string {
-  if (!bytes) return '';
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function sanitizeHtml(html: string): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, select, base, meta, link').forEach(el => el.remove());
-  doc.querySelectorAll('*').forEach(el => {
-    Array.from(el.attributes).forEach(attr => {
-      const name = attr.name.toLowerCase();
-      const val = attr.value.toLowerCase().trim();
-      if (
-        name.startsWith('on') ||
-        (name === 'href' && (val.startsWith('javascript:') || val.startsWith('data:'))) ||
-        (name === 'src' && (val.startsWith('javascript:') || val.startsWith('data:')))
-      ) {
-        el.removeAttribute(attr.name);
-      }
-    });
-  });
-  return doc.body.innerHTML;
-}
+import { formatMb } from '../utils/format/formatBytes';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 
 function BioModal({ bio, onClose }: { bio: string; onClose: () => void }) {
   const { t } = useTranslation();
@@ -372,7 +349,7 @@ export default function AlbumHeader({
                     </div>
                   ) : (
                     <button className="btn btn-ghost" id="album-download-btn" onClick={onDownload}>
-                      <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatSize(totalSize)}` : ''}
+                      <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}
                     </button>
                   )}
                   {offlineStatus === 'downloading' && offlineProgress ? (

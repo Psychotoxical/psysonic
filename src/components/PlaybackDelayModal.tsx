@@ -7,11 +7,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 import type { TFunction } from 'i18next';
 import { formatPlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
-
-function formatClockTime(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-}
+import { formatClockTime } from '../utils/format/formatClockTime';
 
 /** One tap = schedule; custom minutes still covers any duration. */
 const PRESET_SECONDS = [30, 60, 120, 300, 600, 900, 1800, 3600] as const;

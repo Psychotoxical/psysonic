@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import type { SyncDelta } from '../../utils/deviceSync/runDeviceSyncExecution';
+import { formatMb } from '../../utils/format/formatBytes';
 
 interface Props {
   preSyncOpen: boolean;
@@ -32,20 +33,20 @@ export default function DeviceSyncPreSyncModal({
           <div className="device-sync-summary-stats" style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '10px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
               <span>{t('deviceSync.filesToAdd')}</span>
-              <span className="color-success">+{syncDelta.addCount} ({(syncDelta.addBytes / 1_048_576).toFixed(1)} MB)</span>
+              <span className="color-success">+{syncDelta.addCount} ({formatMb(syncDelta.addBytes)})</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
               <span>{t('deviceSync.filesToDelete')}</span>
-              <span className="color-error">-{syncDelta.delCount} ({(syncDelta.delBytes / 1_048_576).toFixed(1)} MB)</span>
+              <span className="color-error">-{syncDelta.delCount} ({formatMb(syncDelta.delBytes)})</span>
             </div>
             <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '10px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>{t('deviceSync.netChange')}</span>
-              <span>{((syncDelta.addBytes - syncDelta.delBytes) / 1_048_576).toFixed(1)} MB</span>
+              <span>{formatMb(syncDelta.addBytes - syncDelta.delBytes)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: syncDelta.addBytes > syncDelta.availableBytes + syncDelta.delBytes ? 'var(--danger)' : 'inherit', marginTop: '10px' }}>
               <span>{t('deviceSync.availableSpace')}</span>
-              <span>{(syncDelta.availableBytes / 1_048_576).toFixed(1)} MB</span>
+              <span>{formatMb(syncDelta.availableBytes)}</span>
             </div>
             {syncDelta.addBytes > syncDelta.availableBytes + syncDelta.delBytes && (
               <div className="sync-warning error" style={{ background: 'color-mix(in srgb, var(--danger) 15%, transparent)', padding: '10px', borderRadius: 'var(--radius-md)', marginTop: '15px', display: 'flex', gap: '10px', color: 'var(--danger)', alignItems: 'flex-start' }}>

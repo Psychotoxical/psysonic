@@ -1,5 +1,6 @@
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { formatHumanHoursMinutes } from '../format/formatHumanDuration';
+import { formatMb } from '../format/formatBytes';
 
 export function sanitizeFilename(name: string): string {
   return name
@@ -10,8 +11,7 @@ export function sanitizeFilename(name: string): string {
 }
 
 export function formatSize(bytes?: number): string {
-  if (!bytes) return '';
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return bytes ? formatMb(bytes) : '';
 }
 
 export function totalDurationLabel(songs: SubsonicSong[]): string {

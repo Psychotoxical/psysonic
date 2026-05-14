@@ -15,25 +15,7 @@ import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
 import { showToast } from '../utils/ui/toast';
-
-/** Strip dangerous tags/attributes from server-provided HTML. Mirrors the
- *  ArtistDetail sanitiser — kept inline because it's a 10-liner not worth a
- *  separate util module. */
-function sanitizeHtml(html: string): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, select, base, meta, link').forEach(el => el.remove());
-  doc.querySelectorAll('*').forEach(el => {
-    Array.from(el.attributes).forEach(attr => {
-      const name = attr.name.toLowerCase();
-      const val = attr.value.toLowerCase().trim();
-      if (name.startsWith('on') || (name === 'href' && (val.startsWith('javascript:') || val.startsWith('data:'))) || (name === 'src' && (val.startsWith('javascript:') || val.startsWith('data:')))) {
-        el.removeAttribute(attr.name);
-      }
-    });
-  });
-  return doc.body.innerHTML;
-}
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 
 export default function ComposerDetail() {
   const { t } = useTranslation();

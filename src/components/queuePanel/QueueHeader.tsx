@@ -5,6 +5,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import type { Track } from '../../store/playerStoreTypes';
 import type { DurationMode } from '../../utils/componentHelpers/queuePanelHelpers';
 import { formatLongDuration } from '../../utils/format/formatDuration';
+import { formatClockTime } from '../../utils/format/formatClockTime';
 
 interface Props {
   queue: Track[];
@@ -35,16 +36,11 @@ export function QueueHeader({
 
   const remainingSecs = Math.max(0, (queue[queueIndex]?.duration ?? 0) - currentTime + futureTracksDuration);
 
-  const fmtEta = (secs: number) => {
-    const finishTime = new Date(Date.now() + secs * 1000);
-    return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(finishTime);
-  };
-
   let dur: string | null = null;
   if (queue.length > 0) {
     if (durationMode === 'total') dur = formatLongDuration(Math.floor(totalSecs));
     else if (durationMode === 'remaining') dur = `-${formatLongDuration(Math.floor(remainingSecs))}`;
-    else dur = fmtEta(remainingSecs);
+    else dur = formatClockTime(Date.now() + remainingSecs * 1000);
   }
 
   const nextMode: DurationMode =

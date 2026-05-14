@@ -1,4 +1,5 @@
 import type { SubsonicSong } from '../../api/subsonicTypes';
+import { sanitizeHtml as sanitizeHtmlBase } from '../sanitizeHtml';
 
 export function formatTime(s: number): string {
   if (!s || isNaN(s)) return '0:00';
@@ -22,21 +23,10 @@ export function formatTotalDuration(s: number): string {
   return `${sec}s`;
 }
 
+/** Shared HTML sanitiser plus a now-playing-specific tweak: strip the trailing
+ * "Read more on Last.fm" style link so clamped bios end cleanly. */
 export function sanitizeHtml(html: string): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, select, base, meta, link').forEach(el => el.remove());
-  doc.querySelectorAll('*').forEach(el => {
-    Array.from(el.attributes).forEach(attr => {
-      const name = attr.name.toLowerCase();
-      const val = attr.value.toLowerCase().trim();
-      if (name.startsWith('on') || (name === 'href' && (val.startsWith('javascript:') || val.startsWith('data:'))) || (name === 'src' && (val.startsWith('javascript:') || val.startsWith('data:')))) {
-        el.removeAttribute(attr.name);
-      }
-    });
-  });
-  // Strip trailing "Read more on Last.fm" style links for cleaner clamped bios.
-  return doc.body.innerHTML.replace(/<a [^>]*>.*?<\/a>\.?\s*$/i, '').trim();
+  return sanitizeHtmlBase(html).replace(/<a [^>]*>.*?<\/a>\.?\s*$/i, '').trim();
 }
 
 export function isoToParts(iso: string): { month: string; day: string; weekday: string; time: string } | null {
