@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Alongside the user-facing changes, this release closes out a large engineering effort that touched almost every corner of the codebase. None of it changes how Psysonic behaves — it changes how fast and how safely the next features can land.
 
 * **Backend → Cargo workspace.** The Rust backend was lifted out of a single crate into five focused domain crates — audio, analysis, sync/offline, integrations and core. See *Backend — Cargo workspace with 5 domain crates* under **Changed** below for the full breakdown.
-* **Frontend modularization.** Around a hundred follow-up changes broke the largest "god-module" components, stores and stylesheets into small, single-purpose files, deduplicated shared helpers, and split the i18n locale and CSS bundles per namespace. Files that had grown hard and risky to touch are now focused modules.
+* **Frontend modularization.** The largest "god-module" components, stores and stylesheets were broken into small, single-purpose files, shared helpers were deduplicated, and the i18n locale and CSS bundles were split per namespace. See *Frontend — large modules split into focused files* under **Changed** below for the full breakdown.
 * **Automated test suite.** Psysonic now ships with a real test suite on both sides — `cargo test` across the Rust workspace and a Vitest suite on the frontend — backed by per-file coverage gates in CI that block a merge when a hot-path file regresses below threshold. Playback, queue, auth, the offline cache, the API layer and the core UI components are now pinned by characterization tests.
 
 Foundational work: faster reviews, narrower diffs, and a safety net under the parts of the app that matter most.
@@ -160,6 +160,16 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * The Audio→Analysis circular-dependency loop is broken via two `Arc<dyn Fn(&str) -> bool>` closures registered in `lib.rs:setup`, avoiding what would have been a 32-callsite migration to `State<Arc<AudioEngine>>`.
 * **No user-visible behaviour change.** Automated parity check confirmed **121/121 Tauri commands** resolve identically vs. the pre-refactor tree; `cargo check --workspace` and `cargo clippy --workspace --all-targets` are clean; smoke tests pass on Linux, Windows, and macOS.
 * Foundation work — per-domain bug fixes and features now ship with much narrower diff scope (this release's Orbit batch + waveform fixes were the first to benefit).
+
+### Frontend — large modules split into focused files (React/TypeScript refactor)
+
+**By [@cucadmuh](https://github.com/cucadmuh) + [@Psychotoxical](https://github.com/Psychotoxical)**
+
+* The frontend counterpart to the backend workspace split: across roughly a hundred follow-up PRs, the largest "god-module" page components, stores and stylesheets were broken into small, single-purpose files. The biggest offenders — `QueuePanel`, `FullscreenPlayer`, `MiniPlayer`, `PlayerBar`, `AppShell`, `AlbumTrackList`, the context menu, the waveform seekbar and `utils/orbit.ts` among them — each went from one oversized file to a folder of focused components, hooks and helpers.
+* Shared logic that had been copy-pasted across call sites — duration / byte formatters, sanitizers, clock helpers, shuffle and dedupe routines — was consolidated into single `utils/` helpers, and the remaining `utils/` files were grouped into topic folders.
+* The monolithic `i18n` locale files and the global CSS bundles (`theme.css`, `components.css`, `layout.css`, `tracks.css`) were split per namespace / per section, so editing one feature's strings or styles no longer means touching a multi-thousand-line file.
+* **No user-visible behaviour change.** Every step was a pure code move verified by `tsc`, the Vitest suite and a production build; the new automated test suite (see *Under the Hood* above) was built out alongside the refactor specifically to pin behaviour while files were in motion.
+* Foundation work — same payoff as the backend split: feature and bug-fix diffs now land with far narrower scope, and the frontend's hottest paths are covered by tests.
 
 ### Settings — collapse-by-default cleanup, font picker without dropdown, OpenDyslexic at top
 
