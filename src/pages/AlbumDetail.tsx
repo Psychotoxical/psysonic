@@ -3,6 +3,7 @@ import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { getArtistInfo } from '../api/subsonicArtists';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
+import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -103,11 +104,7 @@ const handleShuffleAll = () => {
        if (!t.genre && albumGenre) t.genre = albumGenre;
        return t;
      });
-     const shuffled = [...tracks];
-     for (let i = shuffled.length - 1; i > 0; i--) {
-       const j = Math.floor(Math.random() * (i + 1));
-       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-     }
+     const shuffled = shuffleArray(tracks);
      if (shuffled[0]) playTrack(shuffled[0], shuffled);
    };
 

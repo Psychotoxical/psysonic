@@ -2,6 +2,8 @@ import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbumsByGenre } from '../api/subsonicGenres';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
+import { dedupeById } from '../utils/dedupeById';
+import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { RefreshCw, CheckSquare2, Download, HardDriveDownload } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
@@ -29,13 +31,7 @@ function sanitizeFilename(name: string): string {
 
 async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
   const results = await Promise.all(genres.map(g => getAlbumsByGenre(g, 500, 0)));
-  const seen = new Set<string>();
-  const union = results.flat().filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
-  for (let i = union.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [union[i], union[j]] = [union[j], union[i]];
-  }
-  const pool = union.slice(0, GENRE_UNION_PREFILTER_CAP);
+  const pool = shuffleArray(dedupeById(results.flat())).slice(0, GENRE_UNION_PREFILTER_CAP);
   const filtered = await filterAlbumsByMixRatings(pool, getMixMinRatingsConfigFromAuth());
   return filtered.slice(0, ALBUM_COUNT);
 }

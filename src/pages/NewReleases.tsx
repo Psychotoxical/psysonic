@@ -2,6 +2,7 @@ import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbumsByGenre } from '../api/subsonicGenres';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
+import { dedupeById } from '../utils/dedupeById';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { CheckSquare2, Download, HardDriveDownload, ListMusic } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
@@ -25,9 +26,7 @@ function sanitizeFilename(name: string): string {
 
 async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
   const results = await Promise.all(genres.map(g => getAlbumsByGenre(g, 500, 0)));
-  const seen = new Set<string>();
-  const union = results.flat().filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
-  return union.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  return dedupeById(results.flat()).sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
 }
 
 export default function NewReleases() {

@@ -16,6 +16,7 @@ import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../uti
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { dedupeById } from '../utils/dedupeById';
+import { shuffleArray } from '../utils/playback/shuffleArray';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
 const HOME_RANDOM_FETCH = 100;
@@ -87,12 +88,7 @@ export default function Home() {
         setMostPlayed(dedupeById(f));
         setRecentlyPlayed(dedupeById(rp));
         setDiscoverSongs(dedupeById(songs));
-        const shuffled = [...artists];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        setRandomArtists(dedupeById(shuffled).slice(0, 16));
+        setRandomArtists(dedupeById(shuffleArray(artists)).slice(0, 16));
       } catch {
         /* ignore */
       } finally {

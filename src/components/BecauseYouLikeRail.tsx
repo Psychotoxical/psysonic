@@ -3,6 +3,7 @@ import { getArtist, getArtistInfo } from '../api/subsonicArtists';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
+import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -38,15 +39,6 @@ const SIMILAR_PICK = 6;
 const SHOW_COUNT = 3;
 const PICKS_HISTORY_SIZE = 30;
 const COVER_SIZE = 300;
-
-function shuffle<T>(arr: T[]): T[] {
-  const out = arr.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
 
 interface Anchor {
   id: string;
@@ -162,7 +154,7 @@ export default function BecauseYouLikeRail({
     const recentAnchors = new Set(anchorHistory.slice(-cooldown));
     const eligibleRaw = pool.filter(a => !recentAnchors.has(a.id));
     const eligible = eligibleRaw.length > 0 ? eligibleRaw : pool.slice();
-    const candidates = shuffle(eligible);
+    const candidates = shuffleArray(eligible);
     const recentPicks = new Set(picksHistory);
 
     (async () => {
@@ -182,7 +174,7 @@ export default function BecauseYouLikeRail({
           const similar = (info.similarArtist ?? []).filter(s => s.id);
           if (similar.length === 0) continue;
 
-          const sampled = shuffle(similar).slice(0, SIMILAR_PICK);
+          const sampled = shuffleArray(similar).slice(0, SIMILAR_PICK);
           const results = await Promise.all(
             sampled.map(s => getArtist(s.id).catch(() => null))
           );

@@ -3,6 +3,7 @@ import { getAlbumsByGenre } from '../api/subsonicGenres';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
+import { dedupeById } from '../utils/dedupeById';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
@@ -41,8 +42,7 @@ function sanitizeFilename(name: string): string {
 
 async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
   const results = await Promise.all(genres.map(g => getAlbumsByGenre(g, 500, 0)));
-  const seen = new Set<string>();
-  return results.flat().filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
+  return dedupeById(results.flat());
 }
 
 export default function Albums() {
