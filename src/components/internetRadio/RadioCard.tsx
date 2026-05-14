@@ -109,14 +109,16 @@ export default function RadioCard({
           </button>
         </div>
 
-        <button
-          className={`playlist-card-delete ${deleteConfirmId === s.id ? 'playlist-card-delete--confirm' : ''}`}
-          onClick={onDelete}
-          data-tooltip={deleteConfirmId === s.id ? t('radio.confirmDelete') : t('radio.deleteStation')}
-          data-tooltip-pos="bottom"
-        >
-          {deleteConfirmId === s.id ? <Trash2 size={12} /> : <X size={12} />}
-        </button>
+        <div className="playlist-card-actions">
+          <button
+            className={`playlist-card-action playlist-card-action--delete ${deleteConfirmId === s.id ? 'playlist-card-action--delete-confirm' : ''}`}
+            onClick={onDelete}
+            data-tooltip={deleteConfirmId === s.id ? t('radio.confirmDelete') : t('radio.deleteStation')}
+            data-tooltip-pos="bottom"
+          >
+            {deleteConfirmId === s.id ? <Trash2 size={12} /> : <X size={12} />}
+          </button>
+        </div>
       </div>
 
       {/* Info */}
