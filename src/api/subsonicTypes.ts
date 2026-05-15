@@ -65,6 +65,12 @@ export interface SubsonicSong {
   albumArtist?: string;
   /** ISRC code when available (e.g., Navidrome) */
   isrc?: string;
+  /** Times the track has been played, surfaced by Navidrome's Subsonic API. */
+  playCount?: number;
+  /** ISO datetime of the last play, surfaced by Navidrome (OpenSubsonic). */
+  played?: string;
+  /** Beats per minute, surfaced by Navidrome when the tag is set on the file. */
+  bpm?: number;
   replayGain?: {
     trackGain?: number;
     albumGain?: number;

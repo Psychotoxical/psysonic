@@ -14,12 +14,14 @@ import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { codecLabel } from '../../utils/componentHelpers/playlistDetailHelpers';
+import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
+import i18n from '../../i18n';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import type { PlaylistSortKey, PlaylistSortDir } from '../../utils/playlist/playlistDisplayedSongs';
 import StarRating from '../StarRating';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 
-const PL_CENTERED = new Set(['favorite', 'rating', 'duration']);
+const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
 interface Props {
   // Column config / picker
@@ -411,6 +413,18 @@ export default function PlaylistTracklist({
                   <div key="format" className="track-meta">
                     {(song.suffix || (showBitrate && song.bitRate)) && <span className="track-codec">{codecLabel(song, showBitrate)}</span>}
                   </div>
+                );
+                case 'genre': return (
+                  <div key="genre" className="track-genre">{song.genre ?? '—'}</div>
+                );
+                case 'playCount': return (
+                  <div key="playCount" className="track-duration">{song.playCount ?? '—'}</div>
+                );
+                case 'lastPlayed': return (
+                  <div key="lastPlayed" className="track-genre">{song.played ? formatLastSeen(song.played, i18n.language, '—') : '—'}</div>
+                );
+                case 'bpm': return (
+                  <div key="bpm" className="track-duration">{song.bpm && song.bpm > 0 ? song.bpm : '—'}</div>
                 );
                 case 'delete': return (
                   <div key="delete" className="playlist-row-delete-cell">

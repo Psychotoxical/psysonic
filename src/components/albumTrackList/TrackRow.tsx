@@ -12,6 +12,8 @@ import { usePreviewStore } from '../../store/previewStore';
 import StarRating from '../StarRating';
 import { codecLabel, type ColKey } from '../../utils/componentHelpers/albumTrackListHelpers';
 import { formatLongDuration } from '../../utils/format/formatDuration';
+import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
+import i18n from '../../i18n';
 
 type ContextMenuFn = (
   x: number,
@@ -189,6 +191,24 @@ export const TrackRow = React.memo(function TrackRow({
         return (
           <div key="genre" className="track-genre">
             {song.genre ?? '—'}
+          </div>
+        );
+      case 'playCount':
+        return (
+          <div key="playCount" className="track-duration">
+            {song.playCount ?? '—'}
+          </div>
+        );
+      case 'lastPlayed':
+        return (
+          <div key="lastPlayed" className="track-genre">
+            {song.played ? formatLastSeen(song.played, i18n.language, '—') : '—'}
+          </div>
+        );
+      case 'bpm':
+        return (
+          <div key="bpm" className="track-duration">
+            {song.bpm && song.bpm > 0 ? song.bpm : '—'}
           </div>
         );
       default:

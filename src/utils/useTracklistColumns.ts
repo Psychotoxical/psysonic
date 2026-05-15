@@ -71,7 +71,14 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
   const gridTemplate = useMemo(
     () =>
       visibleCols
-        .map(c => (c.flex ? `minmax(${c.minWidth}px, 1fr)` : `${colWidths[c.key]}px`))
+        .map(c => {
+          if (c.flex) return `minmax(${c.minWidth}px, 1fr)`;
+          // Defensive fallback: a column added since the last persist would have
+          // no saved width, leaving the grid template with `undefinedpx` and
+          // collapsing the row visually until the user resets defaults.
+          const w = colWidths[c.key];
+          return `${typeof w === 'number' && w > 0 ? w : c.defaultWidth}px`;
+        })
         .join(' '),
     [visibleCols, colWidths],
   );
@@ -83,7 +90,11 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
     const gapPx = 12; // --space-3
     const boxPaddingH = 24; // var(--space-3) * 2
     const colSum = visibleCols.reduce<number>(
-      (s, c) => s + (c.flex ? c.minWidth : colWidths[c.key]),
+      (s, c) => {
+        if (c.flex) return s + c.minWidth;
+        const w = colWidths[c.key];
+        return s + (typeof w === 'number' && w > 0 ? w : c.defaultWidth);
+      },
       0,
     );
     const gaps = Math.max(0, visibleCols.length - 1) * gapPx;
