@@ -1,4 +1,5 @@
 import { api, libraryFilterParams } from './subsonicClient';
+import { invalidateEntityUserRatingCaches } from './subsonicRatings';
 import type {
   EntityRatingSupportLevel,
   StarredResults,
@@ -38,11 +39,12 @@ export async function unstar(id: string, type: 'song' | 'album' | 'artist' = 'al
 export async function setRating(id: string, rating: number): Promise<void> {
   await api('setRating.view', { id, rating });
   // Cached song lists keyed by rating (e.g. Tracks → Highly Rated rail) become
-  // stale immediately. Lazy-import to keep the module dep direction
-  // subsonic ← navidromeBrowse and avoid pulling Tauri internals into shared
-  // type-only consumers.
+  // stale immediately. `invalidateEntityUserRatingCaches` is static-imported:
+  // mix paths already pull `subsonicRatings` (e.g. mixRatingFilter), so a
+  // dynamic import would not split chunks and only triggered INEFFECTIVE_DYNAMIC_IMPORT.
+  // Navidrome browse stays lazy to keep this module free of that dependency when unused.
   void import('./navidromeBrowse').then(m => m.ndInvalidateSongsCache()).catch(() => {});
-  void import('./subsonicRatings').then(m => m.invalidateEntityUserRatingCaches(id)).catch(() => {});
+  invalidateEntityUserRatingCaches(id);
 }
 
 /**

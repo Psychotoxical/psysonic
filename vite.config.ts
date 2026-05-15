@@ -24,6 +24,8 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
+    // Default 500 kB warns on every build; desktop bundles are often larger without being a problem.
+    chunkSizeWarningLimit: 1000,
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome109" : "safari16",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
