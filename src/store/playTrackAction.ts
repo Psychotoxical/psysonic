@@ -335,7 +335,7 @@ export function runPlayTrack(
 
     // Report Now Playing to Navidrome (for Live/getNowPlaying) + Last.fm
     const { nowPlayingEnabled: npEnabled, scrobblingEnabled: lfmEnabled, lastfmSessionKey: lfmKey } = useAuthStore.getState();
-    if (npEnabled) reportNowPlaying(track.id);
+    if (npEnabled) reportNowPlaying(track.id, getPlaybackServerId());
     if (lfmKey) {
       if (lfmEnabled) lastfmUpdateNowPlaying(track, lfmKey);
       lastfmGetTrackLoved(track.title, track.artist, lfmKey).then(loved => {

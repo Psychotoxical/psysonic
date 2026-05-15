@@ -28,6 +28,7 @@ export const queue = {
   shareQueue: 'Wachtrij-deellink kopiëren',
   shareQueueEmpty: 'De wachtrij is leeg — niets om te delen.',
   emptyQueue: 'De wachtrij is leeg.',
+  crossServerEnqueueBlocked: 'Tracks van een andere server kunnen niet aan de huidige wachtrij worden toegevoegd. Maak de wachtrij eerst leeg of stop afspelen.',
   trackSingular: 'nummer',
   trackPlural: 'nummers',
   showRemaining: 'Resterende tijd tonen',

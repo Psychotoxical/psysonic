@@ -496,6 +496,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * **Cover art** in the queue panel, player bar, mini/fullscreen/mobile players, and Now Playing loads from the queue server when it differs from the browsed server.
 * **Artist/album links** from the player, queue, Now Playing, and mini player switch back to the queue server before navigating; **queue** and **player-bar album** context menus pin API actions to that server as well.
 * Opening **Now Playing** (sidebar, mobile route, or queue info panel) switches to the queue server before Subsonic metadata loads, with per-server fetch caches so artist/album cards do not show the wrong library.
+* **Scrobble**, **now-playing report**, and **savePlayQueue** sync use the queue server as well; removing that server profile clears `queueServerId`; the mini-player bridge receives `queueServerId`; enqueue/play-next from another browsed server is blocked with a toast.
 
 ## [1.45.0] - 2026-05-04
 

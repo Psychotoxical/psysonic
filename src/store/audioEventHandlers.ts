@@ -161,7 +161,7 @@ export function handleAudioProgress(current_time: number, duration: number): voi
   // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
   if (progress >= 0.5 && !store.scrobbled) {
     usePlayerStore.setState({ scrobbled: true });
-    scrobbleSong(track.id, Date.now());
+    scrobbleSong(track.id, Date.now(), getPlaybackServerId());
     const { scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
     if (scrobblingEnabled && lastfmSessionKey) {
       lastfmScrobble(track, Date.now(), lastfmSessionKey);
@@ -404,7 +404,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   // Report Now Playing to Navidrome + Last.fm
   const { nowPlayingEnabled, scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
-  if (nowPlayingEnabled) reportNowPlaying(nextTrack.id);
+  if (nowPlayingEnabled) reportNowPlaying(nextTrack.id, getPlaybackServerId());
   if (lastfmSessionKey) {
     if (scrobblingEnabled) lastfmUpdateNowPlaying(nextTrack, lastfmSessionKey);
     lastfmGetTrackLoved(nextTrack.title, nextTrack.artist, lastfmSessionKey).then(loved => {

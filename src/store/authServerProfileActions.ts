@@ -1,5 +1,7 @@
 import type { AuthState } from './authStoreTypes';
 import { generateId } from './authStoreHelpers';
+import { usePlayerStore } from './playerStore';
+import { clearQueueServerForPlayback } from '../utils/playback/playbackServer';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -38,6 +40,9 @@ export function createServerProfileActions(set: SetState): Pick<
     },
 
     removeServer: (id) => {
+      if (usePlayerStore.getState().queueServerId === id) {
+        clearQueueServerForPlayback();
+      }
       set(s => {
         const newServers = s.servers.filter(srv => srv.id !== id);
         const switchedAway = s.activeServerId === id;

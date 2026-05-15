@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
+import { usePlayerStore } from '../store/playerStore';
 import { registerQueueDragHitTest } from '../contexts/DragDropContext';
 import MiniContextMenu from './MiniContextMenu';
 import type { MiniSyncPayload, MiniControlAction, MiniTrackInfo } from '../utils/miniPlayerBridge';
@@ -63,6 +64,7 @@ export default function MiniPlayer() {
   useMiniSync({
     onSync: (payload) => {
       setState(payload);
+      usePlayerStore.setState({ queueServerId: payload.queueServerId ?? null });
       if (payload.track?.duration) setDuration(payload.track.duration);
       if (typeof payload.volume === 'number') setVolumeState(payload.volume);
     },

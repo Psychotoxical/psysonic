@@ -187,7 +187,7 @@ export function applyQueueHistorySnapshot(
 
   if (!keepPlaybackFromPrior) {
     const { nowPlayingEnabled: npUndo } = useAuthStore.getState();
-    if (npUndo) reportNowPlaying(nextTrack.id);
+    if (npUndo) reportNowPlaying(nextTrack.id, getPlaybackServerId());
 
     queueUndoRestoreAudioEngine({
       generation: gen,

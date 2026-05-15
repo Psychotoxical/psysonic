@@ -28,6 +28,7 @@ export const queue = {
   shareQueue: 'Copy queue share link',
   shareQueueEmpty: 'The queue is empty — nothing to share.',
   emptyQueue: 'The queue is empty.',
+  crossServerEnqueueBlocked: 'Tracks from another server cannot be added to the current queue. Finish or clear the queue first.',
   trackSingular: 'track',
   trackPlural: 'tracks',
   showRemaining: 'Show remaining time',

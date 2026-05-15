@@ -25,6 +25,7 @@ export interface MiniSyncPayload {
   track: MiniTrackInfo | null;
   queue: MiniTrackInfo[];
   queueIndex: number;
+  queueServerId: string | null;
   isPlaying: boolean;
   volume: number;
   gaplessEnabled: boolean;
@@ -62,6 +63,7 @@ function snapshot(): MiniSyncPayload {
     track: s.currentTrack ? toMini(s.currentTrack) : null,
     queue: (s.queue ?? []).map(toMini),
     queueIndex: s.queueIndex ?? 0,
+    queueServerId: s.queueServerId ?? null,
     isPlaying: s.isPlaying,
     volume: s.volume,
     gaplessEnabled: !!a.gaplessEnabled,
@@ -93,6 +95,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
       payload.track?.starred ?? '',
       (payload.track?.artists ?? []).map((a: SubsonicOpenArtistRef) => a.id ?? a.name).join('|'),
       payload.queueIndex,
+      payload.queueServerId ?? '',
       payload.volume,
       payload.gaplessEnabled,
       payload.crossfadeEnabled,
@@ -110,6 +113,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
       || state.currentTrack?.starred !== prev.currentTrack?.starred
       || state.queueIndex !== prev.queueIndex
       || state.queue !== prev.queue
+      || state.queueServerId !== prev.queueServerId
       || state.volume !== prev.volume) {
       push();
     }

@@ -1,4 +1,4 @@
-import { api } from './subsonicClient';
+import { api, apiForServer } from './subsonicClient';
 import type { SubsonicSong } from './subsonicTypes';
 
 export async function getPlayQueue(): Promise<{ current?: string; position?: number; songs: SubsonicSong[] }> {
@@ -11,10 +11,16 @@ export async function getPlayQueue(): Promise<{ current?: string; position?: num
   }
 }
 
-export async function savePlayQueue(songIds: string[], current?: string, position?: number): Promise<void> {
+export async function savePlayQueue(
+  songIds: string[],
+  current: string | undefined,
+  position: number | undefined,
+  serverId: string,
+): Promise<void> {
+  if (!serverId) return;
   const params: Record<string, unknown> = {};
   if (songIds.length > 0) params.id = songIds;
   if (current !== undefined) params.current = current;
   if (position !== undefined) params.position = position;
-  await api('savePlayQueue.view', params);
+  await apiForServer(serverId, 'savePlayQueue.view', params);
 }
