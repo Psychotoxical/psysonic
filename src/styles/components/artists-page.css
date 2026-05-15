@@ -23,6 +23,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
+  transform: translateZ(0);
   width: 100%;
   text-align: left;
 }

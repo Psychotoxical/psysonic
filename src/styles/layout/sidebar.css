@@ -281,7 +281,7 @@
   color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
   cursor: pointer;
   text-decoration: none;
   position: relative;
@@ -313,6 +313,7 @@
   flex-shrink: 0;
   opacity: 0.7;
   transition: opacity var(--transition-fast);
+  transform: translateZ(0);
 }
 
 .nav-link.active svg,
