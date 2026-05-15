@@ -1,5 +1,18 @@
 import { useEffect } from 'react';
 
+/** `Event.target` may be a Text node — only Elements expose `closest` / `tagName`. */
+function eventTargetElement(e: Event): Element | null {
+  const t = e.target;
+  if (!t) return null;
+  if (t instanceof Element) return t;
+  return t.parentElement;
+}
+
+function isTextInputElement(el: Element): boolean {
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement).isContentEditable;
+}
+
 /**
  * Globally tame Linux/WebKitGTK + Wayland behaviour that the page-level
  * CSS / Tauri config can't reach:
@@ -29,16 +42,20 @@ export function useGlobalDndAndSelectionBlockers(): void {
 
     const blockSelectAll = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        const el = eventTargetElement(e);
+        if (el && isTextInputElement(el)) return;
         e.preventDefault();
       }
     };
 
     const blockSelectStart = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-      if ((target as HTMLElement).closest('[data-selectable]')) return;
+      const el = eventTargetElement(e);
+      if (!el) {
+        e.preventDefault();
+        return;
+      }
+      if (isTextInputElement(el)) return;
+      if (el.closest('[data-selectable]')) return;
       e.preventDefault();
     };
 
