@@ -1,13 +1,15 @@
 import { useTranslation } from 'react-i18next';
-import { LayoutGrid, ListMusic, ListTodo, PanelLeft, RotateCcw, Users } from 'lucide-react';
+import { Disc3, LayoutGrid, ListMusic, ListTodo, PanelLeft, RotateCcw, Users } from 'lucide-react';
 import { useArtistLayoutStore } from '../../store/artistLayoutStore';
 import { useHomeStore } from '../../store/homeStore';
+import { usePlayerBarLayoutStore } from '../../store/playerBarLayoutStore';
 import { usePlaylistLayoutStore } from '../../store/playlistLayoutStore';
 import { useQueueToolbarStore } from '../../store/queueToolbarStore';
 import { useSidebarStore } from '../../store/sidebarStore';
 import SettingsSubSection from '../SettingsSubSection';
 import { ArtistLayoutCustomizer } from './ArtistLayoutCustomizer';
 import { HomeCustomizer } from './HomeCustomizer';
+import { PlayerBarLayoutCustomizer } from './PlayerBarLayoutCustomizer';
 import { PlaylistLayoutCustomizer } from './PlaylistLayoutCustomizer';
 import { QueueToolbarCustomizer } from './QueueToolbarCustomizer';
 import { SidebarCustomizer } from './SidebarCustomizer';
@@ -112,6 +114,26 @@ export function PersonalisationTab() {
         }
       >
         <PlaylistLayoutCustomizer />
+      </SettingsSubSection>
+
+      <SettingsSubSection
+        title={t('settings.playerBarTitle')}
+        icon={<Disc3 size={16} />}
+        advanced
+        action={
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
+            onClick={() => usePlayerBarLayoutStore.getState().reset()}
+            data-tooltip={t('settings.playerBarReset')}
+            aria-label={t('settings.playerBarReset')}
+          >
+            <RotateCcw size={14} />
+          </button>
+        }
+      >
+        <PlayerBarLayoutCustomizer />
       </SettingsSubSection>
     </>
   );

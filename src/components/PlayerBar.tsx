@@ -38,10 +38,17 @@ import { PlayerVolume } from './playerBar/PlayerVolume';
 import { PlayerOverflowMenu } from './playerBar/PlayerOverflowMenu';
 import { useFloatingPlayerBar } from '../hooks/useFloatingPlayerBar';
 import { useUtilityOverflowMenu } from '../hooks/useUtilityOverflowMenu';
+import {
+  usePlayerBarLayoutStore,
+  type PlayerBarLayoutItemId,
+} from '../store/playerBarLayoutStore';
 
 export default function PlayerBar() {
   const { t } = useTranslation();
   const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
+  const layoutItems = usePlayerBarLayoutStore(s => s.items);
+  const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
+    layoutItems.find(i => i.id === id)?.visible !== false;
   const [eqOpen, setEqOpen] = useState(false);
   const [showVolPct, setShowVolPct] = useState(false);
   const [localShowRemaining, setLocalShowRemaining] = useState(() => useThemeStore.getState().showRemainingTime);
@@ -282,23 +289,27 @@ export default function PlayerBar() {
         </div>
       ) : (
         <>
-          <button
-            className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}
-            onClick={() => setEqOpen(v => !v)}
-            aria-label={t('player.equalizer')}
-            data-tooltip={t('player.equalizer')}
-          >
-            <SlidersVertical size={15} />
-          </button>
+          {isLayoutVisible('equalizer') && (
+            <button
+              className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}
+              onClick={() => setEqOpen(v => !v)}
+              aria-label={t('player.equalizer')}
+              data-tooltip={t('player.equalizer')}
+            >
+              <SlidersVertical size={15} />
+            </button>
+          )}
 
-          <button
-            className="player-btn player-btn-sm"
-            onClick={() => invoke('open_mini_player').catch(() => {})}
-            aria-label={t('player.miniPlayer')}
-            data-tooltip={t('player.miniPlayer')}
-          >
-            <PictureInPicture2 size={15} />
-          </button>
+          {isLayoutVisible('miniPlayer') && (
+            <button
+              className="player-btn player-btn-sm"
+              onClick={() => invoke('open_mini_player').catch(() => {})}
+              aria-label={t('player.miniPlayer')}
+              data-tooltip={t('player.miniPlayer')}
+            >
+              <PictureInPicture2 size={15} />
+            </button>
+          )}
 
           <PlayerVolume
             volume={volume}

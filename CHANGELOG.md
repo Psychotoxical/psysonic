@@ -181,6 +181,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * **Offline Library** lists every cached album across all saved servers, not only the currently active one. Cover art loads from each album's source server; play and enqueue switch to that server when needed.
 * Sidebar entry, mobile **More** menu, disconnect auto-navigation, and the offline banner treat **any** cached content as available offline. With multiple servers, cards show which server the album came from.
 
+### Settings → Personalisation — player bar layout
+
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), inspired by [@kveld9](https://github.com/kveld9)'s [PR #627](https://github.com/Psychotoxical/psysonic/pull/627), PR [#TBD](https://github.com/Psychotoxical/psysonic)**
+
+* New sub-section that hides individual controls in the player bar: **Star rating**, **Favorite (heart)**, **Last.fm love**, **Equalizer**, **Mini player**. Last.fm love is still only shown when a Last.fm session exists; the overflow row only renders when either Equalizer or Mini player is enabled. Persisted via a new `playerBarLayoutStore` (Zustand + localStorage, same `items[{id, visible}]` pattern as the queue toolbar and playlist layout); all toggles on by default.
+* Lives under the **Advanced** group in Personalisation (only visible when the global Advanced Mode toggle is on).
+* i18n: `settings.playerBar*` across all 9 locales.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)

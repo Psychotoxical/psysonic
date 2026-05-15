@@ -169,6 +169,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Community themes — redesign pass: removed 5 overlapping / eye-straining palettes, added 8 new dark themes (Obsidian Black, Carbon Grey, Volcanic Dark, Forest Green, Violet Haze, Copper Oxide, Sakura Night, Obsidian Gold) (PR #490)',
       'Customizable queue toolbar — drag-and-drop button reordering, per-button visibility toggles, optional separator, persisted across restarts (PR #534)',
       'Playlist page layout — per-element visibility toggles (Add Songs, Import CSV, Download ZIP, Cache Offline, Suggestions) under Settings → Personalisation (PR #556)',
+      'Player bar layout — per-control visibility toggles (Star rating, Favorite, Last.fm love, Equalizer, Mini player) under Settings → Personalisation (PR #627)',
     ],
   },
   {

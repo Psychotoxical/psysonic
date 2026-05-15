@@ -4,6 +4,10 @@ import { PictureInPicture2, SlidersVertical } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import type { TFunction } from 'i18next';
 import { PlayerVolume } from './PlayerVolume';
+import {
+  usePlayerBarLayoutStore,
+  type PlayerBarLayoutItemId,
+} from '../../store/playerBarLayoutStore';
 
 interface Props {
   utilityMenuRef: React.RefObject<HTMLDivElement | null>;
@@ -29,6 +33,11 @@ export function PlayerOverflowMenu({
   volume, setVolume, premuteVolumeRef, showVolPct, setShowVolPct,
   handleVolume, handleVolumeWheel, volumeStyle, t,
 }: Props) {
+  const layoutItems = usePlayerBarLayoutStore(s => s.items);
+  const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
+    layoutItems.find(i => i.id === id)?.visible !== false;
+  const showEqualizer = isLayoutVisible('equalizer');
+  const showMiniPlayer = isLayoutVisible('miniPlayer');
   return createPortal(
     <div
       className={`player-overflow-menu${utilityMenuMode === 'volume' ? ' player-overflow-menu--volume-only' : ''}`}
@@ -36,28 +45,32 @@ export function PlayerOverflowMenu({
       style={utilityMenuStyle}
       onWheel={handleVolumeWheel}
     >
-      {utilityMenuMode === 'full' && (
+      {utilityMenuMode === 'full' && (showEqualizer || showMiniPlayer) && (
         <div className="player-overflow-menu-row">
-          <button
-            className={`player-overflow-menu-btn${eqOpen ? ' active' : ''}`}
-            onClick={() => {
-              setEqOpen(v => !v);
-              closeMenu();
-            }}
-          >
-            <SlidersVertical size={14} />
-            {t('player.equalizer')}
-          </button>
-          <button
-            className="player-overflow-menu-btn"
-            onClick={() => {
-              invoke('open_mini_player').catch(() => {});
-              closeMenu();
-            }}
-          >
-            <PictureInPicture2 size={14} />
-            {t('player.miniPlayer')}
-          </button>
+          {showEqualizer && (
+            <button
+              className={`player-overflow-menu-btn${eqOpen ? ' active' : ''}`}
+              onClick={() => {
+                setEqOpen(v => !v);
+                closeMenu();
+              }}
+            >
+              <SlidersVertical size={14} />
+              {t('player.equalizer')}
+            </button>
+          )}
+          {showMiniPlayer && (
+            <button
+              className="player-overflow-menu-btn"
+              onClick={() => {
+                invoke('open_mini_player').catch(() => {});
+                closeMenu();
+              }}
+            >
+              <PictureInPicture2 size={14} />
+              {t('player.miniPlayer')}
+            </button>
+          )}
         </div>
       )}
       <PlayerVolume

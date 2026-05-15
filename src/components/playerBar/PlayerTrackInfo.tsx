@@ -10,6 +10,10 @@ import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import StarRating from '../StarRating';
+import {
+  usePlayerBarLayoutStore,
+  type PlayerBarLayoutItemId,
+} from '../../store/playerBarLayoutStore';
 
 interface Props {
   currentTrack: Track | null;
@@ -48,6 +52,10 @@ export function PlayerTrackInfo({
   userRatingOverrides, setUserRatingOverride, toggleFullscreen,
   navigate, openContextMenu, t,
 }: Props) {
+  const layoutItems = usePlayerBarLayoutStore(s => s.items);
+  const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
+    layoutItems.find(i => i.id === id)?.visible !== false;
+
   return (
     <div className="player-track-info">
       <div
@@ -142,7 +150,7 @@ export function PlayerTrackInfo({
             onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
           />
         )}
-        {currentTrack && !isRadio && !showPreviewMeta && (
+        {currentTrack && !isRadio && !showPreviewMeta && isLayoutVisible('starRating') && (
           <StarRating
             value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
             onChange={r => { setUserRatingOverride(currentTrack.id, r); setRating(currentTrack.id, r).catch(() => {}); }}
@@ -156,7 +164,7 @@ export function PlayerTrackInfo({
           </span>
         )}
       </div>
-      {currentTrack && !isRadio && (
+      {currentTrack && !isRadio && isLayoutVisible('favorite') && (
         <button
           className={`player-btn player-btn-sm player-star-btn${isStarred ? ' is-starred' : ''}`}
           onClick={toggleStar}
@@ -167,7 +175,7 @@ export function PlayerTrackInfo({
           <Heart size={15} fill={isStarred ? 'currentColor' : 'none'} />
         </button>
       )}
-      {currentTrack && !isRadio && lastfmSessionKey && (
+      {currentTrack && !isRadio && lastfmSessionKey && isLayoutVisible('lastfmLove') && (
         <button
           className="player-btn player-btn-sm player-love-btn"
           onClick={toggleLastfmLove}
