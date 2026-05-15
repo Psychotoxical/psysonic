@@ -2,7 +2,7 @@ import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import { ndListLosslessAlbumsPage } from '../api/navidromeBrowse';
 import { useTranslation } from 'react-i18next';
@@ -12,12 +12,15 @@ import { useDownloadModalStore } from '../store/downloadModalStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useRangeSelection } from '../hooks/useRangeSelection';
+import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { showToast } from '../utils/ui/toast';
 import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
 import { CheckSquare2, Download, HardDriveDownload, ListPlus } from 'lucide-react';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import OverlayScrollArea from '../components/OverlayScrollArea';
+import { LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 
 /** Per-loadMore budget — tuned for snappy initial paint over completeness.
  *  100 songs ≈ 500 KB response (Navidrome's /api/song carries lyrics/tags/
@@ -68,6 +71,18 @@ export default function LosslessAlbums() {
    *  reference. */
   const inFlight = useRef(false);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
+  const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
+  const bindLosslessScrollBody = useCallback((el: HTMLDivElement | null) => {
+    scrollBodyRef.current = el;
+    setScrollBodyEl(el);
+  }, []);
+
+  const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
+    unsupported,
+    selectionMode,
+    activeServerId,
+  ]);
 
   const loadMore = useCallback(async () => {
     if (inFlight.current) return;
@@ -140,13 +155,17 @@ export default function LosslessAlbums() {
     if (!hasMore) return;
     const node = observerTarget.current;
     if (!node) return;
+    const root = scrollBodyRef.current;
     const obs = new IntersectionObserver(
       entries => { if (entries[0].isIntersecting) loadMore(); },
-      { rootMargin: '200px' },
+      {
+        root: root instanceof HTMLElement ? root : null,
+        rootMargin: '200px',
+      },
     );
     obs.observe(node);
     return () => obs.disconnect();
-  }, [hasMore, loadMore, loading, albums.length]);
+  }, [hasMore, loadMore, loading, albums.length, scrollBodyEl]);
 
   const handleEnqueueSelected = async () => {
     if (selectedAlbums.length === 0) return;
@@ -202,87 +221,107 @@ export default function LosslessAlbums() {
   };
 
   return (
-    <div className="content-body animate-fade-in">
+    <div className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}>
       {!perfFlags.disableMainstageStickyHeader && (
-        <div className="page-sticky-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0 }}>
-            <h1 className="page-title" style={{ marginBottom: 0 }}>
-              {selectionMode && selectedIds.size > 0
-                ? t('albums.selectionCount', { count: selectedIds.size })
-                : t('home.losslessAlbums')}
-            </h1>
-            {!(selectionMode && selectedIds.size > 0) && (
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
-                {t('losslessAlbums.slowFetchHint')}
-              </p>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {selectionMode && selectedIds.size > 0 && (
-              <>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
-                  <ListPlus size={15} />
-                  {t('albums.enqueueSelected', { count: selectedIds.size })}
-                </button>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
-                  <HardDriveDownload size={15} />
-                  {t('albums.addOffline')}
-                </button>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
-                  <Download size={15} />
-                  {t('albums.downloadZips')}
-                </button>
-              </>
-            )}
-            <button
-              className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-              onClick={toggleSelectionMode}
-              data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
-              data-tooltip-pos="bottom"
-              style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
-            >
-              <CheckSquare2 size={15} />
-              {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
-            </button>
+        <div className="mainstage-inpage-toolbar">
+          <div className="page-sticky-header mainstage-inpage-toolbar-row">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: 0 }}>
+              <h1 className="page-title" style={{ marginBottom: 0 }}>
+                {selectionMode && selectedIds.size > 0
+                  ? t('albums.selectionCount', { count: selectedIds.size })
+                  : t('home.losslessAlbums')}
+              </h1>
+              {!(selectionMode && selectedIds.size > 0) && (
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
+                  {t('losslessAlbums.slowFetchHint')}
+                </p>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {selectionMode && selectedIds.size > 0 && (
+                <>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
+                    <ListPlus size={15} />
+                    {t('albums.enqueueSelected', { count: selectedIds.size })}
+                  </button>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
+                    <HardDriveDownload size={15} />
+                    {t('albums.addOffline')}
+                  </button>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
+                    <Download size={15} />
+                    {t('albums.downloadZips')}
+                  </button>
+                </>
+              )}
+              <button
+                className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
+                onClick={toggleSelectionMode}
+                data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
+                data-tooltip-pos="bottom"
+                style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+              >
+                <CheckSquare2 size={15} />
+                {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {unsupported ? (
-        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          {t('losslessAlbums.unsupported')}
-        </div>
-      ) : loading && albums.length === 0 ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-          <div className="spinner" />
-        </div>
-      ) : albums.length === 0 ? (
-        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          {t('losslessAlbums.empty')}
-        </div>
-      ) : (
-        <>
-          <VirtualCardGrid
-            items={albums}
-            itemKey={(a, _i) => a.id}
-            rowVariant="album"
-            disableVirtualization={perfFlags.disableMainstageVirtualLists}
-            layoutSignal={albums.length}
-            renderItem={a => (
-              <AlbumCard
-                album={a}
-                selectionMode={selectionMode}
-                selected={selectedIds.has(a.id)}
-                onToggleSelect={toggleSelect}
-                selectedAlbums={selectedAlbums}
-              />
-            )}
-          />
-          <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-            {loading && hasMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
+      <OverlayScrollArea
+        className="mainstage-inpage-scroll"
+        viewportClassName="mainstage-inpage-scroll__viewport"
+        viewportId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+        viewportRef={bindLosslessScrollBody}
+        railInset="panel"
+        measureDeps={[
+          unsupported,
+          loading,
+          albums.length,
+          hasMore,
+          selectionMode,
+          perfFlags.disableMainstageVirtualLists,
+          perfFlags.disableMainstageStickyHeader,
+        ]}
+      >
+        {unsupported ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            {t('losslessAlbums.unsupported')}
           </div>
-        </>
-      )}
+        ) : loading && albums.length === 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+            <div className="spinner" />
+          </div>
+        ) : albums.length === 0 ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            {t('losslessAlbums.empty')}
+          </div>
+        ) : (
+          <>
+            <VirtualCardGrid
+              items={albums}
+              itemKey={(a, _i) => a.id}
+              rowVariant="album"
+              disableVirtualization={perfFlags.disableMainstageVirtualLists}
+              layoutSignal={albums.length}
+              scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+              renderItem={a => (
+                <AlbumCard
+                  album={a}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(a.id)}
+                  onToggleSelect={toggleSelect}
+                  selectedAlbums={selectedAlbums}
+                />
+              )}
+            />
+            <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+              {loading && hasMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
+            </div>
+          </>
+        )}
+      </OverlayScrollArea>
     </div>
   );
 }

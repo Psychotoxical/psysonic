@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
@@ -19,11 +19,14 @@ export type VirtualCardGridProps<T> = {
   wrapStyle?: React.CSSProperties;
   /** Defaults to `var(--space-4)`; composer grid uses `var(--space-2)`. */
   gridGap?: string;
+  /** When set, row virtualization uses this scroll container instead of the main route viewport. */
+  scrollRootId?: string;
 };
 
 /**
  * Album-/playlist-style card grids: at most six columns, proportional stretch,
- * optional row virtualization with scroll root `#APP_MAIN_SCROLL_VIEWPORT_ID`.
+ * optional row virtualization with scroll root `#APP_MAIN_SCROLL_VIEWPORT_ID`
+ * (or `scrollRootId` when the grid lives in an in-page overlay viewport).
  */
 export function VirtualCardGrid<T>({
   items,
@@ -35,17 +38,29 @@ export function VirtualCardGrid<T>({
   wrapClassName = 'album-grid-wrap',
   wrapStyle,
   gridGap = 'var(--space-4)',
+  scrollRootId,
 }: VirtualCardGridProps<T>): React.JSX.Element {
   const wrapRef = useRef<HTMLDivElement>(null);
   const { gridCols, rowHeightEst } = useCardGridMetrics(wrapRef, true, rowVariant, layoutSignal);
   const cols = Math.max(1, gridCols);
   const virtualRowCount = Math.max(0, Math.ceil(items.length / cols));
-  const mainScrollViewportHeight = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
-  const overscan = Math.max(2, Math.ceil(mainScrollViewportHeight / Math.max(1, rowHeightEst)));
+  const scrollMetricsElementId = scrollRootId ?? APP_MAIN_SCROLL_VIEWPORT_ID;
+  const scrollViewportClientHeight = useElementClientHeightById(scrollMetricsElementId);
+  const overscan = Math.max(2, Math.ceil(scrollViewportClientHeight / Math.max(1, rowHeightEst)));
+
+  const getScrollElement = useCallback((): HTMLElement | null => {
+    if (scrollRootId) {
+      return (
+        document.getElementById(scrollRootId) as HTMLElement | null
+        ?? (document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as HTMLElement | null)
+      );
+    }
+    return document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as HTMLElement | null;
+  }, [scrollRootId]);
 
   const virtualizer = useVirtualizer({
     count: disableVirtualization ? 0 : virtualRowCount,
-    getScrollElement: () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    getScrollElement,
     estimateSize: () => rowHeightEst,
     overscan,
   });

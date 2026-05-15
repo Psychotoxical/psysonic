@@ -104,9 +104,85 @@
   contain: paint;
 }
 
-/* Artists: in-page overlay scroller — keep the main route viewport from scrolling too. */
-.app-shell-route-scroll__viewport--artists-split {
+/* Browse pages: in-page overlay scroller — main route viewport does not scroll. */
+.app-shell-route-scroll__viewport--inpage-split {
   overflow: hidden !important;
+}
+
+/* Sticky toolbar + `OverlayScrollArea` body; shared by Artists, Albums, Composers, etc. */
+.content-body.mainstage-inpage-split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-right: 0;
+  transition: padding-top 0.2s ease;
+}
+
+.mainstage-inpage-split .mainstage-inpage-toolbar {
+  flex-shrink: 0;
+}
+
+.content-body.mainstage-inpage-split .page-sticky-header {
+  position: relative;
+  top: auto;
+  z-index: auto;
+  margin-right: 0;
+  transition: padding 0.2s ease;
+}
+
+.content-body.mainstage-inpage-split.mainstage-inpage--header-tight {
+  padding-top: 0;
+}
+
+.content-body.mainstage-inpage-split.mainstage-inpage--header-tight .page-sticky-header {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.content-body.mainstage-inpage-split.mainstage-inpage--header-tight .page-sticky-header .page-title {
+  font-size: 1rem;
+}
+
+/* Toolbar rows: use these class names instead of inline gap so tight mode can tighten. */
+.mainstage-inpage-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.content-body.mainstage-inpage-split.mainstage-inpage--header-tight .mainstage-inpage-toolbar-row {
+  gap: 0.5rem;
+}
+
+.mainstage-inpage-toolbar-alpha-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: var(--space-4);
+}
+
+.content-body.mainstage-inpage-split.mainstage-inpage--header-tight .mainstage-inpage-toolbar-alpha-row {
+  margin-top: var(--space-2);
+}
+
+.content-body.mainstage-inpage-split.mainstage-inpage--header-tight .artists-alpha-btn {
+  padding: 0.15rem 0.4rem;
+  font-size: 11px;
+}
+
+.content-body.mainstage-inpage-split > .mainstage-inpage-scroll.overlay-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.mainstage-inpage-scroll__viewport {
+  padding-bottom: var(--space-6);
+  padding-right: var(--space-6);
 }
 
 /* Sticky page header: keeps page title + filter/search bar visible while the

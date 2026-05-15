@@ -22,6 +22,7 @@ import {
   ARTIST_LIST_ROW_EST,
 } from '../utils/componentHelpers/artistsHelpers';
 import { useArtistsFiltering } from '../hooks/useArtistsFiltering';
+import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
 import { ArtistsGridView } from '../components/artists/ArtistsGridView';
 import { ArtistsListView } from '../components/artists/ArtistsListView';
@@ -35,8 +36,6 @@ export default function Artists() {
   const [letterFilter, setLetterFilter] = useState(ALL_SENTINEL);
   const [starredOnly, setStarredOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
-  const [artistsHeaderTight, setArtistsHeaderTight] = useState(false);
 
   const artistsScrollBodyRef = useRef<HTMLDivElement | null>(null);
   const [artistsScrollBodyEl, setArtistsScrollBodyEl] = useState<HTMLDivElement | null>(null);
@@ -89,27 +88,12 @@ export default function Artists() {
     filtered, visible, hasMore, groups, letters, artistListFlatRows,
   } = useArtistsFiltering({ artists, filter, letterFilter, starredOnly, visibleCount, viewMode });
 
-  useEffect(() => {
-    if (!artistsScrollBodyEl) return;
-    const el = artistsScrollBodyEl;
-    const TIGHT_AFTER = 10;
-    const LOOSE_BELOW = 2;
-    const onScroll = () => {
-      const y = el.scrollTop;
-      setArtistsHeaderTight(prev => {
-        if (y > TIGHT_AFTER) return true;
-        if (y < LOOSE_BELOW) return false;
-        return prev;
-      });
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => el.removeEventListener('scroll', onScroll);
-  }, [artistsScrollBodyEl]);
-
-  useEffect(() => {
-    setArtistsHeaderTight(false);
-  }, [filter, letterFilter, starredOnly, viewMode]);
+  const mainstageHeaderTight = useMainstageInpageHeaderTight(artistsScrollBodyEl, [
+    filter,
+    letterFilter,
+    starredOnly,
+    viewMode,
+  ]);
 
   const mainScrollViewportHeight = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
   const artistsInpageScrollHeight = useElementClientHeightForElement(
@@ -182,11 +166,11 @@ export default function Artists() {
 
   return (
     <div
-      className={`content-body animate-fade-in artists-page artists-page-split${artistsHeaderTight ? ' artists-page--header-tight' : ''}`}
+      className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}
     >
-      <div className="artists-page-toolbar">
+      <div className="mainstage-inpage-toolbar">
         <div className="page-sticky-header">
-          <div className="artists-toolbar-top-row">
+          <div className="mainstage-inpage-toolbar-row">
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <h1 className="page-title" style={{ marginBottom: 0 }}>
                 {selectionMode && selectedIds.size > 0
@@ -246,7 +230,7 @@ export default function Artists() {
             </div>
           </div>
 
-          <div className="artists-toolbar-alpha-row">
+          <div className="mainstage-inpage-toolbar-alpha-row">
             {ALPHABET.map(l => (
               <button
                 key={l}
@@ -261,8 +245,8 @@ export default function Artists() {
       </div>
 
       <OverlayScrollArea
-        className="artists-page-inpage-scroll"
-        viewportClassName="artists-page-inpage-scroll__viewport"
+        className="mainstage-inpage-scroll"
+        viewportClassName="mainstage-inpage-scroll__viewport"
         viewportId={ARTISTS_INPAGE_SCROLL_VIEWPORT_ID}
         viewportRef={bindArtistsScrollBody}
         railInset="panel"

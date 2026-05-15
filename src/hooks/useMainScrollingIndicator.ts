@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { APP_MAIN_SCROLL_VIEWPORT_ID, ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import {
+  APP_MAIN_SCROLL_VIEWPORT_ID,
+  MAIN_ROUTE_INPAGE_SCROLL_VIEWPORT_ID_BY_PATH,
+} from '../constants/appScroll';
 
 const SCROLL_IDLE_MS = 180;
 
@@ -9,9 +12,9 @@ const SCROLL_IDLE_MS = 180;
  * floating controls) while the user is scrolling, so they don't sit on top of
  * the overlay scrollbar thumb.
  *
- * Tracks `#app-main-scroll-viewport`, and on `/artists` also the in-page
- * artists list viewport (main route scroll is locked there). Re-binds on
- * `pathname` because Now Playing's viewport mounts lazily.
+ * Tracks `#app-main-scroll-viewport`, and on browse routes with a locked main
+ * scroll also the matching in-page overlay viewport. Re-binds on `pathname`
+ * because Now Playing's viewport mounts lazily.
  */
 export function useMainScrollingIndicator(pathname: string): boolean {
   const [isMainScrolling, setIsMainScrolling] = useState(false);
@@ -22,9 +25,10 @@ export function useMainScrollingIndicator(pathname: string): boolean {
     if (appViewport) viewports.add(appViewport);
     const nowPlayingViewport = document.querySelector<HTMLElement>('.np-main__viewport');
     if (nowPlayingViewport) viewports.add(nowPlayingViewport);
-    if (pathname === '/artists') {
-      const artistsVp = document.getElementById(ARTISTS_INPAGE_SCROLL_VIEWPORT_ID);
-      if (artistsVp) viewports.add(artistsVp);
+    const inpageId = MAIN_ROUTE_INPAGE_SCROLL_VIEWPORT_ID_BY_PATH[pathname];
+    if (inpageId) {
+      const inpageVp = document.getElementById(inpageId);
+      if (inpageVp) viewports.add(inpageVp);
     }
     if (viewports.size === 0) return;
 

@@ -4,7 +4,7 @@ import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { dedupeById } from '../utils/dedupeById';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import YearFilterButton from '../components/YearFilterButton';
@@ -19,10 +19,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
 import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
-import { CheckSquare2, Download, HardDriveDownload, ListMusic, Disc3, ListPlus } from 'lucide-react';
+import { CheckSquare2, Download, HardDriveDownload, Disc3, ListPlus } from 'lucide-react';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useRangeSelection } from '../hooks/useRangeSelection';
+import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import OverlayScrollArea from '../components/OverlayScrollArea';
+import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 
 type SortType = 'alphabeticalByName' | 'alphabeticalByArtist';
 type CompFilter = 'all' | 'only' | 'hide';
@@ -58,6 +61,12 @@ export default function Albums() {
   const [compFilter, setCompFilter] = useState<CompFilter>('all');
   const [starredOnly, setStarredOnly] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
+  const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
+  const bindAlbumsScrollBody = useCallback((el: HTMLDivElement | null) => {
+    scrollBodyRef.current = el;
+    setScrollBodyEl(el);
+  }, []);
 
   // ── Multi-selection ──────────────────────────────────────────────────────
   // selectedIds + toggleSelect come from useRangeSelection (declared after
@@ -88,7 +97,6 @@ export default function Albums() {
   };
 
   const selectedAlbums = visibleAlbums.filter(a => selectedIds.has(a.id));
-  const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const enqueue = usePlayerStore(state => state.enqueue);
 
   const handleEnqueueSelected = async () => {
@@ -155,6 +163,18 @@ export default function Albums() {
   const toNum = parseInt(yearTo, 10);
   const yearActive = !isNaN(fromNum) && !isNaN(toNum) && fromNum >= 1 && toNum >= 1;
 
+  const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
+    sort,
+    genreFiltered,
+    yearActive,
+    yearFrom,
+    yearTo,
+    compFilter,
+    starredOnly,
+    selectionMode,
+    selectedGenres,
+  ]);
+
   const load = useCallback(async (
     sortType: SortType,
     offset: number,
@@ -210,15 +230,19 @@ export default function Albums() {
   }, [loading, hasMore, page, sort, load, genreFiltered, yearActive, fromNum, toNum]);
 
   useEffect(() => {
+    const node = observerTarget.current;
+    if (!node) return;
+    const root = scrollBodyRef.current;
     const observer = new IntersectionObserver(
-      entries => { if (entries[0].isIntersecting) loadMore(); },
-      // Prefetch ~1.5 screens ahead so the user never visibly waits at the
-      // bottom of the grid. 200px caught the user at the very edge.
-      { rootMargin: '1500px' }
+      entries => { if (entries[0]?.isIntersecting) loadMore(); },
+      {
+        root: root instanceof HTMLElement ? root : null,
+        rootMargin: '1500px',
+      },
     );
-    if (observerTarget.current) observer.observe(observerTarget.current);
+    observer.observe(node);
     return () => observer.disconnect();
-  }, [loadMore]);
+  }, [loadMore, scrollBodyEl]);
 
   const sortOptions: { value: SortType; label: string }[] = [
     { value: 'alphabeticalByName',   label: t('albums.sortByName') },
@@ -226,118 +250,138 @@ export default function Albums() {
   ];
 
   return (
-    <div className="content-body animate-fade-in">
+    <div className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}>
       {!perfFlags.disableMainstageStickyHeader && (
-        <div className="page-sticky-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <h1 className="page-title" style={{ marginBottom: 0 }}>
-            {selectionMode && selectedIds.size > 0
-              ? t('albums.selectionCount', { count: selectedIds.size })
-              : t('albums.title')}
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {selectionMode && selectedIds.size > 0 ? (
-              <>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
-                  <ListPlus size={15} />
-                  {t('albums.enqueueSelected', { count: selectedIds.size })}
-                </button>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
-                  <HardDriveDownload size={15} />
-                  {t('albums.addOffline')}
-                </button>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
-                  <Download size={15} />
-                  {t('albums.downloadZips')}
-                </button>
-              </>
-            ) : (
-              <>
-                {!yearActive && (
-                  <SortDropdown
-                    value={sort}
-                    options={sortOptions}
-                    onChange={setSort}
+        <div className="mainstage-inpage-toolbar">
+          <div className="page-sticky-header mainstage-inpage-toolbar-row">
+            <h1 className="page-title" style={{ marginBottom: 0 }}>
+              {selectionMode && selectedIds.size > 0
+                ? t('albums.selectionCount', { count: selectedIds.size })
+                : t('albums.title')}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {selectionMode && selectedIds.size > 0 ? (
+                <>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
+                    <ListPlus size={15} />
+                    {t('albums.enqueueSelected', { count: selectedIds.size })}
+                  </button>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
+                    <HardDriveDownload size={15} />
+                    {t('albums.addOffline')}
+                  </button>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
+                    <Download size={15} />
+                    {t('albums.downloadZips')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {!yearActive && (
+                    <SortDropdown
+                      value={sort}
+                      options={sortOptions}
+                      onChange={setSort}
+                    />
+                  )}
+
+                  <YearFilterButton
+                    from={yearFrom}
+                    to={yearTo}
+                    onChange={(from, to) => { setYearFrom(from); setYearTo(to); }}
                   />
-                )}
 
-                <YearFilterButton
-                  from={yearFrom}
-                  to={yearTo}
-                  onChange={(from, to) => { setYearFrom(from); setYearTo(to); }}
-                />
+                  <GenreFilterBar selected={selectedGenres} onSelectionChange={setSelectedGenres} />
 
-                <GenreFilterBar selected={selectedGenres} onSelectionChange={setSelectedGenres} />
+                  <StarFilterButton active={starredOnly} onChange={setStarredOnly} />
 
-                <StarFilterButton active={starredOnly} onChange={setStarredOnly} />
+                  <button
+                    className={`btn btn-surface${compFilter !== 'all' ? ' btn-sort-active' : ''}`}
+                    onClick={cycleCompFilter}
+                    data-tooltip={
+                      compFilter === 'all' ? t('albums.compilationTooltipAll')
+                      : compFilter === 'only' ? t('albums.compilationTooltipOnly')
+                      : t('albums.compilationTooltipHide')
+                    }
+                    data-tooltip-pos="bottom"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.4rem',
+                      ...(compFilter !== 'all' ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}),
+                    }}
+                  >
+                    <Disc3 size={14} />
+                    {compFilter === 'all' ? t('albums.compilationLabel')
+                      : compFilter === 'only' ? t('albums.compilationOnly')
+                      : t('albums.compilationHide')}
+                  </button>
+                </>
+              )}
 
-                <button
-                  className={`btn btn-surface${compFilter !== 'all' ? ' btn-sort-active' : ''}`}
-                  onClick={cycleCompFilter}
-                  data-tooltip={
-                    compFilter === 'all' ? t('albums.compilationTooltipAll')
-                    : compFilter === 'only' ? t('albums.compilationTooltipOnly')
-                    : t('albums.compilationTooltipHide')
-                  }
-                  data-tooltip-pos="bottom"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                    ...(compFilter !== 'all' ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}),
-                  }}
-                >
-                  <Disc3 size={14} />
-                  {compFilter === 'all' ? t('albums.compilationLabel')
-                    : compFilter === 'only' ? t('albums.compilationOnly')
-                    : t('albums.compilationHide')}
-                </button>
-              </>
-            )}
-
-            <button
-              className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-              onClick={toggleSelectionMode}
-              data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
-              data-tooltip-pos="bottom"
-              style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
-            >
-              <CheckSquare2 size={15} />
-              {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
-            </button>
+              <button
+                className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
+                onClick={toggleSelectionMode}
+                data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
+                data-tooltip-pos="bottom"
+                style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+              >
+                <CheckSquare2 size={15} />
+                {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {loading && albums.length === 0 ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-          <div className="spinner" />
-        </div>
-      ) : (
-        <>
-          {!perfFlags.disableMainstageGridCards && (
-            <VirtualCardGrid
-              items={visibleAlbums}
-              itemKey={(a, _i) => a.id}
-              rowVariant="album"
-              disableVirtualization={perfFlags.disableMainstageVirtualLists}
-              layoutSignal={visibleAlbums.length}
-              renderItem={a => (
-                <AlbumCard
-                  album={a}
-                  selectionMode={selectionMode}
-                  selected={selectedIds.has(a.id)}
-                  onToggleSelect={toggleSelect}
-                  selectedAlbums={selectedAlbums}
-                />
-              )}
-            />
-          )}
-          {!genreFiltered && (
-            <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-              {loading && hasMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
-            </div>
-          )}
-        </>
-      )}
-
+      <OverlayScrollArea
+        className="mainstage-inpage-scroll"
+        viewportClassName="mainstage-inpage-scroll__viewport"
+        viewportId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+        viewportRef={bindAlbumsScrollBody}
+        railInset="panel"
+        measureDeps={[
+          loading,
+          visibleAlbums.length,
+          genreFiltered,
+          hasMore,
+          selectionMode,
+          sort,
+          perfFlags.disableMainstageGridCards,
+          perfFlags.disableMainstageVirtualLists,
+        ]}
+      >
+        {loading && albums.length === 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+            <div className="spinner" />
+          </div>
+        ) : (
+          <>
+            {!perfFlags.disableMainstageGridCards && (
+              <VirtualCardGrid
+                items={visibleAlbums}
+                itemKey={(a, _i) => a.id}
+                rowVariant="album"
+                disableVirtualization={perfFlags.disableMainstageVirtualLists}
+                layoutSignal={visibleAlbums.length}
+                scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                renderItem={a => (
+                  <AlbumCard
+                    album={a}
+                    selectionMode={selectionMode}
+                    selected={selectedIds.has(a.id)}
+                    onToggleSelect={toggleSelect}
+                    selectedAlbums={selectedAlbums}
+                  />
+                )}
+              />
+            )}
+            {!genreFiltered && (
+              <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+                {loading && hasMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
+              </div>
+            )}
+          </>
+        )}
+      </OverlayScrollArea>
     </div>
   );
 }
