@@ -495,6 +495,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * With a non-empty queue from server **A**, switching the active server to **B** no longer breaks playback: streams, hot-cache prefetch, seek/resume, and MPRIS cover art use **`queueServerId`** (persisted with the queue).
 * **Cover art** in the queue panel, player bar, mini/fullscreen/mobile players, and Now Playing loads from the queue server when it differs from the browsed server.
 * **Artist/album links** from the player, queue, Now Playing, and mini player switch back to the queue server before navigating; **queue** and **player-bar album** context menus pin API actions to that server as well.
+* Opening **Now Playing** (sidebar, mobile route, or queue info panel) switches to the queue server before Subsonic metadata loads, with per-server fetch caches so artist/album cards do not show the wrong library.
 
 ## [1.45.0] - 2026-05-04
 

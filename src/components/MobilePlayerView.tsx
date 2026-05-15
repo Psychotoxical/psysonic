@@ -5,6 +5,7 @@ import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store
 import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
+import { useEnsurePlaybackServerOnMount } from '../hooks/useEnsurePlaybackServerOnMount';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
@@ -154,6 +155,7 @@ export default function MobilePlayerView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
+  useEnsurePlaybackServerOnMount();
 
   // Lock body scroll while full-screen player is mounted
   useEffect(() => {
