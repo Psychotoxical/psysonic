@@ -46,6 +46,23 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
     invoke('set_linux_webkit_smooth_scrolling', { enabled: linuxWebkitKineticScroll }).catch(() => {});
   }, [linuxWebkitKineticScroll]);
 
+  // Persist rehydrates after first paint — default store has kinetic scroll ON until localStorage merges.
+  // Re-apply OS WebKit prefs after hydrate (same pattern as useMiniWindowSetup) so OFF stays OFF.
+  useEffect(() => {
+    if (!IS_LINUX) return;
+    const applySmoothFromStore = () => {
+      invoke('set_linux_webkit_smooth_scrolling', {
+        enabled: useAuthStore.getState().linuxWebkitKineticScroll,
+      }).catch(() => {});
+    };
+    if (useAuthStore.persist.hasHydrated()) {
+      applySmoothFromStore();
+    }
+    return useAuthStore.persist.onFinishHydration(() => {
+      applySmoothFromStore();
+    });
+  }, []);
+
   useEffect(() => {
     invoke('set_logging_mode', { mode: loggingMode }).catch(() => {});
   }, [loggingMode]);

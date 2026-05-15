@@ -36,8 +36,7 @@
   src,
   upstreamMeta,
   # When true, wrapProgram sets GDK_BACKEND=x11 (legacy conservative stack).
-  # When false (default), wraps with PSYSONIC_ALLOW_NATIVE_GDK so GDK follows the session;
-  # startup code + webkit2gtk-nvidia-quirk handle WebKit mitigations.
+  # When false (default), only lib paths — GDK follows session; binary applies webkit2gtk-nvidia-quirk only.
   forceGdkX11 ? false,
 }:
 
@@ -166,16 +165,13 @@ stdenv.mkDerivation (finalAttrs: {
       gdkX11Wrap = lib.optionalString forceGdkX11 ''
         --set GDK_BACKEND x11
       '';
-      allowNativeGdkWrap = lib.optionalString (!forceGdkX11) ''
-        --set PSYSONIC_ALLOW_NATIVE_GDK 1
-      '';
     in
     ''
       wrapProgram $out/bin/psysonic \
         --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ libayatana-appindicator ]}" \
         --prefix GST_PLUGIN_PATH : "${gstPluginPath}" \
         --prefix GIO_EXTRA_MODULES : "${glib-networking}/lib/gio/modules" \
-        ${gdkX11Wrap}${allowNativeGdkWrap}
+        ${gdkX11Wrap}
     '';
 
   meta = {

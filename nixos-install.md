@@ -91,7 +91,7 @@ The flake exposes **three** Linux attributes (two are the **same derivation**):
 
 | Flake attribute | Wrapper behaviour |
 |----------------|-------------------|
-| **`psysonic`**, **`default`**, **`psysonic-gdk-session`** | Sets **`PSYSONIC_ALLOW_NATIVE_GDK`** so **`GDK_BACKEND`** stays unset unless the user exports it — GTK follows the **session** (Wayland vs X11). Does **not** force **`WEBKIT_DISABLE_*`**; startup code (**`webkit2gtk-nvidia-quirk`**, compositing heuristics in **`main.rs`**) selects mitigations at runtime. |
+| **`psysonic`**, **`default`**, **`psysonic-gdk-session`** | Wrappers prefix **libraries only** (**GStreamer**, **AppIndicator**); **`GDK_BACKEND`** is **not** pinned. The binary invokes **`webkit2gtk-nvidia-quirk`** early on Linux (unless **`PSYSONIC_WEBKIT_GPU_ACCEL`** is set); no extra **`WEBKIT_DISABLE_*`** heuristics in **`main.rs`**. Override with **`GDK_BACKEND`**, **`WEBKIT_DISABLE_*`**, etc. whenever you want. |
 | **`psysonic-x11-legacy`** | Former default: **`GDK_BACKEND=x11`** pinned in the wrapper. Use if you relied on **XWayland-ish** stability on messy stacks. Same binary as **`psysonic`**. |
 
 `psysonic-gdk-session` remains a **back-compat alias** for **`psysonic`** (identical store path).
@@ -180,8 +180,6 @@ From a **flake-enabled** clone of the repo:
 - **`nix shell .#devShells.default`** — same packages and hooks without `nix develop`’s subshell semantics.
 
 The flake **`devShell`** uses the same **`nixpkgs`** input as **`packages.psysonic`** (see **`flake.nix`**).
-
-Optional **local-only** helpers (`dev.sh`, `shell.nix`, `prod.sh`) are **gitignored** — not part of the upstream tree; keep your own copies if you use them (e.g. a small `dev.sh` that runs `nix develop` and `npm run tauri:dev`).
 
 ## Desktop entry
 

@@ -111,5 +111,5 @@ export const help = {
   q44: 'Cover art and artist images load slowly.',
   a44: 'Images are fetched from your server on first view and then cached locally for 30 days. If your server\'s storage is slow, the first visit to a page can take a moment; subsequent visits are instant. The Hot Cache also helps for tracks but image cache is independent.',
   q45: 'Linux issues — black screen or no audio?',
-  a45: 'Black screen is usually a GPU / EGL driver issue in WebKitGTK. Linux packages set PSYSONIC_ALLOW_NATIVE_GDK so GTK follows your session; startup applies WebKit mitigations automatically (including on NVIDIA). Try GDK_BACKEND=x11 for a quick X11 fallback, or set WEBKIT_DISABLE_COMPOSITING_MODE=1 and WEBKIT_DISABLE_DMABUF_RENDERER=1 before launch as a heavier workaround. For audio, make sure PipeWire or PulseAudio is running. If audio drops out after sleep / wake, this is now handled automatically by the post-sleep recovery hook.',
+  a45: 'A black screen on Linux is usually a graphics or WebView display issue. Try an X11 session, or set GDK_BACKEND=x11 and EGL_PLATFORM=x11 before launching if you use Wayland. For audio, make sure PipeWire or PulseAudio is running. If sound stops after sleep or wake, quit Psysonic completely and open it again.',
 };

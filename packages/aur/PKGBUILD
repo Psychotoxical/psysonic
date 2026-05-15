@@ -53,10 +53,9 @@ package() {
   # Binary (in /usr/lib to make room for the wrapper)
   install -Dm755 "src-tauri/target/release/psysonic" "$pkgdir/usr/lib/psysonic/psysonic"
 
-  # Wrapper: session-native GDK; WebKit mitigations from main.rs / nvidia-quirk (no forced WEBKIT_*).
+  # Wrapper: thin exec (path hygiene only); GDK/session + WebKit mitigations come from main.rs / quirk (no GDK pin).
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/psysonic" <<EOF
 #!/bin/sh
-export PSYSONIC_ALLOW_NATIVE_GDK=1
 exec /usr/lib/psysonic/psysonic "\$@"
 EOF
 

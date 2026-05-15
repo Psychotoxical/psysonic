@@ -111,5 +111,5 @@ export const help = {
   q44: 'Cover und Künstlerbilder laden langsam.',
   a44: 'Bilder werden beim ersten Aufruf vom Server geholt und dann 30 Tage lokal gecacht. Bei langsamen Server-Festplatten kann der erste Seitenaufruf einen Moment dauern; danach sind sie sofort da. Der Hot Cache hilft auch bei Tracks, der Bild-Cache ist davon unabhängig.',
   q45: 'Linux-Probleme — schwarzer Bildschirm oder kein Ton?',
-  a45: 'Schwarzer Bildschirm ist meist ein GPU- / EGL-Treiberproblem in WebKitGTK. Linux-Pakete setzen PSYSONIC_ALLOW_NATIVE_GDK, damit GTK der Session folgt; beim Start greifen automatische WebKit-Mitigations (auch für NVIDIA). Schneller Workaround: GDK_BACKEND=x11; stärker: vor dem Start WEBKIT_DISABLE_COMPOSITING_MODE=1 und WEBKIT_DISABLE_DMABUF_RENDERER=1. Für Audio: PipeWire oder PulseAudio. Tonaussetzer nach Sleep / Wake behandelt der Post-Sleep-Recovery-Hook.',
+  a45: 'Ein schwarzer Bildschirm unter Linux betrifft meist Grafik oder die WebView-Anzeige. Versuchen Sie eine X11-Sitzung oder setzen Sie vor dem Start GDK_BACKEND=x11 und EGL_PLATFORM=x11 (unter Wayland). Für Ton: PipeWire oder PulseAudio. Verschwindet der Ton nach Standby, beenden Sie Psysonic vollständig und starten Sie neu.',
 };

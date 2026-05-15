@@ -111,5 +111,5 @@ export const help = {
   q44: 'Arta copertei și imaginile artiștilor se încarcă încet.',
   a44: 'Imaginile sunt preluate de pe serverul tău la prima vedere și apoi stocate în cache pentru 30 de zile. Dacă stocarea serverului tău este înceată, prima vizită către o pagină poate dura un moment; vizitele consecutive sunt instantanee. Hot Cache de asemenea ajută pentru piese dar nu pentru cache-ul imaginii.',
   q45: 'Probleme pe Linux - ecran negru sau niciun audio?',
-  a45: 'Aceasta este de obicei o problemă GPU/EGL în WebKitGTK. Pachetele Linux folosesc PSYSONIC_ALLOW_NATIVE_GDK; la pornire se aplică mitigări WebKit (inclusiv NVIDIA). Încearcă GDK_BACKEND=x11 sau, mai dur, WEBKIT_DISABLE_COMPOSITING_MODE=1 și WEBKIT_DISABLE_DMABUF_RENDERER=1 înainte de lansare. Audio: PipeWire sau PulseAudio. Pauzele după sleep — hook post-sleep.',
+  a45: 'Ecranul negru pe Linux este de obicei o problemă de grafică sau de afișare WebView. Încearcă o sesiune X11 sau setează înainte de lansare GDK_BACKEND=x11 și EGL_PLATFORM=x11 dacă folosești Wayland. Pentru audio: PipeWire sau PulseAudio. Dacă sunetul dispare după somn, închide complet Psysonic și redeschide-l.',
 };

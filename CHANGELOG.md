@@ -320,6 +320,10 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Rolled out across the main **card-grid library surfaces** — **Albums**, **Random Albums**, **New Releases**, **Lossless Albums**, **Playlists**, **Composers**, **Composer detail**, **Genre detail**, **Label albums**, **Album detail** (similar / same-artist rails), **Artist detail** (album / appearance / compilation grids), **Internet Radio**, **Offline Library** (albums + playlists), and **Artists** grid mode (virtual rows driven by the same column metrics).
 * **Settings → Appearance → Library card grids:** persisted **maximum columns** (**4–12**, default **6**) with translated copy calling out **performance** trade-offs. Settings search index updated.
 
+### Linux — only `webkit2gtk-nvidia-quirk` tweaks WebKit/NVIDIA env at startup
+
+* **`main.rs`** no longer synthesizes **`GDK_BACKEND`** or hand-rolled **`WEBKIT_DISABLE_*` / Optimus overrides; **`webkit2gtk-nvidia-quirk`** (`ApplyWorkaroundOptions::default()`, skipped when **`PSYSONIC_WEBKIT_GPU_ACCEL`** is set) is the sole automatic NVIDIA/session mitigation path. Packaging still prefixes **GStreamer** / **AppIndicator** paths only; **`nix build/run …#psysonic-x11-legacy`** remains the explicit **`GDK_BACKEND=x11`** launcher.
+
 ## Removed
 
 ### Settings — Animations 3-state setting under Seekbar Style
