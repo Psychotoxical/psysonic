@@ -195,6 +195,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The queue header chip (total duration / remaining time / ETA finish clock) now persists across app restarts via a new `queueDurationDisplayMode` field on `authStore`. Corrupt or missing persisted values fall back to **total** on rehydrate, matching the existing `seekbarStyle` sanitizer pattern.
 
+### Tracklists — Plays / Last played / BPM columns + Song Info rows
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by jbigginswyl ([#516](https://github.com/Psychotoxical/psysonic/issues/516)), PR [#730](https://github.com/Psychotoxical/psysonic/pull/730)**
+
+* New opt-in columns **Plays**, **Last played**, and **BPM** on the Album / Playlist / Favorites tracklists, plus matching rows in the Song Info modal. Pulls Navidrome's existing `playCount` / `played` / `bpm` from the Subsonic response — no extra API calls. Genre column also added to the playlist tracklist for parity with Album + Favorites. BPM cells render `—` when Navidrome returns 0 (untagged file); Plays / Last played render `—` only when truly absent.
+* Defensive fix in the tracklist column hook: visible columns with no saved width on an older prefs blob now fall back to the ColDef's default width instead of collapsing the row layout.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)
