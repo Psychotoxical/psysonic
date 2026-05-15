@@ -5,7 +5,9 @@ function eventTargetElement(e: Event): Element | null {
   const t = e.target;
   if (!t) return null;
   if (t instanceof Element) return t;
-  return t.parentElement;
+  if (!(t instanceof Node)) return null;
+  const parent = t.parentNode;
+  return parent instanceof Element ? parent : null;
 }
 
 function isTextInputElement(el: Element): boolean {
