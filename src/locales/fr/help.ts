@@ -101,5 +101,5 @@ export const help = {
   q44: 'Les pochettes et images d\'artiste se chargent lentement.',
   a44: 'Les images sont récupérées du serveur à la première vue puis mises en cache localement pour 30 jours. Si le stockage du serveur est lent, la première visite d\'une page peut prendre un instant ; les visites suivantes sont instantanées. Le Hot Cache aide aussi pour les pistes mais le cache d\'images est indépendant.',
   q45: 'Problèmes Linux — écran noir ou pas de son ?',
-  a45: 'L\'écran noir est généralement un souci de pilote GPU / EGL dans WebKitGTK — lancez avec GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 (les installeurs AUR / .deb / .rpm le font automatiquement). Pour le son, vérifiez que PipeWire ou PulseAudio tourne. Les coupures audio après mise en veille sont désormais gérées automatiquement par le hook de récupération post-sleep.',
+  a45: 'L\'écran noir indique souvent un pilote GPU / EGL dans WebKitGTK. Les paquets Linux définissent PSYSONIC_ALLOW_NATIVE_GDK ; des atténuations WebKit s\'appliquent au démarrage (y compris NVIDIA). Essayez GDK_BACKEND=x11, ou WEBKIT_DISABLE_COMPOSITING_MODE=1 et WEBKIT_DISABLE_DMABUF_RENDERER=1 avant le lancement. Audio : PipeWire ou PulseAudio. Après veille, le hook post-sleep gère les coupures.',
 };

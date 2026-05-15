@@ -111,5 +111,5 @@ export const help = {
   q44: 'Arta copertei și imaginile artiștilor se încarcă încet.',
   a44: 'Imaginile sunt preluate de pe serverul tău la prima vedere și apoi stocate în cache pentru 30 de zile. Dacă stocarea serverului tău este înceată, prima vizită către o pagină poate dura un moment; vizitele consecutive sunt instantanee. Hot Cache de asemenea ajută pentru piese dar nu pentru cache-ul imaginii.',
   q45: 'Probleme pe Linux - ecran negru sau niciun audio?',
-  a45: 'Aceasta este de obicei o problemă de driver GPU/EGL în WebKitGTK. Pornește cu GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1. Pachetul AUR și installer-ele oficiale .deb/.rpm fac asta automat.',
+  a45: 'Aceasta este de obicei o problemă GPU/EGL în WebKitGTK. Pachetele Linux folosesc PSYSONIC_ALLOW_NATIVE_GDK; la pornire se aplică mitigări WebKit (inclusiv NVIDIA). Încearcă GDK_BACKEND=x11 sau, mai dur, WEBKIT_DISABLE_COMPOSITING_MODE=1 și WEBKIT_DISABLE_DMABUF_RENDERER=1 înainte de lansare. Audio: PipeWire sau PulseAudio. Pauzele după sleep — hook post-sleep.',
 };

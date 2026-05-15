@@ -546,6 +546,23 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * **Lucky Mix** ran many queue edits (`pruneUpcomingToCurrent`, **`playTrack`**, **`enqueue`** batches). Each pushed onto the bounded **`QUEUE_UNDO_MAX`** stack, so the snapshot taken **before** Lucky Mix was usually shifted off — Ctrl+Z only stepped through small edits or could not restore the prior queue. The mix flow now pushes **one** undo snapshot up-front and skips intermediate **`enqueue`** / prune snapshots (**`skipQueueUndo`**) so a single undo restores the queue from immediately **before** Lucky Mix.
 
+### Linux — NVIDIA + WebKitGTK session quirks (`webkit2gtk-nvidia-quirk`)
+
+**By [@cucadmuh](https://github.com/cucadmuh)**
+
+* Startup calls **`webkit2gtk-nvidia-quirk`** early on Linux before the UI loads — when the crate detects proprietary NVIDIA on the primary/boot GPU (`XDG_SESSION_TYPE=x11`) it sets **`WEBKIT_DISABLE_DMABUF_RENDERER=1`**; on **`wayland`** it sets **`__NV_DISABLE_EXPLICIT_SYNC`**, aligned with egl-wayland / WebKitGTK guidance.
+* **Nix / AUR default wrap** sets **`PSYSONIC_ALLOW_NATIVE_GDK`** only (Nix also prefixes GStreamer / AppIndicator library paths); **`WEBKIT_DISABLE_*`** is no longer pinned at install time. **`nix build .#psysonic-x11-legacy`** restores the former **`GDK_BACKEND=x11`** wrapper. **`psysonic-gdk-session`** is an alias of **`psysonic`** (same store path).
+* **`PSYSONIC_WEBKIT_GPU_ACCEL`** skips automatic quirk application so packaged env and opt-in GPU dev modes stay authoritative.
+* **Wayland GTK** (`**XDG_SESSION_TYPE=wayland**` plus **`GDK_BACKEND=wayland`**) skips the conservative “always disable compositing” default WebKit inherits on Linux so session-aware startup + **`webkit2gtk-nvidia-quirk`** can tune the stack automatically.
+* **Optimus** (NVIDIA usable but DRM primary/boot is Intel): if **`WEBKIT_DISABLE_DMABUF_RENDERER`** is still unset after the quirk, proprietary NVIDIA present, and **`XDG_SESSION_TYPE`≠`wayland`**, legacy **DMABUF renderer off** fills the crate’s primary-GPU assumption gap.
+
+### Linux — Nix / AUR packaging (session-native GDK default)
+
+**By [@cucadmuh](https://github.com/cucadmuh)**
+
+* Flake **`psysonic`**, **`default`**, **`psysonic-gdk-session`**, and the **AUR** launcher set **`PSYSONIC_ALLOW_NATIVE_GDK`** only; Nix additionally prefixes **GStreamer** / **AppIndicator** libraries. **`WEBKIT_DISABLE_*`** are no longer forced from wrappers — startup code owns mitigations.
+* **`packages.<system>.psysonic-x11-legacy`** (and **`nix run .#psysonic-x11-legacy`**) restores **`GDK_BACKEND=x11`** for the old conservative layout. **`psysonic-gdk-session`** is a **backward-compat alias** of **`psysonic`** (identical store path).
+
 ## [1.45.0] - 2026-05-04
 
 ## Added

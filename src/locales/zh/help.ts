@@ -101,5 +101,5 @@ export const help = {
   q44: '封面和艺术家图像加载缓慢。',
   a44: '图像在首次查看时从服务器获取，然后本地缓存 30 天。如果您服务器的存储速度慢，第一次访问页面可能需要片刻；后续访问是即时的。Hot Cache 也对曲目有帮助，但图像缓存是独立的。',
   q45: 'Linux 问题 — 黑屏或无声音？',
-  a45: '黑屏通常是 WebKitGTK 中的 GPU / EGL 驱动程序问题 — 使用 GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 启动（AUR / .deb / .rpm 安装程序自动设置这些）。对于音频，确保 PipeWire 或 PulseAudio 正在运行。睡眠/唤醒后的音频丢失现在由 post-sleep 恢复钩子自动处理。',
+  a45: '黑屏通常是 WebKitGTK 中的 GPU / EGL 驱动问题。Linux 软件包设置 PSYSONIC_ALLOW_NATIVE_GDK；启动时会自动施加 WebKit 缓解措施（含 NVIDIA）。可尝试 GDK_BACKEND=x11，或启动前手动设置 WEBKIT_DISABLE_COMPOSITING_MODE=1 与 WEBKIT_DISABLE_DMABUF_RENDERER=1。请确保 PipeWire 或 PulseAudio 运行；睡眠唤醒后的音频问题由 post-sleep 恢复钩子处理。',
 };

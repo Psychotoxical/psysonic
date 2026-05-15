@@ -3749,6 +3749,7 @@ dependencies = [
  "tokio",
  "url",
  "webkit2gtk",
+ "webkit2gtk-nvidia-quirk",
  "windows 0.62.2",
  "zbus 5.15.0",
 ]
@@ -6464,6 +6465,12 @@ dependencies = [
  "soup3",
  "webkit2gtk-sys",
 ]
+
+[[package]]
+name = "webkit2gtk-nvidia-quirk"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fde8fe8f4986fe10ea5247f7b00dad36826e45b67cbc13dce55c13ae1368855"
 
 [[package]]
 name = "webkit2gtk-sys"

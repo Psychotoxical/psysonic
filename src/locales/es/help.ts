@@ -101,5 +101,5 @@ export const help = {
   q44: 'Las portadas e imágenes de artista cargan lentamente.',
   a44: 'Las imágenes se obtienen del servidor en la primera vista y luego se almacenan localmente durante 30 días. Si el almacenamiento de tu servidor es lento, la primera visita a una página puede tardar un momento; las visitas posteriores son instantáneas. Hot Cache también ayuda con pistas pero el caché de imágenes es independiente.',
   q45: 'Problemas en Linux — ¿pantalla negra o sin sonido?',
-  a45: 'La pantalla negra es generalmente un problema de driver GPU / EGL en WebKitGTK — lanza con GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 (los instaladores AUR / .deb / .rpm los configuran automáticamente). Para audio, asegúrate de que PipeWire o PulseAudio esté ejecutándose. Los cortes de audio tras suspensión / despertar ahora son manejados automáticamente por el hook de recuperación post-sleep.',
+  a45: 'La pantalla negra suele ser un problema de driver GPU / EGL en WebKitGTK. Los paquetes Linux usan PSYSONIC_ALLOW_NATIVE_GDK; al arrancar se aplican mitigaciones automáticas (incl. NVIDIA). Prueba GDK_BACKEND=x11 o, más agresivo, WEBKIT_DISABLE_COMPOSITING_MODE=1 y WEBKIT_DISABLE_DMABUF_RENDERER=1 antes de lanzar. Audio: PipeWire o PulseAudio. Tras suspensión, el hook post-sleep recupera el audio.',
 };

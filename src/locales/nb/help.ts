@@ -101,5 +101,5 @@ export const help = {
   q44: 'Cover-art og artistbilder lastes sakte.',
   a44: 'Bilder hentes fra serveren ved første visning og caches deretter lokalt i 30 dager. Hvis serverens lagring er treg, kan første besøk på en side ta et øyeblikk; påfølgende besøk er umiddelbare. Hot Cache hjelper også for spor, men bildecachen er uavhengig.',
   q45: 'Linux-problemer — svart skjerm eller ingen lyd?',
-  a45: 'Svart skjerm er vanligvis et GPU- / EGL-driverproblem i WebKitGTK — start med GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 (AUR / .deb / .rpm-installerne setter disse automatisk). For lyd, sørg for at PipeWire eller PulseAudio kjører. Lydutfall etter dvale / oppvåkning håndteres nå automatisk av post-sleep recovery hook.',
+  a45: 'Svart skjerm tyder vanligvis på GPU- / EGL-problem i WebKitGTK. Linux-pakker setter PSYSONIC_ALLOW_NATIVE_GDK; oppstart legger på WebKit-mitigasjon (også NVIDIA). Prøv GDK_BACKEND=x11, eller WEBKIT_DISABLE_COMPOSITING_MODE=1 og WEBKIT_DISABLE_DMABUF_RENDERER=1 før start. Audio: PipeWire eller PulseAudio. Etter hvile håndteres avbrudd av post-sleep recovery hook.',
 };

@@ -101,5 +101,5 @@ export const help = {
   q44: 'Hoezen en artiestafbeeldingen laden traag.',
   a44: 'Afbeeldingen worden bij de eerste weergave van uw server gehaald en vervolgens 30 dagen lokaal gecached. Als de opslag van uw server traag is, kan het eerste bezoek aan een pagina even duren; volgende bezoeken zijn onmiddellijk. De Hot Cache helpt ook voor nummers, maar de afbeeldingscache is onafhankelijk.',
   q45: 'Linux-problemen — zwart scherm of geen geluid?',
-  a45: 'Zwart scherm is meestal een GPU / EGL-stuurprogrammakwestie in WebKitGTK — start met GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 (de AUR / .deb / .rpm-installers stellen deze automatisch in). Voor audio, zorg ervoor dat PipeWire of PulseAudio draait. Audio-uitval na slaap / wakker worden wordt nu automatisch afgehandeld door de post-sleep recovery hook.',
+  a45: 'Zwart scherm wijst meestal op een GPU- / EGL-probleem in WebKitGTK. Linux-pakketten zetten PSYSONIC_ALLOW_NATIVE_GDK; bij start worden WebKit-mitigaties toegepast (incl. NVIDIA). Probeer GDK_BACKEND=x11 of zwaarder WEBKIT_DISABLE_COMPOSITING_MODE=1 en WEBKIT_DISABLE_DMABUF_RENDERER=1 vóór start. Audio: PipeWire of PulseAudio. Na sleep/wake helpt de post-sleep recovery hook.',
 };

@@ -53,12 +53,10 @@ package() {
   # Binary (in /usr/lib to make room for the wrapper)
   install -Dm755 "src-tauri/target/release/psysonic" "$pkgdir/usr/lib/psysonic/psysonic"
 
-  # Wrapper script that sets necessary env vars for WebKitGTK on Wayland
+  # Wrapper: session-native GDK; WebKit mitigations from main.rs / nvidia-quirk (no forced WEBKIT_*).
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/psysonic" <<EOF
 #!/bin/sh
-export GDK_BACKEND=x11
-export WEBKIT_DISABLE_COMPOSITING_MODE=1
-export WEBKIT_DISABLE_DMABUF_RENDERER=1
+export PSYSONIC_ALLOW_NATIVE_GDK=1
 exec /usr/lib/psysonic/psysonic "\$@"
 EOF
 

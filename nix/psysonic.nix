@@ -35,9 +35,10 @@
   gst_all_1,
   src,
   upstreamMeta,
-  # When true (default), wrapProgram sets GDK_BACKEND=x11 for WebKit stability on many setups.
-  # When false, GDK follows the session (e.g. native Wayland) — often better HiDPI sizing.
-  forceGdkX11 ? true,
+  # When true, wrapProgram sets GDK_BACKEND=x11 (legacy conservative stack).
+  # When false (default), wraps with PSYSONIC_ALLOW_NATIVE_GDK so GDK follows the session;
+  # startup code + webkit2gtk-nvidia-quirk handle WebKit mitigations.
+  forceGdkX11 ? false,
 }:
 
 let
@@ -163,10 +164,10 @@ stdenv.mkDerivation (finalAttrs: {
   postFixup =
     let
       gdkX11Wrap = lib.optionalString forceGdkX11 ''
-        --set GDK_BACKEND x11 \
+        --set GDK_BACKEND x11
       '';
       allowNativeGdkWrap = lib.optionalString (!forceGdkX11) ''
-        --set PSYSONIC_ALLOW_NATIVE_GDK 1 \
+        --set PSYSONIC_ALLOW_NATIVE_GDK 1
       '';
     in
     ''
@@ -174,8 +175,7 @@ stdenv.mkDerivation (finalAttrs: {
         --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ libayatana-appindicator ]}" \
         --prefix GST_PLUGIN_PATH : "${gstPluginPath}" \
         --prefix GIO_EXTRA_MODULES : "${glib-networking}/lib/gio/modules" \
-        ${gdkX11Wrap}${allowNativeGdkWrap}--set WEBKIT_DISABLE_COMPOSITING_MODE 1 \
-        --set WEBKIT_DISABLE_DMABUF_RENDERER 1
+        ${gdkX11Wrap}${allowNativeGdkWrap}
     '';
 
   meta = {

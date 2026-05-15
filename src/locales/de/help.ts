@@ -111,5 +111,5 @@ export const help = {
   q44: 'Cover und Künstlerbilder laden langsam.',
   a44: 'Bilder werden beim ersten Aufruf vom Server geholt und dann 30 Tage lokal gecacht. Bei langsamen Server-Festplatten kann der erste Seitenaufruf einen Moment dauern; danach sind sie sofort da. Der Hot Cache hilft auch bei Tracks, der Bild-Cache ist davon unabhängig.',
   q45: 'Linux-Probleme — schwarzer Bildschirm oder kein Ton?',
-  a45: 'Schwarzer Bildschirm ist meist ein GPU- / EGL-Treiberproblem in WebKitGTK — mit GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 starten (die AUR- / .deb- / .rpm-Installer setzen das automatisch). Für Audio sicherstellen, dass PipeWire oder PulseAudio läuft. Tonaussetzer nach Sleep / Wake werden mittlerweile vom Post-Sleep-Recovery-Hook automatisch behandelt.',
+  a45: 'Schwarzer Bildschirm ist meist ein GPU- / EGL-Treiberproblem in WebKitGTK. Linux-Pakete setzen PSYSONIC_ALLOW_NATIVE_GDK, damit GTK der Session folgt; beim Start greifen automatische WebKit-Mitigations (auch für NVIDIA). Schneller Workaround: GDK_BACKEND=x11; stärker: vor dem Start WEBKIT_DISABLE_COMPOSITING_MODE=1 und WEBKIT_DISABLE_DMABUF_RENDERER=1. Für Audio: PipeWire oder PulseAudio. Tonaussetzer nach Sleep / Wake behandelt der Post-Sleep-Recovery-Hook.',
 };
