@@ -540,6 +540,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The three header dropdowns (Orbit launch, Server picker, Live listeners) each had their own container styling. Live in particular used a glass / backdrop-filter utility that read poorly on many themes. All three now share the **`.nav-library-dropdown-panel`** container — same background, border, shadow and radius via the existing semantic tokens. Item layouts per dropdown stay case-specific.
 
+### Queue — Lucky Mix coalesced into one Ctrl+Z / Cmd+Z undo step
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#728](https://github.com/Psychotoxical/psysonic/pull/728)**
+
+* **Lucky Mix** ran many queue edits (`pruneUpcomingToCurrent`, **`playTrack`**, **`enqueue`** batches). Each pushed onto the bounded **`QUEUE_UNDO_MAX`** stack, so the snapshot taken **before** Lucky Mix was usually shifted off — Ctrl+Z only stepped through small edits or could not restore the prior queue. The mix flow now pushes **one** undo snapshot up-front and skips intermediate **`enqueue`** / prune snapshots (**`skipQueueUndo`**) so a single undo restores the queue from immediately **before** Lucky Mix.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added

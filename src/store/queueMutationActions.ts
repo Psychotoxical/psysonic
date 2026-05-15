@@ -36,6 +36,8 @@ function blockCrossServerEnqueue(): boolean {
  * Eleven queue-mutation actions. Shared invariant: every action except
  * `setRadioArtistId` pushes a queue-undo snapshot and calls
  * `syncQueueToServer` so the Navidrome `savePlayQueue` stays in sync.
+ * Exceptions: `enqueue`'s optional third argument **`skipQueueUndo`** and
+ * **`pruneUpcomingToCurrent(true)`** — Lucky Mix pushes one snapshot up-front.
  */
 export function createQueueMutationActions(set: SetState, get: GetState): Pick<
   PlayerState,
@@ -52,15 +54,15 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
   | 'removeTrack'
 > {
   return {
-    enqueue: (tracks, _orbitConfirmed = false) => {
+    enqueue: (tracks, _orbitConfirmed = false, skipQueueUndo = false) => {
       if (blockCrossServerEnqueue()) return;
       if (!_orbitConfirmed && tracks.length > 1) {
         void orbitBulkGuard(tracks.length).then(ok => {
-          if (ok) get().enqueue(tracks, true);
+          if (ok) get().enqueue(tracks, true, skipQueueUndo);
         });
         return;
       }
-      pushQueueUndoFromGetter(get);
+      if (!skipQueueUndo) pushQueueUndoFromGetter(get);
       set(state => {
         // Insert before the first upcoming auto-added track so the
         // "Added automatically" separator always stays at the boundary.
@@ -181,17 +183,17 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       get().enqueueAt(tagged, insertIdx);
     },
 
-    pruneUpcomingToCurrent: () => {
+    pruneUpcomingToCurrent: (skipQueueUndo = false) => {
       const s = get();
       if (s.currentRadio) return;
       if (!s.currentTrack) {
         if (s.queue.length === 0) return;
-        pushQueueUndoFromGetter(get);
+        if (!skipQueueUndo) pushQueueUndoFromGetter(get);
         set({ queue: [], queueIndex: 0 });
         syncQueueToServer([], null, 0);
         return;
       }
-      pushQueueUndoFromGetter(get);
+      if (!skipQueueUndo) pushQueueUndoFromGetter(get);
       const at = s.queue.findIndex(t => t.id === s.currentTrack!.id);
       const newQueue: Track[] =
         at >= 0

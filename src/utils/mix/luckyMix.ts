@@ -6,6 +6,7 @@ import { songToTrack } from '../playback/songToTrack';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
+import { pushQueueUndoFromGetter } from '../../store/queueUndo';
 import { usePlayerStore } from '../../store/playerStore';
 import { useLuckyMixStore } from '../../store/luckyMixStore';
 import { isLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
@@ -89,18 +90,20 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     queueIndex: playerStateBefore.queueIndex,
   };
 
-  // Drop the old "upcoming" tail immediately so the queue UI does not show stale
-  // next tracks while the mix is still building (first playTrack may be delayed).
-  usePlayerStore.getState().pruneUpcomingToCurrent();
+  // One undo step for the whole Lucky Mix run — internal prune/play/enqueue
+  // batches must not each push (QUEUE_UNDO_MAX would drop this snapshot).
+  pushQueueUndoFromGetter(() => usePlayerStore.getState());
 
-  lucky.start();
-  // Per-run handles. Live outside the try so `finally`/`catch` can read
-  // `startedPlayback` (drives the queue-restore decision) and clean up the
-  // player-store subscription unconditionally.
   let unsubPlayer: (() => void) | null = null;
-  let startedPlayback = false;
   try {
-    let allSeedSongs: SubsonicSong[] = [];
+    // Drop the old "upcoming" tail immediately so the queue UI does not show stale
+    // next tracks while the mix is still building (first playTrack may be delayed).
+    usePlayerStore.getState().pruneUpcomingToCurrent(true);
+
+    lucky.start();
+    let startedPlayback = false;
+    try {
+      let allSeedSongs: SubsonicSong[] = [];
 
     const mixQueueSize = () => usePlayerStore.getState().queue.length;
     const mixQueueTrackIds = () => new Set(usePlayerStore.getState().queue.map(t => t.id));
@@ -117,7 +120,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       const play = allowed[0];
       startedPlayback = true;
       const track = songToTrack(play);
-      usePlayerStore.getState().playTrack(track, [track], true);
+      usePlayerStore.getState().playTrack(track, [track], false);
       logStep('start_immediate_playback', {
         source,
         song: songDebug([play])[0],
@@ -160,7 +163,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       const toAdd = sampleRandom(candidates, Math.min(remaining, candidates.length));
       if (!toAdd.length) return 0;
       const before = mixQueueSize();
-      usePlayerStore.getState().enqueue(toAdd.map(songToTrack), true);
+      usePlayerStore.getState().enqueue(toAdd.map(songToTrack), true, true);
       const added = mixQueueSize() - before;
       logStep('append_queue_batch', {
         reason,
@@ -373,6 +376,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       });
     }
     showToast(i18n.t('luckyMix.failed'), 5000, 'error');
+  }
   } finally {
     if (unsubPlayer) { try { unsubPlayer(); } catch { /* noop */ } }
     useLuckyMixStore.getState().stop();

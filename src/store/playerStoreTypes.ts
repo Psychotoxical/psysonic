@@ -107,7 +107,8 @@ export interface PlayerState {
    updateReplayGainForCurrentTrack: () => void;
    reanalyzeLoudnessForTrack: (trackId: string) => Promise<void>;
    setProgress: (t: number, duration: number) => void;
-  enqueue: (tracks: Track[], _orbitConfirmed?: boolean) => void;
+  /** `_orbitConfirmed` bypasses the bulk-append gate. `skipQueueUndo` skips the undo snapshot (macro builders such as Lucky Mix push once up-front). */
+  enqueue: (tracks: Track[], _orbitConfirmed?: boolean, skipQueueUndo?: boolean) => void;
   enqueueAt: (tracks: Track[], insertIndex: number, _orbitConfirmed?: boolean) => void;
   /** "Play Next" — inserts after the current track. When
    *  `preservePlayNextOrder` is on, appends to the existing Play-Next streak
@@ -117,8 +118,9 @@ export interface PlayerState {
   playNext: (tracks: Track[]) => void;
   enqueueRadio: (tracks: Track[], artistId?: string) => void;
   setRadioArtistId: (artistId: string) => void;
-  /** For Lucky Mix: drop upcoming tail; keep the currently playing item only. */
-  pruneUpcomingToCurrent: () => void;
+  /** For Lucky Mix: drop upcoming tail; keep the currently playing item only.
+   * When `skipQueueUndo` is true, callers must push undo separately (macro rebuild). */
+  pruneUpcomingToCurrent: (skipQueueUndo?: boolean) => void;
   clearQueue: () => void;
 
   isQueueVisible: boolean;
