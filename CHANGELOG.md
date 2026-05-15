@@ -189,6 +189,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Lives under the **Advanced** group in Personalisation (only visible when the global Advanced Mode toggle is on).
 * i18n: `settings.playerBar*` across all 9 locales.
 
+### Queue panel — persist header duration mode
+
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), based on [PR #625](https://github.com/Psychotoxical/psysonic/pull/625), PR [#724](https://github.com/Psychotoxical/psysonic/pull/724)**
+
+* The queue header chip (total duration / remaining time / ETA finish clock) now persists across app restarts via a new `queueDurationDisplayMode` field on `authStore`. Corrupt or missing persisted values fall back to **total** on rehydrate, matching the existing `seekbarStyle` sanitizer pattern.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)

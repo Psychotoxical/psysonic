@@ -170,6 +170,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Customizable queue toolbar — drag-and-drop button reordering, per-button visibility toggles, optional separator, persisted across restarts (PR #534)',
       'Playlist page layout — per-element visibility toggles (Add Songs, Import CSV, Download ZIP, Cache Offline, Suggestions) under Settings → Personalisation (PR #556)',
       'Player bar layout — per-control visibility toggles (Star rating, Favorite, Last.fm love, Equalizer, Mini player) under Settings → Personalisation (PR #627)',
+      'Queue panel — persist header duration mode (total / remaining / ETA) across app restarts (PR #625)',
     ],
   },
   {
