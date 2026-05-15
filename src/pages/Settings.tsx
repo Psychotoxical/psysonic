@@ -178,7 +178,7 @@ export default function Settings() {
               onClick={() => setSearchOpen(true)}
               aria-label={t('settings.searchPlaceholder')}
               data-tooltip={t('settings.searchPlaceholder')}
-              data-tooltip-pos="left"
+              data-tooltip-pos="bottom"
             >
               <Search size={16} />
             </button>
@@ -229,6 +229,24 @@ export default function Settings() {
             </div>
           )}
         </div>
+        <label
+          className="settings-advanced-toggle"
+          data-tooltip={t('settings.advancedModeTooltip')}
+          data-tooltip-pos="left"
+        >
+          <span className="settings-advanced-toggle-label">
+            {t('settings.advancedMode')}
+          </span>
+          <span className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={auth.advancedSettingsEnabled}
+              onChange={e => auth.setAdvancedSettingsEnabled(e.target.checked)}
+              aria-label={t('settings.advancedMode')}
+            />
+            <span className="toggle-track" />
+          </span>
+        </label>
       </div>
 
       {/* Tab navigation */}

@@ -8,6 +8,7 @@ import {
 import type { SubsonicPlaylist, SubsonicSong } from '../../api/subsonicTypes';
 import type { ZipDownload } from '../../store/zipDownloadStore';
 import { useThemeStore } from '../../store/themeStore';
+import { usePlaylistLayoutStore, type PlaylistLayoutItemId } from '../../store/playlistLayoutStore';
 import {
   displayPlaylistName, formatSize, isSmartPlaylistName, totalDurationLabel,
 } from '../../utils/componentHelpers/playlistDetailHelpers';
@@ -59,6 +60,9 @@ export default function PlaylistHero({
   const navigate = useNavigate();
   const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
   const enablePlaylistCoverPhoto = useThemeStore(s => s.enablePlaylistCoverPhoto);
+  const layoutItems = usePlaylistLayoutStore(s => s.items);
+  const isLayoutVisible = (id: PlaylistLayoutItemId) =>
+    layoutItems.find(i => i.id === id)?.visible !== false;
 
   return (
     <div className="album-detail-header">
@@ -158,23 +162,26 @@ export default function PlaylistHero({
                   <ListPlus size={16} />
                 </button>
               </div>
-              <button
-                className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
-                onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
-              >
-                <Search size={16} /> {t('playlists.addSongs')}
-              </button>
-              <button
-                className="btn btn-ghost"
-                onClick={handleImportCsv}
-                disabled={csvImporting}
-                data-tooltip={t('playlists.importCSVTooltip')}
-              >
-                {csvImporting ? <Loader2 size={16} className="spin-slow" /> : <FileUp size={16} />}
-                {t('playlists.importCSV')}
-              </button>
-              {/* search close resets selection */}
-              {songs.length > 0 && (
+              {isLayoutVisible('addSongs') && (
+                <button
+                  className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
+                  onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
+                >
+                  <Search size={16} /> {t('playlists.addSongs')}
+                </button>
+              )}
+              {isLayoutVisible('importCsv') && (
+                <button
+                  className="btn btn-ghost"
+                  onClick={handleImportCsv}
+                  disabled={csvImporting}
+                  data-tooltip={t('playlists.importCSVTooltip')}
+                >
+                  {csvImporting ? <Loader2 size={16} className="spin-slow" /> : <FileUp size={16} />}
+                  {t('playlists.importCSV')}
+                </button>
+              )}
+              {isLayoutVisible('downloadZip') && songs.length > 0 && (
                 activeZip && !activeZip.done && !activeZip.error ? (
                   <div className="download-progress-wrap">
                     <Download size={14} />
@@ -189,7 +196,7 @@ export default function PlaylistHero({
                   </button>
                 )
               )}
-              {songs.length > 0 && id && (
+              {isLayoutVisible('offlineCache') && songs.length > 0 && id && (
                 <button
                   className={`btn btn-ghost${isCached ? ' btn-danger' : ''}`}
                   disabled={isDownloading}

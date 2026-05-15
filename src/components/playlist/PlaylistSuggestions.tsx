@@ -7,6 +7,7 @@ import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useThemeStore } from '../../store/themeStore';
+import { usePlaylistLayoutStore } from '../../store/playlistLayoutStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { codecLabel } from '../../utils/componentHelpers/playlistDetailHelpers';
 import { formatTrackTime } from '../../utils/format/formatDuration';
@@ -43,6 +44,10 @@ export default function PlaylistSuggestions({
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const showBitrate = useThemeStore(s => s.showBitrate);
+  const suggestionsVisible = usePlaylistLayoutStore(s =>
+    s.items.find(i => i.id === 'suggestions')?.visible !== false);
+
+  if (!suggestionsVisible) return null;
 
   const filteredSuggestions = suggestions.filter(s => !existingIds.has(s.id));
 

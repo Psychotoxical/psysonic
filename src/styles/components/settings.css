@@ -145,6 +145,51 @@
   display: none;
 }
 
+/* ── Advanced Mode: Header-Toggle + Sub-Section Badge ──────────────────────
+   Globaler Schalter im Settings-Header schaltet das Sichtbar-Werden aller
+   <SettingsSubSection advanced> Bloecke um. Der Badge markiert die jeweilige
+   Section nochmal optisch sobald sie eingeblendet ist. */
+.settings-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  transition: background 120ms ease;
+  /* Lupe sitzt neben dem Titel; der Toggle wird durch auto-margin ans rechte
+     Ende der Header-Zeile geschoben. */
+  margin-left: auto;
+}
+
+.settings-advanced-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.settings-advanced-toggle-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.settings-sub-section-advanced-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  flex-shrink: 0;
+  margin-right: var(--space-2);
+}
+
 /* ── In-Page-Suche fuer Settings ─────────────────────────────────────────── */
 .settings-header {
   display: flex;
@@ -156,12 +201,18 @@
 
 .settings-header .page-title {
   margin-bottom: 0;
+  line-height: 1;
 }
 
 .settings-search {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  /* h1.page-title hat im Display-Font einen visuellen Glyph-Mittelpunkt
+     unterhalb der Box-Mitte. align-items: center wirkt deshalb so, als hänge
+     die Lupe zu hoch. Wir verschieben sie auf die Glyph-Baseline runter. */
+  align-self: end;
+  padding-bottom: 4px;
 }
 
 .settings-search-wrap {

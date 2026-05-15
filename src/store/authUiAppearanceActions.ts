@@ -29,6 +29,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setFsPortraitDim'
   | 'setShowChangelogOnUpdate'
   | 'setLastSeenChangelogVersion'
+  | 'setAdvancedSettingsEnabled'
 > {
   return {
     setShowArtistImages: (v) => set({ showArtistImages: v }),
@@ -48,5 +49,6 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setFsPortraitDim: (v) => set({ fsPortraitDim: v }),
     setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
     setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
+    setAdvancedSettingsEnabled: (v) => set({ advancedSettingsEnabled: v }),
   };
 }

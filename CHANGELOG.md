@@ -165,6 +165,15 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Shared tracks and queues resolve against the matching saved server via explicit credentials; `orbitBulkGuard` applies before bulk enqueue.
 * i18n: `search.share*` keys across all 9 locales.
 
+### Settings — Advanced Mode toggle + playlist page layout
+
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), PR [#556](https://github.com/Psychotoxical/psysonic/pull/556)**
+
+* **Advanced Mode.** A new toggle in the Settings header reveals advanced sub-sections across all tabs. Sub-sections marked advanced are hidden by default and labelled with a small badge when shown — community-contributed options that do not necessarily reflect the design philosophy of the Psysonic maintainers, kept available but out of the way. The three current advanced sub-sections live under **Personalisation**: Artist page sections, Queue Toolbar, and the new Playlist page layout.
+* **Playlist page layout.** New sub-section that hides individual elements on the playlist page: **Add Songs**, **Import CSV**, **Download ZIP**, **Cache Offline**, and the **Suggestions** rail at the bottom. Persisted via a new `playlistLayoutStore` (Zustand + localStorage); all toggles on by default so existing playlists look unchanged.
+* **One-time migration:** if you had previously opened the per-tab Advanced group or customised any of the three sub-sections, Advanced Mode is auto-enabled on first launch — your existing tweaks stay visible.
+* i18n: `settings.advancedMode`, `settings.advancedModeTooltip`, `settings.advancedBadge`, and `settings.playlistLayout*` across all 9 locales.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)

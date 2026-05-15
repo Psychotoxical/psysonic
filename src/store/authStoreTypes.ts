@@ -130,6 +130,8 @@ export interface AuthState {
   fsPortraitDim: number;
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
+  /** Reveals sub-sections marked `advanced` across all Settings tabs. */
+  advancedSettingsEnabled: boolean;
 
   seekbarStyle: SeekbarStyle;
   /** Persisted UI toggle: is the Now Playing section in queue panel collapsed */
@@ -284,6 +286,7 @@ export interface AuthState {
   setFsPortraitDim: (v: number) => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
+  setAdvancedSettingsEnabled: (v: boolean) => void;
   setSeekbarStyle: (v: SeekbarStyle) => void;
   setQueueNowPlayingCollapsed: (v: boolean) => void;
   setEnableHiRes: (v: boolean) => void;

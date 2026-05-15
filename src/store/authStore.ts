@@ -86,6 +86,7 @@ export const useAuthStore = create<AuthState>()(
       fsPortraitDim: 28,
       showChangelogOnUpdate: true,
       lastSeenChangelogVersion: '',
+      advancedSettingsEnabled: false,
       seekbarStyle: 'truewave',
       queueNowPlayingCollapsed: false,
       enableHiRes: false,
