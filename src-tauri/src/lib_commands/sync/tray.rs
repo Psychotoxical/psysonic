@@ -398,6 +398,20 @@ pub(crate) fn no_compositing_mode() -> bool {
         .unwrap_or(false)
 }
 
+/// Tauri command: `XDG_SESSION_TYPE` from the host environment (e.g. `wayland`, `x11`).
+/// Used for Linux-only UI tweaks such as font rasterisation hints; empty string when unset.
+#[tauri::command]
+pub(crate) fn linux_xdg_session_type() -> String {
+    #[cfg(target_os = "linux")]
+    {
+        return std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        String::new()
+    }
+}
+
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn is_tiling_wm() -> bool {
     false

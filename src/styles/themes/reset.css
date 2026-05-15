@@ -59,3 +59,9 @@ ol {
   list-style: none;
 }
 
+/* Linux Wayland + GPU compositing (WebKitGTK): grayscale body AA can look washed
+   when surfaces are GL-composited; prefer LCD subpixel while compositing stays on. */
+html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing) body {
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+

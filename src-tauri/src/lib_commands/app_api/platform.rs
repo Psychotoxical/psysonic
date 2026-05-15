@@ -2,6 +2,53 @@
 
 use tauri::Manager;
 
+/// True when `XDG_SESSION_TYPE` is Wayland, GPU compositing is not forced off,
+/// and the user has not opted out via `PSYSONIC_SKIP_WAYLAND_FONT_TUNING`.
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_wayland_gpu_font_tuning_should_apply() -> bool {
+    fn skip_tuning() -> bool {
+        matches!(
+            std::env::var("PSYSONIC_SKIP_WAYLAND_FONT_TUNING").as_deref(),
+            Ok("1") | Ok("true") | Ok("yes")
+        )
+    }
+    if skip_tuning() {
+        return false;
+    }
+    let wayland = std::env::var("XDG_SESSION_TYPE")
+        .map(|v| v.eq_ignore_ascii_case("wayland"))
+        .unwrap_or(false);
+    let no_comp = std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE")
+        .map(|v| v == "1")
+        .unwrap_or(false);
+    wayland && !no_comp
+}
+
+/// WebKitGTK on Wayland with compositing: prefer on-demand GPU promotion so body
+/// text is less often rasterised into GL layers (common "washed" / blurry look).
+/// No-op on non-Linux or when [`linux_wayland_gpu_font_tuning_should_apply`] is false.
+pub(crate) fn linux_webkit_apply_wayland_gpu_font_tuning(win: &tauri::WebviewWindow) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        if !linux_wayland_gpu_font_tuning_should_apply() {
+            return Ok(());
+        }
+        return win
+            .with_webview(|platform| {
+                use webkit2gtk::{HardwareAccelerationPolicy, SettingsExt, WebViewExt};
+                if let Some(settings) = platform.inner().settings() {
+                    settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::OnDemand);
+                }
+            })
+            .map_err(|e| e.to_string());
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = win;
+        Ok(())
+    }
+}
+
 /// Toggle native window decorations at runtime (Linux custom title bar opt-out).
 #[tauri::command]
 pub(crate) fn set_window_decorations(enabled: bool, app_handle: tauri::AppHandle) {
@@ -46,4 +93,18 @@ pub(crate) fn set_linux_webkit_smooth_scrolling(enabled: bool, app_handle: tauri
         let _ = (enabled, app_handle);
     }
     Ok(())
+}
+
+/// True when [`linux_webkit_apply_wayland_gpu_font_tuning`] would change WebKit settings
+/// (Wayland + GPU compositing, user has not set `PSYSONIC_SKIP_WAYLAND_FONT_TUNING`).
+#[tauri::command]
+pub(crate) fn linux_wayland_gpu_font_tuning_active() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        linux_wayland_gpu_font_tuning_should_apply()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
 }

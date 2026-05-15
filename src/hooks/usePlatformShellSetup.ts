@@ -29,6 +29,20 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
   }, []);
 
   useEffect(() => {
+    if (!IS_LINUX) return;
+    Promise.all([
+      invoke<string>('linux_xdg_session_type'),
+      invoke<boolean>('linux_wayland_gpu_font_tuning_active'),
+    ])
+      .then(([session, tuning]) => {
+        if (session.trim().toLowerCase() === 'wayland' && tuning) {
+          document.documentElement.setAttribute('data-linux-session', 'wayland');
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const platform = IS_LINUX ? 'linux' : IS_MACOS ? 'macos' : IS_WINDOWS ? 'windows' : 'unknown';
     document.documentElement.setAttribute('data-platform', platform);
   }, []);

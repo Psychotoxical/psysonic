@@ -137,6 +137,7 @@ pub fn run() {
                 use tauri::Manager;
                 if let Some(win) = app.get_webview_window("main") {
                     let _ = win.set_decorations(false);
+                    let _ = linux_webkit_apply_wayland_gpu_font_tuning(&win);
                 }
             }
 
@@ -336,12 +337,14 @@ pub fn run() {
             cli_publish_search_results,
             set_window_decorations,
             set_linux_webkit_smooth_scrolling,
+            linux_wayland_gpu_font_tuning_active,
             set_logging_mode,
             export_runtime_logs,
             frontend_debug_log,
             performance_cpu_snapshot,
             set_subsonic_wire_user_agent,
             no_compositing_mode,
+            linux_xdg_session_type,
             is_tiling_wm_cmd,
             open_mini_player,
             preload_mini_player,

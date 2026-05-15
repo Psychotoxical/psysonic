@@ -1,7 +1,7 @@
 mod tray;
 
 pub(crate) use tray::{
-    is_tiling_wm_cmd, no_compositing_mode, set_tray_menu_labels, set_tray_tooltip,
+    is_tiling_wm_cmd, linux_xdg_session_type, no_compositing_mode, set_tray_menu_labels, set_tray_tooltip,
     toggle_tray_icon,
 };
 // Internal helpers consumed elsewhere in the shell crate:
