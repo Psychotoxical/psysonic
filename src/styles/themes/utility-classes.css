@@ -1,11 +1,4 @@
 /* ─── Utility Classes ─── */
-.glass {
-  background: var(--bg-glass, rgba(30, 30, 46, 0.75));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-subtle);
-}
-
 .gradient-text {
   background: linear-gradient(135deg, var(--ctp-mauve), var(--ctp-blue));
   -webkit-background-clip: text;

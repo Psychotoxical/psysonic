@@ -82,7 +82,7 @@ export default function OrbitStartTrigger() {
       </button>
 
       {popoverOpen && createPortal(
-        <div ref={popRef} className="orbit-launch-pop" style={popoverStyle} role="menu">
+        <div ref={popRef} className="nav-library-dropdown-panel orbit-launch-pop" style={popoverStyle} role="menu">
           <button type="button" className="orbit-launch-pop__item" onClick={pickCreate}>
             <Plus size={14} />
             <span>{t('orbit.launchCreate')}</span>

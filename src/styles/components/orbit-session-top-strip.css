@@ -432,16 +432,12 @@
   display: none !important;
 }
 
-/* Launch popover — three-option menu anchored below the topbar trigger. */
+/* Launch popover — three-option menu anchored below the topbar trigger.
+   Container (bg / border / shadow / radius / padding) comes from the shared
+   `.nav-library-dropdown-panel` class; this rule only adds the menu-specific
+   min-width and tighter item gap. */
 .orbit-launch-pop {
   min-width: 220px;
-  padding: 6px;
-  background: var(--ctp-base, #1e1e2e);
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.1));
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  display: flex;
-  flex-direction: column;
   gap: 2px;
 }
 .orbit-launch-pop__item {

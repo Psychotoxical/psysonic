@@ -121,7 +121,7 @@ export default function NowPlayingDropdown() {
       {isOpen && createPortal(
         <div
           ref={panelRef}
-          className="glass animate-fade-in"
+          className="nav-library-dropdown-panel animate-fade-in"
           style={{
             position: 'fixed',
             top: panelPos.top,
@@ -129,13 +129,8 @@ export default function NowPlayingDropdown() {
             width: `${PANEL_WIDTH}px`,
             maxHeight: '400px',
             overflowY: 'auto',
-            borderRadius: '12px',
-            boxShadow: 'var(--shadow-lg)',
             padding: '1rem',
-            zIndex: 10050,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem'
+            gap: '1rem',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
