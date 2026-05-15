@@ -1,20 +1,31 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Play, HardDriveDownload, Trash2, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useOfflineStore } from '../store/offlineStore';
+import { useOfflineStore, type OfflineAlbumMeta } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import CachedImage from '../components/CachedImage';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import {
+  buildOfflineTracksForAlbum,
+  ensureServerForOfflineAlbum,
+  offlineAlbumCoverArt,
+  offlineTrackCount,
+} from '../utils/offline/offlineLibraryHelpers';
+import { showToast } from '../utils/ui/toast';
 
 type FilterType = 'all' | 'album' | 'playlist' | 'artist';
 
 export default function OfflineLibrary() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
-  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const servers = useAuthStore(s => s.servers);
+  const serverNames = useMemo(
+    () => Object.fromEntries(servers.map(s => [s.id, s.name])),
+    [servers],
+  );
+  const showServerLabels = servers.length > 1;
   const offlineAlbums = useOfflineStore(s => s.albums);
   const offlineTracks = useOfflineStore(s => s.tracks);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
@@ -22,7 +33,10 @@ export default function OfflineLibrary() {
   const enqueue = usePlayerStore(s => s.enqueue);
   const [filter, setFilter] = useState<FilterType>('all');
 
-  const albums = Object.values(offlineAlbums).filter(a => a.serverId === serverId);
+  const albums = useMemo(
+    () => Object.values(offlineAlbums).sort((a, b) => a.name.localeCompare(b.name)),
+    [offlineAlbums],
+  );
 
   const countByType = (type: FilterType) => {
     if (type === 'all') return albums.length;
@@ -33,37 +47,35 @@ export default function OfflineLibrary() {
     ? albums
     : albums.filter(a => (a.type ?? 'album') === filter);
 
-  const buildTracks = (albumId: string) => {
-    const meta = offlineAlbums[`${serverId}:${albumId}`];
-    if (!meta) return [];
-    return meta.trackIds.flatMap(tid => {
-      const t = offlineTracks[`${serverId}:${tid}`];
-      if (!t) return [];
-      return [{
-        id: t.id, title: t.title, artist: t.artist, album: t.album,
-        albumId: t.albumId, artistId: t.artistId, duration: t.duration,
-        coverArt: t.coverArt, track: undefined, year: t.year,
-        bitRate: t.bitRate, suffix: t.suffix, genre: t.genre,
-        replayGainTrackDb: t.replayGainTrackDb,
-        replayGainAlbumDb: t.replayGainAlbumDb,
-        replayGainPeak: t.replayGainPeak,
-      }];
+  const runWithAlbumServer = useCallback(async (
+    album: OfflineAlbumMeta,
+    action: () => void,
+  ) => {
+    const ok = await ensureServerForOfflineAlbum(album);
+    if (!ok) {
+      showToast(t('connection.switchFailed'), 4500, 'error');
+      return;
+    }
+    action();
+  }, [t]);
+
+  const handlePlay = (album: OfflineAlbumMeta) => {
+    void runWithAlbumServer(album, () => {
+      const tracks = buildOfflineTracksForAlbum(album, offlineTracks);
+      if (tracks[0]) playTrack(tracks[0], tracks);
     });
   };
 
-  const handlePlay = (albumId: string) => {
-    const tracks = buildTracks(albumId);
-    if (tracks[0]) playTrack(tracks[0], tracks);
+  const handleEnqueue = (album: OfflineAlbumMeta) => {
+    void runWithAlbumServer(album, () => {
+      enqueue(buildOfflineTracksForAlbum(album, offlineTracks));
+    });
   };
 
-  const handleEnqueue = (albumId: string) => {
-    enqueue(buildTracks(albumId));
-  };
-
-  const renderCard = (album: typeof albums[0]) => {
-    const coverUrl = album.coverArt ? buildCoverArtUrl(album.coverArt, 300) : '';
-    const cacheKey = album.coverArt ? coverArtCacheKey(album.coverArt, 300) : '';
-    const trackCount = album.trackIds.filter(tid => !!offlineTracks[`${serverId}:${tid}`]).length;
+  const renderCard = (album: OfflineAlbumMeta) => {
+    const { src: coverUrl, cacheKey } = offlineAlbumCoverArt(album, 300);
+    const trackCount = offlineTrackCount(album, offlineTracks);
+    const serverLabel = serverNames[album.serverId];
     return (
       <div className="album-card card offline-library-card">
         <div className="album-card-cover">
@@ -77,7 +89,7 @@ export default function OfflineLibrary() {
           <div className="album-card-play-overlay">
             <button
               className="album-card-details-btn"
-              onClick={() => handlePlay(album.id)}
+              onClick={() => handlePlay(album)}
               aria-label={`${album.name} abspielen`}
             >
               <Play size={15} fill="currentColor" />
@@ -87,11 +99,16 @@ export default function OfflineLibrary() {
         <div className="album-card-info">
           <p className="album-card-title truncate">{album.name}</p>
           <p className="album-card-artist truncate">{album.artist}</p>
+          {showServerLabels && serverLabel && (
+            <p className="offline-library-server truncate" title={serverLabel}>
+              {t('connection.offlineCachedOnServer', { server: serverLabel })}
+            </p>
+          )}
           {album.year && <p className="album-card-year">{album.year}</p>}
           <div className="offline-library-card-meta">
             <button
               className="offline-library-enqueue"
-              onClick={() => handleEnqueue(album.id)}
+              onClick={() => handleEnqueue(album)}
               data-tooltip={t('queue.appendToQueue')}
               data-tooltip-pos="top"
               aria-label={t('queue.appendToQueue')}
@@ -103,7 +120,7 @@ export default function OfflineLibrary() {
             </span>
             <button
               className="offline-library-delete"
-              onClick={() => deleteAlbum(album.id, serverId)}
+              onClick={() => deleteAlbum(album.id, album.serverId)}
               data-tooltip={t('albumDetail.removeOffline')}
               data-tooltip-pos="top"
             >
@@ -115,9 +132,8 @@ export default function OfflineLibrary() {
     );
   };
 
-  // For artist filter: group by artist name
   const renderArtistGroups = () => {
-    const groups: Record<string, typeof albums> = {};
+    const groups: Record<string, OfflineAlbumMeta[]> = {};
     for (const album of filtered) {
       const key = album.artist || '—';
       if (!groups[key]) groups[key] = [];

@@ -33,6 +33,7 @@ import { useOrbitHost } from '../hooks/useOrbitHost';
 import { useOrbitGuest } from '../hooks/useOrbitGuest';
 import { useOrbitBodyAttrs } from '../hooks/useOrbitBodyAttrs';
 import { usePlatformShellSetup } from '../hooks/usePlatformShellSetup';
+import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
 import { useWindowFullscreenState } from '../hooks/useWindowFullscreenState';
 import { useNowPlayingTrayTitle } from '../hooks/useNowPlayingTrayTitle';
 import { useTrayMenuI18n } from '../hooks/useTrayMenuI18n';
@@ -86,10 +87,9 @@ export function AppShell() {
   const { status: connStatus, isRetrying: connRetrying, retry: connRetry, isLan, serverName } = useConnectionStatus();
   const navigate = useNavigate();
   const location = useLocation();
-  const serverId = useAuthStore(s => s.activeServerId ?? '');
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const offlineAlbums = useOfflineStore(s => s.albums);
-  const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
+  const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
   const perfFlags = usePerfProbeFlags();
 

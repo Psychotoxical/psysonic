@@ -12,6 +12,7 @@ export const connection = {
   offlineLibraryTitle: 'Офлайн-библиотека',
   offlineLibraryEmpty:
     'Пока ничего не сохранено. Подключитесь к сети, откройте альбом и нажмите «Сохранить офлайн».',
+  offlineCachedOnServer: 'С сервера {{server}}',
   offlineAlbumCount_one: '{{n}} альбом',
   offlineAlbumCount_few: '{{n}} альбома',
   offlineAlbumCount_many: '{{n}} альбомов',

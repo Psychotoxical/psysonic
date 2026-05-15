@@ -11,6 +11,7 @@ export const connection = {
   offlineNoCacheBanner: 'Geen serververbinding — {{server}} niet bereikbaar',
   offlineLibraryTitle: 'Offline bibliotheek',
   offlineLibraryEmpty: 'Nog geen albums gecached. Ga online, open een album en klik op "Offline beschikbaar maken".',
+  offlineCachedOnServer: 'Op {{server}}',
   offlineAlbumCount: '{{n}} album',
   offlineAlbumCount_plural: '{{n}} albums',
   offlineFilterAll: 'Alles',

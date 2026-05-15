@@ -11,6 +11,7 @@ export const connection = {
   offlineNoCacheBanner: 'Nicio conexiune la server — nu s-a putut ajunge la {{server}}',
   offlineLibraryTitle: 'Librărie offline',
   offlineLibraryEmpty: 'Niciun album adăugat în cache. Conectează-te, deschide un album și apasă "Fă disponibil offline".',
+  offlineCachedOnServer: 'Pe {{server}}',
   offlineAlbumCount: '{{n}} album',
   offlineAlbumCount_plural: '{{n}} albume',
   offlineFilterAll: 'Toate',

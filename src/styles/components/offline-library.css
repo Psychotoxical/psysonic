@@ -26,6 +26,12 @@
   margin: 2px 0 0;
 }
 
+.offline-library-server {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
 .offline-library-card .album-card-info {
   gap: 3px;
 }

@@ -299,6 +299,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Rolled out across the main **card-grid library surfaces** — **Albums**, **Random Albums**, **New Releases**, **Lossless Albums**, **Playlists**, **Composers**, **Composer detail**, **Genre detail**, **Label albums**, **Album detail** (similar / same-artist rails), **Artist detail** (album / appearance / compilation grids), **Internet Radio**, **Offline Library** (albums + playlists), and **Artists** grid mode (virtual rows driven by the same column metrics).
 * **Settings → Appearance → Library card grids:** persisted **maximum columns** (**4–12**, default **6**) with translated copy calling out **performance** trade-offs. Settings search index updated.
 
+### Offline Library — show cached albums from all servers
+
+**By [@cucadmuh](https://github.com/cucadmuh)**
+
+* **Offline Library** lists every cached album across all saved servers, not only the currently active one. Cover art loads from each album's source server; play and enqueue switch to that server when needed.
+* Sidebar entry, mobile **More** menu, disconnect auto-navigation, and the offline banner treat **any** cached content as available offline. With multiple servers, cards show which server the album came from.
+
 ## Removed
 
 ### Settings — Animations 3-state setting under Seekbar Style

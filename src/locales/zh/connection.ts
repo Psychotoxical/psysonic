@@ -11,6 +11,7 @@ export const connection = {
   offlineNoCacheBanner: '无服务器连接 — 无法访问 {{server}}',
   offlineLibraryTitle: '离线音乐库',
   offlineLibraryEmpty: '尚未缓存任何专辑。请联网，打开专辑并点击"设为离线可用"。',
+  offlineCachedOnServer: '来自 {{server}}',
   offlineAlbumCount_one: '{{n}} 张专辑',
   offlineAlbumCount_plural: '{{n}} 张专辑',
   retry: '重试',

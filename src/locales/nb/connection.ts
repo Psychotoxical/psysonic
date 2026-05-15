@@ -11,6 +11,7 @@ export const connection = {
   offlineNoCacheBanner: 'Ingen servertilkobling — kan ikke nå {{server}}',
   offlineLibraryTitle: 'Frakoblet bibliotek',
   offlineLibraryEmpty: 'Ingen album bufret ennå. Kobl deg til nettverket, åpne et album og klikk "Gjør tilgjengelig frakoblet".',
+  offlineCachedOnServer: 'På {{server}}',
   offlineAlbumCount: '{{n}} album',
   offlineAlbumCount_plural: '{{n}} album',
   offlineFilterAll: 'Alle',

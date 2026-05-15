@@ -23,6 +23,7 @@ import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnrea
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
+import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
 import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';
 import SidebarPerfProbeModal from './sidebar/SidebarPerfProbeModal';
 import SidebarNavBody from './sidebar/SidebarNavBody';
@@ -60,7 +61,7 @@ export default function Sidebar({
   const setNormalizationEngine = useAuthStore(s => s.setNormalizationEngine);
   const loggingMode = useAuthStore(s => s.loggingMode);
   const setLoggingMode = useAuthStore(s => s.setLoggingMode);
-  const hasOfflineContent = Object.values(offlineAlbums).some(a => a.serverId === serverId);
+  const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const sidebarItems = useSidebarStore(s => s.items);
   const setSidebarItems = useSidebarStore(s => s.setItems);
   const randomNavMode = useAuthStore(s => s.randomNavMode);

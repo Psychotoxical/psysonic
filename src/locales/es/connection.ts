@@ -11,6 +11,7 @@ export const connection = {
   offlineNoCacheBanner: 'Sin conexión al servidor — no se puede acceder a {{server}}',
   offlineLibraryTitle: 'Biblioteca Offline',
   offlineLibraryEmpty: 'No hay álbumes en caché aún. Conéctate, abre un álbum y click en "Disponible offline".',
+  offlineCachedOnServer: 'En {{server}}',
   offlineAlbumCount: '{{n}} álbum',
   offlineAlbumCount_plural: '{{n}} álbumes',
   offlineFilterAll: 'Todos',
