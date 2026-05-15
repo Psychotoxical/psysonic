@@ -3,17 +3,23 @@ import { getAlbum } from './subsonicLibrary';
 
 const MIX_RATING_PREFETCH_CONCURRENCY = 8;
 const RATING_CACHE_TTL = 7 * 60 * 1000; // 7 minutes
-const ratingCache = new Map<string, { value: number | undefined; expiresAt: number }>();
+const ratingCache = new Map<string, { value: number; expiresAt: number }>();
 
-function getCachedRating(key: string): number | undefined | null {
+function getCachedRating(key: string): number | null {
   const entry = ratingCache.get(key);
   if (!entry) return null; // cache miss
   if (Date.now() > entry.expiresAt) { ratingCache.delete(key); return null; }
   return entry.value;
 }
 
-function setCachedRating(key: string, value: number | undefined): void {
+function setCachedRating(key: string, value: number): void {
   ratingCache.set(key, { value, expiresAt: Date.now() + RATING_CACHE_TTL });
+}
+
+/** Drop cached entity ratings after `setRating` so mixes see fresh stars. */
+export function invalidateEntityUserRatingCaches(id: string): void {
+  ratingCache.delete(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
+  ratingCache.delete(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
 }
 
 function parseEntityUserRating(v: unknown): number | undefined {
@@ -45,7 +51,7 @@ export async function prefetchArtistUserRatings(
   const uncached: string[] = [];
   for (const id of unique) {
     const cached = getCachedRating(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
-    if (cached !== null) { if (cached !== undefined) out.set(id, cached); }
+    if (cached !== null) out.set(id, cached);
     else uncached.push(id);
   }
   if (!uncached.length) return out;
@@ -58,8 +64,10 @@ export async function prefetchArtistUserRatings(
       try {
         const { artist } = await getArtist(id);
         const r = parseSubsonicEntityStarRating(artist);
-        setCachedRating(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
-        if (r !== undefined) out.set(id, r);
+        if (r !== undefined && r > 0) {
+          setCachedRating(`artist:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
+          out.set(id, r);
+        }
       } catch {
         /* ignore */
       }
@@ -81,7 +89,7 @@ export async function prefetchAlbumUserRatings(
   const uncached: string[] = [];
   for (const id of unique) {
     const cached = getCachedRating(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`);
-    if (cached !== null) { if (cached !== undefined) out.set(id, cached); }
+    if (cached !== null) out.set(id, cached);
     else uncached.push(id);
   }
   if (!uncached.length) return out;
@@ -94,8 +102,10 @@ export async function prefetchAlbumUserRatings(
       try {
         const { album } = await getAlbum(id);
         const r = parseSubsonicEntityStarRating(album);
-        setCachedRating(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
-        if (r !== undefined) out.set(id, r);
+        if (r !== undefined && r > 0) {
+          setCachedRating(`album:${ENTITY_RATING_CACHE_KEY_VER}:${id}`, r);
+          out.set(id, r);
+        }
       } catch {
         /* ignore */
       }

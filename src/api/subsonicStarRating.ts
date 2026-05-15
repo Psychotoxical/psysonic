@@ -42,6 +42,7 @@ export async function setRating(id: string, rating: number): Promise<void> {
   // subsonic ← navidromeBrowse and avoid pulling Tauri internals into shared
   // type-only consumers.
   void import('./navidromeBrowse').then(m => m.ndInvalidateSongsCache()).catch(() => {});
+  void import('./subsonicRatings').then(m => m.invalidateEntityUserRatingCaches(id)).catch(() => {});
 }
 
 /**

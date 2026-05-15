@@ -1,6 +1,7 @@
 import { join } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import { getSimilarSongs2, getSimilarSongs, getTopSongs } from '../../api/subsonicArtists';
+import { filterSongsForLuckyMixRatings, getMixMinRatingsConfigFromAuth } from '../mix/mixRatingFilter';
 import { buildDownloadUrl } from '../../api/subsonicStreamUrl';
 import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
@@ -107,10 +108,13 @@ export async function startInstantMix(
   try {
     const similar = await getSimilarSongs(song.id, 50);
     if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, false);
+    const mixCfg = getMixMinRatingsConfigFromAuth();
+    const ratedFiltered = await filterSongsForLuckyMixRatings(
+      similar.filter(s => s.id !== song.id),
+      mixCfg,
+    );
     const shuffled = shuffleArray(
-      similar
-        .filter(s => s.id !== song.id)
-        .map(s => ({ ...songToTrack(s), radioAdded: true as const })),
+      ratedFiltered.map(s => ({ ...songToTrack(s), radioAdded: true as const })),
     );
     if (shuffled.length > 0) {
       const aid = song.artistId?.trim() || undefined;

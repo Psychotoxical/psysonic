@@ -12,6 +12,7 @@ import { isLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { showToast } from '../ui/toast';
 import {
   filterSongsForLuckyMixRatings,
+  filterTopArtistsForMixRatings,
   getMixMinRatingsConfigFromAuth,
 } from './mixRatingFilter';
 import {
@@ -99,13 +100,15 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
   let unsubPlayer: (() => void) | null = null;
   let startedPlayback = false;
   try {
-    const queuedIds = new Set<string>();
     let allSeedSongs: SubsonicSong[] = [];
+
+    const mixQueueSize = () => usePlayerStore.getState().queue.length;
+    const mixQueueTrackIds = () => new Set(usePlayerStore.getState().queue.map(t => t.id));
 
     const bailIfCancelled = () => {
       if (useLuckyMixStore.getState().cancelRequested) throw new LuckyMixCancelled();
     };
-    const reachedTarget = () => queuedIds.size >= MIX_TARGET_SIZE;
+    const reachedTarget = () => mixQueueSize() >= MIX_TARGET_SIZE;
 
     const startImmediatePlayback = async (song: SubsonicSong, source: string) => {
       if (startedPlayback || !song?.id) return;
@@ -113,26 +116,24 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       if (!allowed.length) return;
       const play = allowed[0];
       startedPlayback = true;
-      queuedIds.add(play.id);
       const track = songToTrack(play);
       usePlayerStore.getState().playTrack(track, [track], true);
       logStep('start_immediate_playback', {
         source,
         song: songDebug([play])[0],
-        queuedCount: queuedIds.size,
+        queuedCount: mixQueueSize(),
       });
 
       // Auto-cancel: once we're playing, watch the player store. If the
       // current track switches to something the user picked themselves (not
-      // in our queuedIds set), treat that as "user moved on" and cancel the
-      // build so we don't later overwrite their choice with our finalised mix.
+      // in the mix queue), treat that as "user moved on" and cancel the build.
       if (!unsubPlayer) {
         unsubPlayer = usePlayerStore.subscribe((state, prev) => {
           const prevId = prev.currentTrack?.id ?? null;
           const nextId = state.currentTrack?.id ?? null;
           if (nextId === prevId) return;
           if (!nextId) return;
-          if (queuedIds.has(nextId)) return;
+          if (state.queue.some(t => t.id === nextId)) return;
           useLuckyMixStore.getState().cancel();
         });
       }
@@ -142,7 +143,8 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       if (useLuckyMixStore.getState().cancelRequested) return 0;
       if (reachedTarget()) return 0;
       if (!songs.length) return 0;
-      const unique = uniqueBySongId(songs).filter(s => !queuedIds.has(s.id));
+      const knownIds = mixQueueTrackIds();
+      const unique = uniqueBySongId(songs).filter(s => !knownIds.has(s.id));
       const deduped = await filterSongsForLuckyMixRatings(unique, mixRatingCfg);
       if (!deduped.length) return 0;
 
@@ -153,19 +155,20 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       }
 
       if (!candidates.length) return 0;
-      const remaining = Math.max(0, MIX_TARGET_SIZE - queuedIds.size);
+      const remaining = Math.max(0, MIX_TARGET_SIZE - mixQueueSize());
       if (remaining <= 0) return 0;
       const toAdd = sampleRandom(candidates, Math.min(remaining, candidates.length));
       if (!toAdd.length) return 0;
-      toAdd.forEach(s => queuedIds.add(s.id));
-      usePlayerStore.getState().enqueue(toAdd.map(songToTrack));
+      const before = mixQueueSize();
+      usePlayerStore.getState().enqueue(toAdd.map(songToTrack), true);
+      const added = mixQueueSize() - before;
       logStep('append_queue_batch', {
         reason,
-        added: toAdd.length,
-        queuedCount: queuedIds.size,
+        added,
+        queuedCount: mixQueueSize(),
         songs: songDebug(toAdd),
       });
-      return toAdd.length;
+      return added;
     };
 
     const frequentAlbums = await fetchFrequentAlbumsPool();
@@ -175,7 +178,10 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       fetched: frequentAlbums.length,
       withPlays: albumsWithPlays.length,
     });
-    const topArtists = deriveTopArtistsFromFrequentAlbums(albumsWithPlays);
+    const topArtists = await filterTopArtistsForMixRatings(
+      deriveTopArtistsFromFrequentAlbums(albumsWithPlays),
+      mixRatingCfg,
+    );
     const pickedArtists = sampleRandom(topArtists, 2);
     logStep('pick_top_artists', {
       topArtistsCount: topArtists.length,
@@ -280,7 +286,8 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       initialPoolCount: pool.length,
     });
 
-    for (let i = 0; i < 10 && pool.length < MIX_TARGET_SIZE; i++) {
+    const poolFillMaxBatches = mixRatingCfg.enabled ? 25 : 10;
+    for (let i = 0; i < poolFillMaxBatches && !reachedTarget(); i++) {
       bailIfCancelled();
       const rnd = await filterSongsToActiveLibrary(await getRandomSongs(120));
       pool = uniqueAppend(pool, rnd);
@@ -289,24 +296,39 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
         batch: i + 1,
         fetched: rnd.length,
         poolCount: pool.length,
+        queueCount: mixQueueSize(),
       });
-      if (reachedTarget()) break;
     }
 
     bailIfCancelled();
-    const poolFiltered = await filterSongsForLuckyMixRatings(pool, mixRatingCfg);
-    const finalSongs = sampleRandom(poolFiltered, MIX_TARGET_SIZE).filter(s => !queuedIds.has(s.id));
-    await appendSongsToQueue(finalSongs, 'finalize-randomized');
+    if (!reachedTarget()) {
+      const poolFiltered = await filterSongsForLuckyMixRatings(pool, mixRatingCfg);
+      const need = MIX_TARGET_SIZE - mixQueueSize();
+      const finalSongs = sampleRandom(
+        poolFiltered.filter(s => !mixQueueTrackIds().has(s.id)),
+        need,
+      );
+      await appendSongsToQueue(finalSongs, 'finalize-randomized');
+    }
+
+    for (let i = 0; i < 20 && !reachedTarget(); i++) {
+      bailIfCancelled();
+      const rnd = await filterSongsToActiveLibrary(await getRandomSongs(120));
+      const added = await appendSongsToQueue(rnd, `topup-${i + 1}`);
+      if (added === 0 && i >= 8) break;
+    }
+
+    const finalQueueCount = mixQueueSize();
     logStep('final_queue_state', {
       poolCount: pool.length,
-      queuedCount: queuedIds.size,
+      queuedCount: finalQueueCount,
       queuedTarget: MIX_TARGET_SIZE,
     });
-    if (queuedIds.size === 0) {
+    if (finalQueueCount === 0) {
       throw new Error('empty-mix');
     }
-    showToast(i18n.t('luckyMix.done', { count: queuedIds.size }), 3500, 'success');
-    logStep('done', { queueCount: queuedIds.size });
+    showToast(i18n.t('luckyMix.done', { count: finalQueueCount }), 3500, 'success');
+    logStep('done', { queueCount: finalQueueCount });
     if (debugEnabled) {
       console.debug('[psysonic][lucky-mix] full-steps', debugSteps);
       void invoke('frontend_debug_log', {

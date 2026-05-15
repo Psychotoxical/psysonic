@@ -24,6 +24,7 @@ interface FilterArgs {
 export function filterRandomMixSongs(songs: SubsonicSong[], args: FilterArgs): SubsonicSong[] {
   const { excludeAudiobooks, customGenreBlacklist, mixRatingCfg } = args;
   return songs.filter(song => {
+    if (!passesMixMinRatings(song, mixRatingCfg)) return false;
     if (!excludeAudiobooks) return true;
     const checkText = (text: string) => {
       const t = text.toLowerCase();
@@ -35,7 +36,6 @@ export function filterRandomMixSongs(songs: SubsonicSong[], args: FilterArgs): S
     if (song.title && checkText(song.title)) return false;
     if (song.album && checkText(song.album)) return false;
     if (song.artist && checkText(song.artist)) return false;
-    if (!passesMixMinRatings(song, mixRatingCfg)) return false;
     return true;
   });
 }

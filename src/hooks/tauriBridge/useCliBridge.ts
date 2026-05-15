@@ -5,6 +5,7 @@ import type { NavigateFunction } from 'react-router-dom';
 import { getSimilarSongs } from '../../api/subsonicArtists';
 import { getMusicFolders } from '../../api/subsonicLibrary';
 import { search as subsonicSearch } from '../../api/subsonicSearch';
+import { filterSongsForLuckyMixRatings, getMixMinRatingsConfigFromAuth } from '../../utils/mix/mixRatingFilter';
 import { shuffleArray } from '../../utils/playback/shuffleArray';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { showToast } from '../../utils/ui/toast';
@@ -49,7 +50,12 @@ export function useCliBridge(navigate: NavigateFunction) {
       try {
         const similar = await getSimilarSongs(song.id, 50);
         if (serverId) useAuthStore.getState().setAudiomuseNavidromeIssue(serverId, false);
-        const base = similar.filter(s => s.id !== song.id).map(s => songToTrack(s));
+        const mixCfg = getMixMinRatingsConfigFromAuth();
+        const ratedFiltered = await filterSongsForLuckyMixRatings(
+          similar.filter(s => s.id !== song.id),
+          mixCfg,
+        );
+        const base = ratedFiltered.map(s => songToTrack(s));
         if (mode === 'append') {
           const toAdd = shuffleArray(base.map(t => ({ ...t, autoAdded: true as const })));
           if (toAdd.length > 0) usePlayerStore.getState().enqueue(toAdd);

@@ -2,6 +2,7 @@ import { parseSubsonicEntityStarRating, prefetchAlbumUserRatings, prefetchArtist
 import { getRandomSongs } from '../../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
 import { useAuthStore } from '../../store/authStore';
+import { usePlayerStore } from '../../store/playerStore';
 
 /** Default target list size for Random Mix; per-call override via `fetchRandomMixSongsUntilFull(c, { targetSize })`. */
 export const RANDOM_MIX_TARGET_SIZE = 50;
@@ -59,6 +60,14 @@ function numRating(v: unknown): number | undefined {
   return n;
 }
 
+/** Optimistic stars from the UI (`setUserRatingOverride`) take precedence over API payloads. */
+function mixRatingOverrideForEntity(entityId: string | undefined): number | undefined {
+  if (!entityId) return undefined;
+  const o = usePlayerStore.getState().userRatingOverrides[entityId];
+  if (o === undefined || o <= 0) return undefined;
+  return o;
+}
+
 type OpenArtistRefLike = { id?: string; userRating?: unknown; rating?: unknown };
 
 function refStarRating(a: OpenArtistRefLike | undefined): number | undefined {
@@ -107,9 +116,11 @@ function artistEntityIdForMixRating(song: SubsonicSong): string | undefined {
 
 /** Song-level artist rating: explicit field, then OpenSubsonic `artists` / `albumArtists` on the child. */
 function effectiveArtistRatingForFilter(song: SubsonicSong): number | undefined {
+  const prefer = artistEntityIdForMixRating(song);
+  const fromOverride = mixRatingOverrideForEntity(prefer);
+  if (fromOverride !== undefined) return fromOverride;
   const d = numRating(song.artistUserRating);
   if (d !== undefined) return d;
-  const prefer = artistEntityIdForMixRating(song);
   const fromArtists = ratingFromArtistRefs(song.artists, prefer);
   if (fromArtists !== undefined) return fromArtists;
   return ratingFromArtistRefs(song.albumArtists, prefer);
@@ -117,11 +128,15 @@ function effectiveArtistRatingForFilter(song: SubsonicSong): number | undefined 
 
 /** Song-level album (parent) rating when the server puts it on the child payload. */
 function effectiveAlbumRatingOnSong(song: SubsonicSong): number | undefined {
+  const fromOverride = mixRatingOverrideForEntity(song.albumId);
+  if (fromOverride !== undefined) return fromOverride;
   const x = song as SubsonicSong & { albumRating?: unknown };
   return numRating(song.albumUserRating ?? x.albumRating);
 }
 
 function songTrackStarRatingForMix(song: SubsonicSong): number | undefined {
+  const fromOverride = mixRatingOverrideForEntity(song.id);
+  if (fromOverride !== undefined) return fromOverride;
   const x = song as SubsonicSong & { rating?: unknown };
   return numRating(song.userRating ?? x.rating);
 }
@@ -220,6 +235,20 @@ export async function filterSongsForLuckyMixRatings(
  * Merge `getArtist` / `getAlbum` ratings into songs when list payloads omit them,
  * so `passesMixMinRatings` / Lucky Mix filtering see album and artist stars.
  */
+/** Drop low-rated seed artists before Lucky Mix picks from listening history. */
+export async function filterTopArtistsForMixRatings<T extends { id: string }>(
+  artists: T[],
+  c: MixMinRatingsConfig,
+): Promise<T[]> {
+  if (!c.enabled || c.minArtist <= 0 || !artists.length) return artists;
+  const byArtist = await prefetchArtistUserRatings(artists.map(a => a.id));
+  return artists.filter(a => {
+    const r = mixRatingOverrideForEntity(a.id) ?? byArtist.get(a.id);
+    if (r === undefined || r <= 0) return true;
+    return r > c.minArtist;
+  });
+}
+
 export async function enrichSongsForMixRatingFilter(
   songs: SubsonicSong[],
   c: MixMinRatingsConfig,
@@ -227,22 +256,11 @@ export async function enrichSongsForMixRatingFilter(
   if (!c.enabled || (c.minArtist <= 0 && c.minAlbum <= 0)) return songs;
   const artistIds =
     c.minArtist > 0
-      ? [
-          ...new Set(
-            songs
-              .filter(
-                s =>
-                  s.artistUserRating === undefined
-                  && effectiveArtistRatingForFilter(s) === undefined
-                  && artistEntityIdForMixRating(s),
-              )
-              .map(s => artistEntityIdForMixRating(s)!),
-          ),
-        ]
+      ? [...new Set(songs.map(s => artistEntityIdForMixRating(s)).filter((id): id is string => !!id))]
       : [];
   const albumIds =
     c.minAlbum > 0
-      ? [...new Set(songs.filter(s => s.albumUserRating === undefined && s.albumId).map(s => s.albumId!))]
+      ? [...new Set(songs.filter(s => s.albumId).map(s => s.albumId!))]
       : [];
   const [byArtist, byAlbum] = await Promise.all([
     artistIds.length ? prefetchArtistUserRatings(artistIds) : Promise.resolve(new Map<string, number>()),
@@ -252,13 +270,9 @@ export async function enrichSongsForMixRatingFilter(
   return songs.map(s => {
     const aid = artistEntityIdForMixRating(s);
     const artistPatch =
-      s.artistUserRating === undefined && aid && byArtist.has(aid)
-        ? { artistUserRating: byArtist.get(aid)! }
-        : {};
+      aid && byArtist.has(aid) ? { artistUserRating: byArtist.get(aid)! } : {};
     const albumPatch =
-      s.albumUserRating === undefined && s.albumId && byAlbum.has(s.albumId)
-        ? { albumUserRating: byAlbum.get(s.albumId)! }
-        : {};
+      s.albumId && byAlbum.has(s.albumId) ? { albumUserRating: byAlbum.get(s.albumId)! } : {};
     return { ...s, ...artistPatch, ...albumPatch };
   });
 }
