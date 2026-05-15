@@ -488,6 +488,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Album detail **header** shows **multiple album artists** when the server sends OpenSubsonic **`albumArtists`** on the album or on child songs — each name links to its artist page instead of only the first id (issue [#552](https://github.com/Psychotoxical/psysonic/issues/552)).
 * **Player bar**, **mobile now playing**, and **mini player** copy **`artists`** through **`songToTrack`** so multi-performer tracks get **per-artist** links like the album tracklist column.
 
+### UI — selectstart blocker no longer throws on Text node targets
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#718](https://github.com/Psychotoxical/psysonic/pull/718)**
+
+* The global **`selectstart`** handler assumed `event.target` was always an **`Element`**. Starting selection inside text (e.g. Now Playing **`[data-selectable]`** copy) could pass a **Text** node and crash with **`target.closest is not a function`**. The handler now resolves Text nodes to their parent element before applying allow/deny rules.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
