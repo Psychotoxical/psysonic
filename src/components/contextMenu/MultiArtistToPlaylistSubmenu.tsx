@@ -139,8 +139,8 @@ export function MultiArtistToPlaylistSubmenu({ artistIds, onDone, triggerId: _tr
     };
 
     const subStyle: React.CSSProperties = flipLeft
-      ? { right: 'calc(100% + 4px)', left: 'auto', top: flipUp ? 'auto' : -4, bottom: flipUp ? 0 : 'auto' }
-      : { left: 'calc(100% + 4px)', right: 'auto', top: flipUp ? 'auto' : -4, bottom: flipUp ? 0 : 'auto' };
+      ? { right: '100%', left: 'auto', top: flipUp ? 'auto' : -4, bottom: flipUp ? 0 : 'auto' }
+      : { left: '100%', right: 'auto', top: flipUp ? 'auto' : -4, bottom: flipUp ? 0 : 'auto' };
 
     return (
       <div className="context-submenu" ref={subRef} style={subStyle}>
