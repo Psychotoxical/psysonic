@@ -102,7 +102,8 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: P
     onDone();
   };
 
-  // Flush to the parent edge (no +4px gap) so moving to the submenu stays continuous.
+  // Flush to the parent edge (left/right/top 100%). Actual “hole” cases are handled
+  // in ContextMenu via a short delayed mouseleave + :hover check on the trigger row.
   const subStyle: React.CSSProperties = dropDown
     ? { top: '100%', left: 0, right: 'auto' }
     : flipLeft

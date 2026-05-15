@@ -16,7 +16,8 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
     playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
     starredOverrides, setStarredOverride, lastfmLovedCache, setLastfmLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
-    playlistSubmenuOpen, setPlaylistSubmenuOpen, playlistSongIds, setPlaylistSongIds,
+    playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
+    playlistSongIds, setPlaylistSongIds,
     orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
     applySongRating, applyAlbumRating, applyArtistRating,
     handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
@@ -42,8 +43,8 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === song.id ? 'active' : ''}`}
                 data-playlist-trigger-id={song.id}
-                onMouseEnter={() => { setPlaylistSongIds([song.id]); setPlaylistSubmenuOpen(true); }}
-                onMouseLeave={() => setPlaylistSubmenuOpen(false)}
+                onMouseEnter={() => { cancelPlaylistSubmenuCloseTimer(); setPlaylistSongIds([song.id]); setPlaylistSubmenuOpen(true); }}
+                onMouseLeave={onPlaylistSubmenuTriggerMouseLeave}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />

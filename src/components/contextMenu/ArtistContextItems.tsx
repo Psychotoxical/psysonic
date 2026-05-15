@@ -15,7 +15,8 @@ export default function ArtistContextItems(props: ContextMenuItemsProps) {
     playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
     starredOverrides, setStarredOverride, lastfmLovedCache, setLastfmLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
-    playlistSubmenuOpen, setPlaylistSubmenuOpen, playlistSongIds, setPlaylistSongIds,
+    playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
+    playlistSongIds, setPlaylistSongIds,
     orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
     applySongRating, applyAlbumRating, applyArtistRating,
     handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
@@ -37,8 +38,8 @@ export default function ArtistContextItems(props: ContextMenuItemsProps) {
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === `artist:${artist.id}` ? 'active' : ''}`}
                 data-playlist-trigger-id={`artist:${artist.id}`}
-                onMouseEnter={() => { setPlaylistSongIds([`artist:${artist.id}`]); setPlaylistSubmenuOpen(true); }}
-                onMouseLeave={() => setPlaylistSubmenuOpen(false)}
+                onMouseEnter={() => { cancelPlaylistSubmenuCloseTimer(); setPlaylistSongIds([`artist:${artist.id}`]); setPlaylistSubmenuOpen(true); }}
+                onMouseLeave={onPlaylistSubmenuTriggerMouseLeave}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />
@@ -99,8 +100,8 @@ export default function ArtistContextItems(props: ContextMenuItemsProps) {
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === `multi-artist:${artistIds.join(',')}` ? 'active' : ''}`}
                 data-playlist-trigger-id={`multi-artist:${artistIds.join(',')}`}
-                onMouseEnter={() => { setPlaylistSongIds([`multi-artist:${artistIds.join(',')}`]); setPlaylistSubmenuOpen(true); }}
-                onMouseLeave={() => setPlaylistSubmenuOpen(false)}
+                onMouseEnter={() => { cancelPlaylistSubmenuCloseTimer(); setPlaylistSongIds([`multi-artist:${artistIds.join(',')}`]); setPlaylistSubmenuOpen(true); }}
+                onMouseLeave={onPlaylistSubmenuTriggerMouseLeave}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />

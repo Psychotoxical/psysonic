@@ -13,7 +13,8 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
     playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
     starredOverrides, setStarredOverride, lastfmLovedCache, setLastfmLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
-    playlistSubmenuOpen, setPlaylistSubmenuOpen, playlistSongIds, setPlaylistSongIds,
+    playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
+    playlistSongIds, setPlaylistSongIds,
     orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
     applySongRating, applyAlbumRating, applyArtistRating,
     handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
@@ -35,8 +36,8 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === `playlist:${playlist.id}` ? 'active' : ''}`}
                 data-playlist-trigger-id={`playlist:${playlist.id}`}
-                onMouseEnter={() => { setPlaylistSongIds([`playlist:${playlist.id}`]); setPlaylistSubmenuOpen(true); }}
-                onMouseLeave={() => setPlaylistSubmenuOpen(false)}
+                onMouseEnter={() => { cancelPlaylistSubmenuCloseTimer(); setPlaylistSongIds([`playlist:${playlist.id}`]); setPlaylistSubmenuOpen(true); }}
+                onMouseLeave={onPlaylistSubmenuTriggerMouseLeave}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />
@@ -79,8 +80,8 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
               <div
                 className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === `multi-playlist:${playlistIds.join(',')}` ? 'active' : ''}`}
                 data-playlist-trigger-id={`multi-playlist:${playlistIds.join(',')}`}
-                onMouseEnter={() => { setPlaylistSongIds([`multi-playlist:${playlistIds.join(',')}`]); setPlaylistSubmenuOpen(true); }}
-                onMouseLeave={() => setPlaylistSubmenuOpen(false)}
+                onMouseEnter={() => { cancelPlaylistSubmenuCloseTimer(); setPlaylistSongIds([`multi-playlist:${playlistIds.join(',')}`]); setPlaylistSubmenuOpen(true); }}
+                onMouseLeave={onPlaylistSubmenuTriggerMouseLeave}
               >
                 <ListMusic size={14} /> {t('contextMenu.addToPlaylist')}
                 <ChevronRight size={13} style={{ marginLeft: 'auto' }} />

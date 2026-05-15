@@ -56,15 +56,41 @@ export default function ContextMenu() {
   const [keyboardRating, setKeyboardRating] = useState<{ kind: 'song' | 'album' | 'artist'; id: string; value: number } | null>(null);
   const [pendingSubmenuKeyboardFocus, setPendingSubmenuKeyboardFocus] = useState(false);
 
+  const playlistSubmenuCloseTimerRef = useRef<number | null>(null);
+
+  const cancelPlaylistSubmenuCloseTimer = useCallback(() => {
+    if (playlistSubmenuCloseTimerRef.current != null) {
+      window.clearTimeout(playlistSubmenuCloseTimerRef.current);
+      playlistSubmenuCloseTimerRef.current = null;
+    }
+  }, []);
+
+  /** Delay close so a slow move across subpixel / border seams still lands on `.context-submenu` (a child of the row). */
+  const onPlaylistSubmenuTriggerMouseLeave = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      const cur = e.currentTarget;
+      const next = e.relatedTarget;
+      if (next instanceof Node && cur.contains(next)) return;
+      cancelPlaylistSubmenuCloseTimer();
+      playlistSubmenuCloseTimerRef.current = window.setTimeout(() => {
+        playlistSubmenuCloseTimerRef.current = null;
+        if (!cur.isConnected) return;
+        if (!cur.matches(':hover')) setPlaylistSubmenuOpen(false);
+      }, 140);
+    },
+    [cancelPlaylistSubmenuCloseTimer],
+  );
+
   useEffect(() => {
     if (contextMenu.isOpen) {
+      cancelPlaylistSubmenuCloseTimer();
       setCoords({ x: contextMenu.x, y: contextMenu.y });
       setPlaylistSubmenuOpen(false);
       setPlaylistSongIds([]);
       setKeyboardRating(null);
       setPendingSubmenuKeyboardFocus(false);
     }
-  }, [contextMenu.isOpen, contextMenu.x, contextMenu.y]);
+  }, [contextMenu.isOpen, contextMenu.x, contextMenu.y, cancelPlaylistSubmenuCloseTimer]);
 
   useEffect(() => {
     if (contextMenu.isOpen && menuRef.current) {
@@ -84,6 +110,7 @@ export default function ContextMenu() {
       previousFocusRef.current = document.activeElement as HTMLElement | null;
       return;
     }
+    cancelPlaylistSubmenuCloseTimer();
     // Clean up any keyboard focus styling when menu closes
     menuRef.current
       ?.querySelectorAll<HTMLElement>('.context-menu-keyboard-active')
@@ -95,7 +122,7 @@ export default function ContextMenu() {
         prev.focus({ preventScroll: true });
       });
     }
-  }, [contextMenu.isOpen, closeContextMenu]);
+  }, [contextMenu.isOpen, closeContextMenu, cancelPlaylistSubmenuCloseTimer]);
 
 
   const { type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride } = contextMenu;
@@ -173,6 +200,8 @@ export default function ContextMenu() {
           keyboardRating={keyboardRating}
           playlistSubmenuOpen={playlistSubmenuOpen}
           setPlaylistSubmenuOpen={setPlaylistSubmenuOpen}
+          cancelPlaylistSubmenuCloseTimer={cancelPlaylistSubmenuCloseTimer}
+          onPlaylistSubmenuTriggerMouseLeave={onPlaylistSubmenuTriggerMouseLeave}
           playlistSongIds={playlistSongIds}
           setPlaylistSongIds={setPlaylistSongIds}
           orbitRole={orbitRole}

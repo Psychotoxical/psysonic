@@ -35,6 +35,8 @@ export interface ContextMenuItemsProps {
   keyboardRating: KeyboardRating | null;
   playlistSubmenuOpen: boolean;
   setPlaylistSubmenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  cancelPlaylistSubmenuCloseTimer: () => void;
+  onPlaylistSubmenuTriggerMouseLeave: (e: React.MouseEvent<HTMLElement>) => void;
   playlistSongIds: string[];
   setPlaylistSongIds: React.Dispatch<React.SetStateAction<string[]>>;
   orbitRole: 'host' | 'guest' | null;
