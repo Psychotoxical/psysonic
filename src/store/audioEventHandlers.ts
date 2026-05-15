@@ -5,6 +5,7 @@ import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { getPerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { showToast } from '../utils/ui/toast';
@@ -236,7 +237,7 @@ export function handleAudioProgress(current_time: number, duration: number): voi
     const shouldBytePreloadForGaplessBackup =
       gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
 
-    const serverId = useAuthStore.getState().activeServerId ?? '';
+    const serverId = getPlaybackServerId();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
 
     // Byte pre-download — runs early so bytes are cached by chain time.
@@ -322,7 +323,7 @@ export function handleAudioEnded(): void {
     void (async () => {
       if (repeatMode === 'one' && currentTrack) {
         const authState = useAuthStore.getState();
-        const repeatPromoteSid = authState.activeServerId;
+        const repeatPromoteSid = getPlaybackServerId();
         if (authState.hotCacheEnabled && repeatPromoteSid) {
           // Same-track repeat never hit `playTrack`'s prev→promote path; flush
           // Rust `stream_completed_cache` to disk so `resolvePlaybackUrl` uses local.
@@ -373,7 +374,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   if (!nextTrack) return;
 
-  const switchServerId = useAuthStore.getState().activeServerId ?? '';
+  const switchServerId = getPlaybackServerId();
   const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(nextTrack.id, switchServerId, switchResolvedUrl);
 
@@ -415,7 +416,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
     });
   }
   syncQueueToServer(queue, nextTrack, 0);
-  touchHotCacheOnPlayback(nextTrack.id, useAuthStore.getState().activeServerId ?? '');
+  touchHotCacheOnPlayback(nextTrack.id, getPlaybackServerId());
 }
 
 export function handleAudioError(message: string): void {

@@ -17,6 +17,7 @@ import {
 import { clearSeekDebounce } from './seekDebounce';
 import { clearSeekFallbackRetry } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
+import { clearQueueServerForPlayback } from '../utils/playback/playbackServer';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -197,6 +198,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       clearSeekDebounce(); clearSeekTarget();
       clearRadioSessionSeenIds();
       setCurrentRadioArtistId(null);
+      clearQueueServerForPlayback();
       set({ queue: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
       syncQueueToServer([], null, 0);
     },

@@ -17,7 +17,7 @@ interface Props {
   currentCoverSrc: string;
   userRatingOverrides: Record<string, number>;
   orbitAttributionLabel: (trackId: string) => string | null;
-  navigate: (to: string) => void;
+  navigate: (to: string) => void | Promise<void>;
   playbackSource: PlaybackSourceKind | null;
   normalizationEngine: NormalizationEngine;
   normalizationEngineLive: 'off' | 'replaygain' | 'loudness';

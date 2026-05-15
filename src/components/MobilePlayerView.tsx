@@ -1,9 +1,10 @@
 import { star, unstar } from '../api/subsonicStarRating';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import type { Track } from '../store/playerStoreTypes';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
@@ -152,6 +153,7 @@ function LyricsDrawer({ onClose, currentTrack }: { onClose: () => void; currentT
 export default function MobilePlayerView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
 
   // Lock body scroll while full-screen player is mounted
   useEffect(() => {
@@ -185,12 +187,7 @@ export default function MobilePlayerView() {
 
   const duration = currentTrack?.duration ?? 0;
 
-  // Cover art
-  const coverFetchUrl = useMemo(
-    () => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 800) : '',
-    [currentTrack?.coverArt]
-  );
-  const coverKey = currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 800) : '';
+  const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(currentTrack?.coverArt, 800);
   const resolvedCover = useCachedUrl(coverFetchUrl, coverKey);
 
   // Dynamic background color extracted from cover art
@@ -332,7 +329,7 @@ export default function MobilePlayerView() {
               <OpenArtistRefInline
                 refs={currentTrack.artists}
                 fallbackName={currentTrack.artist}
-                onGoArtist={id => navigate(`/artist/${id}`)}
+                onGoArtist={id => { void navigatePlaybackLibrary(`/artist/${id}`); }}
                 as="none"
                 linkTag="span"
                 linkClassName="mp-artist-link"
@@ -341,12 +338,12 @@ export default function MobilePlayerView() {
               <span
                 role={currentTrack.artistId ? 'link' : undefined}
                 tabIndex={currentTrack.artistId ? 0 : undefined}
-                onClick={() => currentTrack.artistId && navigate(`/artist/${currentTrack.artistId}`)}
+                onClick={() => currentTrack.artistId && void navigatePlaybackLibrary(`/artist/${currentTrack.artistId}`)}
                 onKeyDown={e => {
                   if (!currentTrack.artistId) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    navigate(`/artist/${currentTrack.artistId}`);
+                    void navigatePlaybackLibrary(`/artist/${currentTrack.artistId}`);
                   }
                 }}
                 style={{ cursor: currentTrack.artistId ? 'pointer' : 'default' }}

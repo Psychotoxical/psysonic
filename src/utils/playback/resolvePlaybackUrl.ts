@@ -1,6 +1,7 @@
-import { buildStreamUrl } from '../../api/subsonicStreamUrl';
+import { buildStreamUrlForServer } from '../../api/subsonicStreamUrl';
 import { useOfflineStore } from '../../store/offlineStore';
 import { useHotCacheStore } from '../../store/hotCacheStore';
+import { getPlaybackServerId } from './playbackServer';
 
 /** Same resolution order as {@link resolvePlaybackUrl} — for UI hints only. */
 export type PlaybackSourceKind = 'offline' | 'hot' | 'stream';
@@ -54,10 +55,11 @@ export function getPlaybackSourceKind(
 }
 
 /** Offline library → hot playback cache → HTTP stream. */
-export function resolvePlaybackUrl(trackId: string, serverId: string): string {
-  const offline = useOfflineStore.getState().getLocalUrl(trackId, serverId);
+export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
+  const sid = serverId && serverId.length > 0 ? serverId : getPlaybackServerId();
+  const offline = useOfflineStore.getState().getLocalUrl(trackId, sid);
   if (offline) return offline;
-  const hot = useHotCacheStore.getState().getLocalUrl(trackId, serverId);
+  const hot = useHotCacheStore.getState().getLocalUrl(trackId, sid);
   if (hot) return hot;
-  return buildStreamUrl(trackId);
+  return buildStreamUrlForServer(sid, trackId);
 }

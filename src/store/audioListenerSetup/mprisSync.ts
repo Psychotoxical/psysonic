@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { buildCoverArtUrl } from '../../api/subsonicStreamUrl';
+import { playbackCoverArtForId } from '../../utils/playback/playbackServer';
 import { usePlayerStore } from '../playerStore';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../playbackProgress';
 
@@ -22,7 +22,7 @@ export function setupMprisSync(): () => void {
       prevTrackId = currentTrack.id;
       prevRadioId = null;
       const coverUrl = currentTrack.coverArt
-        ? buildCoverArtUrl(currentTrack.coverArt, 512)
+        ? playbackCoverArtForId(currentTrack.coverArt, 512).src
         : undefined;
       invoke('mpris_set_metadata', {
         title: currentTrack.title,

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isRecoverableSeekError } from '../utils/audio/seekErrors';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from './authStore';
 import { shouldRebindPlaybackToHotCache } from './playbackUrlRouting';
 import type { PlayerState } from './playerStoreTypes';
@@ -47,8 +48,7 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
   armSeekDebounce(100, () => {
     const s0 = get();
     if (!s0.currentTrack) return;
-    const authSeek = useAuthStore.getState();
-    const sidSeek = authSeek.activeServerId ?? '';
+    const sidSeek = getPlaybackServerId();
     if (shouldRebindPlaybackToHotCache(s0.currentTrack.id, sidSeek)) {
       setSeekFallbackVisualTarget({
         trackId: s0.currentTrack.id,

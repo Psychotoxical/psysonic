@@ -2,6 +2,7 @@ import { getSong } from '../api/subsonicLibrary';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateLivePosition } from '../api/orbit';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -117,7 +118,7 @@ export function runResume(set: SetState, get: GetState): void {
     invoke('audio_resume').catch(console.error);
     setIsAudioPaused(false);
     set({ isPlaying: true });
-    touchHotCacheOnPlayback(currentTrack.id, useAuthStore.getState().activeServerId ?? '');
+    touchHotCacheOnPlayback(currentTrack.id, getPlaybackServerId());
   } else {
     // Engine has no loaded paused stream (app relaunch, or track ended and user
     // hits play — `isAudioPaused` is false after `audio:ended`). Flush any
@@ -128,7 +129,7 @@ export function runResume(set: SetState, get: GetState): void {
 
     void (async () => {
       const authHot = useAuthStore.getState();
-      const resumePromoteSid = authHot.activeServerId;
+      const resumePromoteSid = getPlaybackServerId();
       if (authHot.hotCacheEnabled && resumePromoteSid) {
         await promoteCompletedStreamToHotCache(
           currentTrack,
@@ -150,7 +151,7 @@ export function runResume(set: SetState, get: GetState): void {
           isReplayGainActive(), authStateCold.replayGainMode,
         );
         const replayGainPeakCold = isReplayGainActive() ? (trackToPlay.replayGainPeak ?? null) : null;
-        const coldServerId = useAuthStore.getState().activeServerId ?? '';
+        const coldServerId = getPlaybackServerId();
         setDeferHotCachePrefetch(true);
         const coldUrl = resolvePlaybackUrl(trackToPlay.id, coldServerId);
         set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(trackToPlay.id, coldServerId, coldUrl) });
@@ -189,7 +190,7 @@ export function runResume(set: SetState, get: GetState): void {
           isReplayGainActive(), authStateCold.replayGainMode,
         );
         const replayGainPeakCold = isReplayGainActive() ? (currentTrack.replayGainPeak ?? null) : null;
-        const coldServerId = useAuthStore.getState().activeServerId ?? '';
+        const coldServerId = getPlaybackServerId();
         setDeferHotCachePrefetch(true);
         const coldUrl = resolvePlaybackUrl(currentTrack.id, coldServerId);
         set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(currentTrack.id, coldServerId, coldUrl) });

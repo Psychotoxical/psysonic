@@ -15,6 +15,8 @@ import {
 } from '../utils/componentHelpers/contextMenuActions';
 import { useContextMenuKeyboardNav } from '../hooks/useContextMenuKeyboardNav';
 import { useContextMenuRating } from '../hooks/useContextMenuRating';
+import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
+import { useNavigate } from 'react-router-dom';
 import ContextMenuItems from './contextMenu/ContextMenuItems';
 
 export { AddToPlaylistSubmenu };
@@ -22,6 +24,8 @@ export { AddToPlaylistSubmenu };
 
 export default function ContextMenu() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const orbitRole = useOrbitStore(s => s.role);
   const { contextMenu, closeContextMenu, playTrack, enqueue, playNext, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore(
     useShallow(s => ({
@@ -125,7 +129,18 @@ export default function ContextMenu() {
   }, [contextMenu.isOpen, closeContextMenu, cancelPlaylistSubmenuCloseTimer]);
 
 
-  const { type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride } = contextMenu;
+  const {
+    type,
+    item,
+    queueIndex,
+    playlistId,
+    playlistSongIndex,
+    shareKindOverride,
+    pinToPlaybackServer = false,
+  } = contextMenu;
+  const navigateLibrary = pinToPlaybackServer
+    ? navigatePlaybackLibrary
+    : (path: string) => { navigate(path); };
 
   const isStarred = (id: string, itemStarred?: string) =>
     id in starredOverrides ? starredOverrides[id] : !!itemStarred;
@@ -216,6 +231,8 @@ export default function ContextMenu() {
           downloadAlbum={downloadAlbum}
           copyShareLink={copyShareLink}
           isStarred={isStarred}
+          pinToPlaybackServer={pinToPlaybackServer}
+          navigateLibrary={navigateLibrary}
         />
       </div>
     </>

@@ -17,18 +17,39 @@ function coverArtQueryParams(username: string, password: string, id: string, siz
   });
 }
 
+function streamUrlFromProfile(
+  serverUrl: string,
+  username: string,
+  password: string,
+  id: string,
+): string {
+  const baseUrl = restBaseFromUrl(serverUrl);
+  const salt = secureRandomSalt();
+  const token = md5(password + salt);
+  const p = new URLSearchParams({
+    id,
+    u: username,
+    t: token,
+    s: salt,
+    v: '1.16.1',
+    c: SUBSONIC_CLIENT,
+    f: 'json',
+  });
+  return `${baseUrl}/stream.view?${p.toString()}`;
+}
+
+export function buildStreamUrlForServer(serverId: string, id: string): string {
+  const server = useAuthStore.getState().servers.find(s => s.id === serverId);
+  if (!server) return buildStreamUrl(id);
+  return streamUrlFromProfile(server.url, server.username, server.password, id);
+}
+
 export function buildStreamUrl(id: string): string {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();
   const baseUrl = getBaseUrl();
-  const salt = secureRandomSalt();
-  const token = md5((server?.password ?? '') + salt);
-  const p = new URLSearchParams({
-    id,
-    u: server?.username ?? '',
-    t: token, s: salt, v: '1.16.1', c: SUBSONIC_CLIENT, f: 'json',
-  });
-  return `${baseUrl}/rest/stream.view?${p.toString()}`;
+  if (!server || !baseUrl) return streamUrlFromProfile('', '', '', id);
+  return streamUrlFromProfile(server.url, server.username, server.password, id);
 }
 
 /** Stable cache key for cover art — does not include ephemeral auth params. */

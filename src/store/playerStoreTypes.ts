@@ -55,6 +55,8 @@ export interface PlayerState {
    */
   enginePreloadedTrackId: string | null;
   queue: Track[];
+  /** Saved server for stream/hot-cache/offline resolution while this queue plays. */
+  queueServerId: string | null;
   queueIndex: number;
   isPlaying: boolean;
   progress: number; // 0–1
@@ -171,8 +173,20 @@ export interface PlayerState {
      *  list/grid to copy a `composer` link from the otherwise artist-typed
      *  context menu, so paste lands on /composer/:id instead of /artist/:id. */
     shareKindOverride?: 'track' | 'album' | 'artist' | 'composer';
+    /** Menu actions target {@link queueServerId} (set for queue-item and player-sourced album menus). */
+    pinToPlaybackServer?: boolean;
   };
-  openContextMenu: (x: number, y: number, item: any, type: 'song' | 'favorite-song' | 'album' | 'artist' | 'queue-item' | 'album-song' | 'playlist' | 'multi-album' | 'multi-artist' | 'multi-playlist', queueIndex?: number, playlistId?: string, playlistSongIndex?: number, shareKindOverride?: 'track' | 'album' | 'artist' | 'composer') => void;
+  openContextMenu: (
+    x: number,
+    y: number,
+    item: any,
+    type: 'song' | 'favorite-song' | 'album' | 'artist' | 'queue-item' | 'album-song' | 'playlist' | 'multi-album' | 'multi-artist' | 'multi-playlist',
+    queueIndex?: number,
+    playlistId?: string,
+    playlistSongIndex?: number,
+    shareKindOverride?: 'track' | 'album' | 'artist' | 'composer',
+    pinToPlaybackServer?: boolean,
+  ) => void;
   closeContextMenu: () => void;
 
   songInfoModal: { isOpen: boolean; songId: string | null };

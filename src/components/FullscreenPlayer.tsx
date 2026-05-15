@@ -1,5 +1,6 @@
 import { star, unstar } from '../api/subsonicStarRating';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
+import { playbackCoverArtForId } from '../utils/playback/playbackServer';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   SkipBack, SkipForward,
@@ -56,12 +57,13 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
 
   const duration = currentTrack?.duration ?? 0;
 
-  // buildCoverArtUrl generates a new salt on every call — must be memoized.
   // 300px for the small art box; 500px for the right-side portrait fallback.
-  const artUrl  = useMemo(() => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 300) : '', [currentTrack?.coverArt]);
-  const artKey  = useMemo(() => currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 300) : '', [currentTrack?.coverArt]);
-  const coverUrl = useMemo(() => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 500) : '', [currentTrack?.coverArt]);
-  const coverKey = useMemo(() => currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 500) : '', [currentTrack?.coverArt]);
+  const artCover = usePlaybackCoverArt(currentTrack?.coverArt, 300);
+  const artUrl = artCover.src;
+  const artKey = artCover.cacheKey;
+  const portraitCover = usePlaybackCoverArt(currentTrack?.coverArt, 500);
+  const coverUrl = portraitCover.src;
+  const coverKey = portraitCover.cacheKey;
   // `false` = no fetchUrl fallback — prevents double crossfade (fetchUrl → blobUrl).
   const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey, false);
 
@@ -86,12 +88,13 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
     const idx = s.queueIndex;
     return (idx >= 0 && idx + 1 < q.length) ? (q[idx + 1]?.coverArt ?? null) : null;
   });
+  const queueServerId = usePlayerStore(s => s.queueServerId);
+  const activeServerId = useAuthStore(s => s.activeServerId);
   useEffect(() => {
     if (!nextCoverArt) return;
-    const url = buildCoverArtUrl(nextCoverArt, 300);
-    const key = coverArtCacheKey(nextCoverArt, 300);
+    const { src: url, cacheKey: key } = playbackCoverArtForId(nextCoverArt, 300);
     getCachedBlob(url, key).catch(() => {});
-  }, [nextCoverArt]);
+  }, [nextCoverArt, queueServerId, activeServerId]);
 
   // Lyrics settings popover state
   const [lyricsMenuOpen, setLyricsMenuOpen] = useState(false);

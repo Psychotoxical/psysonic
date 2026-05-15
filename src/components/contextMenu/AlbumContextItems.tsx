@@ -22,10 +22,12 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
     orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
     applySongRating, applyAlbumRating, applyArtistRating,
     handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
+    pinToPlaybackServer, navigateLibrary,
   } = props;
   const { t } = useTranslation();
   const auth = useAuthStore();
   const navigate = useNavigate();
+  const goLibrary = pinToPlaybackServer ? navigateLibrary : (path: string) => { navigate(path); };
 
   return (
     <>
@@ -34,7 +36,7 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
           const albumRatingDisabled = entityRatingSupport === 'track_only';
           return (
             <>
-              <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/album/${album.id}`))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => goLibrary(`/album/${album.id}`))}>
                 <Play size={14} /> {t('contextMenu.openAlbum')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(async () => {
@@ -52,7 +54,7 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
                 <ListPlus size={14} /> {t('contextMenu.enqueueAlbum')}
               </div>
               <div className="context-menu-divider" />
-              <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/artist/${album.artistId}`))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => goLibrary(`/artist/${album.artistId}`))}>
                 <User size={14} /> {t('contextMenu.goToArtist')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => {

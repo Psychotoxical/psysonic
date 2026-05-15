@@ -1,4 +1,4 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -138,14 +138,7 @@ export default function MiniPlayer() {
   }, [queueOpen, state.queueIndex]);
 
   const { track, isPlaying } = state;
-  const miniCoverSrc = useMemo(
-    () => (track?.coverArt ? buildCoverArtUrl(track.coverArt, 300) : ''),
-    [track?.coverArt],
-  );
-  const miniCoverKey = useMemo(
-    () => (track?.coverArt ? coverArtCacheKey(track.coverArt, 300) : ''),
-    [track?.coverArt],
-  );
+  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(track?.coverArt, 300);
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (
