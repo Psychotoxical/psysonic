@@ -183,7 +183,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ### Settings → Personalisation — player bar layout
 
-**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), inspired by [@kveld9](https://github.com/kveld9)'s [PR #627](https://github.com/Psychotoxical/psysonic/pull/627), PR [#TBD](https://github.com/Psychotoxical/psysonic)**
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), based on [PR #627](https://github.com/Psychotoxical/psysonic/pull/627), PR [#721](https://github.com/Psychotoxical/psysonic/pull/721)**
 
 * New sub-section that hides individual controls in the player bar: **Star rating**, **Favorite (heart)**, **Last.fm love**, **Equalizer**, **Mini player**. Last.fm love is still only shown when a Last.fm session exists; the overflow row only renders when either Equalizer or Mini player is enabled. Persisted via a new `playerBarLayoutStore` (Zustand + localStorage, same `items[{id, visible}]` pattern as the queue toolbar and playlist layout); all toggles on by default.
 * Lives under the **Advanced** group in Personalisation (only visible when the global Advanced Mode toggle is on).
