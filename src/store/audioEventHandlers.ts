@@ -5,6 +5,7 @@ import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { getPerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { showToast } from '../utils/ui/toast';
@@ -160,7 +161,7 @@ export function handleAudioProgress(current_time: number, duration: number): voi
   // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
   if (progress >= 0.5 && !store.scrobbled) {
     usePlayerStore.setState({ scrobbled: true });
-    scrobbleSong(track.id, Date.now());
+    scrobbleSong(track.id, Date.now(), getPlaybackServerId());
     const { scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
     if (scrobblingEnabled && lastfmSessionKey) {
       lastfmScrobble(track, Date.now(), lastfmSessionKey);
@@ -236,7 +237,7 @@ export function handleAudioProgress(current_time: number, duration: number): voi
     const shouldBytePreloadForGaplessBackup =
       gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
 
-    const serverId = useAuthStore.getState().activeServerId ?? '';
+    const serverId = getPlaybackServerId();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
 
     // Byte pre-download — runs early so bytes are cached by chain time.
@@ -322,7 +323,7 @@ export function handleAudioEnded(): void {
     void (async () => {
       if (repeatMode === 'one' && currentTrack) {
         const authState = useAuthStore.getState();
-        const repeatPromoteSid = authState.activeServerId;
+        const repeatPromoteSid = getPlaybackServerId();
         if (authState.hotCacheEnabled && repeatPromoteSid) {
           // Same-track repeat never hit `playTrack`'s prev→promote path; flush
           // Rust `stream_completed_cache` to disk so `resolvePlaybackUrl` uses local.
@@ -373,7 +374,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   if (!nextTrack) return;
 
-  const switchServerId = useAuthStore.getState().activeServerId ?? '';
+  const switchServerId = getPlaybackServerId();
   const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(nextTrack.id, switchServerId, switchResolvedUrl);
 
@@ -403,7 +404,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   // Report Now Playing to Navidrome + Last.fm
   const { nowPlayingEnabled, scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
-  if (nowPlayingEnabled) reportNowPlaying(nextTrack.id);
+  if (nowPlayingEnabled) reportNowPlaying(nextTrack.id, getPlaybackServerId());
   if (lastfmSessionKey) {
     if (scrobblingEnabled) lastfmUpdateNowPlaying(nextTrack, lastfmSessionKey);
     lastfmGetTrackLoved(nextTrack.title, nextTrack.artist, lastfmSessionKey).then(loved => {
@@ -415,7 +416,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
     });
   }
   syncQueueToServer(queue, nextTrack, 0);
-  touchHotCacheOnPlayback(nextTrack.id, useAuthStore.getState().activeServerId ?? '');
+  touchHotCacheOnPlayback(nextTrack.id, getPlaybackServerId());
 }
 
 export function handleAudioError(message: string): void {

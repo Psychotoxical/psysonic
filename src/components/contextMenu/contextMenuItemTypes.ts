@@ -51,4 +51,7 @@ export interface ContextMenuItemsProps {
   downloadAlbum: (albumName: string, albumId: string) => Promise<void>;
   copyShareLink: (kind: EntityShareKind, id: string) => void;
   isStarred: (id: string, itemStarred?: string) => boolean;
+  /** When true, album/artist links switch to the queue server before routing. */
+  pinToPlaybackServer: boolean;
+  navigateLibrary: (path: string) => void | Promise<void>;
 }

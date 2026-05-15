@@ -1,5 +1,6 @@
 import { reportNowPlaying } from '../api/subsonicScrobble';
 import { invoke } from '@tauri-apps/api/core';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { getPlaybackSourceKind } from '../utils/playback/resolvePlaybackUrl';
 import { useAuthStore } from './authStore';
 import {
@@ -129,9 +130,9 @@ export function applyQueueHistorySnapshot(
           PlayerState,
           'normalizationNowDb' | 'normalizationTargetLufs' | 'normalizationEngineLive'
         >);
-  const authSnap = useAuthStore.getState();
+  const playbackSid = getPlaybackServerId();
   const playbackSourceUndo = nextTrack
-    ? getPlaybackSourceKind(nextTrack.id, authSnap.activeServerId ?? '', null)
+    ? getPlaybackSourceKind(nextTrack.id, playbackSid, null)
     : null;
   const playbackSourceFinal = keepPlaybackFromPrior && prior.currentPlaybackSource != null
     ? prior.currentPlaybackSource
@@ -186,7 +187,7 @@ export function applyQueueHistorySnapshot(
 
   if (!keepPlaybackFromPrior) {
     const { nowPlayingEnabled: npUndo } = useAuthStore.getState();
-    if (npUndo) reportNowPlaying(nextTrack.id);
+    if (npUndo) reportNowPlaying(nextTrack.id, getPlaybackServerId());
 
     queueUndoRestoreAudioEngine({
       generation: gen,

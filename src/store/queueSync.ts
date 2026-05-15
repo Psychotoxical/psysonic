@@ -1,5 +1,6 @@
 import { savePlayQueue } from '../api/subsonicPlayQueue';
 import type { Track } from './playerStoreTypes';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
 import { usePlayerStore } from './playerStore';
 /**
@@ -31,7 +32,8 @@ export function syncQueueToServer(queue: Track[], currentTrack: Track | null, cu
     syncTimeout = null;
     const ids = queue.slice(0, QUEUE_ID_LIMIT).map(t => t.id);
     const pos = Math.floor(currentTime * 1000);
-    savePlayQueue(ids, currentTrack?.id, pos).catch(err => {
+    const serverId = getPlaybackServerId();
+    savePlayQueue(ids, currentTrack?.id, pos, serverId).catch(err => {
       console.error('Failed to sync play queue to server', err);
     });
   }, SYNC_DEBOUNCE_MS);
@@ -46,7 +48,8 @@ export function flushQueueSyncToServer(queue: Track[], currentTrack: Track | nul
   lastQueueHeartbeatAt = Date.now();
   const ids = queue.slice(0, QUEUE_ID_LIMIT).map(t => t.id);
   const pos = Math.floor(currentTime * 1000);
-  return savePlayQueue(ids, currentTrack.id, pos).catch(err => {
+  const serverId = getPlaybackServerId();
+  return savePlayQueue(ids, currentTrack.id, pos, serverId).catch(err => {
     console.error('Failed to flush play queue to server', err);
   });
 }

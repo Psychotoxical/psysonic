@@ -28,6 +28,7 @@ export const queue = {
   shareQueue: 'Copier le lien de la file d’attente',
   shareQueueEmpty: 'La file d’attente est vide — rien à partager.',
   emptyQueue: 'La file d\'attente est vide.',
+  crossServerEnqueueBlocked: 'Les titres d\'un autre serveur ne peuvent pas être ajoutés à la file en cours. Terminez ou videz la file d\'abord.',
   trackSingular: 'piste',
   trackPlural: 'pistes',
   showRemaining: 'Afficher le temps restant',

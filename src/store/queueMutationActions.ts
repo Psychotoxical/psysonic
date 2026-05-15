@@ -17,11 +17,20 @@ import {
 import { clearSeekDebounce } from './seekDebounce';
 import { clearSeekFallbackRetry } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
+import i18n from '../i18n';
+import { playbackServerDiffersFromActive, clearQueueServerForPlayback } from '../utils/playback/playbackServer';
+import { showToast } from '../utils/ui/toast';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
 ) => void;
 type GetState = () => PlayerState;
+
+function blockCrossServerEnqueue(): boolean {
+  if (!playbackServerDiffersFromActive()) return false;
+  showToast(i18n.t('queue.crossServerEnqueueBlocked'), 4500, 'error');
+  return true;
+}
 
 /**
  * Eleven queue-mutation actions. Shared invariant: every action except
@@ -44,6 +53,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
 > {
   return {
     enqueue: (tracks, _orbitConfirmed = false) => {
+      if (blockCrossServerEnqueue()) return;
       if (!_orbitConfirmed && tracks.length > 1) {
         void orbitBulkGuard(tracks.length).then(ok => {
           if (ok) get().enqueue(tracks, true);
@@ -129,6 +139,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
     },
 
     enqueueAt: (tracks, insertIndex, _orbitConfirmed = false) => {
+      if (blockCrossServerEnqueue()) return;
       if (!_orbitConfirmed && tracks.length > 1) {
         void orbitBulkGuard(tracks.length).then(ok => {
           if (ok) get().enqueueAt(tracks, insertIndex, true);
@@ -154,6 +165,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
 
     playNext: (tracks) => {
       if (tracks.length === 0) return;
+      if (blockCrossServerEnqueue()) return;
       const state = get();
       const tagged = tracks.map(t => ({ ...t, playNextAdded: true as const }));
       if (!state.currentTrack) {
@@ -197,6 +209,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       clearSeekDebounce(); clearSeekTarget();
       clearRadioSessionSeenIds();
       setCurrentRadioArtistId(null);
+      clearQueueServerForPlayback();
       set({ queue: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
       syncQueueToServer([], null, 0);
     },

@@ -1,5 +1,4 @@
 import { getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { songToTrack } from '../utils/playback/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
 import { useState, useRef, useMemo } from 'react';
@@ -11,7 +10,7 @@ import HostApprovalQueue from './HostApprovalQueue';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useAuthStore } from '../store/authStore';
 import { encodeSharePayload } from '../utils/share/shareLink';
 import { copyTextToClipboard } from '../utils/server/serverMagicString';
@@ -34,6 +33,7 @@ import { QueueToolbar } from './queuePanel/QueueToolbar';
 import { QueueList } from './queuePanel/QueueList';
 import { QueueTabBar } from './queuePanel/QueueTabBar';
 import { useQueueAutoScroll } from '../hooks/useQueueAutoScroll';
+import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 
 export default function QueuePanel() {
   const orbitRole = useOrbitStore(s => s.role);
@@ -49,7 +49,7 @@ export default function QueuePanel() {
 
 function QueuePanelHostOrSolo() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const orbitRole = useOrbitStore(s => s.role);
   const orbitState = useOrbitStore(s => s.state);
   /** trackId → addedBy (host username or guest username) — only populated while
@@ -78,13 +78,9 @@ function QueuePanelHostOrSolo() {
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
-  const currentCoverFetchUrl = useMemo(
-    () => currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 128) : '',
-    [currentTrack?.coverArt]
-  );
-  const currentCoverCacheKey = useMemo(
-    () => currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 128) : '',
-    [currentTrack?.coverArt]
+  const { src: currentCoverFetchUrl, cacheKey: currentCoverCacheKey } = usePlaybackCoverArt(
+    currentTrack?.coverArt,
+    128,
   );
   const currentCoverSrc = useCachedUrl(currentCoverFetchUrl, currentCoverCacheKey);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
@@ -265,7 +261,7 @@ function QueuePanelHostOrSolo() {
           currentCoverSrc={currentCoverSrc}
           userRatingOverrides={userRatingOverrides}
           orbitAttributionLabel={orbitAttributionLabel}
-          navigate={navigate}
+          navigate={navigatePlaybackLibrary}
           playbackSource={playbackSource}
           normalizationEngine={normalizationEngine}
           normalizationEngineLive={normalizationEngineLive}

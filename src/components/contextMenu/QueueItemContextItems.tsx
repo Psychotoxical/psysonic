@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import { Play, Radio, Heart, ChevronRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, Share2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { star, unstar } from '../../api/subsonicStarRating';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../../api/lastfm';
 import type { Track } from '../../store/playerStoreTypes';
@@ -21,10 +20,10 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
     orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
     applySongRating, applyAlbumRating, applyArtistRating,
     handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
+    navigateLibrary,
   } = props;
   const { t } = useTranslation();
   const auth = useAuthStore();
-  const navigate = useNavigate();
 
   return (
     <>
@@ -54,12 +53,12 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
               </div>
               <div className="context-menu-divider" />
               {song.albumId && (
-                <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/album/${song.albumId}`))}>
+                <div className="context-menu-item" onClick={() => handleAction(() => navigateLibrary(`/album/${song.albumId}`))}>
                   <Disc3 size={14} /> {t('contextMenu.openAlbum')}
                 </div>
               )}
               {song.artistId && (
-                <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/artist/${song.artistId}`))}>
+                <div className="context-menu-item" onClick={() => handleAction(() => navigateLibrary(`/artist/${song.artistId}`))}>
                   <User size={14} /> {t('contextMenu.goToArtist')}
                 </div>
               )}

@@ -12,7 +12,9 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from './authStore';
+import { usePlayerStore } from './playerStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
+import { resetPlayerStore } from '@/test/helpers/storeReset';
 import { makeServer } from '@/test/helpers/factories';
 
 function addThree(): { a: string; b: string; c: string } {
@@ -24,6 +26,7 @@ function addThree(): { a: string; b: string; c: string } {
 
 beforeEach(() => {
   resetAuthStore();
+  resetPlayerStore();
 });
 
 describe('addServer / updateServer', () => {
@@ -121,6 +124,18 @@ describe('removeServer', () => {
     useAuthStore.getState().setActiveServer(b);
     useAuthStore.getState().removeServer(a);
     expect(useAuthStore.getState().activeServerId).toBe(b);
+  });
+
+  it('clears queueServerId when the removed server owned the playback queue', () => {
+    const { a, b } = addThree();
+    useAuthStore.getState().setActiveServer(b);
+    usePlayerStore.setState({
+      queue: [{ id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al1', duration: 100 }],
+      queueServerId: a,
+      queueIndex: 0,
+    });
+    useAuthStore.getState().removeServer(a);
+    expect(usePlayerStore.getState().queueServerId).toBeNull();
   });
 });
 

@@ -58,6 +58,7 @@ export function initialSnapshot(): MiniSyncPayload {
       track: s.currentTrack ? toMini(s.currentTrack) : null,
       queue: (s.queue ?? []).map(toMini),
       queueIndex: s.queueIndex ?? 0,
+      queueServerId: s.queueServerId ?? null,
       isPlaying: s.isPlaying,
       volume: s.volume ?? 1,
       gaplessEnabled: false,
@@ -67,7 +68,7 @@ export function initialSnapshot(): MiniSyncPayload {
     };
   } catch {
     return {
-      track: null, queue: [], queueIndex: 0, isPlaying: false,
+      track: null, queue: [], queueIndex: 0, queueServerId: null, isPlaying: false,
       volume: 1, gaplessEnabled: false, crossfadeEnabled: false,
       infiniteQueueEnabled: false, isMobile: false,
     };

@@ -35,7 +35,7 @@ interface Props {
   userRatingOverrides: Record<string, number>;
   setUserRatingOverride: (id: string, r: number) => void;
   toggleFullscreen: () => void;
-  navigate: (to: string) => void;
+  navigate: (to: string) => void | Promise<void>;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -115,7 +115,7 @@ export function PlayerTrackInfo({
                   songCount: 0,
                   duration: 0,
                 };
-                openContextMenu(e.clientX, e.clientY, album, 'album');
+                openContextMenu(e.clientX, e.clientY, album, 'album', undefined, undefined, undefined, undefined, true);
               }
             : undefined}
         />

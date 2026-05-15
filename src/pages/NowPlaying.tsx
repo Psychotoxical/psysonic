@@ -1,7 +1,9 @@
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
+import { useEnsurePlaybackServerOnMount } from '../hooks/useEnsurePlaybackServerOnMount';
 import { useTranslation } from 'react-i18next';
 import { Music, ExternalLink, Cast, Users, Radio, Clock, SkipForward, Info, Calendar, Disc3, Play, EyeOff, LayoutGrid, RotateCcw, Eye } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
@@ -43,8 +45,9 @@ import { useNowPlayingStarLove } from '../hooks/useNowPlayingStarLove';
 
 export default function NowPlaying() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const stableNavigate = useCallback((path: string) => navigate(path), [navigate]);
+  const stableNavigate = usePlaybackLibraryNavigate();
+  const subsonicReady = useEnsurePlaybackServerOnMount();
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
 
   const currentTrack            = usePlayerStore(s => s.currentTrack);
   const currentRadio            = usePlayerStore(s => s.currentRadio);
@@ -78,6 +81,8 @@ export default function NowPlaying() {
     songId, artistId, albumId, artistName,
     enableBandsintown, audiomuseNavidromeEnabled,
     lastfmUsername, currentTrack,
+    subsonicServerId: activeServerId,
+    fetchEnabled: subsonicReady,
   });
 
   // Star + Last.fm love + their toggle callbacks
@@ -91,10 +96,8 @@ export default function NowPlaying() {
     showLyrics();
   }, [isQueueVisible, toggleQueue, showLyrics]);
 
-  // Cover
-  const coverFetchUrl   = currentTrack?.coverArt ? buildCoverArtUrl(currentTrack.coverArt, 800) : '';
-  const coverKey        = currentTrack?.coverArt ? coverArtCacheKey(currentTrack.coverArt, 800) : '';
-  const resolvedCover   = useCachedUrl(coverFetchUrl, coverKey);
+  const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(currentTrack?.coverArt, 800);
+  const resolvedCover = useCachedUrl(coverFetchUrl, coverKey);
 
   const radioCoverFetchUrl = currentRadio?.coverArt ? buildCoverArtUrl(`ra-${currentRadio.id}`, 800) : '';
   const radioCoverKey      = currentRadio?.coverArt ? coverArtCacheKey(`ra-${currentRadio.id}`, 800) : '';

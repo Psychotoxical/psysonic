@@ -112,6 +112,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Internet Radio: portal add/edit station modal to document.body — fixes clipped modal on empty library (report: voidboywannabe on Psysonic Discord) (PR #699)',
       'Now Playing: composite list keys on similar artists, album-card tracklist, and top songs — avoids duplicate React keys when Subsonic repeats ids (PR #703)',
       'Search: share links in live/mobile search + queue preview modal (PR #716)',
+      'Multi-server: pin queue streams, cover art, links, context menu, and Now Playing to queue server (PR #717)',
     ],
   },
   {

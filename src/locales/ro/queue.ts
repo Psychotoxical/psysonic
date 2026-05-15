@@ -28,6 +28,7 @@ export const queue = {
   shareQueue: 'Copiază link-ul distribuirii cozii',
   shareQueueEmpty: 'Coada este goală — nimic de distribuit.',
   emptyQueue: 'Coada este goală.',
+  crossServerEnqueueBlocked: 'Piesele de pe alt server nu pot fi adăugate în coada curentă. Golește sau oprește coada mai întâi.',
   trackSingular: 'piesă',
   trackPlural: 'piese',
   showRemaining: 'Arată timpul rămas',

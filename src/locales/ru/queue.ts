@@ -28,6 +28,7 @@ export const queue = {
   shareQueue: 'Копировать ссылку на очередь',
   shareQueueEmpty: 'Очередь пуста — нечем поделиться.',
   emptyQueue: 'Очередь пуста.',
+  crossServerEnqueueBlocked: 'Треки с другого сервера нельзя добавить в текущую очередь. Завершите или очистите очередь.',
   trackSingular: 'трек',
   trackPlural: 'треков',
   showRemaining: 'Осталось',

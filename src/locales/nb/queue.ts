@@ -28,6 +28,7 @@ export const queue = {
   shareQueue: 'Kopiér lenke til kø',
   shareQueueEmpty: 'Køen er tom — ingenting å dele.',
   emptyQueue: 'Køen er tom.',
+  crossServerEnqueueBlocked: 'Spor fra en annen server kan ikke legges til i den nåværende køen. Tøm eller avslutt køen først.',
   trackSingular: 'spor',
   trackPlural: 'spor',
   showRemaining: 'Vis gjenværende tid',

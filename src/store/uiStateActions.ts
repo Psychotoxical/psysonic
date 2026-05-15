@@ -2,6 +2,10 @@ import {
   persistQueueVisibility,
 } from './queueVisibilityStorage';
 import type { PlayerState } from './playerStoreTypes';
+import {
+  ensurePlaybackServerActive,
+  playbackServerDiffersFromActive,
+} from '../utils/playback/playbackServer';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -41,10 +45,31 @@ export function createUiStateActions(set: SetState): Pick<
         };
       }),
 
-    openContextMenu: (x, y, item, type, queueIndex, playlistId, playlistSongIndex, shareKindOverride) =>
-      set({
-        contextMenu: { isOpen: true, x, y, item, type, queueIndex, playlistId, playlistSongIndex, shareKindOverride },
-      }),
+    openContextMenu: (x, y, item, type, queueIndex, playlistId, playlistSongIndex, shareKindOverride, pinToPlaybackServer) => {
+      const pin = pinToPlaybackServer ?? type === 'queue-item';
+      const open = () =>
+        set({
+          contextMenu: {
+            isOpen: true,
+            x,
+            y,
+            item,
+            type,
+            queueIndex,
+            playlistId,
+            playlistSongIndex,
+            shareKindOverride,
+            pinToPlaybackServer: pin,
+          },
+        });
+      if (pin && playbackServerDiffersFromActive()) {
+        void ensurePlaybackServerActive().then(ok => {
+          if (ok) open();
+        });
+        return;
+      }
+      open();
+    },
 
     closeContextMenu: () =>
       set(state => ({

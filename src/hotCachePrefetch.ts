@@ -1,4 +1,5 @@
-import { buildStreamUrl } from './api/subsonicStreamUrl';
+import { buildStreamUrlForServer } from './api/subsonicStreamUrl';
+import { getPlaybackServerId } from './utils/playback/playbackServer';
 import type { Track } from './store/playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from './store/authStore';
@@ -73,7 +74,8 @@ async function runWorker() {
   try {
     while (pendingQueue.length > 0) {
       const auth = useAuthStore.getState();
-      if (!auth.isLoggedIn || !auth.hotCacheEnabled || !auth.activeServerId) {
+      const playbackSid = getPlaybackServerId();
+      if (!auth.isLoggedIn || !auth.hotCacheEnabled || !playbackSid) {
         hotCacheFrontendDebug({
           event: 'prefetch-worker-stop',
           reason: 'auth-disabled-or-logged-out',
@@ -153,7 +155,7 @@ async function runWorker() {
         continue;
       }
 
-      const url = buildStreamUrl(job.trackId);
+      const url = buildStreamUrlForServer(job.serverId, job.trackId);
       try {
         const customDir = auth.hotCacheDownloadDir || null;
         hotCacheFrontendDebug({ event: 'prefetch-invoke', trackId: job.trackId });
@@ -173,7 +175,7 @@ async function runWorker() {
           fresh.queue,
           fresh.queueIndex,
           maxAfter,
-          authAfter.activeServerId ?? '',
+          getPlaybackServerId(),
           authAfter.hotCacheDownloadDir || null,
         );
       } catch (e: unknown) {
@@ -188,7 +190,8 @@ async function runWorker() {
 
 function scheduleReplan() {
   const auth = useAuthStore.getState();
-  if (!auth.isLoggedIn || !auth.hotCacheEnabled || !auth.activeServerId) {
+  const playbackSid = getPlaybackServerId();
+  if (!auth.isLoggedIn || !auth.hotCacheEnabled || !playbackSid) {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
       debounceTimer = null;
@@ -206,9 +209,10 @@ function scheduleReplan() {
 
 async function replanNow() {
   const auth = useAuthStore.getState();
-  if (!auth.isLoggedIn || !auth.hotCacheEnabled || !auth.activeServerId) return;
+  const playbackSid = getPlaybackServerId();
+  if (!auth.isLoggedIn || !auth.hotCacheEnabled || !playbackSid) return;
 
-  const serverId = auth.activeServerId;
+  const serverId = playbackSid;
   const maxBytes = Math.max(0, auth.hotCacheMaxMb) * 1024 * 1024;
   const customDir = auth.hotCacheDownloadDir || null;
   if (maxBytes <= 0) return;
@@ -286,8 +290,9 @@ export function initHotCachePrefetch(): () => void {
     if (onlyIndexMoved && i > prevIdx && prevIdx >= 0 && Array.isArray(prevQ)) {
       const left = (prevQ as Track[])[prevIdx];
       const a = useAuthStore.getState();
-      if (left && a.activeServerId) {
-        bumpHotCachePreviousTrackGrace(left.id, a.activeServerId, a.hotCacheDebounceSec);
+      const graceSid = getPlaybackServerId();
+      if (left && graceSid) {
+        bumpHotCachePreviousTrackGrace(left.id, graceSid, a.hotCacheDebounceSec);
         scheduleEvictAfterPreviousGrace();
       }
     }

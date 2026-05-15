@@ -4,6 +4,11 @@ import { lastfmGetTrackLoved, lastfmUpdateNowPlaying } from '../api/lastfm';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
+import {
+  bindQueueServerForPlayback,
+  getPlaybackServerId,
+  shouldBindQueueServerForPlay,
+} from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
@@ -173,6 +178,9 @@ export function runPlayTrack(
     setSeekFallbackVisualTarget(null);
   }
   const newQueue = queue ?? state.queue;
+  if (shouldBindQueueServerForPlay(state.queue, newQueue, queue)) {
+    bindQueueServerForPlayback();
+  }
   // Prefer an explicit target index from the caller (next/previous/queue-row
   // click already know the exact slot). `findIndex` returns the *first*
   // matching id, which jumps backwards when the queue contains the same
@@ -207,18 +215,19 @@ export function runPlayTrack(
       prevTrack
       && sameQueueTrackId(prevTrack.id, track.id)
       && authState.hotCacheEnabled
-      && authState.activeServerId,
+      && getPlaybackServerId(),
     );
 
   const runPlayTrackBody = () => {
     const authStateNow = useAuthStore.getState();
-    const url = resolvePlaybackUrl(track.id, authStateNow.activeServerId ?? '');
+    const playbackSid = getPlaybackServerId();
+    const url = resolvePlaybackUrl(track.id, playbackSid);
     recordEnginePlayUrl(track.id, url);
     const preloadedTrackId = get().enginePreloadedTrackId;
     const keepPreloadHint = preloadedTrackId === track.id;
     const playbackSourceHint = playbackSourceHintForResolvedUrl(
       track.id,
-      authStateNow.activeServerId ?? '',
+      playbackSid,
       url,
     );
     if (import.meta.env.DEV) {
@@ -255,7 +264,7 @@ export function runPlayTrack(
       && !sameQueueTrackId(prevTrack.id, track.id)
       && authStateNow.hotCacheEnabled
     ) {
-      const prevPromoteSid = authStateNow.activeServerId;
+      const prevPromoteSid = getPlaybackServerId();
       if (prevPromoteSid) {
         void promoteCompletedStreamToHotCache(
           prevTrack,
@@ -326,7 +335,7 @@ export function runPlayTrack(
 
     // Report Now Playing to Navidrome (for Live/getNowPlaying) + Last.fm
     const { nowPlayingEnabled: npEnabled, scrobblingEnabled: lfmEnabled, lastfmSessionKey: lfmKey } = useAuthStore.getState();
-    if (npEnabled) reportNowPlaying(track.id);
+    if (npEnabled) reportNowPlaying(track.id, getPlaybackServerId());
     if (lfmKey) {
       if (lfmEnabled) lastfmUpdateNowPlaying(track, lfmKey);
       lastfmGetTrackLoved(track.title, track.artist, lfmKey).then(loved => {
@@ -338,10 +347,10 @@ export function runPlayTrack(
       });
     }
     syncQueueToServer(newQueue, track, initialTime);
-    touchHotCacheOnPlayback(track.id, authStateNow.activeServerId ?? '');
+    touchHotCacheOnPlayback(track.id, playbackSid);
   };
 
-  const hotPromoteSid = authState.activeServerId;
+  const hotPromoteSid = getPlaybackServerId();
   if (needSameTrackHotPromote && hotPromoteSid) {
     void promoteCompletedStreamToHotCache(
       track,

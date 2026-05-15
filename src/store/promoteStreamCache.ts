@@ -1,4 +1,4 @@
-import { buildStreamUrl } from '../api/subsonicStreamUrl';
+import { buildStreamUrlForServer } from '../api/subsonicStreamUrl';
 import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { useHotCacheStore } from './hotCacheStore';
@@ -25,7 +25,7 @@ export async function promoteCompletedStreamToHotCache(
       {
         trackId: track.id,
         serverId,
-        url: buildStreamUrl(track.id),
+        url: buildStreamUrlForServer(serverId, track.id),
         suffix: track.suffix || 'mp3',
         customDir,
       },

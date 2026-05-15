@@ -1,5 +1,6 @@
 import { star, unstar } from '../api/subsonicStarRating';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -17,7 +18,7 @@ import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';
 import StarRating from './StarRating';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useLyricsStore } from '../store/lyricsStore';
 import MarqueeText from './MarqueeText';
 import LastfmIcon from './LastfmIcon';
@@ -40,7 +41,7 @@ import { useUtilityOverflowMenu } from '../hooks/useUtilityOverflowMenu';
 
 export default function PlayerBar() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const [eqOpen, setEqOpen] = useState(false);
   const [showVolPct, setShowVolPct] = useState(false);
   const [localShowRemaining, setLocalShowRemaining] = useState(() => useThemeStore.getState().showRemainingTime);
@@ -156,8 +157,14 @@ export default function PlayerBar() {
     ? currentTrack.artists
     : undefined;
 
-  const coverSrc = useMemo(() => displayCoverArt ? buildCoverArtUrl(displayCoverArt, 128) : '', [displayCoverArt]);
-  const coverKey = displayCoverArt ? coverArtCacheKey(displayCoverArt, 128) : '';
+  const previewCover = useMemo(() => {
+    if (!showPreviewMeta || !previewingTrack?.coverArt) return { src: '', cacheKey: '' };
+    const id = previewingTrack.coverArt;
+    return { src: buildCoverArtUrl(id, 128), cacheKey: coverArtCacheKey(id, 128) };
+  }, [showPreviewMeta, previewingTrack?.coverArt]);
+  const queueCover = usePlaybackCoverArt(showPreviewMeta ? undefined : displayCoverArt, 128);
+  const coverSrc = showPreviewMeta ? previewCover.src : queueCover.src;
+  const coverKey = showPreviewMeta ? previewCover.cacheKey : queueCover.cacheKey;
 
   const handleVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));
@@ -220,7 +227,7 @@ export default function PlayerBar() {
         userRatingOverrides={userRatingOverrides}
         setUserRatingOverride={setUserRatingOverride}
         toggleFullscreen={toggleFullscreen}
-        navigate={navigate}
+        navigate={navigatePlaybackLibrary}
         openContextMenu={openContextMenu}
         t={t}
       />

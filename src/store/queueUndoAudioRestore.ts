@@ -1,6 +1,7 @@
 import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
@@ -38,10 +39,11 @@ export function queueUndoRestoreAudioEngine(opts: {
     isReplayGainActive(), authState.replayGainMode,
   );
   const replayGainPeak = isReplayGainActive() ? (track.replayGainPeak ?? null) : null;
-  const url = resolvePlaybackUrl(track.id, authState.activeServerId ?? '');
+  const playbackSid = getPlaybackServerId();
+  const url = resolvePlaybackUrl(track.id, playbackSid);
   recordEnginePlayUrl(track.id, url);
   usePlayerStore.setState({
-    currentPlaybackSource: playbackSourceHintForResolvedUrl(track.id, authState.activeServerId ?? '', url),
+    currentPlaybackSource: playbackSourceHintForResolvedUrl(track.id, playbackSid, url),
   });
   const keepPreloadHint = usePlayerStore.getState().enginePreloadedTrackId === track.id;
   setDeferHotCachePrefetch(true);
@@ -91,5 +93,5 @@ export function queueUndoRestoreAudioEngine(opts: {
     .finally(() => {
       setDeferHotCachePrefetch(false);
     });
-  touchHotCacheOnPlayback(track.id, authState.activeServerId ?? '');
+  touchHotCacheOnPlayback(track.id, getPlaybackServerId());
 }

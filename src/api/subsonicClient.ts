@@ -2,6 +2,7 @@ import axios from 'axios';
 import md5 from 'md5';
 import { version } from '../../package.json';
 import { useAuthStore } from '../store/authStore';
+import type { ServerProfile } from '../store/authStoreTypes';
 
 export const SUBSONIC_CLIENT = `psysonic/${version}`;
 
@@ -49,6 +50,22 @@ export function getClient() {
   if (!baseUrl) throw new Error('No server configured');
   const params = getAuthParams(server?.username ?? '', server?.password ?? '');
   return { baseUrl: `${baseUrl}/rest`, params };
+}
+
+export function getServerById(serverId: string): ServerProfile | undefined {
+  return useAuthStore.getState().servers.find(s => s.id === serverId);
+}
+
+/** Subsonic REST call against an explicit saved server (not necessarily the active one). */
+export async function apiForServer<T>(
+  serverId: string,
+  endpoint: string,
+  extra: Record<string, unknown> = {},
+  timeout = 15000,
+): Promise<T> {
+  const server = getServerById(serverId);
+  if (!server) throw new Error(`Unknown server: ${serverId}`);
+  return apiWithCredentials(server.url, server.username, server.password, endpoint, extra, timeout);
 }
 
 export async function api<T>(endpoint: string, extra: Record<string, unknown> = {}, timeout = 15000): Promise<T> {

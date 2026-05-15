@@ -44,6 +44,16 @@ vi.mock('@/api/subsonicScrobble', () => ({
   reportNowPlaying: vi.fn(async () => undefined),
   scrobbleSong: vi.fn(async () => undefined),
 }));
+vi.mock('@/utils/playback/playbackServer', () => ({
+  getPlaybackServerId: () => 'srv-test',
+  bindQueueServerForPlayback: vi.fn(),
+  clearQueueServerForPlayback: vi.fn(),
+  playbackServerDiffersFromActive: () => false,
+  playbackCoverArtForId: (id: string, size: number) => ({
+    src: `https://mock/cover/${id}?size=${size}`,
+    cacheKey: `mock:cover:${id}:${size}`,
+  }),
+}));
 vi.mock('@/api/subsonicStarRating', () => ({
   setRating: vi.fn(async () => undefined),
   probeEntityRatingSupport: vi.fn(async () => 'track_only'),
@@ -116,6 +126,7 @@ describe('flushPlayQueuePosition', () => {
       [t1.id, t2.id, t3.id],
       t2.id,
       12345, // Math.floor(12.345 * 1000)
+      'srv-test',
     );
   });
 

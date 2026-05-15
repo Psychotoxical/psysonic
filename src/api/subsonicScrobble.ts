@@ -1,17 +1,30 @@
-import { api } from './subsonicClient';
+import { api, apiForServer } from './subsonicClient';
 import type { SubsonicNowPlaying } from './subsonicTypes';
 
-export async function scrobbleSong(id: string, time: number): Promise<void> {
+async function scrobbleOnServer(
+  serverId: string,
+  id: string,
+  submission: boolean,
+  time?: number,
+): Promise<void> {
+  const params: Record<string, unknown> = { id, submission };
+  if (time !== undefined) params.time = time;
+  await apiForServer(serverId, 'scrobble.view', params);
+}
+
+export async function scrobbleSong(id: string, time: number, serverId: string): Promise<void> {
+  if (!serverId) return;
   try {
-    await api('scrobble.view', { id, time, submission: true });
+    await scrobbleOnServer(serverId, id, true, time);
   } catch {
     // best effort
   }
 }
 
-export async function reportNowPlaying(id: string): Promise<void> {
+export async function reportNowPlaying(id: string, serverId: string): Promise<void> {
+  if (!serverId) return;
   try {
-    await api('scrobble.view', { id, submission: false });
+    await scrobbleOnServer(serverId, id, false);
   } catch {
     // best effort
   }

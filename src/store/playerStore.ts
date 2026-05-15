@@ -36,6 +36,7 @@ export const usePlayerStore = create<PlayerState>()(
       currentPlaybackSource: null,
       enginePreloadedTrackId: null,
       queue: [],
+      queueServerId: null,
       queueIndex: 0,
       isPlaying: false,
       progress: 0,
@@ -81,6 +82,7 @@ export const usePlayerStore = create<PlayerState>()(
         repeatMode: state.repeatMode,
         currentTrack: state.currentTrack,
         queue: state.queue,
+        queueServerId: state.queueServerId,
         queueIndex: state.queueIndex,
         isQueueVisible: state.isQueueVisible,
         // currentTime is intentionally NOT persisted here.

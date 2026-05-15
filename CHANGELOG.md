@@ -488,6 +488,16 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Album detail **header** shows **multiple album artists** when the server sends OpenSubsonic **`albumArtists`** on the album or on child songs — each name links to its artist page instead of only the first id (issue [#552](https://github.com/Psychotoxical/psysonic/issues/552)).
 * **Player bar**, **mobile now playing**, and **mini player** copy **`artists`** through **`songToTrack`** so multi-performer tracks get **per-artist** links like the album tracklist column.
 
+### Multi-server — queue playback stays on the source server when browsing another library
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#717](https://github.com/Psychotoxical/psysonic/pull/717)**
+
+* With a non-empty queue from server **A**, switching the active server to **B** no longer breaks playback: streams, hot-cache prefetch, seek/resume, and MPRIS cover art use **`queueServerId`** (persisted with the queue).
+* **Cover art** in the queue panel, player bar, mini/fullscreen/mobile players, and Now Playing loads from the queue server when it differs from the browsed server.
+* **Artist/album links** from the player, queue, Now Playing, and mini player switch back to the queue server before navigating; **queue** and **player-bar album** context menus pin API actions to that server as well.
+* Opening **Now Playing** (sidebar, mobile route, or queue info panel) switches to the queue server before Subsonic metadata loads, with per-server fetch caches so artist/album cards do not show the wrong library.
+* **Scrobble**, **now-playing report**, and **savePlayQueue** sync use the queue server as well; removing that server profile clears `queueServerId`; the mini-player bridge receives `queueServerId`; enqueue/play-next from another browsed server is blocked with a toast.
+
 ### UI — selectstart blocker no longer throws on Text node targets
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#718](https://github.com/Psychotoxical/psysonic/pull/718)**

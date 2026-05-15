@@ -7,6 +7,7 @@ import { Info } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
+import { useEnsurePlaybackServerOnMount } from '../hooks/useEnsurePlaybackServerOnMount';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import CachedImage from './CachedImage';
 import OverlayScrollArea from './OverlayScrollArea';
@@ -72,21 +73,31 @@ function buildContributorRows(
   return out;
 }
 
+function queuePanelCacheKey(serverId: string, id: string): string {
+  return serverId ? `${serverId}:${id}` : id;
+}
+
 export default function NowPlayingInfo() {
   const { t } = useTranslation();
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const enableBandsintown = useAuthStore(s => s.enableBandsintown);
   const setEnableBandsintown = useAuthStore(s => s.setEnableBandsintown);
+  const subsonicReady = useEnsurePlaybackServerOnMount();
+  const subsonicServerId = useAuthStore(s => s.activeServerId ?? '');
 
   const artistName = currentTrack?.artist || '';
   const artistId = currentTrack?.artistId || '';
   const songId = currentTrack?.id || '';
 
   const [artistInfo, setArtistInfo] = useState<SubsonicArtistInfo | null>(
-    artistId ? artistInfoCache.get(artistId) ?? null : null,
+    artistId && subsonicServerId
+      ? artistInfoCache.get(queuePanelCacheKey(subsonicServerId, artistId)) ?? null
+      : null,
   );
   const [songDetail, setSongDetail] = useState<SubsonicSong | null>(
-    songId ? songDetailCache.get(songId) ?? null : null,
+    songId && subsonicServerId
+      ? songDetailCache.get(queuePanelCacheKey(subsonicServerId, songId)) ?? null
+      : null,
   );
   const [tourEvents, setTourEvents] = useState<BandsintownEvent[]>([]);
   const [tourLoading, setTourLoading] = useState(false);
@@ -101,27 +112,29 @@ export default function NowPlayingInfo() {
 
   // Artist bio + image
   useEffect(() => {
-    if (!artistId) { setArtistInfo(null); return; }
-    const cached = artistInfoCache.get(artistId);
+    if (!subsonicReady || !subsonicServerId || !artistId) { setArtistInfo(null); return; }
+    const cacheKey = queuePanelCacheKey(subsonicServerId, artistId);
+    const cached = artistInfoCache.get(cacheKey);
     if (cached !== undefined) { setArtistInfo(cached); return; }
     let cancelled = false;
     getArtistInfo(artistId)
-      .then(info => { if (!cancelled) { artistInfoCache.set(artistId, info ?? null); setArtistInfo(info ?? null); } })
-      .catch(() => { if (!cancelled) { artistInfoCache.set(artistId, null); setArtistInfo(null); } });
+      .then(info => { if (!cancelled) { artistInfoCache.set(cacheKey, info ?? null); setArtistInfo(info ?? null); } })
+      .catch(() => { if (!cancelled) { artistInfoCache.set(cacheKey, null); setArtistInfo(null); } });
     return () => { cancelled = true; };
-  }, [artistId]);
+  }, [subsonicReady, subsonicServerId, artistId]);
 
   // Song detail (for OpenSubsonic contributors[])
   useEffect(() => {
-    if (!songId) { setSongDetail(null); return; }
-    const cached = songDetailCache.get(songId);
+    if (!subsonicReady || !subsonicServerId || !songId) { setSongDetail(null); return; }
+    const cacheKey = queuePanelCacheKey(subsonicServerId, songId);
+    const cached = songDetailCache.get(cacheKey);
     if (cached !== undefined) { setSongDetail(cached); return; }
     let cancelled = false;
     getSong(songId)
-      .then(song => { if (!cancelled) { songDetailCache.set(songId, song ?? null); setSongDetail(song ?? null); } })
-      .catch(() => { if (!cancelled) { songDetailCache.set(songId, null); setSongDetail(null); } });
+      .then(song => { if (!cancelled) { songDetailCache.set(cacheKey, song ?? null); setSongDetail(song ?? null); } })
+      .catch(() => { if (!cancelled) { songDetailCache.set(cacheKey, null); setSongDetail(null); } });
     return () => { cancelled = true; };
-  }, [songId]);
+  }, [subsonicReady, subsonicServerId, songId]);
 
   // Bandsintown — only when opt-in toggle is on
   useEffect(() => {

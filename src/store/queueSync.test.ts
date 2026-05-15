@@ -8,7 +8,7 @@
 import type { Track } from './playerStoreTypes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { savePlayQueueMock, playerState, progressSnapshot } = vi.hoisted(() => ({
-  savePlayQueueMock: vi.fn(async (_ids: string[], _currentId: string | undefined, _pos: number) => undefined),
+  savePlayQueueMock: vi.fn(async (_ids: string[], _currentId: string | undefined, _pos: number, _serverId: string) => undefined),
   playerState: {
     queue: [] as Track[],
     currentTrack: null as Track | null,
@@ -18,6 +18,9 @@ const { savePlayQueueMock, playerState, progressSnapshot } = vi.hoisted(() => ({
 }));
 
 vi.mock('../api/subsonicPlayQueue', () => ({ savePlayQueue: savePlayQueueMock }));
+vi.mock('../utils/playback/playbackServer', () => ({
+  getPlaybackServerId: () => 'srv-a',
+}));
 vi.mock('./playerStore', () => ({
   usePlayerStore: { getState: () => playerState },
 }));
@@ -65,7 +68,7 @@ describe('syncQueueToServer (debounced)', () => {
   it('fires once after 5 s with id list + current id + position in ms', () => {
     syncQueueToServer(queue, queue[0], 30);
     vi.advanceTimersByTime(5000);
-    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'a', 30000);
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'a', 30000, 'srv-a');
   });
 
   it('cancels the previous timer when called again before fire', () => {
@@ -74,7 +77,7 @@ describe('syncQueueToServer (debounced)', () => {
     syncQueueToServer([...queue, track('c')], queue[0], 20);
     vi.advanceTimersByTime(5000);
     expect(savePlayQueueMock).toHaveBeenCalledTimes(1);
-    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b', 'c'], 'a', 20000);
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b', 'c'], 'a', 20000, 'srv-a');
   });
 
   it('caps the queue at 1000 ids', () => {
@@ -91,7 +94,7 @@ describe('syncQueueToServer (debounced)', () => {
 describe('flushQueueSyncToServer (immediate)', () => {
   it('fires synchronously with no debounce', async () => {
     await flushQueueSyncToServer([track('a')], track('a'), 12);
-    expect(savePlayQueueMock).toHaveBeenCalledWith(['a'], 'a', 12000);
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a'], 'a', 12000, 'srv-a');
   });
 
   it('cancels a pending debounced sync first', async () => {
@@ -126,7 +129,7 @@ describe('flushPlayQueuePosition', () => {
     playerState.currentTrack = playerState.queue[0];
     progressSnapshot.currentTime = 42;
     await flushPlayQueuePosition();
-    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'a', 42000);
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'a', 42000, 'srv-a');
   });
 
   it('is a no-op when a radio session is active', async () => {

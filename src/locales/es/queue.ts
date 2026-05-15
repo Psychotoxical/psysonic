@@ -28,6 +28,7 @@ export const queue = {
   shareQueue: 'Copiar enlace de la cola',
   shareQueueEmpty: 'La cola está vacía — no hay nada que compartir.',
   emptyQueue: 'La cola está vacía.',
+  crossServerEnqueueBlocked: 'No se pueden añadir pistas de otro servidor a la cola actual. Termina o vacía la cola primero.',
   trackSingular: 'pista',
   trackPlural: 'pistas',
   showRemaining: 'Mostrar tiempo restante',

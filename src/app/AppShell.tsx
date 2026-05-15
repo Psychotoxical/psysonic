@@ -1,5 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ensurePlaybackServerActive } from '../utils/playback/playbackServer';
 import { invoke } from '@tauri-apps/api/core';
 import { PanelRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -97,7 +98,10 @@ export function AppShell() {
   useEffect(() => {
     const onPsyNavigate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.to) navigate(detail.to);
+      if (!detail?.to) return;
+      void ensurePlaybackServerActive().then(ok => {
+        if (ok) navigate(detail.to);
+      });
     };
     window.addEventListener('psy:navigate', onPsyNavigate);
     return () => window.removeEventListener('psy:navigate', onPsyNavigate);
