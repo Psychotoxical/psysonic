@@ -15,6 +15,7 @@ import {
 import type {
   AuthState,
   DiscordCoverSource,
+  DurationMode,
   LyricsSourceConfig,
   SeekbarStyle,
 } from './authStoreTypes';
@@ -79,6 +80,16 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ? {}
     : { seekbarStyle: 'truewave' as SeekbarStyle };
 
+  // Garbage / null / undefined / missing key from a legacy or tampered persist
+  // payload maps back to 'total' so the duration chip never receives an
+  // unknown mode (would render an empty label).
+  const VALID_QUEUE_DURATION_MODES = new Set<string>(['total', 'remaining', 'eta']);
+  const queueDurationDisplayModeMigrated = VALID_QUEUE_DURATION_MODES.has(
+    (state as { queueDurationDisplayMode?: unknown }).queueDurationDisplayMode as string,
+  )
+    ? {}
+    : { queueDurationDisplayMode: 'total' as DurationMode };
+
   // The `animationMode` 3-state setting was removed; users on `'reduced'`
   // or `'static'` collapse onto the former `'full'` path automatically as
   // soon as the field is gone from the store. Strip the persisted field
@@ -130,6 +141,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...lyricsSourcesMigrated,
     ...wheelSmoothOneTime,
     ...seekbarStyleMigrated,
+    ...queueDurationDisplayModeMigrated,
     ...discordCoverSourceMigrated,
   };
 }

@@ -13,6 +13,8 @@ export interface ServerProfile {
 }
 
 export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thick' | 'segmented' | 'neon' | 'pulsewave' | 'particletrail' | 'liquidfill' | 'retrotape';
+/** Queue header duration chip: total duration / time left / ETA finish clock. */
+export type DurationMode = 'total' | 'remaining' | 'eta';
 export type LoggingMode = 'off' | 'normal' | 'debug';
 export type NormalizationEngine = 'off' | 'replaygain' | 'loudness';
 export type DiscordCoverSource = 'none' | 'apple' | 'server';
@@ -136,6 +138,8 @@ export interface AuthState {
   seekbarStyle: SeekbarStyle;
   /** Persisted UI toggle: is the Now Playing section in queue panel collapsed */
   queueNowPlayingCollapsed: boolean;
+  /** Queue header duration chip mode (cycle: total → remaining → ETA). */
+  queueDurationDisplayMode: DurationMode;
 
   /** Alpha: native hi-res sample rate output (disabled = safe 44.1 kHz mode) */
   enableHiRes: boolean;
@@ -289,6 +293,7 @@ export interface AuthState {
   setAdvancedSettingsEnabled: (v: boolean) => void;
   setSeekbarStyle: (v: SeekbarStyle) => void;
   setQueueNowPlayingCollapsed: (v: boolean) => void;
+  setQueueDurationDisplayMode: (v: DurationMode) => void;
   setEnableHiRes: (v: boolean) => void;
   setAudioOutputDevice: (v: string | null) => void;
   setHotCacheEnabled: (v: boolean) => void;

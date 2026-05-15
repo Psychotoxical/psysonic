@@ -22,6 +22,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setLinuxWebkitKineticScroll'
   | 'setSeekbarStyle'
   | 'setQueueNowPlayingCollapsed'
+  | 'setQueueDurationDisplayMode'
   | 'setShowFullscreenLyrics'
   | 'setFsLyricsStyle'
   | 'setSidebarLyricsStyle'
@@ -42,6 +43,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setLinuxWebkitKineticScroll: (v) => set({ linuxWebkitKineticScroll: v }),
     setSeekbarStyle: (v) => set({ seekbarStyle: v }),
     setQueueNowPlayingCollapsed: (v) => set({ queueNowPlayingCollapsed: v }),
+    setQueueDurationDisplayMode: (v) => set({ queueDurationDisplayMode: v }),
     setShowFullscreenLyrics: (v) => set({ showFullscreenLyrics: v }),
     setFsLyricsStyle: (v) => set({ fsLyricsStyle: v }),
     setSidebarLyricsStyle: (v) => set({ sidebarLyricsStyle: v }),

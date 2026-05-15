@@ -89,6 +89,7 @@ export const useAuthStore = create<AuthState>()(
       advancedSettingsEnabled: false,
       seekbarStyle: 'truewave',
       queueNowPlayingCollapsed: false,
+      queueDurationDisplayMode: 'total',
       enableHiRes: false,
       audioOutputDevice: null,
       hotCacheEnabled: false,

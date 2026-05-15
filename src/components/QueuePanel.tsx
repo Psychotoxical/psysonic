@@ -22,7 +22,6 @@ import NowPlayingInfo from './NowPlayingInfo';
 import { TFunction } from 'i18next';
 import { useLuckyMixStore } from '../store/luckyMixStore';
 import { useQueueToolbarStore } from '../store/queueToolbarStore';
-import { DurationMode } from '../utils/componentHelpers/queuePanelHelpers';
 import { SavePlaylistModal } from './queuePanel/SavePlaylistModal';
 import { LoadPlaylistModal } from './queuePanel/LoadPlaylistModal';
 import { QueueHeader } from './queuePanel/QueueHeader';
@@ -122,7 +121,8 @@ function QueuePanelHostOrSolo() {
   const isNowPlayingCollapsed = useAuthStore(s => s.queueNowPlayingCollapsed);
   const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
   const toolbarButtons = useQueueToolbarStore(s => s.buttons);
-  const [durationMode, setDurationMode] = useState<DurationMode>('total');
+  const durationMode = useAuthStore(s => s.queueDurationDisplayMode);
+  const setDurationMode = useAuthStore(s => s.setQueueDurationDisplayMode);
   const expandReplayGain = useThemeStore(s => s.expandReplayGain);
   const setExpandReplayGain = useThemeStore(s => s.setExpandReplayGain);
   const reanalyzeLoudnessForTrack = usePlayerStore(s => s.reanalyzeLoudnessForTrack);

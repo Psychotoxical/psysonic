@@ -65,6 +65,7 @@ describe('trivial pass-through setters', () => {
     ['setLyricsStaticOnly', 'lyricsStaticOnly', true],
     ['setShowChangelogOnUpdate', 'showChangelogOnUpdate', false],
     ['setQueueNowPlayingCollapsed', 'queueNowPlayingCollapsed', true],
+    ['setQueueDurationDisplayMode', 'queueDurationDisplayMode', 'eta'],
     ['setEnableHiRes', 'enableHiRes', true],
     ['setHotCacheEnabled', 'hotCacheEnabled', true],
     ['setMixMinRatingFilterEnabled', 'mixMinRatingFilterEnabled', true],
