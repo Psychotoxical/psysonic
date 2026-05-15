@@ -56,7 +56,7 @@ function ArtistGridTile({ artist, ...rest }: TileProps) {
         </div>
       )}
       <ArtistCardAvatar artist={artist} showImages={rest.showArtistImages} />
-      <div style={{ textAlign: 'center' }}>
+      <div className="artist-card-info artist-card-info--center">
         <div className="artist-card-name">{artist.name}</div>
         {artist.albumCount != null && (
           <div className="artist-card-meta">{rest.t('artists.albumCount', { count: artist.albumCount })}</div>

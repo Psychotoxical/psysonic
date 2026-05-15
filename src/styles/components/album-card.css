@@ -19,6 +19,9 @@
   aspect-ratio: 1;
   overflow: hidden;
   background: var(--bg-hover);
+  contain: paint;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .album-card-cover img {
@@ -43,3 +46,6 @@
   color: var(--text-muted);
 }
 
+.album-card-info {
+  transform: translateZ(0);
+}
