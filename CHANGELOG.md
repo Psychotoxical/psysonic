@@ -292,6 +292,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ## Fixed
 
+### Mixes — rating filter and Lucky Mix queue fill
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#714](https://github.com/Psychotoxical/psysonic/pull/714)**
+
+* **Settings → Ratings → filter by rating** now applies reliably across **Lucky Mix**, **Random Mix**, **Instant Mix** (context menu + CLI), and infinite-queue top-ups: entity ratings are refreshed after **`setRating`**, unrated artists/albums are no longer negative-cached for seven minutes, optimistic UI stars are honored, and artist/album stars from **`getArtist`** / **`getAlbum`** override misleading OpenSubsonic refs on song payloads.
+* **Random Mix** applies the rating filter even when audiobook exclusion is off (previously skipped in that path).
+* **Lucky Mix** reports the real queue length in the success toast and keeps filling until **`playerStore.queue`** reaches the target (up to 50), instead of counting track ids before **`enqueue`** completed or stopping pool fill when the unfiltered candidate pool was large enough.
+
 ### Statistics / playlists — duration totals rounded to the nearest minute again
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#710](https://github.com/Psychotoxical/psysonic/pull/710)**
