@@ -534,6 +534,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The global **`selectstart`** handler assumed `event.target` was always an **`Element`**. Starting selection inside text (e.g. Now Playing **`[data-selectable]`** copy) could pass a **Text** node and crash with **`target.closest is not a function`**. The handler now resolves Text nodes to their parent element before applying allow/deny rules.
 
+### UI — consistent Orbit / Server / Live header dropdown styling
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#725](https://github.com/Psychotoxical/psysonic/pull/725)**
+
+* The three header dropdowns (Orbit launch, Server picker, Live listeners) each had their own container styling. Live in particular used a glass / backdrop-filter utility that read poorly on many themes. All three now share the **`.nav-library-dropdown-panel`** container — same background, border, shadow and radius via the existing semantic tokens. Item layouts per dropdown stay case-specific.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
