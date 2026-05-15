@@ -9,11 +9,19 @@ export type OverlayScrollbarThumbMeta = {
  *   When shorter than the viewport, thumb size/position must use this or the
  *   thumb’s bottom extends past the visible rail at max scroll.
  */
+function overflowYAllowsUserScroll(overflowY: string): boolean {
+  return overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+}
+
 export function computeOverlayScrollbarThumbMeta(
   el: HTMLElement | null,
   trackHeight?: number,
 ): OverlayScrollbarThumbMeta {
   if (!el) return { thumbH: 0, thumbT: 0, visible: false };
+  const { overflowY } = getComputedStyle(el);
+  if (!overflowYAllowsUserScroll(overflowY)) {
+    return { thumbH: 0, thumbT: 0, visible: false };
+  }
   const { scrollTop, scrollHeight, clientHeight } = el;
   if (scrollHeight <= clientHeight + 1) {
     return { thumbH: 0, thumbT: 0, visible: false };

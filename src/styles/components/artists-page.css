@@ -1,4 +1,92 @@
 /* ─ Artists Page ─ */
+
+/* Tight header: removes the top page padding gap above the toolbar and compacts the bar.
+   On split layout, scroll position comes from the in-page overlay viewport, not the main route scroller. */
+.content-body.artists-page {
+  transition: padding-top 0.2s ease;
+}
+
+/* Toolbar above list: one overlay scroller for the grid/list; main route viewport does not scroll here. */
+.content-body.artists-page.artists-page-split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  /* Align in-page overlay rail with the main route thumb (flush to the panel edge). Default
+     .content-body padding-right would inset the whole scroller into the card column. */
+  padding-right: 0;
+}
+
+.artists-page-split .artists-page-toolbar {
+  flex-shrink: 0;
+}
+
+.content-body.artists-page.artists-page-split .page-sticky-header {
+  position: relative;
+  top: auto;
+  z-index: auto;
+  /* Parent has no right padding: cancel only the right negative margin from the global sticky rule. */
+  margin-right: 0;
+}
+
+.content-body.artists-page.artists-page-split > .artists-page-inpage-scroll.overlay-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.artists-page-inpage-scroll__viewport {
+  padding-bottom: var(--space-6);
+  /* Keep list/grid inset from the edge; rail sits in the gutter like the main route scroller. */
+  padding-right: var(--space-6);
+}
+
+.content-body.artists-page.artists-page--header-tight {
+  padding-top: 0;
+}
+
+.content-body.artists-page .page-sticky-header {
+  transition: padding 0.2s ease;
+}
+
+.content-body.artists-page.artists-page--header-tight .page-sticky-header {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.content-body.artists-page.artists-page--header-tight .page-sticky-header .page-title {
+  font-size: 1rem;
+}
+
+.artists-toolbar-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.content-body.artists-page.artists-page--header-tight .artists-toolbar-top-row {
+  gap: 0.5rem;
+}
+
+.artists-toolbar-alpha-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: var(--space-4);
+}
+
+.content-body.artists-page.artists-page--header-tight .artists-toolbar-alpha-row {
+  margin-top: var(--space-2);
+}
+
+.content-body.artists-page.artists-page--header-tight .artists-alpha-btn {
+  padding: 0.15rem 0.4rem;
+  font-size: 11px;
+}
+
 .letter-heading {
   font-size: 13px;
   font-weight: 700;

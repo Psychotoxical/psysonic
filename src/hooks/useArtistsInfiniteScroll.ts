@@ -4,6 +4,8 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 interface UseArtistsInfiniteScrollArgs {
   pageSize: number;
   resetDeps: ReadonlyArray<unknown>;
+  /** IntersectionObserver root (e.g. Artists in-page overlay viewport). */
+  getScrollRoot?: () => HTMLElement | null;
 }
 
 interface UseArtistsInfiniteScrollResult {
@@ -32,6 +34,7 @@ interface UseArtistsInfiniteScrollResult {
 export function useArtistsInfiniteScroll({
   pageSize,
   resetDeps,
+  getScrollRoot,
 }: UseArtistsInfiniteScrollArgs): UseArtistsInfiniteScrollResult {
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -58,7 +61,7 @@ export function useArtistsInfiniteScroll({
     observerInst.current = null;
     if (!node) return;
 
-    const rootEl = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    const rootEl = getScrollRoot?.() ?? document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0]?.isIntersecting) loadMoreRef.current();
@@ -70,7 +73,7 @@ export function useArtistsInfiniteScroll({
     );
     observer.observe(node);
     observerInst.current = observer;
-  }, []);
+  }, [getScrollRoot]);
 
   useEffect(() => () => {
     observerInst.current?.disconnect();

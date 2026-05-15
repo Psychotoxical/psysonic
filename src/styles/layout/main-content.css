@@ -104,6 +104,11 @@
   contain: paint;
 }
 
+/* Artists: in-page overlay scroller — keep the main route viewport from scrolling too. */
+.app-shell-route-scroll__viewport--artists-split {
+  overflow: hidden !important;
+}
+
 /* Sticky page header: keeps page title + filter/search bar visible while the
    body scrolls. Negative horizontal margins (+ matching padding) make the
    background flush with the scroll container edges so the sticky block looks

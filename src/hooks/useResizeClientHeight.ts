@@ -37,3 +37,23 @@ export function useRefElementClientHeight(
   }, [ref, fallback]);
   return h;
 }
+
+/** ResizeObserver on a concrete element (e.g. callback-ref state for in-page scrollers). */
+export function useElementClientHeightForElement(
+  element: HTMLElement | null,
+  fallback = 600,
+): number {
+  const [h, setH] = useState(fallback);
+  useLayoutEffect(() => {
+    if (!element) {
+      setH(fallback);
+      return;
+    }
+    const update = () => setH(element.clientHeight);
+    const ro = new ResizeObserver(update);
+    ro.observe(element);
+    update();
+    return () => ro.disconnect();
+  }, [element, fallback]);
+  return h;
+}
