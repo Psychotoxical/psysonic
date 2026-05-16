@@ -603,6 +603,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * The **Artist Biography** modal lived under the album page tree, where an ancestor broke **`position: fixed`** on the overlay — opening a long bio scrolled the whole page instead of staying pinned to the viewport, and the modal itself stretched past the visible area. It now mounts via **`createPortal(..., document.body)`** (same approach as **`RadioEditModal`** / **`CoverLightbox`**), so the overlay always pins to the viewport.
 * A new **`.modal-content.bio-modal`** variant turns the modal into a flex column with **`overflow: hidden`** and an inner **`.bio-modal-body`** that handles the scrolling. The existing **`max-height: 80vh`** cap is now honored, and the title + close button stay pinned while the bio scrolls.
 
+### Artist info — image-mismatch fix extended; square Queue Info hero; ArtistDetail glow removed
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#739](https://github.com/Psychotoxical/psysonic/pull/739)**
+
+* The cache-mismatch shape PR [#732](https://github.com/Psychotoxical/psysonic/pull/732) fixed inside the Queue Info panel was latent in the **About the Artist** card on the **NowPlaying** page and would have surfaced there the moment that card used **`CachedImage`**. Fixed at the source: **`useNowPlayingFetchers`** and **`useArtistDetailData`** hold id-keyed entities as **`{ id, value }`** tuples and gate them on id-match at the return — every consumer is safe by construction. ArtistDetail's inline bio block is now the shared **`ArtistCard`** so there is a single rendering path.
+* The artist hero in the **Queue Info** panel was rendered in a **16:10** wrap with **`object-fit: cover`**, so portrait photos always lost top and bottom equally — perceived as cropped even on roughly square sources. Now **1:1**, symmetric crop.
+* The **ArtistDetail** avatar extracted the cover's accent colour on every image load and painted a 36px **`boxShadow`** ring around the photo. The glow is gone (the state, the reset effect, and the per-page **`extractCoverColors`** import are dropped too; the utility itself stays in place for **`useFsDynamicAccent`**).
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
