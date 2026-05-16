@@ -611,6 +611,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * The artist hero in the **Queue Info** panel was rendered in a **16:10** wrap with **`object-fit: cover`**, so portrait photos always lost top and bottom equally — perceived as cropped even on roughly square sources. Now **1:1**, symmetric crop.
 * The **ArtistDetail** avatar extracted the cover's accent colour on every image load and painted a 36px **`boxShadow`** ring around the photo. The glow is gone (the state, the reset effect, and the per-page **`extractCoverColors`** import are dropped too; the utility itself stays in place for **`useFsDynamicAccent`**).
 
+### Share Top Albums — full-resolution preview, Square preview fits the modal
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#740](https://github.com/Psychotoxical/psysonic/pull/740)**
+
+* The **Square** preview was clipped at the bottom — the preview frame capped only `maxHeight: 52vh` while letting the 1:1 canvas span the full modal width, so the canvas overflowed the cap and `overflow: hidden` removed the last grid row with nothing to scroll into. Both dimensions are now capped per format (Square → **`maxWidth: 52vh`**, Story → **`min(320px, calc(52vh * 9 / 16))`**, Twitter remains modal-width-bound), so the preview always fits without clipping.
+* The preview also looked **blurry** — the canvas was rendered at **540 px** wide and CSS upscaled it back to ~676 px in the 720 px modal, while cover thumbnails were decoded at only **256 px** and stretched into ~300 px tiles. The preview canvas now renders at the **full export width (1080)** and decodes covers at the **export tile size (600)**, so text is crisp and album thumbnails downsample cleanly.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
