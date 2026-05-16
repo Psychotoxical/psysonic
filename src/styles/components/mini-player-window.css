@@ -576,7 +576,7 @@ html[data-perf-disable-home-artwork-clip="true"] .home-lite-artwork .song-card-c
 /* Artist card */
 .np-info-artist-image-wrap {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 1 / 1;
   border-radius: 12px;
   overflow: hidden;
   background: var(--bg-elevated);

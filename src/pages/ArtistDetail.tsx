@@ -24,7 +24,6 @@ import LastfmIcon from '../components/LastfmIcon';
 import { invalidateCoverArt } from '../utils/imageCache';
 import { showToast } from '../utils/ui/toast';
 import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
-import { extractCoverColors } from '../utils/ui/dynamicColors';
 import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
 
@@ -63,7 +62,6 @@ export default function ArtistDetail() {
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
   const isMobile = useIsMobile();
   const [coverRevision, setCoverRevision] = useState(0);
-  const [avatarGlow, setAvatarGlow] = useState('');
   /** True after header CachedImage onError — avoid `display:none` on the img (breaks recovery). */
   const [headerCoverFailed, setHeaderCoverFailed] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -92,10 +90,6 @@ export default function ArtistDetail() {
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
 
   const [artistEntityRating, setArtistEntityRating] = useState(0);
-
-  useEffect(() => {
-    setAvatarGlow('');
-  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -294,8 +288,6 @@ export default function ArtistDetail() {
         coverRevision={coverRevision}
         headerCoverFailed={headerCoverFailed}
         setHeaderCoverFailed={setHeaderCoverFailed}
-        avatarGlow={avatarGlow}
-        setAvatarGlow={setAvatarGlow}
         lightboxOpen={lightboxOpen}
         setLightboxOpen={setLightboxOpen}
       />
