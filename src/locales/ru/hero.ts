@@ -3,4 +3,6 @@ export const hero = {
   playAlbum: 'Воспроизвести альбом',
   enqueue: 'В очередь',
   enqueueTooltip: 'Добавить весь альбом в очередь',
+  previousAlbum: 'Предыдущий альбом',
+  nextAlbum: 'Следующий альбом',
 };

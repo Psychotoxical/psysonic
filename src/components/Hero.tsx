@@ -4,7 +4,7 @@ import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, ListPlus } from 'lucide-react';
+import { Play, ListPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import CachedImage, { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -224,9 +224,18 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     };
   }, [albums.length, heroInView, startTimer]);
 
-  const goTo = useCallback((idx: number) => {
-    setActiveIdx(idx);
-    startTimer(albums.length);
+  const goPrev = useCallback(() => {
+    const len = albums.length;
+    if (len <= 1) return;
+    setActiveIdx(prev => (prev - 1 + len) % len);
+    startTimer(len);
+  }, [albums.length, startTimer]);
+
+  const goNext = useCallback(() => {
+    const len = albums.length;
+    if (len <= 1) return;
+    setActiveIdx(prev => (prev + 1) % len);
+    startTimer(len);
   }, [albums.length, startTimer]);
 
   const album = albums[activeIdx] ?? null;
@@ -346,18 +355,38 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
         </div>
       </div>
 
-      {/* Carousel dot indicators */}
+      {/* Carousel navigation arrows + decorative dot indicators */}
       {albums.length > 1 && (
-        <div className="hero-dots" onClick={e => e.stopPropagation()}>
-          {albums.map((_, i) => (
+        <>
+          <div className="hero-nav" aria-hidden="false">
             <button
-              key={i}
-              className={`hero-dot${i === activeIdx ? ' hero-dot-active' : ''}`}
-              onClick={() => goTo(i)}
-              aria-label={`Album ${i + 1}`}
-            />
-          ))}
-        </div>
+              type="button"
+              className="hero-nav-arrow hero-nav-arrow--left"
+              onClick={e => { e.stopPropagation(); goPrev(); }}
+              aria-label={t('hero.previousAlbum')}
+              data-tooltip={t('hero.previousAlbum')}
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <button
+              type="button"
+              className="hero-nav-arrow hero-nav-arrow--right"
+              onClick={e => { e.stopPropagation(); goNext(); }}
+              aria-label={t('hero.nextAlbum')}
+              data-tooltip={t('hero.nextAlbum')}
+            >
+              <ChevronRight size={24} />
+            </button>
+          </div>
+          <div className="hero-dots" aria-hidden="true">
+            {albums.map((_, i) => (
+              <span
+                key={i}
+                className={`hero-dot${i === activeIdx ? ' hero-dot-active' : ''}`}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

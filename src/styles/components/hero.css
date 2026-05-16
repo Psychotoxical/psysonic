@@ -30,6 +30,7 @@
   display: flex;
   gap: 6px;
   z-index: 10;
+  pointer-events: none;
 }
 
 .hero-dot {
@@ -37,19 +38,51 @@
   height: 8px;
   border-radius: var(--radius-full);
   background: rgba(255, 255, 255, 0.35);
-  border: none;
-  padding: 0;
-  cursor: pointer;
   transition: all 0.3s ease;
-}
-
-.hero-dot:hover:not(.hero-dot-active) {
-  background: rgba(255, 255, 255, 0.6);
 }
 
 .hero-dot-active {
   width: 24px;
   background: rgba(255, 255, 255, 0.9);
+}
+
+/* Wrapper that pins prev/next arrows to the hero's left/right edges. */
+.hero-nav {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-3);
+  pointer-events: none;
+  z-index: 11;
+}
+
+.hero-nav-arrow {
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease, border-color 150ms ease;
+}
+
+.hero-nav-arrow:hover {
+  background: rgba(0, 0, 0, 0.65);
+  border-color: rgba(255, 255, 255, 0.32);
+  transform: scale(1.05);
+}
+
+.hero-nav-arrow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .hero-overlay {

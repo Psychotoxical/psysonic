@@ -3,4 +3,6 @@ export const hero = {
   playAlbum: 'Reproducir Álbum',
   enqueue: 'Agregar a la Cola',
   enqueueTooltip: 'Agregar álbum completo a la cola',
+  previousAlbum: 'Álbum anterior',
+  nextAlbum: 'Álbum siguiente',
 };
