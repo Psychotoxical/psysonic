@@ -196,7 +196,7 @@ export default function Home() {
           <>
             {!homeAlbumRowsDisabled && isVisible('recent') && (
               <AlbumRow
-                title={t('home.recent')}
+                title={t('sidebar.newReleases')}
                 titleLink="/new-releases"
                 albums={recent}
                 onLoadMore={() => loadMore('newest', recent, setRecent)}
