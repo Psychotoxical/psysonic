@@ -15,8 +15,10 @@ pub(crate) use core::{
 };
 pub(crate) use perf::performance_cpu_snapshot;
 pub(crate) use platform::{
-    linux_webkit_apply_wayland_gpu_font_tuning, linux_wayland_gpu_font_tuning_active,
-    set_linux_webkit_smooth_scrolling, set_window_decorations,
+    linux_webkit_apply_wayland_gpu_font_tuning, linux_webkit_reapply_cached_wayland_text_render_profile,
+    linux_wayland_gpu_font_tuning_active, linux_wayland_text_render_settings_available,
+    set_linux_wayland_text_render_profile, set_linux_webkit_smooth_scrolling, set_window_decorations,
+    sync_wayland_text_profile_cache_from_disk,
 };
 pub(crate) use integration::{
     check_dir_accessible, mpris_set_metadata, mpris_set_playback, register_global_shortcut,

@@ -60,6 +60,7 @@ describe('trivial pass-through setters', () => {
     ['setUseCustomTitlebar', 'useCustomTitlebar', true],
     ['setPreloadMiniPlayer', 'preloadMiniPlayer', true],
     ['setLinuxWebkitKineticScroll', 'linuxWebkitKineticScroll', false],
+    ['setLinuxWaylandTextRenderProfile', 'linuxWaylandTextRenderProfile', 'gpu'],
     ['setNowPlayingEnabled', 'nowPlayingEnabled', true],
     ['setShowFullscreenLyrics', 'showFullscreenLyrics', false],
     ['setLyricsStaticOnly', 'lyricsStaticOnly', true],

@@ -174,6 +174,13 @@ export const settings = {
   preloadMiniPlayerDesc: 'Construit la fenêtre du mini-lecteur en arrière-plan au démarrage de l\'application afin qu\'elle affiche son contenu instantanément à la première ouverture. Utilise un peu plus de mémoire.',
   linuxWebkitSmoothScroll: 'Molette fluide (Linux)',
   linuxWebkitSmoothScrollDesc: 'Activé : inertie. Désactivé : pas à la ligne, style GTK.',
+  linuxWaylandTextRender: 'Rendu du texte Wayland (Linux)',
+  linuxWaylandTextRenderDesc:
+    'Le lissage dans l’interface est immédiat. L’accélération matérielle WebKit (net / GPU) est enregistrée et appliquée au prochain lancement — la modifier en direct peut figer WebKitGTK.',
+  linuxWaylandTextRenderBalanced: 'Équilibré',
+  linuxWaylandTextRenderSharp: 'Net (favorise le CPU)',
+  linuxWaylandTextRenderGpu: 'GPU prioritaire',
+  linuxWaylandTextRenderMinimal: 'Minimal (lissage CSS par défaut)',
   discordRichPresence: 'Discord Rich Presence',
   discordRichPresenceDesc: 'Affiche le titre en cours de lecture sur votre profil Discord. Discord doit être ouvert.',
   discordCoverSource: 'Source de pochette',

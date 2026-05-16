@@ -174,6 +174,13 @@ export const settings = {
   preloadMiniPlayerDesc: 'Bouwt het venster van de mini-speler op de achtergrond bij het opstarten van de app, zodat het bij de eerste opening direct inhoud toont. Gebruikt iets meer geheugen.',
   linuxWebkitSmoothScroll: 'Vloeiend muiswiel (Linux)',
   linuxWebkitSmoothScrollDesc: 'Aan: traag naloop. Uit: regel voor regel, GTK-stijl.',
+  linuxWaylandTextRender: 'Wayland-tekstweergave (Linux)',
+  linuxWaylandTextRenderDesc:
+    'Vloeiendheid in de UI werkt meteen. WebKit-hardwareversnelling (scherp/GPU) wordt bewaard en toegepast bij de volgende app-start — live schakelen kan WebKitGTK laten vastlopen.',
+  linuxWaylandTextRenderBalanced: 'Gebalanceerd',
+  linuxWaylandTextRenderSharp: 'Scherp (CPU-vriendelijk)',
+  linuxWaylandTextRenderGpu: 'GPU eerst',
+  linuxWaylandTextRenderMinimal: 'Minimaal (standaard CSS-verzachting)',
   discordRichPresence: 'Discord Rich Presence',
   discordRichPresenceDesc: 'Toont het huidige nummer op je Discord-profiel. Discord moet daarvoor geopend zijn.',
   discordCoverSource: 'Hoesbron',

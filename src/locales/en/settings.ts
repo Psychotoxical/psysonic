@@ -181,6 +181,13 @@ export const settings = {
   useCustomTitlebarDesc: 'Replace the system title bar with a built-in one that matches the app theme. Disable to use the native GNOME/GTK title bar.',
   linuxWebkitSmoothScroll: 'Smooth wheel (Linux)',
   linuxWebkitSmoothScrollDesc: 'On: inertial scroll. Off: line-by-line, GTK-style.',
+  linuxWaylandTextRender: 'Wayland text rendering (Linux)',
+  linuxWaylandTextRenderDesc:
+    'Font smoothing in the UI updates immediately. WebKit hardware acceleration (sharp / GPU presets) is saved and applied on the next app start — changing it live can freeze WebKitGTK on some setups.',
+  linuxWaylandTextRenderBalanced: 'Balanced',
+  linuxWaylandTextRenderSharp: 'Sharp (CPU-friendly)',
+  linuxWaylandTextRenderGpu: 'GPU-first',
+  linuxWaylandTextRenderMinimal: 'Minimal (default CSS smoothing)',
   discordCoverSource: 'Cover art source',
   discordCoverSourceDesc: 'Where to fetch album artwork shown on your Discord profile.',
   discordCoverNone: 'None (app icon only)',

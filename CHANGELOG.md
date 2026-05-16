@@ -575,6 +575,7 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * **`PSYSONIC_WEBKIT_WAYLAND_HW_POLICY`** overrides that policy: **`never`**, **`off`**, **`0`**, or **`software`** → **`Never`** (often sharper text, more CPU paint); **`always`**, **`on`**, **`1`**, or **`gpu`** → **`Always`**; anything else (including unset) → **`OnDemand`**.
 * The shell exposes **`linux_xdg_session_type`** and **`linux_wayland_gpu_font_tuning_active`** to the frontend; when the session is **Wayland** and tuning is active, `<html>` gets **`data-linux-session="wayland"`** and the global reset switches **`body`** / **`#root`** to **subpixel LCD antialiasing**, **`text-rendering: geometricPrecision`**, and resets **`-moz-osx-font-smoothing`** (still skipped under **`html.no-compositing`**).
 * Set **`PSYSONIC_SKIP_WAYLAND_FONT_TUNING`** to **`1`**, **`true`**, or **`yes`** to skip both the WebKit policy tweak and the CSS hook for debugging or A/B comparison.
+* **Settings → System** exposes **Wayland text rendering** presets when compositing tuning applies: switch **Balanced / Sharp / GPU / Minimal** without restarting. The choice is persisted; **`data-wayland-text-profile`** on `<html>` drives the LCD reset CSS for all presets except **Minimal**.
 
 ## [1.45.0] - 2026-05-04
 

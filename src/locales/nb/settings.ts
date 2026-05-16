@@ -173,6 +173,13 @@ export const settings = {
   preloadMiniPlayerDesc: 'Bygger miniavspiller-vinduet i bakgrunnen ved appstart slik at det viser innhold umiddelbart ved første åpning. Bruker litt mer minne.',
   linuxWebkitSmoothScroll: 'Mykt musehjul (Linux)',
   linuxWebkitSmoothScrollDesc: 'På: treg rull med etterslep. Av: trinnvis som i GTK.',
+  linuxWaylandTextRender: 'Wayland-tekstgjengivelse (Linux)',
+  linuxWaylandTextRenderDesc:
+    'Utjevning i grensesnittet skjer med én gang. WebKit-maskinvareakselerasjon (skarp/GPU) lagres og brukes ved neste appstart — live bytte kan fryse WebKitGTK.',
+  linuxWaylandTextRenderBalanced: 'Balansert',
+  linuxWaylandTextRenderSharp: 'Skarpt (CPU-vennlig)',
+  linuxWaylandTextRenderGpu: 'GPU først',
+  linuxWaylandTextRenderMinimal: 'Minimum (standard CSS-utjevning)',
   discordRichPresence: 'Discord Rich Presence',
   discordRichPresenceDesc: 'Vis sporet som spilles i din Discord-profil. Krever at Discord kjører.',
   discordCoverSource: 'Coverkilde',

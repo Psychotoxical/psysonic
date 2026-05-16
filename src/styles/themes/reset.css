@@ -66,10 +66,26 @@ html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing) {
   text-size-adjust: 100%;
 }
 
-html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing) body,
-html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing) #root {
+html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing):is(
+  [data-wayland-text-profile="balanced"],
+  [data-wayland-text-profile="gpu"]
+) body,
+html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing):is(
+  [data-wayland-text-profile="balanced"],
+  [data-wayland-text-profile="gpu"]
+) #root {
   -webkit-font-smoothing: subpixel-antialiased;
   -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
+}
+
+/* "Sharp" live preview: greyscale AA reads crisper on some GL-composited stacks (WebKit Never is applied on restart). */
+html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing)[data-wayland-text-profile="sharp"]
+  body,
+html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing)[data-wayland-text-profile="sharp"]
+  #root {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: geometricPrecision;
 }
 

@@ -90,6 +90,12 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ? {}
     : { queueDurationDisplayMode: 'total' as DurationMode };
 
+  const VALID_WAYLAND_TEXT_PROFILE = new Set<string>(['balanced', 'sharp', 'gpu', 'minimal']);
+  const rawWaylandProfile = (state as { linuxWaylandTextRenderProfile?: unknown }).linuxWaylandTextRenderProfile;
+  const linuxWaylandTextRenderProfileMigrated = VALID_WAYLAND_TEXT_PROFILE.has(rawWaylandProfile as string)
+    ? {}
+    : { linuxWaylandTextRenderProfile: 'sharp' as const };
+
   // The `animationMode` 3-state setting was removed; users on `'reduced'`
   // or `'static'` collapse onto the former `'full'` path automatically as
   // soon as the field is gone from the store. Strip the persisted field
@@ -142,6 +148,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...wheelSmoothOneTime,
     ...seekbarStyleMigrated,
     ...queueDurationDisplayModeMigrated,
+    ...linuxWaylandTextRenderProfileMigrated,
     ...discordCoverSourceMigrated,
   };
 }

@@ -178,6 +178,13 @@ export const settings = {
   useCustomTitlebarDesc: 'Ersetzt die System-Titelleiste durch eine eingebaute, die zum App-Theme passt. Deaktivieren, um die native GNOME/GTK-Titelleiste zu verwenden.',
   linuxWebkitSmoothScroll: 'Sanftes Mausrad (Linux)',
   linuxWebkitSmoothScrollDesc: 'An: mit Nachlauf. Aus: zeilenweise wie in GTK-Apps.',
+  linuxWaylandTextRender: 'Wayland-Textdarstellung (Linux)',
+  linuxWaylandTextRenderDesc:
+    'Kantenglättung in der Oberfläche wirkt sofort. Die WebKit-Beschleunigungsrichtlinie (scharf/GPU) wird gespeichert und beim nächsten App-Start angewendet — ein Live-Umschalten kann WebKitGTK einfrieren.',
+  linuxWaylandTextRenderBalanced: 'Ausgewogen',
+  linuxWaylandTextRenderSharp: 'Scharf (CPU-freundlich)',
+  linuxWaylandTextRenderGpu: 'GPU zuerst',
+  linuxWaylandTextRenderMinimal: 'Minimal (Standard-CSS-Glättung)',
   discordCoverSource: 'Cover-Quelle',
   discordCoverSourceDesc: 'Woher das Album-Cover für dein Discord-Profil geladen wird.',
   discordCoverNone: 'Keine (nur App-Symbol)',

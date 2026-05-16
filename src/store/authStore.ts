@@ -72,6 +72,7 @@ export const useAuthStore = create<AuthState>()(
       useCustomTitlebar: false,
       preloadMiniPlayer: false,
       linuxWebkitKineticScroll: true,
+      linuxWaylandTextRenderProfile: 'sharp',
       loggingMode: 'normal',
       nowPlayingEnabled: false,
       lyricsServerFirst: true,

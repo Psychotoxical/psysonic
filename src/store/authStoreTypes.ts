@@ -19,6 +19,9 @@ export type LoggingMode = 'off' | 'normal' | 'debug';
 export type NormalizationEngine = 'off' | 'replaygain' | 'loudness';
 export type DiscordCoverSource = 'none' | 'apple' | 'server';
 
+/** Wayland + WebKit text/GPU profile (Settings → System, Linux only when available). */
+export type LinuxWaylandTextRenderProfile = 'balanced' | 'sharp' | 'gpu' | 'minimal';
+
 /** Integrated-loudness target presets (Settings + analysis). */
 export type LoudnessLufsPreset = -16 | -14 | -12 | -10;
 
@@ -105,6 +108,8 @@ export interface AuthState {
   preloadMiniPlayer: boolean;
   /** Linux WebKitGTK: smooth wheel on when true; off only after explicit opt-out in Settings. */
   linuxWebkitKineticScroll: boolean;
+  /** Linux Wayland + GPU compositing: WebKit text rasterisation profile (live, no restart). */
+  linuxWaylandTextRenderProfile: LinuxWaylandTextRenderProfile;
   /** Runtime backend logging level. */
   loggingMode: LoggingMode;
   nowPlayingEnabled: boolean;
@@ -276,6 +281,7 @@ export interface AuthState {
   setUseCustomTitlebar: (v: boolean) => void;
   setPreloadMiniPlayer: (v: boolean) => void;
   setLinuxWebkitKineticScroll: (v: boolean) => void;
+  setLinuxWaylandTextRenderProfile: (v: LinuxWaylandTextRenderProfile) => void;
   setLoggingMode: (v: LoggingMode) => void;
   setNowPlayingEnabled: (v: boolean) => void;
   setLyricsServerFirst: (v: boolean) => void;

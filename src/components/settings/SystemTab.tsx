@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -7,7 +8,7 @@ import { AppWindow, ChevronDown, Download, ExternalLink, Globe, HardDrive, Info,
 import { version as appVersion } from '../../../package.json';
 import i18n from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
-import type { LoggingMode } from '../../store/authStoreTypes';
+import type { LinuxWaylandTextRenderProfile, LoggingMode } from '../../store/authStoreTypes';
 import { IS_LINUX } from '../../utils/platform';
 import { showToast } from '../../utils/ui/toast';
 import { AboutPsysonicBrandHeader } from '../AboutPsysonicLol';
@@ -21,6 +22,14 @@ export function SystemTab() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const auth = useAuthStore();
+  const [waylandTextRenderAvailable, setWaylandTextRenderAvailable] = useState(false);
+
+  useEffect(() => {
+    if (!IS_LINUX) return;
+    invoke<boolean>('linux_wayland_text_render_settings_available')
+      .then(setWaylandTextRenderAvailable)
+      .catch(() => {});
+  }, []);
 
   const exportRuntimeLogs = async () => {
     const suggestedName = `psysonic-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
@@ -110,6 +119,27 @@ export function SystemTab() {
                   <span className="toggle-track" />
                 </label>
               </div>
+              {waylandTextRenderAvailable && (
+                <>
+                  <div className="settings-section-divider" />
+                  <div className="form-group" style={{ maxWidth: '420px' }}>
+                    <div style={{ fontWeight: 500 }}>{t('settings.linuxWaylandTextRender')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                      {t('settings.linuxWaylandTextRenderDesc')}
+                    </div>
+                    <CustomSelect
+                      value={auth.linuxWaylandTextRenderProfile}
+                      onChange={v => auth.setLinuxWaylandTextRenderProfile(v as LinuxWaylandTextRenderProfile)}
+                      options={[
+                        { value: 'balanced', label: t('settings.linuxWaylandTextRenderBalanced') },
+                        { value: 'sharp', label: t('settings.linuxWaylandTextRenderSharp') },
+                        { value: 'gpu', label: t('settings.linuxWaylandTextRenderGpu') },
+                        { value: 'minimal', label: t('settings.linuxWaylandTextRenderMinimal') },
+                      ]}
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
