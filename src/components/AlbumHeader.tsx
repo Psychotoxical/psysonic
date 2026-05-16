@@ -17,6 +17,22 @@ import { formatMb } from '../utils/format/formatBytes';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 
+/** True when the album artist label means "no single artist" — `getArtistInfo`
+ *  has nothing meaningful to return for these, so the Artist Bio entry is hidden.
+ */
+function isVariousArtistsLabel(name: string | undefined | null): boolean {
+  if (!name) return false;
+  const trimmed = name.trim().toLowerCase();
+  return (
+    trimmed === 'various artists' ||
+    trimmed === 'various' ||
+    trimmed === 'va' ||
+    trimmed === 'multiple artists' ||
+    trimmed === 'verschiedene interpreten' ||
+    trimmed === 'verschiedene'
+  );
+}
+
 function BioModal({ bio, onClose }: { bio: string; onClose: () => void }) {
   const { t } = useTranslation();
   return (
@@ -108,6 +124,7 @@ export default function AlbumHeader({
   const totalSize = songs.reduce((acc, s) => acc + (s.size ?? 0), 0);
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
   const isNewAlbum = isAlbumRecentlyAdded(info.created);
+  const showBioButton = !isVariousArtistsLabel(info.artist);
 
   const lightboxCoverSrc = useMemo(
     () => (info.coverArt ? buildCoverArtUrl(info.coverArt, 2000) : ''),
@@ -248,14 +265,16 @@ export default function AlbumHeader({
                       <Share2 size={16} />
                     </button>
 
-                    <button
-                      className="album-icon-btn album-icon-btn--sm"
-                      onClick={onBio}
-                      aria-label={t('albumDetail.artistBio')}
-                      data-tooltip={t('albumDetail.artistBio')}
-                    >
-                      <Highlighter size={16} />
-                    </button>
+                    {showBioButton && (
+                      <button
+                        className="album-icon-btn album-icon-btn--sm"
+                        onClick={onBio}
+                        aria-label={t('albumDetail.artistBio')}
+                        data-tooltip={t('albumDetail.artistBio')}
+                      >
+                        <Highlighter size={16} />
+                      </button>
+                    )}
 
                     {downloadProgress !== null ? (
                       <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
@@ -338,9 +357,11 @@ export default function AlbumHeader({
                     </button>
                   </div>
 
-                  <button className="btn btn-ghost" id="album-bio-btn" onClick={onBio}>
-                    <Highlighter size={16} /> {t('albumDetail.artistBio')}
-                  </button>
+                  {showBioButton && (
+                    <button className="btn btn-ghost" id="album-bio-btn" onClick={onBio}>
+                      <Highlighter size={16} /> {t('albumDetail.artistBio')}
+                    </button>
+                  )}
 
                   {downloadProgress !== null ? (
                     <div className="download-progress-wrap">
