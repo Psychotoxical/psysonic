@@ -22,6 +22,9 @@ const BIO_CLAMP_LINES = 4;
 const artistInfoCache = new Map<string, SubsonicArtistInfo | null>();
 const songDetailCache = new Map<string, SubsonicSong | null>();
 
+type ArtistInfoEntry = { id: string; info: SubsonicArtistInfo | null };
+type SongDetailEntry = { id: string; song: SubsonicSong | null };
+
 function isoToParts(iso: string): { month: string; day: string; weekday: string; time: string } | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -89,16 +92,21 @@ export default function NowPlayingInfo() {
   const artistId = currentTrack?.artistId || '';
   const songId = currentTrack?.id || '';
 
-  const [artistInfo, setArtistInfo] = useState<SubsonicArtistInfo | null>(
-    artistId && subsonicServerId
-      ? artistInfoCache.get(queuePanelCacheKey(subsonicServerId, artistId)) ?? null
-      : null,
-  );
-  const [songDetail, setSongDetail] = useState<SubsonicSong | null>(
-    songId && subsonicServerId
-      ? songDetailCache.get(queuePanelCacheKey(subsonicServerId, songId)) ?? null
-      : null,
-  );
+  // Tuple { id, info } gates rendering on "info matches the current artistId" so
+  // `heroImage` (from info) and `heroCacheKey` (from artistId) can never be from
+  // different tracks. Otherwise a track switch would render one frame with a
+  // lagging url under the new key, and CachedImage's IndexedDB would persist
+  // the wrong blob under the new key — sticky "previous track" image (#…).
+  const [artistInfoEntry, setArtistInfoEntry] = useState<ArtistInfoEntry | null>(() => {
+    if (!artistId || !subsonicServerId) return null;
+    const cached = artistInfoCache.get(queuePanelCacheKey(subsonicServerId, artistId));
+    return cached === undefined ? null : { id: artistId, info: cached };
+  });
+  const [songDetailEntry, setSongDetailEntry] = useState<SongDetailEntry | null>(() => {
+    if (!songId || !subsonicServerId) return null;
+    const cached = songDetailCache.get(queuePanelCacheKey(subsonicServerId, songId));
+    return cached === undefined ? null : { id: songId, song: cached };
+  });
   const [tourEvents, setTourEvents] = useState<BandsintownEvent[]>([]);
   const [tourLoading, setTourLoading] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -112,27 +120,29 @@ export default function NowPlayingInfo() {
 
   // Artist bio + image
   useEffect(() => {
-    if (!subsonicReady || !subsonicServerId || !artistId) { setArtistInfo(null); return; }
+    if (!subsonicReady || !subsonicServerId || !artistId) { setArtistInfoEntry(null); return; }
     const cacheKey = queuePanelCacheKey(subsonicServerId, artistId);
     const cached = artistInfoCache.get(cacheKey);
-    if (cached !== undefined) { setArtistInfo(cached); return; }
+    if (cached !== undefined) { setArtistInfoEntry({ id: artistId, info: cached }); return; }
+    setArtistInfoEntry(null);
     let cancelled = false;
     getArtistInfo(artistId)
-      .then(info => { if (!cancelled) { artistInfoCache.set(cacheKey, info ?? null); setArtistInfo(info ?? null); } })
-      .catch(() => { if (!cancelled) { artistInfoCache.set(cacheKey, null); setArtistInfo(null); } });
+      .then(info => { if (!cancelled) { artistInfoCache.set(cacheKey, info ?? null); setArtistInfoEntry({ id: artistId, info: info ?? null }); } })
+      .catch(() => { if (!cancelled) { artistInfoCache.set(cacheKey, null); setArtistInfoEntry({ id: artistId, info: null }); } });
     return () => { cancelled = true; };
   }, [subsonicReady, subsonicServerId, artistId]);
 
   // Song detail (for OpenSubsonic contributors[])
   useEffect(() => {
-    if (!subsonicReady || !subsonicServerId || !songId) { setSongDetail(null); return; }
+    if (!subsonicReady || !subsonicServerId || !songId) { setSongDetailEntry(null); return; }
     const cacheKey = queuePanelCacheKey(subsonicServerId, songId);
     const cached = songDetailCache.get(cacheKey);
-    if (cached !== undefined) { setSongDetail(cached); return; }
+    if (cached !== undefined) { setSongDetailEntry({ id: songId, song: cached }); return; }
+    setSongDetailEntry(null);
     let cancelled = false;
     getSong(songId)
-      .then(song => { if (!cancelled) { songDetailCache.set(cacheKey, song ?? null); setSongDetail(song ?? null); } })
-      .catch(() => { if (!cancelled) { songDetailCache.set(cacheKey, null); setSongDetail(null); } });
+      .then(song => { if (!cancelled) { songDetailCache.set(cacheKey, song ?? null); setSongDetailEntry({ id: songId, song: song ?? null }); } })
+      .catch(() => { if (!cancelled) { songDetailCache.set(cacheKey, null); setSongDetailEntry({ id: songId, song: null }); } });
     return () => { cancelled = true; };
   }, [subsonicReady, subsonicServerId, songId]);
 
@@ -147,9 +157,16 @@ export default function NowPlayingInfo() {
     return () => { cancelled = true; };
   }, [enableBandsintown, artistName]);
 
+  // Only consume info that belongs to the current track — never render with a
+  // stale entry from the previous track.
+  const matchedArtistInfo =
+    artistInfoEntry && artistInfoEntry.id === artistId ? artistInfoEntry.info : null;
+  const matchedSongDetail =
+    songDetailEntry && songDetailEntry.id === songId ? songDetailEntry.song : null;
+
   // Detect whether the (clamped) bio actually overflows so we hide the toggle
   // when it would do nothing.
-  const bio = artistInfo?.biography?.trim() || '';
+  const bio = matchedArtistInfo?.biography?.trim() || '';
   const bioClean = bio.replace(/<a [^>]*>.*?<\/a>\.?/gi, '').trim();
   useLayoutEffect(() => {
     const el = bioRef.current;
@@ -158,8 +175,8 @@ export default function NowPlayingInfo() {
   }, [bioClean]);
 
   const contributorRows = useMemo(
-    () => buildContributorRows(songDetail, artistName),
-    [songDetail, artistName],
+    () => buildContributorRows(matchedSongDetail, artistName),
+    [matchedSongDetail, artistName],
   );
 
   if (!currentTrack) {
@@ -170,8 +187,9 @@ export default function NowPlayingInfo() {
     );
   }
 
-  const heroImage = artistInfo?.largeImageUrl || artistInfo?.mediumImageUrl || '';
-  const heroCacheKey = artistId ? `artistInfo:${artistId}:hero` : '';
+  const heroImage =
+    matchedArtistInfo?.largeImageUrl || matchedArtistInfo?.mediumImageUrl || '';
+  const heroCacheKey = matchedArtistInfo && artistId ? `artistInfo:${artistId}:hero` : '';
 
   const visibleTours = showAllTours ? tourEvents : tourEvents.slice(0, TOUR_LIMIT);
   const hiddenTourCount = Math.max(0, tourEvents.length - visibleTours.length);
