@@ -202,6 +202,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * New opt-in columns **Plays**, **Last played**, and **BPM** on the Album / Playlist / Favorites tracklists, plus matching rows in the Song Info modal. Pulls Navidrome's existing `playCount` / `played` / `bpm` from the Subsonic response — no extra API calls. Genre column also added to the playlist tracklist for parity with Album + Favorites. BPM cells render `—` when Navidrome returns 0 (untagged file); Plays / Last played render `—` only when truly absent.
 * Defensive fix in the tracklist column hook: visible columns with no saved width on an older prefs blob now fall back to the ColDef's default width instead of collapsing the row layout.
 
+### Mainstage hero — prev / next arrow buttons
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#735](https://github.com/Psychotoxical/psysonic/pull/735)**
+
+* The featured-album strip on Mainstage now has **Previous** / **Next** chevron buttons on each edge of the hero. The existing 8 px dot indicators were a small target, and a near-miss often opened the underlying album instead of switching slides; the new 44 px buttons give a comfortable hit area on both desktop and touch.
+* Buttons live in a new **`.hero-nav`** flex wrapper (`inset: 0`, `justify-content: space-between`, **`pointer-events: none`**); the buttons themselves opt back into **`pointer-events: auto`** so the rest of the hero stays click-through to the album page. Wrap-around (last → first / first → last) and auto-advance timer restart use the same pattern as the previous dot handler.
+* The dot indicators are kept as **decorative spans** — no click handler, no hover state, **`pointer-events: none`** — so a missed click no longer navigates to the album.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)
