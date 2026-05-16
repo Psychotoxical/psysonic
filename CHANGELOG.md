@@ -553,6 +553,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * **Lucky Mix** ran many queue edits (`pruneUpcomingToCurrent`, **`playTrack`**, **`enqueue`** batches). Each pushed onto the bounded **`QUEUE_UNDO_MAX`** stack, so the snapshot taken **before** Lucky Mix was usually shifted off — Ctrl+Z only stepped through small edits or could not restore the prior queue. The mix flow now pushes **one** undo snapshot up-front and skips intermediate **`enqueue`** / prune snapshots (**`skipQueueUndo`**) so a single undo restores the queue from immediately **before** Lucky Mix.
 
+### Queue panel Info — artist image now follows the current track
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#732](https://github.com/Psychotoxical/psysonic/pull/732)**
+
+* The Info tab rendered one frame on each track switch with the previous track's artist image URL paired with the new track's cache key — **`CachedImage`**'s IndexedDB then persisted that mismatched blob, so every subsequent track stayed stuck on the previous artist's image. Artist info and song detail are now held as **`{ id, info }`** tuples and the image render is gated on id-match, so source and cache key always come from the same track.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
