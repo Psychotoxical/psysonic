@@ -618,6 +618,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * The **Square** preview was clipped at the bottom — the preview frame capped only `maxHeight: 52vh` while letting the 1:1 canvas span the full modal width, so the canvas overflowed the cap and `overflow: hidden` removed the last grid row with nothing to scroll into. Both dimensions are now capped per format (Square → **`maxWidth: 52vh`**, Story → **`min(320px, calc(52vh * 9 / 16))`**, Twitter remains modal-width-bound), so the preview always fits without clipping.
 * The preview also looked **blurry** — the canvas was rendered at **540 px** wide and CSS upscaled it back to ~676 px in the 720 px modal, while cover thumbnails were decoded at only **256 px** and stretched into ~300 px tiles. The preview canvas now renders at the **full export width (1080)** and decodes covers at the **export tile size (600)**, so text is crisp and album thumbnails downsample cleanly.
 
+### Home — Mainstage row title matches the sidebar and page label
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#741](https://github.com/Psychotoxical/psysonic/pull/741)**
+
+* The Mainstage row whose title chevron jumps to **`/new-releases`** was labelled **Recently Added** while the sidebar entry and the page itself read **New Releases** — three different names for the same destination. The row title and the matching **Home Customizer** entry now reuse **`sidebar.newReleases`** so the wording lives in exactly one place; the orphan **`home.recent`** key is dropped from all nine locale files.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
