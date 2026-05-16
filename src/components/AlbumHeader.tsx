@@ -1,6 +1,7 @@
 import { buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import type { EntityRatingSupportLevel, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
 import CachedImage from './CachedImage';
@@ -35,14 +36,17 @@ function isVariousArtistsLabel(name: string | undefined | null): boolean {
 
 function BioModal({ bio, onClose }: { bio: string; onClose: () => void }) {
   const { t } = useTranslation();
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('albumDetail.bioModal')}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <div className="modal-content bio-modal" onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label={t('albumDetail.bioClose')}><X size={18} /></button>
         <h3 className="modal-title">{t('albumDetail.bioModal')}</h3>
-        <div className="artist-bio" dangerouslySetInnerHTML={{ __html: sanitizeHtml(bio) }} data-selectable />
+        <div className="bio-modal-body">
+          <div className="artist-bio" dangerouslySetInnerHTML={{ __html: sanitizeHtml(bio) }} data-selectable />
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
