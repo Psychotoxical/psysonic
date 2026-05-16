@@ -10,6 +10,7 @@ interface Props {
   visibleSongs: SubsonicSong[];
   songs: SubsonicSong[];
   selectedArtist: string | null;
+  selectedArtistName: string | null;
   setSelectedArtist: React.Dispatch<React.SetStateAction<string | null>>;
   selectedGenres: string[];
   setSelectedGenres: React.Dispatch<React.SetStateAction<string[]>>;
@@ -27,7 +28,7 @@ interface Props {
 }
 
 export default function FavoritesSongsSectionHeader({
-  visibleSongs, songs, selectedArtist, setSelectedArtist,
+  visibleSongs, songs, selectedArtist, selectedArtistName, setSelectedArtist,
   selectedGenres, setSelectedGenres, yearRange, setYearRange,
   showFilters, setShowFilters, setSortKey, setSortClickCount,
   playTrack, enqueue, starredOverrides, minYear, currentYear,
@@ -42,7 +43,7 @@ export default function FavoritesSongsSectionHeader({
         {(selectedArtist || selectedGenres.length > 0 || yearRange[0] !== minYear || yearRange[1] !== currentYear) && (
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
             {selectedArtist
-              ? t('favorites.showingFiltered', { filtered: visibleSongs.length, total: songs.filter(s => starredOverrides[s.id] !== false).length, artist: selectedArtist })
+              ? t('favorites.showingFiltered', { filtered: visibleSongs.length, total: songs.filter(s => starredOverrides[s.id] !== false).length, artist: selectedArtistName ?? selectedArtist })
               : t('favorites.showingCount', { filtered: visibleSongs.length, total: songs.filter(s => starredOverrides[s.id] !== false).length })}
           </span>
         )}

@@ -114,6 +114,11 @@ export default function Favorites() {
     selectedArtist, selectedGenres, yearRange, ratings,
   });
 
+  const selectedArtistName = useMemo(
+    () => selectedArtist ? topFavoriteArtists.find(a => a.id === selectedArtist)?.name ?? null : null,
+    [selectedArtist, topFavoriteArtists],
+  );
+
   const { toggleSelect } = useFavoritesSelection(songs, inSelectMode, tracklistRef);
 
 
@@ -174,6 +179,7 @@ export default function Favorites() {
                 visibleSongs={visibleSongs}
                 songs={songs}
                 selectedArtist={selectedArtist}
+                selectedArtistName={selectedArtistName}
                 setSelectedArtist={setSelectedArtist}
                 selectedGenres={selectedGenres}
                 setSelectedGenres={setSelectedGenres}
