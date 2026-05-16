@@ -33,14 +33,14 @@ pub(crate) fn linux_webkit_apply_wayland_gpu_font_tuning(win: &tauri::WebviewWin
         if !linux_wayland_gpu_font_tuning_should_apply() {
             return Ok(());
         }
-        return win
+        win
             .with_webview(|platform| {
                 use webkit2gtk::{HardwareAccelerationPolicy, SettingsExt, WebViewExt};
                 if let Some(settings) = platform.inner().settings() {
                     settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::OnDemand);
                 }
             })
-            .map_err(|e| e.to_string());
+            .map_err(|e| e.to_string())
     }
     #[cfg(not(target_os = "linux"))]
     {

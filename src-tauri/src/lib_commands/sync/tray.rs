@@ -404,7 +404,7 @@ pub(crate) fn no_compositing_mode() -> bool {
 pub(crate) fn linux_xdg_session_type() -> String {
     #[cfg(target_os = "linux")]
     {
-        return std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+        std::env::var("XDG_SESSION_TYPE").unwrap_or_default()
     }
     #[cfg(not(target_os = "linux"))]
     {
