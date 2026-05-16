@@ -43,9 +43,6 @@ pub(crate) fn sync_wayland_text_profile_cache_from_disk(app: &tauri::AppHandle) 
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn sync_wayland_text_profile_cache_from_disk(_app: &tauri::AppHandle) {}
-
 #[cfg(target_os = "linux")]
 fn remember_wayland_text_render_profile(profile: &str, app: Option<&tauri::AppHandle>) {
     let s = sanitized_wayland_text_profile(profile);
@@ -71,13 +68,6 @@ pub(crate) fn linux_webkit_reapply_cached_wayland_text_render_profile(win: &taur
         .and_then(|g| g.clone())
         .unwrap_or_else(|| "sharp".to_string());
     linux_webkit_apply_wayland_text_render_profile(win, &p)
-}
-
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn linux_webkit_reapply_cached_wayland_text_render_profile(
-    _win: &tauri::WebviewWindow,
-) -> Result<(), String> {
-    Ok(())
 }
 
 /// `PSYSONIC_WEBKIT_WAYLAND_HW_POLICY` → WebKit hardware acceleration policy when
@@ -127,30 +117,23 @@ pub(crate) fn linux_wayland_gpu_font_tuning_should_apply() -> bool {
 
 /// WebKitGTK on Wayland with compositing: prefer on-demand GPU promotion so body
 /// text is less often rasterised into GL layers (common "washed" / blurry look).
-/// No-op on non-Linux or when [`linux_wayland_gpu_font_tuning_should_apply`] is false.
+/// No-op when [`linux_wayland_gpu_font_tuning_should_apply`] is false.
+#[cfg(target_os = "linux")]
 pub(crate) fn linux_webkit_apply_wayland_gpu_font_tuning(win: &tauri::WebviewWindow) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
-    {
-        if !linux_wayland_gpu_font_tuning_should_apply() {
-            return Ok(());
-        }
-        win
-            .with_webview(|platform| {
-                use webkit2gtk::{SettingsExt, WebViewExt};
-                if let Some(settings) = platform.inner().settings() {
-                    let policy = wayland_hw_acceleration_policy_from_env();
-                    if settings.hardware_acceleration_policy() != policy {
-                        settings.set_hardware_acceleration_policy(policy);
-                    }
+    if !linux_wayland_gpu_font_tuning_should_apply() {
+        return Ok(());
+    }
+    win
+        .with_webview(|platform| {
+            use webkit2gtk::{SettingsExt, WebViewExt};
+            if let Some(settings) = platform.inner().settings() {
+                let policy = wayland_hw_acceleration_policy_from_env();
+                if settings.hardware_acceleration_policy() != policy {
+                    settings.set_hardware_acceleration_policy(policy);
                 }
-            })
-            .map_err(|e| e.to_string())
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = win;
-        Ok(())
-    }
+            }
+        })
+        .map_err(|e| e.to_string())
 }
 
 /// Toggle native window decorations at runtime (Linux custom title bar opt-out).
@@ -230,32 +213,25 @@ fn hardware_acceleration_policy_from_render_profile(profile: &str) -> webkit2gtk
 /// Apply WebKit hardware acceleration policy from a **Settings** profile (`balanced` / `sharp` /
 /// `gpu` / `minimal`). Call only at webview creation / startup — toggling this at runtime wedges
 /// WebKitGTK on some Wayland stacks after a few changes.
+#[cfg(target_os = "linux")]
 pub(crate) fn linux_webkit_apply_wayland_text_render_profile(
     win: &tauri::WebviewWindow,
     profile: &str,
 ) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
-    {
-        if !linux_wayland_gpu_compositing_context() {
-            return Ok(());
-        }
-        let policy = hardware_acceleration_policy_from_render_profile(profile);
-        win
-            .with_webview(move |platform| {
-                use webkit2gtk::{SettingsExt, WebViewExt};
-                if let Some(settings) = platform.inner().settings() {
-                    if settings.hardware_acceleration_policy() != policy {
-                        settings.set_hardware_acceleration_policy(policy);
-                    }
+    if !linux_wayland_gpu_compositing_context() {
+        return Ok(());
+    }
+    let policy = hardware_acceleration_policy_from_render_profile(profile);
+    win
+        .with_webview(move |platform| {
+            use webkit2gtk::{SettingsExt, WebViewExt};
+            if let Some(settings) = platform.inner().settings() {
+                if settings.hardware_acceleration_policy() != policy {
+                    settings.set_hardware_acceleration_policy(policy);
                 }
-            })
-            .map_err(|e| e.to_string())
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = (win, profile);
-        Ok(())
-    }
+            }
+        })
+        .map_err(|e| e.to_string())
 }
 
 /// Persist the Wayland text profile for the next app start and for new mini-player webviews.
