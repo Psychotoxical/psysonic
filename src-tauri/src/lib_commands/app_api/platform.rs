@@ -217,7 +217,10 @@ pub(crate) fn linux_wayland_gpu_font_tuning_active() -> bool {
 fn hardware_acceleration_policy_from_render_profile(profile: &str) -> webkit2gtk::HardwareAccelerationPolicy {
     use webkit2gtk::HardwareAccelerationPolicy;
     match profile.trim() {
-        "sharp" => HardwareAccelerationPolicy::Never,
+        // `Never` here has been observed to break main-viewport wheel scrolling on WebKitGTK
+        // under Wayland+GPU compositing after the policy is applied at startup. CSS still
+        // differentiates "sharp"; use `PSYSONIC_WEBKIT_WAYLAND_HW_POLICY=never` for true Never.
+        "sharp" => HardwareAccelerationPolicy::OnDemand,
         "gpu" => HardwareAccelerationPolicy::Always,
         "balanced" | "minimal" => HardwareAccelerationPolicy::OnDemand,
         _ => HardwareAccelerationPolicy::OnDemand,
