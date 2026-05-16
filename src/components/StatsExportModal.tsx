@@ -282,22 +282,24 @@ export default function StatsExportModal({ open, albums, meta, onClose }: Props)
 }
 
 const PreviewFrame = ({ format, children }: { format: ExportFormat; children: React.ReactNode }) => {
-  const aspect = useMemo(() => {
-    if (format === 'story')   return '9 / 16';
-    if (format === 'square')  return '1 / 1';
-    return '16 / 9';
+  // Aspect-aware bounds: cap BOTH dimensions so the preview always fits inside
+  // the modal at any ratio. The earlier version capped only `maxHeight`, so
+  // Square (1:1) tried to span the full modal width — the 1:1 canvas then
+  // overflowed `maxHeight: 52vh` and the bottom rows were clipped by
+  // `overflow: hidden` with no way to scroll them into view.
+  const { aspect, maxWidth } = useMemo(() => {
+    if (format === 'story')   return { aspect: '9 / 16', maxWidth: 'min(320px, calc(52vh * 9 / 16))' };
+    if (format === 'square')  return { aspect: '1 / 1',  maxWidth: '52vh' };
+    return                          { aspect: '16 / 9', maxWidth: undefined as string | undefined };
   }, [format]);
-  // Cap preview height so the modal stays manageable on a typical desktop.
-  // Narrow ratios (Story) become height-bounded; wide ratios (Twitter) are
-  // width-bounded by the modal itself.
   return (
     <div style={{
       position: 'relative',
       width: '100%',
-      maxHeight: '52vh',
       aspectRatio: aspect,
       margin: '0 auto',
-      maxWidth: format === 'story' ? '320px' : undefined,
+      maxWidth,
+      maxHeight: '52vh',
       background: 'var(--glass-bg)',
       borderRadius: 12,
       border: '1px solid var(--glass-border)',
