@@ -7,7 +7,7 @@ import { AppWindow, ChevronDown, Download, ExternalLink, Globe, HardDrive, Info,
 import { version as appVersion } from '../../../package.json';
 import i18n from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
-import type { LoggingMode } from '../../store/authStoreTypes';
+import type { ClockFormat, LoggingMode } from '../../store/authStoreTypes';
 import { IS_LINUX } from '../../utils/platform';
 import { showToast } from '../../utils/ui/toast';
 import { AboutPsysonicBrandHeader } from '../AboutPsysonicLol';
@@ -112,6 +112,24 @@ export function SystemTab() {
               </div>
             </>
           )}
+          <div className="settings-section-divider" />
+          <div className="settings-toggle-row">
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 500 }}>{t('settings.clockFormat')}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.clockFormatDesc')}</div>
+            </div>
+            <div style={{ minWidth: 160 }}>
+              <CustomSelect
+                value={auth.clockFormat}
+                onChange={(v) => auth.setClockFormat(v as ClockFormat)}
+                options={[
+                  { value: 'auto', label: t('settings.clockFormatAuto') },
+                  { value: '24h',  label: t('settings.clockFormatTwentyFour') },
+                  { value: '12h',  label: t('settings.clockFormatTwelve') },
+                ]}
+              />
+            </div>
+          </div>
         </div>
       </SettingsSubSection>
 

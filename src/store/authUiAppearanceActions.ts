@@ -16,6 +16,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setLibraryGridMaxColumns'
   | 'setShowTrayIcon'
   | 'setMinimizeToTray'
+  | 'setClockFormat'
   | 'setShowOrbitTrigger'
   | 'setUseCustomTitlebar'
   | 'setPreloadMiniPlayer'
@@ -37,6 +38,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setLibraryGridMaxColumns: (v) => set({ libraryGridMaxColumns: clampLibraryGridMaxColumns(v) }),
     setShowTrayIcon: (v) => set({ showTrayIcon: v }),
     setMinimizeToTray: (v) => set({ minimizeToTray: v }),
+    setClockFormat: (v) => set({ clockFormat: v }),
     setShowOrbitTrigger: (v) => set({ showOrbitTrigger: v }),
     setUseCustomTitlebar: (v) => set({ useCustomTitlebar: v }),
     setPreloadMiniPlayer: (v) => set({ preloadMiniPlayer: v }),
