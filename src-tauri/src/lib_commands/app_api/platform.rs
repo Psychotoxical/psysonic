@@ -2,6 +2,23 @@
 
 use tauri::Manager;
 
+/// `PSYSONIC_WEBKIT_WAYLAND_HW_POLICY` → WebKit hardware acceleration policy when
+/// [`linux_webkit_apply_wayland_gpu_font_tuning`] runs. Default **`ondemand`**;
+/// set **`never`** / **`software`** to force CPU-friendly layers (often sharper text
+/// at the cost of compositor work); **`always`** forces the previous aggressive GPU path for A/B.
+#[cfg(target_os = "linux")]
+fn wayland_hw_acceleration_policy_from_env() -> webkit2gtk::HardwareAccelerationPolicy {
+    use webkit2gtk::HardwareAccelerationPolicy;
+    let v = std::env::var("PSYSONIC_WEBKIT_WAYLAND_HW_POLICY")
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default();
+    match v.as_str() {
+        "never" | "off" | "0" | "software" => HardwareAccelerationPolicy::Never,
+        "always" | "on" | "1" | "gpu" => HardwareAccelerationPolicy::Always,
+        _ => HardwareAccelerationPolicy::OnDemand,
+    }
+}
+
 /// True when `XDG_SESSION_TYPE` is Wayland, GPU compositing is not forced off,
 /// and the user has not opted out via `PSYSONIC_SKIP_WAYLAND_FONT_TUNING`.
 #[cfg(target_os = "linux")]
@@ -35,9 +52,9 @@ pub(crate) fn linux_webkit_apply_wayland_gpu_font_tuning(win: &tauri::WebviewWin
         }
         win
             .with_webview(|platform| {
-                use webkit2gtk::{HardwareAccelerationPolicy, SettingsExt, WebViewExt};
+                use webkit2gtk::{SettingsExt, WebViewExt};
                 if let Some(settings) = platform.inner().settings() {
-                    settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::OnDemand);
+                    settings.set_hardware_acceleration_policy(wayland_hw_acceleration_policy_from_env());
                 }
             })
             .map_err(|e| e.to_string())
