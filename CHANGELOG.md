@@ -559,6 +559,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The Info tab rendered one frame on each track switch with the previous track's artist image URL paired with the new track's cache key — **`CachedImage`**'s IndexedDB then persisted that mismatched blob, so every subsequent track stayed stuck on the previous artist's image. Artist info and song detail are now held as **`{ id, info }`** tuples and the image render is gated on id-match, so source and cache key always come from the same track.
 
+### Album header — Artist Bio button hidden on Various-Artists compilations
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#733](https://github.com/Psychotoxical/psysonic/pull/733)**
+
+* The Album header showed an **Artist Bio** button on every album, but when the album-artist label is **"Various Artists"**, **"Various"**, **"VA"** or a language equivalent there is no single artist to fetch a bio for and the button opened an empty modal. Both the mobile icon and the desktop button are now hidden when the album-artist label matches that compilation heuristic.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
