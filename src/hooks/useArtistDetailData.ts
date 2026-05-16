@@ -30,7 +30,10 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [featuredAlbums, setFeaturedAlbums] = useState<SubsonicAlbum[]>([]);
   const [topSongs, setTopSongs] = useState<SubsonicSong[]>([]);
-  const [info, setInfo] = useState<SubsonicArtistInfo | null>(null);
+  // Tuple gates `info` on id-match so a CachedImage-style consumer (shared
+  // ArtistCard) can never see info from a previously-viewed artist paired
+  // with the current `id`. Same pattern as `useNowPlayingFetchers`.
+  const [infoEntry, setInfoEntry] = useState<{ id: string; value: SubsonicArtistInfo | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isStarred, setIsStarred] = useState(false);
   const [artistInfoLoading, setArtistInfoLoading] = useState(false);
@@ -40,7 +43,7 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
     if (!id) return;
     let cancelled = false;
     setLoading(true);
-    setInfo(null);
+    setInfoEntry(null);
     setTopSongs([]);
     setFeaturedAlbums([]);
     getArtist(id).then(artistData => {
@@ -66,10 +69,10 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
     setArtistInfoLoading(true);
     getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
       .then(artistInfo => {
-        if (!cancelled) setInfo(artistInfo ?? null);
+        if (!cancelled) setInfoEntry({ id, value: artistInfo ?? null });
       })
       .catch(() => {
-        if (!cancelled) setInfo(null);
+        if (!cancelled) setInfoEntry({ id, value: null });
       })
       .finally(() => {
         if (!cancelled) setArtistInfoLoading(false);
@@ -112,6 +115,8 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artist?.id, musicLibraryFilterVersion]);
+
+  const info = infoEntry && infoEntry.id === id ? infoEntry.value : null;
 
   return {
     artist, setArtist, albums, topSongs, info, featuredAlbums,
