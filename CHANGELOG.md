@@ -565,6 +565,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The Album header showed an **Artist Bio** button on every album, but when the album-artist label is **"Various Artists"**, **"Various"**, **"VA"** or a language equivalent there is no single artist to fetch a bio for and the button opened an empty modal. Both the mobile icon and the desktop button are now hidden when the album-artist label matches that compilation heuristic.
 
+### Album header — Artist Biography modal stays in viewport and scrolls internally
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#734](https://github.com/Psychotoxical/psysonic/pull/734)**
+
+* The **Artist Biography** modal lived under the album page tree, where an ancestor broke **`position: fixed`** on the overlay — opening a long bio scrolled the whole page instead of staying pinned to the viewport, and the modal itself stretched past the visible area. It now mounts via **`createPortal(..., document.body)`** (same approach as **`RadioEditModal`** / **`CoverLightbox`**), so the overlay always pins to the viewport.
+* A new **`.modal-content.bio-modal`** variant turns the modal into a flex column with **`overflow: hidden`** and an inner **`.bio-modal-body`** that handles the scrolling. The existing **`max-height: 80vh`** cap is now honored, and the title + close button stay pinned while the bio scrolls.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
