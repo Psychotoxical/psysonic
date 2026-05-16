@@ -210,6 +210,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Buttons live in a new **`.hero-nav`** flex wrapper (`inset: 0`, `justify-content: space-between`, **`pointer-events: none`**); the buttons themselves opt back into **`pointer-events: auto`** so the rest of the hero stays click-through to the album page. Wrap-around (last → first / first → last) and auto-advance timer restart use the same pattern as the previous dot handler.
 * The dot indicators are kept as **decorative spans** — no click handler, no hover state, **`pointer-events: none`** — so a missed click no longer navigates to the album.
 
+### Settings — Clock Format setting (Auto / 24h / 12h)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#742](https://github.com/Psychotoxical/psysonic/pull/742)**
+
+* The Queue side panel's ETA label and the sleep-timer preview both go through **`formatClockTime`**, which just delegates to **`toLocaleTimeString`** — on en-US that meant AM/PM with no in-app override. **Settings → System → App Behavior** now exposes a tri-state **Clock Format** select: **`Auto`** (default — keeps existing locale-driven behaviour, so first launch after the update is a no-op for everyone), **`24h`**, and **`12h`**, the explicit values forcing **`hour12`** everywhere `formatClockTime` is used. Wired through `authStore` (`clockFormat` / `setClockFormat`) and consumed by both surfaces; all nine bundled locales ship the four new strings.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)
