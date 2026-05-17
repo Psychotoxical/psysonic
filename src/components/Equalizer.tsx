@@ -41,6 +41,20 @@ export default function Equalizer() {
     return () => ro.disconnect();
   }, [redraw]);
 
+  // ResizeObserver does not always fire for the `display: none → block`
+  // transition the surrounding <details> causes when toggled, leaving the
+  // canvas blank on the second open. Redraw explicitly when the parent
+  // <details> opens; rAF waits one frame for the canvas to take its size.
+  useEffect(() => {
+    const details = canvasRef.current?.closest('details');
+    if (!details) return;
+    const onToggle = () => {
+      if (details.open) requestAnimationFrame(redraw);
+    };
+    details.addEventListener('toggle', onToggle);
+    return () => details.removeEventListener('toggle', onToggle);
+  }, [redraw]);
+
   const isCustomSaved = activePreset && !BUILTIN_PRESETS.some(p => p.name === activePreset);
   const selectValue = activePreset ?? '__custom__';
 
