@@ -49,6 +49,7 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.32.0',
     contributions: [
       'Norwegian (Bokmål) translation (PR #101)',
+      'Ongoing bug & quirk reports via Discord (PRs #747, #750 et al.)',
     ],
   },
   {

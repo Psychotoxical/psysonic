@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.46.0] - 2026-05-05
 
+> **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
+
 ## Under the Hood — Refactoring & Test Suite
 
 **By [@cucadmuh](https://github.com/cucadmuh) + [@Psychotoxical](https://github.com/Psychotoxical)**
