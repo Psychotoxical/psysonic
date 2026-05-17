@@ -18,6 +18,7 @@ pub mod preload_commands;
 pub(crate) mod progress_task;
 pub mod radio_commands;
 pub mod transport_commands;
+mod device_resume;
 mod device_watcher;
 mod engine;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
