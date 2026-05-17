@@ -306,7 +306,17 @@ export default function FavoritesSongsTracklist({
                 );
                 case 'artist': return (
                   <div key="artist" className="track-artist-cell">
-                    <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={() => song.artistId && navigate(`/artist/${song.artistId}`)}>{song.artist}</span>
+                    <span
+                      className={`track-artist${song.artistId ? ' track-artist-link' : ''}`}
+                      style={{ cursor: song.artistId ? 'pointer' : 'default' }}
+                      onClick={(e) => {
+                        if (!song.artistId) return;
+                        e.stopPropagation();
+                        navigate(`/artist/${song.artistId}`);
+                      }}
+                    >
+                      {song.artist}
+                    </span>
                   </div>
                 );
                 case 'album': return (
