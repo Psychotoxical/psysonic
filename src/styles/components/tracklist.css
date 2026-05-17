@@ -536,7 +536,7 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   gap: var(--space-3);
   padding: var(--space-4) var(--space-3) var(--space-2);
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -551,7 +551,19 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 }
 
 .disc-icon {
-  font-size: 16px;
+  font-size: 18px;
+}
+
+/* Per-disc subtitle (OpenSubsonic `discTitles`), e.g. "Sessions" on a deluxe CD 3. */
+.disc-subtitle {
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.disc-subtitle::before {
+  content: '— ';
+  margin-right: 2px;
+  color: var(--text-muted);
 }
 
 

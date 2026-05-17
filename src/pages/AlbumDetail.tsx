@@ -341,6 +341,7 @@ const handleShuffleAll = () => {
 
       <AlbumTrackList
         songs={displayedSongs}
+        discTitles={album?.album.discTitles}
         sorted={sortKey !== 'natural' || !!filterText.trim()}
         hasVariousArtists={hasVariousArtists}
         currentTrack={currentTrack}
