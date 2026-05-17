@@ -197,6 +197,9 @@
   justify-content: space-between;
   gap: var(--space-3);
   margin-bottom: 1.5rem;
+  /* Fixiert die Zeilenhöhe so dass Lupen-Button vs. offenes Suchfeld
+     die Zeile nicht 1–2 px nach unten verschieben können. */
+  min-height: 40px;
 }
 
 .settings-header .page-title {
@@ -207,12 +210,30 @@
 .settings-search {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   flex-shrink: 0;
   /* h1.page-title hat im Display-Font einen visuellen Glyph-Mittelpunkt
      unterhalb der Box-Mitte. align-items: center wirkt deshalb so, als hänge
      die Lupe zu hoch. Wir verschieben sie auf die Glyph-Baseline runter. */
   align-self: end;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
+}
+
+.settings-search > .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.settings-search > .icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .settings-search-wrap {
@@ -220,6 +241,7 @@
   display: flex;
   align-items: center;
   width: 240px;
+  height: 32px;
 }
 
 .settings-search-icon {
