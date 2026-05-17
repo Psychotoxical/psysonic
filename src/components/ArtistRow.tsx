@@ -57,7 +57,7 @@ export default function ArtistRow({ title, artists, moreLink, moreText }: Props)
           {artists.map(a => <ArtistCardLocal key={a.id} artist={a} />)}
           {moreLink && (
             <div className="album-card-more" onClick={() => navigate(moreLink)}>
-              <div style={{ padding: '1rem', background: 'var(--bg-app)', borderRadius: '50%' }}>
+              <div style={{ padding: '1rem', background: 'var(--bg-app)', borderRadius: 'var(--radius-sm)' }}>
                 <ArrowRight size={24} />
               </div>
               <span style={{ fontSize: 13, fontWeight: 500 }}>{moreText}</span>

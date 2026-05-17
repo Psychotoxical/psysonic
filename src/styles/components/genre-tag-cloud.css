@@ -12,7 +12,7 @@
   border: 1px solid color-mix(in srgb, var(--genre-color, var(--accent)) 22%, transparent);
   background: color-mix(in srgb, var(--genre-color, var(--accent)) 6%, transparent);
   color: var(--text-primary);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   padding: 0.28em 0.78em;
   cursor: pointer;
   font-weight: 600;

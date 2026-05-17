@@ -3,7 +3,7 @@
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--text-secondary);
   color: var(--ctp-surface1);
   font-size: 10px;

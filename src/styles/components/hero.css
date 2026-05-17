@@ -65,7 +65,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.45);
   color: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -161,7 +161,7 @@
   padding: var(--space-3) var(--space-5);
   background: var(--accent);
   color: var(--ctp-crust);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 600;
   transition: all var(--transition-fast);

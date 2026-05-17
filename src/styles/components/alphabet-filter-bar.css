@@ -8,7 +8,7 @@
 .alphabet-filter-btn {
   min-width: 26px;
   padding: 4px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.03em;
