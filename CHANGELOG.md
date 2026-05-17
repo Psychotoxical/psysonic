@@ -630,6 +630,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The Mainstage row whose title chevron jumps to **`/new-releases`** was labelled **Recently Added** while the sidebar entry and the page itself read **New Releases** — three different names for the same destination. The row title and the matching **Home Customizer** entry now reuse **`sidebar.newReleases`** so the wording lives in exactly one place; the orphan **`home.recent`** key is dropped from all nine locale files.
 
+### UI — consistency fixes across badges, action buttons, hero and tracks header
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#745](https://github.com/Psychotoxical/psysonic/pull/745)**
+
+* Unified the corner radius on badges, pills and non-player buttons; Player Bar, Fullscreen and Mini Player keep their circular family identity. Secondary action rows on Artist, Album, Tracks, Favorites and Most Played all share the same `btn-surface` treatment so the same affordance reads the same per page and per theme.
+* Hero pills stay visible against light-toned cover art (opaque fill), and the pagination dots are readable on every backdrop (brighter inactive dot with a dark outline, accent-coloured active dot).
+* Composers grid no longer reserves ~200 px per virtual row for ~78 px text-only tiles. The Tracks "browse all" header now lives inside the scroll container so columns line up with the rows under wider fonts like **OpenDyslexic**, and the header stays pinned while scrolling.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
