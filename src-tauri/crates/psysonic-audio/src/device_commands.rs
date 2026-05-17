@@ -89,10 +89,19 @@ pub async fn audio_set_device(
 
     *state.stream_handle.lock().unwrap() = new_handle;
 
-    // Drop active sinks — they were bound to the old stream.
-    if let Some(s) = state.current.lock().unwrap().sink.take() { s.stop(); }
+    // Capture position and drop the active sink atomically so the position
+    // reading is still valid (play_started / paused_at intact before take).
+    let current_time = {
+        let mut cur = state.current.lock().unwrap();
+        let pos = cur.position();
+        if let Some(s) = cur.sink.take() { s.stop(); }
+        pos
+    };
     if let Some(s) = state.fading_out_sink.lock().unwrap().take() { s.stop(); }
 
-    app.emit("audio:device-changed", ()).map_err(|e| e.to_string())?;
+    // Emit the saved position so the frontend can use seekFallbackVisualTarget
+    // and resume from where the track was, rather than restarting from the beginning.
+    // null is reserved for "Rust already resumed internally" (see reopen_output_stream).
+    app.emit("audio:device-changed", current_time).map_err(|e| e.to_string())?;
     Ok(())
 }

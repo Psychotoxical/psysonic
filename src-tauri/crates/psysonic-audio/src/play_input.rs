@@ -26,7 +26,7 @@ use super::stream::{
 };
 
 /// What `audio_play` will hand to `build_source` / `build_streaming_source`.
-pub(super) enum PlayInput {
+pub(crate) enum PlayInput {
     Bytes(Vec<u8>),
     /// Seekable on-demand source — `RangedHttpSource` for HTTP streams,
     /// `LocalFileSource` for `psysonic-local://` files. Goes through
@@ -436,7 +436,7 @@ pub(super) fn spawn_legacy_stream_start_when_armed(
 /// query string first so Subsonic-style URLs (`stream.view?...&v=1.16.1&...`)
 /// don't latch onto random query-param substrings; only accept short
 /// alphanumeric tails that look like an actual audio extension.
-pub(super) fn url_format_hint(url: &str) -> Option<String> {
+pub(crate) fn url_format_hint(url: &str) -> Option<String> {
     url.split('?').next()
         .and_then(|path| path.rsplit('.').next())
         .filter(|ext| {
@@ -455,7 +455,7 @@ pub(super) fn url_format_hint(url: &str) -> Option<String> {
 /// Bundles the format-hint inputs, playback-shaping parameters and the shared
 /// done flag so that `build_playback_source_with_probe_fallback` stays below
 /// the `clippy::too_many_arguments` threshold.
-pub(super) struct BuildSourceArgs<'a> {
+pub(crate) struct BuildSourceArgs<'a> {
     pub url: &'a str,
     pub gen: u64,
     pub cache_id_for_tasks: Option<&'a str>,
@@ -470,28 +470,28 @@ pub(super) struct BuildSourceArgs<'a> {
 /// Output of `build_source_from_play_input`: the wrapped rodio source plus
 /// whether the chosen source path is seekable (only the Streaming variant
 /// is not).
-pub(super) struct PlaybackSource {
-    pub(super) built: BuiltSource,
-    pub(super) is_seekable: bool,
+pub(crate) struct PlaybackSource {
+    pub(crate) built: BuiltSource,
+    pub(crate) is_seekable: bool,
 }
 
 /// State + decisions audio_play computed before the sink swap.
-pub(super) struct SinkSwapInputs {
-    pub(super) sink: Arc<rodio::Player>,
-    pub(super) duration_secs: f64,
-    pub(super) volume: f32,
-    pub(super) gain_linear: f32,
-    pub(super) fadeout_trigger: Arc<AtomicBool>,
-    pub(super) fadeout_samples: Arc<std::sync::atomic::AtomicU64>,
-    pub(super) crossfade_enabled: bool,
-    pub(super) actual_fade_secs: f32,
+pub(crate) struct SinkSwapInputs {
+    pub(crate) sink: Arc<rodio::Player>,
+    pub(crate) duration_secs: f64,
+    pub(crate) volume: f32,
+    pub(crate) gain_linear: f32,
+    pub(crate) fadeout_trigger: Arc<AtomicBool>,
+    pub(crate) fadeout_samples: Arc<std::sync::atomic::AtomicU64>,
+    pub(crate) crossfade_enabled: bool,
+    pub(crate) actual_fade_secs: f32,
 }
 
 /// Atomically swap the new sink into `state.current`, then handle the old
 /// sink: trigger sample-level fade-out (crossfade enabled) or stop it
 /// immediately (hard cut). The fade-out is handed off to a small spawned
 /// task that drops the old sink ~`actual_fade_secs + 0.5 s` later.
-pub(super) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapInputs) {
+pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapInputs) {
     use std::time::Instant;
 
     let SinkSwapInputs {
@@ -676,7 +676,7 @@ fn is_in_memory_probe_failure(err: &str) -> bool {
 
 /// Like [`build_source_from_play_input`], but on ranged-stream probe failure waits
 /// for a full download (or fetches it) and retries from in-memory bytes.
-pub(super) async fn build_playback_source_with_probe_fallback(
+pub(crate) async fn build_playback_source_with_probe_fallback(
     play_input: PlayInput,
     args: BuildSourceArgs<'_>,
     state: &State<'_, AudioEngine>,

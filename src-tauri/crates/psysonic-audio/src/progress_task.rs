@@ -53,7 +53,7 @@ impl<R: Runtime> ProgressEmitter for AppHandle<R> {
 ///   • Immediate `audio:track_switched` event at decoder boundary
 ///   • `audio:ended` only fires when no chained successor exists
 #[allow(clippy::too_many_arguments)]
-pub(super) fn spawn_progress_task<E: ProgressEmitter>(
+pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
     gen: u64,
     gen_counter: Arc<AtomicU64>,
     current_arc: Arc<Mutex<AudioCurrent>>,
