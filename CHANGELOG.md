@@ -651,6 +651,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * Collapsing and re-expanding **Settings → Audio → Equalizer** sometimes left the curve area blank: `ResizeObserver` does not reliably fire for the `display: none → block` transition the surrounding `<details>` triggers, so the redraw that depends on it never ran on the second open. A `toggle` listener on the parent `<details>` now redraws explicitly on open.
 
+### Library — empty-state on Mainstage, Albums, New Releases and Random Albums
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#750](https://github.com/Psychotoxical/psysonic/pull/750)**
+
+* Selecting an empty library no longer leaves these pages as a fully blank canvas. A shared `common.libraryEmpty` message ("Your library is empty.") added across all nine locales is shown in place of the empty rails/grids. Pages that already had a dedicated empty-state (Artists, Genres, Composers, Playlists, Favorites, Most Played, Lossless Albums, Label Albums, Internet Radio) keep their per-page wording. On Albums and New Releases, an active genre / year / starred / compilation filter still shows the regular filtered-results behaviour rather than the library-empty message.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
