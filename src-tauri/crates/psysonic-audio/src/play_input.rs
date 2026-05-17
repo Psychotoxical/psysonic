@@ -702,18 +702,12 @@ pub(super) async fn build_playback_source_with_probe_fallback(
                 "[stream] ranged-stream probe failed — trying full-buffer fallback: {}",
                 e
             );
-            let bytes_hint_for_wait = resolve_playback_format_hint(
-                url_format_hint,
-                stream_format_suffix,
-                media_hint.as_deref(),
-                None,
-            );
             let data = match wait_or_fetch_bytes_for_stream_fallback(
                 url,
                 gen,
                 state,
                 app,
-                bytes_hint_for_wait.as_deref(),
+                effective_hint.as_deref(),
             )
             .await?
             {
