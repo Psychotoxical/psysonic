@@ -216,6 +216,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The Queue side panel's ETA label and the sleep-timer preview both go through **`formatClockTime`**, which just delegates to **`toLocaleTimeString`** — on en-US that meant AM/PM with no in-app override. **Settings → System → App Behavior** now exposes a tri-state **Clock Format** select: **`Auto`** (default — keeps existing locale-driven behaviour, so first launch after the update is a no-op for everyone), **`24h`**, and **`12h`**, the explicit values forcing **`hour12`** everywhere `formatClockTime` is used. Wired through `authStore` (`clockFormat` / `setClockFormat`) and consumed by both surfaces; all nine bundled locales ship the four new strings.
 
+### Album page — OpenSubsonic disc subtitles after the CD heading
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#753](https://github.com/Psychotoxical/psysonic/pull/753)**
+
+* Multi-disc albums in OpenSubsonic / Navidrome can carry a per-disc subtitle (`discTitles`, e.g. **"Sessions"** on CD 3 of a deluxe edition). The album tracklist previously dropped it and only showed **`CD N`**, so adjacent discs of a reissue read the same in the header. The disc separator now renders **`CD N — Subtitle`** in both desktop and mobile track lists, and the heading is bumped slightly so the subtitle stays legible next to the disc number.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)
