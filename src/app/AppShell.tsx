@@ -2,6 +2,7 @@ import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ensurePlaybackServerActive } from '../utils/playback/playbackServer';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { PanelRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Sidebar from '../components/Sidebar';
@@ -122,6 +123,13 @@ export function AppShell() {
     useEqStore.getState().syncToRust();
   }, []);
 
+  useEffect(() => {
+    getCurrentWebview().setZoom(uiScale).catch(() => {
+      /* setZoom may fail on platforms where the capability is unavailable;
+         fall back silently so the rest of the shell still renders. */
+    });
+  }, [uiScale]);
+
   useNowPlayingTrayTitle(currentTrack, isPlaying);
 
   // Post-update changelog is now surfaced via a dismissible banner in the
@@ -178,7 +186,7 @@ export function AppShell() {
         />
       )}
       <main className="main-content">
-        <div className="main-content-zoom" style={uiScale !== 1 ? { zoom: uiScale } : undefined}>
+        <div className="main-content-zoom">
         <header className="content-header">
           <LiveSearch />
           <div className="spacer" />
