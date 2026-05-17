@@ -39,6 +39,8 @@ export const player = {
   repeatOne: 'Un',
   progress: 'Progression',
   volume: 'Volume',
+  mute: 'Couper le son',
+  unmute: 'Activer le son',
   toggleQueue: 'Afficher/masquer la file',
   collapseQueueResize: 'Réduire la file, redimensionner',
   moreOptions: 'Plus d’options',

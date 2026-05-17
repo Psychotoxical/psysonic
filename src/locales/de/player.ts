@@ -39,6 +39,8 @@ export const player = {
   repeatOne: 'Einen',
   progress: 'Songfortschritt',
   volume: 'Lautstärke',
+  mute: 'Stummschalten',
+  unmute: 'Stumm aufheben',
   toggleQueue: 'Warteschlange umschalten',
   collapseQueueResize: 'Warteschlange einklappen, Breite ändern',
   moreOptions: 'Weitere Optionen',

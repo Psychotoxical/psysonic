@@ -39,6 +39,8 @@ export const player = {
   repeatOne: 'Én',
   progress: 'Sangfremdrift',
   volume: 'Volum',
+  mute: 'Demp',
+  unmute: 'Slå på lyden',
   toggleQueue: 'Veksle kø',
   collapseQueueResize: 'Skjul kø, endre bredde',
   moreOptions: 'Flere alternativer',

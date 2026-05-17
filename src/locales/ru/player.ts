@@ -39,6 +39,8 @@ export const player = {
   repeatOne: 'Один',
   progress: 'Прогресс',
   volume: 'Громкость',
+  mute: 'Отключить звук',
+  unmute: 'Включить звук',
   toggleQueue: 'Очередь',
   collapseQueueResize: 'Свернуть очередь, изменить ширину',
   moreOptions: 'Дополнительно',
