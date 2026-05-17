@@ -451,6 +451,22 @@ pub(super) fn url_format_hint(url: &str) -> Option<String> {
         .map(|s| s.to_lowercase())
 }
 
+/// Arguments forwarded from `audio_play` into the source-build pipeline.
+/// Bundles the format-hint inputs, playback-shaping parameters and the shared
+/// done flag so that `build_playback_source_with_probe_fallback` stays below
+/// the `clippy::too_many_arguments` threshold.
+pub(super) struct BuildSourceArgs<'a> {
+    pub url: &'a str,
+    pub gen: u64,
+    pub cache_id_for_tasks: Option<&'a str>,
+    pub url_format_hint: Option<&'a str>,
+    pub stream_format_suffix: Option<&'a str>,
+    pub done_flag: Arc<AtomicBool>,
+    pub fade_in_dur: Duration,
+    pub hi_res_enabled: bool,
+    pub duration_hint: f64,
+}
+
 /// Output of `build_source_from_play_input`: the wrapped rodio source plus
 /// whether the chosen source path is seekable (only the Streaming variant
 /// is not).
@@ -662,18 +678,21 @@ fn is_in_memory_probe_failure(err: &str) -> bool {
 /// for a full download (or fetches it) and retries from in-memory bytes.
 pub(super) async fn build_playback_source_with_probe_fallback(
     play_input: PlayInput,
-    url: &str,
-    gen: u64,
-    cache_id_for_tasks: Option<&str>,
+    args: BuildSourceArgs<'_>,
     state: &State<'_, AudioEngine>,
     app: &AppHandle,
-    url_format_hint: Option<&str>,
-    stream_format_suffix: Option<&str>,
-    done_flag: Arc<AtomicBool>,
-    fade_in_dur: Duration,
-    hi_res_enabled: bool,
-    duration_hint: f64,
 ) -> Result<PlaybackSource, String> {
+    let BuildSourceArgs {
+        url,
+        gen,
+        cache_id_for_tasks,
+        url_format_hint,
+        stream_format_suffix,
+        done_flag,
+        fade_in_dur,
+        hi_res_enabled,
+        duration_hint,
+    } = args;
     let media_hint = play_media_format_hint(&play_input);
     let effective_hint = resolve_playback_format_hint(
         url_format_hint,

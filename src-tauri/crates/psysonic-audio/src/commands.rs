@@ -16,8 +16,8 @@ use super::helpers::*;
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{
     build_playback_source_with_probe_fallback, select_play_input,
-    spawn_legacy_stream_start_when_armed, swap_in_new_sink, url_format_hint, PlayInputContext,
-    SinkSwapInputs,
+    spawn_legacy_stream_start_when_armed, swap_in_new_sink, url_format_hint, BuildSourceArgs,
+    PlayInputContext, SinkSwapInputs,
 };
 use super::preview::preview_clear_for_new_main_playback;
 use super::progress_task::spawn_progress_task;
@@ -235,17 +235,19 @@ pub async fn audio_play(
     state.samples_played.store(0, Ordering::Relaxed);
     let playback_source = build_playback_source_with_probe_fallback(
         play_input,
-        &url,
-        gen,
-        cache_id_for_tasks.as_deref(),
+        BuildSourceArgs {
+            url: &url,
+            gen,
+            cache_id_for_tasks: cache_id_for_tasks.as_deref(),
+            url_format_hint: format_hint.as_deref(),
+            stream_format_suffix: stream_format_suffix.as_deref(),
+            done_flag: done_flag.clone(),
+            fade_in_dur,
+            hi_res_enabled,
+            duration_hint,
+        },
         &state,
         &app,
-        format_hint.as_deref(),
-        stream_format_suffix.as_deref(),
-        done_flag.clone(),
-        fade_in_dur,
-        hi_res_enabled,
-        duration_hint,
     )
     .await
     .map_err(|e| {
