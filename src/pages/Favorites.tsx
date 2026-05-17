@@ -194,6 +194,10 @@ export default function Favorites() {
                 starredOverrides={starredOverrides}
                 minYear={MIN_YEAR}
                 currentYear={CURRENT_YEAR}
+                inSelectMode={inSelectMode}
+                selectedCount={selectedCount}
+                showPlPicker={showPlPicker}
+                setShowPlPicker={setShowPlPicker}
               />
               <FavoritesSongsTracklist
                 visibleSongs={visibleSongs}
@@ -201,8 +205,6 @@ export default function Favorites() {
                 selectedCount={selectedCount}
                 inSelectMode={inSelectMode}
                 toggleSelect={toggleSelect}
-                showPlPicker={showPlPicker}
-                setShowPlPicker={setShowPlPicker}
                 allColumns={FAV_COLUMNS}
                 visibleCols={visibleCols}
                 gridStyle={gridStyle}

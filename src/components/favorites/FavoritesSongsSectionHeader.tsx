@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { ListPlus, Play, SlidersHorizontal, X } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
+import { useSelectionStore } from '../../store/selectionStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
+import { AddToPlaylistSubmenu } from '../ContextMenu';
 import GenreFilterBar from '../GenreFilterBar';
 
 interface Props {
@@ -25,6 +27,10 @@ interface Props {
   starredOverrides: Record<string, boolean>;
   minYear: number;
   currentYear: number;
+  inSelectMode: boolean;
+  selectedCount: number;
+  showPlPicker: boolean;
+  setShowPlPicker: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function FavoritesSongsSectionHeader({
@@ -32,6 +38,7 @@ export default function FavoritesSongsSectionHeader({
   selectedGenres, setSelectedGenres, yearRange, setYearRange,
   showFilters, setShowFilters, setSortKey, setSortClickCount,
   playTrack, enqueue, starredOverrides, minYear, currentYear,
+  inSelectMode, selectedCount, showPlPicker, setShowPlPicker,
 }: Props) {
   const { t } = useTranslation();
 
@@ -99,6 +106,39 @@ export default function FavoritesSongsSectionHeader({
             <X size={13} />
             {t('common.clearAll')}
           </button>
+        )}
+
+        {/* Bulk action chips — inline at row end so a selection does not
+            push the column header / rows downward (matches Album toolbar). */}
+        {inSelectMode && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
+            <span className="bulk-action-count">
+              {t('common.bulkSelected', { count: selectedCount })}
+            </span>
+            <div className="bulk-pl-picker-wrap">
+              <button
+                className="btn btn-surface btn-sm"
+                onClick={() => setShowPlPicker(v => !v)}
+              >
+                <ListPlus size={14} />
+                {t('common.bulkAddToPlaylist')}
+              </button>
+              {showPlPicker && (
+                <AddToPlaylistSubmenu
+                  songIds={[...useSelectionStore.getState().selectedIds]}
+                  onDone={() => { setShowPlPicker(false); useSelectionStore.getState().clearAll(); }}
+                  dropDown
+                />
+              )}
+            </div>
+            <button
+              className="btn btn-surface btn-sm"
+              onClick={() => useSelectionStore.getState().clearAll()}
+            >
+              <X size={13} />
+              {t('common.bulkClear')}
+            </button>
+          </div>
         )}
       </div>
 
