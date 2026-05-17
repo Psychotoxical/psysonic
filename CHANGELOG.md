@@ -688,6 +688,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * For local files and fully-cached HTTP tracks the Rust audio engine replays internally on the new device without any frontend round-trip. For partially-buffered HTTP streams and radio the existing frontend-restart path is kept, but resumes from the saved position via `seekFallbackVisualTarget` rather than from the beginning.
 * Root cause was a null-payload collision: `audio_set_device` was emitting a `()` (unit) payload that Tauri serialised to JSON `null`, triggering the new "Rust handled replay" guard in the frontend and silently preventing `playTrack` from being called.
 
+### Virtualization — Artists, Composers and Tracks lists no longer drop rows on scroll
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#766](https://github.com/Psychotoxical/psysonic/pull/766)**
+
+* Same scroll-margin bug as the one fixed by [#764](https://github.com/Psychotoxical/psysonic/pull/764) for the Album Detail "More by …" rail, on four more virtual lists: **Artists grid**, **Artists list**, **Composers list** and the **Tracks** virtual song browser. The virtual wrapper sat below the sticky page header but TanStack measured row positions from the scroll-element top — rows still on screen could unmount, and at larger header offsets the list refused to render at all.
+* The measurement is now a shared `useVirtualizerScrollMargin` hook used by every virtual-list call-site (including the existing `VirtualCardGrid` fix from #764).
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
