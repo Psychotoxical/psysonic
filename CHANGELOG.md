@@ -663,6 +663,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * Selecting an empty library no longer leaves these pages as a fully blank canvas. A shared `common.libraryEmpty` message ("Your library is empty.") added across all nine locales is shown in place of the empty rails/grids. Pages that already had a dedicated empty-state (Artists, Genres, Composers, Playlists, Favorites, Most Played, Lossless Albums, Label Albums, Internet Radio) keep their per-page wording. On Albums and New Releases, an active genre / year / starred / compilation filter still shows the regular filtered-results behaviour rather than the library-empty message.
 
+### M4A playback — probe failures and distorted audio on moov-at-end files
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#757](https://github.com/Psychotoxical/psysonic/pull/757)**
+
+* Fixed a bug in the patched `symphonia-format-isomp4` demuxer that caused Symphonia to fail probing every M4A file read from the hot-cache (in-memory bytes) or from a local file after playing it once. `AtomIterator::new_root` treats `len` as bytes available from the current reader position, not the absolute file length; after `seek(offset)` the code was passing `total_len` (absolute) instead of `total_len − offset` (remaining), so the iterator overread past EOF and returned `end of stream`. Loudness analysis fell back to `byte_envelope_no_ebu` (no EBU R128 gain applied) and the audio was decoded with distortion. Both affected branches — moov-at-end layout and fast-start mdat skip — now receive the correct remaining length.
+* Ranged streaming of moov-at-end M4A files no longer races Symphonia's probe against the tail prefetch: a `RangedMp4ProbeGate` holds the probe thread until either the moov tail fetch completes or moov is confirmed in the already-downloaded prefix (fast-start). Previously the probe could start on a partial buffer and immediately return `format probe failed: end of stream`, falling through to the sequential-download fallback even when the track would have played fine.
+* The full-download fallback path now runs ISO-BMFF diagnostic checks on the completed ranged buffer before handing it to Symphonia: zero-hole detection (`mp4_suspect_zero_holes`) and completeness gating (`isobmff_buffer_looks_complete`) trigger an automatic HTTP refetch when the buffer looks sparse or structurally incomplete.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
