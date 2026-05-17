@@ -37,6 +37,8 @@ pub(super) enum PlayInput {
         reader: Box<dyn MediaSource>,
         format_hint: Option<String>,
         tag: &'static str,
+        /// When set, Symphonia probe waits for moov (tail or fast-start prefix).
+        mp4_probe_gate: Option<super::stream::RangedMp4ProbeGate>,
     },
     Streaming {
         reader: AudioStreamReader,
@@ -192,6 +194,7 @@ fn open_local_file_input(
         reader: Box::new(reader),
         format_hint: local_hint,
         tag: "local-file",
+        mp4_probe_gate: None,
     })
 }
 
@@ -288,6 +291,16 @@ async fn open_ranged_or_streaming_input(
         let playback_armed = state.stream_playback_armed.clone();
         let tail_ready = Arc::new(AtomicBool::new(false));
         let tail_filled_from = Arc::new(AtomicU64::new(0));
+        let tail_prefetch =
+            super::stream::mp4_needs_tail_prefetch(&[], stream_hint.as_deref());
+        let mp4_probe_gate = tail_prefetch.then(|| super::stream::RangedMp4ProbeGate {
+            tail_ready: tail_ready.clone(),
+            buf: buf.clone(),
+            downloaded_to: downloaded_to.clone(),
+            gen_arc: state.generation.clone(),
+            gen: ctx.gen,
+            format_hint: stream_hint.clone(),
+        });
         let loudness_hold_for_defer = (total_usize <= super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES)
             .then_some(state.ranged_loudness_seed_hold.clone());
         tokio::spawn(ranged_download_task(
@@ -328,6 +341,7 @@ async fn open_ranged_or_streaming_input(
             reader: Box::new(reader),
             format_hint: stream_hint,
             tag: "ranged-stream",
+            mp4_probe_gate,
         }));
     }
 
@@ -557,7 +571,15 @@ pub(super) async fn build_source_from_play_input(
             format_hint,
             hi_res_enabled,
         ),
-        PlayInput::SeekableMedia { reader, format_hint: media_hint, tag } => {
+        PlayInput::SeekableMedia {
+            reader,
+            format_hint: media_hint,
+            tag,
+            mp4_probe_gate,
+        } => {
+            if let Some(gate) = mp4_probe_gate.as_ref() {
+                super::stream::wait_for_ranged_mp4_probe_ready(gate).await?;
+            }
             let decoder = tokio::task::spawn_blocking(move || {
                 SizedDecoder::new_streaming(reader, media_hint.as_deref(), tag)
             })

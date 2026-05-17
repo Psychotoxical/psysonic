@@ -17,6 +17,7 @@ mod ranged_http;
 mod reader;
 mod track_stream;
 
+pub(crate) use mp4::mp4_needs_tail_prefetch;
 pub(crate) use local_file::LocalFileSource;
 pub(crate) use radio::{RadioLiveState, RadioSharedFlags, radio_download_task};
 pub(crate) use ranged_http::{RangedHttpSource, ranged_download_task};
@@ -63,6 +64,56 @@ pub(crate) fn maybe_arm_stream_playback(downloaded: u64, playback_armed: &std::s
             "[stream] playback armed after {} KiB buffered",
             downloaded / 1024
         );
+    }
+}
+
+/// Held until `RangedHttpSource` has moov metadata for Symphonia probe (tail prefetch
+/// or fast-start moov in the linear prefix).
+pub(crate) struct RangedMp4ProbeGate {
+    pub(crate) tail_ready: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub(crate) buf: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    pub(crate) downloaded_to: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    pub(crate) gen_arc: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    pub(crate) gen: u64,
+    pub(crate) format_hint: Option<String>,
+}
+
+/// Block until moov is reachable: tail prefetch completed or moov already in the
+/// downloaded prefix (fast-start). Avoids Symphonia probing moov-at-end M4A before
+/// the tail range is filled (format probe failed: end of stream).
+pub(crate) async fn wait_for_ranged_mp4_probe_ready(gate: &RangedMp4ProbeGate) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    use std::time::{Duration, Instant};
+
+    const PREFIX_SCAN_MIN: usize = 64 * 1024;
+    let deadline = Instant::now() + Duration::from_secs(TRACK_READ_TIMEOUT_SECS);
+
+    loop {
+        if gate.gen_arc.load(Ordering::SeqCst) != gate.gen {
+            return Err("ranged-stream: superseded before moov metadata ready".into());
+        }
+        if gate.tail_ready.load(Ordering::Relaxed) {
+            crate::app_deprintln!("[stream] ranged: moov metadata ready (tail prefetch)");
+            return Ok(());
+        }
+        let dl = gate.downloaded_to.load(Ordering::Relaxed);
+        if dl >= PREFIX_SCAN_MIN {
+            let guard = gate.buf.lock().unwrap();
+            let n = dl.min(guard.len());
+            if !mp4::mp4_needs_tail_prefetch(&guard[..n], gate.format_hint.as_deref()) {
+                crate::app_deprintln!(
+                    "[stream] ranged: moov metadata ready (fast-start, {} KiB prefix)",
+                    n / 1024
+                );
+                return Ok(());
+            }
+        }
+        if Instant::now() >= deadline {
+            return Err(
+                "ranged-stream: timed out waiting for moov metadata (tail prefetch)".into(),
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
 /// Sleep interval when ring buffer is empty (prevents CPU spin).

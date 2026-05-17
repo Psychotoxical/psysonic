@@ -562,6 +562,11 @@ pub(crate) async fn ranged_download_task(
         None
     };
 
+    let linear_arm = if tail_prefetch {
+        None
+    } else {
+        Some(playback_armed.as_ref())
+    };
     let (downloaded, outcome) = ranged_http_download_loop(
         http_client,
         &url,
@@ -571,7 +576,7 @@ pub(crate) async fn ranged_download_task(
         gen,
         &gen_arc,
         on_partial,
-        Some(&playback_armed),
+        linear_arm,
     )
     .await;
 
