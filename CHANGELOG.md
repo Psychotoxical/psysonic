@@ -678,6 +678,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Playing or shuffling a large playlist (10 000+ tracks) serialised the entire queue to `localStorage` on every persisted `set`, triggering a `QuotaExceededError` storm that killed playback and stalled the main thread. Controlled test on a 10 509-track playlist: 9 quota errors before, 0 after.
 * `partialize` now persists only a ±250-track window around the current position (≤ 501 tracks), remapping `queueIndex` into the slice. The authoritative full queue is recovered from the server via `getPlayQueue` on startup — no queue data is lost.
 
+### Audio — seamless playback resume on output device switch
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#765](https://github.com/Psychotoxical/psysonic/pull/765)**
+
+* Changing the default output device (Bluetooth headphones, USB DAC, HDMI, AirPlay) used to restart the current track from the beginning. Playback now resumes at the exact position it was at, with no audible restart.
+* For local files and fully-cached HTTP tracks the Rust audio engine replays internally on the new device without any frontend round-trip. For partially-buffered HTTP streams and radio the existing frontend-restart path is kept, but resumes from the saved position via `seekFallbackVisualTarget` rather than from the beginning.
+* Root cause was a null-payload collision: `audio_set_device` was emitting a `()` (unit) payload that Tauri serialised to JSON `null`, triggering the new "Rust handled replay" guard in the frontend and silently preventing `playTrack` from being called.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
