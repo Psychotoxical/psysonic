@@ -638,6 +638,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Hero pills stay visible against light-toned cover art (opaque fill), and the pagination dots are readable on every backdrop (brighter inactive dot with a dark outline, accent-coloured active dot).
 * Composers grid no longer reserves ~200 px per virtual row for ~78 px text-only tiles. The Tracks "browse all" header now lives inside the scroll container so columns line up with the rows under wider fonts like **OpenDyslexic**, and the header stays pinned while scrolling.
 
+### Favorites — artist link no longer triggers playback, bulk selection no longer shifts the rows
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#746](https://github.com/Psychotoxical/psysonic/pull/746)**
+
+* Clicking the **artist** in the Favorites songs table opened the artist page _and_ started the song — the cell was missing the click guard the album cell already had. Now matches every other tracklist in the app.
+* Selecting a song no longer pushes the column header and every row down by one line. The "X selected / Add to playlist / Clear" cluster moved out of the full-width bar into the existing action-buttons row (right-aligned), matching the album toolbar, so the next item stays under the same cursor position.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
