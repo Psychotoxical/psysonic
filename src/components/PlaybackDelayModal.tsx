@@ -46,7 +46,7 @@ export interface PlaybackDelayModalProps {
 }
 
 export default function PlaybackDelayModal({ open, onClose, anchorRef }: PlaybackDelayModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     isPlaying,
     currentTrack,
@@ -157,7 +157,7 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
   const clockFormat = useAuthStore(s => s.clockFormat);
   const previewSeconds = hoverSeconds ?? customSeconds;
   const previewAtMs = previewSeconds != null ? nowTick + previewSeconds * 1000 : null;
-  const previewClock = previewAtMs != null ? formatClockTime(previewAtMs, clockFormat) : null;
+  const previewClock = previewAtMs != null ? formatClockTime(previewAtMs, clockFormat, i18n.language) : null;
 
   if (!open) return null;
 

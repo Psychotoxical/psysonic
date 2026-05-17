@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ChevronDown, ListMusic } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import { useAuthStore } from '../../store/authStore';
@@ -26,6 +27,7 @@ export function QueueHeader({
   const currentTime = usePlayerStore((s) => Math.floor(s.currentTime / 30) * 30);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const clockFormat = useAuthStore((s) => s.clockFormat);
+  const { i18n } = useTranslation();
 
   const totalSecs = useMemo(() =>
     queue.reduce((acc: number, track: Track) => acc + (track.duration || 0), 0),
@@ -42,7 +44,7 @@ export function QueueHeader({
   if (queue.length > 0) {
     if (durationMode === 'total') dur = formatLongDuration(Math.floor(totalSecs));
     else if (durationMode === 'remaining') dur = `-${formatLongDuration(Math.floor(remainingSecs))}`;
-    else dur = formatClockTime(Date.now() + remainingSecs * 1000, clockFormat);
+    else dur = formatClockTime(Date.now() + remainingSecs * 1000, clockFormat, i18n.language);
   }
 
   const nextMode: DurationMode =
