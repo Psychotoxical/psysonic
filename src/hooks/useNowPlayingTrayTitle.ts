@@ -14,7 +14,11 @@ export function useNowPlayingTrayTitle(currentTrack: Track | null, isPlaying: bo
       try {
         const appWindow = getCurrentWindow();
         if (currentTrack) {
-          const state = isPlaying ? '▶' : '⏸';
+          // `⏵` (U+23F5) instead of `▶` (U+25B6): the Geometric-Shapes triangle
+          // renders well below the baseline in most OS title-bar fonts (Segoe UI,
+          // GNOME Cantarell, etc.), while the Miscellaneous-Technical pair
+          // `⏵`/`⏸` shares metrics and stays centred next to the text.
+          const state = isPlaying ? '⏵' : '⏸';
           const title = `${state} ${currentTrack.artist} - ${currentTrack.title} | Psysonic`;
           document.title = title;
           await appWindow.setTitle(title);
