@@ -53,4 +53,5 @@ export const common = {
   more: 'mer',
   yearRange: 'Årsspenn',
   clearAll: 'Tøm alt',
+  libraryEmpty: 'Biblioteket ditt er tomt.',
 };

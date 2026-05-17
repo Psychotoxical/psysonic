@@ -63,4 +63,5 @@ export const common = {
   more: 'mehr',
   yearRange: 'Jahresbereich',
   clearAll: 'Alles zurücksetzen',
+  libraryEmpty: 'Deine Bibliothek ist leer.',
 };

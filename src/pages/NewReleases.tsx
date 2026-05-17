@@ -178,6 +178,10 @@ export default function NewReleases() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
           <div className="spinner" />
         </div>
+      ) : !loading && albums.length === 0 && !filtered ? (
+        <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+          {t('common.libraryEmpty')}
+        </div>
       ) : (
         <>
           <VirtualCardGrid

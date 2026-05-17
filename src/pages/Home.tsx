@@ -183,6 +183,16 @@ export default function Home() {
 
   const homeLiteArtworkFx = perfFlags.disableHomeArtworkFx;
   const homeFlatArtworkClip = perfFlags.disableHomeArtworkClip;
+  // Treat the library as empty when every album endpoint returned zero. The
+  // song/artist rails can be empty for non-empty libraries (rare server quirks),
+  // so they don't count toward this signal.
+  const libraryEmpty =
+    !loading &&
+    recent.length === 0 &&
+    random.length === 0 &&
+    mostPlayed.length === 0 &&
+    recentlyPlayed.length === 0 &&
+    starred.length === 0;
   return (
     <div className={`animate-fade-in${homeLiteArtworkFx ? ' home-lite-artwork' : ''}${homeFlatArtworkClip ? ' home-flat-artwork-clip' : ''}`}>
       {!perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
@@ -191,6 +201,10 @@ export default function Home() {
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
             <div className="spinner" />
+          </div>
+        ) : libraryEmpty ? (
+          <div className="empty-state" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+            {t('common.libraryEmpty')}
           </div>
         ) : (
           <>
