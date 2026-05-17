@@ -645,6 +645,12 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Clicking the **artist** in the Favorites songs table opened the artist page _and_ started the song — the cell was missing the click guard the album cell already had. Now matches every other tracklist in the app.
 * Selecting a song no longer pushes the column header and every row down by one line. The "X selected / Add to playlist / Clear" cluster moved out of the full-width bar into the existing action-buttons row (right-aligned), matching the album toolbar, so the next item stays under the same cursor position.
 
+### Equalizer — frequency-response curve no longer disappears on re-expand
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#747](https://github.com/Psychotoxical/psysonic/pull/747)**
+
+* Collapsing and re-expanding **Settings → Audio → Equalizer** sometimes left the curve area blank: `ResizeObserver` does not reliably fire for the `display: none → block` transition the surrounding `<details>` triggers, so the redraw that depends on it never ran on the second open. A `toggle` listener on the parent `<details>` now redraws explicitly on open.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
