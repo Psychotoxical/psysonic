@@ -200,13 +200,6 @@ pub(crate) enum RangedHttpLoopOutcome {
     Aborted,
 }
 
-/// Pure HTTP loop: reads from `initial_response` (and reconnects on transient
-/// errors via `Range:` requests against `http_client`) until either `total_size`
-/// bytes have been written into `buf`, the generation flips, or the reconnect
-/// budget is exhausted. No `tauri::AppHandle` dependency — partial-progress
-/// notifications go through `on_partial`, which the caller wires up with its
-/// own emitter (or a no-op in tests).
-///
 /// Returns `(downloaded_bytes, outcome)`. The caller is responsible for setting
 /// any `done` flag, promoting the buffer to a cache, or kicking off analysis
 /// seeding once the loop returns.
@@ -616,6 +609,22 @@ pub(crate) async fn ranged_download_task(
 
     if downloaded == total_size && total_size > 0 {
         if total_size <= TRACK_STREAM_PROMOTE_MAX_BYTES {
+            if super::container_hint_is_mp4(format_hint.as_deref()) {
+                let guard = buf.lock().unwrap();
+                if !super::isobmff_buffer_looks_complete(&guard) {
+                    super::log_isobmff_buffer_diagnostic(
+                        &guard,
+                        format_hint.as_deref(),
+                        "ranged-dl-complete-incomplete",
+                    );
+                } else if super::mp4_suspect_zero_holes(&guard) {
+                    super::log_isobmff_buffer_diagnostic(
+                        &guard,
+                        format_hint.as_deref(),
+                        "ranged-dl-complete-zero-holes",
+                    );
+                }
+            }
             if let Some(ref tid) = cache_track_id {
                 crate::app_deprintln!(
                     "[stream] ranged: HTTP buffer full track_id={} size_mib={:.2} — cloning {} bytes then full-track analysis (cpu-seed queue; this task awaits completion)",

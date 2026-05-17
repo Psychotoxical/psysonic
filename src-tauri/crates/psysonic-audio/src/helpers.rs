@@ -153,6 +153,21 @@ pub(crate) fn format_hint_from_content_disposition(cd: &str) -> Option<String> {
     None
 }
 
+/// Best Symphonia container hint for playback: ranged/stream media hint, URL tail,
+/// Subsonic `song.suffix`, then magic-byte sniff on buffered bytes.
+pub(crate) fn resolve_playback_format_hint(
+    url_hint: Option<&str>,
+    stream_suffix: Option<&str>,
+    media_hint: Option<&str>,
+    data: Option<&[u8]>,
+) -> Option<String> {
+    media_hint
+        .map(str::to_string)
+        .or_else(|| url_hint.map(str::to_string))
+        .or_else(|| normalize_stream_suffix_for_hint(stream_suffix))
+        .or_else(|| data.and_then(sniff_stream_format_extension))
+}
+
 /// Subsonic [`song.suffix`](https://www.subsonic.org/pages/api.jsp#getSong) — stream.view URLs
 /// usually have no file extension; this supplies `format_hint` for ranged open.
 pub(crate) fn normalize_stream_suffix_for_hint(suffix: Option<&str>) -> Option<String> {
@@ -1024,6 +1039,31 @@ mod tests {
     #[test]
     fn cd_returns_none_when_no_filename_present() {
         assert_eq!(format_hint_from_content_disposition("inline"), None);
+    }
+
+    // ── resolve_playback_format_hint ───────────────────────────────────────────
+
+    #[test]
+    fn resolve_playback_hint_prefers_media_then_suffix() {
+        assert_eq!(
+            resolve_playback_format_hint(None, Some("m4a"), Some("flac"), None),
+            Some("flac".into()),
+        );
+        assert_eq!(
+            resolve_playback_format_hint(None, Some("m4a"), None, None),
+            Some("m4a".into()),
+        );
+    }
+
+    #[test]
+    fn resolve_playback_hint_sniffs_bytes_when_no_suffix() {
+        let mut buf = vec![0u8; 4];
+        buf.extend_from_slice(b"ftyp");
+        buf.extend_from_slice(b"M4A \x00\x00\x02\x00");
+        assert_eq!(
+            resolve_playback_format_hint(None, None, None, Some(&buf)),
+            Some("m4a".into()),
+        );
     }
 
     // ── normalize_stream_suffix_for_hint ──────────────────────────────────────

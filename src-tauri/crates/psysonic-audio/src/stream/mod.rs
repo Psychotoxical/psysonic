@@ -17,7 +17,10 @@ mod ranged_http;
 mod reader;
 mod track_stream;
 
-pub(crate) use mp4::mp4_needs_tail_prefetch;
+pub(crate) use mp4::{
+    container_hint_is_mp4, isobmff_buffer_looks_complete, log_isobmff_buffer_diagnostic,
+    mp4_needs_tail_prefetch, mp4_suspect_zero_holes,
+};
 pub(crate) use local_file::LocalFileSource;
 pub(crate) use radio::{RadioLiveState, RadioSharedFlags, radio_download_task};
 pub(crate) use ranged_http::{RangedHttpSource, ranged_download_task};

@@ -15,7 +15,7 @@ use super::decode::{build_source, build_streaming_source, BuiltSource, SizedDeco
 use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::{
     content_type_to_hint, fetch_data, format_hint_from_content_disposition,
-    normalize_stream_suffix_for_hint, sniff_stream_format_extension,
+    normalize_stream_suffix_for_hint, resolve_playback_format_hint, sniff_stream_format_extension,
     spawn_analysis_seed_from_in_memory_bytes, same_playback_target,
     STREAM_FORMAT_SNIFF_PROBE_BYTES,
 };
@@ -273,10 +273,6 @@ async fn open_ranged_or_streaming_input(
         }
     }
 
-    // Guardrail: when format/container hint is unknown, some demuxers may
-    // seek near EOF during probe. With a progressively downloaded ranged
-    // source that can delay first audible samples until most/all bytes are
-    // fetched. Prefer sequential streaming in that case for faster start.
     if let (true, Some(total), true) = (supports_range, total_size, stream_hint.is_some()) {
         let total_usize = total as usize;
         crate::app_deprintln!(
@@ -538,6 +534,265 @@ pub(super) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
         }
     } else if let Some(old) = old_sink {
         old.stop();
+    }
+}
+
+fn play_media_format_hint(input: &PlayInput) -> Option<String> {
+    match input {
+        PlayInput::SeekableMedia { format_hint, .. } | PlayInput::Streaming { format_hint, .. } => {
+            format_hint.clone()
+        }
+        PlayInput::Bytes(_) => None,
+    }
+}
+
+/// Ranged HTTP probe/decode failed in a way that may succeed after the
+/// background download finishes (moov-at-end, demuxer EOF during partial buffer).
+fn is_ranged_stream_probe_failure(err: &str) -> bool {
+    err.contains("ranged-stream")
+        && (err.contains("format probe failed")
+            || err.contains("moov metadata")
+            || err.contains("end of stream"))
+}
+
+/// Completed ranged download or spill file for `url`, if ready.
+async fn try_take_completed_stream_bytes(
+    url: &str,
+    state: &State<'_, AudioEngine>,
+) -> Option<Vec<u8>> {
+    if let Some(data) = super::helpers::take_stream_completed_for_url(state, url) {
+        return Some(data);
+    }
+    let spill_path = {
+        let guard = state.stream_completed_spill.lock().unwrap();
+        guard
+            .as_ref()
+            .filter(|p| same_playback_target(&p.url, url))
+            .map(|p| p.path.clone())
+    };
+    if let Some(path) = spill_path {
+        let data = tokio::fs::read(&path).await.ok()?;
+        if !data.is_empty() {
+            return Some(data);
+        }
+    }
+    None
+}
+
+/// Ranged assembly can be byte-complete but missing `moov` (holes) or non-audio HTTP body.
+async fn prefer_clean_http_bytes_for_fallback(
+    url: &str,
+    gen: u64,
+    state: &State<'_, AudioEngine>,
+    app: &AppHandle,
+    ranged_data: Vec<u8>,
+    format_hint: Option<&str>,
+    label: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    let is_mp4 = super::stream::container_hint_is_mp4(format_hint);
+    if is_mp4 {
+        super::stream::log_isobmff_buffer_diagnostic(&ranged_data, format_hint, label);
+        if !super::stream::isobmff_buffer_looks_complete(&ranged_data)
+            || super::stream::mp4_suspect_zero_holes(&ranged_data)
+        {
+            crate::app_deprintln!(
+                "[stream] ranged buffer looks incomplete or holey — refetching via sequential HTTP"
+            );
+            if let Some(fresh) = fetch_data(url, state, gen, app).await? {
+                if super::stream::isobmff_buffer_looks_complete(&fresh) {
+                    return Ok(Some(fresh));
+                }
+                super::stream::log_isobmff_buffer_diagnostic(&fresh, format_hint, "http-refetch");
+            }
+        }
+    }
+    Ok(Some(ranged_data))
+}
+
+/// Wait for the in-flight ranged download to finish, then HTTP-fetch if needed.
+pub(super) async fn wait_or_fetch_bytes_for_stream_fallback(
+    url: &str,
+    gen: u64,
+    state: &State<'_, AudioEngine>,
+    app: &AppHandle,
+    format_hint: Option<&str>,
+) -> Result<Option<Vec<u8>>, String> {
+    use std::time::{Duration, Instant};
+
+    let deadline = Instant::now() + Duration::from_secs(TRACK_READ_TIMEOUT_SECS);
+    loop {
+        if state.generation.load(Ordering::SeqCst) != gen {
+            return Ok(None);
+        }
+        if let Some(data) = try_take_completed_stream_bytes(url, state).await {
+            crate::app_deprintln!(
+                "[stream] full-buffer fallback: using completed download ({} KiB)",
+                data.len() / 1024
+            );
+            return prefer_clean_http_bytes_for_fallback(
+                url,
+                gen,
+                state,
+                app,
+                data,
+                format_hint,
+                "ranged-cache",
+            )
+            .await;
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    crate::app_deprintln!(
+        "[stream] full-buffer fallback: download still in progress after {}s — HTTP fetch",
+        TRACK_READ_TIMEOUT_SECS
+    );
+    fetch_data(url, state, gen, app).await
+}
+
+fn is_in_memory_probe_failure(err: &str) -> bool {
+    err.contains("format probe failed")
+        || err.contains("could not open audio stream")
+        || err.contains("no playable audio track")
+}
+
+/// Like [`build_source_from_play_input`], but on ranged-stream probe failure waits
+/// for a full download (or fetches it) and retries from in-memory bytes.
+pub(super) async fn build_playback_source_with_probe_fallback(
+    play_input: PlayInput,
+    url: &str,
+    gen: u64,
+    cache_id_for_tasks: Option<&str>,
+    state: &State<'_, AudioEngine>,
+    app: &AppHandle,
+    url_format_hint: Option<&str>,
+    stream_format_suffix: Option<&str>,
+    done_flag: Arc<AtomicBool>,
+    fade_in_dur: Duration,
+    hi_res_enabled: bool,
+    duration_hint: f64,
+) -> Result<PlaybackSource, String> {
+    let media_hint = play_media_format_hint(&play_input);
+    let effective_hint = resolve_playback_format_hint(
+        url_format_hint,
+        stream_format_suffix,
+        media_hint.as_deref(),
+        None,
+    );
+    if let Some(ref h) = effective_hint {
+        crate::app_deprintln!("[stream] playback format hint: {h}");
+    }
+
+    match build_source_from_play_input(
+        play_input,
+        state,
+        effective_hint.as_deref(),
+        done_flag.clone(),
+        fade_in_dur,
+        hi_res_enabled,
+        duration_hint,
+    )
+    .await
+    {
+        Ok(p) => Ok(p),
+        Err(e) if is_ranged_stream_probe_failure(&e) => {
+            crate::app_deprintln!(
+                "[stream] ranged-stream probe failed — trying full-buffer fallback: {}",
+                e
+            );
+            let bytes_hint_for_wait = resolve_playback_format_hint(
+                url_format_hint,
+                stream_format_suffix,
+                media_hint.as_deref(),
+                None,
+            );
+            let data = match wait_or_fetch_bytes_for_stream_fallback(
+                url,
+                gen,
+                state,
+                app,
+                bytes_hint_for_wait.as_deref(),
+            )
+            .await?
+            {
+                Some(d) => d,
+                None => return Err(e),
+            };
+            if state.generation.load(Ordering::SeqCst) != gen {
+                return Err("ranged-stream: superseded during full-buffer fallback".into());
+            }
+            let bytes_hint = resolve_playback_format_hint(
+                url_format_hint,
+                stream_format_suffix,
+                media_hint.as_deref(),
+                Some(&data),
+            );
+            if bytes_hint.as_ref() != effective_hint.as_ref() {
+                crate::app_deprintln!(
+                    "[stream] full-buffer fallback: resolved hint {:?} (was {:?})",
+                    bytes_hint,
+                    effective_hint
+                );
+            }
+            spawn_analysis_seed_from_in_memory_bytes(
+                app,
+                cache_id_for_tasks,
+                gen,
+                &state.generation,
+                &data,
+            );
+            match build_source_from_play_input(
+                PlayInput::Bytes(data.clone()),
+                state,
+                bytes_hint.as_deref(),
+                done_flag.clone(),
+                fade_in_dur,
+                hi_res_enabled,
+                duration_hint,
+            )
+            .await
+            {
+                Ok(p) => Ok(p),
+                Err(pe) if is_in_memory_probe_failure(&pe) => {
+                    if super::stream::container_hint_is_mp4(bytes_hint.as_deref()) {
+                        super::stream::log_isobmff_buffer_diagnostic(
+                            &data,
+                            bytes_hint.as_deref(),
+                            "ranged-cache-probe-fail",
+                        );
+                    }
+                    crate::app_deprintln!(
+                        "[stream] in-memory probe failed — sequential HTTP refetch: {}",
+                        pe
+                    );
+                    let fresh = match fetch_data(url, state, gen, app).await? {
+                        Some(d) => d,
+                        None => return Err(pe),
+                    };
+                    if super::stream::container_hint_is_mp4(bytes_hint.as_deref()) {
+                        super::stream::log_isobmff_buffer_diagnostic(
+                            &fresh,
+                            bytes_hint.as_deref(),
+                            "http-refetch-after-probe-fail",
+                        );
+                    }
+                    build_source_from_play_input(
+                        PlayInput::Bytes(fresh),
+                        state,
+                        bytes_hint.as_deref(),
+                        done_flag,
+                        fade_in_dur,
+                        hi_res_enabled,
+                        duration_hint,
+                    )
+                    .await
+                }
+                Err(pe) => Err(pe),
+            }
+        }
+        Err(e) => Err(e),
     }
 }
 

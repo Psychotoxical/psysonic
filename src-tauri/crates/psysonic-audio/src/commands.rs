@@ -15,8 +15,9 @@ use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::*;
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{
-    build_source_from_play_input, select_play_input, spawn_legacy_stream_start_when_armed,
-    swap_in_new_sink, url_format_hint, PlayInputContext, SinkSwapInputs,
+    build_playback_source_with_probe_fallback, select_play_input,
+    spawn_legacy_stream_start_when_armed, swap_in_new_sink, url_format_hint, PlayInputContext,
+    SinkSwapInputs,
 };
 use super::preview::preview_clear_for_new_main_playback;
 use super::progress_task::spawn_progress_task;
@@ -232,10 +233,15 @@ pub async fn audio_play(
     let done_flag = Arc::new(AtomicBool::new(false));
     // Reset sample counter for the new track.
     state.samples_played.store(0, Ordering::Relaxed);
-    let playback_source = build_source_from_play_input(
+    let playback_source = build_playback_source_with_probe_fallback(
         play_input,
+        &url,
+        gen,
+        cache_id_for_tasks.as_deref(),
         &state,
+        &app,
         format_hint.as_deref(),
+        stream_format_suffix.as_deref(),
         done_flag.clone(),
         fade_in_dur,
         hi_res_enabled,
