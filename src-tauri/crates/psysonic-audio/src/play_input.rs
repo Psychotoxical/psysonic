@@ -579,6 +579,9 @@ pub(super) async fn build_source_from_play_input(
         } => {
             if let Some(gate) = mp4_probe_gate.as_ref() {
                 super::stream::wait_for_ranged_mp4_probe_ready(gate).await?;
+                if gate.gen_arc.load(Ordering::SeqCst) != gate.gen {
+                    return Err("ranged-stream: superseded before moov metadata ready".into());
+                }
             }
             let decoder = tokio::task::spawn_blocking(move || {
                 SizedDecoder::new_streaming(reader, media_hint.as_deref(), tag)

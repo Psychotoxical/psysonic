@@ -426,7 +426,13 @@ async fn ranged_prefetch_mp4_tail(
         Ok(written) if written > 0 => {
             tail_filled_from.store(tail_from, Ordering::Relaxed);
             tail_ready.store(true, Ordering::SeqCst);
-            super::maybe_arm_stream_playback(tail_from + written as u64, &playback_armed);
+            if !playback_armed.load(Ordering::Relaxed) {
+                playback_armed.store(true, Ordering::SeqCst);
+                crate::app_deprintln!(
+                    "[stream] playback armed after moov tail prefetch ({} KiB)",
+                    written / 1024
+                );
+            }
             crate::app_deprintln!(
                 "[stream] ranged: moov-at-end tail prefetch {} KiB (from byte {})",
                 written / 1024,

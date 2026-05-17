@@ -437,10 +437,17 @@ impl FormatReader for IsoMp4Reader {
                         };
                         mss.seek(SeekFrom::Start(resume_at))?;
                         iter = AtomIterator::new_root(mss, total_len);
-                    } else if end < file_len.saturating_sub(8) {
-                        // Fast-start: skip a bounded mdat without linear read.
+                    } else if moov.is_some() {
+                        // `moov` already parsed (incl. moov-at-end from tail). Do not linear-read
+                        // an `mdat` that may span to EOF — that hits holes in RangedHttpSource
+                        // and surfaces as `format probe failed: end of stream`.
                         let mut mss = iter.into_inner();
-                        mss.seek(SeekFrom::Start(end))?;
+                        let skip_to = if end < file_len.saturating_sub(8) {
+                            end
+                        } else {
+                            file_len
+                        };
+                        mss.seek(SeekFrom::Start(skip_to))?;
                         iter = AtomIterator::new_root(mss, total_len);
                     }
                 }
