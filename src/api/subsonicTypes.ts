@@ -20,8 +20,10 @@ export interface SubsonicAlbum {
   isCompilation?: boolean;
   /** OpenSubsonic: release types from MusicBrainz tags (e.g. "Album", "EP", "Single", "Compilation", "Live"). */
   releaseTypes?: string[];
-  /** OpenSubsonic: album-level credits (Navidrome may attach on album and/or child songs). */
-  albumArtists?: SubsonicOpenArtistRef[];
+  /** OpenSubsonic: structured album-artist credits (e.g. featured guests on the album). */
+  artists?: SubsonicOpenArtistRef[];
+  /** OpenSubsonic: single-string album-artist for display (mirrors `artists` joined). */
+  displayArtist?: string;
   /** OpenSubsonic: per-disc subtitles (e.g. "Sessions" on CD 3 of a deluxe edition). */
   discTitles?: SubsonicDiscTitle[];
 }
