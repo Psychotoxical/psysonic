@@ -12,6 +12,7 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import { useVirtualizerScrollMargin } from '../hooks/useVirtualizerScrollMargin';
 
 const ALL_SENTINEL = 'ALL';
 const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
@@ -185,6 +186,16 @@ export default function Composers() {
     Math.ceil(mainScrollViewportHeight / COMPOSER_LIST_ROW_EST),
   );
 
+  const composerListWrapRef = useRef<HTMLDivElement>(null);
+  const composerListScrollMargin = useVirtualizerScrollMargin(
+    composerListWrapRef,
+    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    {
+      active: !perfFlags.disableMainstageVirtualLists && viewMode === 'list',
+      deps: [composerListFlatRows.length],
+    },
+  );
+
   const composerListVirtualizer = useVirtualizer({
     count:
       perfFlags.disableMainstageVirtualLists || viewMode !== 'list' ? 0 : composerListFlatRows.length,
@@ -202,6 +213,7 @@ export default function Composers() {
       return `composer:${row.artist.id}`;
     },
     overscan: composerListOverscan,
+    scrollMargin: composerListScrollMargin,
   });
 
   if (loadError) {
@@ -337,7 +349,7 @@ export default function Composers() {
             ))}
           </>
         ) : (
-          <div style={{ position: 'relative', width: '100%' }}>
+          <div ref={composerListWrapRef} style={{ position: 'relative', width: '100%' }}>
             <div
               style={{
                 height: composerListFlatRows.length === 0 ? 0 : composerListVirtualizer.getTotalSize(),
@@ -357,7 +369,7 @@ export default function Composers() {
                         top: 0,
                         left: 0,
                         width: '100%',
-                        transform: `translateY(${vi.start}px)`,
+                        transform: `translateY(${vi.start - composerListScrollMargin}px)`,
                       }}
                     >
                       <h3 className="letter-heading">{row.letter}</h3>
@@ -373,7 +385,7 @@ export default function Composers() {
                       top: 0,
                       left: 0,
                       width: '100%',
-                      transform: `translateY(${vi.start}px)`,
+                      transform: `translateY(${vi.start - composerListScrollMargin}px)`,
                       paddingBottom: row.isLastInLetter ? '1.5rem' : undefined,
                     }}
                   >

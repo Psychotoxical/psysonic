@@ -2,6 +2,7 @@ import { searchSongsPaged } from '../api/subsonicSearch';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRefElementClientHeight } from '../hooks/useResizeClientHeight';
+import { useVirtualizerScrollMargin } from '../hooks/useVirtualizerScrollMargin';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -139,11 +140,19 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
     };
   }, []);
 
+  const virtualWrapRef = useRef<HTMLDivElement>(null);
+  const scrollMargin = useVirtualizerScrollMargin(
+    virtualWrapRef,
+    () => scrollParentRef.current,
+    { active: true, deps: [songs.length] },
+  );
+
   const virtualizer = useVirtualizer({
     count: songs.length,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: songListOverscan,
+    scrollMargin,
   });
 
   const totalSize = virtualizer.getTotalSize();
@@ -187,7 +196,7 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
         <>
           <div ref={scrollParentRef} className="virtual-song-list-scroll">
             <SongListHeader />
-            <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
+            <div ref={virtualWrapRef} style={{ height: totalSize, width: '100%', position: 'relative' }}>
             {virtualizer.getVirtualItems().map(vi => {
               const song = songs[vi.index];
               if (!song) return null;
@@ -200,7 +209,7 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
                     left: 0,
                     width: '100%',
                     height: ROW_HEIGHT,
-                    transform: `translateY(${vi.start}px)`,
+                    transform: `translateY(${vi.start - scrollMargin}px)`,
                   }}
                 >
                   <SongRow

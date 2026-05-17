@@ -9,6 +9,7 @@ import { ArtistCardAvatar } from './ArtistAvatars';
 
 export type ArtistsGridVirtualization = {
   virtualizer: Virtualizer<HTMLElement, Element>;
+  scrollMargin: number;
 };
 
 interface TileProps {
@@ -115,7 +116,7 @@ export function ArtistsGridView({
   const cols = Math.max(1, gridCols);
 
   if (virtualization) {
-    const { virtualizer } = virtualization;
+    const { virtualizer, scrollMargin } = virtualization;
     const rowCount = Math.ceil(visible.length / cols);
     return (
       <div
@@ -141,7 +142,7 @@ export function ArtistsGridView({
                   top: 0,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${vRow.start}px)`,
+                  transform: `translateY(${vRow.start - scrollMargin}px)`,
                   display: 'grid',
                   gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                   gap: 'var(--space-4)',
