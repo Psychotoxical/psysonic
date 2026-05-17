@@ -33,7 +33,13 @@
   letter-spacing: 0.04em;
   color: var(--text-muted);
   cursor: default;
-  background: transparent;
+  /* Header lives inside the scroll container so its width matches the rows'
+     (scrollbar gutter applies to both). Sticky keeps it pinned while scrolling
+     and the opaque background hides rows passing underneath. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border-subtle);
 }
 

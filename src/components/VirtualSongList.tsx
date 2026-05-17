@@ -185,8 +185,8 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
         </div>
       ) : (
         <>
-          <SongListHeader />
           <div ref={scrollParentRef} className="virtual-song-list-scroll">
+            <SongListHeader />
             <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
             {virtualizer.getVirtualItems().map(vi => {
               const song = songs[vi.index];
