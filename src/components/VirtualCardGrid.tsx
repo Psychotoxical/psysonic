@@ -1,9 +1,10 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
 import { useCardGridMetrics } from '../hooks/useCardGridMetrics';
 import { useRemeasureGridVirtualizer } from '../hooks/useRemeasureGridVirtualizer';
+import { useVirtualizerScrollMargin } from '../hooks/useVirtualizerScrollMargin';
 import type { CardGridRowHeightVariant } from '../utils/cardGridLayout';
 
 export type VirtualCardGridProps<T> = {
@@ -43,33 +44,14 @@ export function VirtualCardGrid<T>({
   const mainScrollViewportHeight = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
   const overscan = Math.max(2, Math.ceil(mainScrollViewportHeight / Math.max(1, rowHeightEst)));
 
-  // Vertical offset between the scroll element's top and this grid's top.
-  // react-virtual computes row positions relative to the scroll element, so
-  // without this margin a grid that sits below tall content (e.g. the
-  // "More by …" rail under a long tracklist) would have its first rows
-  // placed at negative positions and unmounted as out-of-viewport.
-  const [scrollMargin, setScrollMargin] = useState(0);
-  useLayoutEffect(() => {
-    if (disableVirtualization) return;
-    const wrap = wrapRef.current;
-    const scrollEl = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
-    if (!wrap || !scrollEl) return;
-    const measure = () => {
-      const margin =
-        wrap.getBoundingClientRect().top
-        - scrollEl.getBoundingClientRect().top
-        + scrollEl.scrollTop;
-      setScrollMargin(prev => (Math.abs(prev - margin) < 1 ? prev : margin));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(scrollEl);
-    // Anything above the grid resizing (tracklist growing, hero collapsing)
-    // shifts the grid down; observe the scroll content too so we re-measure.
-    const scrollContent = scrollEl.firstElementChild as Element | null;
-    if (scrollContent) ro.observe(scrollContent);
-    return () => ro.disconnect();
-  }, [disableVirtualization, layoutSignal, virtualRowCount]);
+  const scrollMargin = useVirtualizerScrollMargin(
+    wrapRef,
+    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    {
+      active: !disableVirtualization,
+      deps: [layoutSignal, virtualRowCount],
+    },
+  );
 
   const virtualizer = useVirtualizer({
     count: disableVirtualization ? 0 : virtualRowCount,
