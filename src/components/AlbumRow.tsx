@@ -176,7 +176,7 @@ export default function AlbumRow({
           ))}
           {loadingMore && (
             <div className="album-card-more" style={{ cursor: 'default' }}>
-              <div style={{ padding: '1rem', background: 'var(--bg-app)', borderRadius: '50%' }}>
+              <div style={{ padding: '1rem', background: 'var(--bg-app)', borderRadius: 'var(--radius-sm)' }}>
                 <div className="spinner" style={{ width: 24, height: 24 }} />
               </div>
               <span style={{ fontSize: 13, fontWeight: 500 }}>{t('common.loadingMore')}</span>
@@ -184,7 +184,7 @@ export default function AlbumRow({
           )}
           {!loadingMore && moreLink && (
             <div className="album-card-more" onClick={() => navigate(moreLink)}>
-              <div style={{ padding: '1rem', background: 'var(--bg-app)', borderRadius: '50%' }}>
+              <div style={{ padding: '1rem', background: 'var(--bg-app)', borderRadius: 'var(--radius-sm)' }}>
                 <ArrowRight size={24} />
               </div>
               <span style={{ fontSize: 13, fontWeight: 500 }}>{moreText}</span>

@@ -214,7 +214,7 @@
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text-secondary);

@@ -39,6 +39,8 @@ export const player = {
   repeatOne: 'One',
   progress: 'Song Progress',
   volume: 'Volume',
+  mute: 'Mute',
+  unmute: 'Unmute',
   toggleQueue: 'Toggle Queue',
   collapseQueueResize: 'Collapse queue, resize',
   moreOptions: 'More options',

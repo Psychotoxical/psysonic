@@ -39,6 +39,8 @@ export const player = {
   repeatOne: '单曲',
   progress: '播放进度',
   volume: '音量',
+  mute: '静音',
+  unmute: '取消静音',
   toggleQueue: '切换队列',
   collapseQueueResize: '收起队列，调整宽度',
   moreOptions: '更多选项',

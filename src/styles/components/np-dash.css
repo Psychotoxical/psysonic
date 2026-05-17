@@ -204,7 +204,7 @@
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   min-width: 14px;
   text-align: center;
   line-height: 1.3;
@@ -371,7 +371,7 @@
   font-size: 12px;
   font-weight: 500;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.75);
   cursor: pointer;

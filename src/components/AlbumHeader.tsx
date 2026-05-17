@@ -329,7 +329,7 @@ export default function AlbumHeader({
                     </button>
                     {onShuffleAll && (
                       <button
-                        className="btn btn-ghost"
+                        className="btn btn-surface"
                         onClick={onShuffleAll}
                         data-tooltip={t('playlists.shuffle', 'Shuffle')}
                       >
@@ -337,14 +337,14 @@ export default function AlbumHeader({
                       </button>
                     )}
                     <button
-                      className="btn btn-ghost"
+                      className="btn btn-surface"
                       onClick={onEnqueueAll}
                       data-tooltip={t('albumDetail.enqueueTooltip')}
                     >
                       <ListPlus size={16} />
                     </button>
                     <button
-                      className={`btn btn-ghost${isStarred ? ' is-starred' : ''}`}
+                      className={`btn btn-surface${isStarred ? ' is-starred' : ''}`}
                       onClick={onToggleStar}
                       data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
                     >
@@ -352,7 +352,7 @@ export default function AlbumHeader({
                     </button>
                     <button
                       type="button"
-                      className="btn btn-ghost"
+                      className="btn btn-surface"
                       onClick={handleShareAlbum}
                       aria-label={t('albumDetail.shareAlbum')}
                       data-tooltip={t('albumDetail.shareAlbum')}
@@ -362,7 +362,7 @@ export default function AlbumHeader({
                   </div>
 
                   {showBioButton && (
-                    <button className="btn btn-ghost" id="album-bio-btn" onClick={onBio}>
+                    <button className="btn btn-surface" id="album-bio-btn" onClick={onBio}>
                       <Highlighter size={16} /> {t('albumDetail.artistBio')}
                     </button>
                   )}
@@ -376,7 +376,7 @@ export default function AlbumHeader({
                       <span className="download-progress-pct">{downloadProgress}%</span>
                     </div>
                   ) : (
-                    <button className="btn btn-ghost" id="album-download-btn" onClick={onDownload}>
+                    <button className="btn btn-surface" id="album-download-btn" onClick={onDownload}>
                       <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}
                     </button>
                   )}
@@ -387,7 +387,7 @@ export default function AlbumHeader({
                     </div>
                   ) : offlineStatus === 'cached' ? (
                     <button
-                      className="btn btn-ghost offline-cache-btn offline-cache-btn--cached"
+                      className="btn btn-surface offline-cache-btn offline-cache-btn--cached"
                       onClick={onRemoveOffline}
                       data-tooltip={t('albumDetail.removeOffline')}
                     >
@@ -396,7 +396,7 @@ export default function AlbumHeader({
                     </button>
                   ) : (
                     <button
-                      className="btn btn-ghost offline-cache-btn"
+                      className="btn btn-surface offline-cache-btn"
                       onClick={onCacheOffline}
                       data-tooltip={t('albumDetail.cacheOffline')}
                     >

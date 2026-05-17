@@ -39,6 +39,8 @@ export const player = {
   repeatOne: 'Één',
   progress: 'Nummervoortgang',
   volume: 'Volume',
+  mute: 'Dempen',
+  unmute: 'Dempen opheffen',
   toggleQueue: 'Wachtrij in-/uitschakelen',
   collapseQueueResize: 'Wachtrij inklappen, breedte wijzigen',
   moreOptions: 'Meer opties',

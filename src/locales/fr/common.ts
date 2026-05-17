@@ -53,4 +53,5 @@ export const common = {
   more: 'plus',
   yearRange: 'Plage d\'années',
   clearAll: 'Tout effacer',
+  libraryEmpty: 'Votre bibliothèque est vide.',
 };

@@ -1,7 +1,6 @@
 export const home = {
   hero: 'Destacado',
   starred: 'Favoritos Personales',
-  recent: 'Agregados Recientemente',
   mostPlayed: 'Más Reproducidos',
   recentlyPlayed: 'Reproducidos Recientemente',
   losslessAlbums: 'Álbumes sin Pérdidas',

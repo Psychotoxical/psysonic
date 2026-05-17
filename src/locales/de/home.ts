@@ -1,7 +1,6 @@
 export const home = {
   hero: 'Featured',
   starred: 'Persönliche Favoriten',
-  recent: 'Zuletzt hinzugefügt',
   mostPlayed: 'Meistgehört',
   recentlyPlayed: 'Kürzlich gespielt',
   losslessAlbums: 'Lossless-Alben',

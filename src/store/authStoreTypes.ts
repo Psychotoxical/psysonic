@@ -16,6 +16,11 @@ export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thic
 /** Queue header duration chip: total duration / time left / ETA finish clock. */
 export type DurationMode = 'total' | 'remaining' | 'eta';
 export type LoggingMode = 'off' | 'normal' | 'debug';
+/**
+ * Wall-clock format for ETA / sleep-timer labels. `'auto'` follows the user's
+ * system locale (existing behaviour); explicit `'24h'` / `'12h'` overrides it.
+ */
+export type ClockFormat = 'auto' | '24h' | '12h';
 export type NormalizationEngine = 'off' | 'replaygain' | 'loudness';
 export type DiscordCoverSource = 'none' | 'apple' | 'server';
 
@@ -89,6 +94,7 @@ export interface AuthState {
   libraryGridMaxColumns: number;
   showTrayIcon: boolean;
   minimizeToTray: boolean;
+  clockFormat: ClockFormat;
   /** Whether the "Orbit" topbar trigger is rendered. Users who never
    *  touch Orbit can hide it so the header stays uncluttered. */
   showOrbitTrigger: boolean;
@@ -266,6 +272,7 @@ export interface AuthState {
   setLibraryGridMaxColumns: (v: number) => void;
   setShowTrayIcon: (v: boolean) => void;
   setMinimizeToTray: (v: boolean) => void;
+  setClockFormat: (v: ClockFormat) => void;
   setShowOrbitTrigger: (v: boolean) => void;
   setDiscordRichPresence: (v: boolean) => void;
   setDiscordCoverSource: (v: DiscordCoverSource) => void;

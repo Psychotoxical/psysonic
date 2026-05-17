@@ -210,6 +210,18 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Buttons live in a new **`.hero-nav`** flex wrapper (`inset: 0`, `justify-content: space-between`, **`pointer-events: none`**); the buttons themselves opt back into **`pointer-events: auto`** so the rest of the hero stays click-through to the album page. Wrap-around (last → first / first → last) and auto-advance timer restart use the same pattern as the previous dot handler.
 * The dot indicators are kept as **decorative spans** — no click handler, no hover state, **`pointer-events: none`** — so a missed click no longer navigates to the album.
 
+### Settings — Clock Format setting (Auto / 24h / 12h)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#742](https://github.com/Psychotoxical/psysonic/pull/742)**
+
+* The Queue side panel's ETA label and the sleep-timer preview both go through **`formatClockTime`**, which just delegates to **`toLocaleTimeString`** — on en-US that meant AM/PM with no in-app override. **Settings → System → App Behavior** now exposes a tri-state **Clock Format** select: **`Auto`** (default — keeps existing locale-driven behaviour, so first launch after the update is a no-op for everyone), **`24h`**, and **`12h`**, the explicit values forcing **`hour12`** everywhere `formatClockTime` is used. Wired through `authStore` (`clockFormat` / `setClockFormat`) and consumed by both surfaces; all nine bundled locales ship the four new strings.
+
+### Album page — OpenSubsonic disc subtitles after the CD heading
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#753](https://github.com/Psychotoxical/psysonic/pull/753)**
+
+* Multi-disc albums in OpenSubsonic / Navidrome can carry a per-disc subtitle (`discTitles`, e.g. **"Sessions"** on CD 3 of a deluxe edition). The album tracklist previously dropped it and only showed **`CD N`**, so adjacent discs of a reissue read the same in the header. The disc separator now renders **`CD N — Subtitle`** in both desktop and mobile track lists, and the heading is bumped slightly so the subtitle stays legible next to the disc number.
+
 ## Changed
 
 ### Backend — Cargo workspace with 5 domain crates (Rust refactor)
@@ -602,6 +614,54 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * The **Artist Biography** modal lived under the album page tree, where an ancestor broke **`position: fixed`** on the overlay — opening a long bio scrolled the whole page instead of staying pinned to the viewport, and the modal itself stretched past the visible area. It now mounts via **`createPortal(..., document.body)`** (same approach as **`RadioEditModal`** / **`CoverLightbox`**), so the overlay always pins to the viewport.
 * A new **`.modal-content.bio-modal`** variant turns the modal into a flex column with **`overflow: hidden`** and an inner **`.bio-modal-body`** that handles the scrolling. The existing **`max-height: 80vh`** cap is now honored, and the title + close button stay pinned while the bio scrolls.
+
+### Artist info — image-mismatch fix extended; square Queue Info hero; ArtistDetail glow removed
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#739](https://github.com/Psychotoxical/psysonic/pull/739)**
+
+* The cache-mismatch shape PR [#732](https://github.com/Psychotoxical/psysonic/pull/732) fixed inside the Queue Info panel was latent in the **About the Artist** card on the **NowPlaying** page and would have surfaced there the moment that card used **`CachedImage`**. Fixed at the source: **`useNowPlayingFetchers`** and **`useArtistDetailData`** hold id-keyed entities as **`{ id, value }`** tuples and gate them on id-match at the return — every consumer is safe by construction. ArtistDetail's inline bio block is now the shared **`ArtistCard`** so there is a single rendering path.
+* The artist hero in the **Queue Info** panel was rendered in a **16:10** wrap with **`object-fit: cover`**, so portrait photos always lost top and bottom equally — perceived as cropped even on roughly square sources. Now **1:1**, symmetric crop.
+* The **ArtistDetail** avatar extracted the cover's accent colour on every image load and painted a 36px **`boxShadow`** ring around the photo. The glow is gone (the state, the reset effect, and the per-page **`extractCoverColors`** import are dropped too; the utility itself stays in place for **`useFsDynamicAccent`**).
+
+### Share Top Albums — full-resolution preview, Square preview fits the modal
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#740](https://github.com/Psychotoxical/psysonic/pull/740)**
+
+* The **Square** preview was clipped at the bottom — the preview frame capped only `maxHeight: 52vh` while letting the 1:1 canvas span the full modal width, so the canvas overflowed the cap and `overflow: hidden` removed the last grid row with nothing to scroll into. Both dimensions are now capped per format (Square → **`maxWidth: 52vh`**, Story → **`min(320px, calc(52vh * 9 / 16))`**, Twitter remains modal-width-bound), so the preview always fits without clipping.
+* The preview also looked **blurry** — the canvas was rendered at **540 px** wide and CSS upscaled it back to ~676 px in the 720 px modal, while cover thumbnails were decoded at only **256 px** and stretched into ~300 px tiles. The preview canvas now renders at the **full export width (1080)** and decodes covers at the **export tile size (600)**, so text is crisp and album thumbnails downsample cleanly.
+
+### Home — Mainstage row title matches the sidebar and page label
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#741](https://github.com/Psychotoxical/psysonic/pull/741)**
+
+* The Mainstage row whose title chevron jumps to **`/new-releases`** was labelled **Recently Added** while the sidebar entry and the page itself read **New Releases** — three different names for the same destination. The row title and the matching **Home Customizer** entry now reuse **`sidebar.newReleases`** so the wording lives in exactly one place; the orphan **`home.recent`** key is dropped from all nine locale files.
+
+### UI — consistency fixes across badges, action buttons, hero and tracks header
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#745](https://github.com/Psychotoxical/psysonic/pull/745)**
+
+* Unified the corner radius on badges, pills and non-player buttons; Player Bar, Fullscreen and Mini Player keep their circular family identity. Secondary action rows on Artist, Album, Tracks, Favorites and Most Played all share the same `btn-surface` treatment so the same affordance reads the same per page and per theme.
+* Hero pills stay visible against light-toned cover art (opaque fill), and the pagination dots are readable on every backdrop (brighter inactive dot with a dark outline, accent-coloured active dot).
+* Composers grid no longer reserves ~200 px per virtual row for ~78 px text-only tiles. The Tracks "browse all" header now lives inside the scroll container so columns line up with the rows under wider fonts like **OpenDyslexic**, and the header stays pinned while scrolling.
+
+### Favorites — artist link no longer triggers playback, bulk selection no longer shifts the rows
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#746](https://github.com/Psychotoxical/psysonic/pull/746)**
+
+* Clicking the **artist** in the Favorites songs table opened the artist page _and_ started the song — the cell was missing the click guard the album cell already had. Now matches every other tracklist in the app.
+* Selecting a song no longer pushes the column header and every row down by one line. The "X selected / Add to playlist / Clear" cluster moved out of the full-width bar into the existing action-buttons row (right-aligned), matching the album toolbar, so the next item stays under the same cursor position.
+
+### Equalizer — frequency-response curve no longer disappears on re-expand
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#747](https://github.com/Psychotoxical/psysonic/pull/747)**
+
+* Collapsing and re-expanding **Settings → Audio → Equalizer** sometimes left the curve area blank: `ResizeObserver` does not reliably fire for the `display: none → block` transition the surrounding `<details>` triggers, so the redraw that depends on it never ran on the second open. A `toggle` listener on the parent `<details>` now redraws explicitly on open.
+
+### Library — empty-state on Mainstage, Albums, New Releases and Random Albums
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), thanks to zunoz for the report on the Psysonic Discord, PR [#750](https://github.com/Psychotoxical/psysonic/pull/750)**
+
+* Selecting an empty library no longer leaves these pages as a fully blank canvas. A shared `common.libraryEmpty` message ("Your library is empty.") added across all nine locales is shown in place of the empty rails/grids. Pages that already had a dedicated empty-state (Artists, Genres, Composers, Playlists, Favorites, Most Played, Lossless Albums, Label Albums, Internet Radio) keep their per-page wording. On Albums and New Releases, an active genre / year / starred / compilation filter still shows the regular filtered-results behaviour rather than the library-empty message.
 
 ## [1.45.0] - 2026-05-04
 

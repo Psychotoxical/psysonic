@@ -37,13 +37,18 @@
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.35);
+  /* Near-opaque white plus a dark outline so the dot reads against any hero
+     backdrop — including light cover art under the gradient overlay where
+     translucent dots disappear. */
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.35);
   transition: all 0.3s ease;
 }
 
 .hero-dot-active {
   width: 24px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 /* Wrapper that pins prev/next arrows to the hero's left/right edges. */
@@ -65,7 +70,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.45);
   color: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -161,7 +166,7 @@
   padding: var(--space-3) var(--space-5);
   background: var(--accent);
   color: var(--ctp-crust);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 600;
   transition: all var(--transition-fast);

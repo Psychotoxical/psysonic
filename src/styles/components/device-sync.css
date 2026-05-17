@@ -743,7 +743,7 @@
   flex-shrink: 0;
   margin-left: 8px;
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.03em;

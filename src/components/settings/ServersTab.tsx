@@ -213,12 +213,12 @@ export function ServersTab({
                 >
                   <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.75rem' }}>
                     <ServerGripHandle idx={srvIdx} label={serverListDisplayLabel(srv, auth.servers)} />
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2px' }}>
                         <span style={{ fontWeight: 600 }}>{serverListDisplayLabel(srv, auth.servers)}</span>
                         {isActive && (
-                          <span style={{ fontSize: 11, background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '1px 6px', borderRadius: '10px', fontWeight: 600 }}>
+                          <span style={{ fontSize: 11, background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '1px 6px', borderRadius: 'var(--radius-sm)', fontWeight: 600 }}>
                             {t('settings.serverActive')}
                           </span>
                         )}
@@ -236,7 +236,7 @@ export function ServersTab({
                         {srv.username}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center', marginLeft: 'auto' }}>
                       {status === 'ok' && <CheckCircle2 size={16} style={{ color: 'var(--positive)' }} />}
                       {status === 'error' && <WifiOff size={16} style={{ color: 'var(--danger)' }} />}
                       {status === 'testing' && <div className="spinner" style={{ width: 16, height: 16 }} />}

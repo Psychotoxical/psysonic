@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Moon, Sunrise } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
+import { useAuthStore } from '../store/authStore';
 import { useShallow } from 'zustand/react/shallow';
 
 import type { TFunction } from 'i18next';
@@ -153,9 +154,10 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
 
   // Live preview: seconds that would be applied right now if the user clicked.
   // Priority: hovered chip → typed custom minutes → nothing.
+  const clockFormat = useAuthStore(s => s.clockFormat);
   const previewSeconds = hoverSeconds ?? customSeconds;
   const previewAtMs = previewSeconds != null ? nowTick + previewSeconds * 1000 : null;
-  const previewClock = previewAtMs != null ? formatClockTime(previewAtMs) : null;
+  const previewClock = previewAtMs != null ? formatClockTime(previewAtMs, clockFormat) : null;
 
   if (!open) return null;
 

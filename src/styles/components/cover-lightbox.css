@@ -202,6 +202,8 @@
   margin-bottom: 0.5rem;
   background: var(--accent);
   color: var(--ctp-crust);
+  /* Konsistenz mit `.album-card-new-badge`: eckig, nicht pill. */
+  border-radius: var(--radius-sm);
 }
 
 .album-detail-back {
@@ -256,7 +258,7 @@
   color: var(--text-secondary);
   background: rgba(203, 166, 247, 0.08);
   border: 1px solid rgba(203, 166, 247, 0.2);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   padding: 3px 10px 3px 8px;
   cursor: default;
   white-space: nowrap;

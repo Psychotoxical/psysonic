@@ -39,6 +39,8 @@ export const player = {
   repeatOne: 'Unul',
   progress: 'Progresul Piesei',
   volume: 'Volum',
+  mute: 'Oprește sunetul',
+  unmute: 'Pornește sunetul',
   toggleQueue: 'Comutați Coada',
   collapseQueueResize: 'Strânge coada, redimensionează',
   moreOptions: 'Mai multe opțiuni',

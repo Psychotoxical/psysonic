@@ -1,7 +1,6 @@
 export const home = {
   hero: 'Подборка',
   starred: 'Личное избранное',
-  recent: 'Недавно добавлено',
   mostPlayed: 'Популярное',
   recentlyPlayed: 'Недавно проиграно',
   losslessAlbums: 'Lossless-альбомы',

@@ -7,7 +7,7 @@ export function HomeCustomizer() {
 
   const SECTION_LABELS: Record<HomeSectionId, string> = {
     hero:            t('home.hero'),
-    recent:          t('home.recent'),
+    recent:          t('sidebar.newReleases'),
     discover:        t('home.discover'),
     becauseYouLike:  t('home.becauseYouLike'),
     discoverSongs:   t('home.discoverSongs'),

@@ -1,7 +1,6 @@
 export const home = {
   hero: 'Promovat',
   starred: 'Evaluate',
-  recent: 'Adăugate Recent',
   mostPlayed: 'Cele mai Redate',
   recentlyPlayed: 'Redate Recent',
   losslessAlbums: 'Albume Lossless',

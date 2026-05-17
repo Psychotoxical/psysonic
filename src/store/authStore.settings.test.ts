@@ -54,6 +54,7 @@ describe('trivial pass-through setters', () => {
     ['setShowArtistImages', 'showArtistImages', true],
     ['setShowTrayIcon', 'showTrayIcon', false],
     ['setMinimizeToTray', 'minimizeToTray', true],
+    ['setClockFormat', 'clockFormat', '24h'],
     ['setShowOrbitTrigger', 'showOrbitTrigger', false],
     ['setDiscordRichPresence', 'discordRichPresence', true],
     ['setEnableBandsintown', 'enableBandsintown', true],

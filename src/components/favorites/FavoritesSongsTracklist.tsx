@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
-  AudioLines, Check, ChevronDown, ChevronRight, ListPlus, Play, RotateCcw,
+  AudioLines, Check, ChevronDown, ChevronRight, Play, RotateCcw,
   Square, X,
 } from 'lucide-react';
 import type { ColDef } from '../../utils/useTracklistColumns';
@@ -16,7 +16,6 @@ import { songToTrack } from '../../utils/playback/songToTrack';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
 import i18n from '../../i18n';
-import { AddToPlaylistSubmenu } from '../ContextMenu';
 import StarRating from '../StarRating';
 
 const SORTABLE_COLUMNS = new Set(['title', 'artist', 'album', 'rating', 'duration', 'playCount', 'lastPlayed', 'bpm']);
@@ -27,8 +26,6 @@ interface Props {
   selectedCount: number;
   inSelectMode: boolean;
   toggleSelect: (id: string, idx: number, shift: boolean) => void;
-  showPlPicker: boolean;
-  setShowPlPicker: React.Dispatch<React.SetStateAction<boolean>>;
   allColumns: readonly ColDef[];
   visibleCols: ColDef[];
   gridStyle: React.CSSProperties;
@@ -50,7 +47,6 @@ interface Props {
 
 export default function FavoritesSongsTracklist({
   visibleSongs, selectedIds, selectedCount, inSelectMode, toggleSelect,
-  showPlPicker, setShowPlPicker,
   allColumns, visibleCols, gridStyle, colVisible, toggleColumn, resetColumns,
   pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   startResize, handleSortClick, getSortIndicator,
@@ -72,38 +68,6 @@ export default function FavoritesSongsTracklist({
     <div className="tracklist" data-preview-loc="favorites" style={{ padding: 0 }} ref={tracklistRef} onClick={e => {
       if (inSelectMode && e.target === e.currentTarget) useSelectionStore.getState().clearAll();
     }}>
-
-      {/* ── Bulk action bar ── */}
-      {inSelectMode && (
-        <div className="bulk-action-bar">
-          <span className="bulk-action-count">
-            {t('common.bulkSelected', { count: selectedCount })}
-          </span>
-          <div className="bulk-pl-picker-wrap">
-            <button
-              className="btn btn-surface btn-sm"
-              onClick={() => setShowPlPicker(v => !v)}
-            >
-              <ListPlus size={14} />
-              {t('common.bulkAddToPlaylist')}
-            </button>
-            {showPlPicker && (
-              <AddToPlaylistSubmenu
-                songIds={[...useSelectionStore.getState().selectedIds]}
-                onDone={() => { setShowPlPicker(false); useSelectionStore.getState().clearAll(); }}
-                dropDown
-              />
-            )}
-          </div>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => useSelectionStore.getState().clearAll()}
-          >
-            <X size={13} />
-            {t('common.bulkClear')}
-          </button>
-        </div>
-      )}
 
       {/* Column visibility picker */}
       <div className="tracklist-col-picker-wrapper" ref={pickerRef}>
@@ -306,7 +270,17 @@ export default function FavoritesSongsTracklist({
                 );
                 case 'artist': return (
                   <div key="artist" className="track-artist-cell">
-                    <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={() => song.artistId && navigate(`/artist/${song.artistId}`)}>{song.artist}</span>
+                    <span
+                      className={`track-artist${song.artistId ? ' track-artist-link' : ''}`}
+                      style={{ cursor: song.artistId ? 'pointer' : 'default' }}
+                      onClick={(e) => {
+                        if (!song.artistId) return;
+                        e.stopPropagation();
+                        navigate(`/artist/${song.artistId}`);
+                      }}
+                    >
+                      {song.artist}
+                    </span>
                   </div>
                 );
                 case 'album': return (

@@ -24,7 +24,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
@@ -189,7 +189,7 @@
   color: var(--ctp-crust);
   border: none;
   padding: 8px 20px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;

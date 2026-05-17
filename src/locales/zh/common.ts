@@ -53,4 +53,5 @@ export const common = {
   more: '更多',
   yearRange: '年份范围',
   clearAll: '清除全部',
+  libraryEmpty: '你的音乐库是空的。',
 };

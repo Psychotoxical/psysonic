@@ -38,8 +38,9 @@ const VARIANT: Record<CardGridRowHeightVariant, { extra: number; min: number; ma
   /** Cover scales with cell width; ~108px headroom matches prior ~288px row at ~180px tiles. */
   album: { extra: 108, min: 260, max: 560 },
   playlist: { extra: 108, min: 260, max: 560 },
-  /** Text-only composer tiles (~78px intrinsic) with some slack for wrapping. */
-  composer: { extra: 56, min: 88, max: 200 },
+  /** Text-only composer tiles: no imagery → fixed intrinsic height, does not
+   * scale with cell width like the image variants. min === max pins it. */
+  composer: { extra: 0, min: 88, max: 88 },
 };
 
 export function estimateRowHeightPx(cellWidthPx: number, variant: CardGridRowHeightVariant): number {

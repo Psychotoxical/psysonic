@@ -10,7 +10,6 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useAuthStore } from '../../store/authStore';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { extractCoverColors } from '../../utils/ui/dynamicColors';
 import CachedImage from '../CachedImage';
 import CoverLightbox from '../CoverLightbox';
 import LastfmIcon from '../LastfmIcon';
@@ -42,8 +41,6 @@ interface Props {
   coverRevision: number;
   headerCoverFailed: boolean;
   setHeaderCoverFailed: React.Dispatch<React.SetStateAction<boolean>>;
-  avatarGlow: string;
-  setAvatarGlow: React.Dispatch<React.SetStateAction<string>>;
   lightboxOpen: boolean;
   setLightboxOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -55,7 +52,7 @@ export default function ArtistDetailHero({
   openedLink, openLink,
   coverId, artistCover300Src, artistCover300Key, artistCover2000Src,
   coverRevision, headerCoverFailed, setHeaderCoverFailed,
-  avatarGlow, setAvatarGlow, lightboxOpen, setLightboxOpen,
+  lightboxOpen, setLightboxOpen,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -88,14 +85,7 @@ export default function ArtistDetailHero({
       )}
 
       <div className="artist-detail-header">
-        <div
-          className="artist-detail-avatar"
-          style={{
-            position: 'relative',
-            boxShadow: avatarGlow ? `0 0 36px 8px ${avatarGlow.replace('rgb(', 'rgba(').replace(')', ', 0.55)')}` : undefined,
-            transition: 'box-shadow 0.6s ease',
-          }}
-        >
+        <div className="artist-detail-avatar" style={{ position: 'relative' }}>
           {coverId ? (
             <button
               className="artist-detail-avatar-btn"
@@ -109,7 +99,6 @@ export default function ArtistDetailHero({
                   cacheKey={artistCover300Key}
                   alt={artist.name}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onLoad={e => extractCoverColors(e.currentTarget.src).then(({ accent }) => { if (accent) setAvatarGlow(accent); })}
                   onError={() => setHeaderCoverFailed(true)}
                 />
               ) : (

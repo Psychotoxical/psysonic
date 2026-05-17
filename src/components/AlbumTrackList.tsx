@@ -20,6 +20,8 @@ export type { SortKey } from '../utils/componentHelpers/albumTrackListHelpers';
 
 interface AlbumTrackListProps {
   songs: SubsonicSong[];
+  /** Per-disc subtitles from the album payload, rendered after "CD N". */
+  discTitles?: { disc: number; title: string }[];
   sorted?: boolean;
   hasVariousArtists: boolean;
   currentTrack: Track | null;
@@ -42,6 +44,7 @@ interface AlbumTrackListProps {
 
 export default function AlbumTrackList({
   songs,
+  discTitles,
   sorted,
   hasVariousArtists: _hasVariousArtists,
   currentTrack,
@@ -90,6 +93,9 @@ export default function AlbumTrackList({
   }
   const discNums = sorted ? [1] : Array.from(discs.keys()).sort((a, b) => a - b);
   const isMultiDisc = !sorted && discNums.length > 1;
+  const discTitleByNum = new Map<number, string>(
+    (discTitles ?? []).filter(d => d.title?.trim()).map(d => [d.disc, d.title.trim()]),
+  );
 
   const currentTrackId = currentTrack?.id ?? null;
 
@@ -98,6 +104,7 @@ export default function AlbumTrackList({
       <AlbumTrackListMobile
         discNums={discNums}
         discs={discs}
+        discTitleByNum={discTitleByNum}
         isMultiDisc={isMultiDisc}
         currentTrackId={currentTrackId}
         isPlaying={isPlaying}
@@ -150,6 +157,9 @@ export default function AlbumTrackList({
             <div className="disc-header">
               <span className="disc-icon">💿</span>
               CD {discNum}
+              {discTitleByNum.get(discNum) && (
+                <span className="disc-subtitle">{discTitleByNum.get(discNum)}</span>
+              )}
             </div>
           )}
           {discs.get(discNum)!.map(song => {

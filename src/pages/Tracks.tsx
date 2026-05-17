@@ -160,13 +160,13 @@ export default function Tracks() {
                 <Play size={16} fill="currentColor" /> {t('tracks.playSong')}
               </button>
               <button
-                className="btn"
+                className="btn btn-surface"
                 onClick={() => enqueue([songToTrack(hero)])}
               >
                 <ListPlus size={16} /> {t('tracks.enqueueSong')}
               </button>
               <button
-                className="btn btn-ghost"
+                className="btn btn-surface"
                 onClick={rerollHero}
                 disabled={heroLoading}
                 aria-label={t('tracks.heroReroll')}

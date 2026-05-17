@@ -1,7 +1,6 @@
 export const home = {
   hero: '精选',
   starred: '个人收藏',
-  recent: '最近添加',
   mostPlayed: '最常播放',
   recentlyPlayed: '最近播放',
   losslessAlbums: '无损专辑',
