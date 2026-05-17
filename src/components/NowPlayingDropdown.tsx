@@ -3,7 +3,7 @@ import { getNowPlaying } from '../api/subsonicScrobble';
 import type { SubsonicNowPlaying } from '../api/subsonicTypes';
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { PlayCircle, User, Radio, RefreshCw } from 'lucide-react';
+import { PlayCircle, User, Clock, Radio, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -170,10 +170,17 @@ export default function NowPlayingDropdown() {
                   <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <div className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{stream.title}</div>
                     <div className="truncate" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{stream.artist}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      <User size={10} />
-                      <span className="truncate">{stream.username} ({stream.playerName || 'Web'})</span>
-                      {stream.minutesAgo > 0 && <span>• {t('nowPlaying.minutesAgo', { n: stream.minutesAgo })}</span>}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                        <User size={10} style={{ flexShrink: 0 }} />
+                        <span className="truncate">{stream.username} ({stream.playerName || 'Web'})</span>
+                      </div>
+                      {stream.minutesAgo > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                          <Clock size={10} style={{ flexShrink: 0 }} />
+                          <span className="truncate">{t('nowPlaying.minutesAgo', { n: stream.minutesAgo })}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
