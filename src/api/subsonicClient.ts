@@ -83,9 +83,13 @@ export async function api<T>(endpoint: string, extra: Record<string, unknown> = 
 
 /** Optional `musicFolderId` when the user narrowed browsing to one Subsonic library (see `getMusicFolders`). */
 export function libraryFilterParams(): Record<string, string | number> {
-  const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
-  if (!activeServerId) return {};
-  const f = musicLibraryFilterByServer[activeServerId];
+  const { activeServerId } = useAuthStore.getState();
+  return activeServerId ? libraryFilterParamsForServer(activeServerId) : {};
+}
+
+/** Library folder filter for an explicit saved server (e.g. Now Playing while browsing another). */
+export function libraryFilterParamsForServer(serverId: string): Record<string, string | number> {
+  const f = useAuthStore.getState().musicLibraryFilterByServer[serverId];
   if (f === undefined || f === 'all') return {};
   return { musicFolderId: f };
 }

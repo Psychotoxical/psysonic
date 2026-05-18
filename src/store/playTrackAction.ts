@@ -254,7 +254,10 @@ export function runPlayTrack(
       currentTime: initialTime,
       scrobbled: false,
       lastfmLoved: false,
-      isPlaying: true, // optimistic — reverted on error
+      // HTTP stream: wait for Rust `audio:playing` so the seekbar does not
+      // extrapolate while RangedHttpSource / legacy reader is still buffering.
+      isPlaying: playbackSourceHint !== 'stream',
+      isPlaybackBuffering: playbackSourceHint === 'stream',
       currentPlaybackSource: playbackSourceHint,
       enginePreloadedTrackId: keepPreloadHint ? track.id : null,
     });

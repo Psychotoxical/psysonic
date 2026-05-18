@@ -40,7 +40,8 @@ export function PlayerVolume({
             setVolume(0);
           }
         }}
-        aria-label={t('player.volume')}
+        aria-label={volume === 0 ? t('player.unmute') : t('player.mute')}
+        data-tooltip={volume === 0 ? t('player.unmute') : t('player.mute')}
         style={{ color: 'var(--text-muted)', flexShrink: 0 }}
       >
         {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}

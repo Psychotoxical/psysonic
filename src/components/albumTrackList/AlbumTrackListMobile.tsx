@@ -8,6 +8,7 @@ import { formatLongDuration } from '../../utils/format/formatDuration';
 interface Props {
   discNums: number[];
   discs: Map<number, SubsonicSong[]>;
+  discTitleByNum: Map<number, string>;
   isMultiDisc: boolean;
   currentTrackId: string | null;
   isPlaying: boolean;
@@ -31,6 +32,7 @@ interface Props {
 export function AlbumTrackListMobile({
   discNums,
   discs,
+  discTitleByNum,
   isMultiDisc,
   currentTrackId,
   isPlaying,
@@ -46,6 +48,9 @@ export function AlbumTrackListMobile({
           {isMultiDisc && (
             <div className="disc-header">
               <span className="disc-icon">💿</span> CD {discNum}
+              {discTitleByNum.get(discNum) && (
+                <span className="disc-subtitle">{discTitleByNum.get(discNum)}</span>
+              )}
             </div>
           )}
           {discs.get(discNum)!.map(song => {

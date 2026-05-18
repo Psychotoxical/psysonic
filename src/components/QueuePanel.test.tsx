@@ -112,7 +112,7 @@ describe('QueuePanel — toolbar', () => {
     expect(getByLabelText('Save Playlist')).toBeInTheDocument();
     expect(getByLabelText('Load Playlist')).toBeInTheDocument();
     expect(getByLabelText('Copy queue share link')).toBeInTheDocument();
-    expect(getByLabelText('Clear')).toBeInTheDocument();
+    expect(getByLabelText('Clear queue')).toBeInTheDocument();
   });
 
   it('Shuffle button is disabled when the queue has fewer than 2 tracks', () => {

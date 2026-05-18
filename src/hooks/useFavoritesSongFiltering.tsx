@@ -125,6 +125,15 @@ export function useFavoritesSongFiltering(deps: FavoritesSongFilteringDeps): Fav
         }
         case 'duration':
           return multiplier * ((a.duration || 0) - (b.duration || 0));
+        case 'playCount':
+          return multiplier * ((a.playCount || 0) - (b.playCount || 0));
+        case 'lastPlayed': {
+          const ta = a.played ? Date.parse(a.played) || 0 : 0;
+          const tb = b.played ? Date.parse(b.played) || 0 : 0;
+          return multiplier * (ta - tb);
+        }
+        case 'bpm':
+          return multiplier * ((a.bpm || 0) - (b.bpm || 0));
         default:
           return 0;
       }

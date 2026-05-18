@@ -53,4 +53,5 @@ export const common = {
   more: 'meer',
   yearRange: 'Jaarbereik',
   clearAll: 'Alles wissen',
+  libraryEmpty: 'Je bibliotheek is leeg.',
 };

@@ -53,7 +53,7 @@ impl<R: Runtime> ProgressEmitter for AppHandle<R> {
 ///   • Immediate `audio:track_switched` event at decoder boundary
 ///   • `audio:ended` only fires when no chained successor exists
 #[allow(clippy::too_many_arguments)]
-pub(super) fn spawn_progress_task<E: ProgressEmitter>(
+pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
     gen: u64,
     gen_counter: Arc<AtomicU64>,
     current_arc: Arc<Mutex<AudioCurrent>>,
@@ -67,6 +67,7 @@ pub(super) fn spawn_progress_task<E: ProgressEmitter>(
     channels_arc: Arc<AtomicU32>,
     gapless_switch_at: Arc<AtomicU64>,
     current_playback_url: Arc<Mutex<Option<String>>>,
+    stream_playback_armed: Arc<AtomicBool>,
 ) {
     // Keep progress aligned with audible output (ALSA/PipeWire/Pulse queue) on
     // Linux; mirrors the quantum policy used for stream open/reopen plus a small
@@ -201,7 +202,9 @@ pub(super) fn spawn_progress_task<E: ProgressEmitter>(
             };
             let is_paused = paused_at.is_some();
 
-            let pos_raw = if let Some(p) = paused_at {
+            let pos_raw = if !stream_playback_armed.load(Ordering::Relaxed) {
+                0.0
+            } else if let Some(p) = paused_at {
                 p
             } else {
                 (samples / divisor).min(dur.max(0.001))
@@ -218,7 +221,12 @@ pub(super) fn spawn_progress_task<E: ProgressEmitter>(
                 || now.duration_since(last_progress_emit_at) >= Duration::from_millis(PROGRESS_EMIT_MIN_MS)
                 || (pos - last_progress_emit_pos).abs() >= PROGRESS_EMIT_MIN_DELTA_SECS;
             if should_emit_progress {
-                emitter.emit_progress(ProgressPayload { current_time: pos, duration: dur });
+                let buffering = !stream_playback_armed.load(Ordering::Relaxed);
+                emitter.emit_progress(ProgressPayload {
+                    current_time: pos,
+                    duration: dur,
+                    buffering,
+                });
                 last_progress_emit_at = now;
                 last_progress_emit_pos = pos;
                 last_progress_emit_paused = is_paused;
@@ -289,6 +297,13 @@ mod tests {
         fn track_switched_count(&self) -> usize {
             self.track_switched.lock().unwrap().len()
         }
+        fn last_progress_time(&self) -> Option<f64> {
+            self.progress
+                .lock()
+                .unwrap()
+                .last()
+                .map(|p| p.current_time)
+        }
     }
 
     impl ProgressEmitter for Arc<MockEmitter> {
@@ -317,6 +332,7 @@ mod tests {
         channels: Arc<AtomicU32>,
         gapless_switch_at: Arc<AtomicU64>,
         playback_url: Arc<Mutex<Option<String>>>,
+        stream_playback_armed: Arc<AtomicBool>,
     }
 
     impl TaskHarness {
@@ -345,6 +361,7 @@ mod tests {
                 channels: Arc::new(AtomicU32::new(2)),
                 gapless_switch_at: Arc::new(AtomicU64::new(0)),
                 playback_url: Arc::new(Mutex::new(None)),
+                stream_playback_armed: Arc::new(AtomicBool::new(true)),
             }
         }
 
@@ -363,11 +380,59 @@ mod tests {
                 self.channels.clone(),
                 self.gapless_switch_at.clone(),
                 self.playback_url.clone(),
+                self.stream_playback_armed.clone(),
             );
         }
     }
 
     // ── tests ─────────────────────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn progress_emits_buffering_while_stream_not_armed() {
+        let h = TaskHarness::new(240.0);
+        h.stream_playback_armed.store(false, Ordering::SeqCst);
+        h.samples_played.store(441_000, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(
+            emitter.progress.lock().unwrap().iter().any(|p| p.buffering),
+            "progress payload must flag HTTP stream buffering before armed"
+        );
+
+        h.gen_counter.store(99, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn legacy_stream_holds_progress_at_zero_until_armed() {
+        let h = TaskHarness::new(240.0);
+        h.stream_playback_armed.store(false, Ordering::SeqCst);
+        h.samples_played.store(441_000, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(
+            emitter.last_progress_time().unwrap_or(0.0) < 0.01,
+            "progress must stay at 0 while legacy stream is buffering"
+        );
+        assert!(
+            emitter.progress.lock().unwrap().iter().any(|p| p.buffering),
+            "progress payload must flag legacy stream buffering"
+        );
+
+        h.stream_playback_armed.store(true, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(
+            emitter.last_progress_time().unwrap_or(0.0) > 4.0,
+            "progress should follow samples once armed (got {:?})",
+            emitter.last_progress_time()
+        );
+    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn task_breaks_immediately_when_generation_already_changed() {

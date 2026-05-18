@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 import { copyTextToClipboard } from '../utils/server/serverMagicString';
 import { showToast } from '../utils/ui/toast';
 import { formatTrackTime } from '../utils/format/formatDuration';
+import { formatLastSeen } from '../utils/componentHelpers/userMgmtHelpers';
+import i18n from '../i18n';
 
 function formatSize(bytes?: number): string | null {
   if (!bytes) return null;
@@ -149,6 +151,9 @@ export default function SongInfoModal() {
                 <Row label={t('songInfo.genre')} value={song.genre} />
                 <Row label={t('songInfo.duration')} value={formatTrackTime(song.duration)} />
                 <Row label={t('songInfo.track')} value={trackLabel} />
+                <Row label={t('songInfo.bpm')} value={song.bpm} />
+                <Row label={t('songInfo.playCount')} value={song.playCount} />
+                <Row label={t('songInfo.lastPlayed')} value={song.played ? formatLastSeen(song.played, i18n.language, '—') : null} />
 
                 <Divider />
 

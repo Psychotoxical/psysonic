@@ -32,7 +32,11 @@ const DIMENSIONS: Record<ExportFormat, { w: number; h: number }> = {
   twitter: { w: 1200, h: 675 },
 };
 
-const PREVIEW_MAX_WIDTH = 540;
+// Preview canvas resolution. 540 left text and album covers visibly upscaled
+// (and so blurry) when CSS stretched the canvas back up to the modal width
+// — match the full export width for Square/Story (1080) so the preview is
+// pixel-crisp at any modal size, and only Twitter scales down (1200 → 1080).
+const PREVIEW_MAX_WIDTH = 1080;
 
 /** Reads a `--var` from `document.documentElement`, with optional fallback. */
 function readThemeVar(name: string, fallback: string): string {
@@ -252,7 +256,10 @@ export async function renderAlbumCardCanvas(opts: ExportAlbumCardOptions): Promi
   }
 
   // ── Tiles ────────────────────────────────────────────────────────────────
-  const desiredTilePx = preview ? 256 : 600;
+  // Match the export tile resolution so preview covers downsample crisply
+  // into the (now full-width) canvas instead of upscaling 256 → ~300 and
+  // blurring every album thumbnail.
+  const desiredTilePx = 600;
   const needed = gridSize * gridSize;
   const tilesAlbums = albums.slice(0, needed);
   const covers = await Promise.all(tilesAlbums.map(a => loadAlbumCover(a, desiredTilePx)));

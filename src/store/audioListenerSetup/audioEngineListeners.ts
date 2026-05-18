@@ -38,7 +38,7 @@ export function setupAudioEngineListeners(): () => void {
 
   const pending = [
     listen<number>('audio:playing', ({ payload }) => handleAudioPlaying(payload)),
-    listen<{ current_time: number; duration: number }>('audio:progress', ({ payload }) => {
+    listen<{ current_time: number; duration: number; buffering?: boolean }>('audio:progress', ({ payload }) => {
       if (import.meta.env.DEV) {
         _devEventCount++;
         const now = Date.now();
@@ -51,7 +51,7 @@ export function setupAudioEngineListeners(): () => void {
           _devWindowStart = now;
         }
       }
-      handleAudioProgress(payload.current_time, payload.duration);
+      handleAudioProgress(payload.current_time, payload.duration, payload.buffering ?? false);
     }),
     listen<void>('audio:ended', () => handleAudioEnded()),
     listen<string>('audio:error', ({ payload }) => handleAudioError(payload)),

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use rodio::Player;
 use tauri::{AppHandle, Manager};
 
-use super::state::{ChainedInfo, PreloadedTrack};
+use super::state::{ChainedInfo, PreloadedTrack, StreamCompletedSpill};
 
 /// Reply channel handed back to the audio-stream thread once a re-open finishes.
 pub type StreamReopenReply = std::sync::mpsc::SyncSender<Arc<rodio::MixerDeviceSink>>;
@@ -36,11 +36,17 @@ pub struct AudioEngine {
     /// Last fully downloaded manual-stream track bytes (same playback identity),
     /// used to recover seek/replay without waiting for network again.
     pub(crate) stream_completed_cache: Arc<Mutex<Option<PreloadedTrack>>>,
+    /// On-disk spill for completed ranged streams above `TRACK_STREAM_PROMOTE_MAX_BYTES`.
+    pub(crate) stream_completed_spill: Arc<Mutex<Option<StreamCompletedSpill>>>,
     /// True when the currently playing source supports seeking (in-memory bytes
     /// or `RangedHttpSource`); false for the legacy non-seekable streaming
     /// fallback (`AudioStreamReader`). `audio_seek` rejects with a "not
     /// seekable" error when false so the frontend restart-fallback can engage.
     pub(crate) current_is_seekable: Arc<AtomicBool>,
+    /// HTTP stream paths (`RangedHttpSource`, legacy `AudioStreamReader`): false
+    /// until `TRACK_STREAM_PLAY_START_BYTES` are buffered (or download ends).
+    /// Bytes / local file / radio keep true.
+    pub(crate) stream_playback_armed: Arc<AtomicBool>,
     pub crossfade_enabled: Arc<AtomicBool>,
     pub crossfade_secs: Arc<AtomicU32>,
     pub fading_out_sink: Arc<Mutex<Option<Arc<Player>>>>,
@@ -357,7 +363,9 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         eq_pre_gain: Arc::new(AtomicU32::new(0f32.to_bits())),
         preloaded: Arc::new(Mutex::new(None)),
         stream_completed_cache: Arc::new(Mutex::new(None)),
+        stream_completed_spill: Arc::new(Mutex::new(None)),
         current_is_seekable: Arc::new(AtomicBool::new(true)),
+        stream_playback_armed: Arc::new(AtomicBool::new(true)),
         crossfade_enabled: Arc::new(AtomicBool::new(false)),
         crossfade_secs: Arc::new(AtomicU32::new(3.0f32.to_bits())),
         fading_out_sink: Arc::new(Mutex::new(None)),

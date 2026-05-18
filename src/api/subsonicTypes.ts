@@ -20,8 +20,17 @@ export interface SubsonicAlbum {
   isCompilation?: boolean;
   /** OpenSubsonic: release types from MusicBrainz tags (e.g. "Album", "EP", "Single", "Compilation", "Live"). */
   releaseTypes?: string[];
-  /** OpenSubsonic: album-level credits (Navidrome may attach on album and/or child songs). */
-  albumArtists?: SubsonicOpenArtistRef[];
+  /** OpenSubsonic: structured album-artist credits (e.g. featured guests on the album). */
+  artists?: SubsonicOpenArtistRef[];
+  /** OpenSubsonic: single-string album-artist for display (mirrors `artists` joined). */
+  displayArtist?: string;
+  /** OpenSubsonic: per-disc subtitles (e.g. "Sessions" on CD 3 of a deluxe edition). */
+  discTitles?: SubsonicDiscTitle[];
+}
+
+export interface SubsonicDiscTitle {
+  disc: number;
+  title: string;
 }
 
 /** OpenSubsonic `artists` / `albumArtists` entries on a child song (may include `userRating`). */
@@ -65,6 +74,12 @@ export interface SubsonicSong {
   albumArtist?: string;
   /** ISRC code when available (e.g., Navidrome) */
   isrc?: string;
+  /** Times the track has been played, surfaced by Navidrome's Subsonic API. */
+  playCount?: number;
+  /** ISO datetime of the last play, surfaced by Navidrome (OpenSubsonic). */
+  played?: string;
+  /** Beats per minute, surfaced by Navidrome when the tag is set on the file. */
+  bpm?: number;
   replayGain?: {
     trackGain?: number;
     albumGain?: number;

@@ -34,6 +34,21 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* Bio modal: keep title + close visible, scroll only the bio body. */
+.modal-content.bio-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-right: var(--space-6);
+}
+
+.bio-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
 /* Modal CSV Import - siempre centrado */
 .modal-overlay--csv {
   position: fixed !important;

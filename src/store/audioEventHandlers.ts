@@ -77,10 +77,14 @@ export type NormalizationStatePayload = {
 export function handleAudioPlaying(_duration: number): void {
   setDeferHotCachePrefetch(false);
   resetProgressEmitThrottles();
-  usePlayerStore.setState({ isPlaying: true });
+  usePlayerStore.setState({ isPlaying: true, isPlaybackBuffering: false });
 }
 
-export function handleAudioProgress(current_time: number, duration: number): void {
+export function handleAudioProgress(
+  current_time: number,
+  duration: number,
+  buffering = false,
+): void {
   bumpPerfCounter('audioProgressEvents');
   const perfFlags = getPerfProbeFlags();
   const progressUiDisabled = perfFlags.disablePlayerProgressUi;
@@ -105,6 +109,9 @@ export function handleAudioProgress(current_time: number, duration: number): voi
   const store = usePlayerStore.getState();
   const track = store.currentTrack;
   if (!track) return;
+  if (!store.currentRadio && store.isPlaybackBuffering !== buffering) {
+    usePlayerStore.setState({ isPlaybackBuffering: buffering });
+  }
   // Some backends can emit stale progress ticks shortly after pause/stop.
   // Ignoring them avoids reactivating UI redraw loops while transport is idle.
   const transportActive = store.isPlaying || store.currentRadio != null;
@@ -114,7 +121,7 @@ export function handleAudioProgress(current_time: number, duration: number): voi
     setSeekFallbackVisualTarget(null);
     visualTarget = null;
   }
-  let displayTime = current_time;
+  let displayTime = buffering ? 0 : current_time;
   if (visualTarget && visualTarget.trackId === track.id) {
     const nearTarget = Math.abs(current_time - visualTarget.seconds) <= 2.0;
     if (nearTarget) {
@@ -142,8 +149,9 @@ export function handleAudioProgress(current_time: number, duration: number): voi
     ) {
       emitPlaybackProgress({
         currentTime: displayTime,
-        progress,
+        progress: buffering ? 0 : progress,
         buffered: 0,
+        buffering,
       });
       markLiveProgressEmit(nowLive);
     }
@@ -315,6 +323,7 @@ export function handleAudioEnded(): void {
   setIsAudioPaused(false);
   usePlayerStore.setState({
     isPlaying: false,
+    isPlaybackBuffering: false,
     progress: 0,
     currentTime: 0,
     buffered: 0,
@@ -386,6 +395,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
     normalizationDbgTrackId: nextTrack.id,
     queueIndex: newIndex,
     isPlaying: true,
+    isPlaybackBuffering: switchPlaybackSource === 'stream',
     progress: 0,
     currentTime: 0,
     buffered: 0,
@@ -427,7 +437,7 @@ export function handleAudioError(message: string): void {
   showToast(`Couldn't play track — skipping. ${detail}`, 8000, 'error');
 
   const gen = getPlayGeneration();
-  usePlayerStore.setState({ isPlaying: false });
+  usePlayerStore.setState({ isPlaying: false, isPlaybackBuffering: false });
   setTimeout(() => {
     if (getPlayGeneration() !== gen) return;
     usePlayerStore.getState().next(false);

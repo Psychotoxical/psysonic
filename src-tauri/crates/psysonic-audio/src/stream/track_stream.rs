@@ -16,7 +16,9 @@ use ringbuf::traits::Producer;
 use tauri::AppHandle;
 
 use super::super::state::PreloadedTrack;
-use super::{TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES};
+use super::{
+    maybe_arm_stream_playback, TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn track_download_task(
@@ -33,6 +35,7 @@ pub(crate) async fn track_download_task(
     normalization_target_lufs: Arc<AtomicU32>,
     loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
     cache_track_id: Option<String>,
+    playback_armed: Arc<AtomicBool>,
 ) {
     let mut downloaded: u64 = 0;
     let mut reconnects: u32 = 0;
@@ -147,6 +150,7 @@ pub(crate) async fn track_download_task(
                     }
                     offset += pushed;
                     downloaded += pushed as u64;
+                    maybe_arm_stream_playback(downloaded, &playback_armed);
                 }
             }
         }
@@ -177,6 +181,7 @@ pub(crate) async fn track_download_task(
                 data: capture,
             });
         }
+        playback_armed.store(true, Ordering::SeqCst);
         done.store(true, Ordering::SeqCst);
         return;
     }

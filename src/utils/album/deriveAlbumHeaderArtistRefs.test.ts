@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveAlbumHeaderArtistRefs } from './deriveAlbumHeaderArtistRefs';
+import { deriveAlbumArtistRefs, deriveAlbumHeaderArtistRefs } from './deriveAlbumHeaderArtistRefs';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import { makeSubsonicSong } from '@/test/helpers/factories';
 
@@ -12,16 +12,35 @@ const baseAlbum = (): SubsonicAlbum => ({
   duration: 100,
 });
 
-describe('deriveAlbumHeaderArtistRefs', () => {
-  it('prefers album-level albumArtists when present', () => {
+describe('deriveAlbumArtistRefs', () => {
+  it('prefers the OpenSubsonic `artists` array when present', () => {
     const album: SubsonicAlbum = {
       ...baseAlbum(),
-      albumArtists: [{ id: 'a1', name: 'One' }, { id: 'a2', name: 'Two' }],
+      artists: [{ id: 'a1', name: 'One' }, { id: 'a2', name: 'Two' }],
     };
-    expect(deriveAlbumHeaderArtistRefs(album, [])).toEqual(album.albumArtists);
+    expect(deriveAlbumArtistRefs(album)).toEqual(album.artists);
   });
 
-  it('falls back to the first song with albumArtists', () => {
+  it('uses legacy artist + artistId when no structured refs', () => {
+    expect(deriveAlbumArtistRefs(baseAlbum())).toEqual([{ id: 'ar-first', name: 'Joined A / B' }]);
+  });
+
+  it('omits id when artistId is blank', () => {
+    expect(deriveAlbumArtistRefs({ ...baseAlbum(), artistId: '   ', artist: 'Solo' }))
+      .toEqual([{ name: 'Solo' }]);
+  });
+});
+
+describe('deriveAlbumHeaderArtistRefs', () => {
+  it('prefers the album-level `artists` array when present', () => {
+    const album: SubsonicAlbum = {
+      ...baseAlbum(),
+      artists: [{ id: 'a1', name: 'One' }, { id: 'a2', name: 'Two' }],
+    };
+    expect(deriveAlbumHeaderArtistRefs(album, [])).toEqual(album.artists);
+  });
+
+  it('falls back to the first song with `albumArtists`', () => {
     const album = baseAlbum();
     const songs = [
       makeSubsonicSong({

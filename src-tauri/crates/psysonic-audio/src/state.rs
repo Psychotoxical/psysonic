@@ -7,6 +7,12 @@ pub(crate) struct PreloadedTrack {
     pub(crate) data: Vec<u8>,
 }
 
+/// Completed ranged stream too large for `stream_completed_cache`; bytes live on disk.
+pub(crate) struct StreamCompletedSpill {
+    pub(crate) url: String,
+    pub(crate) path: std::path::PathBuf,
+}
+
 /// Info about the track that has been appended (chained) to the current Sink
 /// but whose source has not yet started playing (gapless mode only).
 pub(crate) struct ChainedInfo {

@@ -16,6 +16,9 @@ import { createTransportLightActions } from './transportLightActions';
 import { createUiStateActions } from './uiStateActions';
 import { createUndoRedoActions } from './undoRedoActions';
 
+// Half-width of the localStorage queue window (see partialize below).
+const PERSIST_QUEUE_HALF = 250;
+
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => {
@@ -39,6 +42,7 @@ export const usePlayerStore = create<PlayerState>()(
       queueServerId: null,
       queueIndex: 0,
       isPlaying: false,
+      isPlaybackBuffering: false,
       progress: 0,
       buffered: 0,
       currentTime: 0,
@@ -77,23 +81,30 @@ export const usePlayerStore = create<PlayerState>()(
     {
       name: 'psysonic-player',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        volume: state.volume,
-        repeatMode: state.repeatMode,
-        currentTrack: state.currentTrack,
-        queue: state.queue,
-        queueServerId: state.queueServerId,
-        queueIndex: state.queueIndex,
-        isQueueVisible: state.isQueueVisible,
-        // currentTime is intentionally NOT persisted here.
-        // handleAudioProgress fires every 100ms and each setState with a
-        // persisted field triggers a full JSON serialisation of the queue to
-        // localStorage.  After ~10 minutes of Artist Radio the queue grows to
-        // 50+ tracks; 6 000+ synchronous SQLite writes cause WKWebView's
-        // storage process to crash on macOS → black screen + audio stop.
-        // Resume position is recovered from Subsonic savePlayQueue (5s debounce).
-        lastfmLovedCache: state.lastfmLovedCache,
-      }),
+      partialize: (state) => {
+        // Persist only a window around the current track: the full queue
+        // (10k+ on big playlists) overflows the localStorage quota.
+        const qi = state.queueIndex;
+        const start = Math.max(0, qi - PERSIST_QUEUE_HALF);
+        const windowedQueue = state.queue.slice(start, qi + PERSIST_QUEUE_HALF + 1);
+        return {
+          volume: state.volume,
+          repeatMode: state.repeatMode,
+          currentTrack: state.currentTrack,
+          queue: windowedQueue,
+          queueServerId: state.queueServerId,
+          queueIndex: qi - start, // remap into the windowed slice
+          isQueueVisible: state.isQueueVisible,
+          // currentTime is intentionally NOT persisted here.
+          // handleAudioProgress fires every 100ms and each setState with a
+          // persisted field triggers a full JSON serialisation of the queue to
+          // localStorage.  After ~10 minutes of Artist Radio the queue grows to
+          // 50+ tracks; 6 000+ synchronous SQLite writes cause WKWebView's
+          // storage process to crash on macOS → black screen + audio stop.
+          // Resume position is recovered from Subsonic savePlayQueue (5s debounce).
+          lastfmLovedCache: state.lastfmLovedCache,
+        };
+      },
     }
   )
 );

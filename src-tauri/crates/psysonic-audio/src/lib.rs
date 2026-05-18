@@ -18,6 +18,7 @@ pub mod preload_commands;
 pub(crate) mod progress_task;
 pub mod radio_commands;
 pub mod transport_commands;
+mod device_resume;
 mod device_watcher;
 mod engine;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
@@ -36,7 +37,10 @@ mod stream;
 pub use device_commands::{audio_default_output_device_name, audio_list_devices_for_engine};
 pub use device_watcher::start_device_watcher;
 pub use engine::{create_engine, refresh_http_user_agent, AudioEngine};
-pub use helpers::take_stream_completed_for_url;
+pub use helpers::{
+    cleanup_orphan_stream_spill_dir, take_stream_completed_for_url,
+    take_stream_completed_spill_for_url,
+};
 
 /// Register platform-specific listeners so the output stream is reopened after sleep/resume
 /// when the device name may be unchanged (Windows WASAPI, Linux PipeWire, …).

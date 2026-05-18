@@ -1,0 +1,32 @@
+/* Cover art while `isPlaybackBuffering` (player bar + queue current track). */
+.player-album-art-wrap.playback-buffering .player-album-art,
+.player-album-art-wrap.playback-buffering .player-album-art-placeholder {
+  filter: grayscale(1);
+  transition: filter 0.2s ease;
+}
+
+.queue-current-cover.playback-buffering img,
+.queue-current-cover.playback-buffering .fallback {
+  filter: grayscale(1);
+  transition: filter 0.2s ease;
+}
+
+.playback-buffering-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  pointer-events: none;
+  color: #fff;
+}
+
+.playback-buffering-overlay__icon {
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+}
+
+.player-album-art-wrap .playback-buffering-overlay {
+  border-radius: var(--radius-md);
+}

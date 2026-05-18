@@ -19,6 +19,7 @@
 @import './modal.css';
 @import './playback-delay-sleep-delayed-start-modal.css';
 @import './lucky-mix-pips-shared-by-the-inline-queue-lucky-cube-indicator.css';
+@import './playback-buffering-overlay.css';
 @import './playlist-edit-modal.css';
 @import './artists-page.css';
 @import './years-page.css';

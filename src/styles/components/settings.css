@@ -197,6 +197,9 @@
   justify-content: space-between;
   gap: var(--space-3);
   margin-bottom: 1.5rem;
+  /* Fixiert die Zeilenhöhe so dass Lupen-Button vs. offenes Suchfeld
+     die Zeile nicht 1–2 px nach unten verschieben können. */
+  min-height: 40px;
 }
 
 .settings-header .page-title {
@@ -207,12 +210,30 @@
 .settings-search {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   flex-shrink: 0;
   /* h1.page-title hat im Display-Font einen visuellen Glyph-Mittelpunkt
      unterhalb der Box-Mitte. align-items: center wirkt deshalb so, als hänge
      die Lupe zu hoch. Wir verschieben sie auf die Glyph-Baseline runter. */
   align-self: end;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
+}
+
+.settings-search > .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.settings-search > .icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .settings-search-wrap {
@@ -220,6 +241,7 @@
   display: flex;
   align-items: center;
   width: 240px;
+  height: 32px;
 }
 
 .settings-search-icon {
@@ -306,7 +328,7 @@
   font-size: 11px;
   font-weight: 500;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
 }
@@ -496,5 +518,14 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   color: var(--text-secondary);
+}
+
+/* Dim the non-toggle content of a settings row when its toggle is off.
+ * `:not(:disabled)` excludes mutex-disabled toggles (e.g. Crossfade/Gapless)
+ * whose row already carries an inline opacity — avoids dim-stacking. */
+.settings-toggle-row:has(.toggle-switch input:not(:checked):not(:disabled)) > *:not(.toggle-switch),
+.sidebar-customizer-row:has(.toggle-switch input:not(:checked):not(:disabled)) > *:not(.toggle-switch) {
+  opacity: 0.6;
+  transition: opacity 150ms ease;
 }
 

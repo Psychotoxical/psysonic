@@ -1,5 +1,5 @@
 import { useAuthStore } from '../store/authStore';
-import { api, libraryFilterParams } from './subsonicClient';
+import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer } from './subsonicClient';
 import type {
   RandomSongsFilters,
   SubsonicAlbum,
@@ -94,10 +94,10 @@ let scopedLibraryAlbumIdCache: {
   ids: Set<string>;
 } | null = null;
 
-async function albumIdsInActiveLibraryScope(): Promise<Set<string> | null> {
-  const { activeServerId, musicLibraryFilterByServer, musicLibraryFilterVersion } = useAuthStore.getState();
-  if (!activeServerId) return null;
-  const folder = musicLibraryFilterByServer[activeServerId];
+async function albumIdsInLibraryScope(serverId: string): Promise<Set<string> | null> {
+  const { musicLibraryFilterByServer, musicLibraryFilterVersion } = useAuthStore.getState();
+  if (!serverId) return null;
+  const folder = musicLibraryFilterByServer[serverId];
   if (folder === undefined || folder === 'all') {
     scopedLibraryAlbumIdCache = null;
     return null;
@@ -105,7 +105,7 @@ async function albumIdsInActiveLibraryScope(): Promise<Set<string> | null> {
   const hit = scopedLibraryAlbumIdCache;
   if (
     hit &&
-    hit.serverId === activeServerId &&
+    hit.serverId === serverId &&
     hit.folderId === folder &&
     hit.filterVersion === musicLibraryFilterVersion
   ) {
@@ -115,14 +115,14 @@ async function albumIdsInActiveLibraryScope(): Promise<Set<string> | null> {
   const pageSize = 500;
   let offset = 0;
   for (;;) {
-    const albums = await getAlbumList('alphabeticalByName', pageSize, offset);
+    const albums = await getAlbumListForServer(serverId, 'alphabeticalByName', pageSize, offset);
     for (const a of albums) ids.add(a.id);
     if (albums.length < pageSize) break;
     offset += pageSize;
     if (offset > 500_000) break;
   }
   scopedLibraryAlbumIdCache = {
-    serverId: activeServerId,
+    serverId,
     folderId: folder,
     filterVersion: musicLibraryFilterVersion,
     ids,
@@ -130,10 +130,24 @@ async function albumIdsInActiveLibraryScope(): Promise<Set<string> | null> {
   return ids;
 }
 
-export async function filterSongsToActiveLibrary(songs: SubsonicSong[]): Promise<SubsonicSong[]> {
-  const allowed = await albumIdsInActiveLibraryScope();
+async function albumIdsInActiveLibraryScope(): Promise<Set<string> | null> {
+  const { activeServerId } = useAuthStore.getState();
+  return activeServerId ? albumIdsInLibraryScope(activeServerId) : null;
+}
+
+export async function filterSongsToServerLibrary(
+  songs: SubsonicSong[],
+  serverId: string,
+): Promise<SubsonicSong[]> {
+  const allowed = await albumIdsInLibraryScope(serverId);
   if (!allowed || allowed.size === 0) return songs;
   return songs.filter(s => s.albumId && allowed.has(s.albumId));
+}
+
+export async function filterSongsToActiveLibrary(songs: SubsonicSong[]): Promise<SubsonicSong[]> {
+  const { activeServerId } = useAuthStore.getState();
+  if (!activeServerId) return songs;
+  return filterSongsToServerLibrary(songs, activeServerId);
 }
 
 /** When scoped to one library, ask the server for more similar tracks — many will be filtered out client-side. */
@@ -168,6 +182,24 @@ export async function getRandomSongsFiltered(
   return data.randomSongs?.song ?? [];
 }
 
+export async function getAlbumListForServer(
+  serverId: string,
+  type: 'random' | 'newest' | 'alphabeticalByName' | 'alphabeticalByArtist' | 'byYear' | 'recent' | 'starred' | 'frequent' | 'highest',
+  size = 30,
+  offset = 0,
+  extra: Record<string, unknown> = {},
+): Promise<SubsonicAlbum[]> {
+  const data = await apiForServer<{ albumList2: { album: SubsonicAlbum[] } }>(serverId, 'getAlbumList2.view', {
+    type,
+    size,
+    offset,
+    _t: Date.now(),
+    ...libraryFilterParamsForServer(serverId),
+    ...extra,
+  });
+  return data.albumList2?.album ?? [];
+}
+
 export async function getSong(id: string): Promise<SubsonicSong | null> {
   try {
     const data = await api<{ song: SubsonicSong }>('getSong.view', { id });
@@ -177,8 +209,26 @@ export async function getSong(id: string): Promise<SubsonicSong | null> {
   }
 }
 
+export async function getSongForServer(serverId: string, id: string): Promise<SubsonicSong | null> {
+  try {
+    const data = await apiForServer<{ song: SubsonicSong }>(serverId, 'getSong.view', { id });
+    return data.song ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
   const data = await api<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>('getAlbum.view', { id });
+  const { song, ...album } = data.album;
+  return { album, songs: song ?? [] };
+}
+
+export async function getAlbumForServer(
+  serverId: string,
+  id: string,
+): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
+  const data = await apiForServer<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>(serverId, 'getAlbum.view', { id });
   const { song, ...album } = data.album;
   return { album, songs: song ?? [] };
 }

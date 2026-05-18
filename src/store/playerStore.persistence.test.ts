@@ -1,9 +1,14 @@
 /**
- * Server play-queue persistence flush characterization (Phase F1 / PR 2c).
+ * Player store persistence: server play-queue flush (Phase F1 / PR 2c) and
+ * localStorage partialize windowing (PR #756).
  *
  * `flushPlayQueuePosition` is the synchronous-from-the-caller's-view path
  * that the playback heartbeat / close handler / `pause()` use to push the
  * current position to the Subsonic server so cross-device resume works.
+ *
+ * `partialize` caps the localStorage queue to a ±250-track window around the
+ * current index, remapping `queueIndex` into the slice so the persisted
+ * snapshot stays self-consistent and within the browser storage quota.
  *
  * Mocks `savePlayQueue` at the module boundary so we can assert the exact
  * args passed to the Subsonic API call.
@@ -209,5 +214,75 @@ describe('flushPlayQueuePosition', () => {
 
     const posArg = vi.mocked(savePlayQueue).mock.calls[0]?.[2];
     expect(posArg).toBe(12999); // Math.floor(12.9999 * 1000)
+  });
+});
+
+// ---------------------------------------------------------------------------
+// partialize: localStorage queue window (PR #756)
+// ---------------------------------------------------------------------------
+
+function getPartialize() {
+  // zustand persist middleware exposes config (incl. partialize) via .persist
+  type PartializeFn = (state: ReturnType<typeof usePlayerStore.getState>) => Record<string, unknown>;
+  return (usePlayerStore as unknown as { persist: { getOptions(): { partialize: PartializeFn } } })
+    .persist.getOptions().partialize;
+}
+
+describe('partialize: localStorage queue window', () => {
+  it('caps a large queue to at most 501 tracks and puts the current track at index 250', () => {
+    const tracks = makeTracks(10509);
+    usePlayerStore.setState({ queue: tracks, queueIndex: 5000 });
+
+    const partial = getPartialize()(usePlayerStore.getState());
+
+    expect((partial.queue as unknown[]).length).toBe(501);
+    expect(partial.queueIndex).toBe(250);
+    // the track at the remapped index must be the original track[5000]
+    expect((partial.queue as { id: string }[])[250].id).toBe(tracks[5000].id);
+  });
+
+  it('does not shift the index when the current track is near the start (qi < 250)', () => {
+    const tracks = makeTracks(1000);
+    usePlayerStore.setState({ queue: tracks, queueIndex: 50 });
+
+    const partial = getPartialize()(usePlayerStore.getState());
+
+    // window starts at 0, index is unchanged
+    expect(partial.queueIndex).toBe(50);
+    expect((partial.queue as { id: string }[])[50].id).toBe(tracks[50].id);
+    // window extends 250 ahead: 0..300 = 301 tracks
+    expect((partial.queue as unknown[]).length).toBe(301);
+  });
+
+  it('handles a current track near the end of the queue correctly', () => {
+    const tracks = makeTracks(10509);
+    const lastIdx = 10508;
+    usePlayerStore.setState({ queue: tracks, queueIndex: lastIdx });
+
+    const partial = getPartialize()(usePlayerStore.getState());
+
+    // window: [10258, 10509) = 251 tracks; remapped index = 10508 - 10258 = 250
+    expect((partial.queue as unknown[]).length).toBe(251);
+    expect(partial.queueIndex).toBe(250);
+    expect((partial.queue as { id: string }[])[250].id).toBe(tracks[lastIdx].id);
+  });
+
+  it('persists the entire queue unchanged when it is smaller than the window', () => {
+    const tracks = makeTracks(10);
+    usePlayerStore.setState({ queue: tracks, queueIndex: 5 });
+
+    const partial = getPartialize()(usePlayerStore.getState());
+
+    expect((partial.queue as unknown[]).length).toBe(10);
+    expect(partial.queueIndex).toBe(5);
+  });
+
+  it('handles an empty queue without throwing', () => {
+    usePlayerStore.setState({ queue: [], queueIndex: 0 });
+
+    const partial = getPartialize()(usePlayerStore.getState());
+
+    expect((partial.queue as unknown[]).length).toBe(0);
+    expect(partial.queueIndex).toBe(0);
   });
 });

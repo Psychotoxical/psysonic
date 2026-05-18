@@ -141,39 +141,63 @@ pub async fn promote_stream_cache_to_hot_cache(
         return Ok(Some(HotCacheDownloadResult { path: path_str, size }));
     }
 
-    let bytes = match audio::take_stream_completed_for_url(&state, &url) {
-        Some(b) => b,
-        None => {
-            crate::app_deprintln!(
-                "[hot-cache] promote skip track_id={} reason=no_completed_stream_for_url",
-                track_id
-            );
-            return Ok(None);
+    if let Some(bytes) = audio::take_stream_completed_for_url(&state, &url) {
+        let part_path = file_path.with_extension(format!("{suffix}.part"));
+        if let Err(e) = tokio::fs::write(&part_path, &bytes).await {
+            let _ = tokio::fs::remove_file(&part_path).await;
+            return Err(e.to_string());
         }
-    };
+        tokio::fs::rename(&part_path, &file_path)
+            .await
+            .map_err(|e| e.to_string())?;
 
-    let part_path = file_path.with_extension(format!("{suffix}.part"));
-    if let Err(e) = tokio::fs::write(&part_path, &bytes).await {
-        let _ = tokio::fs::remove_file(&part_path).await;
-        return Err(e.to_string());
+        let _ = enqueue_analysis_seed(&app, &track_id, &bytes).await;
+
+        let size = tokio::fs::metadata(&file_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        crate::app_deprintln!(
+            "[hot-cache] promote from_stream_ram track_id={} server_id={} bytes={}",
+            track_id,
+            server_id,
+            size
+        );
+        return Ok(Some(HotCacheDownloadResult { path: path_str, size }));
     }
-    tokio::fs::rename(&part_path, &file_path)
-        .await
-        .map_err(|e| e.to_string())?;
 
-    let _ = enqueue_analysis_seed(&app, &track_id, &bytes).await;
+    if let Some(spill_path) = audio::take_stream_completed_spill_for_url(&state, &url) {
+        if let Err(e) = tokio::fs::rename(&spill_path, &file_path).await {
+            if let Err(copy_err) = tokio::fs::copy(&spill_path, &file_path).await {
+                let _ = tokio::fs::remove_file(&spill_path).await;
+                return Err(format!("promote spill rename: {e}; copy: {copy_err}"));
+            }
+            let _ = tokio::fs::remove_file(&spill_path).await;
+        }
+        let app_seed = app.clone();
+        let tid = track_id.clone();
+        let fp = file_path.clone();
+        tokio::spawn(async move {
+            enqueue_analysis_seed_from_file(&app_seed, &tid, &fp).await;
+        });
+        let size = tokio::fs::metadata(&file_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        crate::app_deprintln!(
+            "[hot-cache] promote from_stream_spill track_id={} server_id={} bytes={}",
+            track_id,
+            server_id,
+            size
+        );
+        return Ok(Some(HotCacheDownloadResult { path: path_str, size }));
+    }
 
-    let size = tokio::fs::metadata(&file_path)
-        .await
-        .map(|m| m.len())
-        .unwrap_or(0);
     crate::app_deprintln!(
-        "[hot-cache] promote from_stream track_id={} server_id={} bytes={}",
-        track_id,
-        server_id,
-        size
+        "[hot-cache] promote skip track_id={} reason=no_completed_stream_for_url",
+        track_id
     );
-    Ok(Some(HotCacheDownloadResult { path: path_str, size }))
+    Ok(None)
 }
 
 #[tauri::command]

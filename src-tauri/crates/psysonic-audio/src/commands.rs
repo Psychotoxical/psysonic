@@ -15,7 +15,8 @@ use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::*;
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{
-    build_source_from_play_input, select_play_input, swap_in_new_sink, url_format_hint,
+    build_playback_source_with_probe_fallback, select_play_input,
+    spawn_legacy_stream_start_when_armed, swap_in_new_sink, url_format_hint, BuildSourceArgs,
     PlayInputContext, SinkSwapInputs,
 };
 use super::preview::preview_clear_for_new_main_playback;
@@ -97,6 +98,8 @@ pub async fn audio_play(
     // Bump generation first so the old progress task stops before we peel
     // chained_info (avoids a race where it sees current_done + empty chain).
     let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    // Ranged/legacy HTTP paths reset this to false in `select_play_input`.
+    state.stream_playback_armed.store(true, Ordering::SeqCst);
 
     // Manual skip onto the gapless-pre-chained track: reuse raw bytes (no HTTP;
     // preload cache was already consumed when the chain was built). Otherwise
@@ -230,14 +233,21 @@ pub async fn audio_play(
     let done_flag = Arc::new(AtomicBool::new(false));
     // Reset sample counter for the new track.
     state.samples_played.store(0, Ordering::Relaxed);
-    let playback_source = build_source_from_play_input(
+    let playback_source = build_playback_source_with_probe_fallback(
         play_input,
+        BuildSourceArgs {
+            url: &url,
+            gen,
+            cache_id_for_tasks: cache_id_for_tasks.as_deref(),
+            url_format_hint: format_hint.as_deref(),
+            stream_format_suffix: stream_format_suffix.as_deref(),
+            done_flag: done_flag.clone(),
+            fade_in_dur,
+            hi_res_enabled,
+            duration_hint,
+        },
         &state,
-        format_hint.as_deref(),
-        done_flag.clone(),
-        fade_in_dur,
-        hi_res_enabled,
-        duration_hint,
+        &app,
     )
     .await
     .map_err(|e| {
@@ -325,7 +335,8 @@ pub async fn audio_play(
     // without an underrun on the very first period.
     // Standard mode: no pre-fill needed — default 44.1/48 kHz quantum is small.
     let needs_prefill = hi_res_enabled && output_rate > 48_000;
-    if needs_prefill {
+    let defer_playback_start = !state.stream_playback_armed.load(Ordering::Relaxed);
+    if needs_prefill || defer_playback_start {
         sink.pause();
     }
 
@@ -372,7 +383,9 @@ pub async fn audio_play(
         if state.generation.load(Ordering::SeqCst) != gen {
             return Ok(()); // skipped during pre-fill — abort silently
         }
-        sink.play();
+        if !defer_playback_start {
+            sink.play();
+        }
     }
 
     swap_in_new_sink(&state, SinkSwapInputs {
@@ -386,7 +399,24 @@ pub async fn audio_play(
         actual_fade_secs,
     });
 
-    app.emit("audio:playing", duration_secs).ok();
+    if defer_playback_start {
+        {
+            let mut cur = state.current.lock().unwrap();
+            cur.play_started = None;
+            cur.paused_at = Some(0.0);
+        }
+        spawn_legacy_stream_start_when_armed(
+            gen,
+            state.generation.clone(),
+            state.stream_playback_armed.clone(),
+            state.samples_played.clone(),
+            state.current.clone(),
+            app.clone(),
+            duration_secs,
+        );
+    } else {
+        app.emit("audio:playing", duration_secs).ok();
+    }
 
     // ── Progress + ended detection ────────────────────────────────────────────
     spawn_progress_task(
@@ -403,6 +433,7 @@ pub async fn audio_play(
         state.current_channels.clone(),
         state.gapless_switch_at.clone(),
         state.current_playback_url.clone(),
+        state.stream_playback_armed.clone(),
     );
 
     Ok(())

@@ -31,7 +31,7 @@ id3 = "1.16.4"
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus = { version = "5.15", default-features = false, features = ["blocking-api"] }
+zbus = { version = "5.15", default-features = false, features = ["blocking-api", "async-io"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

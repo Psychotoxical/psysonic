@@ -647,6 +647,7 @@ pub(crate) fn build_streaming_source(
     fade_in_dur: Duration,
     sample_counter: Arc<AtomicU64>,
     target_rate: u32,
+    count_gate: Option<Arc<AtomicBool>>,
 ) -> Result<BuiltSource, String> {
     let sample_rate = decoder.sample_rate();
     let channels = decoder.channels();
@@ -685,7 +686,10 @@ pub(crate) fn build_streaming_source(
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
     let notifying = NotifyingSource::new(fade_out, done_flag);
-    let counting = CountingSource::new(notifying, sample_counter);
+    let counting = match count_gate {
+        Some(gate) => CountingSource::new_gated(notifying, sample_counter, gate),
+        None => CountingSource::new(notifying, sample_counter),
+    };
     let boosted = PriorityBoostSource::new(counting);
 
     Ok(BuiltSource {
@@ -980,6 +984,7 @@ mod build_source_tests {
             Duration::ZERO,
             sample_counter,
             0,
+            None,
         )
         .expect("build_streaming_source must succeed for a valid WAV decoder");
         assert_eq!(built.output_channels, 1);

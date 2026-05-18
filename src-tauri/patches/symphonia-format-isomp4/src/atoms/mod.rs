@@ -414,6 +414,11 @@ impl<B: ReadBytes> AtomIterator<B> {
         &mut self.reader
     }
 
+    /// Exclusive end offset of the current atom in the stream.
+    pub fn current_atom_end(&self) -> u64 {
+        self.next_atom_pos
+    }
+
     pub fn next(&mut self) -> Result<Option<AtomHeader>> {
         // Ignore any remaining data in the current atom that was not read.
         let cur_pos = self.reader.pos();

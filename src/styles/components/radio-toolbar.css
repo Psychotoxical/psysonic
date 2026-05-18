@@ -18,7 +18,7 @@
   display: inline-flex;
   align-items: center;
   padding: 4px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
   background: var(--bg-card);

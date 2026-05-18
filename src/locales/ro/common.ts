@@ -63,4 +63,5 @@ export const common = {
   more: 'mai mult',
   yearRange: 'Interval de an',
   clearAll: 'Golește tot',
+  libraryEmpty: 'Biblioteca ta este goală.',
 };

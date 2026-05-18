@@ -1,5 +1,6 @@
 import { useAuthStore } from '../store/authStore';
-import { api, libraryFilterParams } from './subsonicClient';
+import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer } from './subsonicClient';
+import { filterSongsToServerLibrary } from './subsonicLibrary';
 import { filterSongsToActiveLibrary, similarSongsRequestCount } from './subsonicLibrary';
 import type {
   SubsonicAlbum,
@@ -29,20 +30,53 @@ export async function getArtist(id: string): Promise<{ artist: SubsonicArtist; a
   return { artist, albums: album ?? [] };
 }
 
+export async function getArtistForServer(
+  serverId: string,
+  id: string,
+): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
+  const data = await apiForServer<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>(serverId, 'getArtist.view', { id });
+  const { album, ...artist } = data.artist;
+  return { artist, albums: album ?? [] };
+}
+
 export async function getArtistInfo(id: string, options?: { similarArtistCount?: number }): Promise<SubsonicArtistInfo> {
   const count = options?.similarArtistCount ?? 5;
   const data = await api<{ artistInfo2: SubsonicArtistInfo }>('getArtistInfo2.view', { id, count, ...libraryFilterParams() });
   return data.artistInfo2 ?? {};
 }
 
+export async function getArtistInfoForServer(
+  serverId: string,
+  id: string,
+  options?: { similarArtistCount?: number },
+): Promise<SubsonicArtistInfo> {
+  const count = options?.similarArtistCount ?? 5;
+  const data = await apiForServer<{ artistInfo2: SubsonicArtistInfo }>(
+    serverId,
+    'getArtistInfo2.view',
+    { id, count, ...libraryFilterParamsForServer(serverId) },
+  );
+  return data.artistInfo2 ?? {};
+}
+
 export async function getTopSongs(artist: string): Promise<SubsonicSong[]> {
+  const { activeServerId } = useAuthStore.getState();
+  if (!activeServerId) return [];
+  return getTopSongsForServer(activeServerId, artist);
+}
+
+export async function getTopSongsForServer(serverId: string, artist: string): Promise<SubsonicSong[]> {
   try {
-    const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
-    const scoped = activeServerId && musicLibraryFilterByServer[activeServerId] && musicLibraryFilterByServer[activeServerId] !== 'all';
+    const { musicLibraryFilterByServer } = useAuthStore.getState();
+    const scoped = musicLibraryFilterByServer[serverId] && musicLibraryFilterByServer[serverId] !== 'all';
     const topCount = scoped ? 20 : 5;
-    const data = await api<{ topSongs: { song: SubsonicSong[] } }>('getTopSongs.view', { artist, count: topCount, ...libraryFilterParams() });
+    const data = await apiForServer<{ topSongs: { song: SubsonicSong[] } }>(
+      serverId,
+      'getTopSongs.view',
+      { artist, count: topCount, ...libraryFilterParamsForServer(serverId) },
+    );
     const raw = data.topSongs?.song ?? [];
-    const filtered = await filterSongsToActiveLibrary(raw);
+    const filtered = await filterSongsToServerLibrary(raw, serverId);
     return filtered.slice(0, 5);
   } catch {
     return [];

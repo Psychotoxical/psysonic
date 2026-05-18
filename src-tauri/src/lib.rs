@@ -103,6 +103,8 @@ pub fn run() {
                 app.manage(cache);
             }
 
+            audio::cleanup_orphan_stream_spill_dir(app.handle());
+
             // ── Playback-query port (analysis → audio back-edge) ──────────
             // Two closures, each capturing an AppHandle, so analysis_runtime
             // can ask AudioEngine playback questions without depending on the

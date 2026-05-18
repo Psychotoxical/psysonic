@@ -10,6 +10,8 @@ import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import StarRating from '../StarRating';
+import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
+import { usePlayerStore } from '../../store/playerStore';
 import {
   usePlayerBarLayoutStore,
   type PlayerBarLayoutItemId,
@@ -52,6 +54,7 @@ export function PlayerTrackInfo({
   userRatingOverrides, setUserRatingOverride, toggleFullscreen,
   navigate, openContextMenu, t,
 }: Props) {
+  const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
   const layoutItems = usePlayerBarLayoutStore(s => s.items);
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
@@ -59,7 +62,7 @@ export function PlayerTrackInfo({
   return (
     <div className="player-track-info">
       <div
-        className={`player-album-art-wrap ${currentTrack && !isRadio && !showPreviewMeta ? 'clickable' : ''}`}
+        className={`player-album-art-wrap${showBufferingOverlay && !isRadio && !showPreviewMeta ? ' playback-buffering' : ''}${currentTrack && !isRadio && !showPreviewMeta ? ' clickable' : ''}`}
         onClick={() => !isRadio && !showPreviewMeta && currentTrack && toggleFullscreen()}
         data-tooltip={!isRadio && !showPreviewMeta && currentTrack ? t('player.openFullscreen') : undefined}
       >
@@ -92,6 +95,9 @@ export function PlayerTrackInfo({
           <div className="player-art-expand-hint" aria-hidden="true">
             <Maximize2 size={16} />
           </div>
+        )}
+        {showBufferingOverlay && !isRadio && !showPreviewMeta && (
+          <PlaybackBufferingOverlay />
         )}
       </div>
       <div className="player-track-meta">

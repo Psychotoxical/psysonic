@@ -180,6 +180,10 @@ export default function RandomAlbums() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
           <div className="spinner" />
         </div>
+      ) : !loading && albums.length === 0 ? (
+        <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+          {t('common.libraryEmpty')}
+        </div>
       ) : (
         <VirtualCardGrid
           items={albums}

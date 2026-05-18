@@ -19,12 +19,14 @@ afterEach(() => {
 describe('getPlaybackProgressSnapshot', () => {
   it('starts at zero', () => {
     const snap = getPlaybackProgressSnapshot();
-    expect(snap).toEqual({ currentTime: 0, progress: 0, buffered: 0 });
+    expect(snap).toEqual({ currentTime: 0, progress: 0, buffered: 0, buffering: false });
   });
 
   it('returns the latest snapshot after an emit', () => {
     emitPlaybackProgress({ currentTime: 42, progress: 0.5, buffered: 0.7 });
-    expect(getPlaybackProgressSnapshot()).toEqual({ currentTime: 42, progress: 0.5, buffered: 0.7 });
+    expect(getPlaybackProgressSnapshot()).toEqual({
+      currentTime: 42, progress: 0.5, buffered: 0.7, buffering: false,
+    });
   });
 });
 
@@ -34,8 +36,10 @@ describe('subscribePlaybackProgress', () => {
     subscribePlaybackProgress(cb);
     emitPlaybackProgress({ currentTime: 1, progress: 0.1, buffered: 0.2 });
     expect(cb).toHaveBeenCalledTimes(1);
-    expect(cb.mock.calls[0][0]).toEqual({ currentTime: 1, progress: 0.1, buffered: 0.2 });
-    expect(cb.mock.calls[0][1]).toEqual({ currentTime: 0, progress: 0, buffered: 0 });
+    expect(cb.mock.calls[0][0]).toEqual({
+      currentTime: 1, progress: 0.1, buffered: 0.2, buffering: false,
+    });
+    expect(cb.mock.calls[0][1]).toEqual({ currentTime: 0, progress: 0, buffered: 0, buffering: false });
   });
 
   it('returns an unsubscribe that detaches the listener', () => {

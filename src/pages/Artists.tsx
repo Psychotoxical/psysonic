@@ -13,6 +13,7 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID, ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '
 import { useElementClientHeightById, useElementClientHeightForElement } from '../hooks/useResizeClientHeight';
 import { useCardGridMetrics } from '../hooks/useCardGridMetrics';
 import { useRemeasureGridVirtualizer } from '../hooks/useRemeasureGridVirtualizer';
+import { useVirtualizerScrollMargin } from '../hooks/useVirtualizerScrollMargin';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
   ALL_SENTINEL,
@@ -123,6 +124,15 @@ export default function Artists() {
     Math.ceil(artistsInpageScrollHeight / Math.max(1, artistGridRowHeightEst)),
   );
 
+  const artistGridScrollMargin = useVirtualizerScrollMargin(
+    artistGridMeasureRef,
+    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    {
+      active: !perfFlags.disableMainstageVirtualLists && viewMode === 'grid',
+      deps: [artistVirtualRowCount, artistGridCols],
+    },
+  );
+
   const artistGridVirtualizer = useVirtualizer({
     count:
       perfFlags.disableMainstageVirtualLists || viewMode !== 'grid'
@@ -131,6 +141,7 @@ export default function Artists() {
     getScrollElement: getInpageScrollElement,
     estimateSize: () => artistGridRowHeightEst,
     overscan: artistGridOverscan,
+    scrollMargin: artistGridScrollMargin,
   });
 
   useRemeasureGridVirtualizer(artistGridVirtualizer, {
@@ -143,6 +154,16 @@ export default function Artists() {
   const artistListOverscan = Math.max(
     12,
     Math.ceil(artistsInpageScrollHeight / ARTIST_LIST_ROW_EST),
+  );
+
+  const artistListWrapRef = useRef<HTMLDivElement>(null);
+  const artistListScrollMargin = useVirtualizerScrollMargin(
+    artistListWrapRef,
+    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    {
+      active: !perfFlags.disableMainstageVirtualLists && viewMode === 'list',
+      deps: [artistListFlatRows.length],
+    },
   );
 
   const artistListVirtualizer = useVirtualizer({
@@ -162,6 +183,7 @@ export default function Artists() {
       return `artist:${row.artist.id}`;
     },
     overscan: artistListOverscan,
+    scrollMargin: artistListScrollMargin,
   });
 
   return (
@@ -270,7 +292,7 @@ export default function Artists() {
             virtualization={
               perfFlags.disableMainstageVirtualLists
                 ? null
-                : { virtualizer: artistGridVirtualizer }
+                : { virtualizer: artistGridVirtualizer, scrollMargin: artistGridScrollMargin }
             }
             selectionMode={selectionMode}
             selectedIds={selectedIds}
@@ -290,6 +312,8 @@ export default function Artists() {
             letters={letters}
             artistListFlatRows={artistListFlatRows}
             artistListVirtualizer={artistListVirtualizer}
+            artistListWrapRef={artistListWrapRef}
+            artistListScrollMargin={artistListScrollMargin}
             selectionMode={selectionMode}
             selectedIds={selectedIds}
             selectedArtists={selectedArtists}

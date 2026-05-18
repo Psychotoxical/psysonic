@@ -108,6 +108,7 @@ pub async fn audio_play_radio(
 
     // ── Build Symphonia decoder in a blocking thread ──────────────────────────
     let reader = AudioStreamReader {
+        read_timeout_secs: RADIO_READ_TIMEOUT_SECS,
         cons: Mutex::new(cons),
         new_cons_rx: Mutex::new(new_cons_rx),
         deadline: std::time::Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS),
@@ -173,6 +174,7 @@ pub async fn audio_play_radio(
 
     app.emit("audio:playing", 0.0f64).ok();
 
+    state.stream_playback_armed.store(true, Ordering::SeqCst);
     spawn_progress_task(
         gen,
         state.generation.clone(),
@@ -187,6 +189,7 @@ pub async fn audio_play_radio(
         state.current_channels.clone(),
         state.gapless_switch_at.clone(),
         state.current_playback_url.clone(),
+        state.stream_playback_armed.clone(),
     );
 
     Ok(())

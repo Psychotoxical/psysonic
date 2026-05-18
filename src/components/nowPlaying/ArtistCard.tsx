@@ -9,10 +9,20 @@ interface ArtistCardProps {
   artistName: string;
   artistId?: string;
   artistInfo: SubsonicArtistInfo | null;
-  onNavigate: (path: string) => void;
+  /** When omitted the "Go to Artist" link and similar-artist chip click handlers do nothing — used on /artist/:id where the user is already there. */
+  onNavigate?: (path: string) => void;
+  /** Render fallback cover when artistInfo has no hero image (ArtistDetail's coverArt fallback). */
+  coverFallback?: { src: string; cacheKey: string };
+  /** Suppress the artist-name row — ArtistDetail shows the name in its hero already. */
+  hideArtistName?: boolean;
+  /** Suppress the similar-artists chip row — ArtistDetail has its own similar section. */
+  hideSimilar?: boolean;
 }
 
-const ArtistCard = memo(function ArtistCard({ artistName, artistId, artistInfo, onNavigate }: ArtistCardProps) {
+const ArtistCard = memo(function ArtistCard({
+  artistName, artistId, artistInfo, onNavigate, coverFallback,
+  hideArtistName = false, hideSimilar = false,
+}: ArtistCardProps) {
   const { t } = useTranslation();
   const [bioExpanded, setBioExpanded] = useState(false);
   const [bioOverflows, setBioOverflows] = useState(false);
@@ -28,13 +38,16 @@ const ArtistCard = memo(function ArtistCard({ artistName, artistId, artistInfo, 
     setBioOverflows(el.scrollHeight - el.clientHeight > 1);
   }, [bioHtml]);
 
-  const similar = artistInfo?.similarArtist ?? [];
+  const similar = hideSimilar ? [] : (artistInfo?.similarArtist ?? []);
   const rawLarge = artistInfo?.largeImageUrl;
   const rawMed   = artistInfo?.mediumImageUrl;
-  const heroImage = isRealArtistImage(rawLarge)
+  const heroFromInfo = isRealArtistImage(rawLarge)
     ? rawLarge!
     : isRealArtistImage(rawMed) ? rawMed! : '';
-  const heroCacheKey = artistId ? `artistInfo:${artistId}:hero` : '';
+  const heroImage = heroFromInfo || coverFallback?.src || '';
+  const heroCacheKey = heroFromInfo
+    ? (artistId ? `artistInfo:${artistId}:hero` : '')
+    : (coverFallback?.cacheKey ?? '');
 
   if (!bioHtml && similar.length === 0 && !heroImage) return null;
 
@@ -42,7 +55,7 @@ const ArtistCard = memo(function ArtistCard({ artistName, artistId, artistInfo, 
     <div className="np-info-card np-dash-card">
       <div className="np-card-header">
         <h3 className="np-card-title">{t('nowPlaying.aboutArtist')}</h3>
-        {artistId && (
+        {artistId && onNavigate && (
           <button className="np-card-link" onClick={() => onNavigate(`/artist/${artistId}`)}>
             {t('nowPlaying.goToArtist')} <ExternalLink size={12} />
           </button>
@@ -60,7 +73,7 @@ const ArtistCard = memo(function ArtistCard({ artistName, artistId, artistInfo, 
           />
         )}
         <div className="np-dash-artist-text">
-          <div className="np-dash-artist-name">{artistName}</div>
+          {!hideArtistName && <div className="np-dash-artist-name">{artistName}</div>}
           {bioHtml && (
             <>
               <div
@@ -83,7 +96,7 @@ const ArtistCard = memo(function ArtistCard({ artistName, artistId, artistInfo, 
           <div className="np-dash-chip-row">
             {similar.slice(0, 12).map((a, idx) => (
               <span key={`${a.id}-${idx}`} className="np-chip"
-                onClick={() => a.id && onNavigate(`/artist/${a.id}`)}
+                onClick={() => a.id && onNavigate?.(`/artist/${a.id}`)}
                 data-tooltip={t('nowPlaying.goToArtist')}>
                 {a.name}
               </span>

@@ -72,6 +72,8 @@ interface Props {
   letters: string[];
   artistListFlatRows: ArtistListFlatRow[];
   artistListVirtualizer: Virtualizer<HTMLElement, Element>;
+  artistListWrapRef: React.RefObject<HTMLDivElement | null>;
+  artistListScrollMargin: number;
   selectionMode: boolean;
   selectedIds: Set<string>;
   selectedArtists: SubsonicArtist[];
@@ -101,6 +103,8 @@ export function ArtistsListView({
   letters,
   artistListFlatRows,
   artistListVirtualizer,
+  artistListWrapRef,
+  artistListScrollMargin,
   selectionMode,
   selectedIds,
   selectedArtists,
@@ -133,7 +137,7 @@ export function ArtistsListView({
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div ref={artistListWrapRef} style={{ position: 'relative', width: '100%' }}>
       <div
         style={{
           height: artistListFlatRows.length === 0 ? 0 : artistListVirtualizer.getTotalSize(),
@@ -153,7 +157,7 @@ export function ArtistsListView({
                   top: 0,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${vi.start}px)`,
+                  transform: `translateY(${vi.start - artistListScrollMargin}px)`,
                 }}
               >
                 <h3 className="letter-heading">{row.letter}</h3>
@@ -169,7 +173,7 @@ export function ArtistsListView({
                 top: 0,
                 left: 0,
                 width: '100%',
-                transform: `translateY(${vi.start}px)`,
+                transform: `translateY(${vi.start - artistListScrollMargin}px)`,
                 paddingBottom: row.isLastInLetter ? '1.5rem' : undefined,
               }}
             >

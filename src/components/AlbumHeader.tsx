@@ -1,6 +1,7 @@
 import { buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import type { EntityRatingSupportLevel, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
 import CachedImage from './CachedImage';
@@ -17,16 +18,35 @@ import { formatMb } from '../utils/format/formatBytes';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 
+/** True when the album artist label means "no single artist" — `getArtistInfo`
+ *  has nothing meaningful to return for these, so the Artist Bio entry is hidden.
+ */
+function isVariousArtistsLabel(name: string | undefined | null): boolean {
+  if (!name) return false;
+  const trimmed = name.trim().toLowerCase();
+  return (
+    trimmed === 'various artists' ||
+    trimmed === 'various' ||
+    trimmed === 'va' ||
+    trimmed === 'multiple artists' ||
+    trimmed === 'verschiedene interpreten' ||
+    trimmed === 'verschiedene'
+  );
+}
+
 function BioModal({ bio, onClose }: { bio: string; onClose: () => void }) {
   const { t } = useTranslation();
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('albumDetail.bioModal')}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <div className="modal-content bio-modal" onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label={t('albumDetail.bioClose')}><X size={18} /></button>
         <h3 className="modal-title">{t('albumDetail.bioModal')}</h3>
-        <div className="artist-bio" dangerouslySetInnerHTML={{ __html: sanitizeHtml(bio) }} data-selectable />
+        <div className="bio-modal-body">
+          <div className="artist-bio" dangerouslySetInnerHTML={{ __html: sanitizeHtml(bio) }} data-selectable />
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -108,6 +128,7 @@ export default function AlbumHeader({
   const totalSize = songs.reduce((acc, s) => acc + (s.size ?? 0), 0);
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
   const isNewAlbum = isAlbumRecentlyAdded(info.created);
+  const showBioButton = !isVariousArtistsLabel(info.artist);
 
   const lightboxCoverSrc = useMemo(
     () => (info.coverArt ? buildCoverArtUrl(info.coverArt, 2000) : ''),
@@ -248,14 +269,16 @@ export default function AlbumHeader({
                       <Share2 size={16} />
                     </button>
 
-                    <button
-                      className="album-icon-btn album-icon-btn--sm"
-                      onClick={onBio}
-                      aria-label={t('albumDetail.artistBio')}
-                      data-tooltip={t('albumDetail.artistBio')}
-                    >
-                      <Highlighter size={16} />
-                    </button>
+                    {showBioButton && (
+                      <button
+                        className="album-icon-btn album-icon-btn--sm"
+                        onClick={onBio}
+                        aria-label={t('albumDetail.artistBio')}
+                        data-tooltip={t('albumDetail.artistBio')}
+                      >
+                        <Highlighter size={16} />
+                      </button>
+                    )}
 
                     {downloadProgress !== null ? (
                       <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
@@ -306,7 +329,7 @@ export default function AlbumHeader({
                     </button>
                     {onShuffleAll && (
                       <button
-                        className="btn btn-ghost"
+                        className="btn btn-surface"
                         onClick={onShuffleAll}
                         data-tooltip={t('playlists.shuffle', 'Shuffle')}
                       >
@@ -314,14 +337,14 @@ export default function AlbumHeader({
                       </button>
                     )}
                     <button
-                      className="btn btn-ghost"
+                      className="btn btn-surface"
                       onClick={onEnqueueAll}
                       data-tooltip={t('albumDetail.enqueueTooltip')}
                     >
                       <ListPlus size={16} />
                     </button>
                     <button
-                      className={`btn btn-ghost${isStarred ? ' is-starred' : ''}`}
+                      className={`btn btn-surface${isStarred ? ' is-starred' : ''}`}
                       onClick={onToggleStar}
                       data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
                     >
@@ -329,7 +352,7 @@ export default function AlbumHeader({
                     </button>
                     <button
                       type="button"
-                      className="btn btn-ghost"
+                      className="btn btn-surface"
                       onClick={handleShareAlbum}
                       aria-label={t('albumDetail.shareAlbum')}
                       data-tooltip={t('albumDetail.shareAlbum')}
@@ -338,9 +361,11 @@ export default function AlbumHeader({
                     </button>
                   </div>
 
-                  <button className="btn btn-ghost" id="album-bio-btn" onClick={onBio}>
-                    <Highlighter size={16} /> {t('albumDetail.artistBio')}
-                  </button>
+                  {showBioButton && (
+                    <button className="btn btn-surface" id="album-bio-btn" onClick={onBio}>
+                      <Highlighter size={16} /> {t('albumDetail.artistBio')}
+                    </button>
+                  )}
 
                   {downloadProgress !== null ? (
                     <div className="download-progress-wrap">
@@ -351,7 +376,7 @@ export default function AlbumHeader({
                       <span className="download-progress-pct">{downloadProgress}%</span>
                     </div>
                   ) : (
-                    <button className="btn btn-ghost" id="album-download-btn" onClick={onDownload}>
+                    <button className="btn btn-surface" id="album-download-btn" onClick={onDownload}>
                       <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}
                     </button>
                   )}
@@ -362,7 +387,7 @@ export default function AlbumHeader({
                     </div>
                   ) : offlineStatus === 'cached' ? (
                     <button
-                      className="btn btn-ghost offline-cache-btn offline-cache-btn--cached"
+                      className="btn btn-surface offline-cache-btn offline-cache-btn--cached"
                       onClick={onRemoveOffline}
                       data-tooltip={t('albumDetail.removeOffline')}
                     >
@@ -371,7 +396,7 @@ export default function AlbumHeader({
                     </button>
                   ) : (
                     <button
-                      className="btn btn-ghost offline-cache-btn"
+                      className="btn btn-surface offline-cache-btn"
                       onClick={onCacheOffline}
                       data-tooltip={t('albumDetail.cacheOffline')}
                     >

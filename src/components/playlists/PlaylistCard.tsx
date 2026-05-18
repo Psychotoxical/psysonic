@@ -129,7 +129,7 @@ export default function PlaylistCard({
               left: 8,
               width: 24,
               height: 24,
-              borderRadius: 999,
+              borderRadius: 'var(--radius-sm)',
               background: 'rgba(0,0,0,0.45)',
               border: '1px solid rgba(255,255,255,0.25)',
               display: 'flex',

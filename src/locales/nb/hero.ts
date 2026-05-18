@@ -3,4 +3,6 @@ export const hero = {
   playAlbum: 'Spill av album',
   enqueue: 'Legg til i kø',
   enqueueTooltip: 'Legg til hele albumet i køen',
+  previousAlbum: 'Forrige album',
+  nextAlbum: 'Neste album',
 };

@@ -10,9 +10,11 @@ import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import CachedImage from './CachedImage';
+import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { playAlbum } from '../utils/playback/playAlbum';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
+import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
 
 interface AlbumCardProps {
   album: SubsonicAlbum;
@@ -56,6 +58,7 @@ function AlbumCard({
   );
   const psyDrag = useDragDrop();
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
+  const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
@@ -163,11 +166,16 @@ function AlbumCard({
       </div>
       <div className="album-card-info">
         <p className="album-card-title truncate">{album.name}</p>
-        <p
-          className={`album-card-artist truncate${album.artistId ? ' track-artist-link' : ''}`}
-          style={{ cursor: album.artistId ? 'pointer' : 'default' }}
-          onClick={e => { if (album.artistId) { e.stopPropagation(); navigate(`/artist/${album.artistId}`); } }}
-        >{album.artist}</p>
+        <p className="album-card-artist truncate">
+          <OpenArtistRefInline
+            refs={artistRefs}
+            fallbackName={album.artist}
+            onGoArtist={id => navigate(`/artist/${id}`)}
+            as="none"
+            linkTag="span"
+            linkClassName="track-artist-link"
+          />
+        </p>
         {album.year && <p className="album-card-year">{album.year}</p>}
         {showRating && (album.userRating ?? 0) > 0 && (
           <div className="album-card-rating-row">

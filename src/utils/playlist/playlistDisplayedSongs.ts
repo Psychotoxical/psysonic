@@ -1,6 +1,6 @@
 import type { SubsonicSong } from '../../api/subsonicTypes';
 
-export type PlaylistSortKey = 'natural' | 'title' | 'artist' | 'album' | 'favorite' | 'rating' | 'duration';
+export type PlaylistSortKey = 'natural' | 'title' | 'artist' | 'album' | 'favorite' | 'rating' | 'duration' | 'playCount' | 'lastPlayed' | 'bpm';
 export type PlaylistSortDir = 'asc' | 'desc';
 
 export interface DisplayedSongsOptions {
@@ -31,6 +31,9 @@ export function getDisplayedSongs(songs: SubsonicSong[], opts: DisplayedSongsOpt
         case 'favorite': av = effectiveStarred(a); bv = effectiveStarred(b); break;
         case 'rating': av = effectiveRating(a); bv = effectiveRating(b); break;
         case 'duration': av = a.duration ?? 0; bv = b.duration ?? 0; break;
+        case 'playCount': av = a.playCount ?? 0; bv = b.playCount ?? 0; break;
+        case 'lastPlayed': av = a.played ? Date.parse(a.played) || 0 : 0; bv = b.played ? Date.parse(b.played) || 0 : 0; break;
+        case 'bpm': av = a.bpm ?? 0; bv = b.bpm ?? 0; break;
         default: av = a.title; bv = b.title;
       }
       if (typeof av === 'number' && typeof bv === 'number') {

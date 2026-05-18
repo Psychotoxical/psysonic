@@ -3,4 +3,6 @@ export const hero = {
   playAlbum: 'Album abspielen',
   enqueue: 'Einreihen',
   enqueueTooltip: 'Ganzes Album zur Warteschlange hinzufügen',
+  previousAlbum: 'Vorheriges Album',
+  nextAlbum: 'Nächstes Album',
 };

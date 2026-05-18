@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tauri::Manager;
 
+use super::device_resume::{try_resume_after_device_change, ResumeSnapshot};
 use super::engine::AudioEngine;
 #[cfg(not(target_os = "linux"))]
 use super::dev_io::output_enumeration_includes_pinned;
@@ -21,6 +22,15 @@ pub(crate) enum ReopenNotify {
 
 /// Opens a new CPAL/rodio output stream with the given rate and device name (same path as
 /// manual device switch). Used by the device watcher and Windows suspend/resume notifications.
+///
+/// If the interrupted track is a seekable local file or a fully-cached HTTP download
+/// (in-memory or spill file), the function replays it internally from the saved position —
+/// no frontend round-trip, no audible restart. On success it emits
+/// `audio:device-changed` / `audio:device-reset` with a `null` payload so the frontend
+/// knows Rust already handled playback.
+/// For radio, partially-buffered HTTP tracks, or paused playback, it falls back to the
+/// previous behaviour: emit with the captured `current_time_secs` so the frontend calls
+/// `playTrack`.
 pub(crate) async fn reopen_output_stream(
     app: &tauri::AppHandle,
     device_name: Option<String>,
@@ -35,6 +45,22 @@ pub(crate) async fn reopen_output_stream(
     let stream_handle = engine.stream_handle.clone();
     let current = engine.current.clone();
     let fading_out = engine.fading_out_sink.clone();
+
+    // Snapshot state we need BEFORE the blocking stream reopen (while the old sink
+    // is still live and position() is still valid).
+    let snapshot = {
+        let cur = current.lock().unwrap();
+        let is_playing = cur.play_started.is_some() && cur.paused_at.is_none();
+        ResumeSnapshot {
+            url: engine.current_playback_url.lock().unwrap().clone(),
+            current_time_secs: cur.position(),
+            duration_secs: cur.duration_secs,
+            base_volume: cur.base_volume,
+            gain_linear: cur.replay_gain_linear,
+            analysis_track_id: engine.current_analysis_track_id.lock().unwrap().clone(),
+            is_playing,
+        }
+    };
 
     let new_handle = tauri::async_runtime::spawn_blocking(move || {
         let (reply_tx, reply_rx) =
@@ -61,17 +87,33 @@ pub(crate) async fn reopen_output_stream(
     if let Some(s) = fading_out.lock().unwrap().take() {
         s.stop();
     }
+
+    // Attempt a Rust-side internal replay (no frontend involvement).
+    // Falls back gracefully to the frontend path if conditions aren't met.
+    let resumed = try_resume_after_device_change(app, &snapshot).await;
+
     match notify {
         ReopenNotify::DeviceChanged => {
-            app.emit("audio:device-changed", ()).ok();
+            // null  → Rust already resumed; frontend skips playTrack
+            // f64   → fallback; frontend calls playTrack + seek
+            if resumed {
+                app.emit("audio:device-changed", Option::<f64>::None).ok();
+            } else {
+                app.emit("audio:device-changed", snapshot.current_time_secs).ok();
+            }
         }
         #[cfg(not(target_os = "linux"))]
         ReopenNotify::DeviceReset => {
-            app.emit("audio:device-reset", ()).ok();
+            if resumed {
+                app.emit("audio:device-reset", Option::<f64>::None).ok();
+            } else {
+                app.emit("audio:device-reset", snapshot.current_time_secs).ok();
+            }
         }
     }
     true
 }
+
 
 pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
     let selected_device = engine.selected_device.clone();

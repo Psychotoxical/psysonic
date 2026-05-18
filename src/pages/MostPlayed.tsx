@@ -120,7 +120,7 @@ export default function MostPlayed() {
           <h1 className="mp-title">{t('mostPlayed.title')}</h1>
         </div>
         <button
-          className="btn btn-ghost mp-sort-btn"
+          className="btn btn-surface mp-sort-btn"
           onClick={() => setSortAsc(v => !v)}
           data-tooltip={sortAsc ? t('mostPlayed.sortMost') : t('mostPlayed.sortLeast')}
         >
@@ -136,7 +136,7 @@ export default function MostPlayed() {
           <div className="mp-section-header">
             <h2 className="mp-section-title">{t('mostPlayed.topArtists')}</h2>
             <button
-              className={`btn btn-ghost mp-filter-btn${filterCompilations ? ' mp-filter-btn--active' : ''}`}
+              className={`btn btn-surface mp-filter-btn${filterCompilations ? ' mp-filter-btn--active' : ''}`}
               onClick={() => setFilterCompilations(v => !v)}
               data-tooltip={t('mostPlayed.filterCompilations')}
               data-tooltip-pos="left"

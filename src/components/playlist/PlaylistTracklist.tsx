@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import PlaylistRow, { type PlaylistRowCallbacks } from './PlaylistRow';
 import { useTranslation } from 'react-i18next';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
+import { useElementClientHeightById } from '../../hooks/useResizeClientHeight';
 import { useNavigate } from 'react-router-dom';
 import {
-  AudioLines, Check, ChevronDown, ChevronRight, Heart, ListPlus, Play, RotateCcw, Search, Square, Trash2, X,
+  Check, ChevronDown, ListPlus, RotateCcw, Search, Trash2, X,
 } from 'lucide-react';
 import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
@@ -13,13 +17,10 @@ import { useThemeStore } from '../../store/themeStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
-import { codecLabel } from '../../utils/componentHelpers/playlistDetailHelpers';
-import { formatTrackTime } from '../../utils/format/formatDuration';
 import type { PlaylistSortKey, PlaylistSortDir } from '../../utils/playlist/playlistDisplayedSongs';
-import StarRating from '../StarRating';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 
-const PL_CENTERED = new Set(['favorite', 'rating', 'duration']);
+const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
 interface Props {
   // Column config / picker
@@ -103,6 +104,131 @@ export default function PlaylistTracklist({
   const showBitrate = useThemeStore(s => s.showBitrate);
   const { isDragging } = useDragDrop();
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
+
+  const latestVals = {
+    selectedIds, orbitActive, displayedTracks, isFiltered, id,
+    toggleSelect, handleRowMouseDown, handleRowMouseEnter, handleToggleStar,
+    handleRate, removeSong, playTrack, openContextMenu, setContextMenuSongId,
+    navigate, queueHint, addTrackToOrbit,
+  };
+  const latest = useRef(latestVals);
+  latest.current = latestVals;
+
+  const cb = useMemo<PlaylistRowCallbacks>(() => ({
+    activate: (song, index, e) => {
+      if ((e.target as HTMLElement).closest('button, a, input')) return;
+      const L = latest.current;
+      if (e.ctrlKey || e.metaKey) L.toggleSelect(song.id, index, false);
+      else if (L.selectedIds.size > 0) L.toggleSelect(song.id, index, e.shiftKey);
+      else if (L.orbitActive) L.queueHint();
+      else L.playTrack(L.displayedTracks[index], L.displayedTracks);
+    },
+    dblOrbit: (songId, e) => {
+      if ((e.target as HTMLElement).closest('button, a, input')) return;
+      const L = latest.current;
+      if (e.ctrlKey || e.metaKey || L.selectedIds.size > 0) return;
+      L.addTrackToOrbit(songId);
+    },
+    context: (song, rIdx, e) => {
+      e.preventDefault();
+      const L = latest.current;
+      L.setContextMenuSongId(song.id);
+      L.openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song', undefined, L.id, rIdx);
+    },
+    mouseDownRow: (rIdx, e) => latest.current.handleRowMouseDown(e, rIdx),
+    mouseEnterRow: (index, e) => { const L = latest.current; if (!L.isFiltered) L.handleRowMouseEnter(index, e); },
+    toggleSelect: (songId, index, shift) => latest.current.toggleSelect(songId, index, shift),
+    play: (index) => {
+      const L = latest.current;
+      if (L.orbitActive) { L.queueHint(); return; }
+      L.playTrack(L.displayedTracks[index], L.displayedTracks);
+    },
+    startPreview: (song) => usePreviewStore.getState().startPreview(
+      { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration },
+      'playlists',
+    ),
+    toggleStar: (song, e) => latest.current.handleToggleStar(song, e),
+    rate: (songId, r) => latest.current.handleRate(songId, r),
+    remove: (rIdx) => latest.current.removeSong(rIdx),
+    navArtist: (artistId) => latest.current.navigate(`/artist/${artistId}`),
+    navAlbum: (albumId) => latest.current.navigate(`/album/${albumId}`),
+  }), []);
+
+  const listWrapRef = useRef<HTMLDivElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const viewportH = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
+
+  useLayoutEffect(() => {
+    const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    const root = tracklistRef.current?.closest('.album-detail') as HTMLElement | null;
+    if (!sc) return;
+    const measure = () => {
+      const wrap = listWrapRef.current;
+      if (!wrap) return;
+      const m = wrap.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+      setScrollMargin(prev => (Math.abs(prev - m) > 0.5 ? m : prev));
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(sc);
+    if (root) ro.observe(root);
+    measure();
+    return () => ro.disconnect();
+  }, [tracklistRef, selectedIds.size > 0, pickerOpen, displayedSongs.length]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: displayedSongs.length,
+    getScrollElement: () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    estimateSize: () => 48,
+    overscan: Math.max(8, Math.ceil(viewportH / 48)),
+    scrollMargin,
+    getItemKey: i => `${displayedSongs[i].id}:${i}`,
+  });
+
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
+    const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    if (sc) sc.scrollTop = scrollMargin;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isFiltered]);
+
+  const autoScrollRef = useRef(0);
+  const pointerYRef = useRef(0);
+  const runAutoScroll = useCallback(() => {
+    const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    if (!sc) { autoScrollRef.current = 0; return; }
+    const r = sc.getBoundingClientRect();
+    const EDGE = 60;
+    const MAX = 18;
+    const y = pointerYRef.current;
+    let dy = 0;
+    if (y < r.top + EDGE) dy = -MAX * (1 - (y - r.top) / EDGE);
+    else if (y > r.bottom - EDGE) dy = MAX * (1 - (r.bottom - y) / EDGE);
+    if (dy !== 0) sc.scrollTop += dy;
+    autoScrollRef.current = requestAnimationFrame(runAutoScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMove = (e: MouseEvent) => { pointerYRef.current = e.clientY; };
+    window.addEventListener('mousemove', onMove);
+    autoScrollRef.current = requestAnimationFrame(runAutoScroll);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
+      autoScrollRef.current = 0;
+    };
+  }, [isDragging, runAutoScroll]);
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  let dropIndicatorY: number | null = null;
+  if (isDragging && !isFiltered && dropTargetIdx) {
+    const vi = virtualItems.find(v => v.index === dropTargetIdx.idx);
+    const start = vi ? vi.start : dropTargetIdx.idx * 48 + scrollMargin;
+    const size = vi ? vi.size : 48;
+    dropIndicatorY = (dropTargetIdx.before ? start : start + size) - scrollMargin;
+  }
 
   return (
     <div className="tracklist" data-preview-loc="playlists" ref={tracklistRef}>
@@ -307,128 +433,47 @@ export default function PlaylistTracklist({
         </div>
       )}
 
-      {displayedSongs.map((song, i) => {
+      <div ref={listWrapRef} style={{ height: rowVirtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+      {dropIndicatorY !== null && (
+        <div
+          className="playlist-drop-indicator"
+          style={{ position: 'absolute', left: 0, right: 0, top: dropIndicatorY, pointerEvents: 'none' }}
+        />
+      )}
+      {virtualItems.map(vi => {
+        const song = displayedSongs[vi.index];
+        const i = vi.index;
         const realIdx = isFiltered ? songs.indexOf(song) : i;
         return (
-        <React.Fragment key={song.id + i}>
-          {!isFiltered && isDragging && dropTargetIdx?.idx === i && dropTargetIdx.before && (
-            <div className="playlist-drop-indicator" />
-          )}
-          <div
-            data-track-idx={realIdx}
-            className={`track-row track-row-va track-row-with-actions tracklist-playlist${currentTrack?.id === song.id ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}${selectedIds.has(song.id) ? ' bulk-selected' : ''}`}
-            style={gridStyle}
-            onMouseEnter={e => !isFiltered && handleRowMouseEnter(i, e)}
-            onMouseDown={e => handleRowMouseDown(e, realIdx)}
-            onClick={e => {
-              if ((e.target as HTMLElement).closest('button, a, input')) return;
-              if (e.ctrlKey || e.metaKey) {
-                toggleSelect(song.id, i, false);
-              } else if (selectedIds.size > 0) {
-                toggleSelect(song.id, i, e.shiftKey);
-              } else if (orbitActive) {
-                queueHint();
-              } else {
-                playTrack(displayedTracks[i], displayedTracks);
-              }
-            }}
-            onDoubleClick={orbitActive ? e => {
-              if ((e.target as HTMLElement).closest('button, a, input')) return;
-              if (e.ctrlKey || e.metaKey || selectedIds.size > 0) return;
-              addTrackToOrbit(song.id);
-            } : undefined}
-            onContextMenu={e => {
-              e.preventDefault();
-              setContextMenuSongId(song.id);
-              openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song', undefined, id, realIdx);
-            }}
-          >
-            {visibleCols.map(colDef => {
-              const inSelectMode = selectedIds.size > 0;
-              switch (colDef.key) {
-                case 'num': return (
-                  <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}>
-                    <span className={`bulk-check${selectedIds.has(song.id) ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`} onClick={e => { e.stopPropagation(); toggleSelect(song.id, i, e.shiftKey); }} />
-                    {currentTrack?.id === song.id && isPlaying ? (
-                      <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
-                    ) : (
-                      <span className="track-num-number">{i + 1}</span>
-                    )}
-                  </div>
-                );
-                case 'title': return (
-                  <div key="title" className="track-info track-info-suggestion">
-                    <button
-                      type="button"
-                      className="playlist-suggestion-play-btn"
-                      onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(displayedTracks[i], displayedTracks); }}
-                      data-tooltip={t('common.play')}
-                      aria-label={t('common.play')}
-                    >
-                      <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
-                      onClick={e => {
-                        e.stopPropagation();
-                        usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'playlists');
-                      }}
-                      data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                      aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                    >
-                      <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
-                        <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
-                      </svg>
-                      {previewingId === song.id
-                        ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
-                        : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
-                    </button>
-                    <span className="track-title">{song.title}</span>
-                  </div>
-                );
-                case 'artist': return (
-                  <div key="artist" className="track-artist-cell">
-                    <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}>{song.artist}</span>
-                  </div>
-                );
-                case 'album': return (
-                  <div key="album" className="track-artist-cell">
-                    <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => { if (song.albumId) { e.stopPropagation(); navigate(`/album/${song.albumId}`); } }}>{song.album}</span>
-                  </div>
-                );
-                case 'favorite': return (
-                  <div key="favorite" className="track-star-cell">
-                    <button className="btn btn-ghost track-star-btn" onClick={e => handleToggleStar(song, e)} style={{ color: (song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }}>
-                      <Heart size={14} fill={(song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id)) ? 'currentColor' : 'none'} />
-                    </button>
-                  </div>
-                );
-                case 'rating': return <StarRating key="rating" value={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0} onChange={r => handleRate(song.id, r)} />;
-                case 'duration': return <div key="duration" className="track-duration">{formatTrackTime(song.duration ?? 0)}</div>;
-                case 'format': return (
-                  <div key="format" className="track-meta">
-                    {(song.suffix || (showBitrate && song.bitRate)) && <span className="track-codec">{codecLabel(song, showBitrate)}</span>}
-                  </div>
-                );
-                case 'delete': return (
-                  <div key="delete" className="playlist-row-delete-cell">
-                    <button className="playlist-row-delete-btn" onClick={e => { e.stopPropagation(); removeSong(realIdx); }} data-tooltip={t('playlists.removeSong')} data-tooltip-pos="left">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                );
-                default: return null;
-              }
-            })}
-          </div>
-          {!isFiltered && isDragging && dropTargetIdx?.idx === i && !dropTargetIdx.before && (
-            <div className="playlist-drop-indicator" />
-          )}
-        </React.Fragment>
+        <div
+          key={vi.key}
+          data-index={i}
+          ref={rowVirtualizer.measureElement}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start - scrollMargin}px)` }}
+        >
+          <PlaylistRow
+            song={song}
+            index={i}
+            realIdx={realIdx}
+            visibleCols={visibleCols}
+            gridStyle={gridStyle}
+            showBitrate={showBitrate}
+            isActive={currentTrack?.id === song.id}
+            showEq={currentTrack?.id === song.id && isPlaying}
+            isContextActive={contextMenuSongId === song.id}
+            isSelected={selectedIds.has(song.id)}
+            inSelectMode={selectedIds.size > 0}
+            isStarred={song.id in starredOverrides ? !!starredOverrides[song.id] : starredSongs.has(song.id)}
+            ratingValue={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0}
+            isPreviewing={previewingId === song.id}
+            previewStarted={previewingId === song.id && previewAudioStarted}
+            orbitActive={orbitActive}
+            cb={cb}
+          />
+        </div>
         );
       })}
+      </div>
 
 
     </div>

@@ -11,6 +11,8 @@ import {
 import { loudnessGainPlaceholderUntilCacheDb } from '../../utils/audio/loudnessPlaceholder';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/loudnessPreAnalysisSlider';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
+import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
+import { usePlayerStore } from '../../store/playerStore';
 
 interface Props {
   currentTrack: Track;
@@ -45,6 +47,7 @@ export function QueueCurrentTrack({
   reanalyzeLoudnessForTrack, setLoudnessTargetLufs, lufsTgtOpen, setLufsTgtOpen,
   lufsTgtBtnRef, lufsTgtMenuRef, lufsTgtPopStyle, t,
 }: Props) {
+  const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
   return (
     <div className="queue-current-track">
       {(() => {
@@ -191,12 +194,13 @@ export function QueueCurrentTrack({
         );
       })()}
       <div className="queue-current-track-body">
-        <div className="queue-current-cover">
+        <div className={`queue-current-cover${showBufferingOverlay ? ' playback-buffering' : ''}`}>
           {currentTrack.coverArt ? (
             <img src={currentCoverSrc} alt="" loading="eager" />
           ) : (
             <div className="fallback"><Music size={32} /></div>
           )}
+          {showBufferingOverlay && <PlaybackBufferingOverlay />}
         </div>
         <div className="queue-current-info">
           <h3 className="truncate">{currentTrack.title}</h3>

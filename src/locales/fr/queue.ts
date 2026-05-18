@@ -13,7 +13,7 @@ export const queue = {
   appendToQueue: 'Ajouter à la file',
   delete: 'Supprimer',
   deleteConfirm: 'Supprimer la liste « {{name}} » ?',
-  clear: 'Vider',
+  clear: 'Vider la file',
   shuffle: 'Mélanger la file',
   gapless: 'Sans blanc',
   crossfade: 'Fondu',

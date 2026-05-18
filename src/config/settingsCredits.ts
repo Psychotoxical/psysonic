@@ -49,6 +49,7 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.32.0',
     contributions: [
       'Norwegian (Bokmål) translation (PR #101)',
+      'Ongoing bug & quirk reports via Discord (PRs #747, #750 et al.)',
     ],
   },
   {
@@ -113,6 +114,10 @@ const CONTRIBUTOR_ENTRIES = [
       'Now Playing: composite list keys on similar artists, album-card tracklist, and top songs — avoids duplicate React keys when Subsonic repeats ids (PR #703)',
       'Search: share links in live/mobile search + queue preview modal (PR #716)',
       'Multi-server: pin queue streams, cover art, links, context menu, and Now Playing to queue server (PR #717)',
+      'M4A/MP4 streaming: moov-at-end tail prefetch and Symphonia isomp4 probe fix (PR #737)',
+      'HTTP stream buffering — seekbar/timer at zero and cover overlay until playback arms (PR #737)',
+      'M4A playback: fix AtomIterator overread in patched isomp4 demuxer — probe gate for ranged tail prefetch, zero-hole fallback detection (PR #757)',
+      'Multi-server: Lucky Mix and Now Playing keep browsed server; queue metadata via apiForServer (PR #768)',
     ],
   },
   {
@@ -171,6 +176,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playlist page layout — per-element visibility toggles (Add Songs, Import CSV, Download ZIP, Cache Offline, Suggestions) under Settings → Personalisation (PR #556)',
       'Player bar layout — per-control visibility toggles (Star rating, Favorite, Last.fm love, Equalizer, Mini player) under Settings → Personalisation (PR #627)',
       'Queue panel — persist header duration mode (total / remaining / ETA) across app restarts (PR #625)',
+      'Settings: dim disabled toggle rows; Queue toolbar "Clear" → "Clear queue" rename across 9 locales (adopted from PR #558, rewritten in PR #778)',
     ],
   },
   {
@@ -200,6 +206,14 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.46.0',
     contributions: [
       'Search: queue pasted share links from live search (PR #551)',
+    ],
+  },
+  {
+    github: 'artplan1',
+    since: '1.46.0',
+    contributions: [
+      'Player: cap persisted queue to ±250-track window — fixes QuotaExceededError on large playlists (PR #756)',
+      'Playlists: virtualized tracklist for large playlists — no UI freeze on 10k+ tracks (PR #755)',
     ],
   },
   {
@@ -295,6 +309,9 @@ const CONTRIBUTOR_ENTRIES = [
       'Song Info: absolute file path on Navidrome via native /api/song/{id} — Subsonic only ever returned a relative path (or none on Navidrome), the native endpoint surfaces the full server-side location (PR #504)',
       'Home: Lossless Albums rail + dedicated /lossless-albums page with infinite scroll and header parity (selection mode, enqueue, offline, download ZIPs), streaming load via per-fetch onProgress, sidebar entry default visible, detection via Navidrome native bit_depth-sorted song cursor with always-lossless suffix allowlist (PR #506)',
       'Accessibility: OpenDyslexic font option in the Settings picker — bundled locally via @fontsource/opendyslexic, asymmetric glyph shapes for easier b/d, p/q tracking, Latin-only with translated subtitle in all 9 locales calling out the dyslexia-friendly intent and the Cyrillic/CJK fallback (PR #507)',
+      'Settings: tri-state Clock Format (Auto / 24h / 12h) overriding the locale default for the queue ETA and the sleep-timer preview (PR #742)',
+      'Servers: per-server library scan triggers (Quick / Full) and inline edit for existing profiles (PR #780)',
+      'Interface Scale: scales the entire window — sidebar, queue, player bar, modals and the fullscreen player follow the main content (PR #781)',
     ],
   },
 ] as const;

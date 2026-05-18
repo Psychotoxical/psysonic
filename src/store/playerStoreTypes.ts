@@ -59,6 +59,8 @@ export interface PlayerState {
   queueServerId: string | null;
   queueIndex: number;
   isPlaying: boolean;
+  /** HTTP stream still buffering (network / demux probe) — show loading on cover art. */
+  isPlaybackBuffering: boolean;
   progress: number; // 0–1
   buffered: number; // 0–1 (unused in Rust backend, kept for UI compat)
   currentTime: number;

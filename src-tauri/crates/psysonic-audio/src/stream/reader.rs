@@ -18,9 +18,10 @@ use ringbuf::HeapCons;
 use ringbuf::traits::{Consumer, Observer};
 use symphonia::core::io::MediaSource;
 
-use super::{RADIO_READ_TIMEOUT_SECS, RADIO_YIELD_MS};
+use super::{RADIO_YIELD_MS};
 
 pub(crate) struct AudioStreamReader {
+    pub(crate) read_timeout_secs: u64,
     pub(crate) cons: Mutex<HeapCons<u8>>,
     /// Delivers fresh consumers on hard-pause reconnect (unbounded; drain to latest).
     /// Wrapped in Mutex so AudioStreamReader is Sync (required by symphonia::MediaSource).
@@ -53,7 +54,7 @@ impl Read for AudioStreamReader {
         if let Some(c) = newest {
             *self.cons.lock().unwrap() = c;
             self.deadline =
-                std::time::Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS);
+                std::time::Instant::now() + Duration::from_secs(self.read_timeout_secs);
         }
         loop {
             if self.gen_arc.load(Ordering::SeqCst) != self.gen {
@@ -66,7 +67,7 @@ impl Read for AudioStreamReader {
                 self.pos += read as u64;
                 // Reset deadline: data arrived, so connection is alive.
                 self.deadline =
-                    std::time::Instant::now() + Duration::from_secs(RADIO_READ_TIMEOUT_SECS);
+                    std::time::Instant::now() + Duration::from_secs(self.read_timeout_secs);
                 return Ok(read);
             }
             if self
@@ -80,7 +81,7 @@ impl Read for AudioStreamReader {
                 crate::app_eprintln!(
                     "[{}] AudioStreamReader: {}s without data → EOF",
                     self.source_tag,
-                    RADIO_READ_TIMEOUT_SECS
+                    self.read_timeout_secs
                 );
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,

@@ -153,6 +153,21 @@ pub(crate) fn format_hint_from_content_disposition(cd: &str) -> Option<String> {
     None
 }
 
+/// Best Symphonia container hint for playback: ranged/stream media hint, URL tail,
+/// Subsonic `song.suffix`, then magic-byte sniff on buffered bytes.
+pub(crate) fn resolve_playback_format_hint(
+    url_hint: Option<&str>,
+    stream_suffix: Option<&str>,
+    media_hint: Option<&str>,
+    data: Option<&[u8]>,
+) -> Option<String> {
+    media_hint
+        .map(str::to_string)
+        .or_else(|| url_hint.map(str::to_string))
+        .or_else(|| normalize_stream_suffix_for_hint(stream_suffix))
+        .or_else(|| data.and_then(sniff_stream_format_extension))
+}
+
 /// Subsonic [`song.suffix`](https://www.subsonic.org/pages/api.jsp#getSong) — stream.view URLs
 /// usually have no file extension; this supplies `format_hint` for ranged open.
 pub(crate) fn normalize_stream_suffix_for_hint(suffix: Option<&str>) -> Option<String> {
@@ -242,6 +257,9 @@ pub(crate) fn sniff_stream_format_extension(data: &[u8]) -> Option<String> {
 pub struct ProgressPayload {
     pub current_time: f64,
     pub duration: f64,
+    /// HTTP stream still filling its play buffer — UI must not extrapolate
+    /// progress until this clears.
+    pub buffering: bool,
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -528,6 +546,90 @@ pub fn take_stream_completed_for_url(state: &AudioEngine, url: &str) -> Option<V
     None
 }
 
+/// Take (consume) on-disk spill for a completed large ranged stream.
+pub fn take_stream_completed_spill_for_url(
+    state: &AudioEngine,
+    url: &str,
+) -> Option<std::path::PathBuf> {
+    take_stream_completed_spill_from_slot(&state.stream_completed_spill, url)
+}
+
+pub(crate) fn take_stream_completed_spill_from_slot(
+    slot: &std::sync::Arc<std::sync::Mutex<Option<crate::state::StreamCompletedSpill>>>,
+    url: &str,
+) -> Option<std::path::PathBuf> {
+    let mut guard = slot.lock().unwrap();
+    if guard
+        .as_ref()
+        .is_some_and(|p| same_playback_target(&p.url, url))
+    {
+        return guard.take().map(|p| p.path);
+    }
+    None
+}
+
+/// Atomically write completed stream bytes under `dir` (`{track_id}.complete.part` → rename).
+pub(crate) fn write_stream_spill_bytes_in_dir(
+    dir: &std::path::Path,
+    track_id: &str,
+    bytes: &[u8],
+) -> Result<std::path::PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{track_id}.complete"));
+    let part = dir.join(format!("{track_id}.complete.part"));
+    std::fs::write(&part, bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&part, &path).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
+/// Atomically write completed stream bytes to app-data `stream-spill/` (sync; no await while holding `buf`).
+pub(crate) fn write_stream_spill_file(
+    app: &AppHandle,
+    track_id: &str,
+    bytes: &[u8],
+) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("stream-spill");
+    write_stream_spill_bytes_in_dir(&dir, track_id, bytes)
+}
+
+/// Remove leftover `stream-spill/*.complete*` from prior sessions (best-effort).
+pub fn cleanup_orphan_stream_spill_dir(app: &AppHandle) {
+    let Ok(dir) = app.path().app_data_dir().map(|d| d.join("stream-spill")) else {
+        return;
+    };
+    if !dir.is_dir() {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let lossy = name.to_string_lossy();
+        if lossy.ends_with(".complete") || lossy.ends_with(".complete.part") {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+pub(crate) fn install_stream_completed_spill(
+    slot: &std::sync::Arc<std::sync::Mutex<Option<crate::state::StreamCompletedSpill>>>,
+    url: String,
+    path: std::path::PathBuf,
+) {
+    let mut guard = slot.lock().unwrap();
+    if let Some(old) = guard.take() {
+        if old.path != path {
+            let _ = std::fs::remove_file(&old.path);
+        }
+    }
+    *guard = Some(crate::state::StreamCompletedSpill { url, path });
+}
+
 /// Fetch track bytes from the preload cache or via HTTP.
 pub(crate) async fn fetch_data(
     url: &str,
@@ -546,6 +648,27 @@ pub(crate) async fn fetch_data(
     };
     if let Some(data) = streamed_cached {
         return Ok(Some(data));
+    }
+
+    // Spill path is cloned (not taken) so replay of the same URL can still read from disk
+    // until hot-cache promote consumes the file via `take_stream_completed_spill_for_url`.
+    let spill_path = {
+        let guard = state.stream_completed_spill.lock().unwrap();
+        guard
+            .as_ref()
+            .filter(|p| same_playback_target(&p.url, url))
+            .map(|p| p.path.clone())
+    };
+    if let Some(path) = spill_path {
+        let data = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
+        if !data.is_empty() {
+            crate::app_deprintln!(
+                "[stream] fetch_data from spill path={} bytes={}",
+                path.display(),
+                data.len()
+            );
+            return Ok(Some(data));
+        }
     }
 
     // Check preload cache next.
@@ -641,6 +764,72 @@ pub(crate) fn spawn_analysis_seed_from_in_memory_bytes(
         if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), track_id.clone(), bytes, high).await {
             crate::app_eprintln!(
                 "[analysis] in-memory play path seed failed for {}: {}",
+                track_id,
+                e
+            );
+        }
+    });
+}
+
+/// Full-track analysis for a completed ranged stream spilled to disk (> RAM promote cap).
+pub(crate) fn spawn_analysis_seed_from_spill_file(
+    app: &AppHandle,
+    track_id: &str,
+    spill_path: std::path::PathBuf,
+    gen: u64,
+    gen_arc: &Arc<AtomicU64>,
+) {
+    let track_id = track_id.trim().to_string();
+    if track_id.is_empty() {
+        return;
+    }
+    let app = app.clone();
+    let gen_arc = gen_arc.clone();
+    let max_bytes = crate::stream::LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES;
+    tokio::spawn(async move {
+        if gen_arc.load(Ordering::SeqCst) != gen {
+            return;
+        }
+        let bytes = match tokio::fs::read(&spill_path).await {
+            Ok(b) if b.is_empty() => return,
+            Ok(b) if b.len() > max_bytes => {
+                crate::app_deprintln!(
+                    "[stream] spill analysis skip track_id={} bytes={} max={}",
+                    track_id,
+                    b.len(),
+                    max_bytes
+                );
+                return;
+            }
+            Ok(b) => b,
+            Err(e) => {
+                crate::app_eprintln!(
+                    "[stream] spill analysis read failed track_id={}: {}",
+                    track_id,
+                    e
+                );
+                return;
+            }
+        };
+        if gen_arc.load(Ordering::SeqCst) != gen {
+            return;
+        }
+        crate::app_deprintln!(
+            "[stream] spill path: scheduling full-track analysis track_id={} size_mib={:.2}",
+            track_id,
+            bytes.len() as f64 / (1024.0 * 1024.0)
+        );
+        let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
+        if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(
+            app,
+            track_id.clone(),
+            bytes,
+            high,
+        )
+        .await
+        {
+            crate::app_eprintln!(
+                "[analysis] spill path seed failed for {}: {}",
                 track_id,
                 e
             );
@@ -850,6 +1039,31 @@ mod tests {
     #[test]
     fn cd_returns_none_when_no_filename_present() {
         assert_eq!(format_hint_from_content_disposition("inline"), None);
+    }
+
+    // ── resolve_playback_format_hint ───────────────────────────────────────────
+
+    #[test]
+    fn resolve_playback_hint_prefers_media_then_suffix() {
+        assert_eq!(
+            resolve_playback_format_hint(None, Some("m4a"), Some("flac"), None),
+            Some("flac".into()),
+        );
+        assert_eq!(
+            resolve_playback_format_hint(None, Some("m4a"), None, None),
+            Some("m4a".into()),
+        );
+    }
+
+    #[test]
+    fn resolve_playback_hint_sniffs_bytes_when_no_suffix() {
+        let mut buf = vec![0u8; 4];
+        buf.extend_from_slice(b"ftyp");
+        buf.extend_from_slice(b"M4A \x00\x00\x02\x00");
+        assert_eq!(
+            resolve_playback_format_hint(None, None, None, Some(&buf)),
+            Some("m4a".into()),
+        );
     }
 
     // ── normalize_stream_suffix_for_hint ──────────────────────────────────────
@@ -1296,5 +1510,71 @@ mod tests {
         };
         let g = resolve_loudness_gain_with_cache(&cache, "abc", -14.0, opts);
         assert!(g.is_some());
+    }
+}
+
+#[cfg(test)]
+mod stream_spill_tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    fn scratch_dir(label: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "psysonic-audio-spill-{label}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        dir
+    }
+
+    #[test]
+    fn write_stream_spill_bytes_in_dir_creates_complete_file() {
+        let dir = scratch_dir("write");
+        let path =
+            write_stream_spill_bytes_in_dir(&dir, "track-1", b"hello").expect("write spill");
+        assert!(path.exists());
+        assert_eq!(std::fs::read(&path).unwrap(), b"hello");
+        assert!(!dir.join("track-1.complete.part").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn install_stream_completed_spill_replaces_prior_file() {
+        let dir = scratch_dir("install");
+        let old_path = dir.join("old.complete");
+        let new_path = dir.join("new.complete");
+        std::fs::write(&old_path, b"old").unwrap();
+        std::fs::write(&new_path, b"new").unwrap();
+        let slot: Arc<Mutex<Option<crate::state::StreamCompletedSpill>>> =
+            Arc::new(Mutex::new(None));
+        install_stream_completed_spill(
+            &slot,
+            "http://example/a".into(),
+            old_path.clone(),
+        );
+        install_stream_completed_spill(
+            &slot,
+            "http://example/b".into(),
+            new_path.clone(),
+        );
+        assert!(!old_path.exists(), "previous spill file must be removed");
+        assert!(new_path.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn take_stream_completed_spill_for_url_consumes_slot() {
+        let dir = scratch_dir("take");
+        let path = dir.join("t.complete");
+        std::fs::write(&path, b"x").unwrap();
+        let slot: Arc<Mutex<Option<crate::state::StreamCompletedSpill>>> =
+            Arc::new(Mutex::new(None));
+        let url = "https://server/stream?id=1";
+        install_stream_completed_spill(&slot, url.into(), path.clone());
+        let taken = take_stream_completed_spill_from_slot(&slot, url);
+        assert_eq!(taken.as_deref(), Some(path.as_path()));
+        assert!(take_stream_completed_spill_from_slot(&slot, url).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

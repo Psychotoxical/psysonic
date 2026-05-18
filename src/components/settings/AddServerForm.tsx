@@ -15,13 +15,20 @@ export function AddServerForm({
   onSave,
   onCancel,
   initialInvite = null,
+  editingServer = null,
 }: {
   onSave: (data: Omit<ServerProfile, 'id'>) => void;
   onCancel: () => void;
   initialInvite?: ServerMagicPayload | null;
+  editingServer?: ServerProfile | null;
 }) {
   const { t } = useTranslation();
-  const [form, setForm] = useState({ name: '', url: '', username: '', password: '' });
+  const isEdit = editingServer != null;
+  const [form, setForm] = useState(
+    editingServer
+      ? { name: editingServer.name, url: editingServer.url, username: editingServer.username, password: editingServer.password }
+      : { name: '', url: '', username: '', password: '' },
+  );
   const [magicString, setMagicString] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [blockPasswordReveal, setBlockPasswordReveal] = useState(false);
@@ -85,8 +92,14 @@ export function AddServerForm({
   };
 
   return (
-    <div className="settings-card" style={{ marginTop: '1rem' }}>
-      <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '14px' }}>{t('settings.addServerTitle')}</h3>
+    <form
+      className="settings-card"
+      style={{ marginTop: '1rem' }}
+      onSubmit={e => { e.preventDefault(); submit(); }}
+    >
+      <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '14px' }}>
+        {isEdit ? t('settings.editServerTitle') : t('settings.addServerTitle')}
+      </h3>
       <div className="form-group" style={{ marginBottom: '0.75rem' }}>
         <label style={{ fontSize: 13 }}>{t('settings.serverName')}</label>
         <input className="input" type="text" value={form.name} onChange={update('name')} placeholder="My Navidrome" autoComplete="off" />
@@ -142,26 +155,25 @@ export function AddServerForm({
           )}
         </div>
       </div>
-      <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-        <label style={{ fontSize: 13 }}>{t('login.orMagicString')}</label>
-        <input
-          className="input"
-          type="text"
-          value={magicString}
-          onChange={handleMagicStringChange}
-          placeholder={t('login.magicStringPlaceholder')}
-          autoComplete="off"
-        />
-      </div>
+      {!isEdit && (
+        <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+          <label style={{ fontSize: 13 }}>{t('login.orMagicString')}</label>
+          <input
+            className="input"
+            type="text"
+            value={magicString}
+            onChange={handleMagicStringChange}
+            placeholder={t('login.magicStringPlaceholder')}
+            autoComplete="off"
+          />
+        </div>
+      )}
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-        <button className="btn btn-ghost" onClick={onCancel}>{t('common.cancel')}</button>
-        <button
-          className="btn btn-primary"
-          onClick={submit}
-        >
-          {t('common.add')}
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>{t('common.cancel')}</button>
+        <button type="submit" className="btn btn-primary">
+          {isEdit ? t('common.save') : t('common.add')}
         </button>
       </div>
-    </div>
+    </form>
   );
 }

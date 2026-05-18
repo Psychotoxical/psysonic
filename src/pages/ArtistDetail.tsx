@@ -24,11 +24,9 @@ import LastfmIcon from '../components/LastfmIcon';
 import { invalidateCoverArt } from '../utils/imageCache';
 import { showToast } from '../utils/ui/toast';
 import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
-import { extractCoverColors } from '../utils/ui/dynamicColors';
 import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
 
-import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { useArtistDetailData } from '../hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '../hooks/useArtistSimilarArtists';
 import {
@@ -40,6 +38,7 @@ import {
 import ArtistDetailHero from '../components/artistDetail/ArtistDetailHero';
 import ArtistDetailTopTracks from '../components/artistDetail/ArtistDetailTopTracks';
 import ArtistDetailSimilarArtists from '../components/artistDetail/ArtistDetailSimilarArtists';
+import ArtistCard from '../components/nowPlaying/ArtistCard';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
@@ -59,12 +58,10 @@ export default function ArtistDetail() {
   const [openedLink, setOpenedLink] = useState<string | null>(null);
   const { similarArtists, similarLoading } = useArtistSimilarArtists(artist, info, artistInfoLoading);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [bioExpanded, setBioExpanded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
   const isMobile = useIsMobile();
   const [coverRevision, setCoverRevision] = useState(0);
-  const [avatarGlow, setAvatarGlow] = useState('');
   /** True after header CachedImage onError — avoid `display:none` on the img (breaks recovery). */
   const [headerCoverFailed, setHeaderCoverFailed] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -93,10 +90,6 @@ export default function ArtistDetail() {
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
 
   const [artistEntityRating, setArtistEntityRating] = useState(0);
-
-  useEffect(() => {
-    setAvatarGlow('');
-  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -295,8 +288,6 @@ export default function ArtistDetail() {
         coverRevision={coverRevision}
         headerCoverFailed={headerCoverFailed}
         setHeaderCoverFailed={setHeaderCoverFailed}
-        avatarGlow={avatarGlow}
-        setAvatarGlow={setAvatarGlow}
         lightboxOpen={lightboxOpen}
         setLightboxOpen={setLightboxOpen}
       />
@@ -307,33 +298,15 @@ export default function ArtistDetail() {
       {renderableSectionIds.map(sectionId => {
         switch (sectionId) {
           case 'bio': return (
-            <div
-              key="bio"
-              className="np-info-card artist-bio-card"
-              style={{ marginTop: sectionMt('bio') }}
-            >
-              <div className="np-card-header">
-                <h3 className="np-card-title">{t('nowPlaying.aboutArtist')}</h3>
-              </div>
-              <div className="np-artist-bio-row">
-                {(info?.largeImageUrl || coverId) && (
-                  <img
-                    src={info?.largeImageUrl || artistCover80FallbackSrc}
-                    alt={artist.name}
-                    className="np-artist-thumb"
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                )}
-                <div className="np-bio-wrap">
-                  <div
-                    className={`np-bio-text${bioExpanded ? ' expanded' : ''}`}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(info!.biography!) }}
-                  />
-                  <button className="np-bio-toggle" onClick={() => setBioExpanded(v => !v)}>
-                    {bioExpanded ? t('nowPlaying.showLess') : t('nowPlaying.readMore')}
-                  </button>
-                </div>
-              </div>
+            <div key="bio" style={{ marginTop: sectionMt('bio') }}>
+              <ArtistCard
+                artistName={artist.name}
+                artistId={id}
+                artistInfo={info}
+                hideArtistName
+                hideSimilar
+                coverFallback={coverId ? { src: artistCover80FallbackSrc, cacheKey: coverArtCacheKey(coverId, 80) } : undefined}
+              />
             </div>
           );
 

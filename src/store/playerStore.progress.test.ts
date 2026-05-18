@@ -238,3 +238,53 @@ describe('audio:progress throttling (live-emit guard)', () => {
     unsub();
   });
 });
+
+describe('audio:progress buffering flag', () => {
+  it('sets isPlaybackBuffering from the optional buffering field', () => {
+    const track = makeTrack({ duration: 100 });
+    usePlayerStore.setState({
+      currentTrack: track,
+      isPlaying: true,
+      isPlaybackBuffering: false,
+    });
+
+    emitTauriEvent('audio:progress', {
+      current_time: 0,
+      duration: 100,
+      buffering: true,
+    });
+    expect(usePlayerStore.getState().isPlaybackBuffering).toBe(true);
+
+    emitTauriEvent('audio:playing', 100);
+    expect(usePlayerStore.getState().isPlaybackBuffering).toBe(false);
+  });
+
+  it('does not rewrite isPlaybackBuffering when the flag is unchanged', () => {
+    const track = makeTrack({ duration: 100 });
+    usePlayerStore.setState({
+      currentTrack: track,
+      isPlaying: true,
+      isPlaybackBuffering: true,
+    });
+    const setStateSpy = vi.spyOn(usePlayerStore, 'setState');
+
+    emitTauriEvent('audio:progress', {
+      current_time: 0,
+      duration: 100,
+      buffering: true,
+    });
+    vi.advanceTimersByTime(2000);
+    emitTauriEvent('audio:progress', {
+      current_time: 0.9,
+      duration: 100,
+      buffering: true,
+    });
+
+    const bufferingWrites = setStateSpy.mock.calls.filter(
+      call => typeof call[0] === 'object' && call[0] !== null && 'isPlaybackBuffering' in call[0],
+    );
+    expect(bufferingWrites).toHaveLength(0);
+
+    setStateSpy.mockRestore();
+  });
+});
