@@ -170,6 +170,13 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
                   className={`nav-library-dropdown-item${active ? ' nav-library-dropdown-item--selected' : ''}`}
                   style={{ padding: 0 }}
                 >
+                  <span style={{ flexShrink: 0, marginLeft: 'var(--space-3)', display: 'inline-flex', width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }} aria-hidden>
+                    {switchingId === srv.id ? (
+                      <div className="spinner" style={{ width: 14, height: 14 }} />
+                    ) : active ? (
+                      <Check size={16} className="nav-library-dropdown-check" />
+                    ) : null}
+                  </span>
                   <button
                     type="button"
                     onClick={() => onPickServer(srv)}
@@ -184,13 +191,6 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
                     {labelText}
                   </button>
                   <ServerScanActions serverId={srv.id} variant="compact" />
-                  {switchingId === srv.id ? (
-                    <div className="spinner" style={{ width: 14, height: 14, flexShrink: 0, marginRight: 'var(--space-3)' }} aria-hidden />
-                  ) : active ? (
-                    <Check size={16} className="nav-library-dropdown-check" style={{ marginRight: 'var(--space-3)' }} aria-hidden />
-                  ) : (
-                    <span className="nav-library-dropdown-check-spacer" style={{ marginRight: 'var(--space-3)' }} aria-hidden />
-                  )}
                 </div>
               );
             })}
