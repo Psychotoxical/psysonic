@@ -1,6 +1,6 @@
 {
   "name": "psysonic",
-  "version": "1.46.0-rc.5",
+  "version": "1.46.0",
   "private": true,
   "scripts": {
     "check:css-imports": "node scripts/check-css-import-graph.mjs",
