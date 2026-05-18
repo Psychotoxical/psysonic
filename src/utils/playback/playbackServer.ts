@@ -35,11 +35,24 @@ export function playbackServerDiffersFromActive(): boolean {
 }
 
 /**
+ * True when the current queue belongs to another server (or is unpinned legacy
+ * state) and a browsed-server mix should clear it before enqueueing new tracks.
+ */
+export function shouldHandoffQueueToActiveServer(): boolean {
+  const activeSid = useAuthStore.getState().activeServerId;
+  if (!activeSid) return false;
+  const { queue, queueServerId } = usePlayerStore.getState();
+  if ((queue?.length ?? 0) === 0) return false;
+  if (!queueServerId) return true;
+  return queueServerId !== activeSid;
+}
+
+/**
  * Stop playback owned by another server so a new mix on the browsed server
  * can replace the queue (Lucky Mix / similar flows after ConnectionIndicator switch).
  */
 export function prepareActiveServerForNewMix(): void {
-  if (!playbackServerDiffersFromActive()) return;
+  if (!shouldHandoffQueueToActiveServer()) return;
   usePlayerStore.getState().clearQueue();
   bindQueueServerForPlayback();
 }

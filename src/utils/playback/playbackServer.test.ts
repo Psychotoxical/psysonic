@@ -10,6 +10,7 @@ import {
   playbackServerDiffersFromActive,
   prepareActiveServerForNewMix,
   shouldBindQueueServerForPlay,
+  shouldHandoffQueueToActiveServer,
 } from './playbackServer';
 import { invoke } from '@tauri-apps/api/core';
 import { vi } from 'vitest';
@@ -76,6 +77,18 @@ describe('playbackServer', () => {
     prepareActiveServerForNewMix();
     expect(usePlayerStore.getState().queue).toHaveLength(1);
     expect(usePlayerStore.getState().queueServerId).toBe('a');
+  });
+
+  it('shouldHandoffQueueToActiveServer when queue is unpinned but non-empty', () => {
+    useAuthStore.setState({ activeServerId: 'b' });
+    usePlayerStore.setState({ queueServerId: null });
+    expect(shouldHandoffQueueToActiveServer()).toBe(true);
+    expect(playbackServerDiffersFromActive()).toBe(false);
+  });
+
+  it('shouldHandoffQueueToActiveServer when queue server differs from active', () => {
+    useAuthStore.setState({ activeServerId: 'b' });
+    expect(shouldHandoffQueueToActiveServer()).toBe(true);
   });
 
   it('ensurePlaybackServerActive calls switch when servers differ', async () => {

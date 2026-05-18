@@ -12,8 +12,10 @@ import { useLuckyMixStore } from '../../store/luckyMixStore';
 import { isLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { showToast } from '../ui/toast';
 import {
+  bindQueueServerForPlayback,
   playbackServerDiffersFromActive,
   prepareActiveServerForNewMix,
+  shouldHandoffQueueToActiveServer,
 } from '../playback/playbackServer';
 import {
   filterSongsForLuckyMixRatings,
@@ -79,6 +81,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     libraryFilter: activeServerId ? (auth.musicLibraryFilterByServer[activeServerId] ?? 'all') : 'all',
     mixRatingFilter: mixRatingCfg,
     crossServerPlayback: playbackServerDiffersFromActive(),
+    handoffQueueToActive: shouldHandoffQueueToActiveServer(),
   });
   if (!available) {
     logStep('abort_unavailable');
@@ -86,13 +89,20 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     return;
   }
 
+  lucky.start();
+
   // Snapshot the current queue *before* we prune — so if the build fails
   // before we ever play a track, we can put it back the way it was instead
   // of leaving the user with an empty player.
   const playerStateBefore = usePlayerStore.getState();
-  const queueSnapshot: { queue: Track[]; queueIndex: number } = {
+  const queueSnapshot: {
+    queue: Track[];
+    queueIndex: number;
+    queueServerId: string | null;
+  } = {
     queue: [...playerStateBefore.queue],
     queueIndex: playerStateBefore.queueIndex,
+    queueServerId: playerStateBefore.queueServerId,
   };
 
   // One undo step for the whole Lucky Mix run — internal prune/play/enqueue
@@ -103,7 +113,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
   try {
     // Browsed server ≠ queue server: stop A's stream so Now Playing does not call
     // ensurePlaybackServerActive() and revert the UI mid-build.
-    if (playbackServerDiffersFromActive()) {
+    if (shouldHandoffQueueToActiveServer()) {
       prepareActiveServerForNewMix();
       logStep('cross_server_handoff', { activeServerId });
     } else {
@@ -111,8 +121,6 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       // tracks while the mix is still building (first playTrack may be delayed).
       usePlayerStore.getState().pruneUpcomingToCurrent(true);
     }
-
-    lucky.start();
     let startedPlayback = false;
     try {
       let allSeedSongs: SubsonicSong[] = [];
@@ -175,6 +183,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       const toAdd = sampleRandom(candidates, Math.min(remaining, candidates.length));
       if (!toAdd.length) return 0;
       const before = mixQueueSize();
+      bindQueueServerForPlayback();
       usePlayerStore.getState().enqueue(toAdd.map(songToTrack), true, true);
       const added = mixQueueSize() - before;
       logStep('append_queue_batch', {
@@ -382,6 +391,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       usePlayerStore.setState({
         queue: queueSnapshot.queue,
         queueIndex: queueSnapshot.queueIndex,
+        queueServerId: queueSnapshot.queueServerId,
       });
       logStep('queue_restored_after_failure', {
         restoredCount: queueSnapshot.queue.length,

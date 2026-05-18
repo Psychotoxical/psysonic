@@ -19,6 +19,7 @@ import { clearSeekFallbackRetry } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
 import i18n from '../i18n';
 import { playbackServerDiffersFromActive, clearQueueServerForPlayback } from '../utils/playback/playbackServer';
+import { useLuckyMixStore } from './luckyMixStore';
 import { showToast } from '../utils/ui/toast';
 
 type SetState = (
@@ -27,6 +28,7 @@ type SetState = (
 type GetState = () => PlayerState;
 
 function blockCrossServerEnqueue(): boolean {
+  if (useLuckyMixStore.getState().isRolling) return false;
   if (!playbackServerDiffersFromActive()) return false;
   showToast(i18n.t('queue.crossServerEnqueueBlocked'), 4500, 'error');
   return true;
