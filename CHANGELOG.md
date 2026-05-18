@@ -374,6 +374,13 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 ## Fixed
 
+### Multi-server — Lucky Mix and Now Playing no longer revert the browsed server
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#768](https://github.com/Psychotoxical/psysonic/pull/768)**
+
+* **Lucky Mix** on a server you switched to while another server still owned the queue stopped mid-build and snapped the UI back to the playback server — Now Playing called `ensurePlaybackServerActive()` as soon as the route opened. Lucky Mix now clears the old queue and pins the active server before building when playback and browse servers differ.
+* **Now Playing** and the queue info panel no longer force the browsed server to match the queue on every Connection Indicator switch; metadata loads via `apiForServer` against the playback server instead. Album/artist links still switch to the queue server when you navigate into the library.
+
 ### Playback — M4A / MP4 streaming (moov-at-end) and seekbar during buffer
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#737](https://github.com/Psychotoxical/psysonic/pull/737)**

@@ -117,6 +117,7 @@ const CONTRIBUTOR_ENTRIES = [
       'M4A/MP4 streaming: moov-at-end tail prefetch and Symphonia isomp4 probe fix (PR #737)',
       'HTTP stream buffering — seekbar/timer at zero and cover overlay until playback arms (PR #737)',
       'M4A playback: fix AtomIterator overread in patched isomp4 demuxer — probe gate for ranged tail prefetch, zero-hole fallback detection (PR #757)',
+      'Multi-server: Lucky Mix and Now Playing keep browsed server; queue metadata via apiForServer (PR #768)',
     ],
   },
   {
