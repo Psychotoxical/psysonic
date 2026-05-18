@@ -133,9 +133,10 @@ export default function ServerScanActions({ serverId, variant }: Props) {
         onClick={onQuickClick}
         disabled={busy}
         data-tooltip={t('settings.scan.quickTip')}
+        aria-label={t('settings.scan.quick')}
       >
         <RefreshCw size={13} />
-        {t('settings.scan.quick')}
+        <span className="server-card-btn-label">{t('settings.scan.quick')}</span>
       </button>
       <button
         type="button"
@@ -144,9 +145,12 @@ export default function ServerScanActions({ serverId, variant }: Props) {
         onClick={onFullClick}
         disabled={busy}
         data-tooltip={confirmingFull ? t('settings.scan.confirmFull') : t('settings.scan.fullTip')}
+        aria-label={t('settings.scan.full')}
       >
         <DatabaseZap size={13} />
-        {confirmingFull ? t('settings.scan.confirmFullShort') : t('settings.scan.full')}
+        <span className="server-card-btn-label">
+          {confirmingFull ? t('settings.scan.confirmFullShort') : t('settings.scan.full')}
+        </span>
       </button>
       {status && <span className="server-scan-slot">{status}</span>}
     </>

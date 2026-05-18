@@ -283,9 +283,11 @@ export function ServersTab({
                         style={{ fontSize: 12, padding: '4px 10px' }}
                         onClick={() => testConnection(srv)}
                         disabled={status === 'testing'}
+                        data-tooltip={t('settings.testBtn')}
+                        aria-label={t('settings.testBtn')}
                       >
                         <Wifi size={13} />
-                        {t('settings.testBtn')}
+                        <span className="server-card-btn-label">{t('settings.testBtn')}</span>
                       </button>
                       {!isActive && (
                         <button

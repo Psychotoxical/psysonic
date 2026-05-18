@@ -125,3 +125,13 @@
 .server-scan-status-count {
   font-variant-numeric: tabular-nums;
 }
+
+/* Server card actions collapse to icon-only on narrow viewports — labels
+ * remain available as native tooltips via the existing `data-tooltip` /
+ * `aria-label` attributes. Breakpoint is tuned to where the action row
+ * starts overflowing on the default Settings layout. */
+@media (max-width: 1100px) {
+  .server-card-btn-label {
+    display: none;
+  }
+}
