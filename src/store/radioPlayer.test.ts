@@ -38,6 +38,7 @@ const audio = _radioAudioForTest();
 let pauseSpy: ReturnType<typeof vi.spyOn>;
 let playSpy: ReturnType<typeof vi.spyOn>;
 let loadSpy: ReturnType<typeof vi.spyOn>;
+let pausedSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -48,6 +49,10 @@ beforeEach(() => {
   pauseSpy = vi.spyOn(audio, 'pause').mockImplementation(() => {});
   playSpy = vi.spyOn(audio, 'play').mockResolvedValue(undefined as never);
   loadSpy = vi.spyOn(audio, 'load').mockImplementation(() => {});
+  // jsdom defaults audio.paused to true; the reconnect path assumes the
+  // stream was actively playing, so default the getter to false and let
+  // individual tests override it where they need to assert pause behaviour.
+  pausedSpy = vi.spyOn(audio, 'paused', 'get').mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -55,6 +60,7 @@ afterEach(() => {
   pauseSpy.mockRestore();
   playSpy.mockRestore();
   loadSpy.mockRestore();
+  pausedSpy.mockRestore();
   vi.useRealTimers();
 });
 
@@ -78,6 +84,14 @@ describe('playRadioStream', () => {
 });
 
 describe('pauseRadio / resumeRadio', () => {
+  it('pause cancels a pending reconnect timer (issue #779)', () => {
+    hoisted.playerStateGet.mockReturnValue({ currentRadio: { id: 'r1' } });
+    audio.dispatchEvent(new Event('stalled'));
+    pauseRadio();
+    vi.advanceTimersByTime(4000);
+    expect(loadSpy).not.toHaveBeenCalled();
+  });
+
   it('pause delegates to audio.pause without touching src', async () => {
     await playRadioStream('https://x/y', 0.5);
     const before = audio.src;
@@ -196,6 +210,31 @@ describe('event listeners', () => {
     audio.dispatchEvent(new Event('suspend'));
     vi.advanceTimersByTime(4000);
     expect(loadSpy).not.toHaveBeenCalled();
+  });
+
+  it('"stalled" while paused does not schedule a reconnect (issue #779)', () => {
+    hoisted.playerStateGet.mockReturnValue({ currentRadio: { id: 'r1' } });
+    const pausedGet = vi.spyOn(audio, 'paused', 'get').mockReturnValue(true);
+    try {
+      audio.dispatchEvent(new Event('stalled'));
+      vi.advanceTimersByTime(4000);
+      expect(loadSpy).not.toHaveBeenCalled();
+    } finally {
+      pausedGet.mockRestore();
+    }
+  });
+
+  it('reconnect callback skips load+play if user paused during the 4 s wait (issue #779)', () => {
+    hoisted.playerStateGet.mockReturnValue({ currentRadio: { id: 'r1' } });
+    audio.dispatchEvent(new Event('stalled'));
+    const pausedGet = vi.spyOn(audio, 'paused', 'get').mockReturnValue(true);
+    try {
+      vi.advanceTimersByTime(4000);
+      expect(loadSpy).not.toHaveBeenCalled();
+      expect(playSpy).not.toHaveBeenCalled();
+    } finally {
+      pausedGet.mockRestore();
+    }
   });
 });
 

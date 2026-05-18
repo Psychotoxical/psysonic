@@ -56,6 +56,7 @@ radioAudio.addEventListener('playing', () => {
 // ensures we don't loop forever on a dead stream.
 radioAudio.addEventListener('stalled', () => {
   if (radioReconnectTimer) return; // already scheduled
+  if (radioAudio.paused) return;   // user paused — reconnect would resume against intent
   if (radioReconnectCount >= MAX_RADIO_RECONNECTS) {
     radioReconnectCount = 0;
     usePlayerStore.setState({ isPlaying: false, currentRadio: null });
@@ -65,6 +66,7 @@ radioAudio.addEventListener('stalled', () => {
   radioReconnectTimer = setTimeout(() => {
     radioReconnectTimer = null;
     if (!usePlayerStore.getState().currentRadio) return;
+    if (radioAudio.paused) return; // user paused while we were waiting
     radioReconnectCount++;
     // Use load() + play() instead of src reassignment — more reliable on
     // macOS WKWebView where setting src can fire a premature error event.
@@ -96,6 +98,9 @@ export function playRadioStream(streamUrl: string, volume: number): Promise<void
 
 /** Soft pause — keeps the src loaded so resume can pick up cheaply. */
 export function pauseRadio(): void {
+  // A reconnect timer may be pending from a previous 'stalled' event. Cancel
+  // it so it can't fire play() against the user's pause intent (issue #779).
+  clearRadioReconnectTimer();
   radioAudio.pause();
 }
 
