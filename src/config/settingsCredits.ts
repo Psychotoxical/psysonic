@@ -118,6 +118,7 @@ const CONTRIBUTOR_ENTRIES = [
       'HTTP stream buffering — seekbar/timer at zero and cover overlay until playback arms (PR #737)',
       'M4A playback: fix AtomIterator overread in patched isomp4 demuxer — probe gate for ranged tail prefetch, zero-hole fallback detection (PR #757)',
       'Multi-server: Lucky Mix and Now Playing keep browsed server; queue metadata via apiForServer (PR #768)',
+      'Linux: session GDK/WebKit mitigations, in-page library scroll, Wayland text presets (PR #731)',
     ],
   },
   {

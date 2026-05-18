@@ -42,6 +42,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Linux — session GDK, WebKitGTK mitigations, and Wayland text
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
+
+* **Nix / AUR** default installs follow the session GDK backend instead of pinning `GDK_BACKEND=x11`; startup applies **`webkit2gtk-nvidia-quirk`** only (skip with **`PSYSONIC_WEBKIT_GPU_ACCEL`**). **`nix run .#psysonic-x11-legacy`** keeps the old explicit X11 launcher.
+* **NVIDIA + forced X11** on a Wayland user session no longer greys out the webview — the quirk uses the DMABUF renderer path instead of Wayland explicit-sync disable.
+* **Wayland + GPU compositing:** clearer UI text via on-demand hardware acceleration on main and mini webviews; **Settings → System** adds **Wayland text rendering** presets (Balanced / Sharp / GPU / Minimal). Opt out with **`PSYSONIC_SKIP_WAYLAND_FONT_TUNING`**.
+
+
+
+### Library browse — in-page overlay scroll
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
+
+* **Artists**, **Albums**, **Composers**, **Lossless albums**, and **New releases** scroll inside the route on a locked in-page viewport — toolbars stay sticky, virtual grids use the matching scroll root.
+* Sidebar hover and album/artist card covers no longer jitter on WebKitGTK + Wayland during pointer moves.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
@@ -436,11 +455,6 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * Frontend counterpart to the backend split: largest page components, stores, and stylesheets broken into focused files; duplicated helpers consolidated; i18n and CSS split per namespace. **No user-visible behaviour change** — moves verified by TypeScript, Vitest, and production builds, with characterization tests added along the way.
 
-
-
-### Linux — only `webkit2gtk-nvidia-quirk` tweaks WebKit/NVIDIA env at startup
-
-* **`main.rs`** no longer synthesizes **`GDK_BACKEND`** or hand-rolled **`WEBKIT_DISABLE_*` / Optimus overrides; **`webkit2gtk-nvidia-quirk`** (`ApplyWorkaroundOptions::default()`, skipped when **`PSYSONIC_WEBKIT_GPU_ACCEL`** is set) is the sole automatic NVIDIA/session mitigation path. Packaging still prefixes **GStreamer** / **AppIndicator** paths only; **`nix build/run …#psysonic-x11-legacy`** remains the explicit **`GDK_BACKEND=x11`** launcher.
 
 ## Removed
 
@@ -860,33 +874,6 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 
 * **Lucky Mix** on a browsed server while another server still owned the queue used to abort and snap the UI back — opening Now Playing triggered a forced server switch. Lucky Mix now clears the old queue and pins the active server before building when browse and playback differ.
 * **Now Playing** and the queue info panel keep your browsed server in the connection indicator; song metadata still loads from the playback server. Album and artist links switch to the queue server when you open the library.
-
-### Linux — NVIDIA + WebKitGTK session quirks (`webkit2gtk-nvidia-quirk`)
-
-**By [@cucadmuh](https://github.com/cucadmuh)**
-
-* Startup calls **`webkit2gtk-nvidia-quirk`** early on Linux before the UI loads — when the crate detects proprietary NVIDIA on the primary/boot GPU (`XDG_SESSION_TYPE=x11`) it sets **`WEBKIT_DISABLE_DMABUF_RENDERER=1`**; on **`wayland`** it sets **`__NV_DISABLE_EXPLICIT_SYNC`**, aligned with egl-wayland / WebKitGTK guidance.
-* **Nix / AUR default wrap** sets **`PSYSONIC_ALLOW_NATIVE_GDK`** only (Nix also prefixes GStreamer / AppIndicator library paths); **`WEBKIT_DISABLE_*`** is no longer pinned at install time. **`nix build .#psysonic-x11-legacy`** restores the former **`GDK_BACKEND=x11`** wrapper. **`psysonic-gdk-session`** is an alias of **`psysonic`** (same store path).
-* **`PSYSONIC_WEBKIT_GPU_ACCEL`** skips automatic quirk application so packaged env and opt-in GPU dev modes stay authoritative.
-* **Wayland GTK** (`**XDG_SESSION_TYPE=wayland**` plus **`GDK_BACKEND=wayland`**) skips the conservative “always disable compositing” default WebKit inherits on Linux so session-aware startup + **`webkit2gtk-nvidia-quirk`** can tune the stack automatically.
-* **Optimus** (NVIDIA usable but DRM primary/boot is Intel): if **`WEBKIT_DISABLE_DMABUF_RENDERER`** is still unset after the quirk, proprietary NVIDIA present, and **`XDG_SESSION_TYPE`≠`wayland`**, legacy **DMABUF renderer off** fills the crate’s primary-GPU assumption gap.
-
-### Linux — Nix / AUR packaging (session-native GDK default)
-
-**By [@cucadmuh](https://github.com/cucadmuh)**
-
-* Flake **`psysonic`**, **`default`**, **`psysonic-gdk-session`**, and the **AUR** launcher set **`PSYSONIC_ALLOW_NATIVE_GDK`** only; Nix additionally prefixes **GStreamer** / **AppIndicator** libraries. **`WEBKIT_DISABLE_*`** are no longer forced from wrappers — startup code owns mitigations.
-* **`packages.<system>.psysonic-x11-legacy`** (and **`nix run .#psysonic-x11-legacy`**) restores **`GDK_BACKEND=x11`** for the old conservative layout. **`psysonic-gdk-session`** is a **backward-compat alias** of **`psysonic`** (identical store path).
-
-### Linux — Wayland + GPU compositing: clearer UI text (WebKitGTK)
-
-**By [@cucadmuh](https://github.com/cucadmuh)**
-
-* On **Wayland** when **`WEBKIT_DISABLE_COMPOSITING_MODE`** is not forcing software rendering, WebKitGTK now uses **`hardware-acceleration-policy=on-demand`** on the **main** and **mini** webviews so plain text is less often promoted into GL textures (a common source of **soft / blurry** typography with GPU acceleration).
-* **`PSYSONIC_WEBKIT_WAYLAND_HW_POLICY`** overrides that policy: **`never`**, **`off`**, **`0`**, or **`software`** → **`Never`** (often sharper text, more CPU paint); **`always`**, **`on`**, **`1`**, or **`gpu`** → **`Always`**; anything else (including unset) → **`OnDemand`**.
-* The shell exposes **`linux_xdg_session_type`** and **`linux_wayland_gpu_font_tuning_active`** to the frontend; when the session is **Wayland** and tuning is active, `<html>` gets **`data-linux-session="wayland"`** and the global reset switches **`body`** / **`#root`** to **subpixel LCD antialiasing**, **`text-rendering: geometricPrecision`**, and resets **`-moz-osx-font-smoothing`** (still skipped under **`html.no-compositing`**).
-* Set **`PSYSONIC_SKIP_WAYLAND_FONT_TUNING`** to **`1`**, **`true`**, or **`yes`** to skip both the WebKit policy tweak and the CSS hook for debugging or A/B comparison.
-* **Settings → System** exposes **Wayland text rendering** presets when compositing tuning applies: switch **Balanced / Sharp / GPU / Minimal** without restarting. The choice is persisted; **`data-wayland-text-profile`** on `<html>` drives the LCD reset CSS for all presets except **Minimal**.
 
 ## [1.45.0] - 2026-05-04
 
