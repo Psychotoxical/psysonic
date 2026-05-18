@@ -68,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **In-page browse:** virtual artist/album/composer grids and lists no longer lose all rows after deep scroll — `scrollMargin` now targets the in-page overlay viewport, not the locked main route scrollport.
 * **Cover art on browse pages:** `CachedImage` priority scoring follows the real scrolling pane so visible thumbnails win network fetch slots; Artists infinite scroll loads one page per batch instead of re-entrantly queueing many pages during a fast fling.
 
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#785](https://github.com/Psychotoxical/psysonic/pull/785)**
+
+* **Lucky Mix after server switch:** starting a mix on the browsed server no longer spams cross-server enqueue errors — unpinned or foreign queues hand off cleanly before batch enqueue.
+
 
 
 ### Mainstage — album rail hover controls

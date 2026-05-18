@@ -120,6 +120,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Multi-server: Lucky Mix and Now Playing keep browsed server; queue metadata via apiForServer (PR #768)',
       'Linux: session GDK/WebKit mitigations, in-page library scroll, Wayland text presets (PR #731)',
       'In-page browse: virtual list scrollMargin + CachedImage load priority; Artists infinite-scroll batching (PR #783)',
+      'Lucky Mix: hand off queue to browsed server after multi-server switch (PR #785)',
       'Home album rails: stable play/enqueue hover on WebKitGTK/Wayland (PR #787)',
     ],
   },
