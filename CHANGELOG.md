@@ -34,6 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Interface Scale — covers the whole window
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#781](https://github.com/Psychotoxical/psysonic/pull/781)**
+
+* Settings → Appearance → Interface Scale now scales sidebar, queue, player bar, modals/portals and the fullscreen player alongside the main content — same behaviour as browser Ctrl+/−.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.

@@ -311,6 +311,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Accessibility: OpenDyslexic font option in the Settings picker — bundled locally via @fontsource/opendyslexic, asymmetric glyph shapes for easier b/d, p/q tracking, Latin-only with translated subtitle in all 9 locales calling out the dyslexia-friendly intent and the Cyrillic/CJK fallback (PR #507)',
       'Settings: tri-state Clock Format (Auto / 24h / 12h) overriding the locale default for the queue ETA and the sleep-timer preview (PR #742)',
       'Servers: per-server library scan triggers (Quick / Full) and inline edit for existing profiles (PR #780)',
+      'Interface Scale: scales the entire window — sidebar, queue, player bar, modals and the fullscreen player follow the main content (PR #781)',
     ],
   },
 ] as const;
