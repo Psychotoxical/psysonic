@@ -3,6 +3,8 @@ export const radio = {
   empty: 'Nicio stație radio configurată.',
   addStation: 'Adaugă Stație',
   editStation: 'Editează',
+  playStation: 'Redă stația',
+  stopStation: 'Oprește stația',
   deleteStation: 'Șterge stație',
   confirmDelete: 'Apasă din nou pentru a confirma',
   stationName: 'Numele stației…',

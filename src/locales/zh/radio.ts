@@ -3,6 +3,8 @@ export const radio = {
   empty: '未配置任何电台。',
   addStation: '添加电台',
   editStation: '编辑',
+  playStation: '播放电台',
+  stopStation: '停止电台',
   deleteStation: '删除电台',
   confirmDelete: '再次点击确认',
   stationName: '电台名称…',

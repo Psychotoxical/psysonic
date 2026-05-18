@@ -104,7 +104,12 @@ export default function RadioCard({
         )}
 
         <div className="album-card-play-overlay">
-          <button className="album-card-details-btn" onClick={onPlay}>
+          <button
+            className="album-card-details-btn"
+            onClick={onPlay}
+            data-tooltip={isActive && isPlaying ? t('radio.stopStation') : t('radio.playStation')}
+            data-tooltip-pos="bottom"
+          >
             {isActive && isPlaying ? <X size={15} /> : <Cast size={14} />}
           </button>
         </div>

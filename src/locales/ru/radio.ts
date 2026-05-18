@@ -3,6 +3,8 @@ export const radio = {
   empty: 'Радиостанции не настроены.',
   addStation: 'Добавить станцию',
   editStation: 'Изменить',
+  playStation: 'Воспроизвести станцию',
+  stopStation: 'Остановить станцию',
   deleteStation: 'Удалить станцию',
   confirmDelete: 'Нажмите ещё раз для подтверждения',
   stationName: 'Название станции…',

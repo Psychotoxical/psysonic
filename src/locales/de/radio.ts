@@ -3,6 +3,8 @@ export const radio = {
   empty: 'Keine Radiosender konfiguriert.',
   addStation: 'Sender hinzufügen',
   editStation: 'Bearbeiten',
+  playStation: 'Sender abspielen',
+  stopStation: 'Sender stoppen',
   deleteStation: 'Sender löschen',
   confirmDelete: 'Zum Bestätigen erneut klicken',
   stationName: 'Sendername…',

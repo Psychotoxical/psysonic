@@ -3,6 +3,8 @@ export const radio = {
   empty: 'Ingen radiostasjoner konfigurert.',
   addStation: 'Legg til radio stasjon',
   editStation: 'Rediger',
+  playStation: 'Spill stasjon',
+  stopStation: 'Stopp stasjon',
   deleteStation: 'Slett stasjon',
   confirmDelete: 'Klikk igjen for å bekrefte',
   stationName: 'Stasjonsnavn…',

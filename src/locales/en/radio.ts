@@ -3,6 +3,8 @@ export const radio = {
   empty: 'No radio stations configured.',
   addStation: 'Add Station',
   editStation: 'Edit',
+  playStation: 'Play station',
+  stopStation: 'Stop station',
   deleteStation: 'Delete station',
   confirmDelete: 'Click again to confirm',
   stationName: 'Station name…',
