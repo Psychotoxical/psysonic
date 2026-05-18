@@ -70,6 +70,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Radio — paused streams stay paused
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by drelabre on GitHub, PR [#786](https://github.com/Psychotoxical/psysonic/pull/786)**
+
+* Pausing a radio stream no longer auto-resumes after about a minute on macOS.
+
+
+
+### Radio — card control polish
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#786](https://github.com/Psychotoxical/psysonic/pull/786)**
+
+* Repeat is disabled while a radio stream plays.
+* Deleting the playing station fades out instead of cutting hard.
+* Play / Stop tooltip on the cover-overlay button; stop uses a Square icon.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
