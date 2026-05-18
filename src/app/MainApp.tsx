@@ -14,6 +14,7 @@ import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
+import { useScanPolling } from '../hooks/useScanPolling';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
@@ -33,6 +34,8 @@ export default function MainApp() {
   // One-time bridge from the per-tab Advanced group (v1.46) to the global
   // Advanced Mode toggle. Idempotent — flagged in localStorage.
   useEffect(() => { runAdvancedModeMigration(); }, []);
+
+  useScanPolling();
 
   // Push playback state to mini window + handle control events.
   useEffect(() => {
