@@ -191,6 +191,8 @@ Psysonic is built for self-hosted music collections. Your library is yours.
 * No analytics harvesting
 * No hidden tracking
 
+See [TELEMETRY.md](TELEMETRY.md) for the telemetry stance and [PRIVACY.md](PRIVACY.md) for how each opt-in integration handles data.
+
 ---
 
 # Community & Support
