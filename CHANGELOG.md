@@ -61,6 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Fixed
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
+
+* **In-page browse:** virtual artist/album/composer grids and lists no longer lose all rows after deep scroll — `scrollMargin` now targets the in-page overlay viewport, not the locked main route scrollport.
+* **Cover art on browse pages:** `CachedImage` priority scoring follows the real scrolling pane so visible thumbnails win network fetch slots; Artists infinite scroll loads one page per batch instead of re-entrantly queueing many pages during a fast fling.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.

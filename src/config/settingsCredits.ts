@@ -119,6 +119,7 @@ const CONTRIBUTOR_ENTRIES = [
       'M4A playback: fix AtomIterator overread in patched isomp4 demuxer — probe gate for ranged tail prefetch, zero-hole fallback detection (PR #757)',
       'Multi-server: Lucky Mix and Now Playing keep browsed server; queue metadata via apiForServer (PR #768)',
       'Linux: session GDK/WebKit mitigations, in-page library scroll, Wayland text presets (PR #731)',
+      'In-page browse: virtual list scrollMargin + CachedImage load priority; Artists infinite-scroll batching (PR #783)',
     ],
   },
   {
