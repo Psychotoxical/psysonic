@@ -22,6 +22,8 @@ export const settings = {
   serverPassword: '密码',
   addServer: '添加服务器',
   addServerTitle: '添加新服务器',
+  editServer: '编辑',
+  editServerTitle: '编辑服务器',
   useServer: '使用',
   deleteServer: '删除',
   noServers: '未保存任何服务器。',

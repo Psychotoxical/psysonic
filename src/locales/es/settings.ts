@@ -22,6 +22,8 @@ export const settings = {
   serverPassword: 'Contraseña',
   addServer: 'Agregar Servidor',
   addServerTitle: 'Agregar Nuevo Servidor',
+  editServer: 'Editar',
+  editServerTitle: 'Editar Servidor',
   useServer: 'Usar',
   deleteServer: 'Eliminar',
   noServers: 'No hay servidores guardados.',

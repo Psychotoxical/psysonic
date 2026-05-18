@@ -22,6 +22,8 @@ export const settings = {
   serverPassword: 'Parolă',
   addServer: 'Adaugă Server',
   addServerTitle: 'Adaugă Server nou',
+  editServer: 'Editează',
+  editServerTitle: 'Editează Server',
   useServer: 'Folosește',
   deleteServer: 'Șterge',
   noServers: 'Niciun server salvat.',

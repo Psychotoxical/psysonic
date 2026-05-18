@@ -22,6 +22,8 @@ export const settings = {
   serverPassword: 'Wachtwoord',
   addServer: 'Server toevoegen',
   addServerTitle: 'Nieuwe server toevoegen',
+  editServer: 'Bewerken',
+  editServerTitle: 'Server bewerken',
   useServer: 'Gebruiken',
   deleteServer: 'Verwijderen',
   noServers: 'Geen servers opgeslagen.',

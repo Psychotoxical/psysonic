@@ -22,6 +22,8 @@ export const settings = {
   serverPassword: 'Passord',
   addServer: 'Legg til tjener',
   addServerTitle: 'Legg til ny tjener',
+  editServer: 'Rediger',
+  editServerTitle: 'Rediger tjener',
   useServer: 'Bruk',
   deleteServer: 'Slett',
   noServers: 'Ingen tjenere lagret.',
