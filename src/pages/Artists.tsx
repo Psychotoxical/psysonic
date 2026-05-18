@@ -126,7 +126,7 @@ export default function Artists() {
 
   const artistGridScrollMargin = useVirtualizerScrollMargin(
     artistGridMeasureRef,
-    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    getInpageScrollElement,
     {
       active: !perfFlags.disableMainstageVirtualLists && viewMode === 'grid',
       deps: [artistVirtualRowCount, artistGridCols],
@@ -159,7 +159,7 @@ export default function Artists() {
   const artistListWrapRef = useRef<HTMLDivElement>(null);
   const artistListScrollMargin = useVirtualizerScrollMargin(
     artistListWrapRef,
-    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    getInpageScrollElement,
     {
       active: !perfFlags.disableMainstageVirtualLists && viewMode === 'list',
       deps: [artistListFlatRows.length],

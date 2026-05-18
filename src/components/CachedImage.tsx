@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { acquireUrl, getCachedBlob, releaseUrl, subscribeCoverUpgraded } from '../utils/imageCache';
+import { resolveIntersectionScrollRoot } from '../utils/ui/resolveIntersectionScrollRoot';
 
 interface CachedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
@@ -11,11 +11,16 @@ interface CachedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
    */
   fetchQueueBias?: number;
   /**
-   * How far beyond the app scroll viewport `IntersectionObserver` expands the root.
+   * How far beyond the scroll viewport `IntersectionObserver` expands the root.
    * Larger = priority / slot ordering updates while the row is still off-screen → less
    * empty flash when it hits the viewport. CSS margin syntax (`440px`, `10% 0`, …).
    */
   observeRootMargin?: string;
+  /**
+   * Optional explicit IO root (e.g. in-page browse viewport id). When omitted,
+   * the nearest scrolling ancestor is used so priority tracks the visible pane.
+   */
+  observeScrollRootId?: string;
 }
 
 /** Search UI: load artist avatars before album covers when many requests compete. */
@@ -142,6 +147,7 @@ export default function CachedImage({
   cacheKey,
   fetchQueueBias = 0,
   observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
+  observeScrollRootId,
   style,
   onLoad,
   onError,
@@ -164,9 +170,10 @@ export default function CachedImage({
     const el = imgRef.current;
     if (!el) return;
     const root =
-      typeof document !== 'undefined'
-        ? (document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as Element | null)
-        : null;
+      (observeScrollRootId
+        ? (document.getElementById(observeScrollRootId) as Element | null)
+        : null)
+      ?? resolveIntersectionScrollRoot(el);
     const updateFromEntry = (entry: IntersectionObserverEntry) => {
       if (entry.isIntersecting) {
         const r = entry.boundingClientRect;
@@ -191,7 +198,7 @@ export default function CachedImage({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [observeRootMargin]);
+  }, [observeRootMargin, observeScrollRootId]);
 
   // Same as Hero/PlayerBar: show the salted fetch URL while IndexedDB/network resolves,
   // then swap to the shared blob URL — avoids an <img> with no src and opacity stuck at 0.

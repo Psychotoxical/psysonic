@@ -40,15 +40,22 @@ export function useArtistsInfiniteScroll({
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<() => void>(() => {});
   const observerInst = useRef<IntersectionObserver | null>(null);
+  /** Blocks overlapping sentinel callbacks until `visibleCount` commits. */
+  const loadPendingRef = useRef(false);
 
   const loadMore = useCallback(() => {
-    if (loadingMore) return;
+    if (loadPendingRef.current) return;
+    loadPendingRef.current = true;
     setLoadingMore(true);
     setVisibleCount(prev => prev + pageSize);
-    setTimeout(() => setLoadingMore(false), 100);
-  }, [loadingMore, pageSize]);
+  }, [pageSize]);
 
   loadMoreRef.current = loadMore;
+
+  useEffect(() => {
+    loadPendingRef.current = false;
+    setLoadingMore(false);
+  }, [visibleCount]);
 
   useEffect(() => {
     setVisibleCount(pageSize);

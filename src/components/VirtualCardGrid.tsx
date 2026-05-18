@@ -59,14 +59,10 @@ export function VirtualCardGrid<T>({
     return document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as HTMLElement | null;
   }, [scrollRootId]);
 
-  const scrollMargin = useVirtualizerScrollMargin(
-    wrapRef,
-    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
-    {
-      active: !disableVirtualization,
-      deps: [layoutSignal, virtualRowCount],
-    },
-  );
+  const scrollMargin = useVirtualizerScrollMargin(wrapRef, getScrollElement, {
+    active: !disableVirtualization,
+    deps: [layoutSignal, virtualRowCount, scrollRootId],
+  });
 
   const virtualizer = useVirtualizer({
     count: disableVirtualization ? 0 : virtualRowCount,

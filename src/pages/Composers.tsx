@@ -215,7 +215,7 @@ export default function Composers() {
   const composerListWrapRef = useRef<HTMLDivElement>(null);
   const composerListScrollMargin = useVirtualizerScrollMargin(
     composerListWrapRef,
-    () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    getInpageScrollElement,
     {
       active: !perfFlags.disableMainstageVirtualLists && viewMode === 'list',
       deps: [composerListFlatRows.length],

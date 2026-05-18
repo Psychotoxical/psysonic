@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
 import CachedImage from '../CachedImage';
+import { ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import { nameColor, nameInitial } from '../../utils/componentHelpers/artistsHelpers';
 
 interface AvatarProps {
@@ -31,6 +32,7 @@ export function ArtistCardAvatar({ artist, showImages }: AvatarProps) {
           src={coverSrc}
           cacheKey={coverKey}
           alt={artist.name}
+          observeScrollRootId={ARTISTS_INPAGE_SCROLL_VIEWPORT_ID}
         />
       </div>
     );
@@ -64,6 +66,7 @@ export function ArtistRowAvatar({ artist, showImages }: AvatarProps) {
           src={coverSrc}
           cacheKey={coverKey}
           alt={artist.name}
+          observeScrollRootId={ARTISTS_INPAGE_SCROLL_VIEWPORT_ID}
           style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
         />
       </div>
