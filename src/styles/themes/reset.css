@@ -89,3 +89,9 @@ html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing)[d
   text-rendering: geometricPrecision;
 }
 
+/* Card play/enqueue overlays: opacity fade + GL layers can flutter on hover (mainstage). */
+html[data-platform="linux"][data-linux-session="wayland"]:not(.no-compositing)
+  :is(.album-card-play-overlay, .song-card-play-overlay) {
+  transition: none;
+}
+

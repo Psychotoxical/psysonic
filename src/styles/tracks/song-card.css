@@ -46,10 +46,12 @@
   justify-content: center;
   gap: 6px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity var(--transition-base);
 }
 
-.song-card:hover .song-card-play-overlay {
+.song-card:hover .song-card-play-overlay,
+.song-card:focus-within .song-card-play-overlay {
   opacity: 1;
 }
 
@@ -64,12 +66,18 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform var(--transition-fast);
+  pointer-events: none;
+  transition: filter var(--transition-fast);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
+.song-card:hover .song-card-action-btn,
+.song-card:focus-within .song-card-action-btn {
+  pointer-events: auto;
+}
+
 .song-card-action-btn:hover {
-  transform: scale(1.08);
+  filter: brightness(1.08);
 }
 
 .song-card-info {
