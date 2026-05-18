@@ -176,6 +176,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playlist page layout — per-element visibility toggles (Add Songs, Import CSV, Download ZIP, Cache Offline, Suggestions) under Settings → Personalisation (PR #556)',
       'Player bar layout — per-control visibility toggles (Star rating, Favorite, Last.fm love, Equalizer, Mini player) under Settings → Personalisation (PR #627)',
       'Queue panel — persist header duration mode (total / remaining / ETA) across app restarts (PR #625)',
+      'Settings: dim disabled toggle rows; Queue toolbar "Clear" → "Clear queue" rename across 9 locales (adopted from PR #558, rewritten in PR #778)',
     ],
   },
   {
