@@ -70,6 +70,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Mainstage — album rail hover controls
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#787](https://github.com/Psychotoxical/psysonic/pull/787)**
+
+* **Home horizontal album rails (Discover, etc.):** play/enqueue overlay no longer flickers on WebKitGTK + Wayland GPU; cover zoom stays smooth like the All Albums grid.
+* **Album grids and song rails:** overlay `pointer-events` so the dim layer does not steal hover from the card.
+
+
+
 ### Radio — paused streams stay paused
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), reported by drelabre on GitHub, PR [#786](https://github.com/Psychotoxical/psysonic/pull/786)**
