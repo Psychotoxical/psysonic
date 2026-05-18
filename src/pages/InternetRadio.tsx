@@ -5,6 +5,8 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { Cast, Plus, Trash2, X, Globe, Camera, Loader2, Search, Heart, Check } from 'lucide-react';
 import { useDragSource, useDragDrop } from '../contexts/DragDropContext';
 import { usePlayerStore } from '../store/playerStore';
+import { setRadioVolume } from '../store/radioPlayer';
+import { fadeOut } from '../utils/playback/fadeOut';
 import CachedImage from '../components/CachedImage';
 import { invalidateCoverArt } from '../utils/imageCache';
 import CustomSelect from '../components/CustomSelect';
@@ -190,7 +192,13 @@ export default function InternetRadio() {
       setDeleteConfirmId(s.id);
       return;
     }
-    if (currentRadio?.id === s.id) stop();
+    if (currentRadio?.id === s.id) {
+      if (isPlaying) {
+        const vol = usePlayerStore.getState().volume;
+        await fadeOut(setRadioVolume, vol, 700);
+      }
+      stop();
+    }
     try {
       await deleteInternetRadioStation(s.id);
       setStations(prev => prev.filter(st => st.id !== s.id));
