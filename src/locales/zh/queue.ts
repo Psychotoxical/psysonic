@@ -13,7 +13,7 @@ export const queue = {
   appendToQueue: '追加到队列',
   delete: '删除',
   deleteConfirm: '删除播放列表 "{{name}}"？',
-  clear: '清空',
+  clear: '清空队列',
   shuffle: '随机打乱队列',
   gapless: '无缝播放',
   crossfade: '交叉淡入淡出',

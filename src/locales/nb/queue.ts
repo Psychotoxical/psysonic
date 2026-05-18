@@ -13,7 +13,7 @@ export const queue = {
   appendToQueue: 'Legg til i kø',
   delete: 'Slett',
   deleteConfirm: 'Slett spillelisten "{{name}}"?',
-  clear: 'Fjern',
+  clear: 'Tøm kø',
   shuffle: 'Bland kø',
   gapless: 'Uten mellomrom',
   crossfade: 'Crossfade',

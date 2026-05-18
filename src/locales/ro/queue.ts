@@ -13,7 +13,7 @@ export const queue = {
   appendToQueue: 'Adaugă la coadă',
   delete: 'Șterge',
   deleteConfirm: 'Șterge playlist "{{name}}"?',
-  clear: 'Golește',
+  clear: 'Golește coada',
   shuffle: 'Amestecă coada',
   gapless: 'Gapless',
   crossfade: 'Crossfade',

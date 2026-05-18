@@ -520,3 +520,12 @@
   color: var(--text-secondary);
 }
 
+/* Dim the non-toggle content of a settings row when its toggle is off.
+ * `:not(:disabled)` excludes mutex-disabled toggles (e.g. Crossfade/Gapless)
+ * whose row already carries an inline opacity — avoids dim-stacking. */
+.settings-toggle-row:has(.toggle-switch input:not(:checked):not(:disabled)) > *:not(.toggle-switch),
+.sidebar-customizer-row:has(.toggle-switch input:not(:checked):not(:disabled)) > *:not(.toggle-switch) {
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+}
+
