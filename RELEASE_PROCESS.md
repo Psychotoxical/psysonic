@@ -21,7 +21,7 @@ Direct push to these branches is not part of normal human workflow. Use PRs and 
 
 ## 2) Versioning rules (mandatory)
 
-Version is authoritative in `package.json` and `package-lock.json`.
+Version is authoritative in `package.json` and `package-lock.json`. Promotion workflows run `scripts/sync-tauri-version-from-package.js`, which also aligns `[workspace.package]` in `src-tauri/Cargo.toml`, `tauri.conf.json`, and the `psysonic*` workspace crate version fields in `src-tauri/Cargo.lock` (local `cargo build` alone does not commit that lock metadata).
 
 - `main` version format: `X.Y.Z-dev`
 - `next` version format: `X.Y.Z-rc.N`

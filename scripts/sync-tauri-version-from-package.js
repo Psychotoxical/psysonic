@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Align src-tauri/Cargo.toml and src-tauri/tauri.conf.json with package.json "version".
+ * Align src-tauri/Cargo.toml, src-tauri/tauri.conf.json, and workspace entries in
+ * src-tauri/Cargo.lock with package.json "version".
  * Used after npm version in promote workflows so bundle names match release semver.
  */
 const fs = require('fs');
@@ -28,3 +29,21 @@ const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
 conf.version = version;
 fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
 console.log(`tauri.conf.json -> ${version}`);
+
+/** @param {string} lockText */
+function syncCargoLockWorkspaceVersions(lockText, targetVersion) {
+  return lockText.replace(
+    /^(name = "psysonic[^"]*"\nversion = ")[^"]+"/gm,
+    `$1${targetVersion}"`,
+  );
+}
+
+const lockPath = path.join(root, 'src-tauri', 'Cargo.lock');
+let lock = fs.readFileSync(lockPath, 'utf8');
+const updatedLock = syncCargoLockWorkspaceVersions(lock, version);
+if (updatedLock !== lock) {
+  fs.writeFileSync(lockPath, updatedLock);
+  console.log(`Cargo.lock workspace crates -> ${version}`);
+} else {
+  console.log(`Cargo.lock workspace crates already at ${version}`);
+}
