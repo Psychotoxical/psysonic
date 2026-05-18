@@ -92,7 +92,11 @@ export function AddServerForm({
   };
 
   return (
-    <div className="settings-card" style={{ marginTop: '1rem' }}>
+    <form
+      className="settings-card"
+      style={{ marginTop: '1rem' }}
+      onSubmit={e => { e.preventDefault(); submit(); }}
+    >
       <h3 style={{ fontWeight: 600, marginBottom: '1rem', fontSize: '14px' }}>
         {isEdit ? t('settings.editServerTitle') : t('settings.addServerTitle')}
       </h3>
@@ -165,14 +169,11 @@ export function AddServerForm({
         </div>
       )}
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-        <button className="btn btn-ghost" onClick={onCancel}>{t('common.cancel')}</button>
-        <button
-          className="btn btn-primary"
-          onClick={submit}
-        >
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>{t('common.cancel')}</button>
+        <button type="submit" className="btn btn-primary">
           {isEdit ? t('common.save') : t('common.add')}
         </button>
       </div>
-    </div>
+    </form>
   );
 }
