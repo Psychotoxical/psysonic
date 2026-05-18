@@ -236,7 +236,7 @@
   color: var(--ctp-crust);
   border: none;
   padding: 8px 20px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
