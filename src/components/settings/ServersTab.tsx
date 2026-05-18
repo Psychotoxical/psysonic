@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
-import { AlertTriangle, CheckCircle2, Lock, LogOut, Pencil, Plus, Server, Sparkles, Trash2, User, Wifi, WifiOff } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Lock, LogOut, Pencil, Plus, Power, Server, Sparkles, Trash2, User, Wifi, WifiOff } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
@@ -296,8 +296,11 @@ export function ServersTab({
                           onClick={() => switchToServer(srv)}
                           disabled={status === 'testing'}
                           id={`settings-use-server-${srv.id}`}
+                          data-tooltip={t('settings.useServer')}
+                          aria-label={t('settings.useServer')}
                         >
-                          {t('settings.useServer')}
+                          <Power size={13} />
+                          <span className="server-card-btn-label">{t('settings.useServer')}</span>
                         </button>
                       )}
                       <button
