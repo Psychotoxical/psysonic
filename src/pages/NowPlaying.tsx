@@ -47,6 +47,10 @@ export default function NowPlaying() {
   const { t } = useTranslation();
   const stableNavigate = usePlaybackLibraryNavigate();
   const playbackServerId = usePlaybackServerId();
+  const audiomuseNavidromeByServer = useAuthStore(s => s.audiomuseNavidromeByServer);
+  const audiomuseNavidromeEnabled = Boolean(
+    playbackServerId && audiomuseNavidromeByServer[playbackServerId],
+  );
 
   const currentTrack            = usePlayerStore(s => s.currentTrack);
   const currentRadio            = usePlayerStore(s => s.currentRadio);
@@ -55,9 +59,6 @@ export default function NowPlaying() {
   const activeTab               = useLyricsStore(s => s.activeTab);
   const isQueueVisible          = usePlayerStore(s => s.isQueueVisible);
   const toggleQueue             = usePlayerStore(s => s.toggleQueue);
-  const audiomuseNavidromeEnabled = useAuthStore(
-    s => !!(s.activeServerId && s.audiomuseNavidromeByServer[s.activeServerId]),
-  );
   const enableBandsintown    = useAuthStore(s => s.enableBandsintown);
   const setEnableBandsintown = useAuthStore(s => s.setEnableBandsintown);
   const lastfmUsername       = useAuthStore(s => s.lastfmUsername);
