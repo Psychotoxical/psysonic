@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Servers — scan triggers + edit existing profiles
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
+
+* Quick/Full Scan buttons on each server card and in the switcher dropdown (Full needs a two-step confirm).
+* Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.

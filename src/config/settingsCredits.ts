@@ -310,6 +310,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Home: Lossless Albums rail + dedicated /lossless-albums page with infinite scroll and header parity (selection mode, enqueue, offline, download ZIPs), streaming load via per-fetch onProgress, sidebar entry default visible, detection via Navidrome native bit_depth-sorted song cursor with always-lossless suffix allowlist (PR #506)',
       'Accessibility: OpenDyslexic font option in the Settings picker — bundled locally via @fontsource/opendyslexic, asymmetric glyph shapes for easier b/d, p/q tracking, Latin-only with translated subtitle in all 9 locales calling out the dyslexia-friendly intent and the Cyrillic/CJK fallback (PR #507)',
       'Settings: tri-state Clock Format (Auto / 24h / 12h) overriding the locale default for the queue ETA and the sleep-timer preview (PR #742)',
+      'Servers: per-server library scan triggers (Quick / Full) and inline edit for existing profiles (PR #780)',
     ],
   },
 ] as const;
