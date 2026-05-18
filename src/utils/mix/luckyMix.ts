@@ -12,6 +12,10 @@ import { useLuckyMixStore } from '../../store/luckyMixStore';
 import { isLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { showToast } from '../ui/toast';
 import {
+  playbackServerDiffersFromActive,
+  prepareActiveServerForNewMix,
+} from '../playback/playbackServer';
+import {
   filterSongsForLuckyMixRatings,
   filterTopArtistsForMixRatings,
   getMixMinRatingsConfigFromAuth,
@@ -74,6 +78,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     showLuckyMixMenu: auth.showLuckyMixMenu,
     libraryFilter: activeServerId ? (auth.musicLibraryFilterByServer[activeServerId] ?? 'all') : 'all',
     mixRatingFilter: mixRatingCfg,
+    crossServerPlayback: playbackServerDiffersFromActive(),
   });
   if (!available) {
     logStep('abort_unavailable');
@@ -96,9 +101,16 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
 
   let unsubPlayer: (() => void) | null = null;
   try {
-    // Drop the old "upcoming" tail immediately so the queue UI does not show stale
-    // next tracks while the mix is still building (first playTrack may be delayed).
-    usePlayerStore.getState().pruneUpcomingToCurrent(true);
+    // Browsed server ≠ queue server: stop A's stream so Now Playing does not call
+    // ensurePlaybackServerActive() and revert the UI mid-build.
+    if (playbackServerDiffersFromActive()) {
+      prepareActiveServerForNewMix();
+      logStep('cross_server_handoff', { activeServerId });
+    } else {
+      // Drop the old "upcoming" tail so the queue UI does not show stale next
+      // tracks while the mix is still building (first playTrack may be delayed).
+      usePlayerStore.getState().pruneUpcomingToCurrent(true);
+    }
 
     lucky.start();
     let startedPlayback = false;

@@ -18,8 +18,8 @@ vi.mock('../api/subsonicLibrary');
 vi.mock('../api/bandsintown');
 vi.mock('../api/lastfm');
 
-import { getArtist, getArtistInfo, getTopSongs } from '../api/subsonicArtists';
-import { getAlbum, getSong } from '../api/subsonicLibrary';
+import { getArtistForServer, getArtistInfoForServer, getTopSongsForServer } from '../api/subsonicArtists';
+import { getAlbumForServer, getSongForServer } from '../api/subsonicLibrary';
 import { fetchBandsintownEvents } from '../api/bandsintown';
 import { lastfmGetArtistStats, lastfmGetTrackInfo, lastfmIsConfigured } from '../api/lastfm';
 import { useNowPlayingFetchers, type NowPlayingFetchersDeps } from './useNowPlayingFetchers';
@@ -28,8 +28,8 @@ import { useNowPlayingFetchers, type NowPlayingFetchersDeps } from './useNowPlay
 // the hook treats `null` as the "no info available" case and stores it as
 // such in its tuple. The tests mirror that — cast to a nullable-returning
 // shape so we can mock the empty case without `as any` at every site.
-const mockArtistInfo = vi.mocked(getArtistInfo) as unknown as {
-  mockImplementation: (impl: (id: string) => Promise<SubsonicArtistInfo | null>) => void;
+const mockArtistInfo = vi.mocked(getArtistInfoForServer) as unknown as {
+  mockImplementation: (impl: (serverId: string, id: string) => Promise<SubsonicArtistInfo | null>) => void;
   mockResolvedValue: (v: SubsonicArtistInfo | null) => void;
 };
 
@@ -47,8 +47,8 @@ const baseDeps: NowPlayingFetchersDeps = {
 };
 
 beforeEach(() => {
-  vi.mocked(getTopSongs).mockResolvedValue([]);
-  vi.mocked(getArtist).mockResolvedValue({ albums: [] } as any);
+  vi.mocked(getTopSongsForServer).mockResolvedValue([]);
+  vi.mocked(getArtistForServer).mockResolvedValue({ albums: [] } as any);
   vi.mocked(fetchBandsintownEvents).mockResolvedValue([]);
   vi.mocked(lastfmIsConfigured).mockReturnValue(false);
   vi.mocked(lastfmGetTrackInfo).mockResolvedValue(null);
@@ -71,7 +71,7 @@ describe('useNowPlayingFetchers — id-gated artistInfo', () => {
   it('returns null artistInfo while the previously-resolved info belongs to a different artistId', async () => {
     const a = deferred<SubsonicArtistInfo | null>();
     const b = deferred<SubsonicArtistInfo | null>();
-    mockArtistInfo.mockImplementation(async (id) => {
+    mockArtistInfo.mockImplementation(async (_sid, id) => {
       if (id === 'art-A') return a.promise;
       if (id === 'art-B') return b.promise;
       return null;
@@ -108,7 +108,7 @@ describe('useNowPlayingFetchers — id-gated artistInfo', () => {
   it('does not leak a late-arriving resolve for a stale artistId', async () => {
     // Race: artist A's fetch resolves AFTER the consumer switched to B.
     const a = deferred<SubsonicArtistInfo | null>();
-    mockArtistInfo.mockImplementation(async (id) => {
+    mockArtistInfo.mockImplementation(async (_sid, id) => {
       if (id === 'art-A') return a.promise;
       if (id === 'art-B') return { largeImageUrl: 'B.jpg' } as SubsonicArtistInfo;
       return null;
@@ -136,7 +136,7 @@ describe('useNowPlayingFetchers — id-gated songMeta / albumData / discography'
   it('gates songMeta on songId match', async () => {
     const s1 = deferred<SubsonicSong | null>();
     const s2 = deferred<SubsonicSong | null>();
-    vi.mocked(getSong).mockImplementation(async (id) => {
+    vi.mocked(getSongForServer).mockImplementation(async (_sid, id) => {
       if (id === 's1') return s1.promise;
       if (id === 's2') return s2.promise;
       return null;
@@ -161,7 +161,7 @@ describe('useNowPlayingFetchers — id-gated songMeta / albumData / discography'
   it('gates albumData on albumId match', async () => {
     const al1 = deferred<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null>();
     const al2 = deferred<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null>();
-    vi.mocked(getAlbum).mockImplementation(async (id) => {
+    vi.mocked(getAlbumForServer).mockImplementation(async (_sid, id) => {
       if (id === 'alb1') return al1.promise as any;
       if (id === 'alb2') return al2.promise as any;
       return null as any;
@@ -186,7 +186,7 @@ describe('useNowPlayingFetchers — id-gated songMeta / albumData / discography'
   it('gates discography on artistId match (empty fallback while gated)', async () => {
     const d1 = deferred<{ artist: any; albums: SubsonicAlbum[] }>();
     const d2 = deferred<{ artist: any; albums: SubsonicAlbum[] }>();
-    vi.mocked(getArtist).mockImplementation(async (id) => {
+    vi.mocked(getArtistForServer).mockImplementation(async (_sid, id) => {
       if (id === 'art-D1') return d1.promise as any;
       if (id === 'art-D2') return d2.promise as any;
       return { albums: [] } as any;

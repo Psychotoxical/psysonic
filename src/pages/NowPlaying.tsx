@@ -3,7 +3,7 @@ import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
-import { useEnsurePlaybackServerOnMount } from '../hooks/useEnsurePlaybackServerOnMount';
+import { usePlaybackServerId } from '../hooks/usePlaybackServerId';
 import { useTranslation } from 'react-i18next';
 import { Music, ExternalLink, Cast, Users, Radio, Clock, SkipForward, Info, Calendar, Disc3, Play, EyeOff, LayoutGrid, RotateCcw, Eye } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
@@ -46,8 +46,7 @@ import { useNowPlayingStarLove } from '../hooks/useNowPlayingStarLove';
 export default function NowPlaying() {
   const { t } = useTranslation();
   const stableNavigate = usePlaybackLibraryNavigate();
-  const subsonicReady = useEnsurePlaybackServerOnMount();
-  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
+  const playbackServerId = usePlaybackServerId();
 
   const currentTrack            = usePlayerStore(s => s.currentTrack);
   const currentRadio            = usePlayerStore(s => s.currentRadio);
@@ -81,8 +80,8 @@ export default function NowPlaying() {
     songId, artistId, albumId, artistName,
     enableBandsintown, audiomuseNavidromeEnabled,
     lastfmUsername, currentTrack,
-    subsonicServerId: activeServerId,
-    fetchEnabled: subsonicReady,
+    subsonicServerId: playbackServerId,
+    fetchEnabled: Boolean(playbackServerId),
   });
 
   // Star + Last.fm love + their toggle callbacks

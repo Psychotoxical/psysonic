@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getArtist, getArtistInfo, getTopSongs } from '../api/subsonicArtists';
-import { getAlbum, getSong } from '../api/subsonicLibrary';
+import { getArtistForServer, getArtistInfoForServer, getTopSongsForServer } from '../api/subsonicArtists';
+import { getAlbumForServer, getSongForServer } from '../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import {
@@ -30,7 +30,7 @@ export interface NowPlayingFetchersDeps {
   currentTrack: { artist: string; title: string } | null;
   /** Subsonic server for API calls — must match the playing queue server. */
   subsonicServerId: string;
-  /** False while switching active server to the queue server. */
+  /** When false, skip network fetches (e.g. no server id). */
   fetchEnabled?: boolean;
 }
 
@@ -96,7 +96,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setSongMetaEntry({ id: songId, value: cached }); return; }
     setSongMetaEntry(null);
     let cancelled = false;
-    getSong(songId)
+    getSongForServer(subsonicServerId, songId)
       .then(v => { if (!cancelled) { songMetaCache.set(cacheKey, v ?? null); setSongMetaEntry({ id: songId, value: v ?? null }); } })
       .catch(() => { if (!cancelled) { songMetaCache.set(cacheKey, null); setSongMetaEntry({ id: songId, value: null }); } });
     return () => { cancelled = true; };
@@ -109,7 +109,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setArtistInfoEntry({ id: artistId, value: cached }); return; }
     setArtistInfoEntry(null);
     let cancelled = false;
-    getArtistInfo(artistId, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
+    getArtistInfoForServer(subsonicServerId, artistId, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
       .then(v => { if (!cancelled) { artistInfoCache.set(cacheKey, v ?? null); setArtistInfoEntry({ id: artistId, value: v ?? null }); } })
       .catch(() => { if (!cancelled) { artistInfoCache.set(cacheKey, null); setArtistInfoEntry({ id: artistId, value: null }); } });
     return () => { cancelled = true; };
@@ -122,7 +122,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setAlbumDataEntry({ id: albumId, value: cached }); return; }
     setAlbumDataEntry(null);
     let cancelled = false;
-    getAlbum(albumId)
+    getAlbumForServer(subsonicServerId, albumId)
       .then(v => { if (!cancelled) { albumCache.set(cacheKey, v); setAlbumDataEntry({ id: albumId, value: v }); } })
       .catch(() => { if (!cancelled) { albumCache.set(cacheKey, null); setAlbumDataEntry({ id: albumId, value: null }); } });
     return () => { cancelled = true; };
@@ -134,7 +134,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     const cached = topSongsCache.get(cacheKey);
     if (cached !== undefined) { setTopSongs(cached); return; }
     let cancelled = false;
-    getTopSongs(artistName)
+    getTopSongsForServer(subsonicServerId, artistName)
       .then(v => { if (!cancelled) { topSongsCache.set(cacheKey, v); setTopSongs(v); } })
       .catch(() => { if (!cancelled) { topSongsCache.set(cacheKey, []); setTopSongs([]); } });
     return () => { cancelled = true; };
@@ -160,7 +160,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setDiscographyEntry({ id: artistId, value: cached }); return; }
     setDiscographyEntry(null);
     let cancelled = false;
-    getArtist(artistId)
+    getArtistForServer(subsonicServerId, artistId)
       .then(v => { if (!cancelled) { discographyCache.set(cacheKey, v.albums); setDiscographyEntry({ id: artistId, value: v.albums }); } })
       .catch(() => { if (!cancelled) { discographyCache.set(cacheKey, []); setDiscographyEntry({ id: artistId, value: [] }); } });
     return () => { cancelled = true; };

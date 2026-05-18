@@ -34,6 +34,16 @@ export function playbackServerDiffersFromActive(): boolean {
   return !!activeSid && queueServerId !== activeSid;
 }
 
+/**
+ * Stop playback owned by another server so a new mix on the browsed server
+ * can replace the queue (Lucky Mix / similar flows after ConnectionIndicator switch).
+ */
+export function prepareActiveServerForNewMix(): void {
+  if (!playbackServerDiffersFromActive()) return;
+  usePlayerStore.getState().clearQueue();
+  bindQueueServerForPlayback();
+}
+
 /** Switch the browsed server to the queue server when they differ (e.g. artist/album links). */
 export async function ensurePlaybackServerActive(): Promise<boolean> {
   if (!playbackServerDiffersFromActive()) return true;

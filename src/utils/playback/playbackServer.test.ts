@@ -8,8 +8,10 @@ import {
   getPlaybackServerId,
   playbackCoverArtForId,
   playbackServerDiffersFromActive,
+  prepareActiveServerForNewMix,
   shouldBindQueueServerForPlay,
 } from './playbackServer';
+import { invoke } from '@tauri-apps/api/core';
 import { vi } from 'vitest';
 
 vi.mock('../server/switchActiveServer', () => ({
@@ -56,6 +58,24 @@ describe('playbackServer', () => {
     expect(playbackServerDiffersFromActive()).toBe(true);
     usePlayerStore.setState({ queue: [] });
     expect(playbackServerDiffersFromActive()).toBe(false);
+  });
+
+  it('prepareActiveServerForNewMix clears queue and pins browsed server', async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    useAuthStore.setState({ activeServerId: 'b' });
+    prepareActiveServerForNewMix();
+    const s = usePlayerStore.getState();
+    expect(s.queue).toEqual([]);
+    expect(s.currentTrack).toBeNull();
+    expect(s.queueServerId).toBe('b');
+    expect(playbackServerDiffersFromActive()).toBe(false);
+  });
+
+  it('prepareActiveServerForNewMix is a no-op when queue already matches active', () => {
+    useAuthStore.setState({ activeServerId: 'a' });
+    prepareActiveServerForNewMix();
+    expect(usePlayerStore.getState().queue).toHaveLength(1);
+    expect(usePlayerStore.getState().queueServerId).toBe('a');
   });
 
   it('ensurePlaybackServerActive calls switch when servers differ', async () => {

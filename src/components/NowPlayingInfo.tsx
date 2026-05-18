@@ -1,5 +1,5 @@
-import { getSong } from '../api/subsonicLibrary';
-import { getArtistInfo } from '../api/subsonicArtists';
+import { getSongForServer } from '../api/subsonicLibrary';
+import { getArtistInfoForServer } from '../api/subsonicArtists';
 import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +7,7 @@ import { Info } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
-import { useEnsurePlaybackServerOnMount } from '../hooks/useEnsurePlaybackServerOnMount';
+import { usePlaybackServerId } from '../hooks/usePlaybackServerId';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import CachedImage from './CachedImage';
 import OverlayScrollArea from './OverlayScrollArea';
@@ -85,8 +85,8 @@ export default function NowPlayingInfo() {
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const enableBandsintown = useAuthStore(s => s.enableBandsintown);
   const setEnableBandsintown = useAuthStore(s => s.setEnableBandsintown);
-  const subsonicReady = useEnsurePlaybackServerOnMount();
-  const subsonicServerId = useAuthStore(s => s.activeServerId ?? '');
+  const subsonicServerId = usePlaybackServerId();
+  const subsonicReady = Boolean(subsonicServerId);
 
   const artistName = currentTrack?.artist || '';
   const artistId = currentTrack?.artistId || '';
@@ -126,7 +126,7 @@ export default function NowPlayingInfo() {
     if (cached !== undefined) { setArtistInfoEntry({ id: artistId, info: cached }); return; }
     setArtistInfoEntry(null);
     let cancelled = false;
-    getArtistInfo(artistId)
+    getArtistInfoForServer(subsonicServerId, artistId)
       .then(info => { if (!cancelled) { artistInfoCache.set(cacheKey, info ?? null); setArtistInfoEntry({ id: artistId, info: info ?? null }); } })
       .catch(() => { if (!cancelled) { artistInfoCache.set(cacheKey, null); setArtistInfoEntry({ id: artistId, info: null }); } });
     return () => { cancelled = true; };
@@ -140,7 +140,7 @@ export default function NowPlayingInfo() {
     if (cached !== undefined) { setSongDetailEntry({ id: songId, song: cached }); return; }
     setSongDetailEntry(null);
     let cancelled = false;
-    getSong(songId)
+    getSongForServer(subsonicServerId, songId)
       .then(song => { if (!cancelled) { songDetailCache.set(cacheKey, song ?? null); setSongDetailEntry({ id: songId, song: song ?? null }); } })
       .catch(() => { if (!cancelled) { songDetailCache.set(cacheKey, null); setSongDetailEntry({ id: songId, song: null }); } });
     return () => { cancelled = true; };
