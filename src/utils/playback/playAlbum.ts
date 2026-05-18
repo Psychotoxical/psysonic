@@ -2,22 +2,7 @@ import { getAlbum } from '../../api/subsonicLibrary';
 import { usePlayerStore } from '../../store/playerStore';
 import { songToTrack } from './songToTrack';
 import { useOrbitStore } from '../../store/orbitStore';
-
-function fadeOut(setVolume: (v: number) => void, from: number, durationMs: number): Promise<void> {
-  return new Promise(resolve => {
-    const steps = 16;
-    const stepMs = durationMs / steps;
-    let step = 0;
-    const id = setInterval(() => {
-      step++;
-      setVolume(Math.max(0, from * (1 - step / steps)));
-      if (step >= steps) {
-        clearInterval(id);
-        resolve();
-      }
-    }, stepMs);
-  });
-}
+import { fadeOut } from './fadeOut';
 
 export async function playAlbum(albumId: string): Promise<void> {
   const albumData = await getAlbum(albumId);
