@@ -110,7 +110,10 @@ export function PlayerTransportControls({
         onClick={toggleRepeat}
         aria-label={t('player.repeat')}
         data-tooltip={`${t('player.repeat')}: ${repeatMode === 'off' ? t('player.repeatOff') : repeatMode === 'all' ? t('player.repeatAll') : t('player.repeatOne')}`}
-        style={{ color: repeatMode !== 'off' ? 'var(--accent)' : undefined }}
+        disabled={isRadio}
+        style={isRadio
+          ? { opacity: 0.3, pointerEvents: 'none' }
+          : { color: repeatMode !== 'off' ? 'var(--accent)' : undefined }}
       >
         {repeatMode === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
       </button>
