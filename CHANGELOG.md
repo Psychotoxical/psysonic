@@ -695,6 +695,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Same scroll-margin bug as the one fixed by [#764](https://github.com/Psychotoxical/psysonic/pull/764) for the Album Detail "More by …" rail, on four more virtual lists: **Artists grid**, **Artists list**, **Composers list** and the **Tracks** virtual song browser. The virtual wrapper sat below the sticky page header but TanStack measured row positions from the scroll-element top — rows still on screen could unmount, and at larger header offsets the list refused to render at all.
 * The measurement is now a shared `useVirtualizerScrollMargin` hook used by every virtual-list call-site (including the existing `VirtualCardGrid` fix from #764).
 
+### Album cards — per-artist click on multi-artist albums
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#767](https://github.com/Psychotoxical/psysonic/pull/767)**
+
+* The artist subtitle under an album card rendered a multi-artist string as a single link to the album's primary `artistId`. On an artist-detail page that id is the page's own artist, so the click resolved to the current URL and the router silently no-op'd — the cursor said clickable, nothing happened.
+* Album cards now use the same `OpenArtistRefInline` component the album-detail header uses: each artist becomes its own ·-separated link. Behaviour on servers that don't expose the structured list is unchanged.
+* Root cause was a stale field name: psysonic's internal type called the OpenSubsonic album-artist array `albumArtists`, but the spec (and Navidrome) returns it as `artists`, so the structured branch never fired and the song-level fallback was carrying the album-detail header on its own.
+
 ## [1.45.0] - 2026-05-04
 
 ## Added
