@@ -9,7 +9,6 @@ import { useAuthStore } from '../store/authStore';
 import { switchActiveServer } from '../utils/server/switchActiveServer';
 import { showToast } from '../utils/ui/toast';
 import { serverListDisplayLabel } from '../utils/server/serverDisplayName';
-import ServerScanActions from './settings/ServerScanActions';
 
 interface Props {
   status: ConnectionStatus;
@@ -164,34 +163,23 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
               const busy = switchingId !== null;
               const labelText = serverListDisplayLabel(srv, servers);
               return (
-                <div
+                <button
                   key={srv.id}
+                  type="button"
                   role="menuitem"
                   className={`nav-library-dropdown-item${active ? ' nav-library-dropdown-item--selected' : ''}`}
-                  style={{ padding: 0 }}
+                  disabled={busy}
+                  onClick={() => onPickServer(srv)}
                 >
-                  <span style={{ flexShrink: 0, marginLeft: 'var(--space-3)', display: 'inline-flex', width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }} aria-hidden>
-                    {switchingId === srv.id ? (
-                      <div className="spinner" style={{ width: 14, height: 14 }} />
-                    ) : active ? (
-                      <Check size={16} className="nav-library-dropdown-check" />
-                    ) : null}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onPickServer(srv)}
-                    disabled={busy}
-                    className="nav-library-dropdown-item-label"
-                    style={{
-                      flex: 1, minWidth: 0, padding: 'var(--space-2) var(--space-3)',
-                      background: 'transparent', border: 'none', color: 'inherit',
-                      font: 'inherit', textAlign: 'left', cursor: busy ? 'default' : 'pointer',
-                    }}
-                  >
-                    {labelText}
-                  </button>
-                  <ServerScanActions serverId={srv.id} variant="compact" />
-                </div>
+                  <span className="nav-library-dropdown-item-label">{labelText}</span>
+                  {switchingId === srv.id ? (
+                    <div className="spinner" style={{ width: 14, height: 14, flexShrink: 0 }} aria-hidden />
+                  ) : active ? (
+                    <Check size={16} className="nav-library-dropdown-check" aria-hidden />
+                  ) : (
+                    <span className="nav-library-dropdown-check-spacer" aria-hidden />
+                  )}
+                </button>
               );
             })}
             <div
