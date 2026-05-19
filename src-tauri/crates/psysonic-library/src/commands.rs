@@ -3,16 +3,31 @@
 //! `State<LibraryRuntime>` so the top crate's `setup()` can wire one
 //! shared `Arc<LibraryStore>` across the whole IPC surface.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use rusqlite::params;
-use tauri::State;
+use serde_json::Value;
+use tauri::{AppHandle, Emitter, Manager, State};
+
+use psysonic_integration::navidrome::navidrome_token;
+use psysonic_integration::subsonic::SubsonicClient;
 
 use crate::dto::{
-    local_tracks_max_updated_ms, LibraryTrackDto, LibraryTracksEnvelope, OfflinePathDto,
-    SyncStateDto, TrackArtifactDto, TrackFactDto, TrackRefDto,
+    local_tracks_max_updated_ms, ArtifactInputDto, FactInputDto, LibraryTrackDto,
+    LibraryTracksEnvelope, OfflinePathDto, PurgeReportDto, SyncJobDto, SyncStateDto,
+    TrackArtifactDto, TrackFactDto, TrackRefDto,
 };
-use crate::repos::TrackRepository;
-use crate::runtime::LibraryRuntime;
+use crate::payload::LibrarySyncProgressPayload;
+use crate::repos::{SyncStateRepository, TrackRepository};
+use crate::runtime::{CurrentJob, LibraryRuntime, SyncSession};
 use crate::search::search_tracks;
+use crate::sync::bandwidth::PlaybackHint;
+use crate::sync::capability::{probe_and_persist, CapabilityFlags, NavidromeProbeCredentials};
+use crate::sync::delta::DeltaSyncRunner;
+use crate::sync::initial::InitialSyncRunner;
+use crate::sync::progress::{ChannelProgress, Progress, ProgressEvent};
+use crate::sync::tombstone::should_auto_reconcile;
 
 /// Cap for `library_get_tracks_batch` per spec §7.1 ("max 100 refs/call").
 const TRACKS_BATCH_LIMIT: usize = 100;
@@ -347,6 +362,591 @@ struct SyncStateRow {
 }
 
 use rusqlite::OptionalExtension;
+
+// ──────────────────────────────────────────────────────────────────────
+//  PR-5b — session / lifecycle / mutate / purge
+// ──────────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn library_sync_bind_session(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    base_url: String,
+    username: String,
+    password: String,
+    library_scope: Option<String>,
+) -> Result<(), String> {
+    // Try a Navidrome native-API auth once at bind time. Spec §6.1 +
+    // PR-5 kickoff Q5: this primes the bearer cache for N1 probe /
+    // ingest without making every command pass a token. Non-Navidrome
+    // servers (Subsonic-only) fall back gracefully — failure here is
+    // not blocking, sync still works via the Subsonic salted-md5 path.
+    let navidrome_token_cached = navidrome_token(&base_url, &username, &password).await.ok();
+
+    let session = SyncSession {
+        server_id: server_id.clone(),
+        base_url: base_url.clone(),
+        username: username.clone(),
+        password: password.clone(),
+        navidrome_token: navidrome_token_cached.clone(),
+        library_scope: library_scope.clone(),
+    };
+    runtime.set_session(session);
+
+    // Run the probe + persist capability flags. Failure to probe is a
+    // bind-time error — caller should fix credentials / URL.
+    let subsonic = SubsonicClient::new(base_url, username, password);
+    let navidrome_creds = navidrome_token_cached.map(|tok| NavidromeProbeCredentials {
+        server_url: subsonic_base_url_from(&runtime, &server_id),
+        bearer_token: tok,
+    });
+    let scope = library_scope.as_deref().unwrap_or_default();
+    probe_and_persist(
+        &runtime.store,
+        &subsonic,
+        navidrome_creds.as_ref(),
+        &server_id,
+        scope,
+    )
+    .await
+    .map_err(|e| format!("bind probe failed: {e}"))?;
+    Ok(())
+}
+
+fn subsonic_base_url_from(runtime: &LibraryRuntime, server_id: &str) -> String {
+    runtime
+        .get_session(server_id)
+        .map(|s| s.base_url)
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn library_sync_clear_session(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<(), String> {
+    runtime.clear_session(&server_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn library_set_playback_hint(
+    runtime: State<'_, LibraryRuntime>,
+    hint: String,
+) -> Result<(), String> {
+    let parsed = match hint.as_str() {
+        "idle" => PlaybackHint::Idle,
+        "playing" => PlaybackHint::Playing,
+        "prefetch_active" => PlaybackHint::PrefetchActive,
+        other => return Err(format!("unknown playback hint: `{other}`")),
+    };
+    runtime.set_playback_hint(parsed);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn library_sync_start(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    mode: String,
+    library_scope: Option<String>,
+) -> Result<SyncJobDto, String> {
+    let session = runtime.get_session(&server_id).ok_or_else(|| {
+        format!("no bound session for server `{server_id}` — call library_sync_bind_session first")
+    })?;
+    let scope = library_scope.clone().or(session.library_scope.clone()).unwrap_or_default();
+    let capability_flags = load_capability_flags(&runtime, &server_id, &scope)?;
+
+    let kind = match mode.as_str() {
+        "full" => "initial_sync",
+        "delta" => "delta_sync",
+        other => return Err(format!("unknown sync mode: `{other}`")),
+    };
+    let job_id = format!("{}_{}", server_id, now_unix_ms());
+    let cancel = Arc::new(AtomicBool::new(false));
+    let job = CurrentJob {
+        job_id: job_id.clone(),
+        server_id: server_id.clone(),
+        kind: kind.to_string(),
+        cancel: Arc::clone(&cancel),
+    };
+    runtime.set_current_job(job);
+
+    // Spawn the runner in a detached task. Progress events flow
+    // through an mpsc channel to the orchestrator that emits Tauri
+    // events; the runner doesn't need an AppHandle.
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<ProgressEvent>();
+    let progress: Arc<dyn Progress + Send + Sync> =
+        Arc::new(ChannelProgress::new(tx));
+
+    let store = Arc::clone(&runtime.store);
+    let session_clone = session.clone();
+    let scope_for_task = scope.clone();
+    let kind_for_task = kind.to_string();
+    let cancel_for_task = Arc::clone(&cancel);
+    let job_id_for_task = job_id.clone();
+
+    let runner_handle: tokio::task::JoinHandle<Result<(), String>> = tokio::task::spawn(async move {
+        let subsonic = SubsonicClient::new(
+            session_clone.base_url.clone(),
+            session_clone.username.clone(),
+            session_clone.password.clone(),
+        );
+        let navidrome_creds = session_clone.navidrome_token.clone().map(|tok| {
+            NavidromeProbeCredentials {
+                server_url: session_clone.base_url.clone(),
+                bearer_token: tok,
+            }
+        });
+
+        let result: Result<(), String> = if kind_for_task == "initial_sync" {
+            let mut runner = InitialSyncRunner::new(
+                &store,
+                &subsonic,
+                session_clone.server_id.clone(),
+                scope_for_task.clone(),
+                capability_flags,
+            )
+            .with_cancellation(Arc::clone(&cancel_for_task))
+            .with_progress(Arc::clone(&progress));
+            if let Some(creds) = navidrome_creds.clone() {
+                runner = runner.with_navidrome_credentials(creds);
+            }
+            runner.run().await.map(|_| ()).map_err(|e| e.to_string())
+        } else {
+            // Delta — Mode A manual integrity uses the DeltaMismatch
+            // budget for tombstones when the local/server count gap
+            // is over threshold; otherwise a small budget keeps the
+            // background-like pass cheap.
+            let tombstone_budget = compute_tombstone_budget(&store, &session_clone.server_id, &scope_for_task);
+            let mut runner = DeltaSyncRunner::new(
+                &store,
+                &subsonic,
+                session_clone.server_id.clone(),
+                scope_for_task.clone(),
+                capability_flags,
+            )
+            .with_cancellation(Arc::clone(&cancel_for_task))
+            .with_progress(Arc::clone(&progress));
+            if tombstone_budget > 0 {
+                runner = runner.with_tombstone_budget(tombstone_budget);
+            }
+            if let Some(creds) = navidrome_creds.clone() {
+                runner = runner.with_navidrome_credentials(creds);
+            }
+            runner.run().await.map(|_| ()).map_err(|e| e.to_string())
+        };
+
+        // Closing the mpsc sender by dropping `progress` so the
+        // orchestrator's drain loop terminates.
+        drop(progress);
+        let _ = job_id_for_task; // silence unused on Err
+        result
+    });
+
+    // Orchestrator: drain progress + emit Tauri events, then emit
+    // sync-idle when the runner exits.
+    let app_for_emit = app.clone();
+    let server_id_for_emit = server_id.clone();
+    let scope_for_emit = scope.clone();
+    let kind_for_emit = kind.to_string();
+    let job_id_for_emit = job_id.clone();
+    tokio::task::spawn(async move {
+        // Drain progress events; loop ends when sender is dropped.
+        while let Some(event) = rx.recv().await {
+            let payload = LibrarySyncProgressPayload::from_event(
+                &event,
+                &server_id_for_emit,
+                &scope_for_emit,
+            );
+            let _ = app_for_emit
+                .emit(LibrarySyncProgressPayload::PROGRESS_EVENT_NAME, &payload);
+        }
+        // Wait for the runner to finish + emit sync-idle.
+        let outcome = match runner_handle.await {
+            Ok(Ok(())) => SyncIdleAck::ok(&server_id_for_emit, &scope_for_emit, &kind_for_emit),
+            Ok(Err(msg)) => SyncIdleAck::err(&server_id_for_emit, &scope_for_emit, &kind_for_emit, &msg),
+            Err(join_err) => SyncIdleAck::err(
+                &server_id_for_emit,
+                &scope_for_emit,
+                &kind_for_emit,
+                &format!("sync task panicked: {join_err}"),
+            ),
+        };
+        let _ = app_for_emit.emit(LibrarySyncProgressPayload::IDLE_EVENT_NAME, &outcome);
+
+        // Clear the slot only if it still names us — sync_start may
+        // have already overwritten with a newer job.
+        if let Some(state) = app_for_emit.try_state::<LibraryRuntime>() {
+            state.clear_current_job_if_matches(&job_id_for_emit);
+        }
+    });
+
+    Ok(SyncJobDto {
+        job_id,
+        server_id,
+        kind: kind.to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn library_sync_cancel(
+    runtime: State<'_, LibraryRuntime>,
+    job_id: Option<String>,
+) -> Result<(), String> {
+    // `job_id` is informational — there's at most one in-flight job
+    // per `LibraryRuntime` at a time. If it's supplied and doesn't
+    // match, treat as no-op (the named job already finished).
+    if let Some(id) = &job_id {
+        if runtime.current_job().is_none_or(|j| &j.job_id != id) {
+            return Ok(());
+        }
+    }
+    runtime.cancel_current_job();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn library_patch_track(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    track_id: String,
+    patch: Value,
+) -> Result<(), String> {
+    // Sparse JSON patch — only the fields explicitly present in
+    // `patch` are applied; absent keys leave the column untouched.
+    // Spec §6.5 patch-on-use: `starred_at`, `user_rating`,
+    // `play_count`, `played_at`.
+    let starred_at = patch.get("starredAt").and_then(|v| v.as_i64());
+    let user_rating = patch.get("userRating").and_then(|v| v.as_i64());
+    let play_count = patch.get("playCount").and_then(|v| v.as_i64());
+    let played_at = patch.get("playedAt").and_then(|v| v.as_i64());
+
+    runtime
+        .store
+        .with_conn(|conn| {
+            // One UPDATE per field present — keeps SQL simple and
+            // matches the spec's per-field patch semantics.
+            if let Some(v) = starred_at {
+                conn.execute(
+                    "UPDATE track SET starred_at = ?3 \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, track_id, v],
+                )?;
+            }
+            if let Some(v) = user_rating {
+                conn.execute(
+                    "UPDATE track SET user_rating = ?3 \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, track_id, v],
+                )?;
+            }
+            if let Some(v) = play_count {
+                conn.execute(
+                    "UPDATE track SET play_count = ?3 \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, track_id, v],
+                )?;
+            }
+            if let Some(v) = played_at {
+                conn.execute(
+                    "UPDATE track SET played_at = ?3 \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, track_id, v],
+                )?;
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn library_put_artifact(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    track_id: String,
+    artifact: ArtifactInputDto,
+) -> Result<(), String> {
+    let now = now_unix_ms();
+    runtime
+        .store
+        .with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO track_artifact \
+                 (server_id, track_id, artifact_kind, format, language, source_kind, source_id, \
+                  content_text, content_blob, content_bytes, not_found, content_hash, \
+                  fetched_at, expires_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) \
+                 ON CONFLICT(server_id, track_id, artifact_kind, source_kind, source_id, format) \
+                 DO UPDATE SET \
+                   language = excluded.language, \
+                   content_text = excluded.content_text, \
+                   content_blob = excluded.content_blob, \
+                   content_bytes = excluded.content_bytes, \
+                   not_found = excluded.not_found, \
+                   content_hash = excluded.content_hash, \
+                   fetched_at = excluded.fetched_at, \
+                   expires_at = excluded.expires_at",
+                params![
+                    server_id,
+                    track_id,
+                    artifact.artifact_kind,
+                    artifact.format,
+                    artifact.language,
+                    artifact.source_kind,
+                    artifact.source_id,
+                    artifact.content_text,
+                    artifact.content_blob,
+                    artifact.content_bytes,
+                    if artifact.not_found { 1_i64 } else { 0 },
+                    artifact.content_hash,
+                    now,
+                    artifact.expires_at,
+                ],
+            )?;
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn library_put_fact(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    track_id: String,
+    fact: FactInputDto,
+) -> Result<(), String> {
+    let now = now_unix_ms();
+    runtime
+        .store
+        .with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO track_fact \
+                 (server_id, track_id, fact_kind, value_real, value_int, value_text, unit, \
+                  source_kind, source_id, source_detail, confidence, content_hash, \
+                  fetched_at, expires_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?11, ?12, ?13) \
+                 ON CONFLICT(server_id, track_id, fact_kind, source_kind, source_id) \
+                 DO UPDATE SET \
+                   value_real = excluded.value_real, \
+                   value_int = excluded.value_int, \
+                   value_text = excluded.value_text, \
+                   unit = excluded.unit, \
+                   confidence = excluded.confidence, \
+                   content_hash = excluded.content_hash, \
+                   fetched_at = excluded.fetched_at, \
+                   expires_at = excluded.expires_at",
+                params![
+                    server_id,
+                    track_id,
+                    fact.fact_kind,
+                    fact.value_real,
+                    fact.value_int,
+                    fact.value_text,
+                    fact.unit,
+                    fact.source_kind,
+                    fact.source_id,
+                    fact.confidence,
+                    fact.content_hash,
+                    now,
+                    fact.expires_at,
+                ],
+            )?;
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn library_purge_server(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    include_analysis: Option<bool>,
+    include_offline: Option<bool>,
+) -> Result<PurgeReportDto, String> {
+    let _ = include_analysis; // analysis_cache cross-purge wires in PR-6.
+    let include_offline = include_offline.unwrap_or(false);
+
+    let mut report = PurgeReportDto::default();
+    runtime
+        .store
+        .with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let track_count: i64 =
+                tx.query_row("SELECT COUNT(*) FROM track WHERE server_id = ?1", params![server_id], |r| r.get(0))?;
+            let album_count: i64 =
+                tx.query_row("SELECT COUNT(*) FROM album WHERE server_id = ?1", params![server_id], |r| r.get(0))?;
+            let artist_count: i64 =
+                tx.query_row("SELECT COUNT(*) FROM artist WHERE server_id = ?1", params![server_id], |r| r.get(0))?;
+            let offline_count: i64 =
+                tx.query_row("SELECT COUNT(*) FROM track_offline WHERE server_id = ?1", params![server_id], |r| r.get(0))?;
+            let offline_bytes: Option<i64> = tx
+                .query_row(
+                    "SELECT SUM(file_size_bytes) FROM track_offline WHERE server_id = ?1",
+                    params![server_id],
+                    |r| r.get(0),
+                )
+                .ok();
+
+            // Tear down child rows first (no cascade configured) so
+            // the FK constraints on track stay happy.
+            tx.execute(
+                "DELETE FROM track_extension WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM track_fact WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM track_artifact WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM track_canonical_link WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM track_id_history WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM track WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM album WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM artist WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM sync_state WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            if include_offline {
+                tx.execute(
+                    "DELETE FROM track_offline WHERE server_id = ?1",
+                    params![server_id],
+                )?;
+            }
+            tx.commit()?;
+
+            report.tracks_deleted = track_count.max(0) as u32;
+            report.albums_deleted = album_count.max(0) as u32;
+            report.artists_deleted = artist_count.max(0) as u32;
+            report.offline_rows_deleted = if include_offline {
+                offline_count.max(0) as u32
+            } else {
+                0
+            };
+            report.bytes_freed = if include_offline {
+                offline_bytes.unwrap_or(0).max(0)
+            } else {
+                0
+            };
+            Ok(())
+        })
+        .map_err(|e| e.to_string())?;
+
+    // Drop any bound session / current job for this server — credentials
+    // out of memory, ongoing job cancelled.
+    runtime.clear_session(&server_id);
+    if let Some(job) = runtime.current_job() {
+        if job.server_id == server_id {
+            job.cancel.store(true, Ordering::SeqCst);
+        }
+    }
+    Ok(report)
+}
+
+#[tauri::command]
+pub fn library_delete_server_data(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<(), String> {
+    library_purge_server(runtime, server_id, Some(false), Some(true)).map(|_| ())
+}
+
+// ── helpers ──────────────────────────────────────────────────────────
+
+fn load_capability_flags(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    library_scope: &str,
+) -> Result<CapabilityFlags, String> {
+    let bits = SyncStateRepository::new(&runtime.store)
+        .get_capability_flags(server_id, library_scope)?
+        .unwrap_or(0);
+    Ok(CapabilityFlags::new(bits))
+}
+
+fn compute_tombstone_budget(
+    store: &crate::store::LibraryStore,
+    server_id: &str,
+    library_scope: &str,
+) -> u32 {
+    let sync_state = SyncStateRepository::new(store);
+    let local = sync_state
+        .get_local_track_count(server_id, library_scope)
+        .ok()
+        .flatten()
+        .unwrap_or(0)
+        .max(0) as u32;
+    let server = sync_state
+        .get_server_track_count(server_id, library_scope)
+        .ok()
+        .flatten()
+        .unwrap_or(0)
+        .max(0) as u32;
+    if should_auto_reconcile(local, server, crate::sync::scheduler::DEFAULT_TOMBSTONE_THRESHOLD_PCT) {
+        crate::sync::budget::RequestBudget::DELTA_MISMATCH_CAP
+    } else {
+        0
+    }
+}
+
+fn now_unix_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
+        .unwrap_or(0)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncIdleAck {
+    server_id: String,
+    library_scope: String,
+    kind: String,
+    ok: bool,
+    error: Option<String>,
+}
+
+impl SyncIdleAck {
+    fn ok(server_id: &str, scope: &str, kind: &str) -> Self {
+        Self {
+            server_id: server_id.to_string(),
+            library_scope: scope.to_string(),
+            kind: kind.to_string(),
+            ok: true,
+            error: None,
+        }
+    }
+    fn err(server_id: &str, scope: &str, kind: &str, message: &str) -> Self {
+        Self {
+            server_id: server_id.to_string(),
+            library_scope: scope.to_string(),
+            kind: kind.to_string(),
+            ok: false,
+            error: Some(message.to_string()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
