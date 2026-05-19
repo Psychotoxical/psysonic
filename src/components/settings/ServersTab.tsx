@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { AlertTriangle, CheckCircle2, Lock, LogOut, Pencil, Plus, Power, Server, Sparkles, Trash2, User, Wifi, WifiOff } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useLibraryIndexStore } from '../../store/libraryIndexStore';
+import { libraryDeleteServerData, librarySyncClearSession } from '../../api/library';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import { useDragDrop } from '../../contexts/DragDropContext';
@@ -134,9 +136,25 @@ export function ServersTab({
     }
   };
 
-  const deleteServer = (server: ServerProfile) => {
-    if (confirm(t('settings.confirmDeleteServer', { name: serverListDisplayLabel(server, auth.servers) }))) {
-      auth.removeServer(server.id);
+  const deleteServer = async (server: ServerProfile) => {
+    if (!confirm(t('settings.confirmDeleteServer', { name: serverListDisplayLabel(server, auth.servers) }))) {
+      return;
+    }
+    // §5.6: when a local library index exists for this server, let the
+    // user keep the cached rows (offline use) or delete them. OK =
+    // delete the cache, Cancel = keep it.
+    const hadIndex = useLibraryIndexStore.getState().isIndexEnabled(server.id);
+    const purgeLibrary = hadIndex && confirm(t('settings.confirmDeleteServerLibrary'));
+
+    auth.removeServer(server.id);
+    useLibraryIndexStore.getState().setIndexEnabled(server.id, false);
+    try {
+      await librarySyncClearSession(server.id);
+      if (purgeLibrary) {
+        await libraryDeleteServerData(server.id);
+      }
+    } catch {
+      /* best-effort — server already removed from the store */
     }
   };
 
@@ -319,7 +337,7 @@ export function ServersTab({
                       <button
                         className="btn btn-ghost"
                         style={{ color: 'var(--danger)', padding: '4px 8px' }}
-                        onClick={() => deleteServer(srv)}
+                        onClick={() => void deleteServer(srv)}
                         data-tooltip={t('settings.deleteServer')}
                         id={`settings-delete-server-${srv.id}`}
                       >

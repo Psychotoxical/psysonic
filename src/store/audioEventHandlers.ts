@@ -3,6 +3,7 @@ import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../api/lastfm';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
+import { notifyLibraryPlaybackHint } from './libraryPlaybackHint';
 import { getPerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
@@ -78,6 +79,9 @@ export function handleAudioPlaying(_duration: number): void {
   setDeferHotCachePrefetch(false);
   resetProgressEmitThrottles();
   usePlayerStore.setState({ isPlaying: true, isPlaybackBuffering: false });
+  // Tell the library scheduler to throttle bulk crawl while a stream
+  // is active (spec §6.2.4). No-op unless the index is enabled.
+  notifyLibraryPlaybackHint('playing');
 }
 
 export function handleAudioProgress(
@@ -306,6 +310,10 @@ export function handleAudioProgress(
 }
 
 export function handleAudioEnded(): void {
+  // Playback stopped — let the library scheduler resume normal crawl
+  // parallelism (spec §6.2.4). No-op unless the index is enabled.
+  notifyLibraryPlaybackHint('idle');
+
   // If a gapless switch happened recently, this ended event is stale — the
   // progress task fired it for the OLD source before seeing the chained one.
   if (Date.now() - getLastGaplessSwitchTime() < 600) {

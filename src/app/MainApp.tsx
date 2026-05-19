@@ -14,6 +14,7 @@ import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
+import { ensureActiveServerSessionBound } from '../utils/library/librarySession';
 import { useScanPolling } from '../hooks/useScanPolling';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
@@ -34,6 +35,16 @@ export default function MainApp() {
   // One-time bridge from the per-tab Advanced group (v1.46) to the global
   // Advanced Mode toggle. Idempotent — flagged in localStorage.
   useEffect(() => { runAdvancedModeMigration(); }, []);
+
+  // Re-bind the library sync session whenever the active server changes
+  // (covers app startup + server switch). The session is Rust
+  // process-memory only while the per-server index toggle persists, so
+  // without this the background scheduler + Sync now report
+  // "no bound session" after a restart.
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  useEffect(() => {
+    void ensureActiveServerSessionBound();
+  }, [activeServerId]);
 
   useScanPolling();
 

@@ -367,6 +367,21 @@ use rusqlite::OptionalExtension;
 //  PR-5b — session / lifecycle / mutate / purge
 // ──────────────────────────────────────────────────────────────────────
 
+/// Normalise a server URL the same way the frontend's
+/// `authStore.getBaseUrl()` does — prepend `http://` when no scheme is
+/// present and strip the trailing slash. `server.url` is stored bare
+/// (e.g. `nas.example.com`); without this reqwest rejects the request
+/// with "relative URL without a base".
+fn normalize_base_url(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let with_scheme = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        trimmed.to_string()
+    } else {
+        format!("http://{trimmed}")
+    };
+    with_scheme.trim_end_matches('/').to_string()
+}
+
 #[tauri::command]
 pub async fn library_sync_bind_session(
     runtime: State<'_, LibraryRuntime>,
@@ -376,6 +391,7 @@ pub async fn library_sync_bind_session(
     password: String,
     library_scope: Option<String>,
 ) -> Result<(), String> {
+    let base_url = normalize_base_url(&base_url);
     // Try a Navidrome native-API auth once at bind time. Spec §6.1 +
     // PR-5 kickoff Q5: this primes the bearer cache for N1 probe /
     // ingest without making every command pass a token. Non-Navidrome
@@ -1104,5 +1120,24 @@ mod tests {
     #[test]
     fn batch_limit_constant_matches_spec_cap() {
         assert_eq!(TRACKS_BATCH_LIMIT, 100);
+    }
+
+    #[test]
+    fn normalize_base_url_adds_scheme_and_strips_trailing_slash() {
+        assert_eq!(normalize_base_url("nas.example.com"), "http://nas.example.com");
+        assert_eq!(normalize_base_url("nas.example.com/"), "http://nas.example.com");
+        assert_eq!(normalize_base_url("192.168.1.5:4533"), "http://192.168.1.5:4533");
+    }
+
+    #[test]
+    fn normalize_base_url_preserves_existing_scheme() {
+        assert_eq!(normalize_base_url("https://nas.example.com"), "https://nas.example.com");
+        assert_eq!(normalize_base_url("https://nas.example.com/"), "https://nas.example.com");
+        assert_eq!(normalize_base_url("http://localhost:4533/"), "http://localhost:4533");
+    }
+
+    #[test]
+    fn normalize_base_url_trims_whitespace() {
+        assert_eq!(normalize_base_url("  nas.example.com  "), "http://nas.example.com");
     }
 }
