@@ -7,25 +7,33 @@
 //! PR-3c / PR-3d / PR-5.
 
 pub mod backoff;
+pub mod bandwidth;
+pub mod budget;
 pub mod capability;
 pub mod cursor;
 pub mod delta;
 pub mod error;
 pub mod initial;
 pub mod mapping;
+pub mod poll_stats;
 pub mod progress;
+pub mod scheduler;
 pub mod strategy;
 pub mod supervisor;
 pub mod tombstone;
 
 pub use backoff::{with_jitter, Backoff};
+pub use bandwidth::{ParallelismBudget, PlaybackHint};
+pub use budget::{PassKind, RequestBudget};
 pub use capability::{CapabilityFlags, CapabilityProbe, NavidromeProbeCredentials};
 pub use cursor::{CursorPhase, InitialSyncCursor, StrategyState};
 pub use delta::{DeltaSyncReport, DeltaSyncRunner};
 pub use error::SyncError;
 pub use initial::{InitialSyncReport, InitialSyncRunner};
 pub use mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
+pub use poll_stats::{classify_tier, next_interval_ms, LibraryTier, PollStats};
 pub use progress::{ChannelProgress, NoopProgress, Progress, ProgressEvent};
+pub use scheduler::{BackgroundScheduler, SchedulerTickReport, DEFAULT_TOMBSTONE_THRESHOLD_PCT};
 pub use strategy::IngestStrategy;
 pub use supervisor::SyncSupervisor;
 pub use tombstone::{should_auto_reconcile, TombstoneReconciler, TombstoneReport};
