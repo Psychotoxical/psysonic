@@ -39,6 +39,7 @@ tauri-build = { version = "2", features = [] }
 psysonic-core = { path = "crates/psysonic-core" }
 psysonic-analysis = { path = "crates/psysonic-analysis" }
 psysonic-audio = { path = "crates/psysonic-audio" }
+psysonic-library = { path = "crates/psysonic-library" }
 psysonic-syncfs = { path = "crates/psysonic-syncfs" }
 psysonic-integration = { path = "crates/psysonic-integration" }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
