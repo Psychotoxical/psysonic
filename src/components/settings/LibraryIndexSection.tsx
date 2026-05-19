@@ -16,6 +16,7 @@ import {
   subscribeLibrarySyncProgress,
   type SyncStateDto,
 } from '../../api/library';
+import { ensureActiveServerSessionBound } from '../../utils/library/librarySession';
 
 const STATUS_POLL_MS = 3000;
 
@@ -50,13 +51,16 @@ export default function LibraryIndexSection() {
     }
   }, [serverId]);
 
-  // Poll status while the section is mounted + index is on.
+  // Poll status while the section is mounted + index is on. The
+  // persisted toggle can be "on" from a previous app run while the
+  // Rust session (process memory) is gone — re-bind first so
+  // Sync now / Verify don't fail with "no bound session".
   useEffect(() => {
     if (!serverId || !indexEnabled) {
       setStatus(null);
       return;
     }
-    void refreshStatus();
+    void ensureActiveServerSessionBound().then(() => refreshStatus());
     pollTimer.current = setInterval(() => void refreshStatus(), STATUS_POLL_MS);
     return () => {
       if (pollTimer.current) clearInterval(pollTimer.current);
