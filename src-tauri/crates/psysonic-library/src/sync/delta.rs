@@ -28,7 +28,9 @@ use super::backoff::{with_jitter, Backoff};
 use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::error::SyncError;
 use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
+use super::progress::{NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
+use super::tombstone::TombstoneReconciler;
 use crate::repos::{SyncStateRepository, TrackRepository, TrackRow};
 use crate::store::LibraryStore;
 
@@ -57,6 +59,10 @@ pub struct DeltaSyncReport {
     /// Track upserts performed during DS-4.
     pub changed_count: u32,
     pub remapped_count: u32,
+    /// Tombstone chunk stats from DS-8 — `0` when the runner wasn't
+    /// configured with `with_tombstone_budget`.
+    pub tombstones_checked: u32,
+    pub tombstones_deleted: u32,
 }
 
 pub struct DeltaSyncRunner<'a> {
@@ -69,6 +75,10 @@ pub struct DeltaSyncRunner<'a> {
     cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
     batch_size: u32,
     sleep_enabled: bool,
+    /// DS-8 budget. `None` skips the tombstone chunk entirely; `Some(n)`
+    /// drives `TombstoneReconciler::reconcile_chunk(n)` after DS-4.
+    tombstone_budget: Option<u32>,
+    progress: Arc<dyn Progress + Send + Sync>,
 }
 
 impl<'a> DeltaSyncRunner<'a> {
@@ -89,6 +99,8 @@ impl<'a> DeltaSyncRunner<'a> {
             cancel: None,
             batch_size: DEFAULT_BATCH_SIZE,
             sleep_enabled: true,
+            tombstone_budget: None,
+            progress: Arc::new(NoopProgress),
         }
     }
 
@@ -111,6 +123,19 @@ impl<'a> DeltaSyncRunner<'a> {
 
     pub fn with_sleep_disabled(mut self) -> Self {
         self.sleep_enabled = false;
+        self
+    }
+
+    /// DS-8 — run a `TombstoneReconciler::reconcile_chunk(budget)`
+    /// pass after DS-4 ingest. Caller (PR-3d scheduler) decides
+    /// budget based on §6.7 threshold detection and per-tick limits.
+    pub fn with_tombstone_budget(mut self, budget: u32) -> Self {
+        self.tombstone_budget = Some(budget);
+        self
+    }
+
+    pub fn with_progress(mut self, progress: Arc<dyn Progress + Send + Sync>) -> Self {
+        self.progress = progress;
         self
     }
 
@@ -141,6 +166,9 @@ impl<'a> DeltaSyncRunner<'a> {
         // but S1 is skipped: `search3` doesn't carry a delta semantic.
         let strategy = self.delta_strategy();
         report.strategy = Some(strategy.as_tag().to_string());
+        self.progress.emit(ProgressEvent::PhaseChanged {
+            phase: format!("delta:{}", strategy.as_tag()),
+        });
         match strategy {
             IngestStrategy::N1 => self.run_n1_delta(&mut report).await?,
             IngestStrategy::S2 => self.run_s2_delta(&mut report).await?,
@@ -148,6 +176,29 @@ impl<'a> DeltaSyncRunner<'a> {
                 return Err(SyncError::StrategyUnsupported {
                     strategy: strategy.as_tag(),
                 })
+            }
+        }
+
+        // DS-8 — optional tombstone chunk (PR-3d wiring). Runs after
+        // ingest so newly-arrived rows are already in `track` before
+        // we probe `getSong` for stale ids.
+        if let Some(budget) = self.tombstone_budget {
+            if budget > 0 {
+                let mut reconciler =
+                    TombstoneReconciler::new(self.store, self.subsonic, &self.server_id);
+                if !self.sleep_enabled {
+                    reconciler = reconciler.with_sleep_disabled();
+                }
+                if let Some(flag) = &self.cancel {
+                    reconciler = reconciler.with_cancellation(Arc::clone(flag));
+                }
+                let stats = reconciler.reconcile_chunk(budget).await?;
+                report.tombstones_checked = stats.checked;
+                report.tombstones_deleted = stats.deleted;
+                self.progress.emit(ProgressEvent::Tombstoned {
+                    deleted_count: stats.deleted,
+                    checked_count: stats.checked,
+                });
             }
         }
 
@@ -168,6 +219,9 @@ impl<'a> DeltaSyncRunner<'a> {
         }
         self.stamp_last_delta(&sync_state)?;
 
+        self.progress.emit(ProgressEvent::Completed {
+            kind: "delta_sync".into(),
+        });
         Ok(report)
     }
 
@@ -885,6 +939,95 @@ mod tests {
             })
             .unwrap();
         assert!(last_delta.unwrap_or(0) > 0);
+    }
+
+    // ── DS-8: tombstone wire runs after DS-4 ─────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn ds8_runs_tombstone_chunk_when_budget_set() {
+        let server = MockServer::start().await;
+        // Watermark change → DS-4 ingest path runs.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": {
+                        "lastModified": 1_716_840_000_000_i64,
+                        "ignoredArticles": "",
+                        "index": []
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+        // S2-delta: empty album list → no ingest, but DS-8 still runs.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "albumList2": { "album": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        // getSong probe — first id returns ok, second returns code 70.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .and(query_param("id", "tr_alive"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "song": { "id": "tr_alive", "title": "Alive" }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .and(query_param("id", "tr_gone"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Song not found" }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "tr_alive", "al_x", 1_000);
+        seed_track(&store, "tr_gone", "al_x", 1_000);
+
+        let subsonic = test_subsonic(&server.uri());
+        let report = DeltaSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_tombstone_budget(10)
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        assert_eq!(report.tombstones_checked, 2);
+        assert_eq!(report.tombstones_deleted, 1);
+
+        // tr_gone is now soft-deleted.
+        let gone_deleted: i64 = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT deleted FROM track WHERE id='tr_gone'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(gone_deleted, 1);
     }
 
     fn parse_test_iso(s: &str) -> i64 {
