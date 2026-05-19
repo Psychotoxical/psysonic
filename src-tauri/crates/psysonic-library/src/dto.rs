@@ -194,6 +194,82 @@ pub struct TrackRefDto {
     pub content_hash: Option<String>,
 }
 
+/// Input to `library_put_artifact`. Same shape as `TrackArtifactDto`
+/// minus the server-supplied `server_id` / `track_id` (provided as
+/// command args) and `fetched_at` (stamped server-side from `now`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactInputDto {
+    pub artifact_kind: String,
+    pub format: String,
+    pub source_kind: String,
+    pub source_id: String,
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub content_text: Option<String>,
+    #[serde(default)]
+    pub content_blob: Option<Vec<u8>>,
+    #[serde(default)]
+    pub content_bytes: i64,
+    #[serde(default)]
+    pub not_found: bool,
+    #[serde(default)]
+    pub content_hash: Option<String>,
+    #[serde(default)]
+    pub expires_at: Option<i64>,
+}
+
+/// Input to `library_put_fact`. Shape matches `TrackFactDto` minus the
+/// indices.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FactInputDto {
+    pub fact_kind: String,
+    #[serde(default)]
+    pub value_real: Option<f64>,
+    #[serde(default)]
+    pub value_int: Option<i64>,
+    #[serde(default)]
+    pub value_text: Option<String>,
+    #[serde(default)]
+    pub unit: Option<String>,
+    pub source_kind: String,
+    pub source_id: String,
+    #[serde(default = "default_confidence")]
+    pub confidence: f64,
+    #[serde(default)]
+    pub content_hash: Option<String>,
+    #[serde(default)]
+    pub expires_at: Option<i64>,
+}
+
+fn default_confidence() -> f64 {
+    1.0
+}
+
+/// `library_purge_server` outcome.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PurgeReportDto {
+    pub tracks_deleted: u32,
+    pub albums_deleted: u32,
+    pub artists_deleted: u32,
+    pub offline_rows_deleted: u32,
+    /// Total bytes freed across the purged scopes (best-effort).
+    pub bytes_freed: i64,
+}
+
+/// `library_sync_start` ack.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncJobDto {
+    pub job_id: String,
+    pub server_id: String,
+    /// `"initial_sync"` or `"delta_sync"`.
+    pub kind: String,
+}
+
 /// Read `MAX(server_updated_at)` for non-deleted tracks on this server
 /// — used by `SyncStateDto` so callers can show "tracks watermark" in
 /// Settings without a separate column.

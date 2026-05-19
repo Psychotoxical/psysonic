@@ -103,14 +103,89 @@ pub fn run() {
                 app.manage(cache);
             }
 
-            // ── Library track store (psysonic-library, PR-5a) ─────────────
-            // Read-only Tauri surface only in PR-5a; the sync supervisor +
-            // background scheduler land in PR-5b.
+            // ── Library track store (psysonic-library, PR-5a + PR-5b) ─────
+            // PR-5a brought up the read-only Tauri surface + LibraryRuntime.
+            // PR-5b adds the mutating commands, sync session map, current-job
+            // tracker, and the 30-second background scheduler tick task below
+            // — which sweeps every bound session through
+            // `BackgroundScheduler::tick` while honouring the runtime's
+            // `scheduler_cancel` flag.
             {
                 let store = psysonic_library::store::LibraryStore::init(app.handle())
                     .map_err(|e| format!("library store init failed: {e}"))?;
                 let runtime = psysonic_library::LibraryRuntime::new(std::sync::Arc::new(store));
                 app.manage(runtime);
+
+                let app_for_sched = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    use std::sync::atomic::Ordering;
+                    use std::time::Duration;
+                    use tokio::time::MissedTickBehavior;
+
+                    let mut interval = tokio::time::interval(Duration::from_secs(30));
+                    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                    loop {
+                        interval.tick().await;
+                        let Some(state) = app_for_sched
+                            .try_state::<psysonic_library::LibraryRuntime>()
+                        else {
+                            break;
+                        };
+                        if state.scheduler_cancel.load(Ordering::SeqCst) {
+                            break;
+                        }
+                        let sessions = state.snapshot_sessions();
+                        if sessions.is_empty() {
+                            continue;
+                        }
+                        let hint = state.current_playback_hint();
+                        let now_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
+                            .unwrap_or(0);
+                        for session in sessions {
+                            let scope = session.library_scope.clone().unwrap_or_default();
+                            let flags_bits = psysonic_library::repos::SyncStateRepository::new(
+                                &state.store,
+                            )
+                            .get_capability_flags(&session.server_id, &scope)
+                            .ok()
+                            .flatten()
+                            .unwrap_or(0);
+                            let flags = psysonic_library::sync::capability::CapabilityFlags::new(
+                                flags_bits,
+                            );
+                            let subsonic = psysonic_integration::subsonic::SubsonicClient::new(
+                                session.base_url.clone(),
+                                session.username.clone(),
+                                session.password.clone(),
+                            );
+                            let mut sched =
+                                psysonic_library::sync::scheduler::BackgroundScheduler::new(
+                                    &state.store,
+                                    &subsonic,
+                                    session.server_id.clone(),
+                                    scope.clone(),
+                                    flags,
+                                )
+                                .with_playback_hint(hint);
+                            if let Some(tok) = session.navidrome_token.clone() {
+                                sched = sched.with_navidrome_credentials(
+                                    psysonic_library::sync::capability::NavidromeProbeCredentials {
+                                        server_url: session.base_url.clone(),
+                                        bearer_token: tok,
+                                    },
+                                );
+                            }
+                            let _ = sched.tick(now_ms).await;
+                            // Background ticks stay silent in PR-5b — Tauri
+                            // emit for the scheduler path lands when the
+                            // Settings panel needs it (PR-5c). Manual
+                            // `library_sync_start` already emits via its
+                            // own orchestrator.
+                        }
+                    }
+                });
             }
 
             audio::cleanup_orphan_stream_spill_dir(app.handle());
@@ -444,6 +519,16 @@ pub fn run() {
             psysonic_library::commands::library_get_artifact,
             psysonic_library::commands::library_get_facts,
             psysonic_library::commands::library_get_offline_path,
+            psysonic_library::commands::library_sync_bind_session,
+            psysonic_library::commands::library_sync_clear_session,
+            psysonic_library::commands::library_set_playback_hint,
+            psysonic_library::commands::library_sync_start,
+            psysonic_library::commands::library_sync_cancel,
+            psysonic_library::commands::library_patch_track,
+            psysonic_library::commands::library_put_artifact,
+            psysonic_library::commands::library_put_fact,
+            psysonic_library::commands::library_purge_server,
+            psysonic_library::commands::library_delete_server_data,
             psysonic_syncfs::cache::offline::download_track_offline,
             psysonic_syncfs::cache::offline::cancel_offline_downloads,
             psysonic_syncfs::cache::offline::clear_offline_cancel,
