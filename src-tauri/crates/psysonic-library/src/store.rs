@@ -4,14 +4,35 @@ use std::sync::Mutex;
 use rusqlite::{params, Connection};
 use tauri::Manager;
 
-/// Schema version applied to a fresh DB / current head of `migrations/`.
-/// Bump whenever a new `NNN_*.sql` is added; PR-1b will tighten the
-/// breaking-bump handshake (P22).
+/// Current head of the embedded migrations. Bump each time a new
+/// `migrations/NNN_*.sql` is added.
 pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 1;
 
-/// Embedded migrations. Order matters: ascending `version`, applied once each
-/// and recorded in `schema_migrations`.
-const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/001_initial.sql"))];
+/// Lowest applied schema version the current code can advance from purely
+/// additively. If a DB carries a version below this, the breaking-bump hook
+/// fires (spec §5.7 / P22): the library is treated as incompatible, must be
+/// dropped, and initial sync must restart.
+///
+/// At v1 launch this equals `LIBRARY_DB_SCHEMA_VERSION` — no real DB can
+/// trip the hook. Bump independently of `SCHEMA_VERSION` only when a
+/// migration cannot be expressed additively.
+pub const LIBRARY_DB_MIN_COMPATIBLE_VERSION: i64 = 1;
+
+pub(crate) const INITIAL_SQL: &str = include_str!("../migrations/001_initial.sql");
+
+/// Embedded migrations. Ordered ascending by `version`; the runner sorts
+/// defensively before applying so the source order can stay readable.
+const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL)];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MigrationOutcome {
+    /// Every missing migration was applied (or the DB was already at head).
+    Applied,
+    /// The DB carried a schema below `LIBRARY_DB_MIN_COMPATIBLE_VERSION`,
+    /// so the breaking-bump hook fired. Callers should treat the library
+    /// data as discarded and trigger a fresh initial sync (P22).
+    BreakingBump,
+}
 
 pub struct LibraryStore {
     conn: Mutex<Connection>,
@@ -77,14 +98,46 @@ fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
+fn run_migrations(conn: &Connection) -> rusqlite::Result<MigrationOutcome> {
+    run_migrations_with(
+        conn,
+        MIGRATIONS,
+        LIBRARY_DB_MIN_COMPATIBLE_VERSION,
+        handle_breaking_schema_bump,
+    )
+}
+
+/// Test-friendly entry point. Production code goes through `run_migrations`,
+/// which fixes `migrations`, `min_compatible`, and `hook` to the prod values.
+pub(crate) fn run_migrations_with(
+    conn: &Connection,
+    migrations: &[(i64, &str)],
+    min_compatible: i64,
+    hook: fn(&Connection, i64, i64) -> rusqlite::Result<()>,
+) -> rusqlite::Result<MigrationOutcome> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_migrations (
            version    INTEGER PRIMARY KEY,
            applied_at INTEGER NOT NULL
          );",
     )?;
-    for (version, sql) in MIGRATIONS {
+
+    // Breaking-bump detection only meaningful for already-initialised DBs.
+    let max_applied: Option<i64> = conn.query_row(
+        "SELECT MAX(version) FROM schema_migrations",
+        [],
+        |row| row.get::<_, Option<i64>>(0),
+    )?;
+    if let Some(max_applied) = max_applied {
+        if max_applied < min_compatible {
+            hook(conn, max_applied, LIBRARY_DB_SCHEMA_VERSION)?;
+            return Ok(MigrationOutcome::BreakingBump);
+        }
+    }
+
+    let mut ordered: Vec<(i64, &str)> = migrations.iter().map(|(v, s)| (*v, *s)).collect();
+    ordered.sort_by_key(|(v, _)| *v);
+    for (version, sql) in ordered {
         let already: i64 = conn.query_row(
             "SELECT COUNT(*) FROM schema_migrations WHERE version = ?1",
             params![version],
@@ -99,6 +152,19 @@ fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
             params![version],
         )?;
     }
+    Ok(MigrationOutcome::Applied)
+}
+
+/// P22 breaking-schema-bump hook. PR-1b ships a no-op stub: the function
+/// signature, call site, and `MigrationOutcome::BreakingBump` signal are in
+/// place, but the actual library-drop + sync-reset logic lands when the
+/// first real breaking bump happens. Until then the constants guarantee the
+/// hook never fires on production data.
+fn handle_breaking_schema_bump(
+    _conn: &Connection,
+    _max_applied: i64,
+    _target_version: i64,
+) -> rusqlite::Result<()> {
     Ok(())
 }
 
@@ -119,8 +185,6 @@ mod tests {
             })
             .unwrap();
 
-        // FTS5 creates internal shadow tables (_data, _idx, _docsize, _config).
-        // We just assert that every base table from §5.1 is present.
         for expected in [
             "album",
             "artist",
@@ -161,11 +225,11 @@ mod tests {
 
     #[test]
     fn run_migrations_is_idempotent_across_reopens() {
-        // Same connection, second pass must not re-execute the SQL.
         let store = LibraryStore::open_in_memory();
-        store
+        let outcome = store
             .with_conn(run_migrations)
             .expect("second migration pass must be a no-op");
+        assert_eq!(outcome, MigrationOutcome::Applied);
         let count: i64 = store
             .with_conn(|c| {
                 c.query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
@@ -187,5 +251,129 @@ mod tests {
             })
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    // ── PR-1b: edge-case tests via the test-only `run_migrations_with` ─────
+
+    /// `ALTER TABLE artist ADD COLUMN bio TEXT;` — minimal additive fixture,
+    /// nullable column with no default. Mirrors the §5.7 additive-first rule.
+    const FIXTURE_002_ADD_BIO: &str = "ALTER TABLE artist ADD COLUMN bio TEXT;";
+
+    fn no_op_hook(_c: &Connection, _from: i64, _to: i64) -> rusqlite::Result<()> {
+        Ok(())
+    }
+
+    fn always_fail_hook(_c: &Connection, _from: i64, _to: i64) -> rusqlite::Result<()> {
+        panic!("breaking-bump hook must NOT fire in this test");
+    }
+
+    #[test]
+    fn additive_migration_preserves_existing_data() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO artist (server_id, id, name, synced_at) \
+                     VALUES ('s1', 'a1', 'Existing Artist', 1)",
+                    [],
+                )
+            })
+            .unwrap();
+
+        let outcome = store
+            .with_conn(|c| {
+                run_migrations_with(
+                    c,
+                    &[(1, INITIAL_SQL), (2, FIXTURE_002_ADD_BIO)],
+                    LIBRARY_DB_MIN_COMPATIBLE_VERSION,
+                    always_fail_hook,
+                )
+            })
+            .unwrap();
+        assert_eq!(outcome, MigrationOutcome::Applied);
+
+        let (name, bio): (String, Option<String>) = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT name, bio FROM artist WHERE id = 'a1'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(name, "Existing Artist");
+        assert!(bio.is_none());
+
+        let versions: Vec<i64> = store
+            .with_conn(|c| {
+                let mut stmt =
+                    c.prepare("SELECT version FROM schema_migrations ORDER BY version")?;
+                let rows: rusqlite::Result<Vec<i64>> =
+                    stmt.query_map([], |r| r.get(0))?.collect();
+                rows
+            })
+            .unwrap();
+        assert_eq!(versions, vec![1, 2]);
+    }
+
+    #[test]
+    fn runner_sorts_unsorted_migration_slice_before_applying() {
+        // If a future contributor lists migrations out of order in the
+        // source slice, the runner must still apply them ascending.
+        let conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+
+        let outcome = run_migrations_with(
+            &conn,
+            &[(2, FIXTURE_002_ADD_BIO), (1, INITIAL_SQL)],
+            LIBRARY_DB_MIN_COMPATIBLE_VERSION,
+            always_fail_hook,
+        )
+        .unwrap();
+        assert_eq!(outcome, MigrationOutcome::Applied);
+
+        let versions: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT version FROM schema_migrations ORDER BY applied_at, version")
+                .unwrap();
+            let rows: rusqlite::Result<Vec<i64>> =
+                stmt.query_map([], |r| r.get(0)).unwrap().collect();
+            rows.unwrap()
+        };
+        assert_eq!(versions, vec![1, 2]);
+    }
+
+    #[test]
+    fn breaking_bump_hook_fires_when_db_below_min_compatible() {
+        // Simulate a future code release where MIN_COMPATIBLE was bumped to
+        // 2 but the DB still carries only version 1.
+        let store = LibraryStore::open_in_memory();
+        let outcome = store
+            .with_conn(|c| {
+                run_migrations_with(
+                    c,
+                    &[(1, INITIAL_SQL), (2, FIXTURE_002_ADD_BIO)],
+                    2, // pretend MIN_COMPATIBLE has been bumped past current applied
+                    no_op_hook,
+                )
+            })
+            .unwrap();
+        assert_eq!(outcome, MigrationOutcome::BreakingBump);
+    }
+
+    #[test]
+    fn breaking_bump_hook_does_not_fire_on_fresh_db() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        let outcome = run_migrations_with(
+            &conn,
+            MIGRATIONS,
+            // Even a wildly future min_compatible must not trip on a fresh DB:
+            // no rows in schema_migrations means "nothing to migrate from".
+            999,
+            always_fail_hook,
+        )
+        .unwrap();
+        assert_eq!(outcome, MigrationOutcome::Applied);
     }
 }
