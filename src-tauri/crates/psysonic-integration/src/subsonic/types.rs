@@ -7,6 +7,26 @@
 
 use serde::Deserialize;
 
+/// Envelope-level metadata returned by `#ping` (and present on every
+/// other response too). Read by the capability probe to detect the
+/// server family (Navidrome vs generic Subsonic) and the OpenSubsonic
+/// flag. Filled in from the `subsonic-response` object itself, not
+/// from a body key — these fields sit at the same level as `status`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerInfo {
+    /// Server software family — Navidrome reports `"navidrome"`, generic
+    /// Subsonic implementations report their own label. `None` when the
+    /// server omits the field (older Subsonic).
+    pub server_type: Option<String>,
+    /// Server build version, e.g. `"0.55.2"` on Navidrome.
+    pub server_version: Option<String>,
+    /// Subsonic API protocol level the server advertises.
+    pub api_version: Option<String>,
+    /// `true` when the server advertises OpenSubsonic extensions
+    /// (`isrc`, `played`, `bpm`, contributor arrays, …).
+    pub open_subsonic: bool,
+}
+
 /// `#getScanStatus` (since 1.15.0). `lastScan` is an ISO-8601 string on
 /// Navidrome (`responses.go` `ScanStatus.LastScan`); other servers may
 /// omit it during an active scan.

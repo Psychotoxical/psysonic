@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use super::auth::SubsonicCredentials;
 use super::error::{flatten_reqwest_error, SubsonicError};
-use super::types::{Album, AlbumSummary, ArtistIndex, ScanStatus, SearchResult, Song};
+use super::types::{Album, AlbumSummary, ArtistIndex, ScanStatus, SearchResult, ServerInfo, Song};
 
 /// Protocol level we advertise — pre-OpenSubsonic Subsonic baseline that
 /// Navidrome and other servers in the wild support. OpenSubsonic
@@ -112,6 +112,15 @@ impl SubsonicClient {
     pub async fn ping(&self) -> Result<(), SubsonicError> {
         let body = self.send("ping", &[]).await?;
         parse_envelope_status_only(&body)
+    }
+
+    /// C1 helper — `#ping` with the envelope metadata captured. Used by
+    /// the capability probe to detect server type (`navidrome` →
+    /// `UnstableTrackIds`) and OpenSubsonic support without issuing a
+    /// second request.
+    pub async fn server_info(&self) -> Result<ServerInfo, SubsonicError> {
+        let body = self.send("ping", &[]).await?;
+        parse_server_info(&body)
     }
 
     /// B2 — `getScanStatus`. Lightweight poll for huge libraries
@@ -381,6 +390,41 @@ fn map_error(code: i32, message: String) -> SubsonicError {
     } else {
         SubsonicError::Api { code, message }
     }
+}
+
+/// Inspect the `subsonic-response` envelope itself for server metadata.
+/// Used by `server_info()` and by the capability probe.
+fn parse_server_info(body: &str) -> Result<ServerInfo, SubsonicError> {
+    let envelope: serde_json::Value = serde_json::from_str(body)
+        .map_err(|e| SubsonicError::Decode(format!("envelope: {e}")))?;
+    let response = envelope
+        .get("subsonic-response")
+        .ok_or_else(|| SubsonicError::Decode("missing `subsonic-response`".into()))?;
+
+    if let Some(err) = response.get("error") {
+        let code = err.get("code").and_then(|c| c.as_i64()).unwrap_or(-1) as i32;
+        let message = err
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or_default()
+            .to_string();
+        return Err(map_error(code, message));
+    }
+
+    let status = response.get("status").and_then(|s| s.as_str()).unwrap_or_default();
+    if status != "ok" {
+        return Err(SubsonicError::Decode(format!("unexpected status `{status}`")));
+    }
+
+    Ok(ServerInfo {
+        server_type: response.get("type").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        server_version: response
+            .get("serverVersion")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        api_version: response.get("version").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        open_subsonic: response.get("openSubsonic").and_then(|v| v.as_bool()).unwrap_or(false),
+    })
 }
 
 /// B9 — pick every `every_n`-th id from a sorted list. Used by the
@@ -955,6 +999,69 @@ mod tests {
             raw_songs[1].get("replayGain"),
             album.get("song").unwrap().as_array().unwrap()[1].get("replayGain")
         );
+    }
+
+    // ── server_info / parse_server_info ────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn server_info_extracts_navidrome_envelope_metadata() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1",
+                    "type": "navidrome",
+                    "serverVersion": "0.55.2",
+                    "openSubsonic": true
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let info = test_client(&server.uri()).server_info().await.unwrap();
+        assert_eq!(info.server_type.as_deref(), Some("navidrome"));
+        assert_eq!(info.server_version.as_deref(), Some("0.55.2"));
+        assert_eq!(info.api_version.as_deref(), Some("1.16.1"));
+        assert!(info.open_subsonic);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn server_info_falls_back_to_defaults_for_minimal_envelope() {
+        // Older Subsonic servers may omit type / serverVersion / openSubsonic.
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "version": "1.16.1" }
+            })))
+            .mount(&server)
+            .await;
+
+        let info = test_client(&server.uri()).server_info().await.unwrap();
+        assert!(info.server_type.is_none());
+        assert!(info.server_version.is_none());
+        assert!(!info.open_subsonic);
+        assert_eq!(info.api_version.as_deref(), Some("1.16.1"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn server_info_surfaces_wrong_credentials_as_code_40() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 40, "message": "Wrong username or password" }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let err = test_client(&server.uri()).server_info().await.unwrap_err();
+        assert!(matches!(err, SubsonicError::Api { code: 40, .. }));
     }
 
     #[tokio::test(flavor = "multi_thread")]
