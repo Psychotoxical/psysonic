@@ -118,7 +118,13 @@ export default function LibraryIndexSection() {
           password: activeServer.password,
         });
         setIndexEnabled(serverId, true);
-        await refreshStatus();
+        const fresh = await libraryGetStatus(serverId).catch(() => null);
+        setStatus(fresh);
+        // First enable on a never-synced server → kick off the initial
+        // full sync (delta alone won't populate an empty index).
+        if (fresh && !fresh.lastFullSyncAt) {
+          await librarySyncStart({ serverId, mode: 'full' });
+        }
       } else {
         await librarySyncClearSession(serverId);
         setIndexEnabled(serverId, false);
@@ -133,10 +139,15 @@ export default function LibraryIndexSection() {
     }
   };
 
-  const handleSyncNow = async (mode: 'full' | 'delta') => {
+  const handleSyncNow = async () => {
     if (!serverId) return;
     setBusy(true);
     try {
+      // A library that never completed a full sync needs `full`
+      // (delta only walks "what changed since the watermark", which
+      // is everything-or-nothing on an empty index). Once a full
+      // sync has landed, subsequent «Sync now» runs are delta.
+      const mode: 'full' | 'delta' = status?.lastFullSyncAt ? 'delta' : 'full';
       await librarySyncStart({ serverId, mode });
     } catch (e) {
       setBusy(false);
@@ -228,7 +239,7 @@ export default function LibraryIndexSection() {
               <button
                 className="btn btn-surface"
                 disabled={busy}
-                onClick={() => void handleSyncNow('delta')}
+                onClick={() => void handleSyncNow()}
               >
                 {t('settings.libraryIndexSyncNow')}
               </button>
