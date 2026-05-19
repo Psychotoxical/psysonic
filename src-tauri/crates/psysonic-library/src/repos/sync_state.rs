@@ -254,6 +254,161 @@ impl<'a> SyncStateRepository<'a> {
         })
     }
 
+    /// Read `next_poll_at` — epoch ms scheduling target. `None` when
+    /// the row is missing or the column is `NULL` (no schedule yet).
+    pub fn get_next_poll_at(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<i64>, String> {
+        self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT next_poll_at FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .optional()
+        })
+        .map(|opt| opt.flatten())
+    }
+
+    /// Write `next_poll_at`. Upsert scoped to that one column.
+    pub fn set_next_poll_at(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        epoch_ms: i64,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, next_poll_at) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   next_poll_at = excluded.next_poll_at",
+                params![server_id, library_scope, epoch_ms],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Read `poll_stats_json`. Returns `Some(Value)` for an existing
+    /// row (SQL DEFAULT is `'{}'`, so a freshly-ensured row reads
+    /// back as `Some(Object({}))`), `None` when the row is absent.
+    pub fn get_poll_stats_json(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<Value>, String> {
+        let raw: Option<String> = self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT poll_stats_json FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get(0),
+            )
+            .optional()
+        })?;
+        match raw {
+            None => Ok(None),
+            Some(s) => serde_json::from_str(&s)
+                .map(Some)
+                .map_err(|e| format!("invalid poll_stats_json: {e}")),
+        }
+    }
+
+    /// Write `poll_stats_json`. Upsert scoped to that one column.
+    pub fn set_poll_stats_json(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        stats: &Value,
+    ) -> Result<(), String> {
+        let json = serde_json::to_string(stats).map_err(|e| e.to_string())?;
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, poll_stats_json) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   poll_stats_json = excluded.poll_stats_json",
+                params![server_id, library_scope, json],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Read `local_track_count` snapshot (counts kept in sync by C8 /
+    /// PR-3d2 scheduler ticks). Returns `None` when unset.
+    pub fn get_local_track_count(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<i64>, String> {
+        self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT local_track_count FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .optional()
+        })
+        .map(|opt| opt.flatten())
+    }
+
+    pub fn set_local_track_count(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        count: i64,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, local_track_count) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   local_track_count = excluded.local_track_count",
+                params![server_id, library_scope, count],
+            )?;
+            Ok(())
+        })
+    }
+
+    pub fn get_server_track_count(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<i64>, String> {
+        self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT server_track_count FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .optional()
+        })
+        .map(|opt| opt.flatten())
+    }
+
+    pub fn set_server_track_count(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        count: i64,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, server_track_count) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   server_track_count = excluded.server_track_count",
+                params![server_id, library_scope, count],
+            )?;
+            Ok(())
+        })
+    }
+
     /// Stamp `last_delta_sync_at = now` (epoch ms). Called by DS-9 at
     /// the end of every successful delta pass.
     pub fn set_last_delta_sync_at(
