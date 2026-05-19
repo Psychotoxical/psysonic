@@ -1,4 +1,4 @@
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 
 use crate::store::LibraryStore;
 
@@ -45,6 +45,21 @@ pub struct TrackRow {
     pub raw_json: String,
 }
 
+/// One detected remap during an upsert batch. Sync code can use this
+/// to emit `library:tracks-changed { remapped: [{from, to}] }` (spec
+/// §6.9) so the UI can refresh open per-track views.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemapEntry {
+    pub server_id: String,
+    pub old_id: String,
+    pub new_id: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RemapStats {
+    pub remapped: Vec<RemapEntry>,
+}
+
 pub struct TrackRepository<'a> {
     store: &'a LibraryStore,
 }
@@ -54,60 +69,182 @@ impl<'a> TrackRepository<'a> {
         Self { store }
     }
 
-    /// Batch upsert. Wrapped in a single transaction; sync code can call with
-    /// chunks of ~500 rows to hit the §5.1 perf target.
+    /// Batch upsert without remap detection. Suitable for generic
+    /// Subsonic servers where `UnstableTrackIds` is clear (track ids
+    /// are stable across reindexing). Wrapped in a single transaction.
     pub fn upsert_batch(&self, rows: &[TrackRow]) -> Result<(), String> {
+        self.upsert_batch_with_remap(rows, false).map(|_| ())
+    }
+
+    /// Batch upsert with optional §6.9 id-remap detection. When
+    /// `unstable_track_ids` is `true`, each incoming row is checked
+    /// against the existing `track` table for a collision via
+    /// `content_hash` or `server_path` carrying a different id. On
+    /// collision, child tables (`track_offline` and the FK-bound
+    /// extension / fact / artifact / canonical_link tables) are
+    /// retargeted onto the new id, a `track_id_history` row is
+    /// recorded, and the old `track` row is deleted — all inside the
+    /// same SQLite transaction so partial remaps can't leak.
+    pub fn upsert_batch_with_remap(
+        &self,
+        rows: &[TrackRow],
+        unstable_track_ids: bool,
+    ) -> Result<RemapStats, String> {
         if rows.is_empty() {
-            return Ok(());
+            return Ok(RemapStats::default());
         }
         self.store.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
-            {
-                let mut stmt = tx.prepare(UPSERT_SQL)?;
-                for r in rows {
-                    stmt.execute(params![
-                        r.server_id,
-                        r.id,
-                        r.title,
-                        r.title_sort,
-                        r.artist,
-                        r.artist_id,
-                        r.album,
-                        r.album_id,
-                        r.album_artist,
-                        r.duration_sec,
-                        r.track_number,
-                        r.disc_number,
-                        r.year,
-                        r.genre,
-                        r.suffix,
-                        r.bit_rate,
-                        r.size_bytes,
-                        r.cover_art_id,
-                        r.starred_at,
-                        r.user_rating,
-                        r.play_count,
-                        r.played_at,
-                        r.server_path,
-                        r.library_id,
-                        r.isrc,
-                        r.mbid_recording,
-                        r.bpm,
-                        r.replay_gain_track_db,
-                        r.replay_gain_album_db,
-                        r.content_hash,
-                        r.server_updated_at,
-                        r.server_created_at,
-                        if r.deleted { 1_i64 } else { 0 },
+            let mut remapped: Vec<RemapEntry> = Vec::new();
+
+            for r in rows {
+                // Spec §6.9: detect collision BEFORE the upsert so the
+                // old id is known. The upsert itself comes next; only
+                // then do we retarget children to the new id, since
+                // child tables FK→track(server_id, id) and would refuse
+                // an UPDATE pointing at an id that doesn't exist yet.
+                let detected_old: Option<String> = if unstable_track_ids {
+                    detect_remap_target(&tx, r)?
+                } else {
+                    None
+                };
+
+                tx.execute(UPSERT_SQL, params![
+                    r.server_id,
+                    r.id,
+                    r.title,
+                    r.title_sort,
+                    r.artist,
+                    r.artist_id,
+                    r.album,
+                    r.album_id,
+                    r.album_artist,
+                    r.duration_sec,
+                    r.track_number,
+                    r.disc_number,
+                    r.year,
+                    r.genre,
+                    r.suffix,
+                    r.bit_rate,
+                    r.size_bytes,
+                    r.cover_art_id,
+                    r.starred_at,
+                    r.user_rating,
+                    r.play_count,
+                    r.played_at,
+                    r.server_path,
+                    r.library_id,
+                    r.isrc,
+                    r.mbid_recording,
+                    r.bpm,
+                    r.replay_gain_track_db,
+                    r.replay_gain_album_db,
+                    r.content_hash,
+                    r.server_updated_at,
+                    r.server_created_at,
+                    if r.deleted { 1_i64 } else { 0 },
+                    r.synced_at,
+                    r.raw_json,
+                ])?;
+
+                if let Some(old_id) = detected_old {
+                    remap_existing_to_new(
+                        &tx,
+                        &r.server_id,
+                        &old_id,
+                        &r.id,
+                        r.content_hash.as_deref(),
+                        r.server_path.as_deref(),
                         r.synced_at,
-                        r.raw_json,
-                    ])?;
+                    )?;
+                    remapped.push(RemapEntry {
+                        server_id: r.server_id.clone(),
+                        old_id,
+                        new_id: r.id.clone(),
+                    });
                 }
             }
+
             tx.commit()?;
-            Ok(())
+            Ok(RemapStats { remapped })
         })
     }
+}
+
+/// Run the `SELECT old.id` half of §6.9 — returns `Some(old_id)` if a
+/// non-deleted row with a different id on this server matches the
+/// incoming row's `content_hash` or `server_path`.
+fn detect_remap_target(
+    tx: &rusqlite::Transaction<'_>,
+    incoming: &TrackRow,
+) -> rusqlite::Result<Option<String>> {
+    // Empty-string sentinels are *not* eligible — spec §6.9 explicitly
+    // excludes them so the file-tree default never collides.
+    let hash = incoming.content_hash.as_deref().filter(|s| !s.is_empty());
+    let path = incoming.server_path.as_deref().filter(|s| !s.is_empty());
+    if hash.is_none() && path.is_none() {
+        return Ok(None);
+    }
+    tx.query_row(
+        "SELECT id FROM track \
+         WHERE server_id = ?1 \
+           AND deleted = 0 \
+           AND id != ?2 \
+           AND (\
+             (?3 IS NOT NULL AND content_hash = ?3) \
+             OR (?4 IS NOT NULL AND server_path = ?4) \
+           ) \
+         LIMIT 1",
+        params![incoming.server_id, incoming.id, hash, path],
+        |row| row.get::<_, String>(0),
+    )
+    .optional()
+}
+
+/// Run the §6.9 retarget half — UPDATE every FK-bound child to the
+/// new id, INSERT into `track_id_history`, DELETE the old `track` row.
+/// `track_offline` has no FK to `track` (spec §5.14) but still needs
+/// its row retargeted so the cached file resolves under the new id.
+fn remap_existing_to_new(
+    tx: &rusqlite::Transaction<'_>,
+    server_id: &str,
+    old_id: &str,
+    new_id: &str,
+    content_hash: Option<&str>,
+    server_path: Option<&str>,
+    remapped_at: i64,
+) -> rusqlite::Result<()> {
+    for table in [
+        "track_offline",
+        "track_extension",
+        "track_fact",
+        "track_artifact",
+        "track_canonical_link",
+    ] {
+        tx.execute(
+            &format!(
+                "UPDATE {table} SET track_id = ?1 \
+                 WHERE server_id = ?2 AND track_id = ?3"
+            ),
+            params![new_id, server_id, old_id],
+        )?;
+    }
+    tx.execute(
+        "INSERT INTO track_id_history \
+         (server_id, old_id, new_id, content_hash, server_path, remapped_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+         ON CONFLICT(server_id, old_id) DO UPDATE SET \
+           new_id = excluded.new_id, \
+           content_hash = excluded.content_hash, \
+           server_path = excluded.server_path, \
+           remapped_at = excluded.remapped_at",
+        params![server_id, old_id, new_id, content_hash, server_path, remapped_at],
+    )?;
+    tx.execute(
+        "DELETE FROM track WHERE server_id = ?1 AND id = ?2",
+        params![server_id, old_id],
+    )?;
+    Ok(())
 }
 
 const UPSERT_SQL: &str = r#"
@@ -338,5 +475,162 @@ mod tests {
             "upsert_batch(500 rows) took {elapsed:?}; AC A3 target is <100ms typical, \
              test fails past 5× that"
         );
+    }
+
+    // ── PR-3b: §6.9 id remap detection ────────────────────────────────────
+
+    fn row_with_id_hash(server: &str, id: &str, hash: &str, path: &str) -> TrackRow {
+        let mut r = row(server, id, "Title");
+        r.content_hash = if hash.is_empty() { None } else { Some(hash.into()) };
+        r.server_path = if path.is_empty() { None } else { Some(path.into()) };
+        r
+    }
+
+    #[test]
+    fn remap_disabled_never_records_history_even_on_hash_collision() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[row_with_id_hash("s1", "tr_old", "deadbeef", "")])
+            .unwrap();
+
+        // Generic Subsonic path: caller passes `unstable_track_ids = false`.
+        let stats = repo
+            .upsert_batch_with_remap(
+                &[row_with_id_hash("s1", "tr_new", "deadbeef", "")],
+                false,
+            )
+            .unwrap();
+        assert!(stats.remapped.is_empty());
+
+        let track_count: i64 = store
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .unwrap();
+        let hist_count: i64 = store
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track_id_history", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(track_count, 2, "both ids coexist when remap is off");
+        assert_eq!(hist_count, 0);
+    }
+
+    #[test]
+    fn remap_via_content_hash_replaces_old_row_and_records_history() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        // Seed with the old id; child tables get a row each that must
+        // follow the remap.
+        repo.upsert_batch(&[row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac")])
+            .unwrap();
+        store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO track_offline \
+                     (server_id, track_id, local_path, cached_at) \
+                     VALUES ('s1', 'tr_old', '/local/x.flac', 1)",
+                    [],
+                )?;
+                c.execute(
+                    "INSERT INTO track_extension \
+                     (server_id, track_id, kind, payload, updated_at) \
+                     VALUES ('s1', 'tr_old', 'user_note', X'7B7D', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let stats = repo
+            .upsert_batch_with_remap(
+                &[row_with_id_hash("s1", "tr_new", "deadbeef", "/path/x.flac")],
+                true,
+            )
+            .unwrap();
+        assert_eq!(stats.remapped.len(), 1);
+        assert_eq!(stats.remapped[0].old_id, "tr_old");
+        assert_eq!(stats.remapped[0].new_id, "tr_new");
+
+        // Old track row gone, new one in place.
+        let ids: Vec<String> = store
+            .with_conn(|c| {
+                let mut stmt = c.prepare("SELECT id FROM track WHERE server_id = 's1'")?;
+                let r: rusqlite::Result<Vec<String>> = stmt.query_map([], |r| r.get(0))?.collect();
+                r
+            })
+            .unwrap();
+        assert_eq!(ids, vec!["tr_new"]);
+
+        // Child tables follow the new id.
+        let offline_id: String = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT track_id FROM track_offline WHERE server_id = 's1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(offline_id, "tr_new");
+        let ext_id: String = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT track_id FROM track_extension WHERE server_id = 's1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(ext_id, "tr_new");
+
+        // History row recorded.
+        let hist = crate::repos::TrackIdHistoryRepository::new(&store);
+        assert_eq!(
+            hist.lookup_new_id("s1", "tr_old").unwrap().as_deref(),
+            Some("tr_new")
+        );
+    }
+
+    #[test]
+    fn remap_via_server_path_only_works_when_hash_missing() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[row_with_id_hash("s1", "tr_old", "", "/path/y.mp3")])
+            .unwrap();
+        // Server only ships server_path on the new row — no hash yet.
+        let stats = repo
+            .upsert_batch_with_remap(
+                &[row_with_id_hash("s1", "tr_new", "", "/path/y.mp3")],
+                true,
+            )
+            .unwrap();
+        assert_eq!(stats.remapped.len(), 1, "path-based remap must trigger");
+    }
+
+    #[test]
+    fn remap_skips_when_neither_hash_nor_path_present() {
+        // Defensive: empty-string sentinels must not cause spurious
+        // remaps across unrelated rows that happen to lack hash + path.
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[row_with_id_hash("s1", "tr_old", "", "")]).unwrap();
+        let stats = repo
+            .upsert_batch_with_remap(&[row_with_id_hash("s1", "tr_new", "", "")], true)
+            .unwrap();
+        assert!(stats.remapped.is_empty());
+        let count: i64 = store
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(count, 2, "both rows kept; identity-less rows can't shadow");
+    }
+
+    #[test]
+    fn remap_is_noop_when_new_id_matches_existing_id() {
+        // Standard delta-sync: same id, same hash. Must not trigger
+        // remap (SELECT excludes id = T.id).
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[row_with_id_hash("s1", "tr_1", "h", "/p")]).unwrap();
+        let stats = repo
+            .upsert_batch_with_remap(&[row_with_id_hash("s1", "tr_1", "h", "/p")], true)
+            .unwrap();
+        assert!(stats.remapped.is_empty());
     }
 }

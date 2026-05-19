@@ -5,7 +5,7 @@
 //! `raw_json` column on `track`). Unknown fields are simply ignored on
 //! deserialize — additive OpenSubsonic extensions never break parsing.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Envelope-level metadata returned by `#ping` (and present on every
 /// other response too). Read by the capability probe to detect the
@@ -30,7 +30,7 @@ pub struct ServerInfo {
 /// `#getScanStatus` (since 1.15.0). `lastScan` is an ISO-8601 string on
 /// Navidrome (`responses.go` `ScanStatus.LastScan`); other servers may
 /// omit it during an active scan.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ScanStatus {
     pub scanning: bool,
     #[serde(default)]
@@ -44,7 +44,7 @@ pub struct ScanStatus {
 /// `#getIndexes` (file-structure browse) and `#getArtists` (ID3 browse)
 /// share the same shape on the wire: a top-level `lastModified` watermark
 /// plus a list of letter buckets.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ArtistIndex {
     /// `lastModified` is ms since epoch (spec §2.2 — response metadata,
     /// not a request param).
@@ -56,14 +56,14 @@ pub struct ArtistIndex {
     pub index: Vec<IndexBucket>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct IndexBucket {
     pub name: String,
     #[serde(default)]
     pub artist: Vec<ArtistRef>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ArtistRef {
     pub id: String,
     pub name: String,
@@ -74,7 +74,7 @@ pub struct ArtistRef {
 }
 
 /// `#getAlbumList2` — page of album summaries (no song list).
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AlbumSummary {
     pub id: String,
     pub name: String,
@@ -97,7 +97,7 @@ pub struct AlbumSummary {
 }
 
 /// `#getAlbum` — album + its full song list.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Album {
     pub id: String,
     pub name: String,
@@ -120,7 +120,7 @@ pub struct Album {
 }
 
 /// `#search3` — three parallel lists, any of which may be empty.
-#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
 pub struct SearchResult {
     #[serde(default)]
     pub artist: Vec<ArtistRef>,
@@ -133,7 +133,7 @@ pub struct SearchResult {
 /// `#getSong` / nested in `#getAlbum`. Only the hot columns from
 /// spec §5.1 are typed; everything else (OpenSubsonic extensions, contributor
 /// arrays, …) is ignored at this layer and recovered from `raw_json` later.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Song {
     pub id: String,
     pub title: String,
