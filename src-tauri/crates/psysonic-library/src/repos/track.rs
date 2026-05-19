@@ -311,4 +311,32 @@ mod tests {
         assert_eq!(old_hit, 0, "delete-trigger must drop the stale FTS row");
         assert_eq!(new_hit, 1);
     }
+
+    #[test]
+    fn upsert_500_rows_completes_well_under_perf_budget() {
+        // Spec §5.1 / AC A3: `upsert_batch` should land 500 rows under 100ms
+        // typical. The CI threshold is 5× that to absorb slow runners and
+        // the difference between debug and release; any regression past it
+        // is real signal.
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let rows: Vec<TrackRow> = (0..500)
+            .map(|i| row("s1", &format!("t{i:04}"), &format!("Track {i:04}")))
+            .collect();
+
+        let start = std::time::Instant::now();
+        repo.upsert_batch(&rows).unwrap();
+        let elapsed = start.elapsed();
+
+        let stored: i64 = store
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(stored, 500);
+
+        assert!(
+            elapsed < std::time::Duration::from_millis(500),
+            "upsert_batch(500 rows) took {elapsed:?}; AC A3 target is <100ms typical, \
+             test fails past 5× that"
+        );
+    }
 }
