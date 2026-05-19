@@ -201,13 +201,6 @@ mod tests {
         })
     }
 
-    fn mount_ok(server: &MockServer, route: &'static str, body_key: &'static str) {
-        // We can't await inside a sync helper without making it async;
-        // probe tests construct the mocks inline for clarity. Helper
-        // kept here for documentation only — see individual tests.
-        let _ = (server, route, body_key);
-    }
-
     async fn mount_subsonic_full_navidrome(server: &MockServer) {
         // ping → navidrome + openSubsonic
         Mock::given(wm_method("GET"))
@@ -254,7 +247,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn probe_sets_all_subsonic_bits_on_a_fully_capable_navidrome_server() {
-        let _ = mount_ok;
         let server = MockServer::start().await;
         mount_subsonic_full_navidrome(&server).await;
 

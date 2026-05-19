@@ -4,14 +4,15 @@
 
 use super::client::{navidrome_token, nd_err, nd_http_client, nd_retry};
 
-/// GET `/api/song?_sort=...&_order=...&_start=...&_end=...` — paginated song list.
-/// Available to any authenticated user (no admin required). Returns raw JSON array.
-#[tauri::command]
-pub async fn nd_list_songs(
-    server_url: String,
-    token: String,
-    sort: String,
-    order: String,
+/// GET `/api/song?_sort=...&_order=...&_start=...&_end=...` — paginated
+/// song list. Pure async helper used by the library-side N1 ingest
+/// loop (spec §6.3, PR-3*); also wrapped by the `#[tauri::command]`
+/// variant below for existing frontend callers.
+pub async fn nd_list_songs_internal(
+    server_url: &str,
+    token: &str,
+    sort: &str,
+    order: &str,
     start: u32,
     end: u32,
 ) -> Result<serde_json::Value, String> {
@@ -22,13 +23,27 @@ pub async fn nd_list_songs(
     let resp = nd_retry(|| {
         nd_http_client()
             .get(&url)
-            .header("X-ND-Authorization", format!("Bearer {}", token))
+            .header("X-ND-Authorization", format!("Bearer {token}"))
             .send()
     }).await?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
     resp.json::<serde_json::Value>().await.map_err(nd_err)
+}
+
+/// Tauri-visible variant — owned-String arguments to keep the IPC
+/// surface unchanged for existing call sites in the WebView.
+#[tauri::command]
+pub async fn nd_list_songs(
+    server_url: String,
+    token: String,
+    sort: String,
+    order: String,
+    start: u32,
+    end: u32,
+) -> Result<serde_json::Value, String> {
+    nd_list_songs_internal(&server_url, &token, &sort, &order, start, end).await
 }
 
 /// Build the `_filters` JSON for native-API list calls. Optionally narrows the

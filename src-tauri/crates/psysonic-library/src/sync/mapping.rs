@@ -1,0 +1,285 @@
+//! Subsonic / Navidrome song JSON → `TrackRow`. PR-3b's ingest paths
+//! all feed the same upsert API, so the projection happens here once.
+
+use serde_json::Value;
+
+use crate::repos::TrackRow;
+use psysonic_integration::subsonic::Song;
+
+/// Project a Subsonic `Song` plus its raw JSON sub-tree into a
+/// `TrackRow`. `raw_value` is what `track.raw_json` stores verbatim so
+/// OpenSubsonic extensions survive (spec §5.1 / ADR-7).
+pub fn subsonic_song_to_track_row(
+    server_id: &str,
+    song: &Song,
+    raw_value: &Value,
+    synced_at: i64,
+    library_id_fallback: Option<&str>,
+) -> TrackRow {
+    TrackRow {
+        server_id: server_id.to_string(),
+        id: song.id.clone(),
+        title: song.title.clone(),
+        title_sort: None,
+        artist: song.artist.clone(),
+        artist_id: song.artist_id.clone(),
+        album: song.album.clone().unwrap_or_default(),
+        album_id: song.album_id.clone(),
+        album_artist: song.album_artist.clone(),
+        duration_sec: song.duration.unwrap_or(0),
+        track_number: song.track_number,
+        disc_number: song.disc_number,
+        year: song.year,
+        genre: song.genre.clone(),
+        suffix: song.suffix.clone(),
+        bit_rate: song.bit_rate,
+        size_bytes: song.size,
+        cover_art_id: song.cover_art.clone(),
+        starred_at: parse_iso_ms(song.starred.as_deref()),
+        user_rating: song.user_rating,
+        play_count: song.play_count,
+        played_at: parse_iso_ms(song.played.as_deref()),
+        server_path: song.path.clone(),
+        library_id: song.library_id.clone().or_else(|| library_id_fallback.map(String::from)),
+        isrc: song.isrc.clone(),
+        mbid_recording: song.mbid_recording.clone(),
+        bpm: song.bpm,
+        replay_gain_track_db: raw_value
+            .get("replayGain")
+            .and_then(|rg| rg.get("trackGain"))
+            .and_then(|v| v.as_f64()),
+        replay_gain_album_db: raw_value
+            .get("replayGain")
+            .and_then(|rg| rg.get("albumGain"))
+            .and_then(|v| v.as_f64()),
+        content_hash: None,
+        server_updated_at: None,
+        server_created_at: None,
+        deleted: false,
+        synced_at,
+        raw_json: raw_value.to_string(),
+    }
+}
+
+/// Project a Navidrome `/api/song` row (native REST shape) into a
+/// `TrackRow`. Field names mostly overlap with Subsonic but use
+/// snake_case JSON aliases — we read fields by `get(name)` rather
+/// than reusing the Subsonic `Song` deserializer so a server-side
+/// rename doesn't silently zero out hot columns.
+pub fn navidrome_song_to_track_row(
+    server_id: &str,
+    raw: &Value,
+    synced_at: i64,
+    library_id_fallback: Option<&str>,
+) -> Option<TrackRow> {
+    let id = raw.get("id").and_then(|v| v.as_str())?.to_string();
+    let title = raw
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let server_updated_at = raw
+        .get("updatedAt")
+        .and_then(|v| v.as_str())
+        .and_then(parse_iso_ms_str);
+    let library_id = string_field(raw, "libraryId")
+        .or_else(|| string_field(raw, "library_id"))
+        .or_else(|| library_id_fallback.map(String::from));
+    Some(TrackRow {
+        server_id: server_id.to_string(),
+        id,
+        title,
+        title_sort: string_field(raw, "sortTitle").or_else(|| string_field(raw, "orderTitle")),
+        artist: string_field(raw, "artist"),
+        artist_id: string_field(raw, "artistId"),
+        album: string_field(raw, "album").unwrap_or_default(),
+        album_id: string_field(raw, "albumId"),
+        album_artist: string_field(raw, "albumArtist"),
+        duration_sec: raw.get("duration").and_then(|v| v.as_i64()).unwrap_or(0),
+        track_number: raw.get("trackNumber").and_then(|v| v.as_i64()),
+        disc_number: raw.get("discNumber").and_then(|v| v.as_i64()),
+        year: raw.get("year").and_then(|v| v.as_i64()),
+        genre: string_field(raw, "genre"),
+        suffix: string_field(raw, "suffix"),
+        bit_rate: raw.get("bitRate").and_then(|v| v.as_i64()),
+        size_bytes: raw.get("size").and_then(|v| v.as_i64()),
+        cover_art_id: string_field(raw, "coverArtId").or_else(|| string_field(raw, "coverArt")),
+        starred_at: raw.get("starredAt").and_then(|v| v.as_str()).and_then(parse_iso_ms_str),
+        user_rating: raw.get("rating").and_then(|v| v.as_i64()),
+        play_count: raw.get("playCount").and_then(|v| v.as_i64()),
+        played_at: raw.get("playedAt").and_then(|v| v.as_str()).and_then(parse_iso_ms_str),
+        server_path: string_field(raw, "path"),
+        library_id,
+        isrc: string_field(raw, "isrc"),
+        mbid_recording: string_field(raw, "mbzTrackId").or_else(|| string_field(raw, "musicBrainzId")),
+        bpm: raw.get("bpm").and_then(|v| v.as_i64()),
+        replay_gain_track_db: raw.get("rgTrackGain").and_then(|v| v.as_f64()),
+        replay_gain_album_db: raw.get("rgAlbumGain").and_then(|v| v.as_f64()),
+        content_hash: None,
+        server_updated_at,
+        server_created_at: raw
+            .get("createdAt")
+            .and_then(|v| v.as_str())
+            .and_then(parse_iso_ms_str),
+        deleted: false,
+        synced_at,
+        raw_json: raw.to_string(),
+    })
+}
+
+fn string_field(raw: &Value, key: &str) -> Option<String> {
+    raw.get(key)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+fn parse_iso_ms(s: Option<&str>) -> Option<i64> {
+    s.and_then(parse_iso_ms_str)
+}
+
+/// Lightweight ISO-8601 → epoch-ms parser. Supports the Navidrome /
+/// OpenSubsonic shape (`2024-06-01T12:00:00Z` or
+/// `2024-06-01T12:00:00.123+02:00`). Falls back to `None` on parse
+/// failure — sync code never panics on a bad timestamp.
+fn parse_iso_ms_str(s: &str) -> Option<i64> {
+    // Strip fractional + timezone before doing the manual parse —
+    // SQLite stores starred_at / played_at as integer ms, so we only
+    // need second precision rounded up from the offset.
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    // Accept either `Z`, `+HH:MM`, or no suffix. Reduce to a flat
+    // `YYYY-MM-DDTHH:MM:SS` core for parsing — server-side timestamps
+    // are already in UTC for Navidrome, and we don't track timezone
+    // in the schema column.
+    let core = trimmed
+        .find(|c: char| c == '.' || c == 'Z' || c == '+' || (c == '-' && trimmed.find('T').is_some_and(|t| trimmed[t..].contains(c))))
+        .map(|i| &trimmed[..i])
+        .unwrap_or(trimmed);
+    let mut parts = core.split(['T', '-', ':']);
+    let year: i64 = parts.next()?.parse().ok()?;
+    let month: i64 = parts.next()?.parse().ok()?;
+    let day: i64 = parts.next()?.parse().ok()?;
+    let hour: i64 = parts.next().unwrap_or("0").parse().ok()?;
+    let minute: i64 = parts.next().unwrap_or("0").parse().ok()?;
+    let second: i64 = parts.next().unwrap_or("0").parse().ok()?;
+    if !(1970..=2100).contains(&year)
+        || !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || !(0..=23).contains(&hour)
+        || !(0..=59).contains(&minute)
+        || !(0..=60).contains(&second)
+    {
+        return None;
+    }
+    // Days since 1970-01-01 — Howard Hinnant's civil_from_days inverse.
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400; // [0, 399]
+    let m = if month > 2 { month - 3 } else { month + 9 };
+    let doy = (153 * m + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    let seconds = days * 86_400 + hour * 3600 + minute * 60 + second;
+    Some(seconds.saturating_mul(1000))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_iso_handles_zulu_suffix() {
+        // 2024-01-01T00:00:00Z = 1704067200000 ms.
+        let ms = parse_iso_ms_str("2024-01-01T00:00:00Z").unwrap();
+        assert_eq!(ms, 1_704_067_200_000);
+    }
+
+    #[test]
+    fn parse_iso_handles_fractional_and_offset() {
+        let ms = parse_iso_ms_str("2024-01-01T00:00:00.123+02:00").unwrap();
+        // Truncated before offset → same epoch-second as Zulu of the
+        // wall-clock value. Good enough for the schema's integer-ms
+        // column.
+        assert_eq!(ms, 1_704_067_200_000);
+    }
+
+    #[test]
+    fn parse_iso_rejects_garbage() {
+        assert!(parse_iso_ms_str("").is_none());
+        assert!(parse_iso_ms_str("not-a-date").is_none());
+        assert!(parse_iso_ms_str("9999-99-99").is_none());
+    }
+
+    #[test]
+    fn subsonic_song_maps_hot_columns_and_keeps_raw_json() {
+        let raw = json!({
+            "id": "tr_1",
+            "title": "Hello",
+            "artist": "World",
+            "albumId": "al_1",
+            "duration": 240,
+            "track": 3,
+            "year": 2024,
+            "musicBrainzId": "mb-1",
+            "replayGain": { "trackGain": -1.2, "albumGain": -0.8 }
+        });
+        let song: Song = serde_json::from_value(raw.clone()).unwrap();
+        let row = subsonic_song_to_track_row("s1", &song, &raw, 1_000, Some("lib-fb"));
+        assert_eq!(row.id, "tr_1");
+        assert_eq!(row.album_id.as_deref(), Some("al_1"));
+        assert_eq!(row.duration_sec, 240);
+        assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));
+        assert_eq!(row.replay_gain_track_db, Some(-1.2));
+        assert_eq!(row.replay_gain_album_db, Some(-0.8));
+        // Fallback library_id kicks in when the song didn't ship one.
+        assert_eq!(row.library_id.as_deref(), Some("lib-fb"));
+        assert!(row.raw_json.contains("replayGain"));
+    }
+
+    #[test]
+    fn navidrome_song_maps_native_field_shape() {
+        let raw = json!({
+            "id": "tr_1",
+            "title": "Hello",
+            "artist": "World",
+            "artistId": "ar_1",
+            "album": "An Album",
+            "albumId": "al_1",
+            "albumArtist": "World",
+            "duration": 240,
+            "trackNumber": 3,
+            "discNumber": 1,
+            "year": 2024,
+            "genre": "Ambient",
+            "suffix": "flac",
+            "bitRate": 1000,
+            "size": 32_000_000_i64,
+            "path": "World/An Album/03.flac",
+            "libraryId": "1",
+            "isrc": "USRC17607839",
+            "mbzTrackId": "mb-1",
+            "bpm": 128,
+            "rgTrackGain": -1.2,
+            "rgAlbumGain": -0.8,
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-06-01T00:00:00Z"
+        });
+        let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
+        assert_eq!(row.id, "tr_1");
+        assert_eq!(row.track_number, Some(3));
+        assert_eq!(row.isrc.as_deref(), Some("USRC17607839"));
+        assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));
+        assert_eq!(row.replay_gain_track_db, Some(-1.2));
+        assert_eq!(row.library_id.as_deref(), Some("1"));
+        assert!(row.server_updated_at.unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn navidrome_song_skips_rows_without_id() {
+        let row = navidrome_song_to_track_row("s1", &json!({"title": "no id"}), 1, None);
+        assert!(row.is_none());
+    }
+}
