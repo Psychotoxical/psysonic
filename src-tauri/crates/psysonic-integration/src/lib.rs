@@ -4,6 +4,7 @@
 //! Domains:
 //! - `discord`     — Discord Rich Presence (album artwork via iTunes)
 //! - `navidrome`   — Navidrome's native REST API (admin: users/playlists/covers/queries)
+//! - `subsonic`    — Subsonic REST surface for the library-sync engine
 //! - `remote`      — radio-browser, last.fm, ICY-meta probe, generic CORS proxy
 //! - `bandsintown` — bandsintown events for an artist
 
@@ -15,3 +16,4 @@ pub mod bandsintown;
 pub mod discord;
 pub mod navidrome;
 pub mod remote;
+pub mod subsonic;
