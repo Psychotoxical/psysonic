@@ -75,6 +75,166 @@ impl<'a> SyncStateRepository<'a> {
             Ok(())
         })
     }
+
+    /// Read `capability_flags` (spec §6.1.1). Returns `None` when the
+    /// row doesn't exist; SQL DEFAULT is 0 so a freshly-ensured row
+    /// reads back as `Some(0)`.
+    pub fn get_capability_flags(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<u32>, String> {
+        let raw: Option<i64> = self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT capability_flags FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get(0),
+            )
+            .optional()
+        })?;
+        Ok(raw.map(|v| v.max(0) as u32))
+    }
+
+    /// Write `capability_flags`. Upsert scoped to that one column.
+    pub fn set_capability_flags(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        flags: u32,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, capability_flags) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   capability_flags = excluded.capability_flags",
+                params![server_id, library_scope, flags as i64],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Read `sync_phase` (state-machine values per spec §6.2:
+    /// `idle` / `probing` / `initial_sync` / `ready` / `error`).
+    /// Returns `None` when the row doesn't exist; SQL DEFAULT is
+    /// `'idle'` so a freshly-ensured row reads back as `Some("idle")`.
+    pub fn get_sync_phase(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<String>, String> {
+        self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT sync_phase FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+        })
+    }
+
+    /// Write `sync_phase`. Upsert scoped to that one column.
+    pub fn set_sync_phase(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        phase: &str,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, sync_phase) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   sync_phase = excluded.sync_phase",
+                params![server_id, library_scope, phase],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Write `server_last_scan_iso` — server-reported timestamp of the
+    /// last completed scan, captured from `getScanStatus.lastScan`.
+    pub fn set_server_last_scan_iso(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        last_scan_iso: Option<&str>,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, server_last_scan_iso) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   server_last_scan_iso = excluded.server_last_scan_iso",
+                params![server_id, library_scope, last_scan_iso],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Write `indexes_last_modified_ms` — watermark for the file-tree
+    /// browse path (`getIndexes.lastModified`).
+    pub fn set_indexes_last_modified_ms(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        last_modified_ms: i64,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, indexes_last_modified_ms) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   indexes_last_modified_ms = excluded.indexes_last_modified_ms",
+                params![server_id, library_scope, last_modified_ms],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Write `artists_last_modified_ms` — watermark for the ID3 path
+    /// (`getArtists.lastModified`); §2.2.1 background poll keys off
+    /// this.
+    pub fn set_artists_last_modified_ms(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        last_modified_ms: i64,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, artists_last_modified_ms) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   artists_last_modified_ms = excluded.artists_last_modified_ms",
+                params![server_id, library_scope, last_modified_ms],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Write `library_tier` (spec §6.2.2 — `small` / `medium` / `huge`
+    /// / `unknown`). Drives the adaptive poll interval; PR-3d wires
+    /// the EWMA loop that picks this.
+    pub fn set_library_tier(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        tier: &str,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, library_tier) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   library_tier = excluded.library_tier",
+                params![server_id, library_scope, tier],
+            )?;
+            Ok(())
+        })
+    }
 }
 
 #[cfg(test)]
@@ -183,6 +343,111 @@ mod tests {
         assert_eq!(
             repo.get_initial_sync_cursor("s1", "lib-1").unwrap(),
             Some(json!({"lib": "one"}))
+        );
+    }
+
+    // ── PR-3a: capability_flags, sync_phase, watermarks, library_tier ────
+
+    #[test]
+    fn capability_flags_roundtrip() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.ensure("s1", "").unwrap();
+        assert_eq!(repo.get_capability_flags("s1", "").unwrap(), Some(0));
+        repo.set_capability_flags("s1", "", 0x002 | 0x010).unwrap();
+        assert_eq!(repo.get_capability_flags("s1", "").unwrap(), Some(0x012));
+    }
+
+    #[test]
+    fn capability_flags_returns_none_for_missing_row() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        assert_eq!(repo.get_capability_flags("absent", "").unwrap(), None);
+    }
+
+    #[test]
+    fn capability_flags_set_creates_row_with_other_defaults() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.set_capability_flags("s1", "", 0x008).unwrap();
+        // sync_phase defaulted to 'idle' on the implicit insert.
+        assert_eq!(repo.get_sync_phase("s1", "").unwrap().as_deref(), Some("idle"));
+    }
+
+    #[test]
+    fn sync_phase_default_is_idle_after_ensure() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.ensure("s1", "").unwrap();
+        assert_eq!(repo.get_sync_phase("s1", "").unwrap().as_deref(), Some("idle"));
+    }
+
+    #[test]
+    fn sync_phase_transitions_through_state_machine_values() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        for phase in ["probing", "initial_sync", "ready", "error", "idle"] {
+            repo.set_sync_phase("s1", "", phase).unwrap();
+            assert_eq!(
+                repo.get_sync_phase("s1", "").unwrap().as_deref(),
+                Some(phase)
+            );
+        }
+    }
+
+    #[test]
+    fn watermark_setters_preserve_each_other() {
+        // Each setter must scope its `ON CONFLICT … DO UPDATE` to its own
+        // column. Set three and read all three back unchanged.
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.set_server_last_scan_iso("s1", "", Some("2026-05-01T12:00:00Z")).unwrap();
+        repo.set_indexes_last_modified_ms("s1", "", 1_700_000_000_000).unwrap();
+        repo.set_artists_last_modified_ms("s1", "", 1_700_000_500_000).unwrap();
+
+        let (iso, idx_ms, art_ms): (Option<String>, Option<i64>, Option<i64>) = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT server_last_scan_iso, indexes_last_modified_ms, artists_last_modified_ms \
+                     FROM sync_state WHERE server_id = 's1'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(iso.as_deref(), Some("2026-05-01T12:00:00Z"));
+        assert_eq!(idx_ms, Some(1_700_000_000_000));
+        assert_eq!(art_ms, Some(1_700_000_500_000));
+    }
+
+    #[test]
+    fn library_tier_roundtrip() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.set_library_tier("s1", "", "huge").unwrap();
+        let tier: String = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT library_tier FROM sync_state WHERE server_id = 's1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(tier, "huge");
+    }
+
+    #[test]
+    fn capability_flags_set_does_not_clobber_cursor() {
+        // Cross-check: setting flags must not reset
+        // `initial_sync_cursor_json` back to '{}'.
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.set_initial_sync_cursor("s1", "", &json!({"offset": 42})).unwrap();
+        repo.set_capability_flags("s1", "", 0x002).unwrap();
+        assert_eq!(
+            repo.get_initial_sync_cursor("s1", "").unwrap(),
+            Some(json!({"offset": 42}))
         );
     }
 }

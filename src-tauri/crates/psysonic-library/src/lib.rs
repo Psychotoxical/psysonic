@@ -5,15 +5,13 @@
 //! - `repos`  — typed repositories over the v1 schema (track, album, artist, …)
 //! - `search` — FTS5 query helpers
 //! - `filter` — `FilterFieldRegistry` (Rust source of truth for Advanced Search)
-//!
-//! PR-1a lands the schema, the store, and skeletons of the repos / search /
-//! filter modules. Sync orchestration, Subsonic HTTP, Tauri commands, and the
-//! frontend bridge follow in later PRs.
+//! - `sync`   — capability probe + orchestrator (PR-3*)
 
 pub mod filter;
 pub mod repos;
 pub mod search;
 pub mod store;
+pub mod sync;
 
 pub use store::{LibraryStore, LIBRARY_DB_SCHEMA_VERSION};
 

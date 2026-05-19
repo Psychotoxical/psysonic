@@ -3832,10 +3832,14 @@ name = "psysonic-library"
 version = "1.47.0-dev"
 dependencies = [
  "psysonic-core",
+ "psysonic-integration",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
  "tauri",
+ "tokio",
+ "wiremock",
 ]
 
 [[package]]
