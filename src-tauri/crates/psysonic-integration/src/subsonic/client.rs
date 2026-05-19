@@ -217,6 +217,33 @@ impl SubsonicClient {
         self.fetch("search3", &params, "searchResult3").await
     }
 
+    /// Variant of `search3` returning the raw `serde_json::Value` for
+    /// the `searchResult3` body alongside the typed projection. The S1
+    /// ingest path (PR-3b InitialSyncRunner) needs the per-song raw
+    /// sub-trees verbatim for `track.raw_json`, so unknown OpenSubsonic
+    /// extensions (`replayGain`, `contributors`, …) survive ingest
+    /// instead of being lost in the typed reserialise (ADR-7).
+    pub async fn search3_with_raw(
+        &self,
+        query: &str,
+        song_count: u32,
+        song_offset: u32,
+        music_folder_id: Option<&str>,
+    ) -> Result<(SearchResult, serde_json::Value), SubsonicError> {
+        let song_count_s = song_count.to_string();
+        let song_offset_s = song_offset.to_string();
+        let mut params: Vec<(&str, &str)> = vec![
+            ("query", query),
+            ("songCount", song_count_s.as_str()),
+            ("songOffset", song_offset_s.as_str()),
+        ];
+        if let Some(id) = music_folder_id {
+            params.push(("musicFolderId", id));
+        }
+        let body = self.send("search3", &params).await?;
+        parse_envelope_with_raw(&body, "searchResult3")
+    }
+
     /// B6 — `getSong(id)`. Returns `SubsonicError::NotFound` when the
     /// server replies with error code 70 (spec §2.6) — the tombstone
     /// reconciler matches on that variant directly.
@@ -964,6 +991,63 @@ mod tests {
         // doesn't mirror — exactly what `track.raw_json` needs.
         assert_eq!(raw.get("replayGain"), song.get("replayGain"));
         assert_eq!(raw.get("contributors"), song.get("contributors"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn search3_with_raw_keeps_song_extensions_in_raw_tree() {
+        let server = MockServer::start().await;
+        let result_body = json!({
+            "song": [
+                { "id": "tr_1", "title": "One",  "replayGain": { "trackGain": -1.5 } },
+                { "id": "tr_2", "title": "Two", "contributors": [{ "role": "producer" }] }
+            ]
+        });
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "searchResult3": result_body.clone() }
+            })))
+            .mount(&server)
+            .await;
+
+        let (typed, raw) = test_client(&server.uri())
+            .search3_with_raw("", 100, 0, None)
+            .await
+            .unwrap();
+        assert_eq!(typed.song.len(), 2);
+
+        // Raw value preserves the typed-struct-incompatible fields.
+        let raw_songs = raw.get("song").and_then(|v| v.as_array()).expect("song array");
+        assert_eq!(raw_songs.len(), 2);
+        assert_eq!(
+            raw_songs[0].get("replayGain"),
+            result_body.get("song").unwrap().as_array().unwrap()[0].get("replayGain")
+        );
+        assert_eq!(
+            raw_songs[1].get("contributors"),
+            result_body.get("song").unwrap().as_array().unwrap()[1].get("contributors")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn search3_with_raw_empty_envelope_maps_to_empty_search_result() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "searchResult3": {} }
+            })))
+            .mount(&server)
+            .await;
+        let (typed, raw) = test_client(&server.uri())
+            .search3_with_raw("", 50, 0, None)
+            .await
+            .unwrap();
+        assert!(typed.song.is_empty());
+        assert!(typed.album.is_empty());
+        // Empty `searchResult3: {}` survives as an empty Object in raw,
+        // not Null — runner relies on this for the `get("song")` path.
+        assert!(raw.is_object());
     }
 
     #[tokio::test(flavor = "multi_thread")]

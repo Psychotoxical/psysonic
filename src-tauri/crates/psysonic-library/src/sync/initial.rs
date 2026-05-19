@@ -342,9 +342,9 @@ impl<'a> InitialSyncRunner<'a> {
         loop {
             self.check_cancellation()?;
             let scope = self.library_scope_opt();
-            let result = retry_with_backoff(
+            let (result, raw_body) = retry_with_backoff(
                 self,
-                || self.subsonic.search3("", self.batch_size, offset, scope),
+                || self.subsonic.search3_with_raw("", self.batch_size, offset, scope),
                 SyncError::from,
             )
             .await?;
@@ -353,10 +353,22 @@ impl<'a> InitialSyncRunner<'a> {
                 break;
             }
 
+            // Pull the per-song raw sub-trees from the envelope (ADR-7) —
+            // typed `Song` reserialise drops unknown OpenSubsonic fields
+            // like `replayGain` / contributor arrays, so we feed the
+            // original JSON into `track.raw_json` whenever it's there.
+            let raw_songs = raw_body
+                .get("song")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
             let synced_at = now_unix_ms();
             let mut rows: Vec<TrackRow> = Vec::with_capacity(result.song.len());
-            for song in &result.song {
-                let raw = serde_json::to_value(song).unwrap_or(Value::Null);
+            for (i, song) in result.song.iter().enumerate() {
+                let raw = raw_songs
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
                 rows.push(subsonic_song_to_track_row(
                     &self.server_id,
                     song,
@@ -983,6 +995,89 @@ mod tests {
             err,
             SyncError::CursorIncompatible { .. } | SyncError::StrategyUnsupported { .. }
         ));
+    }
+
+    // ── S1 raw_json carries OpenSubsonic extensions verbatim ──────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn s1_ingest_preserves_open_subsonic_fields_in_track_raw_json() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .and(query_param("songOffset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "searchResult3": {
+                        "song": [
+                            {
+                                "id": "tr_1",
+                                "title": "With Extensions",
+                                "duration": 240,
+                                "replayGain": { "trackGain": -1.2, "albumGain": -0.8 },
+                                "contributors": [
+                                    { "role": "producer", "artistId": "ar_9", "name": "Prod" }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "searchResult3": {} }
+            })))
+            .mount(&server)
+            .await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let subsonic = test_subsonic(&server.uri());
+        InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_batch_size(10)
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        // raw_json column must contain the OpenSubsonic-only fields,
+        // not just the typed projection — ADR-7 fidelity.
+        let raw: String = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT raw_json FROM track WHERE server_id='s1' AND id='tr_1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert!(parsed.get("replayGain").is_some(), "raw json keeps replayGain");
+        assert!(parsed.get("contributors").is_some(), "raw json keeps contributors");
+
+        // Typed projection also picked up replayGain via the mapping
+        // helper — both paths agree on the hot column.
+        let (rg_t, rg_a): (Option<f64>, Option<f64>) = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT replay_gain_track_db, replay_gain_album_db \
+                     FROM track WHERE server_id='s1' AND id='tr_1'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(rg_t, Some(-1.2));
+        assert_eq!(rg_a, Some(-0.8));
     }
 
     // ── S2 happy path: getAlbumList2 → getAlbum-per-id loop ───────────
