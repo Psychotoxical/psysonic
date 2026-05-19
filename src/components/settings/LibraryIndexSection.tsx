@@ -103,9 +103,13 @@ export default function LibraryIndexSection() {
     setBusy(true);
     try {
       if (enabled) {
+        // `getBaseUrl()` adds the http:// scheme + strips the trailing
+        // slash — `server.url` is stored bare (e.g. `nas.example.com`),
+        // which reqwest rejects with "relative URL without a base".
+        const baseUrl = useAuthStore.getState().getBaseUrl();
         await librarySyncBindSession({
           serverId,
-          baseUrl: activeServer.url,
+          baseUrl,
           username: activeServer.username,
           password: activeServer.password,
         });
