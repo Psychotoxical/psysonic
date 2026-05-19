@@ -523,6 +523,7 @@ pub fn run() {
             psysonic_library::commands::library_sync_clear_session,
             psysonic_library::commands::library_set_playback_hint,
             psysonic_library::commands::library_sync_start,
+            psysonic_library::commands::library_sync_verify_integrity,
             psysonic_library::commands::library_sync_cancel,
             psysonic_library::commands::library_patch_track,
             psysonic_library::commands::library_put_artifact,

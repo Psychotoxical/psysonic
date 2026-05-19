@@ -452,6 +452,17 @@ pub async fn library_sync_start(
     mode: String,
     library_scope: Option<String>,
 ) -> Result<SyncJobDto, String> {
+    library_sync_start_inner(app, runtime, server_id, mode, library_scope, false).await
+}
+
+async fn library_sync_start_inner(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    mode: String,
+    library_scope: Option<String>,
+    force_full_tombstone: bool,
+) -> Result<SyncJobDto, String> {
     let session = runtime.get_session(&server_id).ok_or_else(|| {
         format!("no bound session for server `{server_id}` — call library_sync_bind_session first")
     })?;
@@ -518,8 +529,13 @@ pub async fn library_sync_start(
             // Delta — Mode A manual integrity uses the DeltaMismatch
             // budget for tombstones when the local/server count gap
             // is over threshold; otherwise a small budget keeps the
-            // background-like pass cheap.
-            let tombstone_budget = compute_tombstone_budget(&store, &session_clone.server_id, &scope_for_task);
+            // background-like pass cheap. Manual «Verify integrity»
+            // forces the full budget regardless of threshold.
+            let tombstone_budget = if force_full_tombstone {
+                crate::sync::budget::RequestBudget::DELTA_MISMATCH_CAP
+            } else {
+                compute_tombstone_budget(&store, &session_clone.server_id, &scope_for_task)
+            };
             let mut runner = DeltaSyncRunner::new(
                 &store,
                 &subsonic,
@@ -588,6 +604,30 @@ pub async fn library_sync_start(
         server_id,
         kind: kind.to_string(),
     })
+}
+
+/// Manual «Verify library integrity» — same dispatch shape as
+/// `library_sync_start { mode: 'delta' }` but always sets the full
+/// `DELTA_MISMATCH_CAP` tombstone budget regardless of the
+/// local/server count gap. Per PR-5b review §5 note 2: spec §6.7
+/// Mode A user-initiated full reconcile bypasses the threshold
+/// check.
+#[tauri::command]
+pub async fn library_sync_verify_integrity(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    library_scope: Option<String>,
+) -> Result<SyncJobDto, String> {
+    library_sync_start_inner(
+        app,
+        runtime,
+        server_id,
+        "delta".to_string(),
+        library_scope,
+        /* force_full_tombstone */ true,
+    )
+    .await
 }
 
 #[tauri::command]
