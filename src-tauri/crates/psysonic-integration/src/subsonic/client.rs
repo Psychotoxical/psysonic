@@ -19,26 +19,69 @@ use super::types::{Album, AlbumSummary, ArtistIndex, ScanStatus, SearchResult, S
 pub const SUBSONIC_API_VERSION: &str = "1.16.1";
 
 /// Subsonic `c` parameter — server logs and rate-limiters key off this.
-pub const SUBSONIC_CLIENT_ID: &str = "psysonic";
+/// Matches the frontend `subsonicClient.ts` shape (`psysonic/<version>`)
+/// so Navidrome log lines correlate across the WebView and Rust sync
+/// paths.
+pub const SUBSONIC_CLIENT_ID: &str = concat!("psysonic/", env!("CARGO_PKG_VERSION"));
+
+/// How `SubsonicClient` obtains the `(token, salt)` pair on each request.
+enum CredentialsMode {
+    /// Production path: cache the plaintext password and derive a fresh
+    /// `(token = md5(password || salt), salt)` per request. Matches the
+    /// frontend's `getAuthParams()` lifecycle and follows Subsonic
+    /// replay-resistance guidance.
+    FromPassword { username: String, password: String },
+    /// Test path: re-use a pre-derived credentials triple as-is. Used by
+    /// wiremock tests (deterministic query params) and by callers that
+    /// already maintain a cached token+salt.
+    Static(SubsonicCredentials),
+}
 
 pub struct SubsonicClient {
     base_url: String,
-    credentials: SubsonicCredentials,
+    credentials: CredentialsMode,
     http: reqwest::Client,
 }
 
 impl SubsonicClient {
-    /// Build a client with our default HTTP setup (gzip, JSON, no funky
-    /// pooling tweaks — Subsonic gateways are simpler than the Navidrome
-    /// native-REST path).
-    pub fn new(base_url: impl Into<String>, credentials: SubsonicCredentials) -> Self {
-        Self::with_http(base_url, credentials, default_http_client())
+    /// Production constructor — caches the password and derives a fresh
+    /// salt + token on every API call.
+    pub fn new(
+        base_url: impl Into<String>,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
+        Self::with_http(base_url, username, password, default_http_client())
     }
 
-    /// Build a client with a caller-supplied `reqwest::Client`. Used by
-    /// tests (custom timeouts, no UA cap) and by callers that want to
-    /// share a pool across multiple Subsonic servers.
+    /// As `new`, but with a caller-supplied `reqwest::Client` — used by
+    /// callers that share a pool across multiple Subsonic servers or
+    /// need custom timeouts.
     pub fn with_http(
+        base_url: impl Into<String>,
+        username: impl Into<String>,
+        password: impl Into<String>,
+        http: reqwest::Client,
+    ) -> Self {
+        let mut url = base_url.into();
+        while url.ends_with('/') {
+            url.pop();
+        }
+        Self {
+            base_url: url,
+            credentials: CredentialsMode::FromPassword {
+                username: username.into(),
+                password: password.into(),
+            },
+            http,
+        }
+    }
+
+    /// Test-/cache-friendly constructor — re-uses the same
+    /// `SubsonicCredentials` triple on every call. Wiremock tests rely on
+    /// this for deterministic `s=` and `t=` query params; production code
+    /// goes through `new` / `with_http`.
+    pub fn with_static_credentials(
         base_url: impl Into<String>,
         credentials: SubsonicCredentials,
         http: reqwest::Client,
@@ -47,7 +90,20 @@ impl SubsonicClient {
         while url.ends_with('/') {
             url.pop();
         }
-        Self { base_url: url, credentials, http }
+        Self {
+            base_url: url,
+            credentials: CredentialsMode::Static(credentials),
+            http,
+        }
+    }
+
+    pub(crate) fn build_credentials(&self) -> SubsonicCredentials {
+        match &self.credentials {
+            CredentialsMode::FromPassword { username, password } => {
+                SubsonicCredentials::from_password(username, password)
+            }
+            CredentialsMode::Static(c) => c.clone(),
+        }
     }
 
     /// B1 — ping. Returns `Ok(())` when the server replied with
@@ -159,6 +215,32 @@ impl SubsonicClient {
         self.fetch("getSong", &[("id", song_id)], "song").await
     }
 
+    /// Variant of `get_song` that also returns the raw `serde_json::Value`
+    /// the server sent for the `song` body. The sync engine (PR-3) stores
+    /// that raw object verbatim in `track.raw_json` so OpenSubsonic
+    /// extensions (`contributors`, `replayGain`, future fields) survive
+    /// without being mirrored into the typed `Song` struct.
+    pub async fn get_song_with_raw(
+        &self,
+        song_id: &str,
+    ) -> Result<(Song, serde_json::Value), SubsonicError> {
+        let body = self.send("getSong", &[("id", song_id)]).await?;
+        parse_envelope_with_raw(&body, "song")
+    }
+
+    /// Variant of `get_album` returning the raw `serde_json::Value` for
+    /// the `album` body alongside the typed projection. The album JSON
+    /// already nests the full song list, so the sync engine can derive
+    /// per-track `raw_json` cells (each entry in `album.song`) without
+    /// issuing follow-up `get_song` calls.
+    pub async fn get_album_with_raw(
+        &self,
+        album_id: &str,
+    ) -> Result<(Album, serde_json::Value), SubsonicError> {
+        let body = self.send("getAlbum", &[("id", album_id)]).await?;
+        parse_envelope_with_raw(&body, "album")
+    }
+
     async fn fetch<T: DeserializeOwned>(
         &self,
         method: &str,
@@ -170,10 +252,11 @@ impl SubsonicClient {
     }
 
     async fn send(&self, method: &str, extra: &[(&str, &str)]) -> Result<String, SubsonicError> {
+        let creds = self.build_credentials();
         let auth = [
-            ("u", self.credentials.username.as_str()),
-            ("t", self.credentials.token.as_str()),
-            ("s", self.credentials.salt.as_str()),
+            ("u", creds.username.as_str()),
+            ("t", creds.token.as_str()),
+            ("s", creds.salt.as_str()),
             ("v", SUBSONIC_API_VERSION),
             ("c", SUBSONIC_CLIENT_ID),
             ("f", "json"),
@@ -211,11 +294,12 @@ fn default_http_client() -> reqwest::Client {
         .unwrap_or_else(|_| reqwest::Client::new())
 }
 
-/// Parse the standard Subsonic envelope. Maps `error.code = 70` to the
-/// dedicated `NotFound` variant; surfaces every other failed status as
-/// `Api { code, message }`. On success, deserializes the body keyed by
-/// `body_key` (e.g. `"album"`, `"artists"`, `"scanStatus"`).
-fn parse_envelope<T: DeserializeOwned>(body: &str, body_key: &str) -> Result<T, SubsonicError> {
+/// Validate the Subsonic envelope and return the raw `serde_json::Value`
+/// at `body_key`. Maps `error.code = 70` to the dedicated `NotFound`
+/// variant; surfaces every other failed status as `Api { code, message }`.
+/// Callers either deserialize the value into a typed struct
+/// (`parse_envelope`) or keep both alongside (`parse_envelope_with_raw`).
+fn parse_envelope_body(body: &str, body_key: &str) -> Result<serde_json::Value, SubsonicError> {
     let envelope: serde_json::Value = serde_json::from_str(body)
         .map_err(|e| SubsonicError::Decode(format!("envelope: {e}")))?;
     let response = envelope
@@ -237,12 +321,31 @@ fn parse_envelope<T: DeserializeOwned>(body: &str, body_key: &str) -> Result<T, 
         return Err(SubsonicError::Decode(format!("unexpected status `{status}`")));
     }
 
-    let body_val = response
+    response
         .get(body_key)
-        .ok_or_else(|| SubsonicError::Decode(format!("missing body key `{body_key}`")))?
-        .clone();
+        .cloned()
+        .ok_or_else(|| SubsonicError::Decode(format!("missing body key `{body_key}`")))
+}
+
+/// Validate the envelope, then deserialize the body into `T`.
+fn parse_envelope<T: DeserializeOwned>(body: &str, body_key: &str) -> Result<T, SubsonicError> {
+    let body_val = parse_envelope_body(body, body_key)?;
     serde_json::from_value(body_val)
         .map_err(|e| SubsonicError::Decode(format!("body `{body_key}`: {e}")))
+}
+
+/// Validate the envelope, then return both the typed projection and the
+/// raw `serde_json::Value` body sub-tree. PR-3 sync code uses this to
+/// keep `track.raw_json` intact while still operating on a typed `Song`
+/// at the call site.
+fn parse_envelope_with_raw<T: DeserializeOwned>(
+    body: &str,
+    body_key: &str,
+) -> Result<(T, serde_json::Value), SubsonicError> {
+    let body_val = parse_envelope_body(body, body_key)?;
+    let typed = serde_json::from_value(body_val.clone())
+        .map_err(|e| SubsonicError::Decode(format!("body `{body_key}`: {e}")))?;
+    Ok((typed, body_val))
 }
 
 /// Variant of `parse_envelope` for endpoints that carry no body (only
@@ -407,7 +510,7 @@ mod tests {
     }
 
     fn test_client(uri: &str) -> SubsonicClient {
-        SubsonicClient::new(uri, test_credentials())
+        SubsonicClient::with_static_credentials(uri, test_credentials(), reqwest::Client::new())
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -670,11 +773,11 @@ mod tests {
             .mount(&server)
             .await;
 
-        // Append a trailing slash + and additional slashes — the constructor
+        // Append a trailing slash + additional slashes — the constructor
         // strips them so the request path stays `/rest/ping.view`, not
         // `//rest/ping.view`.
         let url = format!("{}///", server.uri());
-        SubsonicClient::new(url, test_credentials())
+        SubsonicClient::with_static_credentials(url, test_credentials(), reqwest::Client::new())
             .ping()
             .await
             .expect("ping with trailing slashes must reach the same endpoint");
@@ -694,5 +797,184 @@ mod tests {
             SubsonicError::HttpStatus(s) => assert_eq!(s.as_u16(), 500),
             other => panic!("expected HttpStatus, got {other:?}"),
         }
+    }
+
+    // ── PR-2b: fresh-credentials-per-request lifecycle ────────────────────
+
+    #[test]
+    fn from_password_client_derives_fresh_credentials_per_request() {
+        let client = SubsonicClient::new("http://test", "user", "pw");
+        let a = client.build_credentials();
+        let b = client.build_credentials();
+        assert_ne!(a.salt, b.salt, "from_password mode must refresh salt");
+        assert_ne!(a.token, b.token, "different salt → different token");
+        assert_eq!(a.username, b.username);
+    }
+
+    #[test]
+    fn static_credentials_client_returns_same_triple_each_call() {
+        let creds = SubsonicCredentials::with_static("u", "tok", "salt");
+        let client = SubsonicClient::with_static_credentials(
+            "http://test",
+            creds,
+            reqwest::Client::new(),
+        );
+        let a = client.build_credentials();
+        let b = client.build_credentials();
+        assert_eq!(a.token, b.token);
+        assert_eq!(a.salt, b.salt);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn from_password_client_sends_unique_salt_per_request_over_the_wire() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok" }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = SubsonicClient::new(server.uri(), "user", "pw");
+        client.ping().await.unwrap();
+        client.ping().await.unwrap();
+
+        let received = server.received_requests().await.expect("requests captured");
+        assert_eq!(received.len(), 2);
+        let salt = |r: &wiremock::Request| {
+            r.url
+                .query_pairs()
+                .find(|(k, _)| k == "s")
+                .map(|(_, v)| v.into_owned())
+                .expect("`s` param present")
+        };
+        let token = |r: &wiremock::Request| {
+            r.url
+                .query_pairs()
+                .find(|(k, _)| k == "t")
+                .map(|(_, v)| v.into_owned())
+                .expect("`t` param present")
+        };
+        assert_ne!(salt(&received[0]), salt(&received[1]));
+        assert_ne!(token(&received[0]), token(&received[1]));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn client_id_query_param_carries_crate_version() {
+        // PR-2b note 2: align `c` with the frontend (`psysonic/<version>`).
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok" }
+            })))
+            .mount(&server)
+            .await;
+        test_client(&server.uri()).ping().await.unwrap();
+
+        let received = server.received_requests().await.expect("requests captured");
+        let c = received[0]
+            .url
+            .query_pairs()
+            .find(|(k, _)| k == "c")
+            .map(|(_, v)| v.into_owned())
+            .expect("`c` param present");
+        assert!(c.starts_with("psysonic/"), "got `{c}`");
+        assert_eq!(c, SUBSONIC_CLIENT_ID);
+    }
+
+    // ── PR-2b: raw_json capture for ingest (PR-3 prep) ────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_song_with_raw_returns_typed_and_raw_subtree() {
+        let server = MockServer::start().await;
+        let song = json!({
+            "id": "tr_1",
+            "title": "Title",
+            "artist": "Artist",
+            "musicBrainzId": "abc-123",
+            "replayGain": { "trackGain": -1.2, "albumGain": -0.8 },
+            "contributors": [
+                { "role": "producer", "artistId": "ar_9", "name": "Prod" }
+            ]
+        });
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "song": song.clone() }
+            })))
+            .mount(&server)
+            .await;
+
+        let (typed, raw) = test_client(&server.uri())
+            .get_song_with_raw("tr_1")
+            .await
+            .unwrap();
+        assert_eq!(typed.id, "tr_1");
+        assert_eq!(typed.title, "Title");
+        // Typed struct picks up the new musicBrainzId alias.
+        assert_eq!(typed.mbid_recording.as_deref(), Some("abc-123"));
+
+        // Raw value preserves OpenSubsonic extensions the typed struct
+        // doesn't mirror — exactly what `track.raw_json` needs.
+        assert_eq!(raw.get("replayGain"), song.get("replayGain"));
+        assert_eq!(raw.get("contributors"), song.get("contributors"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_album_with_raw_keeps_song_extensions_in_raw_tree() {
+        let server = MockServer::start().await;
+        let album = json!({
+            "id": "al_1",
+            "name": "Album",
+            "song": [
+                { "id": "tr_1", "title": "One", "track": 1, "musicBrainzId": "mb-1" },
+                { "id": "tr_2", "title": "Two", "track": 2, "replayGain": { "trackGain": -3.0 } }
+            ]
+        });
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "album": album.clone() }
+            })))
+            .mount(&server)
+            .await;
+
+        let (typed, raw) = test_client(&server.uri())
+            .get_album_with_raw("al_1")
+            .await
+            .unwrap();
+        assert_eq!(typed.song.len(), 2);
+        assert_eq!(typed.song[0].mbid_recording.as_deref(), Some("mb-1"));
+
+        // Per-track raw entries survive in `raw.song[i]`.
+        let raw_songs = raw.get("song").and_then(|v| v.as_array()).expect("song array");
+        assert_eq!(raw_songs.len(), 2);
+        assert_eq!(
+            raw_songs[1].get("replayGain"),
+            album.get("song").unwrap().as_array().unwrap()[1].get("replayGain")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_song_with_raw_maps_error_70_to_not_found_like_get_song() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getSong.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Song not found" }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let err = test_client(&server.uri())
+            .get_song_with_raw("missing")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, SubsonicError::NotFound));
     }
 }

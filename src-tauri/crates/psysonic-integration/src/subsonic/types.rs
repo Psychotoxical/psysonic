@@ -165,6 +165,12 @@ pub struct Song {
     pub library_id: Option<String>,
     #[serde(default)]
     pub isrc: Option<String>,
+    /// MusicBrainz recording id. Subsonic / OpenSubsonic uses the
+    /// `musicBrainzId` JSON key; the schema column is `mbid_recording`
+    /// (spec §5.1). The alias keeps both spellings deserializable so
+    /// future API revisions don't break ingest.
+    #[serde(default, alias = "musicBrainzId", alias = "mbid_recording")]
+    pub mbid_recording: Option<String>,
     #[serde(default)]
     pub bpm: Option<i64>,
 }
@@ -205,6 +211,24 @@ mod tests {
         let payload = r#"{"id":"a","title":"t","musicFolderId":"7"}"#;
         let song: Song = serde_json::from_str(payload).unwrap();
         assert_eq!(song.library_id.as_deref(), Some("7"));
+    }
+
+    #[test]
+    fn song_picks_up_music_brainz_id_from_either_alias() {
+        // OpenSubsonic shape — `musicBrainzId`.
+        let from_subsonic: Song = serde_json::from_str(
+            r#"{"id":"a","title":"t","musicBrainzId":"abc-123"}"#,
+        )
+        .unwrap();
+        assert_eq!(from_subsonic.mbid_recording.as_deref(), Some("abc-123"));
+
+        // Schema-column shape — direct `mbid_recording`. Lets callers
+        // round-trip a row through `serde_json` without renaming.
+        let from_schema: Song = serde_json::from_str(
+            r#"{"id":"a","title":"t","mbid_recording":"xyz-789"}"#,
+        )
+        .unwrap();
+        assert_eq!(from_schema.mbid_recording.as_deref(), Some("xyz-789"));
     }
 
     #[test]
