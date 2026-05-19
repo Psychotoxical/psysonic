@@ -21,6 +21,7 @@ use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::cursor::{CursorPhase, InitialSyncCursor, StrategyState};
 use super::error::SyncError;
 use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
+use super::progress::{NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
 use crate::repos::{RemapStats, SyncStateRepository, TrackRepository, TrackRow};
 use crate::store::LibraryStore;
@@ -52,6 +53,7 @@ pub struct InitialSyncRunner<'a> {
     cancel: Option<Arc<AtomicBool>>,
     batch_size: u32,
     sleep_enabled: bool,
+    progress: Arc<dyn Progress + Send + Sync>,
 }
 
 impl<'a> InitialSyncRunner<'a> {
@@ -72,7 +74,13 @@ impl<'a> InitialSyncRunner<'a> {
             cancel: None,
             batch_size: DEFAULT_BATCH_SIZE,
             sleep_enabled: true,
+            progress: Arc::new(NoopProgress),
         }
+    }
+
+    pub fn with_progress(mut self, progress: Arc<dyn Progress + Send + Sync>) -> Self {
+        self.progress = progress;
+        self
     }
 
     pub fn with_navidrome_credentials(mut self, creds: NavidromeProbeCredentials) -> Self {
@@ -113,6 +121,9 @@ impl<'a> InitialSyncRunner<'a> {
         sync_state
             .set_sync_phase(&self.server_id, &self.library_scope, "initial_sync")
             .map_err(SyncError::Storage)?;
+        self.progress.emit(ProgressEvent::PhaseChanged {
+            phase: "initial_sync".into(),
+        });
 
         let mut cursor = self.load_or_init_cursor(&sync_state)?;
         let mut report = InitialSyncReport {
@@ -167,6 +178,9 @@ impl<'a> InitialSyncRunner<'a> {
                 &Value::Object(serde_json::Map::new()),
             )
             .map_err(SyncError::Storage)?;
+        self.progress.emit(ProgressEvent::Completed {
+            kind: "initial_sync".into(),
+        });
 
         Ok(report)
     }

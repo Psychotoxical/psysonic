@@ -72,6 +72,42 @@ pub struct CapabilityProbeResult {
     pub server_info: ServerInfo,
 }
 
+/// Run `CapabilityProbe::run` and persist the resulting flags +
+/// transition `sync_phase` from whatever it was to `probing` →
+/// `idle` (caller is responsible for advancing to `initial_sync` /
+/// `ready` once the appropriate runner starts).
+///
+/// PR-3d wires this in front of every initial / delta run so the
+/// stored `capability_flags` always reflects the current server.
+/// Returns the freshly resolved `(flags, server_info)` so callers
+/// can pick their `IngestStrategy` without re-reading SQLite.
+pub async fn probe_and_persist(
+    store: &crate::store::LibraryStore,
+    subsonic: &psysonic_integration::subsonic::SubsonicClient,
+    navidrome: Option<&NavidromeProbeCredentials>,
+    server_id: &str,
+    library_scope: &str,
+) -> Result<CapabilityProbeResult, psysonic_integration::subsonic::SubsonicError> {
+    let sync_state = crate::repos::SyncStateRepository::new(store);
+    sync_state
+        .ensure(server_id, library_scope)
+        .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
+    sync_state
+        .set_sync_phase(server_id, library_scope, "probing")
+        .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
+
+    let result = CapabilityProbe::run(subsonic, navidrome).await?;
+
+    sync_state
+        .set_capability_flags(server_id, library_scope, result.flags.bits())
+        .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
+    sync_state
+        .set_sync_phase(server_id, library_scope, "idle")
+        .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
+
+    Ok(result)
+}
+
 pub struct CapabilityProbe;
 
 impl CapabilityProbe {
@@ -349,6 +385,41 @@ mod tests {
             .await
             .unwrap();
         assert!(result.flags.contains(CapabilityFlags::NAVIDROME_NATIVE_BULK));
+    }
+
+    // ── probe_and_persist round-trip ──────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn probe_and_persist_writes_flags_and_resets_phase_to_idle() {
+        use crate::repos::SyncStateRepository;
+        use crate::store::LibraryStore;
+
+        let server = MockServer::start().await;
+        mount_subsonic_full_navidrome(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let result = super::probe_and_persist(
+            &store,
+            &test_subsonic_client(&server.uri()),
+            None,
+            "s1",
+            "",
+        )
+        .await
+        .unwrap();
+
+        let sync_state = SyncStateRepository::new(&store);
+        let flags = sync_state.get_capability_flags("s1", "").unwrap().unwrap();
+        assert_eq!(flags, result.flags.bits());
+        assert!(flags & CapabilityFlags::OPEN_SUBSONIC != 0);
+        assert!(flags & CapabilityFlags::UNSTABLE_TRACK_IDS != 0);
+
+        // Phase ends at `idle` so the caller can transition to
+        // `initial_sync` / `ready` based on whether a sync is needed.
+        assert_eq!(
+            sync_state.get_sync_phase("s1", "").unwrap().as_deref(),
+            Some("idle")
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
