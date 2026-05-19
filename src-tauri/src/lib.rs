@@ -103,6 +103,16 @@ pub fn run() {
                 app.manage(cache);
             }
 
+            // ── Library track store (psysonic-library, PR-5a) ─────────────
+            // Read-only Tauri surface only in PR-5a; the sync supervisor +
+            // background scheduler land in PR-5b.
+            {
+                let store = psysonic_library::store::LibraryStore::init(app.handle())
+                    .map_err(|e| format!("library store init failed: {e}"))?;
+                let runtime = psysonic_library::LibraryRuntime::new(std::sync::Arc::new(store));
+                app.manage(runtime);
+            }
+
             audio::cleanup_orphan_stream_spill_dir(app.handle());
 
             // ── Playback-query port (analysis → audio back-edge) ──────────
@@ -426,6 +436,14 @@ pub fn run() {
             psysonic_analysis::commands::analysis_delete_all_waveforms,
             psysonic_analysis::commands::analysis_enqueue_seed_from_url,
             psysonic_analysis::commands::analysis_prune_pending_to_track_ids,
+            psysonic_library::commands::library_get_status,
+            psysonic_library::commands::library_search,
+            psysonic_library::commands::library_get_track,
+            psysonic_library::commands::library_get_tracks_batch,
+            psysonic_library::commands::library_get_tracks_by_album,
+            psysonic_library::commands::library_get_artifact,
+            psysonic_library::commands::library_get_facts,
+            psysonic_library::commands::library_get_offline_path,
             psysonic_syncfs::cache::offline::download_track_offline,
             psysonic_syncfs::cache::offline::cancel_offline_downloads,
             psysonic_syncfs::cache::offline::clear_offline_cancel,

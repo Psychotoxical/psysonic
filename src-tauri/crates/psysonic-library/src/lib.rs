@@ -7,11 +7,18 @@
 //! - `filter` — `FilterFieldRegistry` (Rust source of truth for Advanced Search)
 //! - `sync`   — capability probe + orchestrator (PR-3*)
 
+pub mod commands;
+pub mod dto;
 pub mod filter;
+pub mod payload;
 pub mod repos;
+pub mod runtime;
 pub mod search;
 pub mod store;
 pub mod sync;
+
+pub use payload::LibrarySyncProgressPayload;
+pub use runtime::LibraryRuntime;
 
 pub use store::{LibraryStore, LIBRARY_DB_SCHEMA_VERSION};
 
