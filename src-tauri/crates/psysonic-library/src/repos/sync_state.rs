@@ -194,6 +194,86 @@ impl<'a> SyncStateRepository<'a> {
         })
     }
 
+    /// Read `artists_last_modified_ms`. Returns `None` when the row
+    /// doesn't exist or the column is `NULL`. DS-2 in §6.4 compares
+    /// the live `getArtists.lastModified` against this to decide
+    /// whether a delta pass is needed.
+    pub fn get_artists_last_modified_ms(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<i64>, String> {
+        self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT artists_last_modified_ms FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .optional()
+        })
+        .map(|opt| opt.flatten())
+    }
+
+    /// Read `server_last_scan_iso`. Returns `None` when row missing
+    /// or column null. DS-2 uses this against `getScanStatus.lastScan`
+    /// for the Huge-tier short-circuit.
+    pub fn get_server_last_scan_iso(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<String>, String> {
+        self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT server_last_scan_iso FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+        })
+        .map(|opt| opt.flatten())
+    }
+
+    /// Read `library_tier`. Returns `None` when row missing. DS-0
+    /// picks between `getArtists` (small/medium) and `getScanStatus`
+    /// (huge) based on this.
+    pub fn get_library_tier(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<String>, String> {
+        self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT library_tier FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+        })
+    }
+
+    /// Stamp `last_delta_sync_at = now` (epoch ms). Called by DS-9 at
+    /// the end of every successful delta pass.
+    pub fn set_last_delta_sync_at(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        epoch_ms: i64,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, last_delta_sync_at) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   last_delta_sync_at = excluded.last_delta_sync_at",
+                params![server_id, library_scope, epoch_ms],
+            )?;
+            Ok(())
+        })
+    }
+
     /// Write `artists_last_modified_ms` — watermark for the ID3 path
     /// (`getArtists.lastModified`); §2.2.1 background poll keys off
     /// this.
