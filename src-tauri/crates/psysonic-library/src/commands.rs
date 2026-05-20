@@ -29,6 +29,7 @@ use crate::search::search_tracks;
 use crate::sync::bandwidth::PlaybackHint;
 use crate::sync::capability::{probe_and_persist, CapabilityFlags, NavidromeProbeCredentials};
 use crate::sync::delta::DeltaSyncRunner;
+use crate::sync::error::SyncError;
 use crate::sync::initial::InitialSyncRunner;
 use crate::sync::progress::{ChannelProgress, Progress, ProgressEvent};
 use crate::sync::tombstone::should_auto_reconcile;
@@ -425,6 +426,18 @@ pub async fn library_sync_start(
     library_sync_start_inner(app, runtime, server_id, mode, library_scope, false).await
 }
 
+/// Map a runner result for the sync-idle event. Cancellation is expected —
+/// the user cancelled, or a newer `library_sync_start` superseded this job
+/// (e.g. a server switch, or the startup resume) — and must never surface as
+/// a failure toast (error.rs: "Cancelled is silent").
+fn sync_outcome_to_result<T>(r: Result<T, SyncError>) -> Result<(), String> {
+    match r {
+        Ok(_) => Ok(()),
+        Err(SyncError::Cancelled) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 async fn library_sync_start_inner(
     app: AppHandle,
     runtime: State<'_, LibraryRuntime>,
@@ -502,7 +515,7 @@ async fn library_sync_start_inner(
             if let Some(creds) = navidrome_creds.clone() {
                 runner = runner.with_navidrome_credentials(creds);
             }
-            runner.run().await.map(|_| ()).map_err(|e| e.to_string())
+            sync_outcome_to_result(runner.run().await)
         } else {
             // Delta — Mode A manual integrity uses the DeltaMismatch
             // budget for tombstones when the local/server count gap
@@ -529,7 +542,7 @@ async fn library_sync_start_inner(
             if let Some(creds) = navidrome_creds.clone() {
                 runner = runner.with_navidrome_credentials(creds);
             }
-            runner.run().await.map(|_| ()).map_err(|e| e.to_string())
+            sync_outcome_to_result(runner.run().await)
         };
 
         // Closing the mpsc sender by dropping `progress` so the
@@ -1032,6 +1045,16 @@ mod tests {
     #[test]
     fn normalize_base_url_trims_whitespace() {
         assert_eq!(normalize_base_url("  nas.example.com  "), "http://nas.example.com");
+    }
+
+    #[test]
+    fn sync_outcome_treats_cancellation_as_silent_success() {
+        // Cancellation (user cancel, or a newer sync_start superseding this
+        // job) must not surface as a failure on the sync-idle event.
+        assert!(sync_outcome_to_result::<()>(Ok(())).is_ok());
+        assert!(sync_outcome_to_result::<()>(Err(SyncError::Cancelled)).is_ok());
+        let err = sync_outcome_to_result::<()>(Err(SyncError::Transport("boom".into())));
+        assert_eq!(err, Err("sync transport: boom".to_string()));
     }
 
     #[tokio::test(flavor = "multi_thread")]

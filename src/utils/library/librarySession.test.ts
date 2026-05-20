@@ -36,6 +36,20 @@ describe('resumeInitialSyncIfIncomplete', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
+  it('de-dupes concurrent calls so a second start cannot cancel the first', async () => {
+    onInvoke('library_get_status', () => status()); // incomplete
+    const start = vi.fn(() => ({ jobId: 'j1', serverId: 's1', kind: 'initial_sync' }));
+    onInvoke('library_sync_start', start);
+
+    // Two near-simultaneous calls (StrictMode double-fires the startup effect).
+    await Promise.all([
+      resumeInitialSyncIfIncomplete('s1'),
+      resumeInitialSyncIfIncomplete('s1'),
+    ]);
+
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
   it('stays silent when the status lookup fails', async () => {
     onInvoke('library_get_status', () => { throw new Error('boom'); });
     const start = vi.fn();

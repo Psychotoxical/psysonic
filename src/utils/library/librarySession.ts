@@ -48,8 +48,16 @@ export async function ensureActiveServerSessionBound(): Promise<boolean> {
  * landed this is a no-op, so delta stays the scheduler's job.
  *
  * Best-effort: errors stay silent — Settings surfaces them on explicit action.
+ *
+ * De-duped per server: React StrictMode (and rapid re-binds) fire the startup
+ * effect twice, and a second `library_sync_start` would cancel the first
+ * (`set_current_job` is cancel-and-replace) — harmless but wasteful and noisy.
  */
+const resumeInFlight = new Set<string>();
+
 export async function resumeInitialSyncIfIncomplete(serverId: string): Promise<void> {
+  if (resumeInFlight.has(serverId)) return;
+  resumeInFlight.add(serverId);
   try {
     const status = await libraryGetStatus(serverId);
     if (!status.lastFullSyncAt) {
@@ -57,5 +65,7 @@ export async function resumeInitialSyncIfIncomplete(serverId: string): Promise<v
     }
   } catch {
     /* best-effort */
+  } finally {
+    resumeInFlight.delete(serverId);
   }
 }
