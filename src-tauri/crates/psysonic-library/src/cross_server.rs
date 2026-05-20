@@ -1,6 +1,7 @@
-//! Cross-server search (spec §5.5B / §5.9 A′). PR-5d ships the primary FTS
-//! union; the fuzzy 0-hit fallback (§5.5B step C) lands additively with
-//! cross-server matching in PR-4 (H3). UI wiring stays PR-7.
+//! Cross-server search (spec §5.5B / §5.9). Primary FTS union (`hits`,
+//! bm25-ordered, deduped by canonical id) plus the H3 fuzzy fallback
+//! (`fuzzy`): per-server `title LIKE` matches the exact FTS pass missed.
+//! UI wiring stays PR-7.
 
 use std::collections::HashSet;
 
@@ -8,8 +9,12 @@ use rusqlite::types::Value as SqlValue;
 
 use crate::dto::{LibraryCrossServerSearchResponse, LibraryTrackDto};
 use crate::repos;
-use crate::search::{aliased_track_columns, fts_query, PAGE_LIMIT_MAX};
+use crate::search::{aliased_track_columns, fts_query, like_contains, PAGE_LIMIT_MAX};
 use crate::store::LibraryStore;
+
+/// §5.9 caps the fuzzy fallback at "top 20 per server" so a `LIKE %…%` scan
+/// (no index) stays bounded.
+const FUZZY_PER_SERVER_CAP: usize = 20;
 
 /// `library_search_cross_server` (§5.5B / §5.9 A′). Primary FTS union over
 /// the requested servers (or all `ready` servers), bm25-ordered, deduped by
@@ -68,9 +73,9 @@ pub fn run_cross_server_search(
         collected
     })?;
 
-    // Dedup by canonical id (§5.5B step 2). Rows with no canonical link are
-    // always kept — pre-PR-4 the link table is sparse, so this is a no-op
-    // for most rows.
+    // Dedup the exact hits by canonical id (§5.5B step 2). Rows with no
+    // canonical link are always kept — the link table is sparse for tracks
+    // lacking ISRC/MBID.
     let mut seen: HashSet<String> = HashSet::new();
     let mut hits: Vec<LibraryTrackDto> = Vec::with_capacity(rows.len());
     for (track, canonical) in rows {
@@ -82,10 +87,83 @@ pub fn run_cross_server_search(
         hits.push(track);
     }
 
+    // H3 fuzzy fallback (§5.9): catch what the exact FTS pass missed.
+    let hit_keys: HashSet<(String, String)> = hits
+        .iter()
+        .map(|t| (t.server_id.clone(), t.id.clone()))
+        .collect();
+    let fuzzy = fuzzy_matches(store, &targets, query.trim(), &mut seen, &hit_keys, limit as usize)?;
+
     Ok(LibraryCrossServerSearchResponse {
         hits,
+        fuzzy,
         servers_searched: targets,
     })
+}
+
+/// §5.9 fuzzy fallback: per target server, `title LIKE %query%` for matches
+/// the exact FTS pass missed (diacritics, partial words). Skips rows already
+/// in `hit_keys` and dedupes by canonical id against `seen` (which holds the
+/// exact hits' canonical ids). Capped per server (`FUZZY_PER_SERVER_CAP`) and
+/// overall (`overall_cap`).
+fn fuzzy_matches(
+    store: &LibraryStore,
+    targets: &[String],
+    query: &str,
+    seen: &mut HashSet<String>,
+    hit_keys: &HashSet<(String, String)>,
+    overall_cap: usize,
+) -> Result<Vec<LibraryTrackDto>, String> {
+    let like = like_contains(query);
+    let cols = aliased_track_columns("t");
+    let canonical_idx = repos::track_columns().split(',').count();
+    let sql = format!(
+        "SELECT {cols}, l.canonical_id \
+         FROM track t \
+         LEFT JOIN track_canonical_link l ON l.server_id = t.server_id AND l.track_id = t.id \
+         WHERE t.server_id = ? AND t.deleted = 0 AND t.title LIKE ? ESCAPE '\\' \
+         ORDER BY t.title COLLATE NOCASE ASC LIMIT ?"
+    );
+
+    let mut out: Vec<LibraryTrackDto> = Vec::new();
+    for server in targets {
+        if out.len() >= overall_cap {
+            break;
+        }
+        let bound = [
+            SqlValue::Text(server.clone()),
+            SqlValue::Text(like.clone()),
+            SqlValue::Integer(FUZZY_PER_SERVER_CAP as i64),
+        ];
+        let rows: Vec<(LibraryTrackDto, Option<String>)> = store.with_conn(|conn| {
+            let mut stmt = conn.prepare(&sql)?;
+            let collected: rusqlite::Result<Vec<(LibraryTrackDto, Option<String>)>> = stmt
+                .query_map(rusqlite::params_from_iter(bound.iter()), |r| {
+                    let track =
+                        repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row))?;
+                    let canonical: Option<String> = r.get(canonical_idx)?;
+                    Ok((track, canonical))
+                })?
+                .collect();
+            collected
+        })?;
+
+        for (track, canonical) in rows {
+            if out.len() >= overall_cap {
+                break;
+            }
+            if hit_keys.contains(&(track.server_id.clone(), track.id.clone())) {
+                continue; // already an exact hit
+            }
+            if let Some(cid) = canonical {
+                if !seen.insert(cid) {
+                    continue; // canonical already represented (hit or earlier fuzzy)
+                }
+            }
+            out.push(track);
+        }
+    }
+    Ok(out)
 }
 
 fn ready_servers(store: &LibraryStore) -> Result<Vec<String>, String> {
@@ -258,5 +336,41 @@ mod tests {
         let resp = run_cross_server_search(&store, "aurora", 50, None).unwrap();
         assert!(resp.hits.is_empty());
         assert!(resp.servers_searched.is_empty());
+    }
+
+    // ── H3: fuzzy fallback (§5.9) ──────────────────────────────────────
+
+    #[test]
+    fn fuzzy_catches_titles_the_exact_pass_missed() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                // exact FTS term hit
+                track("s1", "t1", "Aurora", "Anna", "Alb"),
+                // FTS tokenizes to "auroras"/"borealis" → misses term "aurora";
+                // LIKE %aurora% still catches it.
+                track("s2", "t2", "Auroras Borealis", "Beth", "Alb"),
+            ])
+            .unwrap();
+        set_phase(&store, "s1", "ready");
+        set_phase(&store, "s2", "ready");
+        let resp = run_cross_server_search(&store, "aurora", 50, None).unwrap();
+        assert_eq!(resp.hits.len(), 1, "exact FTS hit");
+        assert_eq!(resp.hits[0].id, "t1");
+        assert_eq!(resp.fuzzy.len(), 1, "fuzzy catches the FTS miss");
+        assert_eq!(resp.fuzzy[0].id, "t2");
+    }
+
+    #[test]
+    fn fuzzy_excludes_exact_hits() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[track("s1", "t1", "Aurora", "Anna", "Alb")])
+            .unwrap();
+        set_phase(&store, "s1", "ready");
+        // "Aurora" is both an FTS hit and a LIKE match — must appear only once.
+        let resp = run_cross_server_search(&store, "aurora", 50, None).unwrap();
+        assert_eq!(resp.hits.len(), 1);
+        assert!(resp.fuzzy.is_empty(), "exact hits are not repeated in fuzzy");
     }
 }

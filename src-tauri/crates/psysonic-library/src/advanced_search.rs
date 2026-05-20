@@ -19,7 +19,7 @@ use crate::dto::{
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
-use crate::search::{aliased_track_columns, fts_query, PAGE_LIMIT_MAX};
+use crate::search::{aliased_track_columns, fts_query, like_contains, PAGE_LIMIT_MAX};
 use crate::store::LibraryStore;
 
 /// `bpm` dual-storage resolution (§5.13.4): prefer the hot `track.bpm`
@@ -386,16 +386,6 @@ fn parse_raw_json(raw: Option<String>) -> Value {
 
 fn trimmed_nonempty(s: Option<&str>) -> Option<String> {
     s.map(str::trim).filter(|s| !s.is_empty()).map(String::from)
-}
-
-/// Build a `%...%` LIKE pattern with the LIKE wildcards (`%`, `_`) and the
-/// `\` escape char escaped, for use with `LIKE ? ESCAPE '\'`.
-fn like_contains(raw: &str) -> String {
-    let escaped = raw
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
-    format!("%{escaped}%")
 }
 
 fn order_clause(sort: &[LibrarySortClause], entity: EntityKind) -> Option<String> {
