@@ -6,7 +6,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 1;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 2;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -19,10 +19,12 @@ pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 1;
 pub const LIBRARY_DB_MIN_COMPATIBLE_VERSION: i64 = 1;
 
 pub(crate) const INITIAL_SQL: &str = include_str!("../migrations/001_initial.sql");
+const MIGRATION_002_N1_BULK_UNRELIABLE: &str =
+    include_str!("../migrations/002_n1_bulk_unreliable.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
-const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL)];
+const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL), (2, MIGRATION_002_N1_BULK_UNRELIABLE)];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MigrationOutcome {
@@ -220,7 +222,9 @@ mod tests {
                 rows
             })
             .unwrap();
-        assert_eq!(versions, vec![LIBRARY_DB_SCHEMA_VERSION]);
+        // Embedded migrations are numbered 1..=head, all applied on a fresh DB.
+        let expected: Vec<i64> = (1..=LIBRARY_DB_SCHEMA_VERSION).collect();
+        assert_eq!(versions, expected);
     }
 
     #[test]
@@ -235,7 +239,10 @@ mod tests {
                 c.query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
             })
             .unwrap();
-        assert_eq!(count, 1, "no duplicate schema_migrations rows");
+        assert_eq!(
+            count, LIBRARY_DB_SCHEMA_VERSION,
+            "one schema_migrations row per embedded migration, no duplicates"
+        );
     }
 
     #[test]
@@ -257,7 +264,9 @@ mod tests {
 
     /// `ALTER TABLE artist ADD COLUMN bio TEXT;` — minimal additive fixture,
     /// nullable column with no default. Mirrors the §5.7 additive-first rule.
-    const FIXTURE_002_ADD_BIO: &str = "ALTER TABLE artist ADD COLUMN bio TEXT;";
+    /// Numbered above the real embedded head so it stacks on a migrated DB.
+    const FIXTURE_ADD_BIO: &str = "ALTER TABLE artist ADD COLUMN bio TEXT;";
+    const FIXTURE_ADD_BIO_VERSION: i64 = LIBRARY_DB_SCHEMA_VERSION + 1;
 
     fn no_op_hook(_c: &Connection, _from: i64, _to: i64) -> rusqlite::Result<()> {
         Ok(())
@@ -284,7 +293,7 @@ mod tests {
             .with_conn(|c| {
                 run_migrations_with(
                     c,
-                    &[(1, INITIAL_SQL), (2, FIXTURE_002_ADD_BIO)],
+                    &[(1, INITIAL_SQL), (FIXTURE_ADD_BIO_VERSION, FIXTURE_ADD_BIO)],
                     LIBRARY_DB_MIN_COMPATIBLE_VERSION,
                     always_fail_hook,
                 )
@@ -313,7 +322,10 @@ mod tests {
                 rows
             })
             .unwrap();
-        assert_eq!(versions, vec![1, 2]);
+        // Real embedded migrations (1..=head) plus the additive fixture.
+        let mut expected: Vec<i64> = (1..=LIBRARY_DB_SCHEMA_VERSION).collect();
+        expected.push(FIXTURE_ADD_BIO_VERSION);
+        assert_eq!(versions, expected);
     }
 
     #[test]
@@ -325,7 +337,7 @@ mod tests {
 
         let outcome = run_migrations_with(
             &conn,
-            &[(2, FIXTURE_002_ADD_BIO), (1, INITIAL_SQL)],
+            &[(2, FIXTURE_ADD_BIO), (1, INITIAL_SQL)],
             LIBRARY_DB_MIN_COMPATIBLE_VERSION,
             always_fail_hook,
         )
@@ -345,15 +357,15 @@ mod tests {
 
     #[test]
     fn breaking_bump_hook_fires_when_db_below_min_compatible() {
-        // Simulate a future code release where MIN_COMPATIBLE was bumped to
-        // 2 but the DB still carries only version 1.
+        // Simulate a future code release where MIN_COMPATIBLE was bumped past
+        // the version the DB currently carries (the real embedded head).
         let store = LibraryStore::open_in_memory();
         let outcome = store
             .with_conn(|c| {
                 run_migrations_with(
                     c,
-                    &[(1, INITIAL_SQL), (2, FIXTURE_002_ADD_BIO)],
-                    2, // pretend MIN_COMPATIBLE has been bumped past current applied
+                    MIGRATIONS,
+                    LIBRARY_DB_SCHEMA_VERSION + 1, // bumped past current applied
                     no_op_hook,
                 )
             })

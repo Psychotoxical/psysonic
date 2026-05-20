@@ -70,6 +70,12 @@ pub struct NavidromeProbeCredentials {
 pub struct CapabilityProbeResult {
     pub flags: CapabilityFlags,
     pub server_info: ServerInfo,
+    /// Server-reported track count from `getScanStatus.count`, when the
+    /// server exposes it. `None` when `getScanStatus` is unavailable or
+    /// reports no count. Persisted as the `server_track_count` watermark so
+    /// the strategy selector can route large catalogs to S1 at IS-1 without
+    /// first hitting N1's deep-offset wall (R7-15 Q4).
+    pub server_track_count: Option<i64>,
 }
 
 /// Run `CapabilityProbe::run` and persist the resulting flags +
@@ -101,6 +107,13 @@ pub async fn probe_and_persist(
     sync_state
         .set_capability_flags(server_id, library_scope, result.flags.bits())
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
+    // Refresh the track-count watermark only when the probe learned one — a
+    // missing `getScanStatus.count` must not clobber a count from a prior run.
+    if let Some(count) = result.server_track_count {
+        sync_state
+            .set_server_track_count(server_id, library_scope, count)
+            .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
+    }
     sync_state
         .set_sync_phase(server_id, library_scope, "idle")
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
@@ -143,8 +156,12 @@ impl CapabilityProbe {
             flags.insert(CapabilityFlags::SUBSONIC_SEARCH3_BULK);
         }
 
-        if subsonic.get_scan_status().await.is_ok() {
+        let mut server_track_count = None;
+        if let Ok(scan) = subsonic.get_scan_status().await {
             flags.insert(CapabilityFlags::SCAN_STATUS_AVAILABLE);
+            // Only a positive count is a usable watermark; a scan in progress
+            // can report 0, which we treat as "unknown" rather than "empty".
+            server_track_count = scan.count.filter(|&c| c > 0);
         }
 
         if subsonic.get_indexes(None, None).await.is_ok() {
@@ -163,7 +180,11 @@ impl CapabilityProbe {
             }
         }
 
-        Ok(CapabilityProbeResult { flags, server_info })
+        Ok(CapabilityProbeResult {
+            flags,
+            server_info,
+            server_track_count,
+        })
     }
 }
 
@@ -419,6 +440,85 @@ mod tests {
         assert_eq!(
             sync_state.get_sync_phase("s1", "").unwrap().as_deref(),
             Some("idle")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn probe_captures_and_persists_scan_status_track_count() {
+        use crate::repos::SyncStateRepository;
+        use crate::store::LibraryStore;
+
+        let server = MockServer::start().await;
+        // ping + search3 + getIndexes from the shared helper, then override
+        // getScanStatus with a populated `count` (large library).
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "version": "1.16.1", "type": "navidrome" }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(ok_envelope(
+                "searchResult3",
+                json!({ "song": [{ "id": "x", "title": "y" }] }),
+            )))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(ok_envelope(
+                "scanStatus",
+                json!({ "scanning": false, "count": 170_000 }),
+            )))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getIndexes.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(ok_envelope(
+                "indexes",
+                json!({ "lastModified": 0, "ignoredArticles": "", "index": [] }),
+            )))
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        let result =
+            super::probe_and_persist(&store, &test_subsonic_client(&server.uri()), None, "s1", "")
+                .await
+                .unwrap();
+        assert_eq!(result.server_track_count, Some(170_000));
+
+        let sync_state = SyncStateRepository::new(&store);
+        assert_eq!(
+            sync_state.get_server_track_count("s1", "").unwrap(),
+            Some(170_000)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn probe_does_not_clobber_track_count_when_scan_status_omits_it() {
+        use crate::repos::SyncStateRepository;
+        use crate::store::LibraryStore;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        // A prior run already learned the count.
+        sync_state.set_server_track_count("s1", "", 52_000).unwrap();
+
+        let server = MockServer::start().await;
+        mount_subsonic_full_navidrome(&server).await; // scanStatus has no count
+
+        let result =
+            super::probe_and_persist(&store, &test_subsonic_client(&server.uri()), None, "s1", "")
+                .await
+                .unwrap();
+        assert_eq!(result.server_track_count, None);
+        // Watermark from the prior run survives the count-less probe.
+        assert_eq!(
+            sync_state.get_server_track_count("s1", "").unwrap(),
+            Some(52_000)
         );
     }
 
