@@ -5,6 +5,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use rusqlite::params;
 use serde_json::Value;
@@ -306,6 +307,29 @@ fn normalize_base_url(raw: &str) -> String {
     with_scheme.trim_end_matches('/').to_string()
 }
 
+/// Acquire a Navidrome native-API bearer with a few retries. `/auth/login`
+/// is occasionally flaky; one transient miss must not strip N1 for the whole
+/// session (R7-15 Q3). Returns `None` only after every attempt fails — the
+/// caller falls back to a cached bearer / the Subsonic-only path. Never logs
+/// the token or credentials.
+async fn navidrome_token_with_retry(
+    base_url: &str,
+    username: &str,
+    password: &str,
+) -> Option<String> {
+    const ATTEMPTS: u32 = 3;
+    for attempt in 1..=ATTEMPTS {
+        match navidrome_token(base_url, username, password).await {
+            Ok(tok) => return Some(tok),
+            Err(_) if attempt < ATTEMPTS => {
+                tokio::time::sleep(Duration::from_millis(250 * attempt as u64)).await;
+            }
+            Err(_) => return None,
+        }
+    }
+    None
+}
+
 #[tauri::command]
 pub async fn library_sync_bind_session(
     runtime: State<'_, LibraryRuntime>,
@@ -316,12 +340,18 @@ pub async fn library_sync_bind_session(
     library_scope: Option<String>,
 ) -> Result<(), String> {
     let base_url = normalize_base_url(&base_url);
-    // Try a Navidrome native-API auth once at bind time. Spec §6.1 +
-    // PR-5 kickoff Q5: this primes the bearer cache for N1 probe /
-    // ingest without making every command pass a token. Non-Navidrome
-    // servers (Subsonic-only) fall back gracefully — failure here is
-    // not blocking, sync still works via the Subsonic salted-md5 path.
-    let navidrome_token_cached = navidrome_token(&base_url, &username, &password).await.ok();
+    // Prime the Navidrome native-API bearer at bind time (spec §6.1 + PR-5
+    // kickoff Q5) so N1 probe / ingest works without every command passing a
+    // token. `/auth/login` is flaky, so retry a few times; if it still fails,
+    // keep a bearer cached from a prior bind rather than dropping to
+    // Subsonic-only — a transient miss must not strip an N1-capable server
+    // (R7-15 Q3). Non-Navidrome servers stay `None` and sync via Subsonic.
+    let navidrome_token_cached = match navidrome_token_with_retry(&base_url, &username, &password)
+        .await
+    {
+        Some(tok) => Some(tok),
+        None => runtime.get_session(&server_id).and_then(|s| s.navidrome_token),
+    };
 
     let session = SyncSession {
         server_id: server_id.clone(),
@@ -407,7 +437,15 @@ async fn library_sync_start_inner(
         format!("no bound session for server `{server_id}` — call library_sync_bind_session first")
     })?;
     let scope = library_scope.clone().or(session.library_scope.clone()).unwrap_or_default();
-    let capability_flags = load_capability_flags(&runtime, &server_id, &scope)?;
+    let mut capability_flags = load_capability_flags(&runtime, &server_id, &scope)?;
+    // N1 needs the Navidrome bearer. Without a cached token this run is
+    // Subsonic-only even on an N1-capable server — mask the flag for *this*
+    // run's strategy selection (R7-15 Q3 "proceed as Subsonic-only"). The
+    // persisted server capability stays untouched, so a later bind that
+    // recovers the token can use N1 again.
+    if session.navidrome_token.is_none() {
+        capability_flags.remove(CapabilityFlags::NAVIDROME_NATIVE_BULK);
+    }
 
     let kind = match mode.as_str() {
         "full" => "initial_sync",
@@ -994,5 +1032,38 @@ mod tests {
     #[test]
     fn normalize_base_url_trims_whitespace() {
         assert_eq!(normalize_base_url("  nas.example.com  "), "http://nas.example.com");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn navidrome_token_with_retry_returns_token_on_success() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/auth/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "token": "nd-tok", "userId": "u1"
+            })))
+            .mount(&server)
+            .await;
+        let tok = navidrome_token_with_retry(&server.uri(), "user", "pw").await;
+        assert_eq!(tok.as_deref(), Some("nd-tok"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn navidrome_token_with_retry_returns_none_after_exhausting_attempts() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        // No `token` field → navidrome_token errors on every attempt; after
+        // the retries are exhausted the helper yields None (caller then falls
+        // back to a cached bearer / Subsonic-only).
+        Mock::given(method("POST"))
+            .and(path("/auth/login"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        let tok = navidrome_token_with_retry(&server.uri(), "user", "pw").await;
+        assert!(tok.is_none());
     }
 }

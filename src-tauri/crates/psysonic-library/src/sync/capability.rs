@@ -102,7 +102,22 @@ pub async fn probe_and_persist(
         .set_sync_phase(server_id, library_scope, "probing")
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
 
-    let result = CapabilityProbe::run(subsonic, navidrome).await?;
+    let existing_flags = sync_state
+        .get_capability_flags(server_id, library_scope)
+        .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?
+        .unwrap_or(0);
+
+    let mut result = CapabilityProbe::run(subsonic, navidrome).await?;
+
+    // R7-15 Q3: a probe run without a Navidrome bearer can't test N1, so it
+    // must not drop a previously-learned NavidromeNativeBulk capability — the
+    // server still supports `/api/song`; only the token is missing this bind.
+    // Token availability gates actual N1 use per run (see library_sync_start).
+    if navidrome.is_none()
+        && existing_flags & CapabilityFlags::NAVIDROME_NATIVE_BULK != 0
+    {
+        result.flags.insert(CapabilityFlags::NAVIDROME_NATIVE_BULK);
+    }
 
     sync_state
         .set_capability_flags(server_id, library_scope, result.flags.bits())
@@ -494,6 +509,43 @@ mod tests {
         assert_eq!(
             sync_state.get_server_track_count("s1", "").unwrap(),
             Some(170_000)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn probe_preserves_navidrome_native_bulk_when_no_token_supplied() {
+        use crate::repos::SyncStateRepository;
+        use crate::store::LibraryStore;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        // A prior bind (with a working bearer) already learned N1.
+        sync_state
+            .set_capability_flags("s1", "", CapabilityFlags::NAVIDROME_NATIVE_BULK)
+            .unwrap();
+
+        let server = MockServer::start().await;
+        mount_subsonic_full_navidrome(&server).await;
+
+        // Re-probe without a Navidrome token (transient /auth/login failure).
+        // R7-15 Q3: the server still supports /api/song — the flag must stay.
+        let result = super::probe_and_persist(
+            &store,
+            &test_subsonic_client(&server.uri()),
+            None,
+            "s1",
+            "",
+        )
+        .await
+        .unwrap();
+        assert!(
+            result.flags.contains(CapabilityFlags::NAVIDROME_NATIVE_BULK),
+            "result must keep the previously-learned N1 capability"
+        );
+        let persisted = sync_state.get_capability_flags("s1", "").unwrap().unwrap();
+        assert!(
+            persisted & CapabilityFlags::NAVIDROME_NATIVE_BULK != 0,
+            "persisted flags must keep N1 across a token-less probe"
         );
     }
 
