@@ -194,7 +194,22 @@ impl<'a> InitialSyncRunner<'a> {
         let raw = sync_state
             .get_initial_sync_cursor(&self.server_id, &self.library_scope)
             .map_err(SyncError::Storage)?;
-        let strategy_from_flags = IngestStrategy::select_from_flags(self.capability_flags);
+        // R7-15 Q4: pick with the large-library policy, not just the cap
+        // flags. `server_track_count` (probe `getScanStatus` count or a prior
+        // watermark) and the learned `n1_bulk_unreliable` flag steer large
+        // catalogs onto S1 instead of N1's deep-offset wall.
+        let server_track_count = sync_state
+            .get_server_track_count(&self.server_id, &self.library_scope)
+            .map_err(SyncError::Storage)?;
+        let n1_bulk_unreliable = sync_state
+            .get_n1_bulk_unreliable(&self.server_id, &self.library_scope)
+            .map_err(SyncError::Storage)?
+            .unwrap_or(false);
+        let selected_strategy = IngestStrategy::select_initial_strategy(
+            self.capability_flags,
+            server_track_count,
+            n1_bulk_unreliable,
+        );
         if let Some(raw) = raw {
             if !is_empty_cursor(&raw) {
                 // Resume a persisted cursor only when it was written under
@@ -207,7 +222,7 @@ impl<'a> InitialSyncRunner<'a> {
                 // start fresh. Re-ingest is idempotent (upsert), and the
                 // tombstone pass reconciles any leftovers.
                 match serde_json::from_value::<InitialSyncCursor>(raw) {
-                    Ok(parsed) if parsed.strategy == strategy_from_flags.as_tag() => {
+                    Ok(parsed) if parsed.strategy == selected_strategy.as_tag() => {
                         return Ok(parsed);
                     }
                     Ok(parsed) => {
@@ -216,7 +231,7 @@ impl<'a> InitialSyncRunner<'a> {
                              was `{}`, strategy is now `{}`",
                             self.server_id,
                             parsed.strategy,
-                            strategy_from_flags.as_tag()
+                            selected_strategy.as_tag()
                         );
                     }
                     Err(e) => {
@@ -234,7 +249,7 @@ impl<'a> InitialSyncRunner<'a> {
         } else {
             Some(self.library_scope.clone())
         };
-        let fresh = InitialSyncCursor::fresh(strategy_from_flags, scope);
+        let fresh = InitialSyncCursor::fresh(selected_strategy, scope);
         self.persist_cursor(sync_state, &fresh)?;
         Ok(fresh)
     }

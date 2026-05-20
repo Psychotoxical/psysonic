@@ -5,6 +5,12 @@
 
 use super::capability::CapabilityFlags;
 
+/// Server track count above which N1 is skipped in favour of S1 at initial
+/// sync start (R7-15 Q4). N1's native `/api/song` deep-offset 500 wall makes
+/// it unable to finish very large catalogs; S1 (`search3`) does not hit it.
+/// Tunable constant — the live wall was observed past ~50k.
+pub const LARGE_LIBRARY_THRESHOLD: i64 = 40_000;
+
 /// Spec §6.3 IS-3 strategies. Names match §6.1.1 capability bits where
 /// applicable; S2 has no flag of its own — it's the universal
 /// album-crawl fallback assumed available whenever the Subsonic ping
@@ -39,6 +45,33 @@ impl IngestStrategy {
         } else {
             Self::S2
         }
+    }
+
+    /// Pick the initial-sync strategy with the large-library policy on top
+    /// of `select_from_flags` (R7-15 Q4). A large catalog — or one already
+    /// flagged `n1_bulk_unreliable` after an N1 deep-offset 500 — must avoid
+    /// N1, which cannot finish past the wall. Prefer S1 (`search3`) and fall
+    /// back to S2 (universal album crawl) when search3 bulk is unavailable.
+    ///
+    /// `server_track_count` is best-effort at IS-1 (probe `getScanStatus`
+    /// count or a prior watermark); `None` means unknown, in which case only
+    /// the `n1_bulk_unreliable` flag forces the non-N1 path (a first run with
+    /// no count still tries the cheapest strategy and learns from a 500).
+    pub fn select_initial_strategy(
+        flags: CapabilityFlags,
+        server_track_count: Option<i64>,
+        n1_bulk_unreliable: bool,
+    ) -> Self {
+        let is_large = server_track_count
+            .map(|c| c > LARGE_LIBRARY_THRESHOLD)
+            .unwrap_or(false);
+        if n1_bulk_unreliable || is_large {
+            if flags.contains(CapabilityFlags::SUBSONIC_SEARCH3_BULK) {
+                return Self::S1;
+            }
+            return Self::S2;
+        }
+        Self::select_from_flags(flags)
     }
 
     /// String tag stored in `initial_sync_cursor_json` so the runner
@@ -100,6 +133,72 @@ mod tests {
             IngestStrategy::select_from_flags(CapabilityFlags::default()),
             IngestStrategy::S2
         );
+    }
+
+    // ── select_initial_strategy (R7-15 Q4 large-library policy) ──────────
+
+    fn navidrome_full() -> CapabilityFlags {
+        CapabilityFlags::new(
+            CapabilityFlags::NAVIDROME_NATIVE_BULK | CapabilityFlags::SUBSONIC_SEARCH3_BULK,
+        )
+    }
+
+    #[test]
+    fn initial_strategy_small_library_keeps_cheapest_n1() {
+        // Below threshold, not flagged unreliable → unchanged N1-first chain.
+        let s = IngestStrategy::select_initial_strategy(navidrome_full(), Some(1_000), false);
+        assert_eq!(s, IngestStrategy::N1);
+    }
+
+    #[test]
+    fn initial_strategy_large_library_avoids_n1_for_s1() {
+        // Over threshold → S1 even though N1 is advertised (deep-offset wall).
+        let s = IngestStrategy::select_initial_strategy(navidrome_full(), Some(170_000), false);
+        assert_eq!(s, IngestStrategy::S1);
+    }
+
+    #[test]
+    fn initial_strategy_unreliable_flag_avoids_n1_regardless_of_size() {
+        // Learned `n1_bulk_unreliable` forces the non-N1 path even when the
+        // count is small/unknown (covers R7-15 "unknown → large if N1 failed").
+        let small =
+            IngestStrategy::select_initial_strategy(navidrome_full(), Some(500), true);
+        assert_eq!(small, IngestStrategy::S1);
+        let unknown = IngestStrategy::select_initial_strategy(navidrome_full(), None, true);
+        assert_eq!(unknown, IngestStrategy::S1);
+    }
+
+    #[test]
+    fn initial_strategy_large_without_search3_falls_back_to_s2() {
+        // Avoid-N1 path but no search3 bulk → universal album crawl, not N1.
+        let flags = CapabilityFlags::new(CapabilityFlags::NAVIDROME_NATIVE_BULK);
+        let s = IngestStrategy::select_initial_strategy(flags, Some(170_000), false);
+        assert_eq!(s, IngestStrategy::S2);
+    }
+
+    #[test]
+    fn initial_strategy_unknown_count_uses_cheapest_when_not_flagged() {
+        // First run, no count yet, N1 never failed → try cheapest (N1); the
+        // mid-run N1→S1 fallback (R7-15 Q5) handles the wall if hit.
+        let s = IngestStrategy::select_initial_strategy(navidrome_full(), None, false);
+        assert_eq!(s, IngestStrategy::N1);
+    }
+
+    #[test]
+    fn initial_strategy_threshold_is_strictly_greater_than() {
+        // Exactly at the threshold is not "large"; one above is.
+        let at = IngestStrategy::select_initial_strategy(
+            navidrome_full(),
+            Some(LARGE_LIBRARY_THRESHOLD),
+            false,
+        );
+        assert_eq!(at, IngestStrategy::N1);
+        let over = IngestStrategy::select_initial_strategy(
+            navidrome_full(),
+            Some(LARGE_LIBRARY_THRESHOLD + 1),
+            false,
+        );
+        assert_eq!(over, IngestStrategy::S1);
     }
 
     #[test]

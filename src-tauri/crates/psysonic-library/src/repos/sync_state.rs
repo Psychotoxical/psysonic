@@ -409,6 +409,47 @@ impl<'a> SyncStateRepository<'a> {
         })
     }
 
+    /// Read `n1_bulk_unreliable` — per-server learned flag (R7-15). When
+    /// set, the strategy selector stops choosing N1 for this server (the
+    /// native `/api/song` endpoint 500'd beyond a deep offset). Returns
+    /// `None` when the row doesn't exist; SQL DEFAULT is 0 so a
+    /// freshly-ensured row reads back as `Some(false)`.
+    pub fn get_n1_bulk_unreliable(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<bool>, String> {
+        let raw: Option<i64> = self.store.with_conn(|conn| {
+            conn.query_row(
+                "SELECT n1_bulk_unreliable FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get(0),
+            )
+            .optional()
+        })?;
+        Ok(raw.map(|v| v != 0))
+    }
+
+    /// Write `n1_bulk_unreliable`. Upsert scoped to that one column.
+    pub fn set_n1_bulk_unreliable(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        unreliable: bool,
+    ) -> Result<(), String> {
+        self.store.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, n1_bulk_unreliable) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   n1_bulk_unreliable = excluded.n1_bulk_unreliable",
+                params![server_id, library_scope, unreliable as i64],
+            )?;
+            Ok(())
+        })
+    }
+
     /// Stamp `last_delta_sync_at = now` (epoch ms). Called by DS-9 at
     /// the end of every successful delta pass.
     pub fn set_last_delta_sync_at(
@@ -670,6 +711,33 @@ mod tests {
             })
             .unwrap();
         assert_eq!(tier, "huge");
+    }
+
+    #[test]
+    fn n1_bulk_unreliable_defaults_false_and_roundtrips() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.ensure("s1", "").unwrap();
+        // DEFAULT 0 reads back as Some(false); existing servers stay N1-eligible.
+        assert_eq!(repo.get_n1_bulk_unreliable("s1", "").unwrap(), Some(false));
+        assert_eq!(repo.get_n1_bulk_unreliable("absent", "").unwrap(), None);
+
+        repo.set_n1_bulk_unreliable("s1", "", true).unwrap();
+        assert_eq!(repo.get_n1_bulk_unreliable("s1", "").unwrap(), Some(true));
+        repo.set_n1_bulk_unreliable("s1", "", false).unwrap();
+        assert_eq!(repo.get_n1_bulk_unreliable("s1", "").unwrap(), Some(false));
+    }
+
+    #[test]
+    fn n1_bulk_unreliable_set_does_not_clobber_cursor() {
+        let store = LibraryStore::open_in_memory();
+        let repo = SyncStateRepository::new(&store);
+        repo.set_initial_sync_cursor("s1", "", &json!({"offset": 7})).unwrap();
+        repo.set_n1_bulk_unreliable("s1", "", true).unwrap();
+        assert_eq!(
+            repo.get_initial_sync_cursor("s1", "").unwrap(),
+            Some(json!({"offset": 7}))
+        );
     }
 
     #[test]
