@@ -484,12 +484,22 @@ impl<'a> InitialSyncRunner<'a> {
         loop {
             self.check_cancellation()?;
             let scope = self.library_scope_opt();
-            let (result, raw_body) = retry_with_backoff(
+            let (result, raw_body) = match retry_with_backoff(
                 self,
                 || self.subsonic.search3_with_raw("", self.batch_size, offset, scope),
                 SyncError::from,
             )
-            .await?;
+            .await
+            {
+                Ok(v) => v,
+                // Q8 (R7-15): S1 failing persistently (C12 retries already
+                // exhausted) → fall back to the universal S2 album crawl.
+                // Cancellation / storage errors propagate untouched.
+                Err(e) if is_fetch_failure(&e) => {
+                    return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
+                }
+                Err(e) => return Err(e),
+            };
 
             if result.song.is_empty() {
                 break;
@@ -540,6 +550,34 @@ impl<'a> InitialSyncRunner<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Q8 (R7-15) — fall back to the universal S2 album crawl when S1 fails
+    /// persistently. S1 (`search3` order) and S2 (album-list order) don't
+    /// share an offset space, so restart S2 from scratch; re-ingest is
+    /// idempotent (PK upsert). The cursor is rewritten in place, never zeroed.
+    /// No new artist-walk strategy is introduced (Q8 decision).
+    async fn fall_back_s1_to_s2(
+        &self,
+        cursor: &mut InitialSyncCursor,
+        report: &mut InitialSyncReport,
+        sync_state: &SyncStateRepository<'_>,
+    ) -> Result<(), SyncError> {
+        crate::app_eprintln!(
+            "[library-sync] S1 failed persistently for server `{}`; falling back to \
+             S2 album crawl",
+            self.server_id
+        );
+        let scope = if self.library_scope.is_empty() {
+            None
+        } else {
+            Some(self.library_scope.clone())
+        };
+        *cursor = InitialSyncCursor::fresh(IngestStrategy::S2, scope);
+        report.ingested_count = 0;
+        report.strategy = Some(cursor.strategy.clone());
+        self.persist_cursor(sync_state, cursor)?;
+        self.run_s2(cursor, report, sync_state).await
     }
 
     // ── S2 (album crawl: getAlbumList2 + getAlbum) ─────────────────────
@@ -743,6 +781,19 @@ fn is_retryable(e: &SyncError) -> bool {
     matches!(
         e,
         SyncError::Transport(_) | SyncError::Navidrome(_)
+    )
+}
+
+/// A persistent fetch failure (network / HTTP / decode / API) that warrants
+/// switching ingest strategy (Q8 S1→S2). Cancellation is user intent and
+/// storage is a local problem a strategy switch can't fix — both propagate.
+fn is_fetch_failure(e: &SyncError) -> bool {
+    matches!(
+        e,
+        SyncError::Transport(_)
+            | SyncError::Subsonic { .. }
+            | SyncError::Navidrome(_)
+            | SyncError::NotFound
     )
 }
 
@@ -1336,6 +1387,75 @@ mod tests {
         assert!(matches!(err, SyncError::Navidrome(ref m) if m.contains("500")));
         let sync_state = SyncStateRepository::new(&store);
         assert_eq!(sync_state.get_n1_bulk_unreliable("s1", "").unwrap(), Some(false));
+    }
+
+    // ── S1 → S2 persistent-failure fallback (R7-15 Q8) ────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn s1_persistent_failure_falls_back_to_s2() {
+        let server = MockServer::start().await;
+        // S1 (search3) fails on every attempt → persistent after retries.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        // S2 album crawl works: one album page, then empty.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "albumList2": { "album": [{ "id": "al_1", "name": "First" }] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("offset", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(query_param("id", "al_1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "album": {
+                        "id": "al_1",
+                        "name": "First",
+                        "song": [{ "id": "tr_a", "title": "song", "duration": 240 }]
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let report = InitialSyncRunner::new(
+            &store,
+            &test_subsonic(&server.uri()),
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_batch_size(1)
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        assert_eq!(report.strategy.as_deref(), Some("s2"), "run must finish on S2");
+        let count: i64 = store
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(count, 1, "the S2 album crawl ingested the track");
     }
 
     // ── S3 explicitly unsupported in v1 ───────────────────────────────
