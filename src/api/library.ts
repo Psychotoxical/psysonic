@@ -233,6 +233,8 @@ export interface LibraryAdvancedSearchResponse {
 
 export interface LibraryCrossServerSearchResponse {
   hits: LibraryTrackDto[];
+  /** Fuzzy `title LIKE` matches the exact FTS pass missed (§5.9 / H3). */
+  fuzzy: LibraryTrackDto[];
   serversSearched: string[];
 }
 

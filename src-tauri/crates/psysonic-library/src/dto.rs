@@ -386,14 +386,16 @@ pub struct LibraryAdvancedSearchResponse {
     pub source: String,
 }
 
-/// `library_search_cross_server` response (§5.5B). PR-5d ships the primary
-/// FTS-union (`hits`, deduped by canonical id where a link exists); the
-/// fuzzy 0-hit fallback (§5.5B step C) lands with cross-server matching in
-/// PR-4 (H3) as an additive `fuzzy` field.
+/// `library_search_cross_server` response (§5.5B / §5.9).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryCrossServerSearchResponse {
+    /// Primary FTS-union hits, deduped by canonical id where a link exists.
     pub hits: Vec<LibraryTrackDto>,
+    /// Fuzzy fallback (§5.9 / H3): per-server `title LIKE` matches that the
+    /// exact FTS pass missed (diacritics, partial words). Excludes anything
+    /// already in `hits` and dedupes by canonical id against them.
+    pub fuzzy: Vec<LibraryTrackDto>,
     /// The server ids that were actually searched (resolved from the
     /// request's `servers` or all `ready` servers).
     pub servers_searched: Vec<String>,

@@ -84,6 +84,18 @@ pub(crate) fn aliased_track_columns(alias: &str) -> String {
         .join(", ")
 }
 
+/// Build a `%…%` LIKE pattern with the LIKE wildcards (`%`, `_`) and the
+/// `\` escape char escaped, for use with `LIKE ? ESCAPE '\'`. Shared by the
+/// Advanced Search album/artist name match and the cross-server fuzzy
+/// title fallback (§5.9).
+pub(crate) fn like_contains(raw: &str) -> String {
+    let escaped = raw
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    format!("%{escaped}%")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
