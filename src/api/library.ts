@@ -157,6 +157,85 @@ export interface SyncJobDto {
   kind: string; // 'initial_sync' | 'delta_sync'
 }
 
+// ── Advanced Search (PR-5d, §5.13 / §5.5B) ────────────────────────────
+
+export type LibraryEntityType = 'artist' | 'album' | 'track';
+
+/** v1 operator set the Rust `FilterFieldRegistry` accepts (§5.13.2). */
+export type FilterOperator = 'eq' | 'gte' | 'lte' | 'between' | 'fts' | 'is_true' | 'in';
+
+export type SortDir = 'asc' | 'desc';
+
+export interface LibraryFilterClause {
+  field: string; // registry id, e.g. 'genre' | 'year' | 'bpm'
+  op: FilterOperator;
+  value?: string | number | boolean | null;
+  valueTo?: number | null; // between: inclusive upper bound
+}
+
+export interface LibrarySortClause {
+  field: string;
+  dir: SortDir;
+}
+
+export interface LibraryAdvancedSearchRequest {
+  serverId: string;
+  libraryScope?: string | null;
+  query?: string | null; // shorthand → fts clause on text fields
+  entityTypes: LibraryEntityType[];
+  filters?: LibraryFilterClause[];
+  starredOnly?: boolean | null;
+  sort?: LibrarySortClause[];
+  limit: number;
+  offset?: number;
+}
+
+export interface LibraryAlbumDto {
+  serverId: string;
+  id: string;
+  name: string;
+  artist?: string | null;
+  artistId?: string | null;
+  songCount?: number | null;
+  durationSec?: number | null;
+  year?: number | null;
+  genre?: string | null;
+  coverArtId?: string | null;
+  starredAt?: number | null;
+  syncedAt: number;
+  rawJson: unknown;
+}
+
+export interface LibraryArtistDto {
+  serverId: string;
+  id: string;
+  name: string;
+  albumCount?: number | null;
+  syncedAt: number;
+  rawJson: unknown;
+}
+
+export interface LibrarySearchTotals {
+  artists: number;
+  albums: number;
+  tracks: number;
+}
+
+export interface LibraryAdvancedSearchResponse {
+  artists: LibraryArtistDto[];
+  albums: LibraryAlbumDto[];
+  tracks: LibraryTrackDto[];
+  totals: LibrarySearchTotals;
+  /** Registry field ids actually applied — UI chips / debug. */
+  appliedFilters: string[];
+  source: 'local' | 'network' | 'mixed';
+}
+
+export interface LibraryCrossServerSearchResponse {
+  hits: LibraryTrackDto[];
+  serversSearched: string[];
+}
+
 // ── Read commands (PR-5a) ─────────────────────────────────────────────
 
 export function libraryGetStatus(
@@ -178,6 +257,26 @@ export function librarySearch(
     offset: options?.offset,
     libraryScope: options?.libraryScope,
   });
+}
+
+/**
+ * Advanced Search against the local index (§5.13). The frontend fallback
+ * (PR-7 F2) decides local vs network and maps the same `LibraryFilterClause`
+ * shape onto the network path; this wrapper only talks to the local builder.
+ */
+export function libraryAdvancedSearch(
+  request: LibraryAdvancedSearchRequest,
+): Promise<LibraryAdvancedSearchResponse> {
+  return invoke<LibraryAdvancedSearchResponse>('library_advanced_search', { request });
+}
+
+/** Cross-server FTS union over the given servers, or all `ready` ones (§5.5B). */
+export function librarySearchCrossServer(args: {
+  query: string;
+  limit?: number;
+  servers?: string[];
+}): Promise<LibraryCrossServerSearchResponse> {
+  return invoke<LibraryCrossServerSearchResponse>('library_search_cross_server', args);
 }
 
 export function libraryGetTrack(
