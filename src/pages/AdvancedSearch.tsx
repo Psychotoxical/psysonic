@@ -13,6 +13,7 @@ import CustomSelect from '../components/CustomSelect';
 import StarFilterButton from '../components/StarFilterButton';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
+import { runLocalAdvancedSearch, loadMoreLocalSongs } from '../utils/library/advancedSearchLocal';
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -60,7 +61,11 @@ export default function AdvancedSearch() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [genreNote, setGenreNote] = useState(false);
+  // True while the current results came from the local index (drives the
+  // pagination branch — local pages every result type, network only free-text).
+  const [localMode, setLocalMode] = useState(false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const serverId = useAuthStore(s => s.activeServerId);
 
   // Pagination — only the free-text-query branch uses search3 with offset
   const SONGS_INITIAL = 100;
@@ -91,6 +96,25 @@ export default function AdvancedSearch() {
     setActiveSearch(opts);
     setSongsServerOffset(0);
     setSongsHasMore(false);
+
+    // Local index first (§5.13.6): when the index is ready it serves the whole
+    // query offline + instantly. On not-ready / any failure this returns null
+    // and we fall through to the unchanged network path below.
+    const localPage = await runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
+    if (localPage) {
+      setResults({
+        artists: localPage.artists,
+        albums: localPage.albums,
+        songs: localPage.songs,
+      });
+      setSongsServerOffset(localPage.songs.length);
+      setSongsHasMore(localPage.songsTotal > localPage.songs.length);
+      setLocalMode(true);
+      setLoading(false);
+      return;
+    }
+    setLocalMode(false);
+
     const { query: q, genre: g, yearFrom: yf, yearTo: yt, resultType: rt } = opts;
     const from = yf ? parseInt(yf) : null;
     const to = yt ? parseInt(yt) : null;
@@ -155,8 +179,26 @@ export default function AdvancedSearch() {
   }, [musicLibraryFilterVersion, qFromUrl]);
 
   const loadMoreSongs = useCallback(async () => {
-    if (loadingMoreSongs || !songsHasMore) return;
-    if (!activeSearch || !activeSearch.query.trim()) return;
+    if (loadingMoreSongs || !songsHasMore || !activeSearch) return;
+
+    // Local mode pages every result type (genre/year too), not just free-text.
+    if (localMode) {
+      if (!serverId) return;
+      setLoadingMoreSongs(true);
+      try {
+        const more = await loadMoreLocalSongs(serverId, activeSearch, songsServerOffset, SONGS_PAGE_SIZE);
+        setResults(prev => (prev ? { ...prev, songs: [...prev.songs, ...more] } : prev));
+        setSongsServerOffset(o => o + more.length);
+        if (more.length < SONGS_PAGE_SIZE) setSongsHasMore(false);
+      } catch {
+        setSongsHasMore(false);
+      } finally {
+        setLoadingMoreSongs(false);
+      }
+      return;
+    }
+
+    if (!activeSearch.query.trim()) return;
     setLoadingMoreSongs(true);
     try {
       const q = activeSearch.query.trim();
@@ -174,7 +216,7 @@ export default function AdvancedSearch() {
     } finally {
       setLoadingMoreSongs(false);
     }
-  }, [loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset]);
+  }, [loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset, localMode, serverId]);
 
   // IntersectionObserver on the bottom sentinel — fires loadMoreSongs as it nears the viewport.
   useEffect(() => {

@@ -1,0 +1,191 @@
+/**
+ * Advanced Search against the local library index (spec §5.13 / F2).
+ *
+ * Maps the AdvancedSearch UI inputs to a `library_advanced_search` request and
+ * the response back to the Subsonic shapes the existing rows render. The sync
+ * engine stores each entity's original Subsonic JSON in `rawJson` (ADR-7), so
+ * that's preferred verbatim; the flat hot columns are a fallback when a row's
+ * `rawJson` is sparse.
+ *
+ * `runLocalAdvancedSearch` returns `null` when the index isn't ready or the
+ * query can't be served locally — the caller then falls back to the network
+ * path unchanged (§5.13.6).
+ */
+import {
+  libraryAdvancedSearch,
+  type LibraryAdvancedSearchRequest,
+  type LibraryAlbumDto,
+  type LibraryArtistDto,
+  type LibraryEntityType,
+  type LibraryFilterClause,
+  type LibraryTrackDto,
+} from '../../api/library';
+import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
+import { libraryIsReady } from './libraryReady';
+
+export type AdvancedResultType = 'all' | 'artists' | 'albums' | 'songs';
+
+export interface LocalSearchOpts {
+  query: string;
+  genre: string;
+  yearFrom: string;
+  yearTo: string;
+  resultType: AdvancedResultType;
+}
+
+export interface LocalAdvancedSearchPage {
+  artists: SubsonicArtist[];
+  albums: SubsonicAlbum[];
+  songs: SubsonicSong[];
+  /** Full track match count (not page size) — drives "load more". */
+  songsTotal: number;
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function entityTypesFor(rt: AdvancedResultType): LibraryEntityType[] {
+  switch (rt) {
+    case 'artists':
+      return ['artist'];
+    case 'albums':
+      return ['album'];
+    case 'songs':
+      return ['track'];
+    default:
+      return ['artist', 'album', 'track'];
+  }
+}
+
+function buildFilters(opts: LocalSearchOpts): LibraryFilterClause[] {
+  const filters: LibraryFilterClause[] = [];
+  if (opts.genre) filters.push({ field: 'genre', op: 'eq', value: opts.genre });
+  const from = opts.yearFrom ? parseInt(opts.yearFrom, 10) : null;
+  const to = opts.yearTo ? parseInt(opts.yearTo, 10) : null;
+  if (from !== null && to !== null) {
+    filters.push({ field: 'year', op: 'between', value: from, valueTo: to });
+  } else if (from !== null) {
+    filters.push({ field: 'year', op: 'gte', value: from });
+  } else if (to !== null) {
+    filters.push({ field: 'year', op: 'lte', value: to });
+  }
+  return filters;
+}
+
+function buildRequest(
+  serverId: string,
+  opts: LocalSearchOpts,
+  entityTypes: LibraryEntityType[],
+  limit: number,
+  offset: number,
+): LibraryAdvancedSearchRequest {
+  const q = opts.query.trim();
+  return {
+    serverId,
+    query: q || undefined,
+    entityTypes,
+    filters: buildFilters(opts),
+    limit,
+    offset,
+  };
+}
+
+function trackToSong(t: LibraryTrackDto): SubsonicSong {
+  const raw = isObject(t.rawJson) ? t.rawJson : {};
+  const base: SubsonicSong = {
+    id: t.id,
+    title: t.title,
+    artist: t.artist ?? '',
+    album: t.album,
+    albumId: t.albumId ?? '',
+    artistId: t.artistId ?? undefined,
+    duration: t.durationSec,
+    track: t.trackNumber ?? undefined,
+    discNumber: t.discNumber ?? undefined,
+    coverArt: t.coverArtId ?? undefined,
+    year: t.year ?? undefined,
+    genre: t.genre ?? undefined,
+    suffix: t.suffix ?? undefined,
+    bitRate: t.bitRate ?? undefined,
+    size: t.sizeBytes ?? undefined,
+    starred: t.starredAt != null ? new Date(t.starredAt).toISOString() : undefined,
+    userRating: t.userRating ?? undefined,
+    playCount: t.playCount ?? undefined,
+    bpm: t.bpm ?? undefined,
+    isrc: t.isrc ?? undefined,
+    albumArtist: t.albumArtist ?? undefined,
+  };
+  // `rawJson` is the authoritative original song — let it override the
+  // hot-column fallbacks (it carries OpenSubsonic extras too).
+  return { ...base, ...(raw as Partial<SubsonicSong>) };
+}
+
+function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
+  const raw = isObject(a.rawJson) ? a.rawJson : {};
+  const base: SubsonicAlbum = {
+    id: a.id,
+    name: a.name,
+    artist: a.artist ?? '',
+    artistId: a.artistId ?? '',
+    songCount: a.songCount ?? 0,
+    duration: a.durationSec ?? 0,
+    year: a.year ?? undefined,
+    genre: a.genre ?? undefined,
+    coverArt: a.coverArtId ?? undefined,
+    starred: a.starredAt != null ? new Date(a.starredAt).toISOString() : undefined,
+  };
+  return { ...base, ...(raw as Partial<SubsonicAlbum>) };
+}
+
+function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
+  const raw = isObject(ar.rawJson) ? ar.rawJson : {};
+  const base: SubsonicArtist = {
+    id: ar.id,
+    name: ar.name,
+    albumCount: ar.albumCount ?? undefined,
+  };
+  return { ...base, ...(raw as Partial<SubsonicArtist>) };
+}
+
+/**
+ * Full first-page Advanced Search against the local index. Returns `null`
+ * when the index isn't ready or the local query fails — caller falls back to
+ * the network path.
+ */
+export async function runLocalAdvancedSearch(
+  serverId: string | null | undefined,
+  opts: LocalSearchOpts,
+  songsLimit: number,
+): Promise<LocalAdvancedSearchPage | null> {
+  if (!serverId) return null;
+  if (!(await libraryIsReady(serverId))) return null;
+  try {
+    const req = buildRequest(serverId, opts, entityTypesFor(opts.resultType), songsLimit, 0);
+    const resp = await libraryAdvancedSearch(req);
+    if (resp.source !== 'local') return null;
+    return {
+      artists: resp.artists.map(artistToArtist),
+      albums: resp.albums.map(albumToAlbum),
+      songs: resp.tracks.map(trackToSong),
+      songsTotal: resp.totals.tracks,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Songs-only next page for the local path (mirrors the network
+ * `searchSongsPaged` pagination). Throws are surfaced so the caller can stop
+ * the infinite-scroll loop, matching the network branch's behaviour.
+ */
+export async function loadMoreLocalSongs(
+  serverId: string,
+  opts: LocalSearchOpts,
+  offset: number,
+  pageSize: number,
+): Promise<SubsonicSong[]> {
+  const req = buildRequest(serverId, opts, ['track'], pageSize, offset);
+  const resp = await libraryAdvancedSearch(req);
+  return resp.tracks.map(trackToSong);
+}
