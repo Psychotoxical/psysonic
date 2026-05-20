@@ -1,4 +1,4 @@
-import { librarySyncBindSession } from '../../api/library';
+import { librarySyncBindSession, libraryGetStatus, librarySyncStart } from '../../api/library';
 import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 
@@ -35,4 +35,27 @@ export async function ensureActiveServerSessionBound(): Promise<boolean> {
     /* best-effort — Settings shows the real error on explicit toggle */
   }
   return true;
+}
+
+/**
+ * Resume an interrupted initial sync on startup / server switch.
+ *
+ * The background scheduler is delta-only (PR-5b), so a full sync killed
+ * mid-run (app restart) would otherwise sit at `idle` until the user clicks
+ * «Sync now». A library that has never completed a full sync
+ * (`!lastFullSyncAt`) (re)starts one with `mode: 'full'`, which resumes from
+ * the persisted cursor rather than restarting from zero. Once a full sync has
+ * landed this is a no-op, so delta stays the scheduler's job.
+ *
+ * Best-effort: errors stay silent — Settings surfaces them on explicit action.
+ */
+export async function resumeInitialSyncIfIncomplete(serverId: string): Promise<void> {
+  try {
+    const status = await libraryGetStatus(serverId);
+    if (!status.lastFullSyncAt) {
+      await librarySyncStart({ serverId, mode: 'full' });
+    }
+  } catch {
+    /* best-effort */
+  }
 }
