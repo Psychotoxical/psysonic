@@ -246,48 +246,13 @@ pub fn library_get_facts(
     track_id: String,
     fact_kinds: Option<Vec<String>>,
 ) -> Result<Vec<TrackFactDto>, String> {
-    runtime
-        .store
-        .with_conn(|conn| {
-            let kinds = fact_kinds.unwrap_or_default();
-            if kinds.is_empty() {
-                let mut stmt = conn.prepare(
-                    "SELECT server_id, track_id, fact_kind, value_real, value_int, value_text, \
-                     unit, source_kind, source_id, confidence, content_hash, fetched_at, expires_at \
-                     FROM track_fact \
-                     WHERE server_id = ?1 AND track_id = ?2 \
-                     ORDER BY fact_kind ASC, fetched_at DESC",
-                )?;
-                let rows: rusqlite::Result<Vec<TrackFactDto>> = stmt
-                    .query_map(params![server_id, track_id], row_to_fact_dto)?
-                    .collect();
-                rows
-            } else {
-                // ANY value match across the provided fact_kinds.
-                let placeholders =
-                    (0..kinds.len()).map(|i| format!("?{}", i + 3)).collect::<Vec<_>>().join(", ");
-                let sql = format!(
-                    "SELECT server_id, track_id, fact_kind, value_real, value_int, value_text, \
-                     unit, source_kind, source_id, confidence, content_hash, fetched_at, expires_at \
-                     FROM track_fact \
-                     WHERE server_id = ?1 AND track_id = ?2 AND fact_kind IN ({placeholders}) \
-                     ORDER BY fact_kind ASC, fetched_at DESC"
-                );
-                let mut stmt = conn.prepare(&sql)?;
-                let mut bound: Vec<rusqlite::types::Value> = vec![
-                    rusqlite::types::Value::Text(server_id.clone()),
-                    rusqlite::types::Value::Text(track_id.clone()),
-                ];
-                for k in &kinds {
-                    bound.push(rusqlite::types::Value::Text(k.clone()));
-                }
-                let rows: rusqlite::Result<Vec<TrackFactDto>> = stmt
-                    .query_map(rusqlite::params_from_iter(bound.iter()), row_to_fact_dto)?
-                    .collect();
-                rows
-            }
-        })
-        .map_err(|e| e.to_string())
+    // E4: typed repo owns the §5.12 lazy-expiry + provenance rules.
+    crate::repos::FactRepository::new(&runtime.store).get(
+        &server_id,
+        &track_id,
+        &fact_kinds.unwrap_or_default(),
+        now_unix_ms(),
+    )
 }
 
 #[tauri::command]
@@ -351,24 +316,6 @@ fn hydrate_refs(
         .collect();
     let rows = TrackRepository::new(&runtime.store).find_batch(&pairs)?;
     Ok(rows.iter().map(LibraryTrackDto::from_row).collect())
-}
-
-fn row_to_fact_dto(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrackFactDto> {
-    Ok(TrackFactDto {
-        server_id: row.get(0)?,
-        track_id: row.get(1)?,
-        fact_kind: row.get(2)?,
-        value_real: row.get(3)?,
-        value_int: row.get(4)?,
-        value_text: row.get(5)?,
-        unit: row.get(6)?,
-        source_kind: row.get(7)?,
-        source_id: row.get(8)?,
-        confidence: row.get(9)?,
-        content_hash: row.get(10)?,
-        fetched_at: row.get(11)?,
-        expires_at: row.get(12)?,
-    })
 }
 
 #[derive(Default)]
@@ -799,45 +746,9 @@ pub fn library_put_fact(
     track_id: String,
     fact: FactInputDto,
 ) -> Result<(), String> {
-    let now = now_unix_ms();
-    runtime
-        .store
-        .with_conn(|conn| {
-            conn.execute(
-                "INSERT INTO track_fact \
-                 (server_id, track_id, fact_kind, value_real, value_int, value_text, unit, \
-                  source_kind, source_id, source_detail, confidence, content_hash, \
-                  fetched_at, expires_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?11, ?12, ?13) \
-                 ON CONFLICT(server_id, track_id, fact_kind, source_kind, source_id) \
-                 DO UPDATE SET \
-                   value_real = excluded.value_real, \
-                   value_int = excluded.value_int, \
-                   value_text = excluded.value_text, \
-                   unit = excluded.unit, \
-                   confidence = excluded.confidence, \
-                   content_hash = excluded.content_hash, \
-                   fetched_at = excluded.fetched_at, \
-                   expires_at = excluded.expires_at",
-                params![
-                    server_id,
-                    track_id,
-                    fact.fact_kind,
-                    fact.value_real,
-                    fact.value_int,
-                    fact.value_text,
-                    fact.unit,
-                    fact.source_kind,
-                    fact.source_id,
-                    fact.confidence,
-                    fact.content_hash,
-                    now,
-                    fact.expires_at,
-                ],
-            )?;
-            Ok(())
-        })
-        .map_err(|e| e.to_string())
+    // E4: typed repo owns the upsert + the §5.12 user-override rule
+    // (a `user` bpm fact also writes the hot `track.bpm` column).
+    crate::repos::FactRepository::new(&runtime.store).put(&server_id, &track_id, &fact, now_unix_ms())
 }
 
 #[tauri::command]
