@@ -212,29 +212,47 @@ impl<'a> InitialSyncRunner<'a> {
         );
         if let Some(raw) = raw {
             if !is_empty_cursor(&raw) {
-                // Resume a persisted cursor only when it was written under
-                // the strategy we'd pick now. A re-probe can detect
-                // different server capabilities (e.g. the Navidrome native
-                // bearer briefly unavailable → N1 downgrades to S2), and a
-                // partial cursor from the old strategy is unusable. Rather
-                // than hard-error — which bricks every future sync with no
-                // UI recovery path — discard the stale/unreadable cursor and
-                // start fresh. Re-ingest is idempotent (upsert), and the
-                // tombstone pass reconciles any leftovers.
                 match serde_json::from_value::<InitialSyncCursor>(raw) {
-                    Ok(parsed) if parsed.strategy == selected_strategy.as_tag() => {
-                        return Ok(parsed);
-                    }
                     Ok(parsed) => {
+                        let has_progress = parsed.ingested_count > 0
+                            || parsed.phase != CursorPhase::Ingest;
+                        // R7-15 Q3: freeze the in-flight strategy on resume.
+                        // Once a run has made progress, a re-probe that now
+                        // picks a different strategy (the Navidrome bearer
+                        // flapped, or the large-library gate resolves
+                        // differently) must NOT reset the cursor — that
+                        // restarts ingest from offset 0 on every launch, which
+                        // is exactly why large syncs never completed. Resume
+                        // under the cursor's own strategy and ignore the
+                        // probe's pick. Exception: a cursor still on N1 after
+                        // the server was learned `n1_bulk_unreliable` is
+                        // known-broken — fall through and re-select (the
+                        // mid-run N1→S1 fallback normally rewrites such a
+                        // cursor in place, preserving progress).
+                        let frozen_strategy_known_broken = n1_bulk_unreliable
+                            && parsed.strategy == IngestStrategy::N1.as_tag();
+                        if has_progress && !frozen_strategy_known_broken {
+                            return Ok(parsed);
+                        }
+                        // No resumable progress (offset 0) or a known-broken
+                        // N1 cursor: adopting the freshly-selected strategy
+                        // costs nothing, so take it. Re-ingest is idempotent
+                        // (upsert) and the tombstone pass reconciles leftovers.
+                        if parsed.strategy == selected_strategy.as_tag() {
+                            return Ok(parsed);
+                        }
                         crate::app_eprintln!(
-                            "[library-sync] resetting initial-sync cursor for server `{}`: \
-                             was `{}`, strategy is now `{}`",
+                            "[library-sync] re-selecting initial-sync strategy for server \
+                             `{}`: was `{}` (no resumable progress), now `{}`",
                             self.server_id,
                             parsed.strategy,
                             selected_strategy.as_tag()
                         );
                     }
                     Err(e) => {
+                        // A corrupt/unreadable cursor can't drive resume; reset
+                        // rather than hard-error (which would brick every future
+                        // sync with no UI recovery path).
                         crate::app_eprintln!(
                             "[library-sync] resetting unreadable initial-sync cursor for \
                              server `{}` ({e}); starting fresh",
@@ -888,14 +906,88 @@ mod tests {
     // ── Stale / unreadable cursor self-heals instead of bricking ──────
 
     #[test]
-    fn stale_cursor_strategy_is_reset_not_errored() {
-        // A persisted N1 cursor + flags that now select S1 (a re-probe saw
-        // different capabilities) must reset to a fresh S1 cursor — not
-        // hard-error, which would brick every future sync with no UI
-        // recovery path.
+    fn cursor_with_progress_resumes_and_ignores_reselected_strategy() {
+        // R7-15 Q3: a cursor that already made progress must resume under its
+        // own strategy even when a re-probe would now pick a different one
+        // (here: flags advertise N1 again, but the in-flight cursor is S1).
+        // Freezing the strategy is what stops the flapping-induced restart
+        // from offset 0 that kept large syncs from ever completing.
         let store = LibraryStore::open_in_memory();
         let sync_state = SyncStateRepository::new(&store);
         sync_state.ensure("s1", "").unwrap();
+        sync_state
+            .set_initial_sync_cursor(
+                "s1",
+                "",
+                &json!({
+                    "strategy": "s1",
+                    "phase": "ingest",
+                    "ingested_count": 42,
+                    "strategy_state": { "kind": "linear_offset", "offset": 2000 }
+                }),
+            )
+            .unwrap();
+
+        let subsonic = test_subsonic("http://127.0.0.1:1");
+        let runner = InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(
+                CapabilityFlags::NAVIDROME_NATIVE_BULK | CapabilityFlags::SUBSONIC_SEARCH3_BULK,
+            ),
+        );
+        let cursor = runner.load_or_init_cursor(&sync_state).unwrap();
+        assert_eq!(cursor.strategy, "s1", "in-flight strategy must be frozen on resume");
+        assert_eq!(cursor.ingested_count, 42, "resume must preserve progress");
+    }
+
+    #[test]
+    fn fresh_cursor_without_progress_adopts_reselected_strategy() {
+        // No progress yet (offset 0): adopting the freshly-selected strategy
+        // is free, so a cursor written under a now-unavailable strategy is
+        // re-selected (not a hard error, not a needless resume).
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state
+            .set_initial_sync_cursor(
+                "s1",
+                "",
+                &json!({
+                    "strategy": "n1",
+                    "phase": "ingest",
+                    "ingested_count": 0,
+                    "strategy_state": { "kind": "linear_offset", "offset": 0 }
+                }),
+            )
+            .unwrap();
+
+        let subsonic = test_subsonic("http://127.0.0.1:1");
+        let runner = InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        );
+        let cursor = runner.load_or_init_cursor(&sync_state).unwrap();
+        assert_eq!(cursor.strategy, "s1", "no-progress cursor adopts the selected strategy");
+        assert_eq!(cursor.ingested_count, 0);
+    }
+
+    #[test]
+    fn n1_cursor_with_progress_reselects_when_flagged_unreliable() {
+        // A cursor still on N1 after the server was learned `n1_bulk_unreliable`
+        // is known-broken: the freeze does not apply, so it re-selects onto the
+        // non-N1 strategy rather than resuming a wall-bound N1 loop. (The
+        // mid-run N1→S1 fallback normally rewrites such a cursor in place,
+        // preserving progress; this is the defensive fallback.)
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_n1_bulk_unreliable("s1", "", true).unwrap();
         sync_state
             .set_initial_sync_cursor(
                 "s1",
@@ -915,11 +1007,13 @@ mod tests {
             &subsonic,
             "s1",
             "",
-            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+            flags(
+                CapabilityFlags::NAVIDROME_NATIVE_BULK | CapabilityFlags::SUBSONIC_SEARCH3_BULK,
+            ),
         );
         let cursor = runner.load_or_init_cursor(&sync_state).unwrap();
-        assert_eq!(cursor.strategy, "s1", "stale cursor must reset to the selected strategy");
-        assert_eq!(cursor.ingested_count, 0, "reset cursor restarts ingest progress");
+        assert_eq!(cursor.strategy, "s1", "known-broken N1 cursor must re-select to S1");
+        assert_eq!(cursor.ingested_count, 0);
     }
 
     #[test]
