@@ -34,6 +34,13 @@ const DEFAULT_BATCH_SIZE: u32 = 500;
 /// whole run if needed.
 const MAX_ATTEMPTS_PER_BATCH: u32 = 5;
 
+/// N1 deep-offset safety line (R7-15 Q1/Q5). A `GET /api/song` HTTP 500 at
+/// or beyond this offset is treated as Navidrome's server-side deep-offset
+/// wall (observed past ~50k), not a transient error: the run learns
+/// `n1_bulk_unreliable` and falls back to S1 rather than retrying smaller
+/// windows that cannot recover.
+const N1_DEEP_OFFSET_SAFE: u32 = 50_000;
+
 /// Summary returned from `InitialSyncRunner::run`. Caller emits a
 /// completion event with these numbers (PR-3d).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -52,6 +59,7 @@ pub struct InitialSyncRunner<'a> {
     capability_flags: CapabilityFlags,
     cancel: Option<Arc<AtomicBool>>,
     batch_size: u32,
+    n1_deep_offset_safe: u32,
     sleep_enabled: bool,
     progress: Arc<dyn Progress + Send + Sync>,
 }
@@ -73,6 +81,7 @@ impl<'a> InitialSyncRunner<'a> {
             capability_flags,
             cancel: None,
             batch_size: DEFAULT_BATCH_SIZE,
+            n1_deep_offset_safe: N1_DEEP_OFFSET_SAFE,
             sleep_enabled: true,
             progress: Arc::new(NoopProgress),
         }
@@ -97,6 +106,14 @@ impl<'a> InitialSyncRunner<'a> {
         if n > 0 {
             self.batch_size = n;
         }
+        self
+    }
+
+    /// Override the N1 deep-offset wall line. Tests pin this low so the
+    /// N1→S1 fallback can be exercised without 50k rows of fixture data;
+    /// production uses the `N1_DEEP_OFFSET_SAFE` default.
+    pub fn with_n1_deep_offset_safe(mut self, n: u32) -> Self {
+        self.n1_deep_offset_safe = n;
         self
     }
 
@@ -342,7 +359,7 @@ impl<'a> InitialSyncRunner<'a> {
         loop {
             self.check_cancellation()?;
             let end = offset.saturating_add(self.batch_size);
-            let response = retry_with_backoff(
+            let response = match retry_with_backoff(
                 self,
                 || nd_list_songs_internal(
                     &creds.server_url,
@@ -354,7 +371,18 @@ impl<'a> InitialSyncRunner<'a> {
                 ),
                 SyncError::Navidrome,
             )
-            .await?;
+            .await
+            {
+                Ok(v) => v,
+                // R7-15 Q5: a persistent HTTP 500 at/after the deep-offset
+                // line is Navidrome's server-side wall, not a transient
+                // error. Stop hammering N1 — flag the server and finish the
+                // sync on S1.
+                Err(e) if self.n1_hit_deep_offset_wall(&e, offset) => {
+                    return self.fall_back_n1_to_s1(cursor, report, sync_state).await;
+                }
+                Err(e) => return Err(e),
+            };
 
             let array = response.as_array().cloned().unwrap_or_default();
             if array.is_empty() {
@@ -393,6 +421,46 @@ impl<'a> InitialSyncRunner<'a> {
             }
         }
         Ok(())
+    }
+
+    /// True when an N1 error is the deep-offset wall: a persistent HTTP 500
+    /// at or beyond the safety line (R7-15 Q5). A 500 at a shallow offset is
+    /// a different failure and propagates as an error instead.
+    fn n1_hit_deep_offset_wall(&self, e: &SyncError, offset: u32) -> bool {
+        offset >= self.n1_deep_offset_safe
+            && matches!(e, SyncError::Navidrome(m) if m.contains("HTTP 500"))
+    }
+
+    /// R7-15 Q5 — one-way N1→S1 fallback. Learn `n1_bulk_unreliable` for this
+    /// server, then restart ingest on S1. N1 (`id ASC`) and S1 (`search3`
+    /// default order) don't share an offset space, so resuming from the N1
+    /// offset would skip songs — restart S1 from 0. Re-ingest is idempotent
+    /// (PK upsert); the duplicate work over rows N1 already wrote is
+    /// acceptable for v1. The cursor is rewritten in place, never zeroed away.
+    async fn fall_back_n1_to_s1(
+        &self,
+        cursor: &mut InitialSyncCursor,
+        report: &mut InitialSyncReport,
+        sync_state: &SyncStateRepository<'_>,
+    ) -> Result<(), SyncError> {
+        crate::app_eprintln!(
+            "[library-sync] N1 hit the deep-offset wall for server `{}`; flagging \
+             n1_bulk_unreliable and falling back to S1",
+            self.server_id
+        );
+        sync_state
+            .set_n1_bulk_unreliable(&self.server_id, &self.library_scope, true)
+            .map_err(SyncError::Storage)?;
+        let scope = if self.library_scope.is_empty() {
+            None
+        } else {
+            Some(self.library_scope.clone())
+        };
+        *cursor = InitialSyncCursor::fresh(IngestStrategy::S1, scope);
+        report.ingested_count = 0;
+        report.strategy = Some(cursor.strategy.clone());
+        self.persist_cursor(sync_state, cursor)?;
+        self.run_s1(cursor, report, sync_state).await
     }
 
     // ── S1 (Subsonic search3 empty query) ──────────────────────────────
@@ -1170,6 +1238,104 @@ mod tests {
             .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 4);
+    }
+
+    // ── N1 → S1 deep-offset fallback (R7-15 Q5) ───────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn n1_deep_offset_500_falls_back_to_s1_and_flags_server() {
+        let server = MockServer::start().await;
+        // N1 serves the first page, then 500s at the (test-lowered) wall.
+        // Ids match the S1 fixture format so the re-ingest upserts rather
+        // than duplicating the rows N1 already wrote.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/api/song"))
+            .and(query_param("_start", "0"))
+            .and(header("X-ND-Authorization", "Bearer nd-tok"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"id": "tr_0000", "title": "t0", "duration": 100},
+                {"id": "tr_0001", "title": "t1", "duration": 100}
+            ])))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/api/song"))
+            .and(query_param("_start", "2"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        // S1 restarts from offset 0 and ingests all 5 songs.
+        mount_search3_pages(&server, /*total*/ 5, /*batch*/ 2).await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let nav = NavidromeProbeCredentials {
+            server_url: server.uri(),
+            bearer_token: "nd-tok".into(),
+        };
+        let report = InitialSyncRunner::new(
+            &store,
+            &test_subsonic(&server.uri()),
+            "s1",
+            "",
+            flags(
+                CapabilityFlags::NAVIDROME_NATIVE_BULK
+                    | CapabilityFlags::SUBSONIC_SEARCH3_BULK
+                    | CapabilityFlags::SCAN_STATUS_AVAILABLE,
+            ),
+        )
+        .with_navidrome_credentials(nav)
+        .with_batch_size(2)
+        .with_n1_deep_offset_safe(2)
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        assert_eq!(report.strategy.as_deref(), Some("s1"), "run must finish on S1");
+        // 5 distinct songs — N1's two rows were re-upserted, not duplicated.
+        let count: i64 = store
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(count, 5);
+        // Server learned the flag so future syncs skip N1.
+        let sync_state = SyncStateRepository::new(&store);
+        assert_eq!(sync_state.get_n1_bulk_unreliable("s1", "").unwrap(), Some(true));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn n1_shallow_500_propagates_without_fallback() {
+        // A 500 below the wall line is a real error, not the deep-offset
+        // trigger: it propagates and must NOT silently flag the server.
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/api/song"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        let nav = NavidromeProbeCredentials {
+            server_url: server.uri(),
+            bearer_token: "nd-tok".into(),
+        };
+        let err = InitialSyncRunner::new(
+            &store,
+            &test_subsonic(&server.uri()),
+            "s1",
+            "",
+            flags(CapabilityFlags::NAVIDROME_NATIVE_BULK),
+        )
+        .with_navidrome_credentials(nav)
+        .with_batch_size(2)
+        .with_n1_deep_offset_safe(1000)
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap_err();
+        assert!(matches!(err, SyncError::Navidrome(ref m) if m.contains("500")));
+        let sync_state = SyncStateRepository::new(&store);
+        assert_eq!(sync_state.get_n1_bulk_unreliable("s1", "").unwrap(), Some(false));
     }
 
     // ── S3 explicitly unsupported in v1 ───────────────────────────────
