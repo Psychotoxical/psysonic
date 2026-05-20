@@ -7,6 +7,36 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Deserialize a field Navidrome/OpenSubsonic may return either as a plain
+/// string or as a JSON array. OpenSubsonic types `isrc` as `string[]`;
+/// Navidrome ships `isrc: []` / `["USRC…"]`, which breaks a plain
+/// `Option<String>`. Take the first usable value; the full set survives
+/// verbatim in `track.raw_json` (ADR-7).
+fn de_string_or_seq<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::String(s)) => Some(s),
+        Some(serde_json::Value::Array(arr)) => first_tag_value(&arr),
+        _ => None,
+    })
+}
+
+/// First usable value in a multi-valued array: a string element, or an
+/// object element's `name` (the OpenSubsonic `[{ "name": … }]` shape).
+fn first_tag_value(arr: &[serde_json::Value]) -> Option<String> {
+    arr.iter().find_map(|el| match el {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Object(map) => map
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned),
+        _ => None,
+    })
+}
+
 /// Envelope-level metadata returned by `#ping` (and present on every
 /// other response too). Read by the capability probe to detect the
 /// server family (Navidrome vs generic Subsonic) and the OpenSubsonic
@@ -183,7 +213,9 @@ pub struct Song {
     /// responses, generic Subsonic stays on `musicFolderId`.
     #[serde(default, alias = "libraryId", alias = "musicFolderId")]
     pub library_id: Option<String>,
-    #[serde(default)]
+    // OpenSubsonic types `isrc` as `string[]` — Navidrome returns
+    // `isrc: []` / `["USRC…"]`, which breaks a plain `Option<String>`.
+    #[serde(default, deserialize_with = "de_string_or_seq")]
     pub isrc: Option<String>,
     /// MusicBrainz recording id. Subsonic / OpenSubsonic uses the
     /// `musicBrainzId` JSON key; the schema column is `mbid_recording`
@@ -284,6 +316,21 @@ mod tests {
         assert_eq!(album.name, "Test Album");
         assert_eq!(album.song.len(), 2);
         assert_eq!(album.song[1].title, "Two");
+    }
+
+    #[test]
+    fn song_isrc_accepts_opensubsonic_string_array() {
+        // OpenSubsonic `isrc` is `string[]`. Navidrome ships `isrc: []`
+        // (the album !Brincamos! repro) or a populated array — both must
+        // decode, plus the legacy single-string form.
+        let empty: Song = serde_json::from_str(r#"{"id":"a","title":"t","isrc":[]}"#).unwrap();
+        assert!(empty.isrc.is_none());
+        let arr: Song =
+            serde_json::from_str(r#"{"id":"a","title":"t","isrc":["USRC17607839"]}"#).unwrap();
+        assert_eq!(arr.isrc.as_deref(), Some("USRC17607839"));
+        let legacy: Song =
+            serde_json::from_str(r#"{"id":"a","title":"t","isrc":"USRC17607839"}"#).unwrap();
+        assert_eq!(legacy.isrc.as_deref(), Some("USRC17607839"));
     }
 
     #[test]
