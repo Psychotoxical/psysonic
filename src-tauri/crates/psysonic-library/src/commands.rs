@@ -38,7 +38,7 @@ use crate::sync::tombstone::should_auto_reconcile;
 const TRACKS_BATCH_LIMIT: usize = 100;
 
 #[tauri::command]
-pub fn library_get_status(
+pub async fn library_get_status(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     library_scope: Option<String>,
@@ -101,7 +101,7 @@ pub fn library_get_status(
 }
 
 #[tauri::command]
-pub fn library_search(
+pub async fn library_search(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     query: String,
@@ -134,7 +134,7 @@ pub fn library_search(
 }
 
 #[tauri::command]
-pub fn library_get_track(
+pub async fn library_get_track(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     track_id: String,
@@ -146,7 +146,7 @@ pub fn library_get_track(
 }
 
 #[tauri::command]
-pub fn library_get_tracks_batch(
+pub async fn library_get_tracks_batch(
     runtime: State<'_, LibraryRuntime>,
     refs: Vec<TrackRefDto>,
 ) -> Result<Vec<LibraryTrackDto>, String> {
@@ -161,7 +161,7 @@ pub fn library_get_tracks_batch(
 }
 
 #[tauri::command]
-pub fn library_get_tracks_by_album(
+pub async fn library_get_tracks_by_album(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     album_id: String,
@@ -171,7 +171,7 @@ pub fn library_get_tracks_by_album(
 }
 
 #[tauri::command]
-pub fn library_get_artifact(
+pub async fn library_get_artifact(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     track_id: String,
@@ -193,7 +193,7 @@ pub fn library_get_artifact(
 }
 
 #[tauri::command]
-pub fn library_get_facts(
+pub async fn library_get_facts(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     track_id: String,
@@ -209,7 +209,7 @@ pub fn library_get_facts(
 }
 
 #[tauri::command]
-pub fn library_get_offline_path(
+pub async fn library_get_offline_path(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     track_id: String,
@@ -239,7 +239,7 @@ pub fn library_get_offline_path(
 // ──────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn library_advanced_search(
+pub async fn library_advanced_search(
     runtime: State<'_, LibraryRuntime>,
     request: LibraryAdvancedSearchRequest,
 ) -> Result<LibraryAdvancedSearchResponse, String> {
@@ -247,7 +247,7 @@ pub fn library_advanced_search(
 }
 
 #[tauri::command]
-pub fn library_search_cross_server(
+pub async fn library_search_cross_server(
     runtime: State<'_, LibraryRuntime>,
     query: String,
     limit: Option<u32>,
