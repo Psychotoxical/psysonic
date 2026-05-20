@@ -329,12 +329,11 @@ const SELECT_TRACKS_BY_ALBUM: &str = "SELECT server_id, id, title, title_sort, a
   FROM track WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0 \
   ORDER BY disc_number ASC NULLS LAST, track_number ASC NULLS LAST, id ASC";
 
-#[allow(dead_code)]
 pub(crate) fn track_columns() -> &'static str {
     TRACK_COLUMNS
 }
 
-fn row_to_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrackRow> {
+pub(crate) fn row_to_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TrackRow> {
     Ok(TrackRow {
         server_id: row.get(0)?,
         id: row.get(1)?,

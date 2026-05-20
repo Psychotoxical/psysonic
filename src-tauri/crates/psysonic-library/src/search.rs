@@ -52,6 +52,38 @@ pub fn search_tracks(
     })
 }
 
+// ── shared search SQL helpers (Advanced Search §5.13 + cross-server §5.5B) ──
+
+/// Hard ceiling on a single search page — keeps the FTS5 p95 budget (§5.9).
+/// Callers clamp their requested `limit` into `1..=PAGE_LIMIT_MAX`.
+pub(crate) const PAGE_LIMIT_MAX: u32 = 500;
+
+/// Build a safe FTS5 MATCH string: each whitespace token is quoted (and its
+/// internal `"` doubled) so arbitrary user input can't trip FTS5 query
+/// syntax. Tokens are implicitly AND-ed. `None` when the input has no tokens.
+pub(crate) fn fts_query(raw: &str) -> Option<String> {
+    let tokens: Vec<String> = raw
+        .split_whitespace()
+        .map(|t| format!("\"{}\"", t.replace('"', "\"\"")))
+        .collect();
+    if tokens.is_empty() {
+        None
+    } else {
+        Some(tokens.join(" "))
+    }
+}
+
+/// Project the `track` hot columns prefixed with `alias` (e.g. `t.title`),
+/// in `repos::row_to_track_row`'s positional order so the Advanced Search /
+/// cross-server builders can reuse the shared row mapper.
+pub(crate) fn aliased_track_columns(alias: &str) -> String {
+    crate::repos::track_columns()
+        .split(',')
+        .map(|c| format!("{alias}.{}", c.trim()))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +168,26 @@ mod tests {
         repo.upsert_batch(&[gone]).unwrap();
         let hits = search_tracks(&store, "s1", "aurora", 10).unwrap();
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn fts_query_quotes_tokens_and_doubles_inner_quotes() {
+        assert_eq!(fts_query("hello world").as_deref(), Some("\"hello\" \"world\""));
+        assert_eq!(fts_query("a\"b").as_deref(), Some("\"a\"\"b\""));
+    }
+
+    #[test]
+    fn fts_query_is_none_for_blank_input() {
+        assert!(fts_query("").is_none());
+        assert!(fts_query("   ").is_none());
+    }
+
+    #[test]
+    fn aliased_track_columns_prefixes_every_column() {
+        let cols = aliased_track_columns("t");
+        assert!(cols.starts_with("t.server_id, t.id, t.title"));
+        assert!(cols.ends_with("t.raw_json"));
+        // One alias per column — count matches the shared column list.
+        assert_eq!(cols.matches("t.").count(), crate::repos::track_columns().split(',').count());
     }
 }

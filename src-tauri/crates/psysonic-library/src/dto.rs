@@ -5,6 +5,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::filter::{EntityKind, FilterOp};
 use crate::repos::TrackRow;
 use crate::store::LibraryStore;
 
@@ -268,6 +269,134 @@ pub struct SyncJobDto {
     pub server_id: String,
     /// `"initial_sync"` or `"delta_sync"`.
     pub kind: String,
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  PR-5d — Advanced Search (§5.13) + cross-server search (§5.5B)
+// ──────────────────────────────────────────────────────────────────────
+
+/// `library_advanced_search` row shape for an album. Flat projection over
+/// the `album` hot columns plus the raw JSON sub-tree (mirrors
+/// `LibraryTrackDto`'s lazy-parse contract).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryAlbumDto {
+    pub server_id: String,
+    pub id: String,
+    pub name: String,
+    pub artist: Option<String>,
+    pub artist_id: Option<String>,
+    pub song_count: Option<i64>,
+    pub duration_sec: Option<i64>,
+    pub year: Option<i64>,
+    pub genre: Option<String>,
+    pub cover_art_id: Option<String>,
+    pub starred_at: Option<i64>,
+    pub synced_at: i64,
+    pub raw_json: Value,
+}
+
+/// `library_advanced_search` row shape for an artist.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryArtistDto {
+    pub server_id: String,
+    pub id: String,
+    pub name: String,
+    pub album_count: Option<i64>,
+    pub synced_at: i64,
+    pub raw_json: Value,
+}
+
+/// One filter predicate. `field` is a `FilterFieldRegistry` id (§5.13.3),
+/// `op` the comparison, `value` / `valueTo` the operands. `between` uses
+/// both bounds (inclusive); scalar ops use `value` only; `isTrue` ignores
+/// the value side.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryFilterClause {
+    pub field: String,
+    pub op: FilterOp,
+    #[serde(default)]
+    pub value: Option<Value>,
+    #[serde(default)]
+    pub value_to: Option<Value>,
+}
+
+/// One sort key. `field` is a registry id; `dir` is `asc` / `desc`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibrarySortClause {
+    pub field: String,
+    pub dir: SortDir,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SortDir {
+    Asc,
+    Desc,
+}
+
+/// `library_advanced_search` request (§5.13.2). `query` is shorthand for an
+/// `fts` clause on the text fields; `entityTypes` controls which of the
+/// three queries run; `filters` are combined with AND.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryAdvancedSearchRequest {
+    pub server_id: String,
+    #[serde(default)]
+    pub library_scope: Option<String>,
+    #[serde(default)]
+    pub query: Option<String>,
+    pub entity_types: Vec<EntityKind>,
+    #[serde(default)]
+    pub filters: Vec<LibraryFilterClause>,
+    #[serde(default)]
+    pub starred_only: Option<bool>,
+    #[serde(default)]
+    pub sort: Vec<LibrarySortClause>,
+    pub limit: u32,
+    #[serde(default)]
+    pub offset: u32,
+}
+
+/// Per-entity result counts (full match count, not page size).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibrarySearchTotals {
+    pub artists: u32,
+    pub albums: u32,
+    pub tracks: u32,
+}
+
+/// `library_advanced_search` response (§5.13.2).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryAdvancedSearchResponse {
+    pub artists: Vec<LibraryArtistDto>,
+    pub albums: Vec<LibraryAlbumDto>,
+    pub tracks: Vec<LibraryTrackDto>,
+    pub totals: LibrarySearchTotals,
+    /// Distinct registry field ids that were actually applied — UI chips /
+    /// debug. Includes `starred` when `starredOnly` is set.
+    pub applied_filters: Vec<String>,
+    /// Always `"local"` from this command (it queries the local index); the
+    /// frontend's fallback decides local vs network (§5.13.6).
+    pub source: String,
+}
+
+/// `library_search_cross_server` response (§5.5B). PR-5d ships the primary
+/// FTS-union (`hits`, deduped by canonical id where a link exists); the
+/// fuzzy 0-hit fallback (§5.5B step C) lands with cross-server matching in
+/// PR-4 (H3) as an additive `fuzzy` field.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCrossServerSearchResponse {
+    pub hits: Vec<LibraryTrackDto>,
+    /// The server ids that were actually searched (resolved from the
+    /// request's `servers` or all `ready` servers).
+    pub servers_searched: Vec<String>,
 }
 
 /// Read `MAX(server_updated_at)` for non-deleted tracks on this server

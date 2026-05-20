@@ -7,7 +7,9 @@
 //! - `filter` — `FilterFieldRegistry` (Rust source of truth for Advanced Search)
 //! - `sync`   — capability probe + orchestrator (PR-3*)
 
+pub mod advanced_search;
 pub mod commands;
+pub mod cross_server;
 pub mod dto;
 pub mod filter;
 pub mod payload;
