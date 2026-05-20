@@ -220,6 +220,18 @@ impl<'a> TrackRepository<'a> {
                         new_id: r.id.clone(),
                     });
                 }
+
+                // H2 (§5.5A): link this track to its canonical id by its
+                // strong key (ISRC, else MBID recording). Inline + O(1);
+                // a no-op for tracks that carry neither.
+                crate::canonical::link_track(
+                    &tx,
+                    &r.server_id,
+                    &r.id,
+                    r.isrc.as_deref(),
+                    r.mbid_recording.as_deref(),
+                    r.synced_at,
+                )?;
             }
 
             tx.commit()?;
@@ -758,5 +770,62 @@ mod tests {
             .upsert_batch_with_remap(&[row_with_id_hash("s1", "tr_1", "h", "/p")], true)
             .unwrap();
         assert!(stats.remapped.is_empty());
+    }
+
+    // ── H2: canonical linking on the upsert path (§5.5A) ───────────────
+
+    #[test]
+    fn upsert_links_track_to_canonical_by_isrc() {
+        let store = LibraryStore::open_in_memory();
+        let mut r = row("s1", "t1", "Title");
+        r.isrc = Some("USRC100".into());
+        TrackRepository::new(&store).upsert_batch(&[r]).unwrap();
+        let cid: Option<String> = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT canonical_id FROM track_canonical_link \
+                     WHERE server_id='s1' AND track_id='t1'",
+                    [],
+                    |r| r.get(0),
+                )
+                .optional()
+            })
+            .unwrap();
+        assert_eq!(cid.as_deref(), Some("isrc:USRC100"));
+    }
+
+    #[test]
+    fn upsert_shares_canonical_across_servers_with_same_isrc() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = row("s1", "t1", "T");
+        a.isrc = Some("USRC200".into());
+        let mut b = row("s2", "t9", "T");
+        b.isrc = Some("USRC200".into());
+        TrackRepository::new(&store).upsert_batch(&[a, b]).unwrap();
+        let distinct: i64 = store
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT COUNT(DISTINCT canonical_id) FROM track_canonical_link",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(distinct, 1, "same ISRC on two servers → one canonical id");
+    }
+
+    #[test]
+    fn upsert_without_strong_key_creates_no_canonical_link() {
+        let store = LibraryStore::open_in_memory();
+        // `row(...)` leaves isrc / mbid_recording as None.
+        TrackRepository::new(&store)
+            .upsert_batch(&[row("s1", "t1", "T")])
+            .unwrap();
+        let count: i64 = store
+            .with_conn(|c| {
+                c.query_row("SELECT COUNT(*) FROM track_canonical_link", [], |r| r.get(0))
+            })
+            .unwrap();
+        assert_eq!(count, 0);
     }
 }

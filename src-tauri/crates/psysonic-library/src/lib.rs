@@ -8,6 +8,7 @@
 //! - `sync`   — capability probe + orchestrator (PR-3*)
 
 pub mod advanced_search;
+pub mod canonical;
 pub mod commands;
 pub mod cross_server;
 pub mod dto;
