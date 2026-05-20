@@ -305,6 +305,7 @@ impl<'a> InitialSyncRunner<'a> {
             }
         };
 
+        let mut batch_count: u32 = 0;
         loop {
             self.check_cancellation()?;
             let end = offset.saturating_add(self.batch_size);
@@ -348,6 +349,11 @@ impl<'a> InitialSyncRunner<'a> {
             cursor.strategy_state = StrategyState::LinearOffset { offset };
             cursor.ingested_count = report.ingested_count;
             self.persist_cursor(sync_state, cursor)?;
+            batch_count += 1;
+            self.progress.emit(ProgressEvent::IngestPage {
+                ingested_total: report.ingested_count,
+                batch_count,
+            });
 
             if (array.len() as u32) < self.batch_size {
                 break;
@@ -373,6 +379,7 @@ impl<'a> InitialSyncRunner<'a> {
             }
         };
 
+        let mut batch_count: u32 = 0;
         loop {
             self.check_cancellation()?;
             let scope = self.library_scope_opt();
@@ -421,6 +428,11 @@ impl<'a> InitialSyncRunner<'a> {
             cursor.strategy_state = StrategyState::LinearOffset { offset };
             cursor.ingested_count = report.ingested_count;
             self.persist_cursor(sync_state, cursor)?;
+            batch_count += 1;
+            self.progress.emit(ProgressEvent::IngestPage {
+                ingested_total: report.ingested_count,
+                batch_count,
+            });
 
             if (result.song.len() as u32) < self.batch_size {
                 break;
@@ -448,6 +460,7 @@ impl<'a> InitialSyncRunner<'a> {
             }
         };
 
+        let mut batch_count: u32 = 0;
         loop {
             self.check_cancellation()?;
             let scope = self.library_scope_opt();
@@ -509,6 +522,11 @@ impl<'a> InitialSyncRunner<'a> {
                     report.remapped_count = report
                         .remapped_count
                         .saturating_add(stats.remapped.len() as u32);
+                    batch_count += 1;
+                    self.progress.emit(ProgressEvent::IngestPage {
+                        ingested_total: report.ingested_count,
+                        batch_count,
+                    });
                 }
             }
 
@@ -751,6 +769,53 @@ mod tests {
             .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 7);
+    }
+
+    // ── Per-batch progress is emitted during ingest ───────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn initial_sync_emits_per_batch_progress() {
+        use crate::sync::progress::ChannelProgress;
+        use std::time::Duration;
+
+        let server = MockServer::start().await;
+        mount_search3_pages(&server, /*total*/ 7, /*batch*/ 4).await;
+        mount_minimal_artists(&server).await;
+
+        // ZERO interval so the throttle never drops a batch event in the test.
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let progress: Arc<dyn Progress + Send + Sync> =
+            Arc::new(ChannelProgress::with_interval(tx, Duration::ZERO));
+
+        let store = LibraryStore::open_in_memory();
+        let subsonic = test_subsonic(&server.uri());
+        InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK | CapabilityFlags::SCAN_STATUS_AVAILABLE),
+        )
+        .with_batch_size(4)
+        .with_sleep_disabled()
+        .with_progress(progress)
+        .run()
+        .await
+        .unwrap();
+
+        // Collect the per-batch ingest totals the runner emitted.
+        let mut totals = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            if let ProgressEvent::IngestPage { ingested_total, .. } = ev {
+                totals.push(ingested_total);
+            }
+        }
+        assert!(!totals.is_empty(), "initial sync must emit per-batch IngestPage progress");
+        assert_eq!(*totals.last().unwrap(), 7, "final progress total must reach the full count");
+        assert!(
+            totals.windows(2).all(|w| w[0] <= w[1]),
+            "ingest totals must be non-decreasing"
+        );
     }
 
     // ── S1 mid-cursor resume ──────────────────────────────────────────
