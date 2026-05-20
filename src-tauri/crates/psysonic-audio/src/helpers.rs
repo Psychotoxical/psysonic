@@ -1407,6 +1407,7 @@ mod tests {
 
     fn upsert_loudness_row(cache: &AnalysisCache, track_id: &str, integrated: f64, target: f64) {
         let k = TrackKey {
+            server_id: String::new(),
             track_id: track_id.to_string(),
             md5_16kb: "deadbeef".to_string(),
         };

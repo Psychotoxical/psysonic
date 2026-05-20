@@ -58,7 +58,10 @@ pub fn get_waveform_payload(
     track_id: &str,
     md5_16kb: &str,
 ) -> Result<Option<WaveformCachePayload>, String> {
+    // server_id is added in 6c-2 (read commands gain a serverId arg + legacy
+    // fallback); 6c-1 keeps the exact-key lookup scoped to the legacy '' rows.
     let key = analysis_cache::TrackKey {
+        server_id: String::new(),
         track_id: track_id.to_string(),
         md5_16kb: md5_16kb.to_string(),
     };
@@ -297,6 +300,7 @@ mod tests {
 
     fn key(track_id: &str, md5: &str) -> TrackKey {
         TrackKey {
+            server_id: String::new(),
             track_id: track_id.to_string(),
             md5_16kb: md5.to_string(),
         }

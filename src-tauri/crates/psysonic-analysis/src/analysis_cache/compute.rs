@@ -64,7 +64,11 @@ pub fn seed_from_bytes_into_cache(
     bytes: &[u8],
 ) -> Result<SeedFromBytesOutcome, String> {
     let started = Instant::now();
+    // server_id is filled in by 6c-2 (playback/active server threaded through);
+    // until then every write lands under the legacy '' scope, behaviour-identical
+    // to the pre-002 cache.
     let key = TrackKey {
+        server_id: String::new(),
         track_id: track_id.to_string(),
         md5_16kb: md5_first_16kb(bytes),
     };
@@ -746,6 +750,7 @@ mod tests {
         // Both a waveform AND a loudness row must exist after a successful
         // PCM decode + EBU R128 analysis.
         let key = TrackKey {
+            server_id: String::new(),
             track_id: "wav-track".to_string(),
             md5_16kb: md5_first_16kb(&wav),
         };
@@ -779,6 +784,7 @@ mod tests {
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         let key = TrackKey {
+            server_id: String::new(),
             track_id: "garbage".to_string(),
             md5_16kb: md5_first_16kb(&bytes),
         };

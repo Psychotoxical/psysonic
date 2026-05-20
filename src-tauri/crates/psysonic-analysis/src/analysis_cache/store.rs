@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -7,6 +7,18 @@ use tauri::Manager;
 
 pub(super) const WAVEFORM_ALGO_VERSION: i64 = 4;
 pub(super) const LOUDNESS_ALGO_VERSION: i64 = 1;
+
+/// Current head of the embedded migrations. Bump for each new
+/// `migrations/NNN_*.sql`.
+pub const ANALYSIS_DB_SCHEMA_VERSION: i64 = 2;
+
+const MIGRATION_001_BASELINE: &str = include_str!("../../migrations/001_baseline.sql");
+const MIGRATION_002_SERVER_ID: &str = include_str!("../../migrations/002_server_id.sql");
+
+/// Embedded migrations, ascending by version. The runner sorts defensively and
+/// applies each missing one in its own transaction (schema change + version
+/// marker commit together — see [`run_migrations_with`]).
+const MIGRATIONS: &[(i64, &str)] = &[(1, MIGRATION_001_BASELINE), (2, MIGRATION_002_SERVER_ID)];
 
 /// Bins in waveform BLOB: `2 * bin_count` bytes (peak u8, then mean-abs u8 per time bin).
 fn waveform_cache_blob_len_ok(bins: &[u8], bin_count: i64) -> bool {
@@ -19,6 +31,10 @@ fn waveform_cache_blob_len_ok(bins: &[u8], bin_count: i64) -> bool {
 
 #[derive(Debug, Clone)]
 pub struct TrackKey {
+    /// App server id this analysis belongs to. Empty string is the legacy
+    /// (pre-002) value: rows migrated from the unscoped schema and any caller
+    /// that does not yet know the server (filled in by 6c-2).
+    pub server_id: String,
     pub track_id: String,
     pub md5_16kb: String,
 }
@@ -84,9 +100,10 @@ impl AnalysisCache {
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+        backup_before_pending_migration(&db_path)?;
+        let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
         configure_connection(&conn).map_err(|e| e.to_string())?;
-        migrate_schema(&conn).map_err(|e| e.to_string())?;
+        run_migrations(&mut conn).map_err(|e| e.to_string())?;
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -100,9 +117,9 @@ impl AnalysisCache {
     /// without a `test-support` Cargo feature dance. Production code does not
     /// use it.
     pub fn open_in_memory() -> Self {
-        let conn = Connection::open_in_memory().expect("in-memory connection");
+        let mut conn = Connection::open_in_memory().expect("in-memory connection");
         conn.pragma_update(None, "foreign_keys", "ON").expect("pragma foreign_keys");
-        migrate_schema(&conn).expect("schema migration");
+        run_migrations(&mut conn).expect("schema migration");
         Self { conn: Mutex::new(conn) }
     }
 
@@ -162,15 +179,16 @@ impl AnalysisCache {
         conn.execute(
             r#"
             INSERT INTO analysis_track (
-                track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-            ON CONFLICT(track_id, md5_16kb) DO UPDATE SET
+                server_id, track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ON CONFLICT(server_id, track_id, md5_16kb) DO UPDATE SET
                 status = excluded.status,
                 waveform_algo_version = excluded.waveform_algo_version,
                 loudness_algo_version = excluded.loudness_algo_version,
                 updated_at = excluded.updated_at
             "#,
             params![
+                key.server_id,
                 key.track_id,
                 key.md5_16kb,
                 status,
@@ -188,9 +206,9 @@ impl AnalysisCache {
         conn.execute(
             r#"
             INSERT INTO waveform_cache (
-                track_id, md5_16kb, bins, bin_count, is_partial, known_until_sec, duration_sec, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-            ON CONFLICT(track_id, md5_16kb) DO UPDATE SET
+                server_id, track_id, md5_16kb, bins, bin_count, is_partial, known_until_sec, duration_sec, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            ON CONFLICT(server_id, track_id, md5_16kb) DO UPDATE SET
                 bins = excluded.bins,
                 bin_count = excluded.bin_count,
                 is_partial = excluded.is_partial,
@@ -199,6 +217,7 @@ impl AnalysisCache {
                 updated_at = excluded.updated_at
             "#,
             params![
+                key.server_id,
                 key.track_id,
                 key.md5_16kb,
                 entry.bins,
@@ -218,15 +237,16 @@ impl AnalysisCache {
         conn.execute(
             r#"
             INSERT INTO loudness_cache (
-                track_id, md5_16kb, integrated_lufs, true_peak, recommended_gain_db, target_lufs, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-            ON CONFLICT(track_id, md5_16kb, target_lufs) DO UPDATE SET
+                server_id, track_id, md5_16kb, integrated_lufs, true_peak, recommended_gain_db, target_lufs, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ON CONFLICT(server_id, track_id, md5_16kb, target_lufs) DO UPDATE SET
                 integrated_lufs = excluded.integrated_lufs,
                 true_peak = excluded.true_peak,
                 recommended_gain_db = excluded.recommended_gain_db,
                 updated_at = excluded.updated_at
             "#,
             params![
+                key.server_id,
                 key.track_id,
                 key.md5_16kb,
                 entry.integrated_lufs,
@@ -248,13 +268,15 @@ impl AnalysisCache {
             SELECT w.bins, w.bin_count, w.is_partial, w.known_until_sec, w.duration_sec, w.updated_at
             FROM waveform_cache w
             JOIN analysis_track a
-              ON a.track_id = w.track_id
+              ON a.server_id = w.server_id
+             AND a.track_id = w.track_id
              AND a.md5_16kb = w.md5_16kb
-            WHERE w.track_id = ?1
-              AND w.md5_16kb = ?2
-              AND a.waveform_algo_version = ?3
+            WHERE w.server_id = ?1
+              AND w.track_id = ?2
+              AND w.md5_16kb = ?3
+              AND a.waveform_algo_version = ?4
             "#,
-                params![key.track_id, key.md5_16kb, WAVEFORM_ALGO_VERSION],
+                params![key.server_id, key.track_id, key.md5_16kb, WAVEFORM_ALGO_VERSION],
                 |row| {
                     Ok(WaveformEntry {
                         bins: row.get(0)?,
@@ -282,14 +304,16 @@ impl AnalysisCache {
               SELECT 1
               FROM loudness_cache l
               JOIN analysis_track a
-                ON a.track_id = l.track_id
+                ON a.server_id = l.server_id
+               AND a.track_id = l.track_id
                AND a.md5_16kb = l.md5_16kb
-              WHERE l.track_id = ?1
-                AND l.md5_16kb = ?2
-                AND a.loudness_algo_version = ?3
+              WHERE l.server_id = ?1
+                AND l.track_id = ?2
+                AND l.md5_16kb = ?3
+                AND a.loudness_algo_version = ?4
             )
             "#,
-                params![key.track_id, key.md5_16kb, LOUDNESS_ALGO_VERSION],
+                params![key.server_id, key.track_id, key.md5_16kb, LOUDNESS_ALGO_VERSION],
                 |row| row.get(0),
             )
             .map_err(|e| e.to_string())?;
@@ -302,7 +326,8 @@ impl AnalysisCache {
             SELECT w.bins, w.bin_count, w.is_partial, w.known_until_sec, w.duration_sec, w.updated_at
             FROM waveform_cache w
             JOIN analysis_track a
-              ON a.track_id = w.track_id
+              ON a.server_id = w.server_id
+             AND a.track_id = w.track_id
              AND a.md5_16kb = w.md5_16kb
             WHERE w.track_id = ?1
               AND a.waveform_algo_version = ?2
@@ -351,7 +376,8 @@ impl AnalysisCache {
             SELECT l.integrated_lufs, l.true_peak, l.recommended_gain_db, l.target_lufs, l.updated_at
             FROM loudness_cache l
             JOIN analysis_track a
-              ON a.track_id = l.track_id
+              ON a.server_id = l.server_id
+             AND a.track_id = l.track_id
              AND a.md5_16kb = l.md5_16kb
             WHERE l.track_id = ?1
               AND a.loudness_algo_version = ?2
@@ -399,46 +425,91 @@ fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn migrate_schema(conn: &Connection) -> rusqlite::Result<()> {
+/// One-shot safety net before the first table-rewriting migration (002
+/// `server_id`). Snapshots the existing DB via `VACUUM INTO` — a transactionally
+/// consistent copy even with WAL — to `<db>.pre-v<N>.bak`, so a catastrophic
+/// failure the migration transaction can't cover (disk full at COMMIT,
+/// filesystem corruption, a rebuild bug) still leaves the original recoverable.
+/// Skipped for a fresh DB or one already at the target version. The analysis
+/// cache is small (~1 KB/track), so the copy is cheap.
+fn backup_before_pending_migration(db_path: &Path) -> Result<(), String> {
+    if !db_path.exists() {
+        return Ok(()); // fresh DB — nothing to protect
+    }
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    // `schema_migrations` may not exist yet on a pre-versioning DB → treat the
+    // missing table as version 0 so the backup runs before 002 rewrites tables.
+    let applied: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if applied >= ANALYSIS_DB_SCHEMA_VERSION {
+        return Ok(()); // already at head — no rewrite pending
+    }
+    let backup_path = db_path.with_file_name(format!(
+        "audio-analysis.sqlite.pre-v{ANALYSIS_DB_SCHEMA_VERSION}.bak"
+    ));
+    // `VACUUM INTO` fails if the target exists; drop a stale backup from an
+    // interrupted earlier attempt (the snapshot is re-creatable).
+    if backup_path.exists() {
+        std::fs::remove_file(&backup_path).map_err(|e| e.to_string())?;
+    }
+    // Documented literal form `VACUUM INTO '<file>'`; the local path is escaped
+    // for the SQL string literal (single-quote doubling) so an apostrophe in a
+    // user's home dir can't break or inject the statement.
+    let escaped = backup_path.to_string_lossy().replace('\'', "''");
+    conn.execute_batch(&format!("VACUUM INTO '{escaped}';"))
+        .map_err(|e| format!("analysis pre-migration backup failed: {e}"))?;
+    Ok(())
+}
+
+fn run_migrations(conn: &mut Connection) -> rusqlite::Result<()> {
+    run_migrations_with(conn, MIGRATIONS)
+}
+
+/// Applies every embedded migration not yet recorded in `schema_migrations`.
+/// Each migration runs in its own transaction that commits the schema change
+/// *and* its version marker together — a failure or crash rolls the whole
+/// migration back, and the next start retries it cleanly. Idempotent across
+/// reopens. Forward-only: an unknown future version on the DB is left alone
+/// (the analysis cache is a rebuildable derived store, so there is no
+/// breaking-bump drop/resync like the library DB).
+///
+/// Split out (test-friendly) so the migration set can be exercised against an
+/// in-memory connection.
+pub(crate) fn run_migrations_with(
+    conn: &mut Connection,
+    migrations: &[(i64, &str)],
+) -> rusqlite::Result<()> {
     conn.execute_batch(
-        r#"
-        CREATE TABLE IF NOT EXISTS analysis_track (
-            track_id TEXT NOT NULL,
-            md5_16kb TEXT NOT NULL,
-            status TEXT NOT NULL,
-            waveform_algo_version INTEGER NOT NULL,
-            loudness_algo_version INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            PRIMARY KEY (track_id, md5_16kb)
-        );
-
-        CREATE TABLE IF NOT EXISTS waveform_cache (
-            track_id TEXT NOT NULL,
-            md5_16kb TEXT NOT NULL,
-            bins BLOB NOT NULL,
-            bin_count INTEGER NOT NULL,
-            is_partial INTEGER NOT NULL,
-            known_until_sec REAL NOT NULL,
-            duration_sec REAL NOT NULL,
-            updated_at INTEGER NOT NULL,
-            PRIMARY KEY (track_id, md5_16kb)
-        );
-
-        CREATE TABLE IF NOT EXISTS loudness_cache (
-            track_id TEXT NOT NULL,
-            md5_16kb TEXT NOT NULL,
-            integrated_lufs REAL NOT NULL,
-            true_peak REAL NOT NULL,
-            recommended_gain_db REAL NOT NULL,
-            target_lufs REAL NOT NULL,
-            updated_at INTEGER NOT NULL,
-            PRIMARY KEY (track_id, md5_16kb, target_lufs)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_analysis_track_status
-            ON analysis_track(status);
-        "#,
+        "CREATE TABLE IF NOT EXISTS schema_migrations (
+           version    INTEGER PRIMARY KEY,
+           applied_at INTEGER NOT NULL
+         );",
     )?;
+
+    let mut ordered: Vec<(i64, &str)> = migrations.to_vec();
+    ordered.sort_by_key(|(v, _)| *v);
+    for (version, sql) in ordered {
+        let already: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE version = ?1",
+            params![version],
+            |row| row.get(0),
+        )?;
+        if already > 0 {
+            continue;
+        }
+        let tx = conn.transaction()?;
+        tx.execute_batch(sql)?;
+        tx.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, strftime('%s','now'))",
+            params![version],
+        )?;
+        tx.commit()?;
+    }
     Ok(())
 }
 
@@ -448,6 +519,15 @@ mod tests {
 
     fn key(track_id: &str) -> TrackKey {
         TrackKey {
+            server_id: String::new(),
+            track_id: track_id.to_string(),
+            md5_16kb: "deadbeef".to_string(),
+        }
+    }
+
+    fn key_on(server_id: &str, track_id: &str) -> TrackKey {
+        TrackKey {
+            server_id: server_id.to_string(),
             track_id: track_id.to_string(),
             md5_16kb: "deadbeef".to_string(),
         }
@@ -522,7 +602,15 @@ mod tests {
             .unwrap()
             .map(|r| r.unwrap())
             .collect();
-        assert_eq!(tables, vec!["analysis_track", "loudness_cache", "waveform_cache"]);
+        assert_eq!(
+            tables,
+            vec![
+                "analysis_track",
+                "loudness_cache",
+                "schema_migrations",
+                "waveform_cache"
+            ]
+        );
     }
 
     // ── waveform roundtrip ────────────────────────────────────────────────────
@@ -747,5 +835,177 @@ mod tests {
             )
             .unwrap();
         assert_eq!(status, "done");
+    }
+
+    // ── schema migrations (002 server_id) ─────────────────────────────────────
+
+    #[test]
+    fn run_migrations_records_all_versions_and_is_idempotent() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        run_migrations_with(&mut conn, MIGRATIONS).unwrap();
+        // Second run is a no-op (every version already recorded).
+        run_migrations_with(&mut conn, MIGRATIONS).unwrap();
+        let versions: Vec<i64> = conn
+            .prepare("SELECT version FROM schema_migrations ORDER BY version")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(versions, (1..=ANALYSIS_DB_SCHEMA_VERSION).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn migration_002_preserves_legacy_rows_under_empty_server_id() {
+        // Simulate a real pre-002 user DB: old schema + one row per table, no
+        // schema_migrations.
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(MIGRATION_001_BASELINE).unwrap();
+        conn.execute(
+            "INSERT INTO analysis_track (track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at)
+             VALUES ('t1','m1','ready',?1,?2,123)",
+            params![WAVEFORM_ALGO_VERSION, LOUDNESS_ALGO_VERSION],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO waveform_cache (track_id, md5_16kb, bins, bin_count, is_partial, known_until_sec, duration_sec, updated_at)
+             VALUES ('t1','m1',?1,4,0,0.0,60.0,123)",
+            params![vec![0u8; 8]],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO loudness_cache (track_id, md5_16kb, integrated_lufs, true_peak, recommended_gain_db, target_lufs, updated_at)
+             VALUES ('t1','m1',-14.0,-1.0,0.0,-14.0,123)",
+            [],
+        )
+        .unwrap();
+
+        run_migrations_with(&mut conn, MIGRATIONS).unwrap();
+
+        // No data lost; legacy rows now carry server_id = ''.
+        let track_sid: String = conn
+            .query_row("SELECT server_id FROM analysis_track WHERE track_id='t1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(track_sid, "");
+        let waveforms: i64 = conn
+            .query_row("SELECT COUNT(*) FROM waveform_cache WHERE server_id=''", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(waveforms, 1);
+        let loudness: i64 = conn
+            .query_row("SELECT COUNT(*) FROM loudness_cache WHERE server_id=''", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(loudness, 1);
+
+        // The legacy blob is readable through the cache API under the '' key.
+        let cache = AnalysisCache { conn: Mutex::new(conn) };
+        let legacy_key = TrackKey {
+            server_id: String::new(),
+            track_id: "t1".to_string(),
+            md5_16kb: "m1".to_string(),
+        };
+        assert!(cache.get_waveform(&legacy_key).unwrap().is_some());
+    }
+
+    #[test]
+    fn server_id_scopes_exact_key_lookups() {
+        let cache = AnalysisCache::open_in_memory();
+        let on_a = key_on("server-a", "t");
+        let on_b = key_on("server-b", "t");
+        cache.touch_track_status(&on_a, "ready").unwrap();
+        cache.touch_track_status(&on_b, "ready").unwrap();
+        // Only server-a has a waveform.
+        cache.upsert_waveform(&on_a, &waveform(4, false)).unwrap();
+
+        assert!(cache.get_waveform(&on_a).unwrap().is_some());
+        assert!(
+            cache.get_waveform(&on_b).unwrap().is_none(),
+            "exact lookup must not return another server's analysis"
+        );
+
+        // Same (track_id, md5_16kb) under two server ids are independent rows.
+        let conn = cache.conn.lock().unwrap();
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM analysis_track WHERE track_id='t'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 2);
+    }
+
+    // ── pre-migration backup (on-disk; VACUUM INTO snapshot) ──────────────────
+
+    fn unique_temp_dir(tag: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static CTR: AtomicU64 = AtomicU64::new(0);
+        let n = CTR.fetch_add(1, Ordering::Relaxed);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("psysonic-analysis-{tag}-{nanos}-{n}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn backup_file(dir: &Path) -> PathBuf {
+        dir.join(format!("audio-analysis.sqlite.pre-v{ANALYSIS_DB_SCHEMA_VERSION}.bak"))
+    }
+
+    #[test]
+    fn backup_snapshots_pre_v2_db_and_overwrites_stale() {
+        let dir = unique_temp_dir("bkp-create");
+        let db_path = dir.join("audio-analysis.sqlite");
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(MIGRATION_001_BASELINE).unwrap();
+            conn.execute(
+                "INSERT INTO analysis_track (track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at)
+                 VALUES ('t','m','ready',?1,?2,1)",
+                params![WAVEFORM_ALGO_VERSION, LOUDNESS_ALGO_VERSION],
+            )
+            .unwrap();
+        }
+
+        backup_before_pending_migration(&db_path).unwrap();
+
+        let backup = backup_file(&dir);
+        assert!(backup.exists(), "backup snapshot must be written");
+        // The snapshot is a valid DB carrying the original row.
+        let bconn = Connection::open(&backup).unwrap();
+        let rows: i64 = bconn
+            .query_row("SELECT COUNT(*) FROM analysis_track", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 1);
+        drop(bconn);
+
+        // A second call overwrites the stale snapshot (VACUUM INTO needs a free
+        // target) instead of failing.
+        backup_before_pending_migration(&db_path).unwrap();
+        assert!(backup.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn backup_skips_when_db_absent() {
+        let dir = unique_temp_dir("bkp-absent");
+        let db_path = dir.join("audio-analysis.sqlite");
+        backup_before_pending_migration(&db_path).unwrap();
+        assert!(!backup_file(&dir).exists(), "no backup for a fresh (absent) DB");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn backup_skips_when_already_at_head() {
+        let dir = unique_temp_dir("bkp-head");
+        let db_path = dir.join("audio-analysis.sqlite");
+        {
+            let mut conn = Connection::open(&db_path).unwrap();
+            run_migrations_with(&mut conn, MIGRATIONS).unwrap();
+        }
+        backup_before_pending_migration(&db_path).unwrap();
+        assert!(
+            !backup_file(&dir).exists(),
+            "no backup when the DB is already at the target version"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

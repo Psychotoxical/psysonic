@@ -384,6 +384,7 @@ mod tests {
         // cpu_seed_redundant_for_track returns true when both waveform AND
         // loudness rows exist for the current algo version.
         let key = TrackKey {
+            server_id: String::new(),
             track_id: track_id.to_string(),
             md5_16kb: "deadbeef".to_string(),
         };
