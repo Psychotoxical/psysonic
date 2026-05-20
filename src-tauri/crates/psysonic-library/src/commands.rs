@@ -178,65 +178,16 @@ pub fn library_get_artifact(
     source_id: Option<String>,
     format: Option<String>,
 ) -> Result<Option<TrackArtifactDto>, String> {
-    runtime
-        .store
-        .with_conn(|conn| {
-            // Compose a flexible WHERE — source_kind / source_id /
-            // format optional so PR-7's lyrics path can call without
-            // a pinned `source_id` (returns the first match).
-            let mut sql = String::from(
-                "SELECT server_id, track_id, artifact_kind, format, source_kind, source_id, \
-                 language, content_text, content_bytes, not_found, content_hash, fetched_at, \
-                 expires_at FROM track_artifact \
-                 WHERE server_id = ?1 AND track_id = ?2 AND artifact_kind = ?3",
-            );
-            if source_kind.is_some() {
-                sql.push_str(" AND source_kind = ?4");
-            }
-            if source_id.is_some() {
-                sql.push_str(" AND source_id = ?5");
-            }
-            if format.is_some() {
-                sql.push_str(" AND format = ?6");
-            }
-            sql.push_str(" ORDER BY fetched_at DESC LIMIT 1");
-
-            let mut stmt = conn.prepare(&sql)?;
-            let mut bound: Vec<rusqlite::types::Value> = vec![
-                rusqlite::types::Value::Text(server_id.clone()),
-                rusqlite::types::Value::Text(track_id.clone()),
-                rusqlite::types::Value::Text(artifact_kind.clone()),
-            ];
-            if let Some(sk) = &source_kind {
-                bound.push(rusqlite::types::Value::Text(sk.clone()));
-            }
-            if let Some(si) = &source_id {
-                bound.push(rusqlite::types::Value::Text(si.clone()));
-            }
-            if let Some(fmt) = &format {
-                bound.push(rusqlite::types::Value::Text(fmt.clone()));
-            }
-
-            stmt.query_row(rusqlite::params_from_iter(bound.iter()), |r| {
-                Ok(TrackArtifactDto {
-                    server_id: r.get(0)?,
-                    track_id: r.get(1)?,
-                    artifact_kind: r.get(2)?,
-                    format: r.get(3)?,
-                    source_kind: r.get(4)?,
-                    source_id: r.get(5)?,
-                    language: r.get(6)?,
-                    content_text: r.get(7)?,
-                    content_bytes: r.get(8)?,
-                    not_found: r.get::<_, i64>(9)? != 0,
-                    content_hash: r.get(10)?,
-                    fetched_at: r.get(11)?,
-                    expires_at: r.get(12)?,
-                })
-            })
-            .optional()
-        })
-        .map_err(|e| e.to_string())
+    // E4: typed repo owns the §5.12 lazy-expiry + flexible lookup.
+    crate::repos::ArtifactRepository::new(&runtime.store).get(
+        &server_id,
+        &track_id,
+        &artifact_kind,
+        source_kind.as_deref(),
+        source_id.as_deref(),
+        format.as_deref(),
+        now_unix_ms(),
+    )
 }
 
 #[tauri::command]
@@ -697,46 +648,13 @@ pub fn library_put_artifact(
     track_id: String,
     artifact: ArtifactInputDto,
 ) -> Result<(), String> {
-    let now = now_unix_ms();
-    runtime
-        .store
-        .with_conn(|conn| {
-            conn.execute(
-                "INSERT INTO track_artifact \
-                 (server_id, track_id, artifact_kind, format, language, source_kind, source_id, \
-                  content_text, content_blob, content_bytes, not_found, content_hash, \
-                  fetched_at, expires_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) \
-                 ON CONFLICT(server_id, track_id, artifact_kind, source_kind, source_id, format) \
-                 DO UPDATE SET \
-                   language = excluded.language, \
-                   content_text = excluded.content_text, \
-                   content_blob = excluded.content_blob, \
-                   content_bytes = excluded.content_bytes, \
-                   not_found = excluded.not_found, \
-                   content_hash = excluded.content_hash, \
-                   fetched_at = excluded.fetched_at, \
-                   expires_at = excluded.expires_at",
-                params![
-                    server_id,
-                    track_id,
-                    artifact.artifact_kind,
-                    artifact.format,
-                    artifact.language,
-                    artifact.source_kind,
-                    artifact.source_id,
-                    artifact.content_text,
-                    artifact.content_blob,
-                    artifact.content_bytes,
-                    if artifact.not_found { 1_i64 } else { 0 },
-                    artifact.content_hash,
-                    now,
-                    artifact.expires_at,
-                ],
-            )?;
-            Ok(())
-        })
-        .map_err(|e| e.to_string())
+    // E4: typed repo owns the upsert + the §5.12 512 KB size cap.
+    crate::repos::ArtifactRepository::new(&runtime.store).put(
+        &server_id,
+        &track_id,
+        &artifact,
+        now_unix_ms(),
+    )
 }
 
 #[tauri::command]

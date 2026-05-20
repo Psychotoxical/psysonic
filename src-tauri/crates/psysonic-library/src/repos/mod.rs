@@ -1,8 +1,10 @@
+pub mod artifact;
 pub mod fact;
 pub mod sync_state;
 pub mod track;
 pub mod track_id_history;
 
+pub use artifact::ArtifactRepository;
 pub use fact::FactRepository;
 pub use sync_state::SyncStateRepository;
 pub use track::{RemapEntry, RemapStats, TrackRepository, TrackRow};
