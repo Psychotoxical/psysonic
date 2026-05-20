@@ -13,8 +13,11 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use psysonic_integration::navidrome::navidrome_token;
 use psysonic_integration::subsonic::SubsonicClient;
 
+use crate::advanced_search;
+use crate::cross_server;
 use crate::dto::{
-    local_tracks_max_updated_ms, ArtifactInputDto, FactInputDto, LibraryTrackDto,
+    local_tracks_max_updated_ms, ArtifactInputDto, FactInputDto, LibraryAdvancedSearchRequest,
+    LibraryAdvancedSearchResponse, LibraryCrossServerSearchResponse, LibraryTrackDto,
     LibraryTracksEnvelope, OfflinePathDto, PurgeReportDto, SyncJobDto, SyncStateDto,
     TrackArtifactDto, TrackFactDto, TrackRefDto,
 };
@@ -311,6 +314,29 @@ pub fn library_get_offline_path(
         missing: path.is_none(),
         local_path: path,
     })
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  PR-5d — Advanced Search (§5.13) + cross-server search (§5.5B)
+// ──────────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn library_advanced_search(
+    runtime: State<'_, LibraryRuntime>,
+    request: LibraryAdvancedSearchRequest,
+) -> Result<LibraryAdvancedSearchResponse, String> {
+    advanced_search::run_advanced_search(&runtime.store, &request)
+}
+
+#[tauri::command]
+pub fn library_search_cross_server(
+    runtime: State<'_, LibraryRuntime>,
+    query: String,
+    limit: Option<u32>,
+    servers: Option<Vec<String>>,
+) -> Result<LibraryCrossServerSearchResponse, String> {
+    let limit = limit.unwrap_or(100);
+    cross_server::run_cross_server_search(&runtime.store, &query, limit, servers.as_deref())
 }
 
 // ── helpers ──────────────────────────────────────────────────────────

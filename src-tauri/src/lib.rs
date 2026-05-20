@@ -513,6 +513,8 @@ pub fn run() {
             psysonic_analysis::commands::analysis_prune_pending_to_track_ids,
             psysonic_library::commands::library_get_status,
             psysonic_library::commands::library_search,
+            psysonic_library::commands::library_advanced_search,
+            psysonic_library::commands::library_search_cross_server,
             psysonic_library::commands::library_get_track,
             psysonic_library::commands::library_get_tracks_batch,
             psysonic_library::commands::library_get_tracks_by_album,
