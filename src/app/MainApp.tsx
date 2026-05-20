@@ -14,7 +14,7 @@ import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
-import { ensureActiveServerSessionBound } from '../utils/library/librarySession';
+import { ensureActiveServerSessionBound, resumeInitialSyncIfIncomplete } from '../utils/library/librarySession';
 import { useScanPolling } from '../hooks/useScanPolling';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
@@ -43,7 +43,15 @@ export default function MainApp() {
   // "no bound session" after a restart.
   const activeServerId = useAuthStore(s => s.activeServerId);
   useEffect(() => {
-    void ensureActiveServerSessionBound();
+    void (async () => {
+      const bound = await ensureActiveServerSessionBound();
+      // Resume an initial sync that was interrupted by an app restart —
+      // the scheduler is delta-only, so it would otherwise sit idle until
+      // the user clicks «Sync now».
+      if (bound && activeServerId) {
+        await resumeInitialSyncIfIncomplete(activeServerId);
+      }
+    })();
   }, [activeServerId]);
 
   useScanPolling();
