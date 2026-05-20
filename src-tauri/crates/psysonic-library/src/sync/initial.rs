@@ -194,27 +194,47 @@ impl<'a> InitialSyncRunner<'a> {
         let raw = sync_state
             .get_initial_sync_cursor(&self.server_id, &self.library_scope)
             .map_err(SyncError::Storage)?;
+        let strategy_from_flags = IngestStrategy::select_from_flags(self.capability_flags);
         if let Some(raw) = raw {
             if !is_empty_cursor(&raw) {
-                let parsed: InitialSyncCursor = serde_json::from_value(raw.clone())
-                    .map_err(|e| SyncError::Storage(format!("invalid cursor: {e}")))?;
-                let strategy_from_flags = IngestStrategy::select_from_flags(self.capability_flags);
-                if parsed.strategy != strategy_from_flags.as_tag() {
-                    return Err(SyncError::CursorIncompatible {
-                        expected: strategy_from_flags.as_tag(),
-                        actual: parsed.strategy,
-                    });
+                // Resume a persisted cursor only when it was written under
+                // the strategy we'd pick now. A re-probe can detect
+                // different server capabilities (e.g. the Navidrome native
+                // bearer briefly unavailable → N1 downgrades to S2), and a
+                // partial cursor from the old strategy is unusable. Rather
+                // than hard-error — which bricks every future sync with no
+                // UI recovery path — discard the stale/unreadable cursor and
+                // start fresh. Re-ingest is idempotent (upsert), and the
+                // tombstone pass reconciles any leftovers.
+                match serde_json::from_value::<InitialSyncCursor>(raw) {
+                    Ok(parsed) if parsed.strategy == strategy_from_flags.as_tag() => {
+                        return Ok(parsed);
+                    }
+                    Ok(parsed) => {
+                        crate::app_eprintln!(
+                            "[library-sync] resetting initial-sync cursor for server `{}`: \
+                             was `{}`, strategy is now `{}`",
+                            self.server_id,
+                            parsed.strategy,
+                            strategy_from_flags.as_tag()
+                        );
+                    }
+                    Err(e) => {
+                        crate::app_eprintln!(
+                            "[library-sync] resetting unreadable initial-sync cursor for \
+                             server `{}` ({e}); starting fresh",
+                            self.server_id
+                        );
+                    }
                 }
-                return Ok(parsed);
             }
         }
-        let strategy = IngestStrategy::select_from_flags(self.capability_flags);
         let scope = if self.library_scope.is_empty() {
             None
         } else {
             Some(self.library_scope.clone())
         };
-        let fresh = InitialSyncCursor::fresh(strategy, scope);
+        let fresh = InitialSyncCursor::fresh(strategy_from_flags, scope);
         self.persist_cursor(sync_state, &fresh)?;
         Ok(fresh)
     }
@@ -785,45 +805,64 @@ mod tests {
         assert_eq!(count, 6);
     }
 
-    // ── Cursor strategy-mismatch surfaces as CursorIncompatible ───────
+    // ── Stale / unreadable cursor self-heals instead of bricking ──────
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn cursor_with_wrong_strategy_returns_incompatible_error() {
-        let server = MockServer::start().await;
-        // Any 200 envelope shape works — error fires before HTTP.
-        Mock::given(wm_method("GET"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "subsonic-response": { "status": "ok" }
-            })))
-            .mount(&server)
-            .await;
-
+    #[test]
+    fn stale_cursor_strategy_is_reset_not_errored() {
+        // A persisted N1 cursor + flags that now select S1 (a re-probe saw
+        // different capabilities) must reset to a fresh S1 cursor — not
+        // hard-error, which would brick every future sync with no UI
+        // recovery path.
         let store = LibraryStore::open_in_memory();
         let sync_state = SyncStateRepository::new(&store);
         sync_state.ensure("s1", "").unwrap();
-        let n1_cursor = json!({
-            "strategy": "n1",
-            "phase": "ingest",
-            "ingested_count": 0,
-            "strategy_state": { "kind": "linear_offset", "offset": 0 }
-        });
         sync_state
-            .set_initial_sync_cursor("s1", "", &n1_cursor)
+            .set_initial_sync_cursor(
+                "s1",
+                "",
+                &json!({
+                    "strategy": "n1",
+                    "phase": "ingest",
+                    "ingested_count": 42,
+                    "strategy_state": { "kind": "linear_offset", "offset": 500 }
+                }),
+            )
             .unwrap();
 
-        // Capability flags now point to S1; cursor still says N1.
-        let err = InitialSyncRunner::new(
+        let subsonic = test_subsonic("http://127.0.0.1:1");
+        let runner = InitialSyncRunner::new(
             &store,
-            &test_subsonic(&server.uri()),
+            &subsonic,
             "s1",
             "",
             flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
-        )
-        .with_sleep_disabled()
-        .run()
-        .await
-        .unwrap_err();
-        assert!(matches!(err, SyncError::CursorIncompatible { .. }));
+        );
+        let cursor = runner.load_or_init_cursor(&sync_state).unwrap();
+        assert_eq!(cursor.strategy, "s1", "stale cursor must reset to the selected strategy");
+        assert_eq!(cursor.ingested_count, 0, "reset cursor restarts ingest progress");
+    }
+
+    #[test]
+    fn unreadable_cursor_is_reset_not_errored() {
+        // A corrupt cursor (missing the required `strategy` field) must
+        // also self-heal to a fresh cursor rather than error out.
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state
+            .set_initial_sync_cursor("s1", "", &json!({ "phase": "ingest", "ingested_count": 9 }))
+            .unwrap();
+
+        let subsonic = test_subsonic("http://127.0.0.1:1");
+        let runner = InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        );
+        let cursor = runner.load_or_init_cursor(&sync_state).unwrap();
+        assert_eq!(cursor.strategy, "s1");
     }
 
     // ── Backoff retries on 503 then succeeds ──────────────────────────
@@ -961,20 +1000,11 @@ mod tests {
 
     // ── S3 explicitly unsupported in v1 ───────────────────────────────
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn s3_strategy_returns_unsupported_error() {
-        // We can't easily get the selector to return S3 (it never
-        // auto-picks S3), so seed a cursor that says s3 and pair it
-        // with FileTreeBrowse-only flags so the cursor passes the
-        // strategy-tag check.
-        let server = MockServer::start().await;
-        Mock::given(wm_method("GET"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "subsonic-response": { "status": "ok" }
-            })))
-            .mount(&server)
-            .await;
-
+    #[test]
+    fn s3_cursor_self_heals_to_selected_strategy() {
+        // S3 is never auto-selected, so a persisted s3 cursor (legacy /
+        // corrupt) can never match the chosen strategy — it must reset to
+        // the selected strategy rather than error.
         let store = LibraryStore::open_in_memory();
         let sync_state = SyncStateRepository::new(&store);
         sync_state.ensure("s1", "").unwrap();
@@ -991,24 +1021,11 @@ mod tests {
             )
             .unwrap();
 
-        let err = InitialSyncRunner::new(
-            &store,
-            &test_subsonic(&server.uri()),
-            "s1",
-            "",
-            // Default flags ⇒ selector resolves to s2, but the cursor
-            // already says s3 → CursorIncompatible. We assert the
-            // happy path of S3 via that error class.
-            flags(0),
-        )
-        .with_sleep_disabled()
-        .run()
-        .await
-        .unwrap_err();
-        assert!(matches!(
-            err,
-            SyncError::CursorIncompatible { .. } | SyncError::StrategyUnsupported { .. }
-        ));
+        let subsonic = test_subsonic("http://127.0.0.1:1");
+        // Default flags ⇒ selector resolves to s2.
+        let runner = InitialSyncRunner::new(&store, &subsonic, "s1", "", flags(0));
+        let cursor = runner.load_or_init_cursor(&sync_state).unwrap();
+        assert_eq!(cursor.strategy, "s2");
     }
 
     // ── S1 raw_json carries OpenSubsonic extensions verbatim ──────────
