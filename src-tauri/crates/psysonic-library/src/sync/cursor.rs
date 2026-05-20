@@ -1,8 +1,9 @@
 //! Cursor shape persisted in `sync_state.initial_sync_cursor_json`.
 //! Resume after a restart, kill, or app crash deserializes this value
 //! and tells the runner where to pick up. Strategy is recorded so a
-//! cap-flag change between runs surfaces as `CursorIncompatible`
-//! rather than silently restarting the wrong loop.
+//! cap-flag change between runs is detected and the stale cursor is
+//! reset — the runner restarts ingest under the newly-selected strategy
+//! rather than resuming the wrong loop.
 
 use serde::{Deserialize, Serialize};
 
