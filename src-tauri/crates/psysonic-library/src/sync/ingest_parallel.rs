@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::future::Future;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -149,26 +149,31 @@ impl<T: Send + 'static> LinearPrefetchQueue<T> {
 
 /// Fetch `getAlbum` bodies for a page with at most `budget.max_concurrent`
 /// requests in flight. Results preserve input order.
+#[derive(Clone)]
+pub struct ParallelAlbumFetchOpts {
+    pub budget: ParallelismBudget,
+    pub sleep_enabled: bool,
+    pub cancel: Option<Arc<AtomicBool>>,
+}
+
 pub async fn fetch_albums_parallel(
     subsonic: &SubsonicClient,
     album_ids: &[String],
-    budget: ParallelismBudget,
-    sleep_enabled: bool,
-    cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
+    opts: ParallelAlbumFetchOpts,
 ) -> Result<Vec<(Album, Value)>, SyncError> {
     if album_ids.is_empty() {
         return Ok(Vec::new());
     }
-    wait_while_bulk_paused(&budget, sleep_enabled, || check_cancel_flag(&cancel)).await?;
-    let max = budget.max_concurrent.max(1) as usize;
+    wait_while_bulk_paused(&opts.budget, opts.sleep_enabled, || check_cancel_flag(&opts.cancel)).await?;
+    let max = opts.budget.max_concurrent.max(1) as usize;
     let client = subsonic.clone();
     let sem = Arc::new(Semaphore::new(max));
     let mut handles: Vec<JoinHandle<Result<(Album, Value), SyncError>>> =
         Vec::with_capacity(album_ids.len());
 
     for id in album_ids {
-        check_cancel_flag(&cancel)?;
-        sleep_request_gap(&budget, sleep_enabled).await;
+        check_cancel_flag(&opts.cancel)?;
+        sleep_request_gap(&opts.budget, opts.sleep_enabled).await;
         let permit = sem
             .clone()
             .acquire_owned()
@@ -176,8 +181,8 @@ pub async fn fetch_albums_parallel(
             .map_err(|_| SyncError::Transport("parallel fetch semaphore closed".into()))?;
         let client = client.clone();
         let id = id.clone();
-        let cancel = cancel.clone();
-        let sleep_enabled = sleep_enabled;
+        let cancel = opts.cancel.clone();
+        let sleep_enabled = opts.sleep_enabled;
         handles.push(tokio::spawn(async move {
             let _permit = permit;
             retry_fetch(
@@ -197,7 +202,7 @@ pub async fn fetch_albums_parallel(
 
     let mut out = Vec::with_capacity(handles.len());
     for handle in handles {
-        check_cancel_flag(&cancel)?;
+        check_cancel_flag(&opts.cancel)?;
         out.push(
             handle
                 .await

@@ -23,7 +23,7 @@ use super::cursor::{CursorPhase, InitialSyncCursor, StrategyState};
 use super::error::SyncError;
 use super::ingest_parallel::{
     check_cancel_flag, fetch_albums_parallel, linear_prefetch_depth, retry_fetch,
-    sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue,
+    sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue, ParallelAlbumFetchOpts,
 };
 use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
 use super::progress::{IngestBatchMetrics, NoopProgress, Progress, ProgressEvent};
@@ -92,6 +92,14 @@ pub struct InitialSyncReport {
     pub strategy: Option<String>,
     pub ingested_count: u32,
     pub remapped_count: u32,
+}
+
+struct IngestPageCtx<'a> {
+    cursor: &'a mut InitialSyncCursor,
+    report: &'a mut InitialSyncReport,
+    sync_state: &'a SyncStateRepository<'a>,
+    batch_count: &'a mut u32,
+    force_persist: bool,
 }
 
 pub struct InitialSyncRunner<'a> {
@@ -508,11 +516,13 @@ impl<'a> InitialSyncRunner<'a> {
                     .ingest_n1_page(
                         &array,
                         offset,
-                        cursor,
-                        report,
-                        sync_state,
-                        &mut batch_count,
-                        (array.len() as u32) < self.batch_size,
+                        &mut IngestPageCtx {
+                            cursor,
+                            report,
+                            sync_state,
+                            batch_count: &mut batch_count,
+                            force_persist: (array.len() as u32) < self.batch_size,
+                        },
                     )
                     .await?;
                 if (array.len() as u32) < self.batch_size {
@@ -589,11 +599,13 @@ impl<'a> InitialSyncRunner<'a> {
                 .ingest_n1_page(
                     &array,
                     offset,
-                    cursor,
-                    report,
-                    sync_state,
-                    &mut batch_count,
-                    (array.len() as u32) < self.batch_size,
+                    &mut IngestPageCtx {
+                        cursor,
+                        report,
+                        sync_state,
+                        batch_count: &mut batch_count,
+                        force_persist: (array.len() as u32) < self.batch_size,
+                    },
                 )
                 .await?;
 
@@ -641,11 +653,7 @@ impl<'a> InitialSyncRunner<'a> {
         &self,
         array: &[Value],
         offset: u32,
-        cursor: &mut InitialSyncCursor,
-        report: &mut InitialSyncReport,
-        sync_state: &SyncStateRepository<'_>,
-        batch_count: &mut u32,
-        force_persist: bool,
+        ctx: &mut IngestPageCtx<'_>,
     ) -> Result<u32, SyncError> {
         let synced_at = now_unix_ms();
         let rows: Vec<TrackRow> = array
@@ -660,20 +668,20 @@ impl<'a> InitialSyncRunner<'a> {
             })
             .collect();
         let (_stats, _timing) = self.write_batch_logged(&rows, "N1", offset)?;
-        report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
+        ctx.report.ingested_count = ctx.report.ingested_count.saturating_add(rows.len() as u32);
 
         let next_offset = offset.saturating_add(self.batch_size);
-        cursor.strategy_state = StrategyState::LinearOffset {
+        ctx.cursor.strategy_state = StrategyState::LinearOffset {
             offset: next_offset,
         };
-        cursor.ingested_count = report.ingested_count;
-        *batch_count += 1;
-        if force_persist || *batch_count % CURSOR_PERSIST_EVERY_BATCHES == 0 {
-            self.persist_cursor(sync_state, cursor)?;
+        ctx.cursor.ingested_count = ctx.report.ingested_count;
+        *ctx.batch_count += 1;
+        if ctx.force_persist || ctx.batch_count.is_multiple_of(CURSOR_PERSIST_EVERY_BATCHES) {
+            self.persist_cursor(ctx.sync_state, ctx.cursor)?;
         }
         self.progress.emit(ProgressEvent::IngestPage {
-            ingested_total: report.ingested_count,
-            batch_count: *batch_count,
+            ingested_total: ctx.report.ingested_count,
+            batch_count: *ctx.batch_count,
             metrics: None,
         });
         Ok(next_offset)
@@ -768,12 +776,14 @@ impl<'a> InitialSyncRunner<'a> {
                         &result,
                         &raw_body,
                         offset,
-                        cursor,
-                        report,
-                        sync_state,
-                        &mut batch_count,
                         fetch_ms,
-                        (result.song.len() as u32) < self.batch_size,
+                        &mut IngestPageCtx {
+                            cursor,
+                            report,
+                            sync_state,
+                            batch_count: &mut batch_count,
+                            force_persist: (result.song.len() as u32) < self.batch_size,
+                        },
                     )
                     .await?;
                 if (result.song.len() as u32) < self.batch_size {
@@ -852,12 +862,14 @@ impl<'a> InitialSyncRunner<'a> {
                     &result,
                     &raw_body,
                     offset,
-                    cursor,
-                    report,
-                    sync_state,
-                    &mut batch_count,
                     fetch_ms,
-                    (result.song.len() as u32) < self.batch_size,
+                    &mut IngestPageCtx {
+                        cursor,
+                        report,
+                        sync_state,
+                        batch_count: &mut batch_count,
+                        force_persist: (result.song.len() as u32) < self.batch_size,
+                    },
                 )
                 .await?;
 
@@ -888,12 +900,8 @@ impl<'a> InitialSyncRunner<'a> {
         result: &psysonic_integration::subsonic::SearchResult,
         raw_body: &Value,
         offset: u32,
-        cursor: &mut InitialSyncCursor,
-        report: &mut InitialSyncReport,
-        sync_state: &SyncStateRepository<'_>,
-        batch_count: &mut u32,
         fetch_ms: u32,
-        force_persist: bool,
+        ctx: &mut IngestPageCtx<'_>,
     ) -> Result<u32, SyncError> {
         let raw_songs = raw_body
             .get("song")
@@ -917,19 +925,19 @@ impl<'a> InitialSyncRunner<'a> {
         }
         let row_count = rows.len() as u32;
         let (_stats, write_timing) = self.write_batch_logged(&rows, "S1", offset)?;
-        report.ingested_count = report.ingested_count.saturating_add(row_count);
+        ctx.report.ingested_count = ctx.report.ingested_count.saturating_add(row_count);
 
         let next_offset = offset.saturating_add(self.batch_size);
-        cursor.strategy_state = StrategyState::LinearOffset {
+        ctx.cursor.strategy_state = StrategyState::LinearOffset {
             offset: next_offset,
         };
-        cursor.ingested_count = report.ingested_count;
-        *batch_count += 1;
+        ctx.cursor.ingested_count = ctx.report.ingested_count;
+        *ctx.batch_count += 1;
         let persist_start = std::time::Instant::now();
         let did_persist =
-            force_persist || *batch_count % CURSOR_PERSIST_EVERY_BATCHES == 0;
+            ctx.force_persist || ctx.batch_count.is_multiple_of(CURSOR_PERSIST_EVERY_BATCHES);
         if did_persist {
-            self.persist_cursor(sync_state, cursor)?;
+            self.persist_cursor(ctx.sync_state, ctx.cursor)?;
         }
         let persist_ms = if did_persist {
             persist_start.elapsed().as_millis() as u32
@@ -937,8 +945,8 @@ impl<'a> InitialSyncRunner<'a> {
             0
         };
         self.progress.emit(ProgressEvent::IngestPage {
-            ingested_total: report.ingested_count,
-            batch_count: *batch_count,
+            ingested_total: ctx.report.ingested_count,
+            batch_count: *ctx.batch_count,
             metrics: Some(IngestBatchMetrics {
                 offset,
                 strategy: "s1".into(),
@@ -1051,9 +1059,11 @@ impl<'a> InitialSyncRunner<'a> {
             let fetched = fetch_albums_parallel(
                 self.subsonic,
                 &album_ids,
-                budget,
-                self.sleep_enabled,
-                self.cancel.clone(),
+                ParallelAlbumFetchOpts {
+                    budget,
+                    sleep_enabled: self.sleep_enabled,
+                    cancel: self.cancel.clone(),
+                },
             )
             .await?;
 

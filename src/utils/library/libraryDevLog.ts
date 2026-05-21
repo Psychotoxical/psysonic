@@ -11,6 +11,7 @@ const MAX_RING = 40;
 
 export type LibrarySearchPath =
   | 'library_live_search'
+  | 'library_advanced_search'
   | 'search3'
   | 'search_race'
   | 'skipped_not_ready'

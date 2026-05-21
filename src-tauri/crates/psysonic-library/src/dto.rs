@@ -424,6 +424,24 @@ pub struct LibraryAdvancedSearchResponse {
 /// `library_live_search` response — lean FTS dropdown (§5.9 / P24).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct LibraryLiveSearchRequest {
+    pub server_id: String,
+    pub query: String,
+    #[serde(default)]
+    pub library_scope: Option<String>,
+    #[serde(default)]
+    pub artist_limit: Option<u32>,
+    #[serde(default)]
+    pub album_limit: Option<u32>,
+    #[serde(default)]
+    pub song_limit: Option<u32>,
+    #[serde(default)]
+    pub request_epoch: Option<u64>,
+}
+
+/// `library_live_search` response — lean FTS dropdown (§5.9 / P24).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryLiveSearchResponse {
     pub artists: Vec<LibraryArtistDto>,
     pub albums: Vec<LibraryAlbumDto>,

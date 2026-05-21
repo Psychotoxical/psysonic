@@ -298,7 +298,7 @@ export interface LibraryLiveSearchResponse {
 }
 
 /** Live Search dropdown — one lean FTS query (§5.9), not Advanced Search. */
-export function libraryLiveSearch(args: {
+export interface LibraryLiveSearchRequest {
   serverId: string;
   query: string;
   /** Subsonic `musicFolderId` / Navidrome library id — omit for all libraries. */
@@ -308,8 +308,10 @@ export function libraryLiveSearch(args: {
   songLimit?: number;
   /** UI generation — stale Rust FTS passes are dropped server-side. */
   requestEpoch?: number;
-}): Promise<LibraryLiveSearchResponse> {
-  return invoke<LibraryLiveSearchResponse>('library_live_search', args);
+}
+
+export function libraryLiveSearch(request: LibraryLiveSearchRequest): Promise<LibraryLiveSearchResponse> {
+  return invoke<LibraryLiveSearchResponse>('library_live_search', { request });
 }
 
 /** Cross-server FTS union over the given servers, or all `ready` ones (§5.5B). */

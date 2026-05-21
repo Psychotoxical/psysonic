@@ -42,6 +42,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Local library index + search (preview)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), branch `feat/library-store`**
+
+* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
+* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
+* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
+* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
+
+
+
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**

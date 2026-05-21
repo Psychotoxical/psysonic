@@ -86,7 +86,7 @@ describe('runLocalLiveSearch', () => {
       return { artists: [], albums: [], tracks: [], source: 'local' };
     });
     await runLocalLiveSearch('s1', 'foo', neverStale);
-    expect(captured).toMatchObject({ serverId: 's1', libraryScope: 'lib7' });
+    expect(captured).toMatchObject({ request: { serverId: 's1', libraryScope: 'lib7' } });
   });
 });
 

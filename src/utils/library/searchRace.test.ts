@@ -1,21 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
 import { raceSearchSources } from './searchRace';
 
+type RacePayload = { id: string };
+
 describe('raceSearchSources', () => {
   it('returns the first non-null result', async () => {
-    const winner = await raceSearchSources(
+    const winner = await raceSearchSources<RacePayload>(
       [
         {
           source: 'local',
           run: () =>
-            new Promise(resolve => {
+            new Promise<RacePayload | null>(resolve => {
               setTimeout(() => resolve({ id: 'local' }), 30);
             }),
         },
         {
           source: 'network',
           run: () =>
-            new Promise(resolve => {
+            new Promise<RacePayload | null>(resolve => {
               setTimeout(() => resolve({ id: 'network' }), 5);
             }),
         },
@@ -27,7 +29,7 @@ describe('raceSearchSources', () => {
   });
 
   it('waits for network when local returns null', async () => {
-    const winner = await raceSearchSources(
+    const winner = await raceSearchSources<RacePayload>(
       [
         { source: 'local', run: async () => null },
         {
@@ -42,7 +44,7 @@ describe('raceSearchSources', () => {
 
   it('returns null when every runner returns null', async () => {
     await expect(
-      raceSearchSources(
+      raceSearchSources<RacePayload>(
         [
           { source: 'local', run: async () => null },
           { source: 'network', run: async () => null },
@@ -54,7 +56,7 @@ describe('raceSearchSources', () => {
 
   it('rejects when all runners fail', async () => {
     await expect(
-      raceSearchSources(
+      raceSearchSources<RacePayload>(
         [
           { source: 'local', run: async () => { throw new Error('local boom'); } },
           { source: 'network', run: async () => { throw new Error('network boom'); } },
@@ -65,7 +67,7 @@ describe('raceSearchSources', () => {
   });
 
   it('succeeds when one runner fails and another returns data', async () => {
-    const winner = await raceSearchSources(
+    const winner = await raceSearchSources<{ ok: boolean }>(
       [
         { source: 'local', run: async () => { throw new Error('local boom'); } },
         { source: 'network', run: async () => ({ ok: true }) },
@@ -77,12 +79,12 @@ describe('raceSearchSources', () => {
 
   it('does not resolve after isStale becomes true', async () => {
     let stale = false;
-    const winnerPromise = raceSearchSources(
+    const winnerPromise = raceSearchSources<RacePayload>(
       [
         {
           source: 'local',
           run: () =>
-            new Promise(resolve => {
+            new Promise<RacePayload | null>(resolve => {
               setTimeout(() => {
                 stale = true;
                 resolve({ id: 'late' });

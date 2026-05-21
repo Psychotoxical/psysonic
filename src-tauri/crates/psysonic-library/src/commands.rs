@@ -19,7 +19,7 @@ use crate::cross_server;
 use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
     FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
-    LibraryCrossServerSearchResponse, LibraryLiveSearchResponse, LibraryTrackDto,
+    LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse, LibraryTrackDto,
     LibraryTracksEnvelope, OfflinePathDto, PurgeReportDto, SyncJobDto, SyncStateDto,
     TrackArtifactDto, TrackFactDto, TrackRefDto,
 };
@@ -349,13 +349,7 @@ pub async fn library_advanced_search(
 #[tauri::command]
 pub async fn library_live_search(
     runtime: State<'_, LibraryRuntime>,
-    server_id: String,
-    query: String,
-    library_scope: Option<String>,
-    artist_limit: Option<u32>,
-    album_limit: Option<u32>,
-    song_limit: Option<u32>,
-    request_epoch: Option<u64>,
+    request: LibraryLiveSearchRequest,
 ) -> Result<LibraryLiveSearchResponse, String> {
     let empty = || LibraryLiveSearchResponse {
         artists: Vec::new(),
@@ -363,7 +357,7 @@ pub async fn library_live_search(
         tracks: Vec::new(),
         source: "local".to_string(),
     };
-    if let Some(epoch) = request_epoch {
+    if let Some(epoch) = request.request_epoch {
         runtime.register_live_search_epoch(epoch);
         if !runtime.live_search_still_current(epoch) {
             return Ok(empty());
@@ -371,14 +365,15 @@ pub async fn library_live_search(
     }
     let result = live_search::run_live_search(
         &runtime.store,
-        &server_id,
-        &query,
-        library_scope.as_deref(),
-        artist_limit.unwrap_or(5),
-        album_limit.unwrap_or(5),
-        song_limit.unwrap_or(10),
+        &request.server_id,
+        &request.query,
+        request.library_scope.as_deref(),
+        request.artist_limit.unwrap_or(5),
+        request.album_limit.unwrap_or(5),
+        request.song_limit.unwrap_or(10),
     )?;
-    if request_epoch
+    if request
+        .request_epoch
         .is_some_and(|epoch| !runtime.live_search_still_current(epoch))
     {
         return Ok(empty());

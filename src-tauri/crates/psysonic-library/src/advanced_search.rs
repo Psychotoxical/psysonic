@@ -42,7 +42,20 @@ const ALBUM_COLUMNS: &str = "a.server_id, a.id, a.name, a.artist, a.artist_id, \
 const ARTIST_COLUMNS: &str = "ar.server_id, ar.id, ar.name, ar.album_count, \
   ar.synced_at, ar.raw_json";
 
-/// Rowid pool for FTS prefilter — wide enough for scalar filters after the join.
+/// Flat track projection used when browsing albums in advanced search.
+type AlbumBrowseTrackRow = (
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<i64>,
+    Option<String>,
+    Option<String>,
+    Option<i64>,
+    i64,
+);
+
 fn fts_candidate_pool_size(limit: u32, offset: u32) -> i64 {
     let need = limit.saturating_add(offset) as i64;
     need.saturating_mul(20).clamp(256, 10_000)
@@ -501,7 +514,7 @@ fn build_album_from_fts(
         );
         let params = w.params.clone();
         let mut stmt = conn.prepare(&sql)?;
-        let rows: Vec<(String, String, String, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>, Option<i64>, i64)> =
+        let rows: Vec<AlbumBrowseTrackRow> =
             stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
                 Ok((
                     r.get(0)?,
