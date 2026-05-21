@@ -21,6 +21,7 @@ import {
   type LibraryTrackDto,
 } from '../../api/library';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
+import { search } from '../../api/subsonicSearch';
 import { libraryIsReady } from './libraryReady';
 import { logLibrarySearch, timed } from './libraryDevLog';
 
@@ -153,6 +154,46 @@ export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
 }
 
 /**
+ * Network search3 path for Advanced Search free-text (mirrors AdvancedSearch.tsx filters).
+ */
+export async function runNetworkAdvancedTextSearch(
+  opts: LocalSearchOpts,
+  songsLimit: number,
+): Promise<LocalAdvancedSearchPage | null> {
+  const q = opts.query.trim();
+  if (!q) return null;
+  const g = opts.genre;
+  const from = opts.yearFrom ? parseInt(opts.yearFrom, 10) : null;
+  const to = opts.yearTo ? parseInt(opts.yearTo, 10) : null;
+  const rt = opts.resultType;
+
+  const r = await search(q, {
+    artistCount: 30,
+    albumCount: 50,
+    songCount: songsLimit,
+  });
+
+  let artists = r.artists;
+  let albums = r.albums;
+  let songs = r.songs;
+
+  if (g) songs = songs.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
+  if (from !== null) songs = songs.filter(s => !s.year || s.year >= from);
+  if (to !== null) songs = songs.filter(s => !s.year || s.year <= to);
+
+  if (g) albums = albums.filter(a => a.genre?.toLowerCase() === g.toLowerCase());
+  if (from !== null) albums = albums.filter(a => !a.year || a.year >= from);
+  if (to !== null) albums = albums.filter(a => !a.year || a.year <= to);
+
+  return {
+    artists: rt === 'albums' || rt === 'songs' ? [] : artists,
+    albums: rt === 'artists' || rt === 'songs' ? [] : albums,
+    songs: rt === 'artists' || rt === 'albums' ? [] : songs,
+    songsTotal: rt === 'artists' || rt === 'albums' ? 0 : songs.length,
+  };
+}
+
+/**
  * Full first-page Advanced Search against the local index. Returns `null`
  * when the index isn't ready or the local query fails — caller falls back to
  * the network path.
@@ -163,6 +204,7 @@ export async function runLocalAdvancedSearch(
   songsLimit: number,
   skipReadyCheck = false,
   skipTotals = true,
+  suppressLog = false,
 ): Promise<LocalAdvancedSearchPage | null> {
   if (!serverId) return null;
   if (!skipReadyCheck && !(await libraryIsReady(serverId))) return null;
@@ -184,27 +226,31 @@ export async function runLocalAdvancedSearch(
       songs: resp.tracks.map(trackToSong),
       songsTotal: resp.totals.tracks,
     };
-    logLibrarySearch({
-      at: new Date().toISOString(),
-      query: opts.query.trim(),
-      path: 'library_advanced_search',
-      durationMs: Math.round(performance.now() - t0),
-      invokeMs,
-      counts: {
-        artists: page.artists.length,
-        albums: page.albums.length,
-        songs: page.songs.length,
-      },
-    });
+    if (!suppressLog) {
+      logLibrarySearch({
+        at: new Date().toISOString(),
+        query: opts.query.trim(),
+        path: 'library_advanced_search',
+        durationMs: Math.round(performance.now() - t0),
+        invokeMs,
+        counts: {
+          artists: page.artists.length,
+          albums: page.albums.length,
+          songs: page.songs.length,
+        },
+      });
+    }
     return page;
   } catch (err) {
-    logLibrarySearch({
-      at: new Date().toISOString(),
-      query: opts.query.trim(),
-      path: 'library_advanced_search',
-      durationMs: Math.round(performance.now() - t0),
-      error: String(err),
-    });
+    if (!suppressLog) {
+      logLibrarySearch({
+        at: new Date().toISOString(),
+        query: opts.query.trim(),
+        path: 'library_advanced_search',
+        durationMs: Math.round(performance.now() - t0),
+        error: String(err),
+      });
+    }
     return null;
   }
 }

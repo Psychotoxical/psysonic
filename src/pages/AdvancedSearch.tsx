@@ -13,7 +13,10 @@ import CustomSelect from '../components/CustomSelect';
 import StarFilterButton from '../components/StarFilterButton';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { runLocalAdvancedSearch, loadMoreLocalSongs } from '../utils/library/advancedSearchLocal';
+import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearch } from '../utils/library/advancedSearchLocal';
+import { raceSearchSources } from '../utils/library/searchRace';
+import { logLibrarySearch } from '../utils/library/libraryDevLog';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -66,6 +69,8 @@ export default function AdvancedSearch() {
   const [localMode, setLocalMode] = useState(false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const searchRunRef = useRef(0);
 
   // Pagination — only the free-text-query branch uses search3 with offset
   const SONGS_INITIAL = 100;
@@ -90,6 +95,9 @@ export default function AdvancedSearch() {
   };
 
   const runSearch = async (opts: SearchOpts) => {
+    const runId = ++searchRunRef.current;
+    const isStale = () => runId !== searchRunRef.current;
+
     setLoading(true);
     setHasSearched(true);
     setGenreNote(false);
@@ -97,25 +105,75 @@ export default function AdvancedSearch() {
     setSongsServerOffset(0);
     setSongsHasMore(false);
 
-    // Local index first (§5.13.6): when the index is ready it serves the whole
-    // query offline + instantly. On not-ready / any failure this returns null
-    // and we fall through to the unchanged network path below.
-    const localPage = await runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
-    if (localPage) {
-      setResults({
-        artists: localPage.artists,
-        albums: localPage.albums,
-        songs: localPage.songs,
-      });
-      setSongsServerOffset(localPage.songs.length);
-      setSongsHasMore(localPage.songs.length >= SONGS_INITIAL);
-      setLocalMode(true);
-      setLoading(false);
-      return;
-    }
-    setLocalMode(false);
+    const q = opts.query.trim();
+    const searchT0 = performance.now();
 
-    const { query: q, genre: g, yearFrom: yf, yearTo: yt, resultType: rt } = opts;
+    if (q && serverId && indexEnabled) {
+      try {
+        const winner = await raceSearchSources(
+          [
+            {
+              source: 'local',
+              run: () =>
+                runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL, false, true, true),
+            },
+            {
+              source: 'network',
+              run: () => runNetworkAdvancedTextSearch(opts, SONGS_INITIAL),
+            },
+          ],
+          isStale,
+        );
+        if (isStale()) return;
+        if (winner) {
+          setResults({
+            artists: winner.result.artists,
+            albums: winner.result.albums,
+            songs: winner.result.songs,
+          });
+          setSongsServerOffset(winner.result.songs.length);
+          setSongsHasMore(winner.result.songs.length >= SONGS_INITIAL);
+          setLocalMode(winner.source === 'local');
+          logLibrarySearch({
+            at: new Date().toISOString(),
+            query: q,
+            path: 'search_race',
+            durationMs: Math.round(performance.now() - searchT0),
+            indexEnabled,
+            raceWinner: winner.source,
+            raceWinnerMs: winner.durationMs,
+            counts: {
+              artists: winner.result.artists.length,
+              albums: winner.result.albums.length,
+              songs: winner.result.songs.length,
+            },
+          });
+          setLoading(false);
+          return;
+        }
+      } catch {
+        if (isStale()) return;
+      }
+      setLocalMode(false);
+    } else {
+      const localPage = await runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
+      if (isStale()) return;
+      if (localPage) {
+        setResults({
+          artists: localPage.artists,
+          albums: localPage.albums,
+          songs: localPage.songs,
+        });
+        setSongsServerOffset(localPage.songs.length);
+        setSongsHasMore(localPage.songs.length >= SONGS_INITIAL);
+        setLocalMode(true);
+        setLoading(false);
+        return;
+      }
+      setLocalMode(false);
+    }
+
+    const { genre: g, yearFrom: yf, yearTo: yt, resultType: rt } = opts;
     const from = yf ? parseInt(yf) : null;
     const to = yt ? parseInt(yt) : null;
 

@@ -12,6 +12,7 @@ const MAX_RING = 40;
 export type LibrarySearchPath =
   | 'library_live_search'
   | 'search3'
+  | 'search_race'
   | 'skipped_not_ready'
   | 'local_empty_fallback';
 
@@ -30,6 +31,9 @@ export interface LibrarySearchDebugEntry {
   counts?: { artists: number; albums: number; songs: number };
   fallbackReason?: string;
   error?: string;
+  /** Winner when local + network ran in parallel. */
+  raceWinner?: 'local' | 'network';
+  raceWinnerMs?: number;
 }
 
 export interface LibrarySyncDebugEntry {
