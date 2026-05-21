@@ -17,6 +17,7 @@ export const search = {
   advancedYear: '年份',
   advancedYearFrom: '从',
   advancedYearTo: '至',
+  advancedBpm: 'BPM',
   advancedAll: '全部',
   advancedSearch: '搜索',
   advancedEmpty: '请输入搜索词或选择过滤器。',

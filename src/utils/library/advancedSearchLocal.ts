@@ -30,6 +30,8 @@ export interface LocalSearchOpts {
   genre: string;
   yearFrom: string;
   yearTo: string;
+  bpmFrom: string;
+  bpmTo: string;
   resultType: AdvancedResultType;
 }
 
@@ -68,6 +70,15 @@ function buildFilters(opts: LocalSearchOpts): LibraryFilterClause[] {
     filters.push({ field: 'year', op: 'gte', value: from });
   } else if (to !== null) {
     filters.push({ field: 'year', op: 'lte', value: to });
+  }
+  const bpmFrom = opts.bpmFrom ? parseInt(opts.bpmFrom, 10) : null;
+  const bpmTo = opts.bpmTo ? parseInt(opts.bpmTo, 10) : null;
+  if (bpmFrom !== null && bpmTo !== null) {
+    filters.push({ field: 'bpm', op: 'between', value: bpmFrom, valueTo: bpmTo });
+  } else if (bpmFrom !== null) {
+    filters.push({ field: 'bpm', op: 'gte', value: bpmFrom });
+  } else if (bpmTo !== null) {
+    filters.push({ field: 'bpm', op: 'lte', value: bpmTo });
   }
   return filters;
 }

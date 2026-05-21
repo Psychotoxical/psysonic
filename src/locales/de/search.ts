@@ -17,6 +17,7 @@ export const search = {
   advancedYear: 'Jahr',
   advancedYearFrom: 'von',
   advancedYearTo: 'bis',
+  advancedBpm: 'BPM',
   advancedAll: 'Alle',
   advancedSearch: 'Suchen',
   advancedEmpty: 'Suchbegriff eingeben oder Filter wählen, um zu beginnen.',
