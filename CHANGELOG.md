@@ -16,6 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.47.0]
 
+### Linux — session GDK, WebKitGTK mitigations, and Wayland text
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
+
+* **Nix / AUR** default installs follow the session GDK backend instead of pinning `GDK_BACKEND=x11`; startup applies **`webkit2gtk-nvidia-quirk`** only (skip with **`PSYSONIC_WEBKIT_GPU_ACCEL`**). **`nix run .#psysonic-x11-legacy`** keeps the old explicit X11 launcher.
+* **NVIDIA + forced X11** on a Wayland user session no longer greys out the webview — the quirk uses the DMABUF renderer path instead of Wayland explicit-sync disable.
+* **Wayland + GPU compositing:** clearer UI text via on-demand hardware acceleration on main and mini webviews; **Settings → System** adds **Wayland text rendering** presets (Balanced / Sharp / GPU / Minimal). Opt out with **`PSYSONIC_SKIP_WAYLAND_FONT_TUNING`**.
+
+
+
+### Library browse — in-page overlay scroll
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
+
+* **Artists**, **Albums**, **Composers**, **Lossless albums**, and **New releases** scroll inside the route on a locked in-page viewport — toolbars stay sticky, virtual grids use the matching scroll root.
+* Sidebar hover and album/artist card covers no longer jitter on WebKitGTK + Wayland during pointer moves.
+
+
+
 ### Settings + Queue polish
 
 **By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**
@@ -41,36 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Local library index + search (preview)
-
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
-
-* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
-* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
-* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
-* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
-
-
-
-### Linux — session GDK, WebKitGTK mitigations, and Wayland text
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
-
-* **Nix / AUR** default installs follow the session GDK backend instead of pinning `GDK_BACKEND=x11`; startup applies **`webkit2gtk-nvidia-quirk`** only (skip with **`PSYSONIC_WEBKIT_GPU_ACCEL`**). **`nix run .#psysonic-x11-legacy`** keeps the old explicit X11 launcher.
-* **NVIDIA + forced X11** on a Wayland user session no longer greys out the webview — the quirk uses the DMABUF renderer path instead of Wayland explicit-sync disable.
-* **Wayland + GPU compositing:** clearer UI text via on-demand hardware acceleration on main and mini webviews; **Settings → System** adds **Wayland text rendering** presets (Balanced / Sharp / GPU / Minimal). Opt out with **`PSYSONIC_SKIP_WAYLAND_FONT_TUNING`**.
-
-
-
-### Library browse — in-page overlay scroll
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
-
-* **Artists**, **Albums**, **Composers**, **Lossless albums**, and **New releases** scroll inside the route on a locked in-page viewport — toolbars stay sticky, virtual grids use the matching scroll root.
-* Sidebar hover and album/artist card covers no longer jitter on WebKitGTK + Wayland during pointer moves.
-
-
-
 ### Fixed
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
@@ -81,19 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#785](https://github.com/Psychotoxical/psysonic/pull/785)**
 
 * **Lucky Mix after server switch:** starting a mix on the browsed server no longer spams cross-server enqueue errors — unpinned or foreign queues hand off cleanly before batch enqueue.
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#844](https://github.com/Psychotoxical/psysonic/pull/844)**
-
-* **Album view:** bulk "Add to playlist" no longer clears the track selection without opening the playlist picker.
-
-
-
-### Mainstage — album rail hover controls
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#787](https://github.com/Psychotoxical/psysonic/pull/787)**
-
-* **Home horizontal album rails (Discover, etc.):** play/enqueue overlay no longer flickers on WebKitGTK + Wayland GPU; cover zoom stays smooth like the All Albums grid.
-* **Album grids and song rails:** overlay `pointer-events` so the dim layer does not steal hover from the card.
 
 
 
@@ -112,6 +88,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Repeat is disabled while a radio stream plays.
 * Deleting the playing station fades out instead of cutting hard.
 * Play / Stop tooltip on the cover-overlay button; stop uses a Square icon.
+
+
+
+### Mainstage — album rail hover controls
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#787](https://github.com/Psychotoxical/psysonic/pull/787)**
+
+* **Home horizontal album rails (Discover, etc.):** play/enqueue overlay no longer flickers on WebKitGTK + Wayland GPU; cover zoom stays smooth like the All Albums grid.
+* **Album grids and song rails:** overlay `pointer-events` so the dim layer does not steal hover from the card.
+
+
+
+### Fixed
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#844](https://github.com/Psychotoxical/psysonic/pull/844)**
+
+* **Album view:** bulk "Add to playlist" no longer clears the track selection without opening the playlist picker.
+
+
+
+### Local library index + search (preview)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
+
+* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
+* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
+* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
+* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
 
 
 
