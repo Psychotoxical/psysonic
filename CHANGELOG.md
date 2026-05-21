@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.47.0]
 
+### Library sync — parallel initial ingest
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#838](https://github.com/Psychotoxical/psysonic/pull/838)**
+
+* Initial full sync uses the C11 **parallelism budget** (up to **4** concurrent HTTP requests when playback is idle).
+* **S2 fallback** (`getAlbumList2` + `getAlbum`): album bodies fetch in parallel; sync cursor persists **once per album-list page** instead of after every album.
+* **N1 / S1** linear ingest prefetches up to four pages ahead while the current batch writes to SQLite.
+
 ### Settings + Queue polish
 
 **By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**
