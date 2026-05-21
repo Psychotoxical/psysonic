@@ -21,18 +21,18 @@ import {
   type LocalSearchOpts,
 } from './advancedSearchLocal';
 import {
-  logBrowseRace,
+  logLibrarySearch,
   timed,
-  type BrowseRaceSurface,
   type LibrarySearchDebugEntry,
+  type LibrarySearchSurface,
 } from './libraryDevLog';
 import { libraryIsReady } from './libraryReady';
 import { raceSearchSources, type SearchRaceWinner } from './searchRace';
 
-export type { BrowseRaceSurface };
+export type { LibrarySearchSurface };
 
 export interface BrowseRaceLogOptions {
-  surface: BrowseRaceSurface;
+  surface: LibrarySearchSurface;
   query: string;
   indexEnabled?: boolean;
   counts?: (result: unknown) => LibrarySearchDebugEntry['counts'];
@@ -46,7 +46,7 @@ function logBrowseRaceOutcome(
   fallbackReason?: string,
 ): void {
   if (!log) return;
-  logBrowseRace({
+  logLibrarySearch({
     at: new Date().toISOString(),
     query: log.query,
     path,

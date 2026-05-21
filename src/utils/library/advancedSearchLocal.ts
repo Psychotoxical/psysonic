@@ -234,6 +234,8 @@ export async function runLocalAdvancedSearch(
         at: new Date().toISOString(),
         query: opts.query.trim(),
         path: 'library_advanced_search',
+        surface: 'advanced_search',
+        source: 'local',
         durationMs: Math.round(performance.now() - t0),
         invokeMs,
         counts: {
@@ -250,6 +252,8 @@ export async function runLocalAdvancedSearch(
         at: new Date().toISOString(),
         query: opts.query.trim(),
         path: 'library_advanced_search',
+        surface: 'advanced_search',
+        source: 'local',
         durationMs: Math.round(performance.now() - t0),
         error: String(err),
       });

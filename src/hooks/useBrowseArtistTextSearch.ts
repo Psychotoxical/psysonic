@@ -7,7 +7,7 @@ import {
   raceBrowseWithLocalFallback,
   runLocalBrowseArtists,
   runNetworkBrowseArtists,
-  type BrowseRaceSurface,
+  type LibrarySearchSurface,
 } from '../utils/library/browseTextSearch';
 
 /**
@@ -20,7 +20,7 @@ export function useBrowseArtistTextSearch(
   filter: string,
   indexEnabled: boolean,
   serverId: string | null | undefined,
-  surface: BrowseRaceSurface = 'artists_browse',
+  surface: LibrarySearchSurface = 'artists_browse',
 ) {
   const [debouncedFilter, setDebouncedFilter] = useState('');
   const [textSearchArtists, setTextSearchArtists] = useState<SubsonicArtist[] | null>(null);

@@ -138,6 +138,7 @@ export default function AdvancedSearch() {
             at: new Date().toISOString(),
             query: q,
             path: 'search_race',
+            surface: 'advanced_search',
             durationMs: Math.round(performance.now() - searchT0),
             indexEnabled,
             raceWinner: winner.source,
@@ -218,11 +219,28 @@ export default function AdvancedSearch() {
         albums = await getAlbumList('byYear', 100, 0, { fromYear, toYear });
       }
 
-      setResults({
+      const finalResults = {
         artists: rt === 'albums' || rt === 'songs' ? [] : artists,
         albums: rt === 'artists' || rt === 'songs' ? [] : albums,
         songs: rt === 'artists' || rt === 'albums' ? [] : songs,
-      });
+      };
+      setResults(finalResults);
+      if (q.trim()) {
+        logLibrarySearch({
+          at: new Date().toISOString(),
+          query: q,
+          path: 'search3',
+          surface: 'advanced_search',
+          source: 'network',
+          durationMs: Math.round(performance.now() - searchT0),
+          indexEnabled,
+          counts: {
+            artists: finalResults.artists.length,
+            albums: finalResults.albums.length,
+            songs: finalResults.songs.length,
+          },
+        });
+      }
     } catch {
       setResults({ artists: [], albums: [], songs: [] });
     }

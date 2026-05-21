@@ -81,6 +81,8 @@ export async function runLocalLiveSearch(
         at: new Date().toISOString(),
         query: q,
         path: 'library_live_search',
+        surface: 'live_search',
+        source: 'local',
         durationMs: Math.round(performance.now() - t0),
         invokeMs,
         counts: {
@@ -98,6 +100,8 @@ export async function runLocalLiveSearch(
         at: new Date().toISOString(),
         query: q,
         path: 'library_live_search',
+        surface: 'live_search',
+        source: 'local',
         durationMs: Math.round(performance.now() - t0),
         error: String(err),
         fallbackReason: 'invoke_failed',

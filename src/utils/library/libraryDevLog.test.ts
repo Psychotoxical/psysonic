@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeCapabilityFlags,
   explainLibraryReady,
+  formatLibrarySearchLine,
   ingestStallHint,
   normalizeIngestMetrics,
 } from './libraryDevLog';
@@ -84,5 +85,35 @@ describe('libraryDevLog', () => {
         bulkIngestActive: true,
       }),
     ).toBe('write_lock_held_by_other_op');
+  });
+
+  it('formatLibrarySearchLine uses unified search prefix', () => {
+    expect(
+      formatLibrarySearchLine({
+        at: '',
+        query: 'foo',
+        path: 'search_race',
+        surface: 'live_search',
+        durationMs: 14,
+        raceWinner: 'local',
+        raceWinnerMs: 9,
+        counts: { artists: 1, albums: 2, songs: 3 },
+      }),
+    ).toBe(
+      'search [live_search] path=search_race winner=local raceMs=9 totalMs=14 hits=1/2/3',
+    );
+    expect(
+      formatLibrarySearchLine({
+        at: '',
+        query: 'bar',
+        path: 'search3',
+        surface: 'advanced_search',
+        source: 'network',
+        durationMs: 120,
+        invokeMs: 80,
+      }),
+    ).toBe(
+      'search [advanced_search] path=search3 source=network totalMs=120 invokeMs=80',
+    );
   });
 });
