@@ -1,4 +1,4 @@
-import { star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar } from '../store/pendingStarSync';
 import { getGenres } from '../api/subsonicGenres';
 import type { SubsonicSong, SubsonicGenre } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -32,7 +32,6 @@ export default function RandomMix() {
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
@@ -121,23 +120,15 @@ export default function RandomMix() {
     }
   };
 
-  const toggleSongStar = async (song: SubsonicSong, e: React.MouseEvent) => {
+  const toggleSongStar = (song: SubsonicSong, e: React.MouseEvent) => {
     e.stopPropagation();
     const currentlyStarred = song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id);
     const nextStarred = new Set(starredSongs);
     if (currentlyStarred) nextStarred.delete(song.id);
     else nextStarred.add(song.id);
     setStarredSongs(nextStarred);
-    setStarredOverride(song.id, !currentlyStarred);
-
-    try {
-      if (currentlyStarred) await unstar(song.id, 'song');
-      else await star(song.id, 'song');
-    } catch (err) {
-      console.error('Failed to toggle song star', err);
-      setStarredSongs(new Set(starredSongs));
-      setStarredOverride(song.id, currentlyStarred);
-    }
+    // F4: optimistic override + retried server sync via the central helper (no rollback).
+    queueSongStar(song.id, !currentlyStarred);
   };
 
   const loadGenreMix = async (genre: string, overrideSize?: number) => {

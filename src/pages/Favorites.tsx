@@ -1,4 +1,4 @@
-import { setRating, unstar } from '../api/subsonicStarRating';
+import { queueSongStar, queueSongRating } from '../store/pendingStarSync';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong, InternetRadioStation } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -93,19 +93,18 @@ export default function Favorites() {
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
   const psyDrag = useDragDrop();
 
   const handleRate = (songId: string, rating: number) => {
     setRatings(r => ({ ...r, [songId]: rating }));
-    usePlayerStore.getState().setUserRatingOverride(songId, rating);
-    setRating(songId, rating).catch(() => {});
+    // F4: optimistic override + retried server sync via the central helper.
+    queueSongRating(songId, rating);
   };
 
   function removeSong(id: string) {
-    unstar(id, 'song').catch(() => {});
-    setStarredOverride(id, false);
+    // F4: optimistic un-star + retried server sync via the central helper.
+    queueSongStar(id, false);
     setSongs(prev => prev.filter(s => s.id !== id));
   }
 
