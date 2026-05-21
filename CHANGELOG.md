@@ -108,6 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## Added
+
 ### Local library index + search (preview)
 
 **By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
