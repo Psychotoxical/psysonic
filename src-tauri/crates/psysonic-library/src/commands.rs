@@ -764,7 +764,7 @@ async fn library_sync_start_inner(
         if let Some(state) = app_for_emit.try_state::<LibraryRuntime>() {
             if let Some(job) = state.current_job() {
                 if job.job_id == job_id_for_emit {
-                    job.done.notify_waiters();
+                    job.done.notify_one();
                 }
             }
             state.clear_current_job_if_matches(&job_id_for_emit);

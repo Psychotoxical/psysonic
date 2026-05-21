@@ -233,4 +233,26 @@ mod tests {
         rt.set_playback_hint(PlaybackHint::PrefetchActive);
         assert_eq!(rt.current_playback_hint(), PlaybackHint::PrefetchActive);
     }
+
+    #[tokio::test]
+    async fn job_done_notify_one_survives_early_signal_before_await() {
+        let done = Arc::new(Notify::new());
+        done.notify_one();
+        tokio::time::timeout(std::time::Duration::from_millis(50), done.notified())
+            .await
+            .expect("notify_one must store a permit for a later waiter");
+    }
+
+    #[tokio::test]
+    async fn job_done_notify_waiters_loses_early_signal_before_await() {
+        let done = Arc::new(Notify::new());
+        done.notify_waiters();
+        let waited = tokio::time::timeout(std::time::Duration::from_millis(20), done.notified())
+            .await
+            .is_ok();
+        assert!(
+            !waited,
+            "notify_waiters must not store a permit — resync drain uses notify_one instead"
+        );
+    }
 }

@@ -45,28 +45,65 @@ pub fn restore_track_fts_triggers(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(RESTORE_TRACK_FTS_TRIGGERS)
 }
 
+/// Normalize trigger DDL for equality checks — strips `IF NOT EXISTS`
+/// and collapses whitespace so migration vs restore sources compare cleanly.
+#[cfg(test)]
+pub(crate) fn normalize_trigger_ddl(sql: &str) -> String {
+    sql.replace("IF NOT EXISTS", "")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::store::LibraryStore;
+    use std::collections::HashMap;
+
+    const TRACK_FTS_TRIGGER_NAMES: [&str; 3] = ["track_ai", "track_ad", "track_au"];
+
+    fn fetch_track_fts_trigger_ddl(conn: &Connection, name: &str) -> String {
+        conn.query_row(
+            "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?1",
+            [name],
+            |r| r.get(0),
+        )
+        .unwrap_or_else(|e| panic!("missing trigger `{name}`: {e}"))
+    }
+
+    fn migration_track_fts_trigger_bodies(
+        conn: &Connection,
+    ) -> rusqlite::Result<HashMap<String, String>> {
+        Ok(TRACK_FTS_TRIGGER_NAMES
+            .iter()
+            .map(|name| {
+                let ddl = fetch_track_fts_trigger_ddl(conn, name);
+                (name.to_string(), normalize_trigger_ddl(&ddl))
+            })
+            .collect())
+    }
 
     #[test]
-    fn restore_track_fts_triggers_recreates_migration_triggers() {
+    fn restore_track_fts_triggers_match_migration_bodies() {
         let store = LibraryStore::open_in_memory();
+        let baseline = store
+            .with_conn("misc", migration_track_fts_trigger_bodies)
+            .unwrap();
+
         store
             .with_conn_mut("misc", |conn| {
                 suspend_track_fts_triggers(conn)?;
                 restore_track_fts_triggers(conn)?;
-                let mut stmt = conn.prepare(
-                    "SELECT name FROM sqlite_master \
-                     WHERE type = 'trigger' AND name IN ('track_ai', 'track_ad', 'track_au') \
-                     ORDER BY name",
-                )?;
-                let names: Vec<String> = stmt
-                    .query_map([], |r| r.get(0))?
-                    .filter_map(Result::ok)
-                    .collect();
-                assert_eq!(names, vec!["track_ad", "track_ai", "track_au"]);
+                for name in TRACK_FTS_TRIGGER_NAMES {
+                    let after = normalize_trigger_ddl(&fetch_track_fts_trigger_ddl(conn, name));
+                    assert_eq!(
+                        after,
+                        baseline[name],
+                        "trigger `{name}` body drifted after suspend/restore"
+                    );
+                }
                 Ok(())
             })
             .unwrap();
