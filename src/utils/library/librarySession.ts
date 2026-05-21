@@ -1,6 +1,7 @@
 import { librarySyncBindSession, libraryGetStatus, librarySyncStart } from '../../api/library';
 import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
+import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 
 /**
  * Re-bind the Rust sync session for the active server when the index
@@ -25,12 +26,28 @@ export async function ensureActiveServerSessionBound(): Promise<boolean> {
   const baseUrl = auth.getBaseUrl();
   if (!baseUrl) return false;
   try {
+    const t0 = performance.now();
     await librarySyncBindSession({
       serverId: server.id,
       baseUrl,
       username: server.username,
       password: server.password,
     });
+    if (libraryDevEnabled()) {
+      const { result: status, ms } = await timed(() => libraryGetStatus(server.id));
+      logLibrarySync({
+        at: new Date().toISOString(),
+        kind: 'bind_session',
+        serverId: server.id,
+        ingestStrategy: status.ingestStrategy ?? null,
+        ingestPhase: status.ingestPhase ?? null,
+        syncPhase: status.syncPhase,
+        n1BulkUnreliable: status.n1BulkUnreliable ?? null,
+        durationMs: Math.round(performance.now() - t0),
+        message: `status fetch ${ms}ms`,
+      });
+      logLibraryStatus(server.id, status, 'bind_session');
+    }
   } catch {
     /* best-effort — Settings shows the real error on explicit toggle */
   }
@@ -42,10 +59,10 @@ export async function ensureActiveServerSessionBound(): Promise<boolean> {
  *
  * The background scheduler is delta-only (PR-5b), so a full sync killed
  * mid-run (app restart) would otherwise sit at `idle` until the user clicks
- * «Sync now». A library that has never completed a full sync
- * (`!lastFullSyncAt`) (re)starts one with `mode: 'full'`, which resumes from
- * the persisted cursor rather than restarting from zero. Once a full sync has
- * landed this is a no-op, so delta stays the scheduler's job.
+ * «Sync now». When `syncPhase === 'initial_sync'`, (re)start with
+ * `mode: 'full'` — the Rust side resumes from the persisted cursor.
+ * A finished library (`ready` / `lastFullSyncAt`) or an idle library that
+ * already has indexed tracks must not be restarted on every launch.
  *
  * Best-effort: errors stay silent — Settings surfaces them on explicit action.
  *
@@ -59,9 +76,26 @@ export async function resumeInitialSyncIfIncomplete(serverId: string): Promise<v
   if (resumeInFlight.has(serverId)) return;
   resumeInFlight.add(serverId);
   try {
-    const status = await libraryGetStatus(serverId);
-    if (!status.lastFullSyncAt) {
-      await librarySyncStart({ serverId, mode: 'full' });
+    const { result: status, ms: statusMs } = await timed(() => libraryGetStatus(serverId));
+    if (status.syncPhase === 'ready' || status.lastFullSyncAt) return;
+    if (status.syncPhase !== 'initial_sync') return;
+    const resumeT0 = performance.now();
+    await librarySyncStart({ serverId, mode: 'full' });
+    if (libraryDevEnabled()) {
+      logLibrarySync({
+        at: new Date().toISOString(),
+        kind: 'resume_initial_sync',
+        serverId,
+        ingestStrategy: status.ingestStrategy ?? null,
+        ingestPhase: status.ingestPhase ?? null,
+        syncPhase: status.syncPhase,
+        n1BulkUnreliable: status.n1BulkUnreliable ?? null,
+        localTrackCount: status.localTrackCount ?? null,
+        serverTrackCount: status.serverTrackCount ?? null,
+        durationMs: Math.round(performance.now() - resumeT0),
+        message: `status ${statusMs}ms`,
+      });
+      logLibraryStatus(serverId, status, 'resume_initial_sync');
     }
   } catch {
     /* best-effort */

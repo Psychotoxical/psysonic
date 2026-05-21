@@ -1,20 +1,50 @@
 /**
  * Is the local library index usable for `serverId` right now?
  *
- * Spec §5.13.6 / P8: consumers (Advanced Search, browse, …) only read from
- * the local index when it's both enabled and fully synced (`ready`); any
- * partial / disabled / errored state falls back to the network so results
- * are never silently incomplete.
+ * Spec §5.13.6 / §9.3 (`isReady()`): consumers only read from the local
+ * index when it's enabled and synced enough for trustworthy results.
  */
-import { libraryGetStatus } from '../../api/library';
+import { libraryGetStatus, type SyncStateDto } from '../../api/library';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
+
+/** Spec §9.3 — shared by Live Search, Advanced Search, browse, … */
+export function libraryStatusIsReady(status: SyncStateDto): boolean {
+  if (status.syncPhase === 'ready') return true;
+  if (status.syncPhase === 'initial_sync') {
+    const local = status.localTrackCount ?? 0;
+    const server = status.serverTrackCount ?? 0;
+    if (server > 0 && local / server >= 0.95) return true;
+  }
+  // Re-bind resets sync_phase to `idle` while SQLite data stays — treat a
+  // completed full sync (or live rows) as ready for local reads.
+  if (status.syncPhase === 'idle') {
+    if (status.hasLocalTracks) return true;
+    if (status.lastFullSyncAt != null) return true;
+    if ((status.localTracksMaxUpdatedMs ?? 0) > 0) return true;
+    if ((status.localTrackCount ?? 0) > 0) return true;
+  }
+  return false;
+}
+
+/** Monotonic ingest counter for Settings progress during `initial_sync`. */
+export function syncIngestDisplayCount(
+  status: Pick<SyncStateDto, 'localTrackCount' | 'cursorIngestedCount'>,
+  eventTotal?: number | null,
+): number {
+  return Math.max(
+    status.localTrackCount ?? 0,
+    status.cursorIngestedCount ?? 0,
+    eventTotal ?? 0,
+    0,
+  );
+}
 
 export async function libraryIsReady(serverId: string | null | undefined): Promise<boolean> {
   if (!serverId) return false;
   if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return false;
   try {
     const status = await libraryGetStatus(serverId);
-    return status.syncPhase === 'ready';
+    return libraryStatusIsReady(status);
   } catch {
     return false;
   }

@@ -26,18 +26,57 @@ use super::ingest_parallel::{
     sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue,
 };
 use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
-use super::progress::{NoopProgress, Progress, ProgressEvent};
+use super::progress::{IngestBatchMetrics, NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
+use crate::bulk_ingest::{restore_track_secondary_indexes, suspend_track_secondary_indexes};
 use crate::repos::{RemapStats, SyncStateRepository, TrackRepository, TrackRow};
 use crate::store::LibraryStore;
+use crate::store::WriteOpTiming;
+use crate::track_fts::{
+    rebuild_track_fts_from_content, restore_track_fts_triggers, suspend_track_fts_triggers,
+};
 
 /// Bulk ingest batch size per spec §6.3 (`batch=500`).
 const DEFAULT_BATCH_SIZE: u32 = 500;
+
+/// Persist initial-sync cursor every N ingest batches (not every batch).
+/// S2 already persists once per album-list page; N1/S1 match ~prefetch depth.
+const CURSOR_PERSIST_EVERY_BATCHES: u32 = 4;
 
 /// Maximum attempts per batch before `SyncError::Transport` propagates.
 /// Caller (Settings „retry" / PR-3d scheduler) can wrap and retry the
 /// whole run if needed.
 const MAX_ATTEMPTS_PER_BATCH: u32 = 5;
+
+/// Suspends FTS + secondary indexes for IS-3; restores on drop.
+struct BulkIngestGuard<'a> {
+    store: &'a LibraryStore,
+}
+
+impl Drop for BulkIngestGuard<'_> {
+    fn drop(&mut self) {
+        self.store.set_bulk_ingest_active(false);
+        let start = std::time::Instant::now();
+        match self.store.with_conn_mut("bulk.finalize", |conn| {
+            conn.pragma_update(None, "synchronous", "NORMAL")?;
+            conn.pragma_update(None, "wal_autocheckpoint", 1000)?;
+            restore_track_secondary_indexes(conn)?;
+            let _: (i32, i32, i32) = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?;
+            rebuild_track_fts_from_content(conn)?;
+            restore_track_fts_triggers(conn)
+        }) {
+            Ok(()) => crate::app_eprintln!(
+                "[library-sync] bulk ingest finalized in {}ms (indexes + WAL + FTS)",
+                start.elapsed().as_millis()
+            ),
+            Err(e) => {
+                crate::app_eprintln!("[library-sync] bulk ingest finalize failed: {e}")
+            }
+        }
+    }
+}
 
 /// N1 deep-offset safety line (R7-15 Q1/Q5). A `GET /api/song` HTTP 500 at
 /// or beyond this offset is treated as Navidrome's server-side deep-offset
@@ -174,6 +213,22 @@ impl<'a> InitialSyncRunner<'a> {
 
         // IS-3 — bulk ingest per strategy.
         if cursor.phase == CursorPhase::Ingest {
+            self.store.set_bulk_ingest_active(true);
+            self.store
+                .with_conn_mut("bulk.begin", |conn| {
+                    suspend_track_fts_triggers(conn)?;
+                    suspend_track_secondary_indexes(conn)?;
+                    conn.pragma_update(None, "synchronous", "OFF")?;
+                    conn.pragma_update(None, "wal_autocheckpoint", 0)?;
+                    conn.pragma_update(None, "cache_size", -128_000)?;
+                    Ok(())
+                })
+                .map_err(SyncError::Storage)?;
+            crate::app_eprintln!(
+                "[library-sync] IS-3 bulk ingest: FTS/indexes suspended, sync=OFF"
+            );
+            let _bulk = BulkIngestGuard { store: self.store };
+
             match strategy {
                 IngestStrategy::N1 => self.run_n1(&mut cursor, &mut report, &sync_state).await?,
                 IngestStrategy::S1 => self.run_s1(&mut cursor, &mut report, &sync_state).await?,
@@ -182,6 +237,7 @@ impl<'a> InitialSyncRunner<'a> {
                     return Err(SyncError::StrategyUnsupported { strategy: "s3" })
                 }
             }
+            self.link_canonical_after_bulk_ingest()?;
             cursor.phase = CursorPhase::ArtistPass;
             self.persist_cursor(&sync_state, &cursor)?;
         }
@@ -201,7 +257,16 @@ impl<'a> InitialSyncRunner<'a> {
             self.persist_cursor(&sync_state, &cursor)?;
         }
 
-        // IS-6 — phase=ready, clear cursor.
+        // IS-6 — phase=ready, clear cursor, stamp watermarks.
+        let finished_at = now_unix_ms();
+        let local_count = crate::dto::count_local_tracks(self.store, &self.server_id)
+            .map_err(SyncError::Storage)?;
+        sync_state
+            .set_local_track_count(&self.server_id, &self.library_scope, local_count)
+            .map_err(SyncError::Storage)?;
+        sync_state
+            .set_last_full_sync_at(&self.server_id, &self.library_scope, finished_at)
+            .map_err(SyncError::Storage)?;
         sync_state
             .set_sync_phase(&self.server_id, &self.library_scope, "ready")
             .map_err(SyncError::Storage)?;
@@ -314,7 +379,12 @@ impl<'a> InitialSyncRunner<'a> {
         let value = serde_json::to_value(cursor)
             .map_err(|e| SyncError::Storage(format!("serialize cursor: {e}")))?;
         sync_state
-            .set_initial_sync_cursor(&self.server_id, &self.library_scope, &value)
+            .set_initial_sync_cursor_and_local_track_count(
+                &self.server_id,
+                &self.library_scope,
+                &value,
+                i64::from(cursor.ingested_count),
+            )
             .map_err(SyncError::Storage)
     }
 
@@ -325,11 +395,6 @@ impl<'a> InitialSyncRunner<'a> {
             }
         }
         Ok(())
-    }
-
-    fn unstable_track_ids(&self) -> bool {
-        self.capability_flags
-            .contains(CapabilityFlags::UNSTABLE_TRACK_IDS)
     }
 
     fn library_scope_opt(&self) -> Option<&str> {
@@ -346,10 +411,52 @@ impl<'a> InitialSyncRunner<'a> {
         }
     }
 
-    fn write_batch(&self, rows: &[TrackRow]) -> Result<RemapStats, SyncError> {
+    fn write_batch_timed(&self, rows: &[TrackRow]) -> Result<WriteOpTiming, SyncError> {
         TrackRepository::new(self.store)
-            .upsert_batch_with_remap(rows, self.unstable_track_ids())
+            .upsert_batch_initial_ingest_timed(rows)
             .map_err(SyncError::Storage)
+    }
+
+    fn write_batch_logged(
+        &self,
+        rows: &[TrackRow],
+        label: &str,
+        offset: u32,
+    ) -> Result<(RemapStats, WriteOpTiming), SyncError> {
+        let timing = self.write_batch_timed(rows)?;
+        let total_ms = timing.total_ms();
+        if total_ms >= 500 {
+            crate::app_eprintln!(
+                "[library-sync] {label} offset={offset} rows={} write_ms={total_ms} lock_wait_ms={} sql_exec_ms={} (slow batch)",
+                rows.len(),
+                timing.lock_wait_ms,
+                timing.exec_ms,
+            );
+        } else {
+            crate::app_eprintln!(
+                "[library-sync] {label} offset={offset} rows={} write_ms={total_ms} lock_wait_ms={} sql_exec_ms={}",
+                rows.len(),
+                timing.lock_wait_ms,
+                timing.exec_ms,
+            );
+        }
+        Ok((RemapStats::default(), timing))
+    }
+
+    fn link_canonical_after_bulk_ingest(&self) -> Result<(), SyncError> {
+        let start = std::time::Instant::now();
+        let linked = crate::canonical::link_all_tracks_for_server(
+            self.store,
+            &self.server_id,
+            now_unix_ms(),
+        )
+        .map_err(SyncError::Storage)?;
+        crate::app_eprintln!(
+            "[library-sync] canonical bulk link server `{}`: {linked} tracks in {}ms",
+            self.server_id,
+            start.elapsed().as_millis()
+        );
+        Ok(())
     }
 
     // ── N1 (Navidrome native /api/song) ────────────────────────────────
@@ -373,8 +480,16 @@ impl<'a> InitialSyncRunner<'a> {
         };
 
         let budget = self.parallelism_budget();
+        let prefetch = linear_prefetch_depth(&budget);
+        crate::app_eprintln!(
+            "[library-sync] N1 ingest server `{}`: prefetch_depth={} max_concurrent={} batch_size={}",
+            self.server_id,
+            prefetch,
+            budget.max_concurrent,
+            self.batch_size
+        );
         let mut batch_count: u32 = 0;
-        if linear_prefetch_depth(&budget) <= 1 {
+        if prefetch <= 1 {
             loop {
                 wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
                     .await?;
@@ -397,12 +512,14 @@ impl<'a> InitialSyncRunner<'a> {
                         report,
                         sync_state,
                         &mut batch_count,
+                        (array.len() as u32) < self.batch_size,
                     )
                     .await?;
                 if (array.len() as u32) < self.batch_size {
                     break;
                 }
             }
+            self.persist_cursor(sync_state, cursor)?;
             return Ok(());
         }
 
@@ -476,6 +593,7 @@ impl<'a> InitialSyncRunner<'a> {
                     report,
                     sync_state,
                     &mut batch_count,
+                    (array.len() as u32) < self.batch_size,
                 )
                 .await?;
 
@@ -484,6 +602,7 @@ impl<'a> InitialSyncRunner<'a> {
                 break;
             }
         }
+        self.persist_cursor(sync_state, cursor)?;
         Ok(())
     }
 
@@ -526,6 +645,7 @@ impl<'a> InitialSyncRunner<'a> {
         report: &mut InitialSyncReport,
         sync_state: &SyncStateRepository<'_>,
         batch_count: &mut u32,
+        force_persist: bool,
     ) -> Result<u32, SyncError> {
         let synced_at = now_unix_ms();
         let rows: Vec<TrackRow> = array
@@ -539,22 +659,22 @@ impl<'a> InitialSyncRunner<'a> {
                 )
             })
             .collect();
-        let stats = self.write_batch(&rows)?;
+        let (_stats, _timing) = self.write_batch_logged(&rows, "N1", offset)?;
         report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
-        report.remapped_count = report
-            .remapped_count
-            .saturating_add(stats.remapped.len() as u32);
 
         let next_offset = offset.saturating_add(self.batch_size);
         cursor.strategy_state = StrategyState::LinearOffset {
             offset: next_offset,
         };
         cursor.ingested_count = report.ingested_count;
-        self.persist_cursor(sync_state, cursor)?;
         *batch_count += 1;
+        if force_persist || *batch_count % CURSOR_PERSIST_EVERY_BATCHES == 0 {
+            self.persist_cursor(sync_state, cursor)?;
+        }
         self.progress.emit(ProgressEvent::IngestPage {
             ingested_total: report.ingested_count,
             batch_count: *batch_count,
+            metrics: None,
         });
         Ok(next_offset)
     }
@@ -617,19 +737,29 @@ impl<'a> InitialSyncRunner<'a> {
         };
 
         let budget = self.parallelism_budget();
+        let prefetch = linear_prefetch_depth(&budget);
+        crate::app_eprintln!(
+            "[library-sync] S1 ingest server `{}`: prefetch_depth={} max_concurrent={} batch_size={}",
+            self.server_id,
+            prefetch,
+            budget.max_concurrent,
+            self.batch_size
+        );
         let mut batch_count: u32 = 0;
-        if linear_prefetch_depth(&budget) <= 1 {
+        if prefetch <= 1 {
             loop {
                 wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
                     .await?;
                 self.check_cancellation()?;
                 sleep_request_gap(&budget, self.sleep_enabled).await;
+                let fetch_start = std::time::Instant::now();
                 let (result, raw_body) = match self.fetch_s1_page(offset).await {
                     Err(e) if is_fetch_failure(&e) => {
                         return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
                     }
                     other => other?,
                 };
+                let fetch_ms = fetch_start.elapsed().as_millis() as u32;
                 if result.song.is_empty() {
                     break;
                 }
@@ -642,12 +772,15 @@ impl<'a> InitialSyncRunner<'a> {
                         report,
                         sync_state,
                         &mut batch_count,
+                        fetch_ms,
+                        (result.song.len() as u32) < self.batch_size,
                     )
                     .await?;
                 if (result.song.len() as u32) < self.batch_size {
                     break;
                 }
             }
+            self.persist_cursor(sync_state, cursor)?;
             return Ok(());
         }
 
@@ -688,6 +821,7 @@ impl<'a> InitialSyncRunner<'a> {
                 })
             })?;
 
+            let fetch_start = std::time::Instant::now();
             let (result, raw_body) = match queue
                 .take_at(offset, || self.check_cancellation())
                 .await
@@ -707,6 +841,7 @@ impl<'a> InitialSyncRunner<'a> {
                     }
                 }
             };
+            let fetch_ms = fetch_start.elapsed().as_millis() as u32;
 
             if result.song.is_empty() {
                 break;
@@ -721,6 +856,8 @@ impl<'a> InitialSyncRunner<'a> {
                     report,
                     sync_state,
                     &mut batch_count,
+                    fetch_ms,
+                    (result.song.len() as u32) < self.batch_size,
                 )
                 .await?;
 
@@ -729,6 +866,7 @@ impl<'a> InitialSyncRunner<'a> {
                 break;
             }
         }
+        self.persist_cursor(sync_state, cursor)?;
         Ok(())
     }
 
@@ -754,6 +892,8 @@ impl<'a> InitialSyncRunner<'a> {
         report: &mut InitialSyncReport,
         sync_state: &SyncStateRepository<'_>,
         batch_count: &mut u32,
+        fetch_ms: u32,
+        force_persist: bool,
     ) -> Result<u32, SyncError> {
         let raw_songs = raw_body
             .get("song")
@@ -775,22 +915,41 @@ impl<'a> InitialSyncRunner<'a> {
                 self.library_scope_opt(),
             ));
         }
-        let stats = self.write_batch(&rows)?;
-        report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
-        report.remapped_count = report
-            .remapped_count
-            .saturating_add(stats.remapped.len() as u32);
+        let row_count = rows.len() as u32;
+        let (_stats, write_timing) = self.write_batch_logged(&rows, "S1", offset)?;
+        report.ingested_count = report.ingested_count.saturating_add(row_count);
 
         let next_offset = offset.saturating_add(self.batch_size);
         cursor.strategy_state = StrategyState::LinearOffset {
             offset: next_offset,
         };
         cursor.ingested_count = report.ingested_count;
-        self.persist_cursor(sync_state, cursor)?;
         *batch_count += 1;
+        let persist_start = std::time::Instant::now();
+        let did_persist =
+            force_persist || *batch_count % CURSOR_PERSIST_EVERY_BATCHES == 0;
+        if did_persist {
+            self.persist_cursor(sync_state, cursor)?;
+        }
+        let persist_ms = if did_persist {
+            persist_start.elapsed().as_millis() as u32
+        } else {
+            0
+        };
         self.progress.emit(ProgressEvent::IngestPage {
             ingested_total: report.ingested_count,
             batch_count: *batch_count,
+            metrics: Some(IngestBatchMetrics {
+                offset,
+                strategy: "s1".into(),
+                fetch_ms,
+                write_ms: write_timing.total_ms() as u32,
+                lock_wait_ms: write_timing.lock_wait_ms as u32,
+                sql_exec_ms: write_timing.exec_ms as u32,
+                persist_ms,
+                row_count,
+                bulk_ingest_active: self.store.bulk_ingest_active(),
+            }),
         });
         Ok(next_offset)
     }
@@ -843,6 +1002,12 @@ impl<'a> InitialSyncRunner<'a> {
         };
 
         let budget = self.parallelism_budget();
+        crate::app_eprintln!(
+            "[library-sync] S2 ingest server `{}`: parallel_get_album={} batch_size={}",
+            self.server_id,
+            budget.max_concurrent,
+            self.batch_size
+        );
         let mut batch_count: u32 = 0;
         let mut resume_from = resume_album_id;
 
@@ -915,17 +1080,15 @@ impl<'a> InitialSyncRunner<'a> {
                     ));
                 }
                 if !rows.is_empty() {
-                    let stats = self.write_batch(&rows)?;
+                    let (_stats, _timing) = self.write_batch_logged(&rows, "S2", album_offset)?;
                     report.ingested_count = report
                         .ingested_count
                         .saturating_add(rows.len() as u32);
-                    report.remapped_count = report
-                        .remapped_count
-                        .saturating_add(stats.remapped.len() as u32);
                     batch_count += 1;
                     self.progress.emit(ProgressEvent::IngestPage {
                         ingested_total: report.ingested_count,
                         batch_count,
+                        metrics: None,
                     });
                 }
             }
@@ -1179,7 +1342,7 @@ mod tests {
 
         // Tracks landed in the store.
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 7);
     }
@@ -1273,7 +1436,7 @@ mod tests {
         assert_eq!(report.ingested_count, 4 + 6);
         // …but the store ends up with all 10.
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         // 6 — only the pages run by *this* invocation are persisted to
         // `track` here because the cursor said offset=4 but the prior
@@ -1547,9 +1710,23 @@ mod tests {
         .unwrap();
         assert_eq!(report.ingested_count, 4);
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 4);
+
+        let sync_state = SyncStateRepository::new(&store);
+        assert_eq!(sync_state.get_local_track_count("s1", "").unwrap(), Some(4));
+        assert_eq!(sync_state.get_sync_phase("s1", "").unwrap().as_deref(), Some("ready"));
+        let full_sync: Option<i64> = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT last_full_sync_at FROM sync_state WHERE server_id = 's1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert!(full_sync.is_some());
     }
 
     // ── N1 → S1 deep-offset fallback (R7-15 Q5) ───────────────────────
@@ -1607,7 +1784,7 @@ mod tests {
         assert_eq!(report.strategy.as_deref(), Some("s1"), "run must finish on S1");
         // 5 distinct songs — N1's two rows were re-upserted, not duplicated.
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 5);
         // Server learned the flag so future syncs skip N1.
@@ -1714,7 +1891,7 @@ mod tests {
 
         assert_eq!(report.strategy.as_deref(), Some("s2"), "run must finish on S2");
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 1, "the S2 album crawl ingested the track");
     }
@@ -1804,7 +1981,7 @@ mod tests {
         // raw_json column must contain the OpenSubsonic-only fields,
         // not just the typed projection — ADR-7 fidelity.
         let raw: String = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT raw_json FROM track WHERE server_id='s1' AND id='tr_1'",
                     [],
@@ -1819,7 +1996,7 @@ mod tests {
         // Typed projection also picked up replayGain via the mapping
         // helper — both paths agree on the hot column.
         let (rg_t, rg_a): (Option<f64>, Option<f64>) = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT replay_gain_track_db, replay_gain_album_db \
                      FROM track WHERE server_id='s1' AND id='tr_1'",
@@ -1907,108 +2084,102 @@ mod tests {
         assert_eq!(report.ingested_count, 2);
 
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 2);
     }
 
-    // ── Remap path triggers when UnstableTrackIds is set on the sync ───
+    // ── Remap path (§6.9) — exercised on delta / full upsert, not IS-3 bulk ─
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn remap_fires_during_sync_when_unstable_track_ids_flag_set() {
-        let server = MockServer::start().await;
-        // Pre-seed an "old" track row with a known content_hash —
-        // simulates the prior sync result before Navidrome re-indexed.
+    #[test]
+    fn remap_fires_on_unstable_track_ids_batch_upsert() {
         let store = LibraryStore::open_in_memory();
-        TrackRepository::new(&store)
-            .upsert_batch(&[TrackRow {
-                server_id: "s1".into(),
-                id: "tr_old".into(),
-                title: "Aurora".into(),
-                title_sort: None,
-                artist: Some("A".into()),
-                artist_id: None,
-                album: "An Album".into(),
-                album_id: None,
-                album_artist: None,
-                duration_sec: 240,
-                track_number: None,
-                disc_number: None,
-                year: None,
-                genre: None,
-                suffix: None,
-                bit_rate: None,
-                size_bytes: None,
-                cover_art_id: None,
-                starred_at: None,
-                user_rating: None,
-                play_count: None,
-                played_at: None,
-                server_path: Some("/path/aurora.flac".into()),
-                library_id: None,
-                isrc: None,
-                mbid_recording: None,
-                bpm: None,
-                replay_gain_track_db: None,
-                replay_gain_album_db: None,
-                content_hash: None,
-                server_updated_at: None,
-                server_created_at: None,
-                deleted: false,
-                synced_at: 1,
-                raw_json: "{}".into(),
-            }])
-            .unwrap();
-
-        // S1 page returns the same path under a new id — must trigger
-        // §6.9 remap.
-        Mock::given(wm_method("GET"))
-            .and(wm_path("/rest/search3.view"))
-            .and(query_param("songOffset", "0"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "subsonic-response": {
-                    "status": "ok",
-                    "searchResult3": {
-                        "song": [
-                            {
-                                "id": "tr_new",
-                                "title": "Aurora",
-                                "duration": 240,
-                                "path": "/path/aurora.flac"
-                            }
-                        ]
-                    }
-                }
-            })))
-            .mount(&server)
-            .await;
-        Mock::given(wm_method("GET"))
-            .and(wm_path("/rest/search3.view"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "subsonic-response": { "status": "ok", "searchResult3": {} }
-            })))
-            .mount(&server)
-            .await;
-        mount_minimal_artists(&server).await;
-
-        let subsonic = test_subsonic(&server.uri());
-        let report = InitialSyncRunner::new(
-            &store,
-            &subsonic,
-            "s1",
-            "",
-            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK | CapabilityFlags::UNSTABLE_TRACK_IDS),
-        )
-        .with_batch_size(10)
-        .with_sleep_disabled()
-        .run()
-        .await
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[TrackRow {
+            server_id: "s1".into(),
+            id: "tr_old".into(),
+            title: "Aurora".into(),
+            title_sort: None,
+            artist: Some("A".into()),
+            artist_id: None,
+            album: "An Album".into(),
+            album_id: None,
+            album_artist: None,
+            duration_sec: 240,
+            track_number: None,
+            disc_number: None,
+            year: None,
+            genre: None,
+            suffix: None,
+            bit_rate: None,
+            size_bytes: None,
+            cover_art_id: None,
+            starred_at: None,
+            user_rating: None,
+            play_count: None,
+            played_at: None,
+            server_path: Some("/path/aurora.flac".into()),
+            library_id: None,
+            isrc: None,
+            mbid_recording: None,
+            bpm: None,
+            replay_gain_track_db: None,
+            replay_gain_album_db: None,
+            content_hash: None,
+            server_updated_at: None,
+            server_created_at: None,
+            deleted: false,
+            synced_at: 1,
+            raw_json: "{}".into(),
+        }])
         .unwrap();
-        assert_eq!(report.remapped_count, 1);
 
-        // Old id gone, new id present.
+        let stats = repo
+            .upsert_batch_with_remap(
+                &[TrackRow {
+                    server_id: "s1".into(),
+                    id: "tr_new".into(),
+                    title: "Aurora".into(),
+                    title_sort: None,
+                    artist: Some("A".into()),
+                    artist_id: None,
+                    album: "An Album".into(),
+                    album_id: None,
+                    album_artist: None,
+                    duration_sec: 240,
+                    track_number: None,
+                    disc_number: None,
+                    year: None,
+                    genre: None,
+                    suffix: None,
+                    bit_rate: None,
+                    size_bytes: None,
+                    cover_art_id: None,
+                    starred_at: None,
+                    user_rating: None,
+                    play_count: None,
+                    played_at: None,
+                    server_path: Some("/path/aurora.flac".into()),
+                    library_id: None,
+                    isrc: None,
+                    mbid_recording: None,
+                    bpm: None,
+                    replay_gain_track_db: None,
+                    replay_gain_album_db: None,
+                    content_hash: None,
+                    server_updated_at: None,
+                    server_created_at: None,
+                    deleted: false,
+                    synced_at: 2,
+                    raw_json: "{}".into(),
+                }],
+                true,
+            )
+            .unwrap();
+        assert_eq!(stats.remapped.len(), 1);
+
         let ids: Vec<String> = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let mut s = c.prepare("SELECT id FROM track WHERE server_id='s1' ORDER BY id")?;
                 let r: rusqlite::Result<Vec<String>> = s.query_map([], |r| r.get(0))?.collect();
                 r

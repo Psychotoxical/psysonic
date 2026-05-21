@@ -115,7 +115,7 @@ impl<'a> TombstoneReconciler<'a> {
 
     fn next_candidates(&self, budget: u32) -> Result<Vec<String>, SyncError> {
         self.store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let mut stmt = c.prepare(
                     "SELECT id FROM track \
                      WHERE server_id = ?1 AND deleted = 0 \
@@ -133,7 +133,7 @@ impl<'a> TombstoneReconciler<'a> {
 
     fn mark_deleted(&self, id: &str) -> Result<(), SyncError> {
         self.store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "UPDATE track SET deleted = 1, synced_at = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
@@ -146,7 +146,7 @@ impl<'a> TombstoneReconciler<'a> {
 
     fn mark_synced(&self, id: &str) -> Result<(), SyncError> {
         self.store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "UPDATE track SET synced_at = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
@@ -349,7 +349,7 @@ mod tests {
         // tr_b is marked deleted; tr_a stays live but its synced_at is
         // refreshed (so it doesn't get re-picked immediately).
         let (a_deleted, b_deleted): (i64, i64) = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let a: i64 = c.query_row(
                     "SELECT deleted FROM track WHERE id='tr_a'",
                     [],
@@ -401,7 +401,7 @@ mod tests {
         // After the chunk: the two checked rows have a refreshed
         // synced_at; the un-checked tr_newest still sits at 300.
         let untouched: i64 = store
-            .with_conn(|c| c.query_row(
+            .with_conn("misc", |c| c.query_row(
                 "SELECT synced_at FROM track WHERE id='tr_newest'",
                 [],
                 |r| r.get(0),

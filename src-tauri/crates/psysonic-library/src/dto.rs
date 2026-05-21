@@ -34,6 +34,21 @@ pub struct SyncStateDto {
     /// `MAX(server_updated_at)` over local non-deleted tracks — the
     /// implicit "tracks watermark" the N1-delta uses.
     pub local_tracks_max_updated_ms: Option<i64>,
+    /// Cheap `EXISTS` over `track` — avoids a full `COUNT(*)` on every status read.
+    #[serde(default)]
+    pub has_local_tracks: bool,
+    /// Active/resumed initial-sync ingest strategy (`n1` / `s1` / `s2`), if any.
+    #[serde(default)]
+    pub ingest_strategy: Option<String>,
+    /// Cursor phase during initial sync (`ingest`, `artist_pass`, …).
+    #[serde(default)]
+    pub ingest_phase: Option<String>,
+    /// Tracks ingested so far per persisted cursor (informational during IS-3).
+    #[serde(default)]
+    pub cursor_ingested_count: Option<u32>,
+    /// Server flagged after N1 deep-offset failure — prefers S1/S2 on next run.
+    #[serde(default)]
+    pub n1_bulk_unreliable: Option<bool>,
 }
 
 /// E3 readiness summary attached to a single-track `library_get_track` read.
@@ -376,6 +391,9 @@ pub struct LibraryAdvancedSearchRequest {
     pub limit: u32,
     #[serde(default)]
     pub offset: u32,
+    /// When true, skip per-entity COUNT queries (Live Search / small pages).
+    #[serde(default)]
+    pub skip_totals: bool,
 }
 
 /// Per-entity result counts (full match count, not page size).
@@ -403,6 +421,16 @@ pub struct LibraryAdvancedSearchResponse {
     pub source: String,
 }
 
+/// `library_live_search` response — lean FTS dropdown (§5.9 / P24).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryLiveSearchResponse {
+    pub artists: Vec<LibraryArtistDto>,
+    pub albums: Vec<LibraryAlbumDto>,
+    pub tracks: Vec<LibraryTrackDto>,
+    pub source: String,
+}
+
 /// `library_search_cross_server` response (§5.5B / §5.9).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -426,12 +454,39 @@ pub fn local_tracks_max_updated_ms(
     server_id: &str,
 ) -> Result<Option<i64>, String> {
     store
-        .with_conn(|c| {
+        .with_read_conn(|c| {
             c.query_row(
                 "SELECT MAX(server_updated_at) FROM track \
                  WHERE server_id = ?1 AND deleted = 0",
                 rusqlite::params![server_id],
                 |row| row.get::<_, Option<i64>>(0),
+            )
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Cheap `EXISTS` — true when at least one non-deleted track is indexed.
+pub fn track_index_nonempty(store: &LibraryStore, server_id: &str) -> Result<bool, String> {
+    store
+        .with_read_conn(|c| {
+            c.query_row(
+                "SELECT EXISTS(SELECT 1 FROM track WHERE server_id = ?1 AND deleted = 0 LIMIT 1)",
+                rusqlite::params![server_id],
+                |row| row.get(0),
+            )
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Live non-deleted track count for a server (used when the sync_state
+/// snapshot is missing or stale).
+pub fn count_local_tracks(store: &LibraryStore, server_id: &str) -> Result<i64, String> {
+    store
+        .with_read_conn(|c| {
+            c.query_row(
+                "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
+                rusqlite::params![server_id],
+                |row| row.get(0),
             )
         })
         .map_err(|e| e.to_string())
@@ -557,6 +612,17 @@ mod tests {
     }
 
     #[test]
+    fn count_local_tracks_matches_non_deleted_rows() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut deleted = sample_row();
+        deleted.id = "tr_del".into();
+        deleted.deleted = true;
+        repo.upsert_batch(&[sample_row(), deleted]).unwrap();
+        assert_eq!(count_local_tracks(&store, "s1").unwrap(), 1);
+    }
+
+    #[test]
     fn track_ref_dto_roundtrips_through_json() {
         let r = TrackRefDto {
             server_id: "s1".into(),
@@ -587,6 +653,11 @@ mod tests {
             server_track_count: None,
             last_error: None,
             local_tracks_max_updated_ms: None,
+            has_local_tracks: false,
+            ingest_strategy: None,
+            ingest_phase: None,
+            cursor_ingested_count: None,
+            n1_bulk_unreliable: None,
         };
         let json = serde_json::to_value(dto).unwrap();
         assert_eq!(

@@ -1,6 +1,6 @@
 use rusqlite::{params, OptionalExtension};
 
-use crate::store::LibraryStore;
+use crate::store::{LibraryStore, WriteOpTiming};
 
 /// One row of the `track` table — every hot column from spec §5.1 plus
 /// `raw_json` (the full normalized SubsonicSong). Sync code (PR-2/PR-3) is
@@ -76,6 +76,69 @@ impl<'a> TrackRepository<'a> {
         self.upsert_batch_with_remap(rows, false).map(|_| ())
     }
 
+    /// IS-3 initial-sync fast path: upsert rows only. Skips §6.9 remap
+    /// detection and inline canonical linking — both run on delta sync
+    /// or in a post-ingest canonical pass so 500-row batches stay fast.
+    pub fn upsert_batch_initial_ingest(&self, rows: &[TrackRow]) -> Result<(), String> {
+        self.upsert_batch_initial_ingest_timed(rows).map(|_| ())
+    }
+
+    pub fn upsert_batch_initial_ingest_timed(
+        &self,
+        rows: &[TrackRow],
+    ) -> Result<WriteOpTiming, String> {
+        if rows.is_empty() {
+            return Ok(WriteOpTiming::default());
+        }
+        let (_, timing) = self.store.with_conn_mut_timed("track.upsert_initial_ingest", |conn| {
+            let tx = conn.transaction()?;
+            let mut upsert = tx.prepare_cached(UPSERT_SQL)?;
+            for r in rows {
+                upsert.execute(params![
+                    r.server_id,
+                    r.id,
+                    r.title,
+                    r.title_sort,
+                    r.artist,
+                    r.artist_id,
+                    r.album,
+                    r.album_id,
+                    r.album_artist,
+                    r.duration_sec,
+                    r.track_number,
+                    r.disc_number,
+                    r.year,
+                    r.genre,
+                    r.suffix,
+                    r.bit_rate,
+                    r.size_bytes,
+                    r.cover_art_id,
+                    r.starred_at,
+                    r.user_rating,
+                    r.play_count,
+                    r.played_at,
+                    r.server_path,
+                    r.library_id,
+                    r.isrc,
+                    r.mbid_recording,
+                    r.bpm,
+                    r.replay_gain_track_db,
+                    r.replay_gain_album_db,
+                    r.content_hash,
+                    r.server_updated_at,
+                    r.server_created_at,
+                    if r.deleted { 1_i64 } else { 0 },
+                    r.synced_at,
+                    r.raw_json,
+                ])?;
+            }
+            drop(upsert);
+            tx.commit()?;
+            Ok(())
+        })?;
+        Ok(timing)
+    }
+
     /// SELECT a single track by `(server_id, id)`. Returns `None`
     /// when missing or deleted (`deleted = 1`). Used by
     /// `library_get_track` and the offline-path command.
@@ -84,7 +147,7 @@ impl<'a> TrackRepository<'a> {
         server_id: &str,
         track_id: &str,
     ) -> Result<Option<TrackRow>, String> {
-        self.store.with_conn(|conn| {
+        self.store.with_read_conn(|conn| {
             let mut stmt = conn.prepare(SELECT_TRACK_BY_ID)?;
             stmt.query_row(params![server_id, track_id], row_to_track_row)
                 .optional()
@@ -102,7 +165,7 @@ impl<'a> TrackRepository<'a> {
         if refs.is_empty() {
             return Ok(Vec::new());
         }
-        self.store.with_conn(|conn| {
+        self.store.with_read_conn(|conn| {
             let mut stmt = conn.prepare(SELECT_TRACK_BY_ID)?;
             let mut out: Vec<TrackRow> = Vec::with_capacity(refs.len());
             for (server_id, track_id) in refs {
@@ -124,7 +187,7 @@ impl<'a> TrackRepository<'a> {
         server_id: &str,
         album_id: &str,
     ) -> Result<Vec<TrackRow>, String> {
-        self.store.with_conn(|conn| {
+        self.store.with_read_conn(|conn| {
             let mut stmt = conn.prepare(SELECT_TRACKS_BY_ALBUM)?;
             let rows: rusqlite::Result<Vec<TrackRow>> = stmt
                 .query_map(params![server_id, album_id], row_to_track_row)?
@@ -150,9 +213,15 @@ impl<'a> TrackRepository<'a> {
         if rows.is_empty() {
             return Ok(RemapStats::default());
         }
-        self.store.with_conn_mut(|conn| {
+        self.store.with_conn_mut("misc", |conn| {
             let tx = conn.transaction()?;
             let mut remapped: Vec<RemapEntry> = Vec::new();
+            let mut upsert = tx.prepare_cached(UPSERT_SQL)?;
+            let mut remap_lookup = if unstable_track_ids {
+                Some(tx.prepare_cached(REMAP_LOOKUP_SQL)?)
+            } else {
+                None
+            };
 
             for r in rows {
                 // Spec §6.9: detect collision BEFORE the upsert so the
@@ -160,13 +229,13 @@ impl<'a> TrackRepository<'a> {
                 // then do we retarget children to the new id, since
                 // child tables FK→track(server_id, id) and would refuse
                 // an UPDATE pointing at an id that doesn't exist yet.
-                let detected_old: Option<String> = if unstable_track_ids {
-                    detect_remap_target(&tx, r)?
+                let detected_old: Option<String> = if let Some(ref mut lookup) = remap_lookup {
+                    detect_remap_target_cached(lookup, r)?
                 } else {
                     None
                 };
 
-                tx.execute(UPSERT_SQL, params![
+                upsert.execute(params![
                     r.server_id,
                     r.id,
                     r.title,
@@ -234,17 +303,32 @@ impl<'a> TrackRepository<'a> {
                 )?;
             }
 
+            drop(upsert);
+            drop(remap_lookup);
+
             tx.commit()?;
             Ok(RemapStats { remapped })
         })
     }
 }
 
+const REMAP_LOOKUP_SQL: &str = r#"
+SELECT id FROM track
+ WHERE server_id = ?1
+   AND deleted = 0
+   AND id != ?2
+   AND (
+     (?3 IS NOT NULL AND content_hash = ?3)
+     OR (?4 IS NOT NULL AND server_path = ?4)
+   )
+ LIMIT 1
+"#;
+
 /// Run the `SELECT old.id` half of §6.9 — returns `Some(old_id)` if a
 /// non-deleted row with a different id on this server matches the
 /// incoming row's `content_hash` or `server_path`.
-fn detect_remap_target(
-    tx: &rusqlite::Transaction<'_>,
+fn detect_remap_target_cached(
+    lookup: &mut rusqlite::Statement<'_>,
     incoming: &TrackRow,
 ) -> rusqlite::Result<Option<String>> {
     // Empty-string sentinels are *not* eligible — spec §6.9 explicitly
@@ -254,20 +338,12 @@ fn detect_remap_target(
     if hash.is_none() && path.is_none() {
         return Ok(None);
     }
-    tx.query_row(
-        "SELECT id FROM track \
-         WHERE server_id = ?1 \
-           AND deleted = 0 \
-           AND id != ?2 \
-           AND (\
-             (?3 IS NOT NULL AND content_hash = ?3) \
-             OR (?4 IS NOT NULL AND server_path = ?4) \
-           ) \
-         LIMIT 1",
-        params![incoming.server_id, incoming.id, hash, path],
-        |row| row.get::<_, String>(0),
-    )
-    .optional()
+    lookup
+        .query_row(
+            params![incoming.server_id, incoming.id, hash, path],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
 }
 
 /// Run the §6.9 retarget half — UPDATE every FK-bound child to the
@@ -494,7 +570,7 @@ mod tests {
 
         // Playback records the content fingerprint.
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "UPDATE track SET content_hash = 'playback-md5' WHERE server_id='s1' AND id='t1'",
                     [],
@@ -504,7 +580,7 @@ mod tests {
 
         let read = |store: &LibraryStore| -> Option<String> {
             store
-                .with_conn(|c| {
+                .with_conn("misc", |c| {
                     c.query_row(
                         "SELECT content_hash FROM track WHERE server_id='s1' AND id='t1'",
                         [],
@@ -534,7 +610,7 @@ mod tests {
         repo.upsert_batch(&[row("s1", "t1", "First"), row("s1", "t2", "Second")])
             .unwrap();
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 2);
     }
@@ -551,7 +627,7 @@ mod tests {
         repo.upsert_batch(&[updated]).unwrap();
 
         let (title, bpm, starred): (String, Option<i64>, Option<i64>) = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT title, bpm, starred_at FROM track WHERE server_id='s1' AND id='t1'",
                     [],
@@ -564,7 +640,7 @@ mod tests {
         assert_eq!(starred, Some(1_700_000_999));
 
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 1, "upsert must not duplicate the row");
     }
@@ -585,7 +661,7 @@ mod tests {
         repo.upsert_batch(&[row("s1", "t1", "From S1"), row("s2", "t1", "From S2")])
             .unwrap();
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 2);
     }
@@ -596,7 +672,7 @@ mod tests {
         let repo = TrackRepository::new(&store);
         repo.upsert_batch(&[row("s1", "t1", "Aurora Boreal")]).unwrap();
         let fts_hit: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT COUNT(*) FROM track_fts WHERE track_fts MATCH 'aurora'",
                     [],
@@ -615,7 +691,7 @@ mod tests {
         repo.upsert_batch(&[row("s1", "t1", "Brand New Title")]).unwrap();
 
         let old_hit: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT COUNT(*) FROM track_fts WHERE track_fts MATCH 'old'",
                     [],
@@ -624,7 +700,7 @@ mod tests {
             })
             .unwrap();
         let new_hit: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT COUNT(*) FROM track_fts WHERE track_fts MATCH 'brand'",
                     [],
@@ -634,6 +710,30 @@ mod tests {
             .unwrap();
         assert_eq!(old_hit, 0, "delete-trigger must drop the stale FTS row");
         assert_eq!(new_hit, 1);
+    }
+
+    #[test]
+    fn initial_ingest_batch_skips_remap_and_canonical() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let rows: Vec<TrackRow> = (0..500)
+            .map(|i| {
+                let mut r = row("s1", &format!("t{i:04}"), &format!("Track {i:04}"));
+                r.server_path = Some(format!("/music/track{i:04}.flac"));
+                r.isrc = Some(format!("USRC{i:06}"));
+                r.raw_json = format!(r#"{{"id":"t{i:04}","payload":"#)
+                    + &"x".repeat(512)
+                    + r#""}"#;
+                r
+            })
+            .collect();
+        let start = std::time::Instant::now();
+        repo.upsert_batch_initial_ingest(&rows).unwrap();
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_millis(500),
+            "initial ingest batch(500) took {elapsed:?}"
+        );
     }
 
     #[test]
@@ -653,7 +753,7 @@ mod tests {
         let elapsed = start.elapsed();
 
         let stored: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(stored, 500);
 
@@ -690,10 +790,10 @@ mod tests {
         assert!(stats.remapped.is_empty());
 
         let track_count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         let hist_count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track_id_history", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_id_history", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(track_count, 2, "both ids coexist when remap is off");
         assert_eq!(hist_count, 0);
@@ -708,7 +808,7 @@ mod tests {
         repo.upsert_batch(&[row_with_id_hash("s1", "tr_old", "deadbeef", "/path/x.flac")])
             .unwrap();
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO track_offline \
                      (server_id, track_id, local_path, cached_at) \
@@ -737,7 +837,7 @@ mod tests {
 
         // Old track row gone, new one in place.
         let ids: Vec<String> = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let mut stmt = c.prepare("SELECT id FROM track WHERE server_id = 's1'")?;
                 let r: rusqlite::Result<Vec<String>> = stmt.query_map([], |r| r.get(0))?.collect();
                 r
@@ -747,7 +847,7 @@ mod tests {
 
         // Child tables follow the new id.
         let offline_id: String = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT track_id FROM track_offline WHERE server_id = 's1'",
                     [],
@@ -757,7 +857,7 @@ mod tests {
             .unwrap();
         assert_eq!(offline_id, "tr_new");
         let ext_id: String = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT track_id FROM track_extension WHERE server_id = 's1'",
                     [],
@@ -803,7 +903,7 @@ mod tests {
             .unwrap();
         assert!(stats.remapped.is_empty());
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 2, "both rows kept; identity-less rows can't shadow");
     }
@@ -830,7 +930,7 @@ mod tests {
         r.isrc = Some("USRC100".into());
         TrackRepository::new(&store).upsert_batch(&[r]).unwrap();
         let cid: Option<String> = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT canonical_id FROM track_canonical_link \
                      WHERE server_id='s1' AND track_id='t1'",
@@ -852,7 +952,7 @@ mod tests {
         b.isrc = Some("USRC200".into());
         TrackRepository::new(&store).upsert_batch(&[a, b]).unwrap();
         let distinct: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT COUNT(DISTINCT canonical_id) FROM track_canonical_link",
                     [],
@@ -871,7 +971,7 @@ mod tests {
             .upsert_batch(&[row("s1", "t1", "T")])
             .unwrap();
         let count: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row("SELECT COUNT(*) FROM track_canonical_link", [], |r| r.get(0))
             })
             .unwrap();

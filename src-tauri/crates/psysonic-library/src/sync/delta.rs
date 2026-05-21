@@ -282,7 +282,7 @@ impl<'a> DeltaSyncRunner<'a> {
 
     fn local_track_updated_watermark(&self) -> Result<Option<i64>, SyncError> {
         self.store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT MAX(server_updated_at) FROM track \
                      WHERE server_id = ?1 AND deleted = 0",
@@ -295,7 +295,7 @@ impl<'a> DeltaSyncRunner<'a> {
 
     fn local_album_ids(&self) -> Result<HashSet<String>, SyncError> {
         self.store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let mut stmt = c.prepare(
                     "SELECT DISTINCT album_id FROM track \
                      WHERE server_id = ?1 AND deleted = 0 AND album_id IS NOT NULL",
@@ -873,7 +873,7 @@ mod tests {
         assert_eq!(report.changed_count, 1, "only the fresh album got upserted");
         // The seed plus the new track land in the store.
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 2);
     }
@@ -930,7 +930,7 @@ mod tests {
             Some(1_716_840_000_000)
         );
         let (last_delta,): (Option<i64>,) = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT last_delta_sync_at FROM sync_state WHERE server_id='s1'",
                     [],
@@ -1019,7 +1019,7 @@ mod tests {
 
         // tr_gone is now soft-deleted.
         let gone_deleted: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT deleted FROM track WHERE id='tr_gone'",
                     [],

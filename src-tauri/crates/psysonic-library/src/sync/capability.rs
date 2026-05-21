@@ -98,6 +98,9 @@ pub async fn probe_and_persist(
     sync_state
         .ensure(server_id, library_scope)
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
+    let phase_before = sync_state
+        .get_sync_phase(server_id, library_scope)
+        .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
     sync_state
         .set_sync_phase(server_id, library_scope, "probing")
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
@@ -130,7 +133,18 @@ pub async fn probe_and_persist(
             .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
     }
     sync_state
-        .set_sync_phase(server_id, library_scope, "idle")
+        .set_sync_phase(
+            server_id,
+            library_scope,
+            match phase_before.as_deref() {
+                // Re-bind on app restart must not clobber a finished index —
+                // callers gate local search on `ready` (§9.3 / P8).
+                Some("ready") => "ready",
+                Some("initial_sync") => "initial_sync",
+                Some("error") => "error",
+                _ => "idle",
+            },
+        )
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
 
     Ok(result)
@@ -450,11 +464,40 @@ mod tests {
         assert!(flags & CapabilityFlags::OPEN_SUBSONIC != 0);
         assert!(flags & CapabilityFlags::UNSTABLE_TRACK_IDS != 0);
 
-        // Phase ends at `idle` so the caller can transition to
+        // Fresh server ends at `idle` so the caller can transition to
         // `initial_sync` / `ready` based on whether a sync is needed.
         assert_eq!(
             sync_state.get_sync_phase("s1", "").unwrap().as_deref(),
             Some("idle")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn probe_and_persist_preserves_ready_phase_on_rebind() {
+        use crate::repos::SyncStateRepository;
+        use crate::store::LibraryStore;
+
+        let server = MockServer::start().await;
+        mount_subsonic_full_navidrome(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
+
+        super::probe_and_persist(
+            &store,
+            &test_subsonic_client(&server.uri()),
+            None,
+            "s1",
+            "",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            sync_state.get_sync_phase("s1", "").unwrap().as_deref(),
+            Some("ready")
         );
     }
 

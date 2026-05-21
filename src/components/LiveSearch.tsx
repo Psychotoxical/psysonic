@@ -1,25 +1,33 @@
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { subscribeLibrarySyncIdle, subscribeLibrarySyncProgress, libraryGetStatus } from '../api/library';
 import { search } from '../api/subsonicSearch';
 import type { SearchResults, SubsonicArtist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
+import {
+  LIVE_SEARCH_DEBOUNCE_LOCAL_MS,
+  LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
+  runLocalLiveSearch,
+} from '../utils/library/liveSearchLocal';
+import { libraryIsReady } from '../utils/library/libraryReady';
+import {
+  explainLibraryReady,
+  logLibrarySearch,
+  logLibraryStatus,
+  timed,
+} from '../utils/library/libraryDevLog';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Disc3, Users, Music, TextSearch } from 'lucide-react';
+import { Search, Disc3, Users, Music, TextSearch, Database, Globe } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useTranslation } from 'react-i18next';
 import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
 
-function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
-  let timer: ReturnType<typeof setTimeout>;
-  return (q: string) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(q), ms);
-  };
-}
+type LiveSearchSource = 'local' | 'network';
 
 function LiveSearchAlbumThumb({ coverArt }: { coverArt: string }) {
   const src = useMemo(() => buildCoverArtUrl(coverArt, 40), [coverArt]);
@@ -56,6 +64,9 @@ export default function LiveSearch() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isFocused, setIsFocused] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [searchSource, setSearchSource] = useState<LiveSearchSource | null>(null);
+  const [localReady, setLocalReady] = useState(false);
+  const searchSeqRef = useRef(0);
   const navigate = useNavigate();
   const enqueue = usePlayerStore(state => state.enqueue);
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
@@ -67,41 +78,169 @@ export default function LiveSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const collapsedRef = useRef(false);
   const compactHeaderControlsRef = useRef(false);
+  const serverId = useAuthStore(s => s.activeServerId);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+
+  const refreshLocalReady = useCallback(async () => {
+    if (!serverId || !indexEnabled) {
+      setLocalReady(false);
+      return;
+    }
+    setLocalReady(await libraryIsReady(serverId));
+  }, [serverId, indexEnabled]);
+
+  useEffect(() => {
+    void refreshLocalReady();
+  }, [refreshLocalReady, musicLibraryFilterVersion]);
+
+  useEffect(() => {
+    if (!indexEnabled || !serverId) return;
+    let unlistenProgress: (() => void) | undefined;
+    let unlistenIdle: (() => void) | undefined;
+    void subscribeLibrarySyncIdle(payload => {
+      if (payload.serverId === serverId) void refreshLocalReady();
+    }).then(fn => {
+      unlistenIdle = fn;
+    });
+    void subscribeLibrarySyncProgress(p => {
+      if (p.serverId === serverId && p.kind === 'phase_changed') void refreshLocalReady();
+    }).then(fn => {
+      unlistenProgress = fn;
+    });
+    return () => {
+      unlistenIdle?.();
+      unlistenProgress?.();
+    };
+  }, [indexEnabled, serverId, refreshLocalReady]);
 
   const closeSearch = useCallback(() => {
     setOpen(false);
     setQuery('');
+    setSearchSource(null);
   }, []);
 
   const share = useShareSearch(query, closeSearch);
-
-  const doSearch = useCallback(
-    debounce(async (q: string) => {
-      if (!q.trim()) { setResults(null); setOpen(false); return; }
-      setLoading(true);
-      try {
-        const r = await search(q);
-        setResults(r);
-        setOpen(true);
-      } finally {
-        setLoading(false);
-      }
-    }, 300),
-    [musicLibraryFilterVersion]
-  );
 
   useEffect(() => {
     if (share.shareMatch) {
       setResults(null);
       setLoading(false);
+      setSearchSource(null);
       setOpen(true);
       setActiveIndex(-1);
       return;
     }
-    doSearch(query);
+
+    const q = query.trim();
+    if (!q) {
+      setResults(null);
+      setOpen(false);
+      setSearchSource(null);
+      setLoading(false);
+      return;
+    }
+
+    setSearchSource(null);
     setActiveIndex(-1);
-  }, [query, doSearch, share.shareMatch]);
+    const seq = ++searchSeqRef.current;
+    const debounceMs = localReady ? LIVE_SEARCH_DEBOUNCE_LOCAL_MS : LIVE_SEARCH_DEBOUNCE_NETWORK_MS;
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        const searchT0 = performance.now();
+        let readyCheckMs = 0;
+        let readyReason: string | undefined;
+        try {
+          let ready = localReady && !!serverId && indexEnabled;
+
+          if (!ready && serverId && indexEnabled) {
+            const { result: status, ms } = await timed(() => libraryGetStatus(serverId));
+            readyCheckMs = ms;
+            readyReason = explainLibraryReady(status);
+            logLibraryStatus(serverId, status, 'live-search-ready-check');
+            ready =
+              status.syncPhase === 'ready' ||
+              explainLibraryReady(status).includes('≥95%') ||
+              status.hasLocalTracks === true ||
+              status.lastFullSyncAt != null ||
+              (status.localTrackCount ?? 0) > 0 ||
+              (status.localTracksMaxUpdatedMs ?? 0) > 0;
+            if (ready) setLocalReady(true);
+          } else if (ready && serverId && indexEnabled) {
+            readyReason = 'cached localReady';
+          }
+
+          if (ready) {
+            const local = await runLocalLiveSearch(serverId, q);
+            if (seq !== searchSeqRef.current) return;
+            if (local) {
+              setResults(local);
+              setSearchSource('local');
+              setOpen(true);
+              return;
+            }
+            logLibrarySearch({
+              at: new Date().toISOString(),
+              query: q,
+              path: 'local_empty_fallback',
+              durationMs: Math.round(performance.now() - searchT0),
+              debounceMs,
+              indexEnabled,
+              localReadyCached: localReady,
+              ready,
+              readyReason,
+              readyCheckMs,
+              fallbackReason: 'local_returned_null',
+            });
+          } else if (indexEnabled && serverId) {
+            logLibrarySearch({
+              at: new Date().toISOString(),
+              query: q,
+              path: 'skipped_not_ready',
+              durationMs: Math.round(performance.now() - searchT0),
+              debounceMs,
+              indexEnabled,
+              localReadyCached: localReady,
+              ready: false,
+              readyReason: readyReason ?? 'index_not_ready',
+              readyCheckMs,
+              fallbackReason: 'network_search3',
+            });
+          }
+
+          const { result: r, ms: invokeMs } = await timed(() => search(q));
+          if (seq !== searchSeqRef.current) return;
+          setResults(r);
+          setSearchSource('network');
+          setOpen(true);
+          logLibrarySearch({
+            at: new Date().toISOString(),
+            query: q,
+            path: 'search3',
+            durationMs: Math.round(performance.now() - searchT0),
+            debounceMs,
+            indexEnabled,
+            localReadyCached: localReady,
+            ready,
+            readyReason,
+            readyCheckMs,
+            invokeMs,
+            counts: {
+              artists: r.artists.length,
+              albums: r.albums.length,
+              songs: r.songs.length,
+            },
+          });
+        } finally {
+          if (seq === searchSeqRef.current) setLoading(false);
+        }
+      })();
+    }, debounceMs);
+
+    return () => window.clearTimeout(timer);
+  }, [query, share.shareMatch, localReady, serverId, indexEnabled, musicLibraryFilterVersion]);
 
   const isSearchActive = isFocused || open || query.trim().length > 0;
 
@@ -332,7 +471,16 @@ export default function LiveSearch() {
           autoComplete="off"
         />
         {query && (
-          <button className="live-search-clear" onClick={() => { setQuery(''); setResults(null); setOpen(false); }} aria-label={t('search.clearLabel')}>
+          <button
+            className="live-search-clear"
+            onClick={() => {
+              setQuery('');
+              setResults(null);
+              setOpen(false);
+              setSearchSource(null);
+            }}
+            aria-label={t('search.clearLabel')}
+          >
             ×
           </button>
         )}
@@ -355,6 +503,31 @@ export default function LiveSearch() {
 
       {open && (
         <div className="live-search-dropdown" id="search-results" role="listbox" ref={dropdownRef}>
+          {searchSource && !share.shareMatch && (
+            <div
+              className={`live-search-source live-search-source--${searchSource}`}
+              data-tooltip={t(
+                searchSource === 'local'
+                  ? 'search.localIndexBadgeTooltip'
+                  : 'search.networkSearchBadgeTooltip',
+              )}
+              data-tooltip-pos="bottom"
+            >
+              {searchSource === 'local' ? (
+                <Database size={12} aria-hidden />
+              ) : (
+                <Globe size={12} aria-hidden />
+              )}
+              <span>
+                {t(
+                  searchSource === 'local'
+                    ? 'search.localIndexBadge'
+                    : 'search.networkSearchBadge',
+                )}
+              </span>
+            </div>
+          )}
+
           {!hasResults && !loading && (
             <div className="search-empty">{t('search.noResults', { query })}</div>
           )}
@@ -465,7 +638,11 @@ export default function LiveSearch() {
                           openContextMenu(e.clientX, e.clientY, songToTrack(s), 'song');
                         }}
                         role="option" aria-selected={activeIndex === i}>
-                        <div className="search-result-icon"><Music size={14} /></div>
+                        {(s.coverArt ?? s.albumId) ? (
+                          <LiveSearchAlbumThumb coverArt={s.coverArt ?? s.albumId!} />
+                        ) : (
+                          <div className="search-result-icon"><Music size={14} /></div>
+                        )}
                         <div>
                           <div className="search-result-name">{s.title}</div>
                           <div className="search-result-sub">{s.artist} · {s.album}</div>

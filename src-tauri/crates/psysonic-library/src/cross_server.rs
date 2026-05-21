@@ -59,7 +59,7 @@ pub fn run_cross_server_search(
     params.push(SqlValue::Integer(limit as i64));
 
     let canonical_idx = repos::track_columns().split(',').count();
-    let rows: Vec<(LibraryTrackDto, Option<String>)> = store.with_conn(|conn| {
+    let rows: Vec<(LibraryTrackDto, Option<String>)> = store.with_read_conn(|conn| {
         let mut stmt = conn.prepare(&sql)?;
         // Bind the collected `Result` before unwrapping so the `MappedRows`
         // borrow of `stmt` ends inside the block (rusqlite borrow quirk).
@@ -135,7 +135,7 @@ fn fuzzy_matches(
             SqlValue::Text(like.clone()),
             SqlValue::Integer(FUZZY_PER_SERVER_CAP as i64),
         ];
-        let rows: Vec<(LibraryTrackDto, Option<String>)> = store.with_conn(|conn| {
+        let rows: Vec<(LibraryTrackDto, Option<String>)> = store.with_read_conn(|conn| {
             let mut stmt = conn.prepare(&sql)?;
             let collected: rusqlite::Result<Vec<(LibraryTrackDto, Option<String>)>> = stmt
                 .query_map(rusqlite::params_from_iter(bound.iter()), |r| {
@@ -167,7 +167,7 @@ fn fuzzy_matches(
 }
 
 fn ready_servers(store: &LibraryStore) -> Result<Vec<String>, String> {
-    store.with_conn(|conn| {
+    store.with_read_conn(|conn| {
         let mut stmt =
             conn.prepare("SELECT DISTINCT server_id FROM sync_state WHERE sync_phase = 'ready'")?;
         let collected: rusqlite::Result<Vec<String>> =
@@ -223,7 +223,7 @@ mod tests {
 
     fn set_phase(store: &LibraryStore, server: &str, phase: &str) {
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO sync_state (server_id, library_scope, sync_phase) \
                      VALUES (?1, '', ?2) \
@@ -276,7 +276,7 @@ mod tests {
             .unwrap();
         // Both tracks link to the same canonical id → one survives.
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO canonical_track (id, created_at, updated_at) VALUES ('can1', 1, 1)",
                     [],

@@ -79,6 +79,13 @@ export interface SyncStateDto {
   serverTrackCount?: number | null;
   lastError?: string | null;
   localTracksMaxUpdatedMs?: number | null;
+  /** True when at least one non-deleted track exists locally (cheap EXISTS). */
+  hasLocalTracks?: boolean;
+  ingestStrategy?: string | null;
+  ingestPhase?: string | null;
+  /** Tracks ingested per persisted initial-sync cursor (IS-3 progress). */
+  cursorIngestedCount?: number | null;
+  n1BulkUnreliable?: boolean | null;
 }
 
 export interface LibraryTracksEnvelope {
@@ -197,6 +204,8 @@ export interface LibraryAdvancedSearchRequest {
   sort?: LibrarySortClause[];
   limit: number;
   offset?: number;
+  /** Skip expensive COUNT queries (Live Search). */
+  skipTotals?: boolean;
 }
 
 export interface LibraryAlbumDto {
@@ -281,6 +290,24 @@ export function libraryAdvancedSearch(
   return invoke<LibraryAdvancedSearchResponse>('library_advanced_search', { request });
 }
 
+export interface LibraryLiveSearchResponse {
+  artists: LibraryArtistDto[];
+  albums: LibraryAlbumDto[];
+  tracks: LibraryTrackDto[];
+  source: 'local' | 'network' | 'mixed';
+}
+
+/** Live Search dropdown — one lean FTS query (§5.9), not Advanced Search. */
+export function libraryLiveSearch(args: {
+  serverId: string;
+  query: string;
+  artistLimit?: number;
+  albumLimit?: number;
+  songLimit?: number;
+}): Promise<LibraryLiveSearchResponse> {
+  return invoke<LibraryLiveSearchResponse>('library_live_search', args);
+}
+
 /** Cross-server FTS union over the given servers, or all `ready` ones (§5.5B). */
 export function librarySearchCrossServer(args: {
   query: string;
@@ -356,6 +383,10 @@ export function librarySyncClearSession(serverId: string): Promise<void> {
 }
 
 export type PlaybackHint = 'idle' | 'playing' | 'prefetch_active';
+
+export function libraryGetPlaybackHint(): Promise<PlaybackHint> {
+  return invoke<PlaybackHint>('library_get_playback_hint');
+}
 
 export function librarySetPlaybackHint(hint: PlaybackHint): Promise<void> {
   return invoke<void>('library_set_playback_hint', { hint });
@@ -442,6 +473,20 @@ export interface LibrarySyncProgressPayload {
   tombstonesDeleted?: number | null;
   completedKind?: string | null;
   message?: string | null;
+  /** S1 per-batch timings from the Rust ingest runner (when available). */
+  ingestMetrics?: IngestBatchMetrics | null;
+}
+
+export interface IngestBatchMetrics {
+  offset: number;
+  strategy: string;
+  fetchMs: number;
+  writeMs: number;
+  lockWaitMs: number;
+  sqlExecMs: number;
+  persistMs: number;
+  rowCount: number;
+  bulkIngestActive: boolean;
 }
 
 export interface LibrarySyncIdlePayload {

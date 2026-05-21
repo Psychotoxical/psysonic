@@ -24,7 +24,7 @@ pub fn search_tracks(
     query: &str,
     limit: i64,
 ) -> Result<Vec<TrackHit>, String> {
-    store.with_conn(|conn| {
+    store.with_read_conn(|conn| {
         let mut stmt = conn.prepare(
             r#"
             SELECT t.server_id, t.id, t.title, t.artist, t.album

@@ -48,8 +48,18 @@ impl<'a> ArtifactRepository<'a> {
         format: Option<&str>,
         now: i64,
     ) -> Result<Option<TrackArtifactDto>, String> {
+        if self.store.bulk_ingest_active() {
+            return self.get_readonly(
+                server_id,
+                track_id,
+                artifact_kind,
+                source_kind,
+                source_id,
+                format,
+            );
+        }
         self.store
-            .with_conn_mut(|conn| {
+            .with_conn_mut("artifact.get_gc", |conn| {
                 // Lazy TTL cleanup, scoped to the looked-up kind.
                 conn.execute(
                     "DELETE FROM track_artifact \
@@ -58,63 +68,108 @@ impl<'a> ArtifactRepository<'a> {
                     params![server_id, track_id, artifact_kind, now],
                 )?;
 
-                // Compose the optional filters with running placeholder
-                // indices so any subset binds correctly.
-                let mut sql = String::from(
-                    "SELECT server_id, track_id, artifact_kind, format, source_kind, source_id, \
-                     language, content_text, content_bytes, not_found, content_hash, fetched_at, \
-                     expires_at FROM track_artifact \
-                     WHERE server_id = ?1 AND track_id = ?2 AND artifact_kind = ?3",
-                );
-                let mut bound: Vec<Value> = vec![
-                    Value::Text(server_id.to_string()),
-                    Value::Text(track_id.to_string()),
-                    Value::Text(artifact_kind.to_string()),
-                ];
-                let mut next = 4;
-                if let Some(sk) = source_kind {
-                    sql.push_str(&format!(" AND source_kind = ?{next}"));
-                    bound.push(Value::Text(sk.to_string()));
-                    next += 1;
-                }
-                if let Some(si) = source_id {
-                    sql.push_str(&format!(" AND source_id = ?{next}"));
-                    bound.push(Value::Text(si.to_string()));
-                    next += 1;
-                }
-                if let Some(fmt) = format {
-                    sql.push_str(&format!(" AND format = ?{next}"));
-                    bound.push(Value::Text(fmt.to_string()));
-                }
-                sql.push_str(" ORDER BY fetched_at DESC LIMIT 1");
-
-                let mut stmt = conn.prepare(&sql)?;
-                stmt.query_row(rusqlite::params_from_iter(bound.iter()), row_to_artifact_dto)
-                    .optional()
+                Self::query_one(
+                    conn,
+                    server_id,
+                    track_id,
+                    artifact_kind,
+                    source_kind,
+                    source_id,
+                    format,
+                )
             })
             .map_err(|e| e.to_string())
+    }
+
+    fn get_readonly(
+        &self,
+        server_id: &str,
+        track_id: &str,
+        artifact_kind: &str,
+        source_kind: Option<&str>,
+        source_id: Option<&str>,
+        format: Option<&str>,
+    ) -> Result<Option<TrackArtifactDto>, String> {
+        self.store
+            .with_read_conn(|conn| {
+                Self::query_one(
+                    conn,
+                    server_id,
+                    track_id,
+                    artifact_kind,
+                    source_kind,
+                    source_id,
+                    format,
+                )
+            })
+            .map_err(|e| e.to_string())
+    }
+
+    fn query_one(
+        conn: &rusqlite::Connection,
+        server_id: &str,
+        track_id: &str,
+        artifact_kind: &str,
+        source_kind: Option<&str>,
+        source_id: Option<&str>,
+        format: Option<&str>,
+    ) -> rusqlite::Result<Option<TrackArtifactDto>> {
+        let mut sql = String::from(
+            "SELECT server_id, track_id, artifact_kind, format, source_kind, source_id, \
+             language, content_text, content_bytes, not_found, content_hash, fetched_at, \
+             expires_at FROM track_artifact \
+             WHERE server_id = ?1 AND track_id = ?2 AND artifact_kind = ?3",
+        );
+        let mut bound: Vec<Value> = vec![
+            Value::Text(server_id.to_string()),
+            Value::Text(track_id.to_string()),
+            Value::Text(artifact_kind.to_string()),
+        ];
+        let mut next = 4;
+        if let Some(sk) = source_kind {
+            sql.push_str(&format!(" AND source_kind = ?{next}"));
+            bound.push(Value::Text(sk.to_string()));
+            next += 1;
+        }
+        if let Some(si) = source_id {
+            sql.push_str(&format!(" AND source_id = ?{next}"));
+            bound.push(Value::Text(si.to_string()));
+            next += 1;
+        }
+        if let Some(fmt) = format {
+            sql.push_str(&format!(" AND format = ?{next}"));
+            bound.push(Value::Text(fmt.to_string()));
+        }
+        sql.push_str(" ORDER BY fetched_at DESC LIMIT 1");
+
+        let mut stmt = conn.prepare(&sql)?;
+        stmt.query_row(rusqlite::params_from_iter(bound.iter()), row_to_artifact_dto)
+            .optional()
     }
 
     /// E3 readiness: is there a valid (non-expired, non-`not_found`) lyrics
     /// artifact for `(server_id, track_id)`? Pure read — no lazy GC, no writes —
     /// so the `library_get_track` enrichment summary stays read-only.
     pub fn lyrics_cached(&self, server_id: &str, track_id: &str, now: i64) -> Result<bool, String> {
-        self.store
-            .with_conn(|conn| {
-                let exists: i64 = conn.query_row(
-                    "SELECT EXISTS ( \
-                       SELECT 1 FROM track_artifact \
-                       WHERE server_id = ?1 AND track_id = ?2 \
-                         AND artifact_kind = 'lyrics' \
-                         AND not_found = 0 \
-                         AND (expires_at IS NULL OR expires_at >= ?3) \
-                     )",
-                    params![server_id, track_id, now],
-                    |r| r.get(0),
-                )?;
-                Ok(exists != 0)
-            })
-            .map_err(|e| e.to_string())
+        let query = |conn: &rusqlite::Connection| {
+            conn.query_row(
+                "SELECT EXISTS ( \
+                   SELECT 1 FROM track_artifact \
+                   WHERE server_id = ?1 AND track_id = ?2 \
+                     AND artifact_kind = 'lyrics' \
+                     AND not_found = 0 \
+                     AND (expires_at IS NULL OR expires_at >= ?3) \
+                 )",
+                params![server_id, track_id, now],
+                |r| r.get::<_, i64>(0),
+            )
+        };
+        let exists = if self.store.bulk_ingest_active() {
+            self.store.with_read_conn(query)?
+        } else {
+            self.store.with_conn("artifact.lyrics_cached", query)?
+        };
+        Ok(exists != 0)
     }
 
     /// Upsert an artifact. Rejects content over [`MAX_ARTIFACT_BYTES`] unless
@@ -140,7 +195,7 @@ impl<'a> ArtifactRepository<'a> {
         }
 
         self.store
-            .with_conn(|conn| {
+            .with_conn("artifact.put", |conn| {
                 conn.execute(
                     UPSERT_ARTIFACT,
                     params![
@@ -225,7 +280,7 @@ mod tests {
 
     fn seed_track(store: &LibraryStore, server: &str, id: &str) {
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO track (server_id, id, title, synced_at, raw_json) \
                      VALUES (?1, ?2, 'T', 1, '{}')",
@@ -264,7 +319,7 @@ mod tests {
         assert!(got.is_none());
 
         let total: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(total, 0, "expired row deleted, not just filtered");
     }
@@ -389,7 +444,7 @@ mod tests {
         updated.content_text = Some("new words".into());
         repo.put("s1", "t1", &updated, 2).unwrap();
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_artifact", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 1, "same (kind, source, format) updates in place");
         let got = repo.get("s1", "t1", "lyrics", None, None, None, 3).unwrap().unwrap();

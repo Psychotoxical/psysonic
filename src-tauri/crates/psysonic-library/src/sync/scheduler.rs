@@ -33,6 +33,9 @@ pub const DEFAULT_TOMBSTONE_THRESHOLD_PCT: u32 = 5;
 pub struct SchedulerTickReport {
     pub skipped_not_due: bool,
     pub skipped_bulk_paused: bool,
+    /// Delta/tombstone pass deferred while initial sync or capability probe
+    /// holds `sync_phase` or IS-3 bulk ingest is active.
+    pub skipped_sync_pass_active: bool,
     pub delta: Option<DeltaSyncReport>,
     pub next_poll_at_ms: i64,
 }
@@ -132,9 +135,27 @@ impl<'a> BackgroundScheduler<'a> {
         let mut report = SchedulerTickReport {
             skipped_not_due: false,
             skipped_bulk_paused: false,
+            skipped_sync_pass_active: false,
             delta: None,
             next_poll_at_ms: now_ms,
         };
+
+        if self.sync_pass_active(&sync_state)? {
+            report.skipped_sync_pass_active = true;
+            report.next_poll_at_ms = now_ms + 30_000;
+            sync_state
+                .set_next_poll_at(&self.server_id, &self.library_scope, report.next_poll_at_ms)
+                .map_err(SyncError::Storage)?;
+            crate::app_eprintln!(
+                "[library-sync] scheduler tick skipped: sync pass active (phase={:?}, bulk={})",
+                sync_state
+                    .get_sync_phase(&self.server_id, &self.library_scope)
+                    .ok()
+                    .flatten(),
+                self.store.bulk_ingest_active()
+            );
+            return Ok(report);
+        }
 
         if !self.is_due(now_ms)? {
             report.skipped_not_due = true;
@@ -257,9 +278,24 @@ impl<'a> BackgroundScheduler<'a> {
         }
     }
 
+    /// True while initial sync, capability probe, or IS-3 bulk ingest is
+    /// in flight — background delta must not compete for the write lock.
+    fn sync_pass_active(&self, sync_state: &SyncStateRepository<'_>) -> Result<bool, SyncError> {
+        if self.store.bulk_ingest_active() {
+            return Ok(true);
+        }
+        let phase = sync_state
+            .get_sync_phase(&self.server_id, &self.library_scope)
+            .map_err(SyncError::Storage)?;
+        Ok(matches!(
+            phase.as_deref(),
+            Some("initial_sync") | Some("probing")
+        ))
+    }
+
     fn count_local_tracks(&self) -> Result<i64, SyncError> {
         self.store
-            .with_conn(|c| {
+            .with_conn("scheduler.count_local_tracks", |c| {
                 c.query_row(
                     "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
                     rusqlite::params![self.server_id],
@@ -355,6 +391,34 @@ mod tests {
     }
 
     // ── tick skips when not due ──────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn tick_skips_while_initial_sync_phase_active() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state
+            .set_sync_phase("s1", "", "initial_sync")
+            .unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        let report = BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(0)
+        .await
+        .unwrap();
+
+        assert!(report.skipped_sync_pass_active);
+        assert!(report.delta.is_none());
+        assert_eq!(report.next_poll_at_ms, 30_000);
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn tick_skips_when_not_due_and_reports_next_poll() {

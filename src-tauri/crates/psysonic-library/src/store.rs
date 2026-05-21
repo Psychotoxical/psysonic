@@ -1,12 +1,14 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::Duration;
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 2;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 3;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -21,10 +23,16 @@ pub const LIBRARY_DB_MIN_COMPATIBLE_VERSION: i64 = 1;
 pub(crate) const INITIAL_SQL: &str = include_str!("../migrations/001_initial.sql");
 const MIGRATION_002_N1_BULK_UNRELIABLE: &str =
     include_str!("../migrations/002_n1_bulk_unreliable.sql");
+const MIGRATION_003_TRACK_REMAP_INDEXES: &str =
+    include_str!("../migrations/003_track_remap_indexes.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
-const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL), (2, MIGRATION_002_N1_BULK_UNRELIABLE)];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, INITIAL_SQL),
+    (2, MIGRATION_002_N1_BULK_UNRELIABLE),
+    (3, MIGRATION_003_TRACK_REMAP_INDEXES),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MigrationOutcome {
@@ -36,8 +44,21 @@ pub(crate) enum MigrationOutcome {
     BreakingBump,
 }
 
+/// In-memory tests share one DB across the read/write pair in a single store.
+static IN_MEMORY_DB_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn in_memory_uri() -> String {
+    let n = IN_MEMORY_DB_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("file:psysonic_library_mem_{n}?mode=memory&cache=shared")
+}
+
 pub struct LibraryStore {
-    conn: Mutex<Connection>,
+    /// Writes, migrations, and sync ingest (single writer).
+    write_conn: Mutex<Connection>,
+    /// Read-only handle for search / status / hydrate while sync writes (WAL).
+    read_conn: Mutex<Connection>,
+    /// IS-3 bulk ingest in progress — read paths skip write-lock work.
+    bulk_ingest_active: AtomicBool,
 }
 
 impl LibraryStore {
@@ -46,44 +67,125 @@ impl LibraryStore {
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-        configure_connection(&conn).map_err(|e| e.to_string())?;
-        run_migrations(&conn).map_err(|e| e.to_string())?;
-        Ok(Self { conn: Mutex::new(conn) })
+        Self::open_file(&db_path)
+    }
+
+    fn open_file(db_path: &Path) -> Result<Self, String> {
+        let write_conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+        configure_write_connection(&write_conn).map_err(|e| e.to_string())?;
+        run_migrations(&write_conn).map_err(|e| e.to_string())?;
+        let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+        configure_read_connection(&read_conn).map_err(|e| e.to_string())?;
+        Ok(Self {
+            write_conn: Mutex::new(write_conn),
+            read_conn: Mutex::new(read_conn),
+            bulk_ingest_active: AtomicBool::new(false),
+        })
     }
 
     /// Build an in-memory DB with the production schema applied.
-    /// WAL pragma is skipped — `:memory:` doesn't support journal-mode changes
-    /// (mirrors `psysonic_analysis::AnalysisCache::open_in_memory`).
     pub fn open_in_memory() -> Self {
-        let conn = Connection::open_in_memory().expect("in-memory connection");
-        conn.pragma_update(None, "foreign_keys", "ON").expect("pragma foreign_keys");
-        run_migrations(&conn).expect("schema migration");
-        Self { conn: Mutex::new(conn) }
+        let uri = in_memory_uri();
+        let write_conn = Connection::open(&uri).expect("in-memory write connection");
+        configure_write_connection(&write_conn).expect("write pragmas");
+        run_migrations(&write_conn).expect("schema migration");
+        let read_conn = Connection::open(&uri).expect("in-memory read connection");
+        configure_read_connection(&read_conn).expect("read pragmas");
+        Self {
+            write_conn: Mutex::new(write_conn),
+            read_conn: Mutex::new(read_conn),
+            bulk_ingest_active: AtomicBool::new(false),
+        }
     }
 
-    /// Borrow the inner connection. Returned guard locks the mutex — keep the
-    /// scope tight so other repo calls don't stall.
+    pub(crate) fn set_bulk_ingest_active(&self, active: bool) {
+        self.bulk_ingest_active
+            .store(active, Ordering::Release);
+    }
+
+    pub(crate) fn bulk_ingest_active(&self) -> bool {
+        self.bulk_ingest_active.load(Ordering::Acquire)
+    }
+
+    /// Writer connection — sync ingest, migrations, mutations.
     pub(crate) fn with_conn<R>(
+        &self,
+        op: &'static str,
+        f: impl FnOnce(&Connection) -> rusqlite::Result<R>,
+    ) -> Result<R, String> {
+        let lock_start = std::time::Instant::now();
+        let conn = self
+            .write_conn
+            .lock()
+            .map_err(|_| "library store write lock poisoned".to_string())?;
+        let lock_wait_ms = lock_start.elapsed().as_millis();
+        let exec_start = std::time::Instant::now();
+        let out = f(&conn).map_err(|e| e.to_string());
+        let exec_ms = exec_start.elapsed().as_millis();
+        log_write_op(op, lock_wait_ms, exec_ms);
+        out
+    }
+
+    /// Read-only connection — search, status, hydrate; does not block on sync writes.
+    pub(crate) fn with_read_conn<R>(
         &self,
         f: impl FnOnce(&Connection) -> rusqlite::Result<R>,
     ) -> Result<R, String> {
         let conn = self
-            .conn
+            .read_conn
             .lock()
-            .map_err(|_| "library store lock poisoned".to_string())?;
+            .map_err(|_| "library store read lock poisoned".to_string())?;
         f(&conn).map_err(|e| e.to_string())
     }
 
     pub(crate) fn with_conn_mut<R>(
         &self,
+        op: &'static str,
         f: impl FnOnce(&mut Connection) -> rusqlite::Result<R>,
     ) -> Result<R, String> {
+        self.with_conn_mut_timed(op, f).map(|(value, _)| value)
+    }
+
+    pub(crate) fn with_conn_mut_timed<R>(
+        &self,
+        op: &'static str,
+        f: impl FnOnce(&mut Connection) -> rusqlite::Result<R>,
+    ) -> Result<(R, WriteOpTiming), String> {
+        let lock_start = std::time::Instant::now();
         let mut conn = self
-            .conn
+            .write_conn
             .lock()
-            .map_err(|_| "library store lock poisoned".to_string())?;
-        f(&mut conn).map_err(|e| e.to_string())
+            .map_err(|_| "library store write lock poisoned".to_string())?;
+        let lock_wait_ms = lock_start.elapsed().as_millis() as u64;
+        let exec_start = std::time::Instant::now();
+        let out = f(&mut conn).map_err(|e| e.to_string())?;
+        let exec_ms = exec_start.elapsed().as_millis() as u64;
+        log_write_op(op, lock_wait_ms as u128, exec_ms as u128);
+        Ok((out, WriteOpTiming { lock_wait_ms, exec_ms }))
+    }
+}
+
+/// Timing split returned to ingest progress (DevTools / terminal).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WriteOpTiming {
+    pub lock_wait_ms: u64,
+    pub exec_ms: u64,
+}
+
+impl WriteOpTiming {
+    pub fn total_ms(&self) -> u64 {
+        self.lock_wait_ms.saturating_add(self.exec_ms)
+    }
+}
+
+fn log_write_op(op: &str, lock_wait_ms: u128, exec_ms: u128) {
+    if lock_wait_ms >= 1000 || exec_ms >= 1000 {
+        crate::app_eprintln!(
+            "[library-db] SLOW write op={op} lock_wait_ms={lock_wait_ms} exec_ms={exec_ms}"
+        );
+    } else if lock_wait_ms >= 50 || exec_ms >= 200 {
+        crate::app_eprintln!("[library-db] write op={op} lock_wait_ms={lock_wait_ms} exec_ms={exec_ms}");
     }
 }
 
@@ -92,10 +194,17 @@ fn library_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(base.join("library.sqlite"))
 }
 
-fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {
+fn configure_write_connection(conn: &Connection) -> rusqlite::Result<()> {
+    conn.busy_timeout(Duration::from_secs(30))?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.pragma_update(None, "temp_store", "MEMORY")?;
+    conn.pragma_update(None, "foreign_keys", "ON")?;
+    Ok(())
+}
+
+fn configure_read_connection(conn: &Connection) -> rusqlite::Result<()> {
+    conn.busy_timeout(Duration::from_secs(5))?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     Ok(())
 }
@@ -175,10 +284,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn read_conn_sees_committed_writes_from_write_conn() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO sync_state (server_id, library_scope, sync_phase) \
+                     VALUES ('s1', '', 'ready')",
+                    [],
+                )
+            })
+            .unwrap();
+        let phase: String = store
+            .with_read_conn(|c| {
+                c.query_row(
+                    "SELECT sync_phase FROM sync_state WHERE server_id = 's1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(phase, "ready");
+    }
+
+    #[test]
     fn open_in_memory_creates_all_expected_tables() {
         let store = LibraryStore::open_in_memory();
         let tables = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let mut stmt =
                     c.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")?;
                 let rows: rusqlite::Result<Vec<String>> =
@@ -214,7 +347,7 @@ mod tests {
     fn schema_migrations_records_head_version() {
         let store = LibraryStore::open_in_memory();
         let versions: Vec<i64> = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let mut stmt =
                     c.prepare("SELECT version FROM schema_migrations ORDER BY version")?;
                 let rows: rusqlite::Result<Vec<i64>> =
@@ -231,11 +364,11 @@ mod tests {
     fn run_migrations_is_idempotent_across_reopens() {
         let store = LibraryStore::open_in_memory();
         let outcome = store
-            .with_conn(run_migrations)
+            .with_conn("migrate", run_migrations)
             .expect("second migration pass must be a no-op");
         assert_eq!(outcome, MigrationOutcome::Applied);
         let count: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
             })
             .unwrap();
@@ -249,7 +382,7 @@ mod tests {
     fn fts_virtual_table_exists() {
         let store = LibraryStore::open_in_memory();
         let count: i64 = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT COUNT(*) FROM sqlite_master WHERE name='track_fts'",
                     [],
@@ -280,7 +413,7 @@ mod tests {
     fn additive_migration_preserves_existing_data() {
         let store = LibraryStore::open_in_memory();
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO artist (server_id, id, name, synced_at) \
                      VALUES ('s1', 'a1', 'Existing Artist', 1)",
@@ -290,7 +423,7 @@ mod tests {
             .unwrap();
 
         let outcome = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 run_migrations_with(
                     c,
                     &[(1, INITIAL_SQL), (FIXTURE_ADD_BIO_VERSION, FIXTURE_ADD_BIO)],
@@ -302,7 +435,7 @@ mod tests {
         assert_eq!(outcome, MigrationOutcome::Applied);
 
         let (name, bio): (String, Option<String>) = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT name, bio FROM artist WHERE id = 'a1'",
                     [],
@@ -314,7 +447,7 @@ mod tests {
         assert!(bio.is_none());
 
         let versions: Vec<i64> = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 let mut stmt =
                     c.prepare("SELECT version FROM schema_migrations ORDER BY version")?;
                 let rows: rusqlite::Result<Vec<i64>> =
@@ -361,7 +494,7 @@ mod tests {
         // the version the DB currently carries (the real embedded head).
         let store = LibraryStore::open_in_memory();
         let outcome = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 run_migrations_with(
                     c,
                     MIGRATIONS,

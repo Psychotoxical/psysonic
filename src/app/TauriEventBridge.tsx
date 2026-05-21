@@ -7,6 +7,7 @@ import { useTrayIconSync } from '../hooks/tauriBridge/useTrayIconSync';
 import { useInAppKeybindings } from '../hooks/tauriBridge/useInAppKeybindings';
 import { useMediaAndWindowBridge } from '../hooks/tauriBridge/useMediaAndWindowBridge';
 import { usePlayerSnapshotPublisher } from '../hooks/tauriBridge/usePlayerSnapshotPublisher';
+import { useLibraryDevSyncLog } from '../hooks/tauriBridge/useLibraryDevSyncLog';
 
 /**
  * Single mount point for everything that bridges Rust ↔ React in the main
@@ -33,6 +34,7 @@ export function TauriEventBridge() {
   useInAppKeybindings(navigate);
   useMediaAndWindowBridge(navigate);
   usePlayerSnapshotPublisher();
+  useLibraryDevSyncLog();
 
   return null;
 }

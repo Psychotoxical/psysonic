@@ -34,8 +34,11 @@ impl<'a> FactRepository<'a> {
         fact_kinds: &[String],
         now: i64,
     ) -> Result<Vec<TrackFactDto>, String> {
+        if self.store.bulk_ingest_active() {
+            return self.get_readonly(server_id, track_id, fact_kinds);
+        }
         self.store
-            .with_conn_mut(|conn| {
+            .with_conn_mut("fact.get_gc", |conn| {
                 // Lazy TTL cleanup for this track.
                 conn.execute(
                     "DELETE FROM track_fact \
@@ -44,36 +47,56 @@ impl<'a> FactRepository<'a> {
                     params![server_id, track_id, now],
                 )?;
 
-                if fact_kinds.is_empty() {
-                    let mut stmt = conn.prepare(SELECT_FACTS)?;
-                    let rows: rusqlite::Result<Vec<TrackFactDto>> = stmt
-                        .query_map(params![server_id, track_id], row_to_fact_dto)?
-                        .collect();
-                    rows
-                } else {
-                    let placeholders = (0..fact_kinds.len())
-                        .map(|i| format!("?{}", i + 3))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let sql = format!(
-                        "{SELECT_FACTS_BASE} AND fact_kind IN ({placeholders}) \
-                         ORDER BY fact_kind ASC, fetched_at DESC"
-                    );
-                    let mut bound: Vec<rusqlite::types::Value> = vec![
-                        rusqlite::types::Value::Text(server_id.to_string()),
-                        rusqlite::types::Value::Text(track_id.to_string()),
-                    ];
-                    for k in fact_kinds {
-                        bound.push(rusqlite::types::Value::Text(k.clone()));
-                    }
-                    let mut stmt = conn.prepare(&sql)?;
-                    let rows: rusqlite::Result<Vec<TrackFactDto>> = stmt
-                        .query_map(rusqlite::params_from_iter(bound.iter()), row_to_fact_dto)?
-                        .collect();
-                    rows
-                }
+                Self::query_facts(conn, server_id, track_id, fact_kinds)
             })
             .map_err(|e| e.to_string())
+    }
+
+    fn get_readonly(
+        &self,
+        server_id: &str,
+        track_id: &str,
+        fact_kinds: &[String],
+    ) -> Result<Vec<TrackFactDto>, String> {
+        self.store
+            .with_read_conn(|conn| Self::query_facts(conn, server_id, track_id, fact_kinds))
+            .map_err(|e| e.to_string())
+    }
+
+    fn query_facts(
+        conn: &rusqlite::Connection,
+        server_id: &str,
+        track_id: &str,
+        fact_kinds: &[String],
+    ) -> rusqlite::Result<Vec<TrackFactDto>> {
+        if fact_kinds.is_empty() {
+            let mut stmt = conn.prepare(SELECT_FACTS)?;
+            let rows: rusqlite::Result<Vec<TrackFactDto>> = stmt
+                .query_map(params![server_id, track_id], row_to_fact_dto)?
+                .collect();
+            rows
+        } else {
+            let placeholders = (0..fact_kinds.len())
+                .map(|i| format!("?{}", i + 3))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let sql = format!(
+                "{SELECT_FACTS_BASE} AND fact_kind IN ({placeholders}) \
+                 ORDER BY fact_kind ASC, fetched_at DESC"
+            );
+            let mut bound: Vec<rusqlite::types::Value> = vec![
+                rusqlite::types::Value::Text(server_id.to_string()),
+                rusqlite::types::Value::Text(track_id.to_string()),
+            ];
+            for k in fact_kinds {
+                bound.push(rusqlite::types::Value::Text(k.clone()));
+            }
+            let mut stmt = conn.prepare(&sql)?;
+            let rows: rusqlite::Result<Vec<TrackFactDto>> = stmt
+                .query_map(rusqlite::params_from_iter(bound.iter()), row_to_fact_dto)?
+                .collect();
+            rows
+        }
     }
 
     /// Upsert a fact. A `user` BPM fact also writes the hot `track.bpm`
@@ -87,7 +110,7 @@ impl<'a> FactRepository<'a> {
         now: i64,
     ) -> Result<(), String> {
         self.store
-            .with_conn(|conn| {
+            .with_conn("fact.put", |conn| {
                 conn.execute(
                     UPSERT_FACT,
                     params![
@@ -182,7 +205,7 @@ mod tests {
 
     fn seed_track(store: &LibraryStore, server: &str, id: &str) {
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO track (server_id, id, title, synced_at, raw_json) \
                      VALUES (?1, ?2, 'T', 1, '{}')",
@@ -220,7 +243,7 @@ mod tests {
 
         // and it was actually deleted from the table (not just filtered).
         let total: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track_fact", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_fact", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(total, 1);
     }
@@ -244,7 +267,7 @@ mod tests {
         let repo = FactRepository::new(&store);
         repo.put("s1", "t1", &fact("bpm", "user", Some(128), None), 1).unwrap();
         let bpm: Option<i64> = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row("SELECT bpm FROM track WHERE server_id='s1' AND id='t1'", [], |r| r.get(0))
             })
             .unwrap();
@@ -258,7 +281,7 @@ mod tests {
         let repo = FactRepository::new(&store);
         repo.put("s1", "t1", &fact("bpm", "analysis", Some(99), None), 1).unwrap();
         let bpm: Option<i64> = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row("SELECT bpm FROM track WHERE server_id='s1' AND id='t1'", [], |r| r.get(0))
             })
             .unwrap();

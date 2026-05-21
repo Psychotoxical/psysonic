@@ -89,6 +89,7 @@ function buildRequest(
   entityTypes: LibraryEntityType[],
   limit: number,
   offset: number,
+  skipTotals = false,
 ): LibraryAdvancedSearchRequest {
   const q = opts.query.trim();
   return {
@@ -98,6 +99,7 @@ function buildRequest(
     filters: buildFilters(opts),
     limit,
     offset,
+    skipTotals,
   };
 }
 
@@ -131,7 +133,7 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   return { ...base, ...(raw as Partial<SubsonicSong>) };
 }
 
-function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
+export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
   const raw = isObject(a.rawJson) ? a.rawJson : {};
   const base: SubsonicAlbum = {
     id: a.id,
@@ -142,18 +144,19 @@ function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
     duration: a.durationSec ?? 0,
     year: a.year ?? undefined,
     genre: a.genre ?? undefined,
-    coverArt: a.coverArtId ?? undefined,
+    coverArt: a.coverArtId ?? a.id,
     starred: a.starredAt != null ? new Date(a.starredAt).toISOString() : undefined,
   };
   return { ...base, ...(raw as Partial<SubsonicAlbum>) };
 }
 
-function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
+export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
   const raw = isObject(ar.rawJson) ? ar.rawJson : {};
   const base: SubsonicArtist = {
     id: ar.id,
     name: ar.name,
     albumCount: ar.albumCount ?? undefined,
+    coverArt: ar.id,
   };
   return { ...base, ...(raw as Partial<SubsonicArtist>) };
 }
@@ -167,11 +170,20 @@ export async function runLocalAdvancedSearch(
   serverId: string | null | undefined,
   opts: LocalSearchOpts,
   songsLimit: number,
+  skipReadyCheck = false,
+  skipTotals = false,
 ): Promise<LocalAdvancedSearchPage | null> {
   if (!serverId) return null;
-  if (!(await libraryIsReady(serverId))) return null;
+  if (!skipReadyCheck && !(await libraryIsReady(serverId))) return null;
   try {
-    const req = buildRequest(serverId, opts, entityTypesFor(opts.resultType), songsLimit, 0);
+    const req = buildRequest(
+      serverId,
+      opts,
+      entityTypesFor(opts.resultType),
+      songsLimit,
+      0,
+      skipTotals,
+    );
     const resp = await libraryAdvancedSearch(req);
     if (resp.source !== 'local') return null;
     return {

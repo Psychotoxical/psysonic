@@ -17,8 +17,10 @@ import {
   type SyncStateDto,
 } from '../../api/library';
 import { ensureActiveServerSessionBound } from '../../utils/library/librarySession';
+import { syncIngestDisplayCount } from '../../utils/library/libraryReady';
 
 const STATUS_POLL_MS = 3000;
+const SYNC_POLL_MS = 2500;
 
 /**
  * Settings → Library: local library index controls (spec §7.3, MVP).
@@ -40,16 +42,35 @@ export default function LibraryIndexSection() {
   const [status, setStatus] = useState<SyncStateDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [progressLabel, setProgressLabel] = useState<string | null>(null);
-  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ingestDisplayCountRef = useRef(0);
+  const syncPhaseRef = useRef<string | null>(null);
+
+  const applyIngestProgress = useCallback(
+    (count: number) => {
+      const next = Math.max(ingestDisplayCountRef.current, count);
+      if (next === ingestDisplayCountRef.current) return;
+      ingestDisplayCountRef.current = next;
+      setProgressLabel(t('settings.libraryIndexProgressIngest', { count: next }));
+    },
+    [t],
+  );
 
   const refreshStatus = useCallback(async () => {
     if (!serverId) return;
     try {
-      setStatus(await libraryGetStatus(serverId));
+      const fresh = await libraryGetStatus(serverId);
+      syncPhaseRef.current = fresh.syncPhase;
+      setStatus(fresh);
+      if (fresh.syncPhase === 'initial_sync') {
+        applyIngestProgress(syncIngestDisplayCount(fresh));
+      } else if (fresh.syncPhase === 'ready' || fresh.syncPhase === 'idle') {
+        ingestDisplayCountRef.current = 0;
+      }
     } catch {
       /* status read is best-effort — leave the last value */
     }
-  }, [serverId]);
+  }, [serverId, applyIngestProgress]);
 
   // Poll status while the section is mounted + index is on. The
   // persisted toggle can be "on" from a previous app run while the
@@ -61,9 +82,15 @@ export default function LibraryIndexSection() {
       return;
     }
     void ensureActiveServerSessionBound().then(() => refreshStatus());
-    pollTimer.current = setInterval(() => void refreshStatus(), STATUS_POLL_MS);
+    const poll = () => {
+      void refreshStatus();
+      const ms =
+        syncPhaseRef.current === 'initial_sync' ? SYNC_POLL_MS : STATUS_POLL_MS;
+      pollTimer.current = setTimeout(poll, ms);
+    };
+    poll();
     return () => {
-      if (pollTimer.current) clearInterval(pollTimer.current);
+      if (pollTimer.current) clearTimeout(pollTimer.current);
       pollTimer.current = null;
     };
   }, [serverId, indexEnabled, refreshStatus]);
@@ -74,8 +101,8 @@ export default function LibraryIndexSection() {
     const unsubs: Array<Promise<() => void>> = [
       subscribeLibrarySyncProgress(p => {
         if (p.serverId !== serverId) return;
-        if (p.kind === 'ingest_page' && typeof p.ingestedTotal === 'number') {
-          setProgressLabel(t('settings.libraryIndexProgressIngest', { count: p.ingestedTotal }));
+        if (p.kind === 'ingest_page') {
+          applyIngestProgress(p.ingestedTotal ?? 0);
         } else if (p.kind === 'tombstoned') {
           setProgressLabel(
             t('settings.libraryIndexProgressVerify', {
@@ -90,6 +117,7 @@ export default function LibraryIndexSection() {
       subscribeLibrarySyncIdle(p => {
         if (p.serverId !== serverId) return;
         setBusy(false);
+        ingestDisplayCountRef.current = 0;
         setProgressLabel(null);
         void refreshStatus();
         if (!p.ok && p.error) {
@@ -100,7 +128,7 @@ export default function LibraryIndexSection() {
     return () => {
       unsubs.forEach(u => void u.then(fn => fn()));
     };
-  }, [serverId, indexEnabled, refreshStatus, t]);
+  }, [serverId, indexEnabled, refreshStatus, applyIngestProgress, t]);
 
   const handleToggle = async (enabled: boolean) => {
     if (!activeServer || !serverId) return;
@@ -123,6 +151,7 @@ export default function LibraryIndexSection() {
         // First enable on a never-synced server → kick off the initial
         // full sync (delta alone won't populate an empty index).
         if (fresh && !fresh.lastFullSyncAt) {
+          ingestDisplayCountRef.current = 0;
           await librarySyncStart({ serverId, mode: 'full' });
         }
       } else {
@@ -148,6 +177,7 @@ export default function LibraryIndexSection() {
       // is everything-or-nothing on an empty index). Once a full
       // sync has landed, subsequent «Sync now» runs are delta.
       const mode: 'full' | 'delta' = status?.lastFullSyncAt ? 'delta' : 'full';
+      ingestDisplayCountRef.current = 0;
       await librarySyncStart({ serverId, mode });
     } catch (e) {
       setBusy(false);

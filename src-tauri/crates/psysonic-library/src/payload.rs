@@ -26,6 +26,8 @@ pub struct LibrarySyncProgressPayload {
     pub tombstones_deleted: Option<u32>,
     pub completed_kind: Option<String>,
     pub message: Option<String>,
+    /// Per-batch ingest timings (S1 initial sync).
+    pub ingest_metrics: Option<crate::sync::progress::IngestBatchMetrics>,
 }
 
 impl LibrarySyncProgressPayload {
@@ -42,6 +44,7 @@ impl LibrarySyncProgressPayload {
             tombstones_deleted: None,
             completed_kind: None,
             message: None,
+            ingest_metrics: None,
         };
         match event {
             ProgressEvent::PhaseChanged { phase } => {
@@ -51,10 +54,12 @@ impl LibrarySyncProgressPayload {
             ProgressEvent::IngestPage {
                 ingested_total,
                 batch_count,
+                metrics,
             } => {
                 payload.kind = "ingest_page".into();
                 payload.ingested_total = Some(*ingested_total);
                 payload.batch_count = Some(*batch_count);
+                payload.ingest_metrics = metrics.clone();
             }
             ProgressEvent::Remapped { entries } => {
                 payload.kind = "remapped".into();
@@ -108,6 +113,7 @@ mod tests {
             &ProgressEvent::IngestPage {
                 ingested_total: 2500,
                 batch_count: 5,
+                metrics: None,
             },
             "s1",
             "lib-1",
@@ -180,11 +186,42 @@ mod tests {
     }
 
     #[test]
+    fn ingest_metrics_serialize_camel_case() {
+        use crate::sync::progress::IngestBatchMetrics;
+
+        let p = LibrarySyncProgressPayload::from_event(
+            &ProgressEvent::IngestPage {
+                ingested_total: 500,
+                batch_count: 1,
+                metrics: Some(IngestBatchMetrics {
+                    offset: 4500,
+                    strategy: "s1".into(),
+                    fetch_ms: 120,
+                    write_ms: 8,
+                    lock_wait_ms: 0,
+                    sql_exec_ms: 7,
+                    persist_ms: 1,
+                    row_count: 500,
+                    bulk_ingest_active: true,
+                }),
+            },
+            "s1",
+            "",
+        );
+        let json = serde_json::to_value(&p).unwrap();
+        let metrics = json.get("ingestMetrics").unwrap();
+        assert_eq!(metrics.get("fetchMs").and_then(|v| v.as_u64()), Some(120));
+        assert_eq!(metrics.get("lockWaitMs").and_then(|v| v.as_u64()), Some(0));
+        assert_eq!(metrics.get("bulkIngestActive").and_then(|v| v.as_bool()), Some(true));
+    }
+
+    #[test]
     fn serialization_uses_camel_case_keys() {
         let p = LibrarySyncProgressPayload::from_event(
             &ProgressEvent::IngestPage {
                 ingested_total: 1,
                 batch_count: 1,
+                metrics: None,
             },
             "s1",
             "",

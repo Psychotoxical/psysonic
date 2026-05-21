@@ -76,22 +76,23 @@ pub fn run_advanced_search(
 
     let limit = req.limit.clamp(1, PAGE_LIMIT_MAX);
     let offset = req.offset;
+    let skip_totals = req.skip_totals;
     let text = text_input.as_deref();
     let want = |k: EntityKind| req.entity_types.contains(&k);
     let mut applied: BTreeSet<String> = BTreeSet::new();
 
     let (artists, artists_total) = if want(EntityKind::Artist) {
-        build_artist(store, req, text, &scalar, limit, offset, &mut applied)?
+        build_artist(store, req, text, &scalar, limit, offset, skip_totals, &mut applied)?
     } else {
         (Vec::new(), 0)
     };
     let (albums, albums_total) = if want(EntityKind::Album) {
-        build_album(store, req, text, &scalar, limit, offset, &mut applied)?
+        build_album(store, req, text, &scalar, limit, offset, skip_totals, &mut applied)?
     } else {
         (Vec::new(), 0)
     };
     let (tracks, tracks_total) = if want(EntityKind::Track) {
-        build_track(store, req, text, &scalar, limit, offset, &mut applied)?
+        build_track(store, req, text, &scalar, limit, offset, skip_totals, &mut applied)?
     } else {
         (Vec::new(), 0)
     };
@@ -120,6 +121,7 @@ fn build_track(
     scalar: &[&LibraryFilterClause],
     limit: u32,
     offset: u32,
+    skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryTrackDto>, u32), String> {
     let mut w = WhereBuilder::new();
@@ -152,9 +154,17 @@ fn build_track(
 
     let order = order_clause(&req.sort, EntityKind::Track).unwrap_or(default_order);
     let cols = aliased_track_columns("t");
-    query_rows(store, &cols, &from, &w, &order, limit, offset, |r| {
-        repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row))
-    })
+    query_rows(
+        store,
+        &cols,
+        &from,
+        &w,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        |r| repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row)),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -165,10 +175,29 @@ fn build_album(
     scalar: &[&LibraryFilterClause],
     limit: u32,
     offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    let table = build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
+    if !table.0.is_empty() || table.1 > 0 {
+        return Ok(table);
+    }
+    build_album_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_album_from_table(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
     // `album` has no `library_id` / `deleted` columns, so `libraryScope` is
-    // a track-only filter (P20) and does not narrow album results.
+    // a track-only filter (P20) and does not narrow album-table results.
     let mut w = WhereBuilder::new();
     w.push_param("a.server_id = ?", SqlValue::Text(req.server_id.clone()));
     if let Some(t) = text {
@@ -188,7 +217,75 @@ fn build_album(
 
     let order = order_clause(&req.sort, EntityKind::Album)
         .unwrap_or_else(|| "ORDER BY a.name COLLATE NOCASE ASC, a.id ASC".to_string());
-    query_rows(store, ALBUM_COLUMNS, "album a", &w, &order, limit, offset, map_album)
+    query_rows(
+        store,
+        ALBUM_COLUMNS,
+        "album a",
+        &w,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        map_album,
+    )
+}
+
+/// Album rows derived from synced tracks when the dedicated `album` table
+/// has no matching rows (N1 / S1 ingest only writes tracks today).
+#[allow(clippy::too_many_arguments)]
+fn build_album_from_tracks(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    let mut w = WhereBuilder::new();
+    w.push_raw("t.deleted = 0");
+    w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
+    w.push_raw(
+        "NOT EXISTS (SELECT 1 FROM album a WHERE a.server_id = t.server_id AND a.id = t.album_id)",
+    );
+    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+    }
+    if let Some(t) = text {
+        w.push_param("t.album LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
+        applied.insert("text".to_string());
+    }
+    for c in scalar {
+        if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
+            applied.insert(c.field.clone());
+            w.push(frag);
+        }
+    }
+    if req.starred_only == Some(true) {
+        w.push_raw("t.starred_at IS NOT NULL");
+        applied.insert("starred".to_string());
+    }
+
+    let select = "t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
+        COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), MAX(t.cover_art_id), \
+        MAX(t.starred_at), MAX(t.synced_at)";
+    let order = order_clause(&req.sort, EntityKind::Album).unwrap_or_else(|| {
+        "ORDER BY MAX(t.album) COLLATE NOCASE ASC, t.album_id ASC".to_string()
+    });
+    query_grouped_rows(
+        store,
+        select,
+        "track t",
+        &w,
+        "GROUP BY t.album_id",
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        map_album_from_tracks,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -199,6 +296,25 @@ fn build_artist(
     scalar: &[&LibraryFilterClause],
     limit: u32,
     offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let table = build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
+    if !table.0.is_empty() || table.1 > 0 {
+        return Ok(table);
+    }
+    build_artist_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_artist_from_table(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
     let mut w = WhereBuilder::new();
@@ -218,7 +334,67 @@ fn build_artist(
 
     let order = order_clause(&req.sort, EntityKind::Artist)
         .unwrap_or_else(|| "ORDER BY ar.name COLLATE NOCASE ASC, ar.id ASC".to_string());
-    query_rows(store, ARTIST_COLUMNS, "artist ar", &w, &order, limit, offset, map_artist)
+    query_rows(
+        store,
+        ARTIST_COLUMNS,
+        "artist ar",
+        &w,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        map_artist,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_artist_from_tracks(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let mut w = WhereBuilder::new();
+    w.push_raw("t.deleted = 0");
+    w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
+    w.push_raw(
+        "NOT EXISTS (SELECT 1 FROM artist ar WHERE ar.server_id = t.server_id AND ar.id = t.artist_id)",
+    );
+    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+    }
+    if let Some(t) = text {
+        w.push_param("t.artist LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
+        applied.insert("text".to_string());
+    }
+    for c in scalar {
+        if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
+            applied.insert(c.field.clone());
+            w.push(frag);
+        }
+    }
+
+    let select = "t.server_id, t.artist_id, MAX(t.artist), COUNT(DISTINCT t.album_id), MAX(t.synced_at)";
+    let order = order_clause(&req.sort, EntityKind::Artist).unwrap_or_else(|| {
+        "ORDER BY MAX(t.artist) COLLATE NOCASE ASC, t.artist_id ASC".to_string()
+    });
+    query_grouped_rows(
+        store,
+        select,
+        "track t",
+        &w,
+        "GROUP BY t.artist_id",
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        map_artist_from_tracks,
+    )
 }
 
 // ── clause resolution ──────────────────────────────────────────────────
@@ -313,19 +489,25 @@ fn query_rows<T, F>(
     order_sql: &str,
     limit: u32,
     offset: u32,
+    skip_totals: bool,
     map: F,
 ) -> Result<(Vec<T>, u32), String>
 where
     F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
 {
     let where_sql = w.where_sql();
-    store.with_conn(|conn| {
-        let count_sql = format!("SELECT COUNT(*) FROM {from} WHERE {where_sql}");
-        let total: i64 = conn.query_row(
-            &count_sql,
-            rusqlite::params_from_iter(w.params.iter()),
-            |r| r.get(0),
-        )?;
+    store.with_read_conn(|conn| {
+        let total = if skip_totals {
+            0u32
+        } else {
+            let count_sql = format!("SELECT COUNT(*) FROM {from} WHERE {where_sql}");
+            let n: i64 = conn.query_row(
+                &count_sql,
+                rusqlite::params_from_iter(w.params.iter()),
+                |r| r.get(0),
+            )?;
+            n.max(0) as u32
+        };
 
         let page_sql = format!(
             "SELECT {select_cols} FROM {from} WHERE {where_sql} {order_sql} LIMIT ? OFFSET ?"
@@ -334,13 +516,60 @@ where
         page_params.push(SqlValue::Integer(limit as i64));
         page_params.push(SqlValue::Integer(offset as i64));
         let mut stmt = conn.prepare(&page_sql)?;
-        // Bind the collected `Result` before unwrapping so the `MappedRows`
-        // borrow of `stmt` ends inside the block (rusqlite borrow quirk).
         let collected: rusqlite::Result<Vec<T>> = stmt
             .query_map(rusqlite::params_from_iter(page_params.iter()), |r| map(r))?
             .collect();
         let rows = collected?;
-        Ok((rows, total.max(0) as u32))
+        Ok((rows, total))
+    })
+}
+
+/// Grouped SELECT (album/artist rows derived from `track`). Skips COUNT when
+/// `skip_totals` — Live Search only needs the first page.
+#[allow(clippy::too_many_arguments)]
+fn query_grouped_rows<T, F>(
+    store: &LibraryStore,
+    select_cols: &str,
+    from: &str,
+    w: &WhereBuilder,
+    group_sql: &str,
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    map: F,
+) -> Result<(Vec<T>, u32), String>
+where
+    F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+{
+    let where_sql = w.where_sql();
+    store.with_read_conn(|conn| {
+        let total = if skip_totals {
+            0u32
+        } else {
+            let count_sql = format!(
+                "SELECT COUNT(*) FROM (SELECT 1 FROM {from} WHERE {where_sql} {group_sql})"
+            );
+            let n: i64 = conn.query_row(
+                &count_sql,
+                rusqlite::params_from_iter(w.params.iter()),
+                |r| r.get(0),
+            )?;
+            n.max(0) as u32
+        };
+
+        let page_sql = format!(
+            "SELECT {select_cols} FROM {from} WHERE {where_sql} {group_sql} {order_sql} LIMIT ? OFFSET ?"
+        );
+        let mut page_params: Vec<SqlValue> = w.params.clone();
+        page_params.push(SqlValue::Integer(limit as i64));
+        page_params.push(SqlValue::Integer(offset as i64));
+        let mut stmt = conn.prepare(&page_sql)?;
+        let collected: rusqlite::Result<Vec<T>> = stmt
+            .query_map(rusqlite::params_from_iter(page_params.iter()), |r| map(r))?
+            .collect();
+        let rows = collected?;
+        Ok((rows, total))
     })
 }
 
@@ -374,6 +603,35 @@ fn map_artist(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryArtistDto> {
         album_count: r.get(3)?,
         synced_at: r.get(4)?,
         raw_json: parse_raw_json(raw),
+    })
+}
+
+fn map_album_from_tracks(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryAlbumDto> {
+    Ok(LibraryAlbumDto {
+        server_id: r.get(0)?,
+        id: r.get(1)?,
+        name: r.get(2)?,
+        artist: r.get(3)?,
+        artist_id: r.get(4)?,
+        song_count: Some(r.get(5)?),
+        duration_sec: Some(r.get(6)?),
+        year: r.get(7)?,
+        genre: r.get(8)?,
+        cover_art_id: r.get(9)?,
+        starred_at: r.get(10)?,
+        synced_at: r.get(11)?,
+        raw_json: Value::Null,
+    })
+}
+
+fn map_artist_from_tracks(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryArtistDto> {
+    Ok(LibraryArtistDto {
+        server_id: r.get(0)?,
+        id: r.get(1)?,
+        name: r.get(2)?,
+        album_count: Some(r.get(3)?),
+        synced_at: r.get(4)?,
+        raw_json: Value::Null,
     })
 }
 
@@ -508,7 +766,7 @@ mod tests {
 
     fn insert_album(store: &LibraryStore, server: &str, id: &str, name: &str, year: Option<i64>, genre: Option<&str>) {
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO album (server_id, id, name, year, genre, synced_at, raw_json) \
                      VALUES (?1, ?2, ?3, ?4, ?5, 1, '{}')",
@@ -520,7 +778,7 @@ mod tests {
 
     fn insert_artist(store: &LibraryStore, server: &str, id: &str, name: &str) {
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO artist (server_id, id, name, synced_at, raw_json) \
                      VALUES (?1, ?2, ?3, 1, '{}')",
@@ -541,6 +799,7 @@ mod tests {
             sort: Vec::new(),
             limit: 50,
             offset: 0,
+            skip_totals: false,
         }
     }
 
@@ -587,6 +846,27 @@ mod tests {
         assert_eq!(resp.albums[0].id, "al1");
         assert_eq!(resp.artists.len(), 1);
         assert_eq!(resp.artists[0].id, "ar1");
+    }
+
+    #[test]
+    fn text_query_derives_album_and_artist_from_tracks_when_tables_empty() {
+        let store = LibraryStore::open_in_memory();
+        let mut t1 = track("s1", "t1", "Song One", "Aurora Quartet", "Aurora Nights");
+        t1.cover_art_id = Some("cv1".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                t1,
+                track("s1", "t2", "Song Two", "Other Artist", "Other Album"),
+            ])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Album, EntityKind::Artist]);
+        r.query = Some("aurora".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al_Aurora Nights");
+        assert_eq!(resp.albums[0].cover_art_id.as_deref(), Some("cv1"));
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar_Aurora Quartet");
     }
 
     #[test]
@@ -707,7 +987,7 @@ mod tests {
             .upsert_batch(&[track("s1", "t1", "A", "X", "Alb")])
             .unwrap();
         store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.execute(
                     "INSERT INTO track_fact \
                      (server_id, track_id, fact_kind, value_int, source_kind, source_id, confidence, fetched_at) \

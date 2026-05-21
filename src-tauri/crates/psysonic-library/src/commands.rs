@@ -17,15 +17,18 @@ use psysonic_integration::subsonic::SubsonicClient;
 use crate::advanced_search;
 use crate::cross_server;
 use crate::dto::{
-    local_tracks_max_updated_ms, ArtifactInputDto, FactInputDto, LibraryAdvancedSearchRequest,
-    LibraryAdvancedSearchResponse, LibraryCrossServerSearchResponse, LibraryTrackDto,
+    count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
+    FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
+    LibraryCrossServerSearchResponse, LibraryLiveSearchResponse, LibraryTrackDto,
     LibraryTracksEnvelope, OfflinePathDto, PurgeReportDto, SyncJobDto, SyncStateDto,
     TrackArtifactDto, TrackFactDto, TrackRefDto,
 };
+use crate::live_search;
 use crate::payload::LibrarySyncProgressPayload;
 use crate::repos::{SyncStateRepository, TrackRepository};
 use crate::runtime::{CurrentJob, LibraryRuntime, SyncSession};
 use crate::search::search_tracks;
+use crate::store::LibraryStore;
 use crate::sync::bandwidth::PlaybackHint;
 use crate::sync::bandwidth::ParallelismBudget;
 use crate::sync::capability::{probe_and_persist, CapabilityFlags, NavidromeProbeCredentials};
@@ -47,7 +50,7 @@ pub async fn library_get_status(
     let scope = library_scope.unwrap_or_default();
     let row: Option<SyncStateRow> = runtime
         .store
-        .with_conn(|conn| {
+        .with_read_conn(|conn| {
             conn.query_row(
                 "SELECT sync_phase, capability_flags, library_tier, last_full_sync_at, \
                  last_delta_sync_at, next_poll_at, server_last_scan_iso, \
@@ -76,8 +79,31 @@ pub async fn library_get_status(
         })
         .map_err(|e| e.to_string())?;
 
-    let local_tracks_max_updated_ms = local_tracks_max_updated_ms(&runtime.store, &server_id)?;
+    let local_tracks_max_updated_ms = if row.as_ref().is_some_and(|r| r.sync_phase == "initial_sync") {
+        None
+    } else {
+        local_tracks_max_updated_ms(&runtime.store, &server_id)?
+    };
+    let has_local_tracks = track_index_nonempty(&runtime.store, &server_id).unwrap_or(false);
+    let sync_state = SyncStateRepository::new(&runtime.store);
+    let (ingest_strategy, ingest_phase, cursor_ingested_count) = sync_state
+        .get_initial_sync_cursor(&server_id, &scope)
+        .ok()
+        .flatten()
+        .map(|v| parse_ingest_cursor(&v))
+        .unwrap_or((None, None, None));
+    let n1_bulk_unreliable = sync_state
+        .get_n1_bulk_unreliable(&server_id, &scope)
+        .ok()
+        .flatten();
     let row = row.unwrap_or_default();
+    let local_track_count = resolve_local_track_count(
+        &row,
+        cursor_ingested_count,
+        has_local_tracks,
+        &runtime.store,
+        &server_id,
+    );
     // `SyncStateRepository::ensure` is intentionally NOT called from
     // the read path — `library_get_status` on a fresh server returns
     // an "idle / unknown" stub without writing a row. PR-5b writes
@@ -94,11 +120,57 @@ pub async fn library_get_status(
         server_last_scan_iso: row.server_last_scan_iso,
         indexes_last_modified_ms: row.indexes_last_modified_ms,
         artists_last_modified_ms: row.artists_last_modified_ms,
-        local_track_count: row.local_track_count,
+        local_track_count,
         server_track_count: row.server_track_count,
         last_error: row.last_error,
         local_tracks_max_updated_ms,
+        has_local_tracks,
+        ingest_strategy,
+        ingest_phase,
+        cursor_ingested_count,
+        n1_bulk_unreliable,
     })
+}
+
+fn parse_ingest_cursor(raw: &Value) -> (Option<String>, Option<String>, Option<u32>) {
+    if raw.as_object().is_none_or(|o| o.is_empty()) {
+        return (None, None, None);
+    }
+    let strategy = raw
+        .get("strategy")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let phase = raw
+        .get("phase")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let ingested = raw
+        .get("ingested_count")
+        .and_then(|v| v.as_u64())
+        .map(|n| n.min(u32::MAX as u64) as u32);
+    (strategy, phase, ingested)
+}
+
+/// Avoid full-table `COUNT(*)` while `initial_sync` is writing — use the
+/// cheap cursor / snapshot counters updated on each cursor persist instead.
+fn resolve_local_track_count(
+    row: &SyncStateRow,
+    cursor_ingested_count: Option<u32>,
+    has_local_tracks: bool,
+    store: &LibraryStore,
+    server_id: &str,
+) -> Option<i64> {
+    if row.sync_phase == "initial_sync" {
+        let snapshot = row.local_track_count.unwrap_or(0);
+        let cursor = cursor_ingested_count.map(i64::from).unwrap_or(0);
+        let best = snapshot.max(cursor);
+        return if best > 0 { Some(best) } else { row.local_track_count };
+    }
+    match row.local_track_count {
+        Some(n) if n > 0 => Some(n),
+        _ if has_local_tracks => count_local_tracks(store, server_id).ok(),
+        _ => row.local_track_count,
+    }
 }
 
 #[tauri::command]
@@ -244,7 +316,7 @@ pub async fn library_get_offline_path(
 ) -> Result<OfflinePathDto, String> {
     let path = runtime
         .store
-        .with_conn(|conn| {
+        .with_conn("misc", |conn| {
             conn.query_row(
                 "SELECT local_path FROM track_offline \
                  WHERE server_id = ?1 AND track_id = ?2",
@@ -272,6 +344,25 @@ pub async fn library_advanced_search(
     request: LibraryAdvancedSearchRequest,
 ) -> Result<LibraryAdvancedSearchResponse, String> {
     advanced_search::run_advanced_search(&runtime.store, &request)
+}
+
+#[tauri::command]
+pub async fn library_live_search(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    query: String,
+    artist_limit: Option<u32>,
+    album_limit: Option<u32>,
+    song_limit: Option<u32>,
+) -> Result<LibraryLiveSearchResponse, String> {
+    live_search::run_live_search(
+        &runtime.store,
+        &server_id,
+        &query,
+        artist_limit.unwrap_or(5),
+        album_limit.unwrap_or(5),
+        song_limit.unwrap_or(10),
+    )
 }
 
 #[tauri::command]
@@ -441,6 +532,15 @@ pub fn library_set_playback_hint(
     };
     runtime.set_playback_hint(parsed);
     Ok(())
+}
+
+#[tauri::command]
+pub fn library_get_playback_hint(runtime: State<'_, LibraryRuntime>) -> Result<String, String> {
+    Ok(match runtime.current_playback_hint() {
+        PlaybackHint::Idle => "idle".to_string(),
+        PlaybackHint::Playing => "playing".to_string(),
+        PlaybackHint::PrefetchActive => "prefetch_active".to_string(),
+    })
 }
 
 #[tauri::command]
@@ -686,7 +786,7 @@ pub fn patch_content_hash(
     }
     runtime
         .store
-        .with_conn(|conn| {
+        .with_conn("misc", |conn| {
             conn.execute(
                 "UPDATE track SET content_hash = ?3 \
                  WHERE server_id = ?1 AND id = ?2",
@@ -733,7 +833,7 @@ pub(crate) fn apply_track_patch(
 
     runtime
         .store
-        .with_conn(|conn| {
+        .with_conn("misc", |conn| {
             // One UPDATE per field present — keeps SQL simple and
             // matches the spec's per-field patch semantics.
             if let Some(v) = starred_at {
@@ -822,7 +922,7 @@ pub fn library_purge_server(
     let mut report = PurgeReportDto::default();
     runtime
         .store
-        .with_conn_mut(|conn| {
+        .with_conn_mut("misc", |conn| {
             let tx = conn.transaction()?;
             let track_count: i64 =
                 tx.query_row("SELECT COUNT(*) FROM track WHERE server_id = ?1", params![server_id], |r| r.get(0))?;
@@ -1088,7 +1188,7 @@ mod tests {
 
         let read = |store: &LibraryStore| -> Option<String> {
             store
-                .with_conn(|c| {
+                .with_conn("misc", |c| {
                     c.query_row(
                         "SELECT content_hash FROM track WHERE server_id='s1' AND id='tr_1'",
                         [],
@@ -1120,7 +1220,7 @@ mod tests {
         let rt = runtime(store.clone());
         let read = |store: &LibraryStore| -> (Option<i64>, Option<i64>) {
             store
-                .with_conn(|c| {
+                .with_conn("misc", |c| {
                     c.query_row(
                         "SELECT starred_at, user_rating FROM track WHERE server_id='s1' AND id='tr_1'",
                         [],

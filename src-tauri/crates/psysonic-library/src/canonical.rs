@@ -74,6 +74,49 @@ pub fn link_track(
     Ok(Some(canonical_id))
 }
 
+/// Link every track on `server_id` that carries a strong identity key.
+/// Used once after IS-3 bulk ingest instead of per-row inline linking.
+pub fn link_all_tracks_for_server(
+    store: &crate::store::LibraryStore,
+    server_id: &str,
+    now: i64,
+) -> Result<u32, String> {
+    store.with_conn_mut("misc", |conn| {
+        let tx = conn.transaction()?;
+        let mut stmt = tx.prepare(
+            "SELECT id, isrc, mbid_recording FROM track \
+             WHERE server_id = ?1 AND deleted = 0 \
+               AND (\
+                 (isrc IS NOT NULL AND isrc != '') \
+                 OR (mbid_recording IS NOT NULL AND mbid_recording != '')\
+               )",
+        )?;
+        let rows: Vec<(String, Option<String>, Option<String>)> = stmt
+            .query_map(params![server_id], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(stmt);
+        let mut linked = 0u32;
+        for (track_id, isrc, mbid) in rows {
+            if link_track(
+                &tx,
+                server_id,
+                &track_id,
+                isrc.as_deref(),
+                mbid.as_deref(),
+                now,
+            )?
+            .is_some()
+            {
+                linked = linked.saturating_add(1);
+            }
+        }
+        tx.commit()?;
+        Ok(linked)
+    })
+}
+
 /// Read a track's canonical id, if linked. Convenience for tests / callers.
 pub fn canonical_id_for(
     tx: &Transaction<'_>,
@@ -95,7 +138,7 @@ mod tests {
 
     fn with_tx<R>(store: &LibraryStore, f: impl FnOnce(&Transaction<'_>) -> R) -> R {
         store
-            .with_conn_mut(|conn| {
+            .with_conn_mut("misc", |conn| {
                 let tx = conn.transaction()?;
                 let out = f(&tx);
                 tx.commit()?;
@@ -127,7 +170,7 @@ mod tests {
         assert_eq!(a, b, "same identity → same canonical id");
 
         let (tracks, identities): (i64, i64) = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 Ok((
                     c.query_row("SELECT COUNT(*) FROM canonical_track", [], |r| r.get(0))?,
                     c.query_row("SELECT COUNT(*) FROM canonical_identity", [], |r| r.get(0))?,
@@ -170,7 +213,7 @@ mod tests {
         });
         assert!(cid.is_none());
         let count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track_canonical_link", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_canonical_link", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 0);
     }
@@ -187,7 +230,7 @@ mod tests {
         });
         assert_eq!(a, b);
         let canon_count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM canonical_track", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM canonical_track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(canon_count, 1, "one canonical row shared across two servers");
     }
@@ -202,7 +245,7 @@ mod tests {
             link_track(tx, "s1", "t1", Some("USRCnew"), Some("mbid-old"), 2).unwrap();
         });
         let (cid, method): (String, String) = store
-            .with_conn(|c| {
+            .with_conn("misc", |c| {
                 c.query_row(
                     "SELECT canonical_id, match_method FROM track_canonical_link \
                      WHERE server_id = 's1' AND track_id = 't1'",
@@ -214,7 +257,7 @@ mod tests {
         assert_eq!(cid, "isrc:USRCnew");
         assert_eq!(method, "isrc");
         let link_count: i64 = store
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM track_canonical_link", [], |r| r.get(0)))
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track_canonical_link", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(link_count, 1, "re-link updates in place, no duplicate");
     }

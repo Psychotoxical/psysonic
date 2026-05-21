@@ -13,8 +13,8 @@ const status = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('resumeInitialSyncIfIncomplete', () => {
-  it('starts a full sync when no full sync has completed', async () => {
-    onInvoke('library_get_status', () => status()); // no lastFullSyncAt
+  it('resumes when initial sync was interrupted mid-run', async () => {
+    onInvoke('library_get_status', () => status({ syncPhase: 'initial_sync' }));
     const start = vi.fn(() => ({ jobId: 'j1', serverId: 's1', kind: 'initial_sync' }));
     onInvoke('library_sync_start', start);
 
@@ -24,6 +24,18 @@ describe('resumeInitialSyncIfIncomplete', () => {
     expect(start).toHaveBeenCalledWith(
       expect.objectContaining({ serverId: 's1', mode: 'full' }),
     );
+  });
+
+  it('does not restart when idle with a completed index (legacy missing lastFullSyncAt)', async () => {
+    onInvoke('library_get_status', () =>
+      status({ syncPhase: 'idle', localTrackCount: 12_000 }),
+    );
+    const start = vi.fn();
+    onInvoke('library_sync_start', start);
+
+    await resumeInitialSyncIfIncomplete('s1');
+
+    expect(start).not.toHaveBeenCalled();
   });
 
   it('does nothing when a full sync has already completed', async () => {
@@ -37,11 +49,10 @@ describe('resumeInitialSyncIfIncomplete', () => {
   });
 
   it('de-dupes concurrent calls so a second start cannot cancel the first', async () => {
-    onInvoke('library_get_status', () => status()); // incomplete
+    onInvoke('library_get_status', () => status({ syncPhase: 'initial_sync' }));
     const start = vi.fn(() => ({ jobId: 'j1', serverId: 's1', kind: 'initial_sync' }));
     onInvoke('library_sync_start', start);
 
-    // Two near-simultaneous calls (StrictMode double-fires the startup effect).
     await Promise.all([
       resumeInitialSyncIfIncomplete('s1'),
       resumeInitialSyncIfIncomplete('s1'),
