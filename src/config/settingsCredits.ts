@@ -122,7 +122,7 @@ const CONTRIBUTOR_ENTRIES = [
       'In-page browse: virtual list scrollMargin + CachedImage load priority; Artists infinite-scroll batching (PR #783)',
       'Lucky Mix: hand off queue to browsed server after multi-server switch (PR #785)',
       'Home album rails: stable play/enqueue hover on WebKitGTK/Wayland (PR #787)',
-      'Local library index: multi-server settings UI, serial sync queue, music-library-scoped local search, parallel initial ingest, i18n across 9 locales (feat/library-store)',
+      'Local library index: multi-server settings UI, serial sync queue, music-library-scoped local search, parallel initial ingest, i18n across 9 locales (PR #846)',
     ],
   },
   {
@@ -318,7 +318,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Settings: tri-state Clock Format (Auto / 24h / 12h) overriding the locale default for the queue ETA and the sleep-timer preview (PR #742)',
       'Servers: inline edit for existing profiles (PR #780)',
       'Interface Scale: scales the entire window — sidebar, queue, player bar, modals and the fullscreen player follow the main content (PR #781)',
-      'Local library index (preview): SQLite per-server track store, background initial and delta sync, live and Advanced Search against the local index, integrity verify and auto-reconcile on count drop (feat/library-store)',
+      'Local library index (preview): SQLite per-server track store, background initial and delta sync, live and Advanced Search against the local index, integrity verify and auto-reconcile on count drop (PR #846)',
     ],
   },
 ] as const;

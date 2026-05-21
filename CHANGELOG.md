@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Local library index + search (preview)
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), branch `feat/library-store`**
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
 
 * **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
 * **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
