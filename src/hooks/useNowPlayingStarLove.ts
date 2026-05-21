@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar } from '../store/pendingStarSync';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import {
   lastfmLoveTrack, lastfmUnloveTrack,
@@ -29,8 +29,9 @@ export function useNowPlayingStarLove(deps: NowPlayingStarLoveDeps): NowPlayingS
   useEffect(() => { setStarred(!!songMeta?.starred); }, [songMeta]);
   const toggleStar = useCallback(async () => {
     if (!currentTrack) return;
-    if (starred) { await unstar(currentTrack.id, 'song'); setStarred(false); }
-    else         { await star(currentTrack.id,   'song'); setStarred(true);  }
+    const next = !starred;
+    setStarred(next); // local view; helper owns the override + retried server sync (no rollback)
+    queueSongStar(currentTrack.id, next);
   }, [currentTrack, starred]);
 
   // Last.fm love (seeded from track.getInfo, toggle via love/unlove)
