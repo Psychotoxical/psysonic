@@ -7,6 +7,8 @@ import { Search as SearchIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ndListSongs } from '../api/navidromeBrowse';
+import { runLocalSongBrowse } from '../utils/library/advancedSearchLocal';
+import { useAuthStore } from '../store/authStore';
 import SongRow, { SongListHeader } from './SongRow';
 
 const PAGE_SIZE = 50;
@@ -15,14 +17,21 @@ const ROW_HEIGHT = 52;
 const PREFETCH_PX = 600;
 
 /**
- * Empty query → Navidrome /api/song sorted by title (no Subsonic equivalent).
+ * Browse-all (empty query): local library index when ready (F1, same title-ASC
+ * order), else Navidrome /api/song sorted by title, else Subsonic search3.
  * Non-empty → Subsonic search3 (search isn't a browse).
- * Either way, returns a SubsonicSong[]; on Navidrome failure we fall back to search3.
+ * Either way, returns a SubsonicSong[].
  */
 async function fetchSongPage(query: string, offset: number): Promise<SubsonicSong[]> {
   if (query !== '') {
     return searchSongsPaged(query, PAGE_SIZE, offset);
   }
+  const local = await runLocalSongBrowse(
+    useAuthStore.getState().activeServerId,
+    offset,
+    PAGE_SIZE,
+  );
+  if (local) return local;
   try {
     return await ndListSongs(offset, offset + PAGE_SIZE, 'title', 'ASC');
   } catch {

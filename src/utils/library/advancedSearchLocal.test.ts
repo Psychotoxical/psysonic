@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
-import { runLocalAdvancedSearch } from './advancedSearchLocal';
+import { runLocalAdvancedSearch, runLocalSongBrowse } from './advancedSearchLocal';
 
 const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) => ({
   query: '',
@@ -93,5 +93,58 @@ describe('runLocalAdvancedSearch', () => {
     });
     const res = await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(res).toBeNull();
+  });
+});
+
+describe('runLocalSongBrowse', () => {
+  beforeEach(() => {
+    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+  });
+
+  it('returns null for a missing server id (→ network browse)', async () => {
+    expect(await runLocalSongBrowse(null, 0, 50)).toBeNull();
+  });
+
+  it('returns null (→ network browse) when the index is not ready', async () => {
+    onInvoke('library_get_status', () => ({ serverId: 's1', libraryScope: '', syncPhase: 'initial_sync' }));
+    expect(await runLocalSongBrowse('s1', 0, 50)).toBeNull();
+  });
+
+  it('returns null when the response is not local', async () => {
+    ready();
+    onInvoke('library_advanced_search', () => ({
+      artists: [], albums: [], tracks: [],
+      totals: { artists: 0, albums: 0, tracks: 0 }, appliedFilters: [], source: 'network',
+    }));
+    expect(await runLocalSongBrowse('s1', 0, 50)).toBeNull();
+  });
+
+  it('maps the local browse page to Subsonic songs (rawJson wins)', async () => {
+    ready();
+    onInvoke('library_advanced_search', () => ({
+      artists: [],
+      albums: [],
+      tracks: [
+        {
+          serverId: 's1', id: 't1', title: 'Hot', album: 'Alb', albumId: 'al1',
+          durationSec: 100, syncedAt: 0,
+          rawJson: { id: 't1', title: 'Raw', artist: 'Raw Artist', album: 'Alb', albumId: 'al1', duration: 100 },
+        },
+      ],
+      totals: { artists: 0, albums: 0, tracks: 1 }, appliedFilters: [], source: 'local',
+    }));
+    const songs = await runLocalSongBrowse('s1', 0, 50);
+    expect(songs).not.toBeNull();
+    expect(songs!).toHaveLength(1);
+    expect(songs![0].title).toBe('Raw');
+    expect(songs![0].artist).toBe('Raw Artist');
+  });
+
+  it('returns null without throwing on error', async () => {
+    ready();
+    onInvoke('library_advanced_search', () => {
+      throw new Error('boom');
+    });
+    expect(await runLocalSongBrowse('s1', 0, 50)).toBeNull();
   });
 });

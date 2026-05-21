@@ -175,6 +175,37 @@ export async function runLocalAdvancedSearch(
 }
 
 /**
+ * Browse-all songs against the local index for `VirtualSongList` (F1). An empty
+ * query falls through to the Rust builder's default track order
+ * (`t.title COLLATE NOCASE ASC`) — the same alphabetical browse as the network
+ * `ndListSongs('title','ASC')` path, so paging stays coherent even if a later
+ * page falls back to the network. Returns `null` when the index isn't ready or
+ * the page can't be served locally; the caller then uses the network path
+ * unchanged. Gated per page so a readiness flip mid-scroll degrades gracefully.
+ */
+export async function runLocalSongBrowse(
+  serverId: string | null | undefined,
+  offset: number,
+  pageSize: number,
+): Promise<SubsonicSong[] | null> {
+  if (!serverId) return null;
+  if (!(await libraryIsReady(serverId))) return null;
+  try {
+    const resp = await libraryAdvancedSearch({
+      serverId,
+      query: undefined,
+      entityTypes: ['track'],
+      limit: pageSize,
+      offset,
+    });
+    if (resp.source !== 'local') return null;
+    return resp.tracks.map(trackToSong);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Songs-only next page for the local path (mirrors the network
  * `searchSongsPaged` pagination). Throws are surfaced so the caller can stop
  * the infinite-scroll loop, matching the network branch's behaviour.
