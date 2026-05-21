@@ -8,7 +8,7 @@
 //! builder-supplied column expressions ever reach the SQL string; every value
 //! is bound (§5.13.5: parameterised only).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
@@ -19,7 +19,10 @@ use crate::dto::{
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
-use crate::search::{aliased_track_columns, fts_query, like_contains, PAGE_LIMIT_MAX};
+use crate::search::{
+    aliased_track_columns, fts_album_match_query, fts_column_query, fts_query, fts_query_meets_min_len,
+    fts_track_match_query, like_contains, PAGE_LIMIT_MAX,
+};
 use crate::store::LibraryStore;
 
 /// `bpm` dual-storage resolution (§5.13.4): prefer the hot `track.bpm`
@@ -72,6 +75,24 @@ pub fn run_advanced_search(
             }
             .to_string());
         }
+    }
+
+    if text_input
+        .as_deref()
+        .is_some_and(|t| !fts_query_meets_min_len(t))
+    {
+        return Ok(LibraryAdvancedSearchResponse {
+            artists: Vec::new(),
+            albums: Vec::new(),
+            tracks: Vec::new(),
+            totals: LibrarySearchTotals {
+                artists: 0,
+                albums: 0,
+                tracks: 0,
+            },
+            applied_filters: Vec::new(),
+            source: "local".to_string(),
+        });
     }
 
     let limit = req.limit.clamp(1, PAGE_LIMIT_MAX);
@@ -127,7 +148,7 @@ fn build_track(
     let mut w = WhereBuilder::new();
     let from;
     let default_order;
-    if let Some(q) = text.and_then(fts_query) {
+    if let Some(q) = text.and_then(fts_track_match_query) {
         from = "track_fts f JOIN track t ON t.rowid = f.rowid".to_string();
         w.push_param("track_fts MATCH ?", SqlValue::Text(q));
         default_order = "ORDER BY bm25(track_fts)".to_string();
@@ -181,6 +202,9 @@ fn build_album(
     let table = build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
     if !table.0.is_empty() || table.1 > 0 {
         return Ok(table);
+    }
+    if let Some(q) = text.and_then(fts_album_match_query) {
+        return build_album_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
     }
     build_album_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
 }
@@ -303,6 +327,9 @@ fn build_artist(
     if !table.0.is_empty() || table.1 > 0 {
         return Ok(table);
     }
+    if let Some(q) = text.and_then(|t| fts_column_query("artist", t)) {
+        return build_artist_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
+    }
     build_artist_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
 }
 
@@ -397,6 +424,194 @@ fn build_artist_from_tracks(
     )
 }
 
+/// Text search for albums when the `album` table is empty — one FTS pass +
+/// in-memory dedupe by `album_id` (same strategy as live search / §5.9).
+#[allow(clippy::too_many_arguments)]
+fn build_album_from_fts(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    fts: &str,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    applied.insert("text".to_string());
+    let need = limit.saturating_add(offset) as i64;
+    let pool = (need.saturating_mul(8)).clamp(64, 2_000);
+
+    let mut w = WhereBuilder::new();
+    w.push_param("track_fts MATCH ?", SqlValue::Text(fts.to_string()));
+    w.push_raw("t.deleted = 0");
+    w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
+    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+    }
+    for c in scalar {
+        if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
+            applied.insert(c.field.clone());
+            w.push(frag);
+        }
+    }
+    if req.starred_only == Some(true) {
+        w.push_raw("t.starred_at IS NOT NULL");
+        applied.insert("starred".to_string());
+    }
+
+    let where_sql = w.where_sql();
+    store.with_read_conn(|conn| {
+        let sql = format!(
+            "SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.year, \
+                    t.genre, t.cover_art_id, t.starred_at, t.synced_at \
+             FROM track_fts f JOIN track t ON t.rowid = f.rowid \
+             WHERE {where_sql} \
+             ORDER BY bm25(track_fts) \
+             LIMIT ?"
+        );
+        let mut params = w.params.clone();
+        params.push(SqlValue::Integer(pool));
+        let mut stmt = conn.prepare(&sql)?;
+        let rows: Vec<(String, String, String, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>, Option<i64>, i64)> =
+            stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                    r.get(8)?,
+                    r.get(9)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        let mut seen = HashSet::new();
+        let mut deduped: Vec<LibraryAlbumDto> = Vec::new();
+        for (server_id, album_id, album, artist, artist_id, year, genre, cover_art_id, starred_at, synced_at) in rows {
+            if !seen.insert(album_id.clone()) {
+                continue;
+            }
+            deduped.push(LibraryAlbumDto {
+                server_id,
+                id: album_id,
+                name: album,
+                artist,
+                artist_id,
+                song_count: None,
+                duration_sec: None,
+                year,
+                genre,
+                cover_art_id,
+                starred_at,
+                synced_at,
+                raw_json: Value::Null,
+            });
+            if deduped.len() >= need as usize {
+                break;
+            }
+        }
+
+        let total = if skip_totals {
+            0
+        } else {
+            deduped.len() as u32
+        };
+        let page = deduped
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect();
+        Ok((page, total))
+    })
+}
+
+/// Text search for artists when the `artist` table is empty — FTS + dedupe.
+#[allow(clippy::too_many_arguments)]
+fn build_artist_from_fts(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    fts: &str,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    applied.insert("text".to_string());
+    let need = limit.saturating_add(offset) as i64;
+    let pool = (need.saturating_mul(8)).clamp(64, 2_000);
+
+    let mut w = WhereBuilder::new();
+    w.push_param("track_fts MATCH ?", SqlValue::Text(fts.to_string()));
+    w.push_raw("t.deleted = 0");
+    w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
+    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+    }
+    for c in scalar {
+        if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
+            applied.insert(c.field.clone());
+            w.push(frag);
+        }
+    }
+
+    let where_sql = w.where_sql();
+    store.with_read_conn(|conn| {
+        let sql = format!(
+            "SELECT t.server_id, t.artist_id, t.artist, t.synced_at \
+             FROM track_fts f JOIN track t ON t.rowid = f.rowid \
+             WHERE {where_sql} \
+             ORDER BY bm25(track_fts) \
+             LIMIT ?"
+        );
+        let mut params = w.params.clone();
+        params.push(SqlValue::Integer(pool));
+        let mut stmt = conn.prepare(&sql)?;
+        let rows: Vec<(String, String, Option<String>, i64)> = stmt
+            .query_map(rusqlite::params_from_iter(params.iter()), |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        let mut seen = HashSet::new();
+        let mut deduped: Vec<LibraryArtistDto> = Vec::new();
+        for (server_id, artist_id, artist, synced_at) in rows {
+            if !seen.insert(artist_id.clone()) {
+                continue;
+            }
+            deduped.push(LibraryArtistDto {
+                server_id,
+                id: artist_id,
+                name: artist.unwrap_or_default(),
+                album_count: None,
+                synced_at,
+                raw_json: Value::Null,
+            });
+            if deduped.len() >= need as usize {
+                break;
+            }
+        }
+
+        let total = if skip_totals {
+            0
+        } else {
+            deduped.len() as u32
+        };
+        let page = deduped
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect();
+        Ok((page, total))
+    })
+}
+
 // ── clause resolution ──────────────────────────────────────────────────
 
 /// Resolve one scalar clause to a WHERE fragment for `entity`. `Ok(None)`
@@ -448,6 +663,42 @@ fn resolve_clause(
 
 // ── query execution ────────────────────────────────────────────────────
 
+/// Cap full-table FTS counts — exact totals on 100k+ hits are not worth
+/// blocking the UI for tens of seconds (§5.9 p95 budget).
+const FTS_MATCH_COUNT_CAP: i64 = 10_001;
+
+fn count_matching_rows(
+    conn: &rusqlite::Connection,
+    from: &str,
+    where_sql: &str,
+    params: &[SqlValue],
+    skip_totals: bool,
+) -> Result<u32, rusqlite::Error> {
+    if skip_totals {
+        return Ok(0);
+    }
+    if from.contains("track_fts") {
+        let mut bound: Vec<SqlValue> = params.to_vec();
+        bound.push(SqlValue::Integer(FTS_MATCH_COUNT_CAP));
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM (SELECT 1 FROM {from} WHERE {where_sql} LIMIT ?)"
+        );
+        let n: i64 = conn.query_row(
+            &count_sql,
+            rusqlite::params_from_iter(bound.iter()),
+            |r| r.get(0),
+        )?;
+        return Ok(n.max(0) as u32);
+    }
+    let count_sql = format!("SELECT COUNT(*) FROM {from} WHERE {where_sql}");
+    let n: i64 = conn.query_row(
+        &count_sql,
+        rusqlite::params_from_iter(params.iter()),
+        |r| r.get(0),
+    )?;
+    Ok(n.max(0) as u32)
+}
+
 /// Accumulates `AND`-joined WHERE clauses and their positional params in
 /// lockstep so anonymous `?` placeholders bind left-to-right.
 struct WhereBuilder {
@@ -497,17 +748,7 @@ where
 {
     let where_sql = w.where_sql();
     store.with_read_conn(|conn| {
-        let total = if skip_totals {
-            0u32
-        } else {
-            let count_sql = format!("SELECT COUNT(*) FROM {from} WHERE {where_sql}");
-            let n: i64 = conn.query_row(
-                &count_sql,
-                rusqlite::params_from_iter(w.params.iter()),
-                |r| r.get(0),
-            )?;
-            n.max(0) as u32
-        };
+        let total = count_matching_rows(conn, from, &where_sql, &w.params, skip_totals)?;
 
         let page_sql = format!(
             "SELECT {select_cols} FROM {from} WHERE {where_sql} {order_sql} LIMIT ? OFFSET ?"
@@ -547,15 +788,7 @@ where
         let total = if skip_totals {
             0u32
         } else {
-            let count_sql = format!(
-                "SELECT COUNT(*) FROM (SELECT 1 FROM {from} WHERE {where_sql} {group_sql})"
-            );
-            let n: i64 = conn.query_row(
-                &count_sql,
-                rusqlite::params_from_iter(w.params.iter()),
-                |r| r.get(0),
-            )?;
-            n.max(0) as u32
+            count_matching_rows(conn, from, &where_sql, &w.params, false)?
         };
 
         let page_sql = format!(

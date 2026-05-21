@@ -17,6 +17,7 @@ DROP INDEX IF EXISTS idx_track_bpm;
 DROP INDEX IF EXISTS idx_track_isrc;
 DROP INDEX IF EXISTS idx_track_remap_path;
 DROP INDEX IF EXISTS idx_track_remap_hash;
+DROP INDEX IF EXISTS idx_track_title;
 "#;
 
 const RESTORE_TRACK_SECONDARY_INDEXES: &str = r#"
@@ -33,6 +34,9 @@ CREATE INDEX IF NOT EXISTS idx_track_remap_path
 CREATE INDEX IF NOT EXISTS idx_track_remap_hash
   ON track(server_id, content_hash)
   WHERE deleted = 0 AND content_hash IS NOT NULL AND content_hash != '';
+CREATE INDEX IF NOT EXISTS idx_track_title
+  ON track(server_id, title COLLATE NOCASE)
+  WHERE deleted = 0;
 "#;
 
 /// Drop secondary indexes on `track` so bulk upserts only touch the PK.

@@ -6,6 +6,8 @@ import { songToTrack } from '../utils/playback/songToTrack';
 import {
   LIVE_SEARCH_DEBOUNCE_LOCAL_MS,
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
+  EMPTY_SEARCH_RESULTS,
+  liveSearchQueryTooShort,
   runLocalLiveSearch,
 } from '../utils/library/liveSearchLocal';
 import { libraryIsReady } from '../utils/library/libraryReady';
@@ -66,7 +68,7 @@ export default function LiveSearch() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchSource, setSearchSource] = useState<LiveSearchSource | null>(null);
   const [localReady, setLocalReady] = useState(false);
-  const searchSeqRef = useRef(0);
+  const liveSearchGenRef = useRef(0);
   const navigate = useNavigate();
   const enqueue = usePlayerStore(state => state.enqueue);
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
@@ -143,20 +145,38 @@ export default function LiveSearch() {
 
     setSearchSource(null);
     setActiveIndex(-1);
-    const seq = ++searchSeqRef.current;
+
+    const abort = new AbortController();
     const debounceMs = localReady ? LIVE_SEARCH_DEBOUNCE_LOCAL_MS : LIVE_SEARCH_DEBOUNCE_NETWORK_MS;
 
     const timer = window.setTimeout(() => {
       void (async () => {
+        const gen = liveSearchGenRef.current;
+        const isStale = () =>
+          gen !== liveSearchGenRef.current || abort.signal.aborted;
+
+        if (isStale()) return;
+
         setLoading(true);
         const searchT0 = performance.now();
         let readyCheckMs = 0;
         let readyReason: string | undefined;
         try {
+          if (liveSearchQueryTooShort(q)) {
+            if (!isStale()) {
+              setResults(EMPTY_SEARCH_RESULTS);
+              setSearchSource('local');
+              setOpen(true);
+            }
+            return;
+          }
+
           let ready = localReady && !!serverId && indexEnabled;
 
           if (!ready && serverId && indexEnabled) {
+            if (isStale()) return;
             const { result: status, ms } = await timed(() => libraryGetStatus(serverId));
+            if (isStale()) return;
             readyCheckMs = ms;
             readyReason = explainLibraryReady(status);
             logLibraryStatus(serverId, status, 'live-search-ready-check');
@@ -173,8 +193,8 @@ export default function LiveSearch() {
           }
 
           if (ready) {
-            const local = await runLocalLiveSearch(serverId, q);
-            if (seq !== searchSeqRef.current) return;
+            const local = await runLocalLiveSearch(serverId, q, { epoch: gen, isStale });
+            if (isStale()) return;
             if (local) {
               setResults(local);
               setSearchSource('local');
@@ -210,8 +230,11 @@ export default function LiveSearch() {
             });
           }
 
-          const { result: r, ms: invokeMs } = await timed(() => search(q));
-          if (seq !== searchSeqRef.current) return;
+          if (isStale()) return;
+          const { result: r, ms: invokeMs } = await timed(() =>
+            search(q, { signal: abort.signal }),
+          );
+          if (isStale()) return;
           setResults(r);
           setSearchSource('network');
           setOpen(true);
@@ -233,13 +256,21 @@ export default function LiveSearch() {
               songs: r.songs.length,
             },
           });
+        } catch (err) {
+          if (isStale()) return;
+          const name = err instanceof Error ? err.name : '';
+          if (name === 'CanceledError' || name === 'AbortError') return;
         } finally {
-          if (seq === searchSeqRef.current) setLoading(false);
+          if (!isStale()) setLoading(false);
         }
       })();
     }, debounceMs);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      abort.abort();
+      liveSearchGenRef.current += 1;
+    };
   }, [query, share.shareMatch, localReady, serverId, indexEnabled, musicLibraryFilterVersion]);
 
   const isSearchActive = isFocused || open || query.trim().length > 0;

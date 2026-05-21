@@ -24,6 +24,10 @@ pub fn search_tracks(
     query: &str,
     limit: i64,
 ) -> Result<Vec<TrackHit>, String> {
+    if !fts_query_meets_min_len(query) {
+        return Ok(Vec::new());
+    }
+    let fts = fts_track_match_query(query).ok_or_else(|| "empty query".to_string())?;
     store.with_read_conn(|conn| {
         let mut stmt = conn.prepare(
             r#"
@@ -38,7 +42,7 @@ pub fn search_tracks(
             "#,
         )?;
         let rows = stmt
-            .query_map(params![query, server_id, limit], |r| {
+            .query_map(params![fts, server_id, limit], |r| {
                 Ok(TrackHit {
                     server_id: r.get(0)?,
                     id: r.get(1)?,
@@ -58,10 +62,26 @@ pub fn search_tracks(
 /// Callers clamp their requested `limit` into `1..=PAGE_LIMIT_MAX`.
 pub(crate) const PAGE_LIMIT_MAX: u32 = 500;
 
+/// Local FTS is skipped below this length — single-character queries (e.g. Cyrillic
+/// «а», Latin «a») match huge fractions of a large library and bm25+LIMIT can
+/// take tens of seconds (§5.9: no heavy work on every keystroke).
+pub const LOCAL_FTS_MIN_QUERY_CHARS: usize = 2;
+
+/// True when `raw` has enough graphemes for a scoped FTS MATCH.
+pub fn fts_query_meets_min_len(raw: &str) -> bool {
+    raw.trim().chars().count() >= LOCAL_FTS_MIN_QUERY_CHARS
+}
+
 /// Build a safe FTS5 MATCH string: each whitespace token is quoted (and its
 /// internal `"` doubled) so arbitrary user input can't trip FTS5 query
 /// syntax. Tokens are implicitly AND-ed. `None` when the input has no tokens.
 pub(crate) fn fts_query(raw: &str) -> Option<String> {
+    let tokens = fts_token_expr(raw)?;
+    Some(tokens)
+}
+
+/// Token expression only (`"a" "b"`), shared by column-scoped builders.
+pub(crate) fn fts_token_expr(raw: &str) -> Option<String> {
     let tokens: Vec<String> = raw
         .split_whitespace()
         .map(|t| format!("\"{}\"", t.replace('"', "\"\"")))
@@ -71,6 +91,30 @@ pub(crate) fn fts_query(raw: &str) -> Option<String> {
     } else {
         Some(tokens.join(" "))
     }
+}
+
+/// `artist : "tok"` — artist entity rows must match the artist name column.
+pub(crate) fn fts_column_query(column: &str, raw: &str) -> Option<String> {
+    fts_token_expr(raw).map(|tokens| format!("{column} : {tokens}"))
+}
+
+/// Album entity: match album title or album-artist credit, not song title alone.
+pub(crate) fn fts_album_match_query(raw: &str) -> Option<String> {
+    fts_token_expr(raw).map(|tokens| {
+        format!("(album : {tokens} OR album_artist : {tokens})")
+    })
+}
+
+/// Song / track entity: match primary display fields (excludes `genre` to cut
+/// noise and FTS fan-out on large libraries).
+pub(crate) fn fts_track_match_query(raw: &str) -> Option<String> {
+    fts_token_expr(raw).map(|tokens| {
+        ["title", "artist", "album", "album_artist"]
+            .iter()
+            .map(|col| format!("{col} : {tokens}"))
+            .collect::<Vec<_>>()
+            .join(" OR ")
+    })
 }
 
 /// Project the `track` hot columns prefixed with `alias` (e.g. `t.title`),
@@ -180,6 +224,38 @@ mod tests {
         repo.upsert_batch(&[gone]).unwrap();
         let hits = search_tracks(&store, "s1", "aurora", 10).unwrap();
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn fts_column_query_scopes_to_one_column() {
+        assert_eq!(
+            fts_column_query("artist", "manowar").as_deref(),
+            Some("artist : \"manowar\"")
+        );
+    }
+
+    #[test]
+    fn fts_album_match_query_includes_album_artist() {
+        assert_eq!(
+            fts_album_match_query("manowar").as_deref(),
+            Some("(album : \"manowar\" OR album_artist : \"manowar\")")
+        );
+    }
+
+    #[test]
+    fn fts_track_match_query_or_across_display_columns() {
+        let q = fts_track_match_query("manowar").unwrap();
+        assert!(q.contains("title : \"manowar\""));
+        assert!(q.contains("artist : \"manowar\""));
+        assert!(!q.contains("genre"));
+    }
+
+    #[test]
+    fn fts_query_meets_min_len_requires_two_graphemes() {
+        assert!(!fts_query_meets_min_len("a"));
+        assert!(!fts_query_meets_min_len("а"));
+        assert!(fts_query_meets_min_len("ab"));
+        assert!(fts_query_meets_min_len("ма"));
     }
 
     #[test]

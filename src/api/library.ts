@@ -304,6 +304,8 @@ export function libraryLiveSearch(args: {
   artistLimit?: number;
   albumLimit?: number;
   songLimit?: number;
+  /** UI generation — stale Rust FTS passes are dropped server-side. */
+  requestEpoch?: number;
 }): Promise<LibraryLiveSearchResponse> {
   return invoke<LibraryLiveSearchResponse>('library_live_search', args);
 }

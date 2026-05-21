@@ -15,7 +15,15 @@ export function filterSearchArtistsWithNoAlbums(artists: SubsonicArtist[]): Subs
   return artists.filter((a) => a.albumCount !== 0);
 }
 
-export async function search(query: string, options?: { albumCount?: number; artistCount?: number; songCount?: number }): Promise<SearchResults> {
+export async function search(
+  query: string,
+  options?: {
+    albumCount?: number;
+    artistCount?: number;
+    songCount?: number;
+    signal?: AbortSignal;
+  },
+): Promise<SearchResults> {
   if (!query.trim()) return { artists: [], albums: [], songs: [] };
   const data = await api<{
     searchResult3: {
@@ -23,13 +31,18 @@ export async function search(query: string, options?: { albumCount?: number; art
       album?: SubsonicAlbum[];
       song?: SubsonicSong[];
     };
-  }>('search3.view', {
-    query,
-    artistCount: options?.artistCount ?? 5,
-    albumCount: options?.albumCount ?? 5,
-    songCount: options?.songCount ?? 10,
-    ...libraryFilterParams(),
-  });
+  }>(
+    'search3.view',
+    {
+      query,
+      artistCount: options?.artistCount ?? 5,
+      albumCount: options?.albumCount ?? 5,
+      songCount: options?.songCount ?? 10,
+      ...libraryFilterParams(),
+    },
+    15000,
+    options?.signal,
+  );
   const r = data.searchResult3 ?? {};
   return {
     artists: filterSearchArtistsWithNoAlbums(r.artist ?? []),

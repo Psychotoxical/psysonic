@@ -8,7 +8,7 @@
 //! the top crate spawns in `setup()`.
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::store::LibraryStore;
@@ -60,6 +60,9 @@ pub struct LibraryRuntime {
     /// Top-crate scheduler tick task watches this flag; set true on
     /// app shutdown / library index disabled.
     pub scheduler_cancel: Arc<AtomicBool>,
+    /// Latest `library_live_search` epoch from the UI — stale commands
+    /// skip FTS when a newer keystroke generation was registered.
+    live_search_epoch: AtomicU64,
 }
 
 impl LibraryRuntime {
@@ -70,7 +73,17 @@ impl LibraryRuntime {
             playback_hint: Mutex::new(PlaybackHint::default()),
             current_job: Mutex::new(None),
             scheduler_cancel: Arc::new(AtomicBool::new(false)),
+            live_search_epoch: AtomicU64::new(0),
         }
+    }
+
+    /// UI bumps `epoch` on every debounced search start / cancel.
+    pub fn register_live_search_epoch(&self, epoch: u64) {
+        let _ = self.live_search_epoch.fetch_max(epoch, Ordering::SeqCst);
+    }
+
+    pub fn live_search_still_current(&self, epoch: u64) -> bool {
+        self.live_search_epoch.load(Ordering::Acquire) == epoch
     }
 
     pub fn set_current_job(&self, job: CurrentJob) {

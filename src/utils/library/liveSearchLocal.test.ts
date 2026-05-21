@@ -1,13 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
-import { runLocalLiveSearch } from './liveSearchLocal';
+import {
+  liveSearchQueryTooShort,
+  runLocalLiveSearch,
+} from './liveSearchLocal';
+
+const neverStale = { epoch: 1, isStale: () => false };
+const alwaysStale = { epoch: 1, isStale: () => true };
 
 describe('runLocalLiveSearch', () => {
+  it('returns null without invoking for a single-character query', async () => {
+    let invoked = false;
+    onInvoke('library_live_search', () => {
+      invoked = true;
+      return { artists: [], albums: [], tracks: [], source: 'local' };
+    });
+    await expect(runLocalLiveSearch('s1', 'а', neverStale)).resolves.toBeNull();
+    expect(invoked).toBe(false);
+  });
+
+  it('returns null when stale before invoke completes', async () => {
+    onInvoke('library_live_search', () => ({
+      artists: [],
+      albums: [],
+      tracks: [{ serverId: 's1', id: 't1', title: 'T', album: 'A', durationSec: 1, syncedAt: 0 }],
+      source: 'local',
+    }));
+    await expect(runLocalLiveSearch('s1', 'foo', alwaysStale)).resolves.toBeNull();
+  });
+
   it('returns null when live search invoke fails', async () => {
     onInvoke('library_live_search', () => {
       throw new Error('boom');
     });
-    await expect(runLocalLiveSearch('s1', 'foo')).resolves.toBeNull();
+    await expect(runLocalLiveSearch('s1', 'foo', neverStale)).resolves.toBeNull();
   });
 
   it('maps live search rows to search3-shaped limits', async () => {
@@ -44,10 +70,17 @@ describe('runLocalLiveSearch', () => {
       source: 'local',
     }));
 
-    const res = await runLocalLiveSearch('s1', 'foo');
+    const res = await runLocalLiveSearch('s1', 'foo', neverStale);
     expect(res).not.toBeNull();
     expect(res!.artists).toHaveLength(5);
     expect(res!.albums).toHaveLength(5);
     expect(res!.songs).toHaveLength(10);
+  });
+});
+
+describe('liveSearchQueryTooShort', () => {
+  it('treats one grapheme as too short', () => {
+    expect(liveSearchQueryTooShort('а')).toBe(true);
+    expect(liveSearchQueryTooShort('ab')).toBe(false);
   });
 });

@@ -22,6 +22,7 @@ import {
 } from '../../api/library';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
 import { libraryIsReady } from './libraryReady';
+import { logLibrarySearch, timed } from './libraryDevLog';
 
 export type AdvancedResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -171,10 +172,11 @@ export async function runLocalAdvancedSearch(
   opts: LocalSearchOpts,
   songsLimit: number,
   skipReadyCheck = false,
-  skipTotals = false,
+  skipTotals = true,
 ): Promise<LocalAdvancedSearchPage | null> {
   if (!serverId) return null;
   if (!skipReadyCheck && !(await libraryIsReady(serverId))) return null;
+  const t0 = performance.now();
   try {
     const req = buildRequest(
       serverId,
@@ -184,15 +186,35 @@ export async function runLocalAdvancedSearch(
       0,
       skipTotals,
     );
-    const resp = await libraryAdvancedSearch(req);
+    const { result: resp, ms: invokeMs } = await timed(() => libraryAdvancedSearch(req));
     if (resp.source !== 'local') return null;
-    return {
+    const page = {
       artists: resp.artists.map(artistToArtist),
       albums: resp.albums.map(albumToAlbum),
       songs: resp.tracks.map(trackToSong),
       songsTotal: resp.totals.tracks,
     };
-  } catch {
+    logLibrarySearch({
+      at: new Date().toISOString(),
+      query: opts.query.trim(),
+      path: 'library_advanced_search',
+      durationMs: Math.round(performance.now() - t0),
+      invokeMs,
+      counts: {
+        artists: page.artists.length,
+        albums: page.albums.length,
+        songs: page.songs.length,
+      },
+    });
+    return page;
+  } catch (err) {
+    logLibrarySearch({
+      at: new Date().toISOString(),
+      query: opts.query.trim(),
+      path: 'library_advanced_search',
+      durationMs: Math.round(performance.now() - t0),
+      error: String(err),
+    });
     return null;
   }
 }
@@ -220,6 +242,7 @@ export async function runLocalSongBrowse(
       entityTypes: ['track'],
       limit: pageSize,
       offset,
+      skipTotals: true,
     });
     if (resp.source !== 'local') return null;
     return resp.tracks.map(trackToSong);
@@ -239,7 +262,7 @@ export async function loadMoreLocalSongs(
   offset: number,
   pageSize: number,
 ): Promise<SubsonicSong[]> {
-  const req = buildRequest(serverId, opts, ['track'], pageSize, offset);
+  const req = buildRequest(serverId, opts, ['track'], pageSize, offset, true);
   const resp = await libraryAdvancedSearch(req);
   return resp.tracks.map(trackToSong);
 }

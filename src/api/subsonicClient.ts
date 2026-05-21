@@ -68,12 +68,18 @@ export async function apiForServer<T>(
   return apiWithCredentials(server.url, server.username, server.password, endpoint, extra, timeout);
 }
 
-export async function api<T>(endpoint: string, extra: Record<string, unknown> = {}, timeout = 15000): Promise<T> {
+export async function api<T>(
+  endpoint: string,
+  extra: Record<string, unknown> = {},
+  timeout = 15000,
+  signal?: AbortSignal,
+): Promise<T> {
   const { baseUrl, params } = getClient();
   const resp = await axios.get(`${baseUrl}/${endpoint}`, {
     params: { ...params, ...extra },
     paramsSerializer: { indexes: null },
     timeout,
+    signal,
   });
   const data = resp.data?.['subsonic-response'];
   if (!data) throw new Error('Invalid response from server (possibly not a Subsonic server)');

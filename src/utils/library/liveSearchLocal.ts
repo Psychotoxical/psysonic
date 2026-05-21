@@ -1,7 +1,7 @@
 /**
  * Live Search dropdown against the local library index (spec §5.9 / P24).
- * Uses the lean `library_live_search` FTS path (one query) — not Advanced
- * Search. Falls back to search3 when the index isn't ready.
+ * Uses column-scoped `library_live_search` FTS — not Advanced Search.
+ * Falls back to search3 when the index isn't ready (caller orchestrates).
  */
 import type { SearchResults } from '../../api/subsonicTypes';
 import { libraryLiveSearch } from '../../api/library';
@@ -13,20 +13,35 @@ import {
 } from './advancedSearchLocal';
 import { logLibrarySearch, timed } from './libraryDevLog';
 
-export const LIVE_SEARCH_DEBOUNCE_LOCAL_MS = 100;
+export const LIVE_SEARCH_DEBOUNCE_LOCAL_MS = 200;
 export const LIVE_SEARCH_DEBOUNCE_NETWORK_MS = 300;
+
+/** Local FTS skipped below this length — see `LOCAL_FTS_MIN_QUERY_CHARS` in Rust. */
+export const LOCAL_FTS_MIN_QUERY_CHARS = 2;
 
 const ARTIST_LIMIT = 5;
 const ALBUM_LIMIT = 5;
 const SONG_LIMIT = 10;
 
+export function queryGraphemeCount(q: string): number {
+  return [...q].length;
+}
+
+export function liveSearchQueryTooShort(query: string): boolean {
+  const q = query.trim();
+  return !q || queryGraphemeCount(q) < LOCAL_FTS_MIN_QUERY_CHARS;
+}
+
+export type LiveSearchStaleCheck = () => boolean;
+
 export async function runLocalLiveSearch(
   serverId: string | null | undefined,
   query: string,
+  ctx: { epoch: number; isStale: LiveSearchStaleCheck },
 ): Promise<SearchResults | null> {
-  if (!serverId) return null;
+  if (!serverId || ctx.isStale()) return null;
   const q = query.trim();
-  if (!q) return null;
+  if (liveSearchQueryTooShort(q)) return null;
   const t0 = performance.now();
   try {
     const { result: resp, ms: invokeMs } = await timed(() =>
@@ -36,8 +51,10 @@ export async function runLocalLiveSearch(
         artistLimit: ARTIST_LIMIT,
         albumLimit: ALBUM_LIMIT,
         songLimit: SONG_LIMIT,
+        requestEpoch: ctx.epoch,
       }),
     );
+    if (ctx.isStale()) return null;
     if (resp.source !== 'local') return null;
     const mapped: SearchResults = {
       artists: filterSearchArtistsWithNoAlbums(resp.artists.map(artistToArtist)).slice(
@@ -61,6 +78,7 @@ export async function runLocalLiveSearch(
     });
     return mapped;
   } catch (err) {
+    if (ctx.isStale()) return null;
     logLibrarySearch({
       at: new Date().toISOString(),
       query: q,
@@ -72,3 +90,9 @@ export async function runLocalLiveSearch(
     return null;
   }
 }
+
+export const EMPTY_SEARCH_RESULTS: SearchResults = {
+  artists: [],
+  albums: [],
+  songs: [],
+};

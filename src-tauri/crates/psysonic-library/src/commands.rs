@@ -354,15 +354,34 @@ pub async fn library_live_search(
     artist_limit: Option<u32>,
     album_limit: Option<u32>,
     song_limit: Option<u32>,
+    request_epoch: Option<u64>,
 ) -> Result<LibraryLiveSearchResponse, String> {
-    live_search::run_live_search(
+    let empty = || LibraryLiveSearchResponse {
+        artists: Vec::new(),
+        albums: Vec::new(),
+        tracks: Vec::new(),
+        source: "local".to_string(),
+    };
+    if let Some(epoch) = request_epoch {
+        runtime.register_live_search_epoch(epoch);
+        if !runtime.live_search_still_current(epoch) {
+            return Ok(empty());
+        }
+    }
+    let result = live_search::run_live_search(
         &runtime.store,
         &server_id,
         &query,
         artist_limit.unwrap_or(5),
         album_limit.unwrap_or(5),
         song_limit.unwrap_or(10),
-    )
+    )?;
+    if request_epoch
+        .is_some_and(|epoch| !runtime.live_search_still_current(epoch))
+    {
+        return Ok(empty());
+    }
+    Ok(result)
 }
 
 #[tauri::command]

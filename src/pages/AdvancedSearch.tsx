@@ -116,7 +116,7 @@ export default function AdvancedSearch() {
         songs: localPage.songs,
       });
       setSongsServerOffset(localPage.songs.length);
-      setSongsHasMore(localPage.songsTotal > localPage.songs.length);
+      setSongsHasMore(localPage.songs.length >= SONGS_INITIAL);
       setLocalMode(true);
       setLoading(false);
       return;

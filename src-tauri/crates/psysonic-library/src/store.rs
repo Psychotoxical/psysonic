@@ -8,7 +8,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 3;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 4;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -25,6 +25,8 @@ const MIGRATION_002_N1_BULK_UNRELIABLE: &str =
     include_str!("../migrations/002_n1_bulk_unreliable.sql");
 const MIGRATION_003_TRACK_REMAP_INDEXES: &str =
     include_str!("../migrations/003_track_remap_indexes.sql");
+const MIGRATION_004_TRACK_TITLE_INDEX: &str =
+    include_str!("../migrations/004_track_title_index.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -32,6 +34,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (1, INITIAL_SQL),
     (2, MIGRATION_002_N1_BULK_UNRELIABLE),
     (3, MIGRATION_003_TRACK_REMAP_INDEXES),
+    (4, MIGRATION_004_TRACK_TITLE_INDEX),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,6 +209,8 @@ fn configure_write_connection(conn: &Connection) -> rusqlite::Result<()> {
 fn configure_read_connection(conn: &Connection) -> rusqlite::Result<()> {
     conn.busy_timeout(Duration::from_secs(5))?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
+    // Search / browse hot path on large libraries (read-only handle).
+    conn.pragma_update(None, "cache_size", -64_000)?;
     Ok(())
 }
 
