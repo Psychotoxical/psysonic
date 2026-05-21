@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
+import { useAuthStore } from '@/store/authStore';
 import {
   liveSearchQueryTooShort,
   runLocalLiveSearch,
@@ -75,6 +76,17 @@ describe('runLocalLiveSearch', () => {
     expect(res!.artists).toHaveLength(5);
     expect(res!.albums).toHaveLength(5);
     expect(res!.songs).toHaveLength(10);
+  });
+
+  it('passes libraryScope from the sidebar music library filter', async () => {
+    useAuthStore.setState({ musicLibraryFilterByServer: { s1: 'lib7' } });
+    let captured: unknown;
+    onInvoke('library_live_search', (args) => {
+      captured = args;
+      return { artists: [], albums: [], tracks: [], source: 'local' };
+    });
+    await runLocalLiveSearch('s1', 'foo', neverStale);
+    expect(captured).toMatchObject({ serverId: 's1', libraryScope: 'lib7' });
   });
 });
 

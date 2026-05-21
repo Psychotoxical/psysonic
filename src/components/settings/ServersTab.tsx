@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Lock, LogOut, Pencil, Plus, Power, Server,
 import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { libraryDeleteServerData, librarySyncClearSession } from '../../api/library';
+import { bootstrapIndexedServer } from '../../utils/library/librarySession';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import { useDragDrop } from '../../contexts/DragDropContext';
@@ -180,6 +181,10 @@ export function ServersTab({
         auth.setSubsonicServerIdentity(id, identity);
         scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity);
         setConnStatus(s => ({ ...s, [id]: 'ok' }));
+        if (useLibraryIndexStore.getState().masterEnabled) {
+          const added = useAuthStore.getState().servers.find(s => s.id === id);
+          if (added) void bootstrapIndexedServer(added);
+        }
       } else {
         setConnStatus(s => ({ ...s, [tempId]: 'error' }));
       }

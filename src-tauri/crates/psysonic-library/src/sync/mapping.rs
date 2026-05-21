@@ -82,8 +82,9 @@ pub fn navidrome_song_to_track_row(
         .get("updatedAt")
         .and_then(|v| v.as_str())
         .and_then(parse_iso_ms_str);
-    let library_id = string_field(raw, "libraryId")
-        .or_else(|| string_field(raw, "library_id"))
+    let library_id = json_string_field(raw, "libraryId")
+        .or_else(|| json_string_field(raw, "library_id"))
+        .or_else(|| json_string_field(raw, "musicFolderId"))
         .or_else(|| library_id_fallback.map(String::from));
     Some(TrackRow {
         server_id: server_id.to_string(),
@@ -127,10 +128,16 @@ pub fn navidrome_song_to_track_row(
     })
 }
 
+fn json_string_field(raw: &Value, key: &str) -> Option<String> {
+    match raw.get(key)? {
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
 fn string_field(raw: &Value, key: &str) -> Option<String> {
-    raw.get(key)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
+    json_string_field(raw, key)
 }
 
 fn parse_iso_ms(s: Option<&str>) -> Option<i64> {
@@ -275,6 +282,17 @@ mod tests {
         assert_eq!(row.replay_gain_track_db, Some(-1.2));
         assert_eq!(row.library_id.as_deref(), Some("1"));
         assert!(row.server_updated_at.unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn navidrome_song_maps_numeric_library_id() {
+        let raw = json!({
+            "id": "tr_1",
+            "title": "Hello",
+            "libraryId": 3
+        });
+        let row = navidrome_song_to_track_row("s1", &raw, 1, None).unwrap();
+        assert_eq!(row.library_id.as_deref(), Some("3"));
     }
 
     #[test]

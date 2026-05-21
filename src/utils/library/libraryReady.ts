@@ -26,6 +26,13 @@ export function libraryStatusIsReady(status: SyncStateDto): boolean {
   return false;
 }
 
+/** Track count for Settings status when the index is usable. */
+export function libraryStatusDisplayTrackCount(
+  status: Pick<SyncStateDto, 'localTrackCount' | 'cursorIngestedCount'>,
+): number {
+  return syncIngestDisplayCount(status);
+}
+
 /** Monotonic ingest counter for Settings progress during `initial_sync`. */
 export function syncIngestDisplayCount(
   status: Pick<SyncStateDto, 'localTrackCount' | 'cursorIngestedCount'>,

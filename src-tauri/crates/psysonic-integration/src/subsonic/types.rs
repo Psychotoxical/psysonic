@@ -24,6 +24,19 @@ where
     })
 }
 
+/// Navidrome often ships library ids as JSON numbers; Subsonic uses strings.
+fn de_string_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(serde_json::Value::String(s)) => Some(s),
+        Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+        _ => None,
+    })
+}
+
 /// First usable value in a multi-valued array: a string element, or an
 /// object element's `name` (the OpenSubsonic `[{ "name": … }]` shape).
 fn first_tag_value(arr: &[serde_json::Value]) -> Option<String> {
@@ -211,7 +224,12 @@ pub struct Song {
     /// `libraryId` (Navidrome native) or `musicFolderId` (Subsonic generic).
     /// We accept both keys — Navidrome uses `libraryId` on OpenSubsonic
     /// responses, generic Subsonic stays on `musicFolderId`.
-    #[serde(default, alias = "libraryId", alias = "musicFolderId")]
+    #[serde(
+        default,
+        alias = "libraryId",
+        alias = "musicFolderId",
+        deserialize_with = "de_string_or_number"
+    )]
     pub library_id: Option<String>,
     // OpenSubsonic types `isrc` as `string[]` — Navidrome returns
     // `isrc: []` / `["USRC…"]`, which breaks a plain `Option<String>`.
@@ -263,6 +281,13 @@ mod tests {
         let payload = r#"{"id":"a","title":"t","musicFolderId":"7"}"#;
         let song: Song = serde_json::from_str(payload).unwrap();
         assert_eq!(song.library_id.as_deref(), Some("7"));
+    }
+
+    #[test]
+    fn song_deserialize_library_id_from_number() {
+        let payload = r#"{"id":"a","title":"t","libraryId":3}"#;
+        let song: Song = serde_json::from_str(payload).unwrap();
+        assert_eq!(song.library_id.as_deref(), Some("3"));
     }
 
     #[test]

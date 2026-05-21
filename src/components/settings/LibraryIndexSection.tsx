@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DatabaseZap } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
@@ -7,119 +7,189 @@ import { showToast } from '../../utils/ui/toast';
 import SettingsSubSection from '../SettingsSubSection';
 import {
   libraryGetStatus,
-  librarySyncBindSession,
   librarySyncCancel,
   librarySyncClearSession,
-  librarySyncStart,
-  librarySyncVerifyIntegrity,
   subscribeLibrarySyncIdle,
   subscribeLibrarySyncProgress,
   type SyncStateDto,
 } from '../../api/library';
-import { ensureActiveServerSessionBound } from '../../utils/library/librarySession';
+import {
+  bootstrapAllIndexedServers,
+  bootstrapIndexedServer,
+  type BindServerResult,
+} from '../../utils/library/librarySession';
+import { enqueueLibrarySync } from '../../utils/library/librarySyncQueue';
 import { syncIngestDisplayCount } from '../../utils/library/libraryReady';
+import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
+import LibraryIndexServerRow, { type LibraryServerConnection } from './LibraryIndexServerRow';
 
 const STATUS_POLL_MS = 3000;
 const SYNC_POLL_MS = 2500;
+const OFFLINE_RETRY_MS = 60_000;
 
-/**
- * Settings → Library: local library index controls (spec §7.3, MVP).
- * Per-server enable toggle (binds / clears the Rust sync session),
- * read-only status, Sync now / Cancel / Verify integrity buttons,
- * auto-reconcile toggle. Advanced toggles (search-all-servers,
- * threshold input) stay out of v1 per §7.3.
- */
 export default function LibraryIndexSection() {
   const { t } = useTranslation();
-  const activeServer = useAuthStore(s => s.servers.find(srv => srv.id === s.activeServerId));
-  const serverId = activeServer?.id ?? null;
+  const servers = useAuthStore(s => s.servers);
+  const activeServerId = useAuthStore(s => s.activeServerId);
 
-  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
-  const setIndexEnabled = useLibraryIndexStore(s => s.setIndexEnabled);
+  const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
+  const syncExcludedByServer = useLibraryIndexStore(s => s.syncExcludedByServer);
+  const setMasterEnabled = useLibraryIndexStore(s => s.setMasterEnabled);
+  const setServerSyncExcluded = useLibraryIndexStore(s => s.setServerSyncExcluded);
   const autoReconcile = useLibraryIndexStore(s => s.autoReconcileEnabled);
   const setAutoReconcile = useLibraryIndexStore(s => s.setAutoReconcileEnabled);
 
-  const [status, setStatus] = useState<SyncStateDto | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [progressLabel, setProgressLabel] = useState<string | null>(null);
-  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ingestDisplayCountRef = useRef(0);
-  const syncPhaseRef = useRef<string | null>(null);
+  const indexedIds = useMemo(() => {
+    if (!masterEnabled) return [];
+    return servers.map(s => s.id).filter(id => syncExcludedByServer[id] !== true);
+  }, [masterEnabled, syncExcludedByServer, servers]);
 
-  const applyIngestProgress = useCallback(
-    (count: number) => {
-      const next = Math.max(ingestDisplayCountRef.current, count);
-      if (next === ingestDisplayCountRef.current) return;
-      ingestDisplayCountRef.current = next;
-      setProgressLabel(t('settings.libraryIndexProgressIngest', { count: next }));
-    },
-    [t],
+  const indexedServers = useMemo(
+    () => servers.filter(s => indexedIds.includes(s.id)),
+    [servers, indexedIds],
   );
 
-  const refreshStatus = useCallback(async () => {
-    if (!serverId) return;
-    try {
-      const fresh = await libraryGetStatus(serverId);
-      syncPhaseRef.current = fresh.syncPhase;
-      setStatus(fresh);
-      if (fresh.syncPhase === 'initial_sync') {
-        applyIngestProgress(syncIngestDisplayCount(fresh));
-      } else if (fresh.syncPhase === 'ready' || fresh.syncPhase === 'idle') {
-        ingestDisplayCountRef.current = 0;
-      }
-    } catch {
-      /* status read is best-effort — leave the last value */
-    }
-  }, [serverId, applyIngestProgress]);
+  const excludedServers = useMemo(
+    () => servers.filter(s => syncExcludedByServer[s.id] === true),
+    [servers, syncExcludedByServer],
+  );
 
-  // Poll status while the section is mounted + index is on. The
-  // persisted toggle can be "on" from a previous app run while the
-  // Rust session (process memory) is gone — re-bind first so
-  // Sync now / Verify don't fail with "no bound session".
+  const [statusByServer, setStatusByServer] = useState<Record<string, SyncStateDto | null>>({});
+  const [connectionByServer, setConnectionByServer] = useState<Record<string, LibraryServerConnection>>({});
+  const [progressByServer, setProgressByServer] = useState<Record<string, string | null>>({});
+  const [busyServerId, setBusyServerId] = useState<string | null>(null);
+  const [bootstrapping, setBootstrapping] = useState(false);
+
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ingestCountRef = useRef<Record<string, number>>({});
+  const syncPhaseRef = useRef<Record<string, string | null>>({});
+
+  const applyConnectionResults = useCallback((results: Record<string, BindServerResult>) => {
+    setConnectionByServer(prev => {
+      const next = { ...prev };
+      for (const [id, result] of Object.entries(results)) {
+        next[id] = result === 'offline' ? 'offline' : result === 'bound' ? 'online' : 'unknown';
+      }
+      return next;
+    });
+  }, []);
+
+  const refreshAllStatuses = useCallback(async () => {
+    if (!masterEnabled || indexedServers.length === 0) return;
+    const entries = await Promise.all(
+      indexedServers.map(async srv => {
+        try {
+          const fresh = await libraryGetStatus(srv.id);
+          syncPhaseRef.current[srv.id] = fresh.syncPhase;
+          if (fresh.syncPhase === 'initial_sync') {
+            const next = Math.max(ingestCountRef.current[srv.id] ?? 0, syncIngestDisplayCount(fresh));
+            ingestCountRef.current[srv.id] = next;
+            setProgressByServer(p => ({
+              ...p,
+              [srv.id]: t('settings.libraryIndexProgressIngest', { count: next }),
+            }));
+          } else if (fresh.syncPhase === 'ready' || fresh.syncPhase === 'idle') {
+            ingestCountRef.current[srv.id] = 0;
+          }
+          return [srv.id, fresh] as const;
+        } catch {
+          return [srv.id, null] as const;
+        }
+      }),
+    );
+    setStatusByServer(Object.fromEntries(entries));
+  }, [masterEnabled, indexedServers, t]);
+
+  const runBootstrap = useCallback(async () => {
+    if (!masterEnabled) return;
+    setBootstrapping(true);
+    try {
+      const results = await bootstrapAllIndexedServers();
+      applyConnectionResults(results);
+      await refreshAllStatuses();
+    } finally {
+      setBootstrapping(false);
+    }
+  }, [masterEnabled, applyConnectionResults, refreshAllStatuses]);
+
+  const retryOfflineServers = useCallback(async () => {
+    if (!masterEnabled) return;
+    const offline = indexedServers.filter(s => connectionByServer[s.id] === 'offline');
+    if (offline.length === 0) return;
+    const results: Record<string, BindServerResult> = {};
+    for (const srv of offline) {
+      results[srv.id] = await bootstrapIndexedServer(srv);
+    }
+    applyConnectionResults(results);
+    void refreshAllStatuses();
+  }, [masterEnabled, indexedServers, connectionByServer, applyConnectionResults, refreshAllStatuses]);
+
   useEffect(() => {
-    if (!serverId || !indexEnabled) {
-      setStatus(null);
+    if (!masterEnabled) {
+      setStatusByServer({});
+      setConnectionByServer({});
+      setProgressByServer({});
+      setBusyServerId(null);
       return;
     }
-    void ensureActiveServerSessionBound().then(() => refreshStatus());
+    void runBootstrap();
+  }, [masterEnabled, indexedIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!masterEnabled) return;
     const poll = () => {
-      void refreshStatus();
-      const ms =
-        syncPhaseRef.current === 'initial_sync' ? SYNC_POLL_MS : STATUS_POLL_MS;
-      pollTimer.current = setTimeout(poll, ms);
+      void refreshAllStatuses();
+      const anyInitial = indexedServers.some(
+        s => syncPhaseRef.current[s.id] === 'initial_sync',
+      );
+      pollTimer.current = setTimeout(poll, anyInitial ? SYNC_POLL_MS : STATUS_POLL_MS);
     };
     poll();
     return () => {
       if (pollTimer.current) clearTimeout(pollTimer.current);
       pollTimer.current = null;
     };
-  }, [serverId, indexEnabled, refreshStatus]);
+  }, [masterEnabled, indexedServers, refreshAllStatuses]);
 
-  // Live progress + idle events for the active server.
   useEffect(() => {
-    if (!serverId || !indexEnabled) return;
+    if (!masterEnabled) return;
+    const retryTimer = setInterval(() => {
+      void retryOfflineServers();
+    }, OFFLINE_RETRY_MS);
+    return () => clearInterval(retryTimer);
+  }, [masterEnabled, retryOfflineServers]);
+
+  useEffect(() => {
+    if (!masterEnabled) return;
     const unsubs: Array<Promise<() => void>> = [
       subscribeLibrarySyncProgress(p => {
-        if (p.serverId !== serverId) return;
+        if (!indexedIds.includes(p.serverId)) return;
+        setBusyServerId(p.serverId);
         if (p.kind === 'ingest_page') {
-          applyIngestProgress(p.ingestedTotal ?? 0);
+          const next = Math.max(ingestCountRef.current[p.serverId] ?? 0, p.ingestedTotal ?? 0);
+          ingestCountRef.current[p.serverId] = next;
+          setProgressByServer(prev => ({
+            ...prev,
+            [p.serverId]: t('settings.libraryIndexProgressIngest', { count: next }),
+          }));
         } else if (p.kind === 'tombstoned') {
-          setProgressLabel(
-            t('settings.libraryIndexProgressVerify', {
+          setProgressByServer(prev => ({
+            ...prev,
+            [p.serverId]: t('settings.libraryIndexProgressVerify', {
               checked: p.tombstonesChecked ?? 0,
               deleted: p.tombstonesDeleted ?? 0,
             }),
-          );
+          }));
         } else if (p.kind === 'phase_changed' && p.phase) {
-          setProgressLabel(p.phase);
+          setProgressByServer(prev => ({ ...prev, [p.serverId]: p.phase ?? null }));
         }
       }),
       subscribeLibrarySyncIdle(p => {
-        if (p.serverId !== serverId) return;
-        setBusy(false);
-        ingestDisplayCountRef.current = 0;
-        setProgressLabel(null);
-        void refreshStatus();
+        if (!indexedIds.includes(p.serverId)) return;
+        setBusyServerId(cur => (cur === p.serverId ? null : cur));
+        ingestCountRef.current[p.serverId] = 0;
+        setProgressByServer(prev => ({ ...prev, [p.serverId]: null }));
+        void refreshAllStatuses();
         if (!p.ok && p.error) {
           showToast(t('settings.libraryIndexSyncError', { error: p.error }), 5000, 'error');
         }
@@ -128,74 +198,89 @@ export default function LibraryIndexSection() {
     return () => {
       unsubs.forEach(u => void u.then(fn => fn()));
     };
-  }, [serverId, indexEnabled, refreshStatus, applyIngestProgress, t]);
+  }, [masterEnabled, indexedIds, refreshAllStatuses, t]);
 
-  const handleToggle = async (enabled: boolean) => {
-    if (!activeServer || !serverId) return;
-    setBusy(true);
+  const handleMasterToggle = async (enabled: boolean) => {
+    if (enabled) {
+      setMasterEnabled(true);
+      await runBootstrap();
+      return;
+    }
+    setBootstrapping(true);
     try {
-      if (enabled) {
-        // `getBaseUrl()` adds the http:// scheme + strips the trailing
-        // slash — `server.url` is stored bare (e.g. `nas.example.com`),
-        // which reqwest rejects with "relative URL without a base".
-        const baseUrl = useAuthStore.getState().getBaseUrl();
-        await librarySyncBindSession({
-          serverId,
-          baseUrl,
-          username: activeServer.username,
-          password: activeServer.password,
-        });
-        setIndexEnabled(serverId, true);
-        const fresh = await libraryGetStatus(serverId).catch(() => null);
-        setStatus(fresh);
-        // First enable on a never-synced server → kick off the initial
-        // full sync (delta alone won't populate an empty index).
-        if (fresh && !fresh.lastFullSyncAt) {
-          ingestDisplayCountRef.current = 0;
-          await librarySyncStart({ serverId, mode: 'full' });
+      for (const srv of servers) {
+        try {
+          await librarySyncClearSession(srv.id);
+        } catch {
+          /* best-effort */
         }
-      } else {
-        await librarySyncClearSession(serverId);
-        setIndexEnabled(serverId, false);
-        setStatus(null);
       }
+      setMasterEnabled(false);
+      setStatusByServer({});
+      setConnectionByServer({});
+      setProgressByServer({});
+      setBusyServerId(null);
+    } finally {
+      setBootstrapping(false);
+    }
+  };
+
+  const runServerAction = async (
+    serverId: string,
+    action: 'full' | 'delta' | 'verify',
+  ) => {
+    setBusyServerId(serverId);
+    try {
+      const kind =
+        action === 'verify'
+          ? 'verify'
+          : action === 'full'
+            ? 'full'
+            : statusByServer[serverId]?.lastFullSyncAt
+              ? 'delta'
+              : 'full';
+      ingestCountRef.current[serverId] = 0;
+      await enqueueLibrarySync({ serverId, kind });
+    } catch (e) {
+      setBusyServerId(null);
+      showToast(t('settings.libraryIndexSyncError', { error: String(e) }), 5000, 'error');
+    }
+  };
+
+  const handleIncludeServer = async (serverId: string) => {
+    setServerSyncExcluded(serverId, false);
+    const srv = servers.find(s => s.id === serverId);
+    if (srv) {
+      setBootstrapping(true);
+      try {
+        const result = await bootstrapIndexedServer(srv);
+        applyConnectionResults({ [serverId]: result });
+        await refreshAllStatuses();
+      } finally {
+        setBootstrapping(false);
+      }
+    }
+  };
+
+  const handleExcludeServer = async (serverId: string) => {
+    setBootstrapping(true);
+    try {
+      await librarySyncClearSession(serverId);
+      setServerSyncExcluded(serverId, true);
+      setStatusByServer(prev => {
+        const next = { ...prev };
+        delete next[serverId];
+        return next;
+      });
+      setConnectionByServer(prev => {
+        const next = { ...prev };
+        delete next[serverId];
+        return next;
+      });
     } catch (e) {
       showToast(t('settings.libraryIndexBindError', { error: String(e) }), 5000, 'error');
-      // Roll the toggle back so UI reflects reality.
-      setIndexEnabled(serverId, !enabled);
     } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSyncNow = async () => {
-    if (!serverId) return;
-    setBusy(true);
-    try {
-      // A library that never completed a full sync needs `full`
-      // (delta only walks "what changed since the watermark", which
-      // is everything-or-nothing on an empty index). Once a full
-      // sync has landed, subsequent «Sync now» runs are delta.
-      const mode: 'full' | 'delta' = status?.lastFullSyncAt ? 'delta' : 'full';
-      ingestDisplayCountRef.current = 0;
-      await librarySyncStart({ serverId, mode });
-    } catch (e) {
-      setBusy(false);
-      showToast(t('settings.libraryIndexSyncError', { error: String(e) }), 5000, 'error');
-    }
-  };
-
-  const handleVerify = async () => {
-    if (!serverId) return;
-    setBusy(true);
-    try {
-      // One pass per click — budget 200 tombstone checks (§6.7).
-      // Large libraries need repeated clicks; the status line shows
-      // how many were checked so the user knows to continue.
-      await librarySyncVerifyIntegrity({ serverId });
-    } catch (e) {
-      setBusy(false);
-      showToast(t('settings.libraryIndexSyncError', { error: String(e) }), 5000, 'error');
+      setBootstrapping(false);
     }
   };
 
@@ -207,23 +292,7 @@ export default function LibraryIndexSection() {
     }
   };
 
-  const phaseLabel = (() => {
-    if (!status) return t('settings.libraryIndexStatusIdle');
-    switch (status.syncPhase) {
-      case 'initial_sync':
-        return t('settings.libraryIndexStatusInitial');
-      case 'ready':
-        return t('settings.libraryIndexStatusReady', {
-          count: status.localTrackCount ?? 0,
-        });
-      case 'error':
-        return t('settings.libraryIndexStatusError');
-      case 'probing':
-        return t('settings.libraryIndexStatusProbing');
-      default:
-        return t('settings.libraryIndexStatusIdle');
-    }
-  })();
+  const globalBusy = bootstrapping || busyServerId != null;
 
   return (
     <SettingsSubSection
@@ -234,58 +303,97 @@ export default function LibraryIndexSection() {
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
           {t('settings.libraryIndexDesc')}
         </p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.5 }}>
+          {t('settings.libraryIndexDeltaHint')}
+        </p>
 
         <div className="settings-toggle-row">
           <div>
             <div style={{ fontWeight: 500 }}>{t('settings.libraryIndexEnable')}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {activeServer
-                ? t('settings.libraryIndexEnableDesc')
+              {servers.length > 0
+                ? t('settings.libraryIndexEnableAllDesc')
                 : t('settings.libraryIndexNoServer')}
             </div>
           </div>
           <label className="toggle-switch" aria-label={t('settings.libraryIndexEnable')}>
             <input
               type="checkbox"
-              checked={indexEnabled}
-              disabled={!activeServer || busy}
-              onChange={e => void handleToggle(e.target.checked)}
+              checked={masterEnabled}
+              disabled={servers.length === 0 || bootstrapping}
+              onChange={e => void handleMasterToggle(e.target.checked)}
             />
             <span className="toggle-track" />
           </label>
         </div>
 
-        {indexEnabled && (
+        {masterEnabled && (
           <>
             <div className="settings-section-divider" />
-            <div style={{ fontSize: 13 }}>
-              <span style={{ fontWeight: 500 }}>{t('settings.libraryIndexStatus')}: </span>
-              <span style={{ color: 'var(--text-secondary)' }}>
-                {progressLabel ?? phaseLabel}
-              </span>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: '0.65rem' }}>
+              {t('settings.libraryIndexServerListTitle')}
             </div>
+            {indexedServers.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                {t('settings.libraryIndexAllExcluded')}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                {indexedServers.map(srv => (
+                  <LibraryIndexServerRow
+                    key={srv.id}
+                    server={srv}
+                    allServers={servers}
+                    isActive={srv.id === activeServerId}
+                    status={statusByServer[srv.id] ?? null}
+                    connection={connectionByServer[srv.id] ?? 'unknown'}
+                    progressLabel={progressByServer[srv.id] ?? null}
+                    busy={busyServerId === srv.id}
+                    actionsDisabled={globalBusy && busyServerId !== srv.id}
+                    onFullSync={() => void runServerAction(srv.id, 'full')}
+                    onDeltaSync={() => void runServerAction(srv.id, 'delta')}
+                    onVerify={() => void runServerAction(srv.id, 'verify')}
+                    onExclude={() => void handleExcludeServer(srv.id)}
+                  />
+                ))}
+              </div>
+            )}
 
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-              <button
-                className="btn btn-surface"
-                disabled={busy}
-                onClick={() => void handleSyncNow()}
-              >
-                {t('settings.libraryIndexSyncNow')}
-              </button>
-              <button
-                className="btn btn-surface"
-                disabled={busy}
-                onClick={() => void handleVerify()}
-              >
-                {t('settings.libraryIndexVerify')}
-              </button>
-              {busy && (
-                <button className="btn btn-ghost" onClick={() => void handleCancel()}>
+            {excludedServers.length > 0 && (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 500, margin: '1rem 0 0.5rem' }}>
+                  {t('settings.libraryIndexExcludedTitle')}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  {excludedServers.map(srv => (
+                    <div
+                      key={srv.id}
+                      className="settings-card"
+                      style={{ padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}
+                    >
+                      <span style={{ fontSize: 13 }}>{serverListDisplayLabel(srv, servers)}</span>
+                      <button
+                        type="button"
+                        className="btn btn-surface"
+                        style={{ fontSize: 12, padding: '4px 10px' }}
+                        disabled={bootstrapping}
+                        onClick={() => void handleIncludeServer(srv.id)}
+                      >
+                        {t('settings.libraryIndexIncludeServer')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {busyServerId && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <button type="button" className="btn btn-ghost" onClick={() => void handleCancel()}>
                   {t('settings.libraryIndexCancel')}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="settings-section-divider" />
             <div className="settings-toggle-row">

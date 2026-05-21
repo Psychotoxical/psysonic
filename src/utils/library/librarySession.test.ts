@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { onInvoke } from '@/test/mocks/tauri';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { resumeInitialSyncIfIncomplete } from './librarySession';
+import { resetLibrarySyncQueueForTests } from './librarySyncQueue';
 
 const status = (over: Record<string, unknown> = {}) => ({
   serverId: 's1',
@@ -12,11 +13,31 @@ const status = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+function mockQueuedStart() {
+  const start = vi.fn(async (args: unknown) => {
+    const { serverId } = args as { serverId: string };
+    queueMicrotask(() =>
+      emitTauriEvent('library:sync-idle', {
+        serverId,
+        libraryScope: '',
+        kind: 'initial_sync',
+        ok: true,
+      }),
+    );
+    return { jobId: 'j1', serverId, kind: 'initial_sync' };
+  });
+  onInvoke('library_sync_start', start);
+  return start;
+}
+
 describe('resumeInitialSyncIfIncomplete', () => {
+  beforeEach(() => {
+    resetLibrarySyncQueueForTests();
+  });
+
   it('resumes when initial sync was interrupted mid-run', async () => {
     onInvoke('library_get_status', () => status({ syncPhase: 'initial_sync' }));
-    const start = vi.fn(() => ({ jobId: 'j1', serverId: 's1', kind: 'initial_sync' }));
-    onInvoke('library_sync_start', start);
+    const start = mockQueuedStart();
 
     await resumeInitialSyncIfIncomplete('s1');
 
@@ -50,8 +71,7 @@ describe('resumeInitialSyncIfIncomplete', () => {
 
   it('de-dupes concurrent calls so a second start cannot cancel the first', async () => {
     onInvoke('library_get_status', () => status({ syncPhase: 'initial_sync' }));
-    const start = vi.fn(() => ({ jobId: 'j1', serverId: 's1', kind: 'initial_sync' }));
-    onInvoke('library_sync_start', start);
+    const start = mockQueuedStart();
 
     await Promise.all([
       resumeInitialSyncIfIncomplete('s1'),

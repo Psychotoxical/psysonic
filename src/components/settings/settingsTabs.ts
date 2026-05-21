@@ -49,6 +49,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'personalisation',titleKey: 'settings.playlistLayoutTitle',     keywords: 'playlist page layout add songs import csv download zip cache offline suggestions controls hide show' },
   { tab: 'personalisation',titleKey: 'settings.playerBarTitle',          keywords: 'player bar playback favorites stars rating lastfm love equalizer mini player controls hide show' },
   { tab: 'appearance',     titleKey: 'settings.libraryGridMaxColumnsTitle', keywords: 'grid columns album artist playlist cards layout appearance performance scroll paint' },
+  { tab: 'library',        titleKey: 'settings.libraryIndexTitle',        keywords: 'local library index sync offline search sqlite background delta' },
   { tab: 'library',        titleKey: 'settings.randomMixTitle',           keywords: 'random mix blacklist genre keywords filter audiobook' },
   { tab: 'library',        titleKey: 'settings.ratingsSectionTitle',      keywords: 'ratings stars skip threshold manual' },
   { tab: 'storage',        titleKey: 'settings.offlineDirTitle',          keywords: 'offline library download directory folder cache' },

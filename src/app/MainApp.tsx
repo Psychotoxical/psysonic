@@ -10,11 +10,12 @@ import ExportPickerModal from '../components/ExportPickerModal';
 import ZipDownloadOverlay from '../components/ZipDownloadOverlay';
 import FpsOverlay from '../components/FpsOverlay';
 import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
-import { ensureActiveServerSessionBound, resumeInitialSyncIfIncomplete } from '../utils/library/librarySession';
+import { bootstrapAllIndexedServers, bootstrapIndexedServer } from '../utils/library/librarySession';
 import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
 import { useScanPolling } from '../hooks/useScanPolling';
 import { IS_WINDOWS } from '../utils/platform';
@@ -43,20 +44,14 @@ export default function MainApp() {
   // without this the background scheduler + Sync now report
   // "no bound session" after a restart.
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const serverIdsKey = useAuthStore(s => s.servers.map(srv => srv.id).join(','));
+  const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
   useEffect(() => {
     void (async () => {
-      const bound = await ensureActiveServerSessionBound();
-      // Resume an initial sync that was interrupted by an app restart —
-      // the scheduler is delta-only, so it would otherwise sit idle until
-      // the user clicks «Sync now».
-      if (bound && activeServerId) {
-        await resumeInitialSyncIfIncomplete(activeServerId);
-      }
-      // F5: restore the full persisted queue from the index when ready
-      // (windowed fallback already rehydrated; this swaps in the whole queue).
+      await bootstrapAllIndexedServers();
       void hydrateQueueFromIndex();
     })();
-  }, [activeServerId]);
+  }, [activeServerId, serverIdsKey, masterEnabled]);
 
   useScanPolling();
 

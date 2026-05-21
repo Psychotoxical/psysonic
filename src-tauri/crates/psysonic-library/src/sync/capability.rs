@@ -142,7 +142,16 @@ pub async fn probe_and_persist(
                 Some("ready") => "ready",
                 Some("initial_sync") => "initial_sync",
                 Some("error") => "error",
-                _ => "idle",
+                _ => {
+                    if sync_state
+                        .has_last_full_sync_at(server_id, library_scope)
+                        .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?
+                    {
+                        "ready"
+                    } else {
+                        "idle"
+                    }
+                }
             },
         )
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?;
@@ -484,6 +493,38 @@ mod tests {
         let sync_state = SyncStateRepository::new(&store);
         sync_state.ensure("s1", "").unwrap();
         sync_state.set_sync_phase("s1", "", "ready").unwrap();
+
+        super::probe_and_persist(
+            &store,
+            &test_subsonic_client(&server.uri()),
+            None,
+            "s1",
+            "",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            sync_state.get_sync_phase("s1", "").unwrap().as_deref(),
+            Some("ready")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn probe_and_persist_promotes_idle_to_ready_when_full_sync_stamped() {
+        use crate::repos::SyncStateRepository;
+        use crate::store::LibraryStore;
+
+        let server = MockServer::start().await;
+        mount_subsonic_full_navidrome(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "idle").unwrap();
+        sync_state
+            .set_last_full_sync_at("s1", "", 1_716_000_000_000)
+            .unwrap();
 
         super::probe_and_persist(
             &store,

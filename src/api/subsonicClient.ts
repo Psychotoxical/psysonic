@@ -93,9 +93,16 @@ export function libraryFilterParams(): Record<string, string | number> {
   return activeServerId ? libraryFilterParamsForServer(activeServerId) : {};
 }
 
+/** Navidrome/Subsonic music folder id for the local library index, or undefined for all libraries. */
+export function libraryScopeForServer(serverId: string): string | undefined {
+  const f = useAuthStore.getState().musicLibraryFilterByServer[serverId];
+  if (f === undefined || f === 'all') return undefined;
+  return f;
+}
+
 /** Library folder filter for an explicit saved server (e.g. Now Playing while browsing another). */
 export function libraryFilterParamsForServer(serverId: string): Record<string, string | number> {
-  const f = useAuthStore.getState().musicLibraryFilterByServer[serverId];
-  if (f === undefined || f === 'all') return {};
-  return { musicFolderId: f };
+  const scope = libraryScopeForServer(serverId);
+  if (!scope) return {};
+  return { musicFolderId: scope };
 }

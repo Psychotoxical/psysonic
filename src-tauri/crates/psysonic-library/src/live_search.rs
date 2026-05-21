@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::params;
 
 use crate::dto::{LibraryAlbumDto, LibraryArtistDto, LibraryLiveSearchResponse, LibraryTrackDto};
-use crate::search::{fts_column_prefix_query, fts_query_meets_min_len};
+use crate::search::{fts_column_prefix_query, fts_query_meets_min_len, library_scope_equals_sql};
 use crate::store::LibraryStore;
 
 const SONG_FTS_COLUMNS: [&str; 4] = ["title", "artist", "album", "album_artist"];
@@ -23,6 +23,7 @@ pub fn run_live_search(
     store: &LibraryStore,
     server_id: &str,
     query: &str,
+    library_scope: Option<&str>,
     artist_limit: u32,
     album_limit: u32,
     song_limit: u32,
@@ -37,9 +38,10 @@ pub fn run_live_search(
     }
 
     store.with_read_conn(|conn| {
-        let songs = query_songs(conn, query, server_id, song_limit)?;
-        let artists = query_artists(conn, query, server_id, artist_limit)?;
-        let albums = query_albums(conn, query, server_id, album_limit)?;
+        let scope = trimmed_scope(library_scope);
+        let songs = query_songs(conn, query, server_id, scope.as_deref(), song_limit)?;
+        let artists = query_artists(conn, query, server_id, scope.as_deref(), artist_limit)?;
+        let albums = query_albums(conn, query, server_id, scope.as_deref(), album_limit)?;
         Ok(LibraryLiveSearchResponse {
             artists,
             albums,
@@ -85,10 +87,30 @@ fn column_matches(query: &str, columns: &[&str]) -> Result<Vec<String>, String> 
         .collect()
 }
 
+fn trimmed_scope(scope: Option<&str>) -> Option<String> {
+    scope
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+fn append_library_scope(
+    sql: &mut String,
+    params: &mut Vec<rusqlite::types::Value>,
+    library_scope: Option<&str>,
+) {
+    if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
+        sql.push_str(" AND ");
+        sql.push_str(&library_scope_equals_sql("t"));
+        params.push(rusqlite::types::Value::Text(scope.to_string()));
+    }
+}
+
 fn query_songs(
     conn: &rusqlite::Connection,
     query: &str,
     server_id: &str,
+    library_scope: Option<&str>,
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryTrackDto>> {
     let matches = column_matches(query, &SONG_FTS_COLUMNS).map_err(|e| {
@@ -102,13 +124,14 @@ fn query_songs(
     if rowids.is_empty() {
         return Ok(Vec::new());
     }
-    fetch_tracks_by_rowids(conn, &rowids, server_id)
+    fetch_tracks_by_rowids(conn, &rowids, server_id, library_scope)
 }
 
 fn query_artists(
     conn: &rusqlite::Connection,
     query: &str,
     server_id: &str,
+    library_scope: Option<&str>,
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryArtistDto>> {
     let Some(artist_fts) = fts_column_prefix_query("artist", query) else {
@@ -133,6 +156,8 @@ fn query_artists(
         .map(rusqlite::types::Value::Integer)
         .collect();
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
+    let mut sql = sql;
+    append_library_scope(&mut sql, &mut params, library_scope);
     let mut seen = HashMap::new();
     let mut stmt = conn.prepare(&sql)?;
     for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
@@ -169,6 +194,7 @@ fn query_albums(
     conn: &rusqlite::Connection,
     query: &str,
     server_id: &str,
+    library_scope: Option<&str>,
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryAlbumDto>> {
     let matches = column_matches(query, &ALBUM_FTS_COLUMNS).map_err(|e| {
@@ -197,6 +223,8 @@ fn query_albums(
         .map(rusqlite::types::Value::Integer)
         .collect();
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
+    let mut sql = sql;
+    append_library_scope(&mut sql, &mut params, library_scope);
     let mut seen = HashMap::new();
     let mut stmt = conn.prepare(&sql)?;
     for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
@@ -261,6 +289,7 @@ fn fetch_tracks_by_rowids(
     conn: &rusqlite::Connection,
     rowids: &[i64],
     server_id: &str,
+    library_scope: Option<&str>,
 ) -> rusqlite::Result<Vec<LibraryTrackDto>> {
     let placeholders = rowid_placeholders(rowids.len());
     let sql = format!(
@@ -280,6 +309,8 @@ fn fetch_tracks_by_rowids(
         .map(rusqlite::types::Value::Integer)
         .collect();
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
+    let mut sql = sql;
+    append_library_scope(&mut sql, &mut params, library_scope);
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), map_live_hit)?;
     rows.map(|r| r.map(|h| h.track)).collect()
@@ -331,6 +362,7 @@ fn map_live_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<LiveHit> {
 mod tests {
     use super::*;
     use crate::repos::{TrackRepository, TrackRow};
+    use serde_json::json;
 
     fn track(
         server: &str,
@@ -397,7 +429,7 @@ mod tests {
                 track("s1", "t2", "Other", "Other Artist", "Other Album", "al2", "ar2"),
             ])
             .unwrap();
-        let resp = run_live_search(&store, "s1", "metal", 5, 5, 10).unwrap();
+        let resp = run_live_search(&store, "s1", "metal", None, 5, 5, 10).unwrap();
         assert!(
             resp.artists.iter().any(|a| a.name == "Metallica"),
             "expected Metallica from prefix query metal"
@@ -414,7 +446,7 @@ mod tests {
                 track("s1", "t2", "Other", "Other Artist", "Other Album", "al2", "ar2"),
             ])
             .unwrap();
-        let resp = run_live_search(&store, "s1", "aurora", 5, 5, 10).unwrap();
+        let resp = run_live_search(&store, "s1", "aurora", None, 5, 5, 10).unwrap();
         assert_eq!(resp.tracks.len(), 1);
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al1");
@@ -448,7 +480,7 @@ mod tests {
                 ),
             ])
             .unwrap();
-        let resp = run_live_search(&store, "s1", "manowar", 5, 5, 10).unwrap();
+        let resp = run_live_search(&store, "s1", "manowar", None, 5, 5, 10).unwrap();
         assert!(
             resp.artists.iter().any(|a| a.name == "Manowar"),
             "expected Manowar artist"
@@ -474,10 +506,64 @@ mod tests {
                 "ar1",
             )])
             .unwrap();
-        let resp = run_live_search(&store, "s1", "а", 5, 5, 10).unwrap();
+        let resp = run_live_search(&store, "s1", "а", None, 5, 5, 10).unwrap();
         assert!(resp.tracks.is_empty());
         assert!(resp.artists.is_empty());
         assert!(resp.albums.is_empty());
+    }
+
+    #[test]
+    fn live_search_library_scope_narrows_results() {
+        let store = LibraryStore::open_in_memory();
+        let mut in_lib = track(
+            "s1",
+            "t1",
+            "Scoped Song",
+            "Scoped Artist",
+            "Scoped Album",
+            "al1",
+            "ar1",
+        );
+        in_lib.library_id = Some("lib1".into());
+        let mut other = track(
+            "s1",
+            "t2",
+            "Scoped Song",
+            "Other Artist",
+            "Other Album",
+            "al2",
+            "ar2",
+        );
+        other.library_id = Some("lib2".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[in_lib, other])
+            .unwrap();
+        let resp = run_live_search(&store, "s1", "scoped", Some("lib1"), 5, 5, 10).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].name, "Scoped Artist");
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].name, "Scoped Album");
+    }
+
+    #[test]
+    fn live_search_library_scope_matches_raw_json_when_column_null() {
+        let store = LibraryStore::open_in_memory();
+        let mut row = track(
+            "s1",
+            "t1",
+            "Scoped Song",
+            "Scoped Artist",
+            "Scoped Album",
+            "al1",
+            "ar1",
+        );
+        row.raw_json = json!({"libraryId": 3}).to_string();
+        TrackRepository::new(&store).upsert_batch(&[row]).unwrap();
+        let resp = run_live_search(&store, "s1", "scoped", Some("3"), 5, 5, 10).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
     }
 
     /// Manual: `cargo test -p psysonic-library bench_disk_live_search --release -- --ignored --nocapture`
@@ -512,11 +598,11 @@ mod tests {
 
         for q in ["manowar", "metallica", "arch enemy", "metal", "meta"] {
             let t0 = Instant::now();
-            let songs = query_songs(&conn, q, &server_id, 10).unwrap();
+            let songs = query_songs(&conn, q, &server_id, None, 10).unwrap();
             let t1 = Instant::now();
-            let artists = query_artists(&conn, q, &server_id, 5).unwrap();
+            let artists = query_artists(&conn, q, &server_id, None, 5).unwrap();
             let t2 = Instant::now();
-            let albums = query_albums(&conn, q, &server_id, 5).unwrap();
+            let albums = query_albums(&conn, q, &server_id, None, 5).unwrap();
             let t3 = Instant::now();
             eprintln!(
                 "{q:?}: songs={} ({:.1}ms) artists={} ({:.1}ms) albums={} ({:.1}ms) total={:.1}ms",

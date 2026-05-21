@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
+import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { runLocalAdvancedSearch, runLocalSongBrowse } from './advancedSearchLocal';
 
@@ -37,6 +38,24 @@ describe('runLocalAdvancedSearch', () => {
     useLibraryIndexStore.getState().setIndexEnabled('s1', false);
     const res = await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(res).toBeNull();
+  });
+
+  it('passes libraryScope from the sidebar music library filter', async () => {
+    useAuthStore.setState({ musicLibraryFilterByServer: { s1: 'lib7' } });
+    ready();
+    let captured: unknown;
+    onInvoke('library_advanced_search', (args) => {
+      captured = args;
+      return {
+        artists: [],
+        albums: [],
+        tracks: [],
+        totals: { artists: 0, albums: 0, tracks: 0 },
+        source: 'local',
+      };
+    });
+    await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
+    expect(captured).toMatchObject({ request: { libraryScope: 'lib7' } });
   });
 
   it('prefers rawJson, falls back to hot columns, and reports the full total', async () => {

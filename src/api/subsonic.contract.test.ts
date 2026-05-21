@@ -20,7 +20,7 @@ import {
 } from './subsonicStreamUrl';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { parseSubsonicEntityStarRating } from './subsonicRatings';
-import { getClient, libraryFilterParams } from './subsonicClient';
+import { getClient, libraryFilterParams, libraryScopeForServer } from './subsonicClient';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 
@@ -75,6 +75,25 @@ describe('libraryFilterParams', () => {
       musicLibraryFilterByServer: { [serverId]: 'mf-7' },
     });
     expect(libraryFilterParams()).toEqual({ musicFolderId: 'mf-7' });
+  });
+});
+
+describe('libraryScopeForServer', () => {
+  it('returns undefined for all or unset filters', () => {
+    const serverId = setUpServer();
+    expect(libraryScopeForServer(serverId)).toBeUndefined();
+    useAuthStore.setState({
+      musicLibraryFilterByServer: { [serverId]: 'all' },
+    });
+    expect(libraryScopeForServer(serverId)).toBeUndefined();
+  });
+
+  it('returns the folder id when scoped', () => {
+    const serverId = setUpServer();
+    useAuthStore.setState({
+      musicLibraryFilterByServer: { [serverId]: 'mf-7' },
+    });
+    expect(libraryScopeForServer(serverId)).toBe('mf-7');
   });
 });
 

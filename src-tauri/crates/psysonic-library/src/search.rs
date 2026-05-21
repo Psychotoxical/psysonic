@@ -109,21 +109,9 @@ fn fts_token_expr_with(raw: &str, prefix: bool) -> Option<String> {
     }
 }
 
-/// `artist : "tok"` — artist entity rows must match the artist name column.
-pub(crate) fn fts_column_query(column: &str, raw: &str) -> Option<String> {
-    fts_token_expr(raw).map(|tokens| format!("{column} : {tokens}"))
-}
-
 /// Column-scoped prefix match (`artist : "met"*` → Metallica).
 pub(crate) fn fts_column_prefix_query(column: &str, raw: &str) -> Option<String> {
     fts_prefix_token_expr(raw).map(|tokens| format!("{column} : {tokens}"))
-}
-
-/// Album entity: match album title or album-artist credit, not song title alone.
-pub(crate) fn fts_album_match_query(raw: &str) -> Option<String> {
-    fts_token_expr(raw).map(|tokens| {
-        format!("(album : {tokens} OR album_artist : {tokens})")
-    })
 }
 
 /// Prefix variants for Live Search / Advanced Search as-you-type matching.
@@ -158,6 +146,21 @@ pub(crate) fn fts_track_match_query(raw: &str) -> Option<String> {
 /// Project the `track` hot columns prefixed with `alias` (e.g. `t.title`),
 /// in `repos::row_to_track_row`'s positional order so the Advanced Search /
 /// cross-server builders can reuse the shared row mapper.
+/// Effective library id for scoped search — hot column first, then common
+/// OpenSubsonic / Navidrome keys in `raw_json` (legacy rows may only have JSON).
+pub(crate) fn library_scope_match_sql(table_alias: &str) -> String {
+    format!(
+        "COALESCE(NULLIF({table_alias}.library_id, ''), \
+         CAST(json_extract({table_alias}.raw_json, '$.libraryId') AS TEXT), \
+         CAST(json_extract({table_alias}.raw_json, '$.library_id') AS TEXT), \
+         CAST(json_extract({table_alias}.raw_json, '$.musicFolderId') AS TEXT))"
+    )
+}
+
+pub(crate) fn library_scope_equals_sql(table_alias: &str) -> String {
+    format!("{} = ?", library_scope_match_sql(table_alias))
+}
+
 pub(crate) fn aliased_track_columns(alias: &str) -> String {
     crate::repos::track_columns()
         .split(',')
@@ -281,14 +284,6 @@ mod tests {
     }
 
     #[test]
-    fn fts_column_query_scopes_to_one_column() {
-        assert_eq!(
-            fts_column_query("artist", "manowar").as_deref(),
-            Some("artist : \"manowar\"")
-        );
-    }
-
-    #[test]
     fn fts_track_prefix_match_query_or_across_display_columns() {
         let q = fts_track_prefix_match_query("metal").unwrap();
         assert!(q.contains("title : \"metal\"*"));
@@ -301,14 +296,6 @@ mod tests {
         assert_eq!(
             fts_album_prefix_match_query("metal").as_deref(),
             Some("(album : \"metal\"* OR album_artist : \"metal\"*)")
-        );
-    }
-
-    #[test]
-    fn fts_album_match_query_includes_album_artist() {
-        assert_eq!(
-            fts_album_match_query("manowar").as_deref(),
-            Some("(album : \"manowar\" OR album_artist : \"manowar\")")
         );
     }
 

@@ -351,6 +351,7 @@ pub async fn library_live_search(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     query: String,
+    library_scope: Option<String>,
     artist_limit: Option<u32>,
     album_limit: Option<u32>,
     song_limit: Option<u32>,
@@ -372,6 +373,7 @@ pub async fn library_live_search(
         &runtime.store,
         &server_id,
         &query,
+        library_scope.as_deref(),
         artist_limit.unwrap_or(5),
         album_limit.unwrap_or(5),
         song_limit.unwrap_or(10),
@@ -612,6 +614,27 @@ async fn library_sync_start_inner(
         "delta" => "delta_sync",
         other => return Err(format!("unknown sync mode: `{other}`")),
     };
+    if let Some(existing) = runtime.current_job() {
+        if existing.kind == "initial_sync" {
+            match kind {
+                "initial_sync" if existing.server_id == server_id => {
+                    // Same-server full resync replaces the in-flight job.
+                }
+                "initial_sync" => {
+                    return Err(format!(
+                        "initial sync already running for `{}` — wait for it to finish",
+                        existing.server_id
+                    ));
+                }
+                _ => {
+                    return Err(format!(
+                        "initial sync in progress for `{}` — try again later",
+                        existing.server_id
+                    ));
+                }
+            }
+        }
+    }
     let job_id = format!("{}_{}", server_id, now_unix_ms());
     let cancel = Arc::new(AtomicBool::new(false));
     let job = CurrentJob {

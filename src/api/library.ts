@@ -301,6 +301,8 @@ export interface LibraryLiveSearchResponse {
 export function libraryLiveSearch(args: {
   serverId: string;
   query: string;
+  /** Subsonic `musicFolderId` / Navidrome library id — omit for all libraries. */
+  libraryScope?: string | null;
   artistLimit?: number;
   albumLimit?: number;
   songLimit?: number;

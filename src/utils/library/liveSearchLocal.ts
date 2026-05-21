@@ -5,6 +5,7 @@
  */
 import type { SearchResults } from '../../api/subsonicTypes';
 import { search } from '../../api/subsonicSearch';
+import { libraryScopeForServer } from '../../api/subsonicClient';
 import { libraryLiveSearch } from '../../api/library';
 import { filterSearchArtistsWithNoAlbums } from '../../api/subsonicSearch';
 import {
@@ -58,6 +59,7 @@ export async function runLocalLiveSearch(
       libraryLiveSearch({
         serverId,
         query: q,
+        libraryScope: libraryScopeForServer(serverId),
         artistLimit: ARTIST_LIMIT,
         albumLimit: ALBUM_LIMIT,
         songLimit: SONG_LIMIT,

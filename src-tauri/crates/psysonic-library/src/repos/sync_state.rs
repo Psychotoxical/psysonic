@@ -166,6 +166,25 @@ impl<'a> SyncStateRepository<'a> {
         })
     }
 
+    /// True when a full sync has completed at least once.
+    pub fn has_last_full_sync_at(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<bool, String> {
+        self.read(|conn| {
+            let ts: Option<Option<i64>> = conn
+                .query_row(
+                    "SELECT last_full_sync_at FROM sync_state \
+                     WHERE server_id = ?1 AND library_scope = ?2",
+                    params![server_id, library_scope],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            Ok(ts.flatten().is_some())
+        })
+    }
+
     /// Write `sync_phase`. Upsert scoped to that one column.
     pub fn set_sync_phase(
         &self,

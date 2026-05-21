@@ -21,7 +21,8 @@ use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
 use crate::search::{
     aliased_track_columns, fts_album_prefix_match_query, fts_column_prefix_query,
-    fts_query_meets_min_len, fts_track_prefix_match_query, like_contains, PAGE_LIMIT_MAX,
+    fts_query_meets_min_len, fts_track_prefix_match_query, library_scope_equals_sql,
+    like_contains, PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
 
@@ -155,7 +156,8 @@ fn build_track(
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+        let clause = library_scope_equals_sql("t");
+        w.push_param(&clause, SqlValue::Text(scope));
     }
     for c in scalar {
         if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
@@ -296,7 +298,8 @@ fn build_album_from_tracks(
         "NOT EXISTS (SELECT 1 FROM album a WHERE a.server_id = t.server_id AND a.id = t.album_id)",
     );
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+        let clause = library_scope_equals_sql("t");
+        w.push_param(&clause, SqlValue::Text(scope));
     }
     if let Some(t) = text {
         w.push_param("t.album LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
@@ -414,7 +417,8 @@ fn build_artist_from_tracks(
         "NOT EXISTS (SELECT 1 FROM artist ar WHERE ar.server_id = t.server_id AND ar.id = t.artist_id)",
     );
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+        let clause = library_scope_equals_sql("t");
+        w.push_param(&clause, SqlValue::Text(scope));
     }
     if let Some(t) = text {
         w.push_param("t.artist LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
@@ -473,7 +477,8 @@ fn build_album_from_fts(
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+        let clause = library_scope_equals_sql("t");
+        w.push_param(&clause, SqlValue::Text(scope));
     }
     for c in scalar {
         if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
@@ -580,7 +585,8 @@ fn build_artist_from_fts(
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+        let clause = library_scope_equals_sql("t");
+        w.push_param(&clause, SqlValue::Text(scope));
     }
     for c in scalar {
         if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
@@ -1371,6 +1377,19 @@ mod tests {
         TrackRepository::new(&store).upsert_batch(&[a, b]).unwrap();
         let mut r = req("s1", &[EntityKind::Track]);
         r.library_scope = Some("lib1".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn library_scope_reads_library_id_from_raw_json_when_column_null() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = track("s1", "t1", "A", "X", "Alb");
+        a.raw_json = serde_json::json!({"libraryId": 3}).to_string();
+        TrackRepository::new(&store).upsert_batch(&[a]).unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.library_scope = Some("3".into());
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.tracks.len(), 1);
         assert_eq!(resp.tracks[0].id, "t1");
