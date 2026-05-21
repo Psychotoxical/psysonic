@@ -136,13 +136,40 @@ pub async fn library_search(
 #[tauri::command]
 pub async fn library_get_track(
     runtime: State<'_, LibraryRuntime>,
+    app: AppHandle,
     server_id: String,
     track_id: String,
 ) -> Result<Option<LibraryTrackDto>, String> {
     let repo = TrackRepository::new(&runtime.store);
-    Ok(repo
-        .find_one(&server_id, &track_id)?
-        .map(|row| LibraryTrackDto::from_row(&row)))
+    let Some(row) = repo.find_one(&server_id, &track_id)? else {
+        return Ok(None);
+    };
+    let mut dto = LibraryTrackDto::from_row(&row);
+
+    // E3 enrichment (read-only, per-server, best-effort — never blocks on the
+    // network). Only the single-track read pays for this; list/batch projections
+    // leave `enrichment = None`.
+    let now = now_unix_ms();
+    let lyrics_cached = crate::repos::ArtifactRepository::new(&runtime.store)
+        .lyrics_cached(&server_id, &track_id, now)
+        .unwrap_or(false);
+    // waveform/loudness readiness is gated on a known content_hash (md5_16kb,
+    // populated by E2) and probed via the analysis-readiness port — exact key
+    // then legacy '' fallback, no re-tag. Absent port or hash ⇒ not ready.
+    let (waveform_ready, loudness_ready) =
+        match row.content_hash.as_deref().filter(|s| !s.is_empty()) {
+            Some(md5) => app
+                .try_state::<psysonic_core::ports::AnalysisReadinessQuery>()
+                .map(|q| q.readiness(&server_id, &track_id, md5))
+                .unwrap_or((false, false)),
+            None => (false, false),
+        };
+    dto.enrichment = Some(crate::dto::TrackEnrichmentDto {
+        waveform_ready,
+        loudness_ready,
+        lyrics_cached,
+    });
+    Ok(Some(dto))
 }
 
 #[tauri::command]
@@ -767,7 +794,12 @@ pub fn library_purge_server(
     include_analysis: Option<bool>,
     include_offline: Option<bool>,
 ) -> Result<PurgeReportDto, String> {
-    let _ = include_analysis; // analysis_cache cross-purge wires in PR-6.
+    // R7-16 Q7: `includeAnalysis` is a deliberate v1 no-op — analysis blobs are
+    // expensive to rebuild (full-file decode) and the same host may return under
+    // a new login / app server_id with identical file content, so a purge or
+    // server-remove never deletes waveform/loudness rows. Kept on the surface for
+    // forward compat; explicit cleanup stays Settings → Storage + queue reseed.
+    let _ = include_analysis;
     let include_offline = include_offline.unwrap_or(false);
 
     let mut report = PurgeReportDto::default();

@@ -234,6 +234,40 @@ pub fn run() {
                 app.manage(sink);
             }
 
+            // ── Analysis-readiness query (library → analysis E3 back-edge) ──
+            // `library_get_track` enrichment asks whether waveform/loudness are
+            // cached for (server_id, track_id, content_hash). Read-only probe:
+            // exact key then legacy '' fallback, no re-tag. Decoupled from
+            // psysonic-analysis via a psysonic-core port.
+            {
+                let app_for_readiness = app.handle().clone();
+                let query = psysonic_core::ports::AnalysisReadinessQuery::new(
+                    move |server_id: &str, track_id: &str, md5: &str| {
+                        let Some(cache) = app_for_readiness
+                            .try_state::<analysis_cache::AnalysisCache>()
+                        else {
+                            return (false, false);
+                        };
+                        let probe = |sid: &str| {
+                            let key = analysis_cache::TrackKey {
+                                server_id: sid.to_string(),
+                                track_id: track_id.to_string(),
+                                md5_16kb: md5.to_string(),
+                            };
+                            let wf = cache.get_waveform(&key).ok().flatten().is_some();
+                            let ld = cache.loudness_row_exists_for_key(&key).unwrap_or(false);
+                            (wf, ld)
+                        };
+                        let (wf, ld) = probe(server_id);
+                        // Legacy '' fallback for rows analysed before E1 wiring.
+                        let wf = wf || (!server_id.is_empty() && probe("").0);
+                        let ld = ld || (!server_id.is_empty() && probe("").1);
+                        (wf, ld)
+                    },
+                );
+                app.manage(query);
+            }
+
             // Periodic analysis queue sizes (debug logging mode only).
             tauri::async_runtime::spawn(psysonic_analysis::analysis_runtime::analysis_queue_snapshot_loop());
 
