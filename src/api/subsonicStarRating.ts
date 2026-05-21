@@ -1,5 +1,7 @@
 import { api, libraryFilterParams } from './subsonicClient';
 import { invalidateEntityUserRatingCaches } from './subsonicRatings';
+import { useAuthStore } from '../store/authStore';
+import { patchLibraryTrackOnUse } from '../utils/library/patchOnUse';
 import type {
   EntityRatingSupportLevel,
   StarredResults,
@@ -26,6 +28,9 @@ export async function star(id: string, type: 'song' | 'album' | 'artist' = 'albu
   if (type === 'album') params.albumId = id;
   if (type === 'artist') params.artistId = id;
   await api('star.view', params);
+  if (type === 'song') {
+    patchLibraryTrackOnUse(useAuthStore.getState().activeServerId, id, { starredAt: Date.now() });
+  }
 }
 
 export async function unstar(id: string, type: 'song' | 'album' | 'artist' = 'album'): Promise<void> {
@@ -34,10 +39,15 @@ export async function unstar(id: string, type: 'song' | 'album' | 'artist' = 'al
   if (type === 'album') params.albumId = id;
   if (type === 'artist') params.artistId = id;
   await api('unstar.view', params);
+  if (type === 'song') {
+    patchLibraryTrackOnUse(useAuthStore.getState().activeServerId, id, { starredAt: null });
+  }
 }
 
 export async function setRating(id: string, rating: number): Promise<void> {
   await api('setRating.view', { id, rating });
+  // No-op in Rust when `id` is an album/artist (no track row matches).
+  patchLibraryTrackOnUse(useAuthStore.getState().activeServerId, id, { userRating: rating });
   // Cached song lists keyed by rating (e.g. Tracks → Highly Rated rail) become
   // stale immediately. `invalidateEntityUserRatingCaches` is static-imported:
   // mix paths already pull `subsonicRatings` (e.g. mixRatingFilter), so a

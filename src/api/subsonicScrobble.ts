@@ -1,5 +1,6 @@
 import { api, apiForServer } from './subsonicClient';
 import type { SubsonicNowPlaying } from './subsonicTypes';
+import { patchLibraryTrackOnUse } from '../utils/library/patchOnUse';
 
 async function scrobbleOnServer(
   serverId: string,
@@ -16,6 +17,10 @@ export async function scrobbleSong(id: string, time: number, serverId: string): 
   if (!serverId) return;
   try {
     await scrobbleOnServer(serverId, id, true, time);
+    // Patch-on-use (§6.5 / F3): reflect the play in the local index so the
+    // "recently played" surfaces aren't stale. `play_count` is left to the next
+    // sync (the patch sets absolute values; a correct increment needs the base).
+    patchLibraryTrackOnUse(serverId, id, { playedAt: time });
   } catch {
     // best effort
   }

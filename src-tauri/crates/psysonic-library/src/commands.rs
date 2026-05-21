@@ -701,14 +701,28 @@ pub fn library_patch_track(
     track_id: String,
     patch: Value,
 ) -> Result<(), String> {
-    // Sparse JSON patch — only the fields explicitly present in
-    // `patch` are applied; absent keys leave the column untouched.
-    // Spec §6.5 patch-on-use: `starred_at`, `user_rating`,
-    // `play_count`, `played_at`; §8.1 E2: `content_hash`.
-    let starred_at = patch.get("starredAt").and_then(|v| v.as_i64());
-    let user_rating = patch.get("userRating").and_then(|v| v.as_i64());
-    let play_count = patch.get("playCount").and_then(|v| v.as_i64());
-    let played_at = patch.get("playedAt").and_then(|v| v.as_i64());
+    apply_track_patch(&runtime, &server_id, &track_id, &patch)
+}
+
+/// Apply a sparse `library_patch_track` JSON patch (extracted from the command
+/// so it is unit-testable without a Tauri `State`). Only fields explicitly
+/// present in `patch` are applied; absent keys leave the column untouched. For
+/// the nullable integer fields, an explicit `null` clears the column (e.g.
+/// `unstar` → `starredAt: null`): `.map` keeps the present/absent distinction
+/// (outer `Some` = key present), `as_i64()` yields the value or `None` → bound
+/// as SQL NULL. Spec §6.5 patch-on-use: `starred_at`, `user_rating`,
+/// `play_count`, `played_at`; §8.1 E2: `content_hash`. All UPDATEs no-op when
+/// the library has no row for `(server_id, track_id)`.
+pub(crate) fn apply_track_patch(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    track_id: &str,
+    patch: &Value,
+) -> Result<(), String> {
+    let starred_at = patch.get("starredAt").map(|v| v.as_i64());
+    let user_rating = patch.get("userRating").map(|v| v.as_i64());
+    let play_count = patch.get("playCount").map(|v| v.as_i64());
+    let played_at = patch.get("playedAt").map(|v| v.as_i64());
     let content_hash = patch
         .get("contentHash")
         .and_then(|v| v.as_str())
@@ -1089,6 +1103,41 @@ mod tests {
 
         patch_content_hash(&rt, "s1", "tr_1", "md5-playback").unwrap();
         assert_eq!(read(&store).as_deref(), Some("md5-playback"));
+    }
+
+    #[test]
+    fn apply_track_patch_sets_clears_and_leaves_fields() {
+        // §6.5 patch-on-use: present value sets, explicit null clears, absent key
+        // leaves the column untouched — so `unstar` ({starredAt:null}) actually
+        // un-stars the local row.
+        let store = Arc::new(LibraryStore::open_in_memory());
+        TrackRepository::new(&store)
+            .upsert_batch(&[make_row("s1", "tr_1", "al_1", 1)])
+            .unwrap();
+        let rt = runtime(store.clone());
+        let read = |store: &LibraryStore| -> (Option<i64>, Option<i64>) {
+            store
+                .with_conn(|c| {
+                    c.query_row(
+                        "SELECT starred_at, user_rating FROM track WHERE server_id='s1' AND id='tr_1'",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                })
+                .unwrap()
+        };
+
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "starredAt": 1700, "userRating": 4 }))
+            .unwrap();
+        assert_eq!(read(&store), (Some(1700), Some(4)));
+
+        // Explicit null clears starred_at; absent userRating stays.
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({ "starredAt": null })).unwrap();
+        assert_eq!(read(&store), (None, Some(4)), "null clears, absent key untouched");
+
+        // Empty patch is a no-op.
+        apply_track_patch(&rt, "s1", "tr_1", &serde_json::json!({})).unwrap();
+        assert_eq!(read(&store), (None, Some(4)));
     }
 
     #[test]
