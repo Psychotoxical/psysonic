@@ -41,6 +41,10 @@ interface Props {
   displayedSongs: SubsonicSong[];
   displayedTracks: Track[];
   isFiltered: boolean;
+  /** True only while a filter text is active — distinct from `isFiltered`,
+   *  which also goes true while sorting (displayedSongs !== songs). Drives the
+   *  scroll-to-list effect so sorting doesn't snap the viewport (issue #840). */
+  hasActiveFilter: boolean;
   id: string | undefined;
 
   // Sort
@@ -82,7 +86,7 @@ interface Props {
 export default function PlaylistTracklist({
   allColumns, visibleCols, gridStyle, colVisible, toggleColumn, resetColumns,
   pickerOpen, setPickerOpen, pickerRef, startResize, tracklistRef,
-  songs, displayedSongs, displayedTracks, isFiltered, id,
+  songs, displayedSongs, displayedTracks, isFiltered, hasActiveFilter, id,
   sortKey, setSortKey, sortDir, setSortDir, sortClickCount, setSortClickCount,
   selectedIds, setSelectedIds, allSelected, toggleAll, toggleSelect,
   showBulkPlPicker, setShowBulkPlPicker, bulkRemove,
@@ -190,7 +194,7 @@ export default function PlaylistTracklist({
     const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
     if (sc) sc.scrollTop = scrollMargin;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isFiltered]);
+  }, [id, hasActiveFilter]);
 
   const autoScrollRef = useRef(0);
   const pointerYRef = useRef(0);

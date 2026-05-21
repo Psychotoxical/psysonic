@@ -349,6 +349,7 @@ export default function PlaylistDetail() {
         displayedSongs={displayedSongs}
         displayedTracks={displayedTracks}
         isFiltered={isFiltered}
+        hasActiveFilter={filterText.trim().length > 0}
         id={id}
         sortKey={sortKey}
         setSortKey={setSortKey}
