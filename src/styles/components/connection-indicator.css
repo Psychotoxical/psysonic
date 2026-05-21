@@ -83,49 +83,6 @@
   white-space: nowrap;
 }
 
-/* ─ Server scan actions (used in server switcher + settings card) ─ */
-.server-scan-actions--compact {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.server-scan-btn--confirm {
-  background: var(--danger, #dc3c3c) !important;
-  color: #fff !important;
-  animation: server-scan-confirm-pulse 0.7s ease-in-out infinite alternate;
-}
-
-@keyframes server-scan-confirm-pulse {
-  from { filter: brightness(1); }
-  to   { filter: brightness(1.25); }
-}
-
-.server-scan-slot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-}
-
-.server-scan-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.server-scan-status--done { color: var(--positive, #4ade80); }
-.server-scan-status--error { color: var(--danger, #dc3c3c); }
-
-.server-scan-status-count {
-  font-variant-numeric: tabular-nums;
-}
-
 /* Server card actions collapse to icon-only on narrow viewports — labels
  * remain available as native tooltips via the existing `data-tooltip` /
  * `aria-label` attributes. Breakpoint is tuned to where the action row

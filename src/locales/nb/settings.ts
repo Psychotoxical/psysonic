@@ -467,16 +467,4 @@ export const settings = {
   floatingPlayerBarSub: 'Hold spillerlinjen flytende over innholdet',
   uiScaleTitle: 'Grensesnittskala',
   uiScaleLabel: 'Zoom',
-  scan: {
-    quick: 'Hurtigskanning',
-    full: 'Full skanning',
-    quickTip: 'Hurtigskanning — indekser nye/endrede filer',
-    fullTip: 'Full skanning — reindekser alt',
-    confirmFull: 'Klikk igjen for å bekrefte',
-    confirmFullShort: 'Bekreft full skanning',
-    scanning: 'Skanner…',
-    done: 'Skanning ferdig',
-    error: 'Skanning mislyktes',
-    toast: '{{name}}: skanning ferdig — {{count}} spor indeksert',
-  },
 };

@@ -470,16 +470,4 @@ export const settings = {
   floatingPlayerBarSub: 'Mantener la barra del reproductor flotando sobre el contenido',
   uiScaleTitle: 'Escala de Interfaz',
   uiScaleLabel: 'Zoom',
-  scan: {
-    quick: 'Escaneo rápido',
-    full: 'Escaneo completo',
-    quickTip: 'Escaneo rápido — indexar archivos nuevos/modificados',
-    fullTip: 'Escaneo completo — reindexar todo',
-    confirmFull: 'Haz clic de nuevo para confirmar',
-    confirmFullShort: 'Confirmar escaneo completo',
-    scanning: 'Escaneando…',
-    done: 'Escaneo finalizado',
-    error: 'Error en el escaneo',
-    toast: '{{name}}: escaneo finalizado — {{count}} pistas indexadas',
-  },
 };

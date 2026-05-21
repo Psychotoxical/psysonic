@@ -467,16 +467,4 @@ export const settings = {
   floatingPlayerBarSub: '保持播放栏悬浮在内容上方',
   uiScaleTitle: '界面缩放',
   uiScaleLabel: '缩放',
-  scan: {
-    quick: '快速扫描',
-    full: '完整扫描',
-    quickTip: '快速扫描 — 仅索引新增/变更文件',
-    fullTip: '完整扫描 — 重新索引全部',
-    confirmFull: '再次点击确认',
-    confirmFullShort: '确认完整扫描',
-    scanning: '扫描中…',
-    done: '扫描完成',
-    error: '扫描失败',
-    toast: '{{name}}: 扫描完成 — 已索引 {{count}} 首曲目',
-  },
 };

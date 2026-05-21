@@ -473,16 +473,4 @@ export const settings = {
   floatingPlayerBarSub: 'Keep the player bar floating above content',
   uiScaleTitle: 'Interface Scale',
   uiScaleLabel: 'Zoom',
-  scan: {
-    quick: 'Quick scan',
-    full: 'Full scan',
-    quickTip: 'Quick scan — index new/changed files',
-    fullTip: 'Full scan — re-index everything',
-    confirmFull: 'Click again to confirm full scan',
-    confirmFullShort: 'Confirm full scan',
-    scanning: 'Scanning…',
-    done: 'Scan finished',
-    error: 'Scan failed',
-    toast: '{{name}}: scan finished — {{count}} tracks indexed',
-  },
 };

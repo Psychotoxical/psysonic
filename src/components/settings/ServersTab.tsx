@@ -13,7 +13,6 @@ import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
 import { switchActiveServer } from '../../utils/server/switchActiveServer';
 import { AddServerForm } from './AddServerForm';
 import { ServerGripHandle } from './ServerGripHandle';
-import ServerScanActions from './ServerScanActions';
 
 const AUDIOMUSE_NV_PLUGIN_URL = 'https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin';
 
@@ -277,7 +276,6 @@ export function ServersTab({
                       {status === 'ok' && <CheckCircle2 size={16} style={{ color: 'var(--positive)' }} />}
                       {status === 'error' && <WifiOff size={16} style={{ color: 'var(--danger)' }} />}
                       {status === 'testing' && <div className="spinner" style={{ width: 16, height: 16 }} />}
-                      <ServerScanActions serverId={srv.id} variant="card" />
                       <button
                         className="btn btn-surface"
                         style={{ fontSize: 12, padding: '4px 10px' }}

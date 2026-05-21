@@ -468,16 +468,4 @@ export const settings = {
   floatingPlayerBarSub: 'Houd de spelerbalk zwevend boven de inhoud',
   uiScaleTitle: 'Interface schaal',
   uiScaleLabel: 'Zoom',
-  scan: {
-    quick: 'Snel scannen',
-    full: 'Volledige scan',
-    quickTip: 'Snel scannen — nieuwe/gewijzigde bestanden indexeren',
-    fullTip: 'Volledige scan — alles opnieuw indexeren',
-    confirmFull: 'Klik nogmaals om te bevestigen',
-    confirmFullShort: 'Volledige scan bevestigen',
-    scanning: 'Scannen…',
-    done: 'Scan voltooid',
-    error: 'Scan mislukt',
-    toast: '{{name}}: scan voltooid — {{count}} tracks geïndexeerd',
-  },
 };

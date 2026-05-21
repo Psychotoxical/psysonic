@@ -468,16 +468,4 @@ export const settings = {
   floatingPlayerBarSub: 'Garder la barre du lecteur flottante au-dessus du contenu',
   uiScaleTitle: "Mise à l'échelle de l'interface",
   uiScaleLabel: 'Zoom',
-  scan: {
-    quick: 'Analyse rapide',
-    full: 'Analyse complète',
-    quickTip: 'Analyse rapide — indexer les fichiers nouveaux/modifiés',
-    fullTip: 'Analyse complète — tout réindexer',
-    confirmFull: 'Cliquer à nouveau pour confirmer',
-    confirmFullShort: "Confirmer l'analyse complète",
-    scanning: 'Analyse en cours…',
-    done: 'Analyse terminée',
-    error: "Échec de l'analyse",
-    toast: '{{name}} : analyse terminée — {{count}} pistes indexées',
-  },
 };

@@ -470,16 +470,4 @@ export const settings = {
   floatingPlayerBarSub: 'Player-Leiste über dem Inhalt schweben lassen',
   uiScaleTitle: 'Interface-Skalierung',
   uiScaleLabel: 'Zoom',
-  scan: {
-    quick: 'Quick-Scan',
-    full: 'Full-Scan',
-    quickTip: 'Quick-Scan — nur neue/geänderte Dateien indexieren',
-    fullTip: 'Full-Scan — alles neu indexieren',
-    confirmFull: 'Nochmal klicken zum Bestätigen',
-    confirmFullShort: 'Full-Scan bestätigen',
-    scanning: 'Scannt…',
-    done: 'Scan fertig',
-    error: 'Scan fehlgeschlagen',
-    toast: '{{name}}: Scan fertig — {{count}} Tracks indexiert',
-  },
 };

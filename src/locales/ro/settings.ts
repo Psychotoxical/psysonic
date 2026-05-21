@@ -473,16 +473,4 @@ export const settings = {
   floatingPlayerBarSub: 'Păstrează bara playerului plutind deasupra conținutului',
   uiScaleTitle: 'Scara interfaței',
   uiScaleLabel: 'Zoom',
-  scan: {
-    quick: 'Scanare rapidă',
-    full: 'Scanare completă',
-    quickTip: 'Scanare rapidă — indexează fișierele noi/modificate',
-    fullTip: 'Scanare completă — reindexează totul',
-    confirmFull: 'Apasă din nou pentru a confirma',
-    confirmFullShort: 'Confirmă scanarea completă',
-    scanning: 'Se scanează…',
-    done: 'Scanare finalizată',
-    error: 'Scanare eșuată',
-    toast: '{{name}}: scanare finalizată — {{count}} piese indexate',
-  },
 };
