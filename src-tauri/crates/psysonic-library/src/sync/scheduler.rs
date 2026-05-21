@@ -34,7 +34,8 @@ pub struct SchedulerTickReport {
     pub skipped_not_due: bool,
     pub skipped_bulk_paused: bool,
     /// Delta/tombstone pass deferred while initial sync or capability probe
-    /// holds `sync_phase` or IS-3 bulk ingest is active.
+    /// holds `sync_phase`, IS-3 bulk ingest is active, or a foreground sync
+    /// job (`LibraryRuntime::current_job`) is running for this server.
     pub skipped_sync_pass_active: bool,
     pub delta: Option<DeltaSyncReport>,
     pub next_poll_at_ms: i64,
@@ -52,6 +53,9 @@ pub struct BackgroundScheduler<'a> {
     progress: Arc<dyn Progress + Send + Sync>,
     tombstone_threshold_pct: u32,
     sleep_enabled: bool,
+    /// When true, a user-triggered sync job (delta / verify / full resync)
+    /// already owns this server — skip the background delta pass.
+    foreground_sync_job_active: bool,
 }
 
 impl<'a> BackgroundScheduler<'a> {
@@ -74,6 +78,7 @@ impl<'a> BackgroundScheduler<'a> {
             progress: Arc::new(NoopProgress),
             tombstone_threshold_pct: DEFAULT_TOMBSTONE_THRESHOLD_PCT,
             sleep_enabled: true,
+            foreground_sync_job_active: false,
         }
     }
 
@@ -104,6 +109,11 @@ impl<'a> BackgroundScheduler<'a> {
 
     pub fn with_sleep_disabled(mut self) -> Self {
         self.sleep_enabled = false;
+        self
+    }
+
+    pub fn with_foreground_sync_job_active(mut self, active: bool) -> Self {
+        self.foreground_sync_job_active = active;
         self
     }
 
@@ -278,9 +288,13 @@ impl<'a> BackgroundScheduler<'a> {
         }
     }
 
-    /// True while initial sync, capability probe, or IS-3 bulk ingest is
-    /// in flight — background delta must not compete for the write lock.
+    /// True while initial sync, capability probe, IS-3 bulk ingest, or a
+    /// foreground sync job for this server is in flight — background delta
+    /// must not compete for HTTP budget or tombstone probes.
     fn sync_pass_active(&self, sync_state: &SyncStateRepository<'_>) -> Result<bool, SyncError> {
+        if self.foreground_sync_job_active {
+            return Ok(true);
+        }
         if self.store.bulk_ingest_active() {
             return Ok(true);
         }
@@ -411,6 +425,32 @@ mod tests {
             flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
         )
         .with_sleep_disabled()
+        .tick(0)
+        .await
+        .unwrap();
+
+        assert!(report.skipped_sync_pass_active);
+        assert!(report.delta.is_none());
+        assert_eq!(report.next_poll_at_ms, 30_000);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn tick_skips_when_foreground_sync_job_active() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        let report = BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .with_foreground_sync_job_active(true)
         .tick(0)
         .await
         .unwrap();

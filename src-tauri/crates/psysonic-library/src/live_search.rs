@@ -144,7 +144,7 @@ fn query_artists(
     }
     let placeholders = rowid_placeholders(rowids.len());
     let sql = format!(
-        "SELECT t.server_id, t.artist_id, t.artist, t.synced_at \
+        "SELECT t.server_id, t.artist_id, t.artist, t.synced_at, t.rowid \
          FROM track t \
          WHERE t.rowid IN ({placeholders}) \
            AND t.server_id = ? \
@@ -152,28 +152,33 @@ fn query_artists(
            AND t.artist_id IS NOT NULL AND t.artist_id != ''"
     );
     let mut params: Vec<rusqlite::types::Value> = rowids
-        .into_iter()
+        .iter()
+        .copied()
         .map(rusqlite::types::Value::Integer)
         .collect();
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
     let mut sql = sql;
     append_library_scope(&mut sql, &mut params, library_scope);
-    let mut seen = HashMap::new();
+    let rank: HashMap<i64, usize> = rowids
+        .iter()
+        .enumerate()
+        .map(|(i, &rid)| (rid, i))
+        .collect();
+    let mut ranked: Vec<(usize, LibraryArtistDto)> = Vec::new();
     let mut stmt = conn.prepare(&sql)?;
     for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
         Ok((
+            r.get::<_, i64>(4)?,
             r.get::<_, String>(0)?,
             r.get::<_, String>(1)?,
             r.get::<_, Option<String>>(2)?,
             r.get::<_, i64>(3)?,
         ))
     })? {
-        let (server_id, artist_id, artist, synced_at) = row?;
-        if seen.contains_key(&artist_id) {
-            continue;
-        }
-        seen.insert(
-            artist_id.clone(),
+        let (rowid, server_id, artist_id, artist, synced_at) = row?;
+        let fts_rank = rank.get(&rowid).copied().unwrap_or(usize::MAX);
+        ranked.push((
+            fts_rank,
             LibraryArtistDto {
                 server_id,
                 id: artist_id,
@@ -182,12 +187,21 @@ fn query_artists(
                 synced_at,
                 raw_json: serde_json::Value::Null,
             },
-        );
-        if seen.len() >= limit as usize {
+        ));
+    }
+    ranked.sort_by_key(|(r, _)| *r);
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for (_, dto) in ranked {
+        if !seen.insert(dto.id.clone()) {
+            continue;
+        }
+        out.push(dto);
+        if out.len() >= limit as usize {
             break;
         }
     }
-    Ok(seen.into_values().collect())
+    Ok(out)
 }
 
 fn query_albums(
@@ -211,7 +225,7 @@ fn query_albums(
     let placeholders = rowid_placeholders(rowids.len());
     let sql = format!(
         "SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.year, \
-                t.genre, t.cover_art_id, t.starred_at, t.synced_at \
+                t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.rowid \
          FROM track t \
          WHERE t.rowid IN ({placeholders}) \
            AND t.server_id = ? \
@@ -219,16 +233,23 @@ fn query_albums(
            AND t.album_id IS NOT NULL AND t.album_id != ''"
     );
     let mut params: Vec<rusqlite::types::Value> = rowids
-        .into_iter()
+        .iter()
+        .copied()
         .map(rusqlite::types::Value::Integer)
         .collect();
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
     let mut sql = sql;
     append_library_scope(&mut sql, &mut params, library_scope);
-    let mut seen = HashMap::new();
+    let rank: HashMap<i64, usize> = rowids
+        .iter()
+        .enumerate()
+        .map(|(i, &rid)| (rid, i))
+        .collect();
+    let mut ranked: Vec<(usize, LibraryAlbumDto)> = Vec::new();
     let mut stmt = conn.prepare(&sql)?;
     for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
         Ok((
+            r.get::<_, i64>(10)?,
             r.get::<_, String>(0)?,
             r.get::<_, String>(1)?,
             r.get::<_, String>(2)?,
@@ -242,6 +263,7 @@ fn query_albums(
         ))
     })? {
         let (
+            rowid,
             server_id,
             album_id,
             album,
@@ -253,11 +275,9 @@ fn query_albums(
             starred_at,
             synced_at,
         ) = row?;
-        if seen.contains_key(&album_id) {
-            continue;
-        }
-        seen.insert(
-            album_id.clone(),
+        let fts_rank = rank.get(&rowid).copied().unwrap_or(usize::MAX);
+        ranked.push((
+            fts_rank,
             LibraryAlbumDto {
                 server_id,
                 id: album_id,
@@ -273,12 +293,21 @@ fn query_albums(
                 synced_at,
                 raw_json: serde_json::Value::Null,
             },
-        );
-        if seen.len() >= limit as usize {
+        ));
+    }
+    ranked.sort_by_key(|(r, _)| *r);
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for (_, dto) in ranked {
+        if !seen.insert(dto.id.clone()) {
+            continue;
+        }
+        out.push(dto);
+        if out.len() >= limit as usize {
             break;
         }
     }
-    Ok(seen.into_values().collect())
+    Ok(out)
 }
 
 fn rowid_placeholders(n: usize) -> String {
@@ -294,6 +323,7 @@ fn fetch_tracks_by_rowids(
     let placeholders = rowid_placeholders(rowids.len());
     let sql = format!(
         "SELECT \
+          t.rowid, \
           t.server_id, t.id, t.title, t.artist, t.artist_id, t.album, t.album_id, \
           t.album_artist, t.duration_sec, t.track_number, t.disc_number, t.year, \
           t.genre, t.suffix, t.bit_rate, t.size_bytes, t.cover_art_id, \
@@ -312,36 +342,47 @@ fn fetch_tracks_by_rowids(
     let mut sql = sql;
     append_library_scope(&mut sql, &mut params, library_scope);
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), map_live_hit)?;
-    rows.map(|r| r.map(|h| h.track)).collect()
+    let mut by_rowid: HashMap<i64, LibraryTrackDto> = HashMap::new();
+    for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
+        let rowid: i64 = r.get(0)?;
+        let hit = map_live_hit_row(r, 1)?;
+        Ok((rowid, hit.track))
+    })? {
+        let (rowid, track) = row?;
+        by_rowid.insert(rowid, track);
+    }
+    Ok(rowids
+        .iter()
+        .filter_map(|rid| by_rowid.get(rid).cloned())
+        .collect())
 }
 
-fn map_live_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<LiveHit> {
+fn map_live_hit_row(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<LiveHit> {
     Ok(LiveHit {
         track: LibraryTrackDto {
-            server_id: row.get(0)?,
-            id: row.get(1)?,
+            server_id: row.get(offset)?,
+            id: row.get(offset + 1)?,
             content_hash: None,
-            title: row.get(2)?,
+            title: row.get(offset + 2)?,
             title_sort: None,
-            artist: row.get(3)?,
-            artist_id: row.get(4)?,
-            album: row.get(5)?,
-            album_id: row.get(6)?,
-            album_artist: row.get(7)?,
-            duration_sec: row.get(8)?,
-            track_number: row.get(9)?,
-            disc_number: row.get(10)?,
-            year: row.get(11)?,
-            genre: row.get(12)?,
-            suffix: row.get(13)?,
-            bit_rate: row.get(14)?,
-            size_bytes: row.get(15)?,
-            cover_art_id: row.get(16)?,
-            starred_at: row.get(17)?,
-            user_rating: row.get(18)?,
-            play_count: row.get(19)?,
-            bpm: row.get(20)?,
+            artist: row.get(offset + 3)?,
+            artist_id: row.get(offset + 4)?,
+            album: row.get(offset + 5)?,
+            album_id: row.get(offset + 6)?,
+            album_artist: row.get(offset + 7)?,
+            duration_sec: row.get(offset + 8)?,
+            track_number: row.get(offset + 9)?,
+            disc_number: row.get(offset + 10)?,
+            year: row.get(offset + 11)?,
+            genre: row.get(offset + 12)?,
+            suffix: row.get(offset + 13)?,
+            bit_rate: row.get(offset + 14)?,
+            size_bytes: row.get(offset + 15)?,
+            cover_art_id: row.get(offset + 16)?,
+            starred_at: row.get(offset + 17)?,
+            user_rating: row.get(offset + 18)?,
+            play_count: row.get(offset + 19)?,
+            bpm: row.get(offset + 20)?,
             played_at: None,
             server_path: None,
             library_id: None,
@@ -351,7 +392,7 @@ fn map_live_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<LiveHit> {
             replay_gain_album_db: None,
             server_updated_at: None,
             server_created_at: None,
-            synced_at: row.get(21)?,
+            synced_at: row.get(offset + 21)?,
             enrichment: None,
             raw_json: serde_json::Value::Null,
         },

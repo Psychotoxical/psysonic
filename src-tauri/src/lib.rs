@@ -177,6 +177,12 @@ pub fn run() {
                                     },
                                 );
                             }
+                            let foreground_job = state
+                                .current_job()
+                                .is_some_and(|j| j.server_id == session.server_id);
+                            if foreground_job {
+                                sched = sched.with_foreground_sync_job_active(true);
+                            }
                             let _ = sched.tick(now_ms).await;
                             // Background ticks stay silent in PR-5b — Tauri
                             // emit for the scheduler path lands when the
