@@ -82,9 +82,25 @@ pub(crate) fn fts_query(raw: &str) -> Option<String> {
 
 /// Token expression only (`"a" "b"`), shared by column-scoped builders.
 pub(crate) fn fts_token_expr(raw: &str) -> Option<String> {
+    fts_token_expr_with(raw, false)
+}
+
+/// Prefix token expression (`"a"* "b"*`) for Live Search as-you-type matching.
+pub(crate) fn fts_prefix_token_expr(raw: &str) -> Option<String> {
+    fts_token_expr_with(raw, true)
+}
+
+fn fts_token_expr_with(raw: &str, prefix: bool) -> Option<String> {
     let tokens: Vec<String> = raw
         .split_whitespace()
-        .map(|t| format!("\"{}\"", t.replace('"', "\"\"")))
+        .map(|t| {
+            let quoted = format!("\"{}\"", t.replace('"', "\"\""));
+            if prefix {
+                format!("{quoted}*")
+            } else {
+                quoted
+            }
+        })
         .collect();
     if tokens.is_empty() {
         None
@@ -98,9 +114,31 @@ pub(crate) fn fts_column_query(column: &str, raw: &str) -> Option<String> {
     fts_token_expr(raw).map(|tokens| format!("{column} : {tokens}"))
 }
 
+/// Column-scoped prefix match (`artist : "met"*` → Metallica).
+pub(crate) fn fts_column_prefix_query(column: &str, raw: &str) -> Option<String> {
+    fts_prefix_token_expr(raw).map(|tokens| format!("{column} : {tokens}"))
+}
+
 /// Album entity: match album title or album-artist credit, not song title alone.
 pub(crate) fn fts_album_match_query(raw: &str) -> Option<String> {
     fts_token_expr(raw).map(|tokens| {
+        format!("(album : {tokens} OR album_artist : {tokens})")
+    })
+}
+
+/// Prefix variants for Live Search / Advanced Search as-you-type matching.
+pub(crate) fn fts_track_prefix_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_expr(raw).map(|tokens| {
+        ["title", "artist", "album", "album_artist"]
+            .iter()
+            .map(|col| format!("{col} : {tokens}"))
+            .collect::<Vec<_>>()
+            .join(" OR ")
+    })
+}
+
+pub(crate) fn fts_album_prefix_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_expr(raw).map(|tokens| {
         format!("(album : {tokens} OR album_artist : {tokens})")
     })
 }
@@ -227,10 +265,42 @@ mod tests {
     }
 
     #[test]
+    fn fts_column_prefix_query_scopes_to_one_column() {
+        assert_eq!(
+            fts_column_prefix_query("artist", "metal").as_deref(),
+            Some("artist : \"metal\"*")
+        );
+    }
+
+    #[test]
+    fn fts_prefix_token_expr_ands_multiword_prefixes() {
+        assert_eq!(
+            fts_prefix_token_expr("arch enemy").as_deref(),
+            Some("\"arch\"* \"enemy\"*")
+        );
+    }
+
+    #[test]
     fn fts_column_query_scopes_to_one_column() {
         assert_eq!(
             fts_column_query("artist", "manowar").as_deref(),
             Some("artist : \"manowar\"")
+        );
+    }
+
+    #[test]
+    fn fts_track_prefix_match_query_or_across_display_columns() {
+        let q = fts_track_prefix_match_query("metal").unwrap();
+        assert!(q.contains("title : \"metal\"*"));
+        assert!(q.contains("artist : \"metal\"*"));
+        assert!(!q.contains("genre"));
+    }
+
+    #[test]
+    fn fts_album_prefix_match_query_includes_album_artist() {
+        assert_eq!(
+            fts_album_prefix_match_query("metal").as_deref(),
+            Some("(album : \"metal\"* OR album_artist : \"metal\"*)")
         );
     }
 

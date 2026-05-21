@@ -22,8 +22,6 @@ interface SearchOpts {
   genre: string;
   yearFrom: string;
   yearTo: string;
-  bpmFrom: string;
-  bpmTo: string;
   resultType: ResultType;
 }
 
@@ -41,8 +39,6 @@ export default function AdvancedSearch() {
   const [genre, setGenre] = useState('');
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
-  const [bpmFrom, setBpmFrom] = useState('');
-  const [bpmTo, setBpmTo] = useState('');
   const [resultType, setResultType] = useState<ResultType>('all');
   const [starredOnly, setStarredOnly] = useState(false);
   const [genres, setGenres] = useState<SubsonicGenre[]>([]);
@@ -85,15 +81,11 @@ export default function AdvancedSearch() {
     g: string,
     from: number | null,
     to: number | null,
-    bpmFromN: number | null,
-    bpmToN: number | null,
   ): SubsonicSong[] => {
     let r = list;
     if (g) r = r.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
     if (from !== null) r = r.filter(s => !s.year || s.year >= from);
     if (to !== null) r = r.filter(s => !s.year || s.year <= to);
-    if (bpmFromN !== null) r = r.filter(s => !s.bpm || s.bpm >= bpmFromN);
-    if (bpmToN !== null) r = r.filter(s => !s.bpm || s.bpm <= bpmToN);
     return r;
   };
 
@@ -123,11 +115,9 @@ export default function AdvancedSearch() {
     }
     setLocalMode(false);
 
-    const { query: q, genre: g, yearFrom: yf, yearTo: yt, bpmFrom: bf, bpmTo: bt, resultType: rt } = opts;
+    const { query: q, genre: g, yearFrom: yf, yearTo: yt, resultType: rt } = opts;
     const from = yf ? parseInt(yf) : null;
     const to = yt ? parseInt(yt) : null;
-    const bpmFromN = bf ? parseInt(bf) : null;
-    const bpmToN = bt ? parseInt(bt) : null;
 
     let artists: SubsonicArtist[] = [];
     let albums: SubsonicAlbum[] = [];
@@ -138,7 +128,7 @@ export default function AdvancedSearch() {
         const r = await search(q.trim(), { artistCount: 30, albumCount: 50, songCount: SONGS_INITIAL });
         artists = r.artists;
         albums = r.albums;
-        songs = applySongFilters(r.songs, g, from, to, bpmFromN, bpmToN);
+        songs = applySongFilters(r.songs, g, from, to);
 
         if (g) {
           albums = albums.filter(a => a.genre?.toLowerCase() === g.toLowerCase());
@@ -185,7 +175,7 @@ export default function AdvancedSearch() {
     getGenres().then(data =>
       setGenres(data.sort((a, b) => a.value.localeCompare(b.value)))
     ).catch(() => {});
-    if (qFromUrl) runSearch({ query: qFromUrl, genre: '', yearFrom: '', yearTo: '', bpmFrom: '', bpmTo: '', resultType: 'all' });
+    if (qFromUrl) runSearch({ query: qFromUrl, genre: '', yearFrom: '', yearTo: '', resultType: 'all' });
   }, [musicLibraryFilterVersion, qFromUrl]);
 
   const loadMoreSongs = useCallback(async () => {
@@ -215,10 +205,8 @@ export default function AdvancedSearch() {
       const g = activeSearch.genre;
       const from = activeSearch.yearFrom ? parseInt(activeSearch.yearFrom) : null;
       const to = activeSearch.yearTo ? parseInt(activeSearch.yearTo) : null;
-      const bpmFromN = activeSearch.bpmFrom ? parseInt(activeSearch.bpmFrom) : null;
-      const bpmToN = activeSearch.bpmTo ? parseInt(activeSearch.bpmTo) : null;
       const page = await searchSongsPaged(q, SONGS_PAGE_SIZE, songsServerOffset);
-      const filtered = applySongFilters(page, g, from, to, bpmFromN, bpmToN);
+      const filtered = applySongFilters(page, g, from, to);
       setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...filtered] } : prev);
       setSongsServerOffset(o => o + page.length);
       // No more pages when the server returned a non-full page (regardless of how many survived filtering).
@@ -243,7 +231,7 @@ export default function AdvancedSearch() {
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    runSearch({ query, genre, yearFrom, yearTo, bpmFrom, bpmTo, resultType });
+    runSearch({ query, genre, yearFrom, yearTo, resultType });
   };
 
   const typeOptions: { id: ResultType; label: string }[] = [
@@ -322,29 +310,6 @@ export default function AdvancedSearch() {
                 max={new Date().getFullYear()}
                 value={yearTo}
                 onChange={e => setYearTo(e.target.value)}
-                placeholder={t('search.advancedYearTo')}
-                style={{ width: 96 }}
-              />
-
-              <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: '0.75rem', flexShrink: 0 }}>
-                {t('search.advancedBpm')}
-              </span>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                value={bpmFrom}
-                onChange={e => setBpmFrom(e.target.value)}
-                placeholder={t('search.advancedYearFrom')}
-                style={{ width: 96 }}
-              />
-              <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>–</span>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                value={bpmTo}
-                onChange={e => setBpmTo(e.target.value)}
                 placeholder={t('search.advancedYearTo')}
                 style={{ width: 96 }}
               />

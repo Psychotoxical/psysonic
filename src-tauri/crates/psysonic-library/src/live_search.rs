@@ -1,22 +1,24 @@
-//! Live Search dropdown (spec §5.9 / P24) — column-scoped FTS queries with
-//! tight LIMITs. Artists/albums match **name columns only** (not every track
-//! hit); songs match title/artist/album fields. Avoids false artist rows when
-//! the query appears only in a song/album title (e.g. "Manowar" in album name
-//! → artist "Arch Enemy") and keeps each FTS pass small on 100k+ libraries.
+//! Live Search dropdown (spec §5.9 / P24) — column-scoped FTS with LIMIT inside
+//! the FTS subquery (bm25 on ≤N rowids), then a cheap join to `track`.
+//! Avoids the SQLite pitfall where `JOIN track … ORDER BY bm25` on an OR
+//! MATCH scans/ranks the whole hit set on 100k+ libraries (10–20s queries).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::params;
 
 use crate::dto::{LibraryAlbumDto, LibraryArtistDto, LibraryLiveSearchResponse, LibraryTrackDto};
-use crate::search::{fts_album_match_query, fts_column_query, fts_query_meets_min_len, fts_track_match_query};
+use crate::search::{fts_column_prefix_query, fts_query_meets_min_len};
 use crate::store::LibraryStore;
+
+const SONG_FTS_COLUMNS: [&str; 4] = ["title", "artist", "album", "album_artist"];
+const ALBUM_FTS_COLUMNS: [&str; 2] = ["album", "album_artist"];
 
 struct LiveHit {
     track: LibraryTrackDto,
 }
 
-/// `library_live_search` — read connection, three scoped FTS SELECTs.
+/// `library_live_search` — read connection, scoped FTS rowid picks + join.
 pub fn run_live_search(
     store: &LibraryStore,
     server_id: &str,
@@ -33,17 +35,11 @@ pub fn run_live_search(
             source: "local".to_string(),
         });
     }
-    let song_fts =
-        fts_track_match_query(query).ok_or_else(|| "empty query".to_string())?;
-    let artist_fts = fts_column_query("artist", query)
-        .ok_or_else(|| "empty query".to_string())?;
-    let album_fts = fts_album_match_query(query)
-        .ok_or_else(|| "empty query".to_string())?;
 
     store.with_read_conn(|conn| {
-        let songs = query_songs(conn, &song_fts, server_id, song_limit)?;
-        let artists = query_artists(conn, &artist_fts, server_id, artist_limit)?;
-        let albums = query_albums(conn, &album_fts, server_id, album_limit)?;
+        let songs = query_songs(conn, query, server_id, song_limit)?;
+        let artists = query_artists(conn, query, server_id, artist_limit)?;
+        let albums = query_albums(conn, query, server_id, album_limit)?;
         Ok(LibraryLiveSearchResponse {
             artists,
             albums,
@@ -53,56 +49,93 @@ pub fn run_live_search(
     })
 }
 
+/// Top FTS rowids for one or more column-scoped MATCH strings (deduped, ordered).
+fn collect_fts_rowids(
+    conn: &rusqlite::Connection,
+    match_queries: &[String],
+    per_query_limit: i64,
+    total_limit: usize,
+) -> rusqlite::Result<Vec<i64>> {
+    let sql =
+        "SELECT rowid FROM track_fts WHERE track_fts MATCH ?1 ORDER BY bm25(track_fts) LIMIT ?2";
+    let mut stmt = conn.prepare(sql)?;
+    let mut seen = HashSet::new();
+    let mut rowids = Vec::new();
+    for mq in match_queries {
+        let rows = stmt.query_map(params![mq, per_query_limit], |r| r.get(0))?;
+        for rowid in rows {
+            let rowid = rowid?;
+            if seen.insert(rowid) {
+                rowids.push(rowid);
+                if rowids.len() >= total_limit {
+                    return Ok(rowids);
+                }
+            }
+        }
+    }
+    Ok(rowids)
+}
+
+fn column_matches(query: &str, columns: &[&str]) -> Result<Vec<String>, String> {
+    columns
+        .iter()
+        .map(|col| {
+            fts_column_prefix_query(col, query).ok_or_else(|| "empty query".to_string())
+        })
+        .collect()
+}
+
 fn query_songs(
     conn: &rusqlite::Connection,
-    fts: &str,
+    query: &str,
     server_id: &str,
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryTrackDto>> {
-    let mut stmt = conn.prepare(
-        r#"
-        SELECT
-          t.server_id, t.id, t.title, t.artist, t.artist_id, t.album, t.album_id,
-          t.album_artist, t.duration_sec, t.track_number, t.disc_number, t.year,
-          t.genre, t.suffix, t.bit_rate, t.size_bytes, t.cover_art_id,
-          t.starred_at, t.user_rating, t.play_count, t.bpm, t.synced_at
-        FROM track_fts f
-        JOIN track t ON t.rowid = f.rowid
-        WHERE track_fts MATCH ?1
-          AND t.server_id = ?2
-          AND t.deleted = 0
-        ORDER BY bm25(track_fts)
-        LIMIT ?3
-        "#,
-    )?;
-    let rows: Vec<LiveHit> = stmt
-        .query_map(params![fts, server_id, limit], map_live_hit)?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(rows.into_iter().map(|h| h.track).collect())
+    let matches = column_matches(query, &SONG_FTS_COLUMNS).map_err(|e| {
+        rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            e,
+        )))
+    })?;
+    let per_col = i64::from(limit.max(4));
+    let rowids = collect_fts_rowids(conn, &matches, per_col, limit as usize)?;
+    if rowids.is_empty() {
+        return Ok(Vec::new());
+    }
+    fetch_tracks_by_rowids(conn, &rowids, server_id)
 }
 
 fn query_artists(
     conn: &rusqlite::Connection,
-    fts: &str,
+    query: &str,
     server_id: &str,
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryArtistDto>> {
+    let Some(artist_fts) = fts_column_prefix_query("artist", query) else {
+        return Ok(Vec::new());
+    };
     let fetch = limit.saturating_mul(3).clamp(limit, 24);
-    let mut stmt = conn.prepare(
-        r#"
-        SELECT t.server_id, t.artist_id, t.artist, t.synced_at
-        FROM track_fts f
-        JOIN track t ON t.rowid = f.rowid
-        WHERE track_fts MATCH ?1
-          AND t.server_id = ?2
-          AND t.deleted = 0
-          AND t.artist_id IS NOT NULL AND t.artist_id != ''
-        ORDER BY bm25(track_fts)
-        LIMIT ?3
-        "#,
-    )?;
+    let rowids = collect_fts_rowids(conn, &[artist_fts], i64::from(fetch), fetch as usize)?;
+    if rowids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = rowid_placeholders(rowids.len());
+    let sql = format!(
+        "SELECT t.server_id, t.artist_id, t.artist, t.synced_at \
+         FROM track t \
+         WHERE t.rowid IN ({placeholders}) \
+           AND t.server_id = ? \
+           AND t.deleted = 0 \
+           AND t.artist_id IS NOT NULL AND t.artist_id != ''"
+    );
+    let mut params: Vec<rusqlite::types::Value> = rowids
+        .into_iter()
+        .map(rusqlite::types::Value::Integer)
+        .collect();
+    params.push(rusqlite::types::Value::Text(server_id.to_string()));
     let mut seen = HashMap::new();
-    for row in stmt.query_map(params![fts, server_id, fetch], |r| {
+    let mut stmt = conn.prepare(&sql)?;
+    for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
         Ok((
             r.get::<_, String>(0)?,
             r.get::<_, String>(1)?,
@@ -134,27 +167,39 @@ fn query_artists(
 
 fn query_albums(
     conn: &rusqlite::Connection,
-    fts: &str,
+    query: &str,
     server_id: &str,
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryAlbumDto>> {
+    let matches = column_matches(query, &ALBUM_FTS_COLUMNS).map_err(|e| {
+        rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            e,
+        )))
+    })?;
     let fetch = limit.saturating_mul(3).clamp(limit, 24);
-    let mut stmt = conn.prepare(
-        r#"
-        SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.year,
-               t.genre, t.cover_art_id, t.starred_at, t.synced_at
-        FROM track_fts f
-        JOIN track t ON t.rowid = f.rowid
-        WHERE track_fts MATCH ?1
-          AND t.server_id = ?2
-          AND t.deleted = 0
-          AND t.album_id IS NOT NULL AND t.album_id != ''
-        ORDER BY bm25(track_fts)
-        LIMIT ?3
-        "#,
-    )?;
+    let rowids = collect_fts_rowids(conn, &matches, i64::from(fetch), fetch as usize)?;
+    if rowids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = rowid_placeholders(rowids.len());
+    let sql = format!(
+        "SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.year, \
+                t.genre, t.cover_art_id, t.starred_at, t.synced_at \
+         FROM track t \
+         WHERE t.rowid IN ({placeholders}) \
+           AND t.server_id = ? \
+           AND t.deleted = 0 \
+           AND t.album_id IS NOT NULL AND t.album_id != ''"
+    );
+    let mut params: Vec<rusqlite::types::Value> = rowids
+        .into_iter()
+        .map(rusqlite::types::Value::Integer)
+        .collect();
+    params.push(rusqlite::types::Value::Text(server_id.to_string()));
     let mut seen = HashMap::new();
-    for row in stmt.query_map(params![fts, server_id, fetch], |r| {
+    let mut stmt = conn.prepare(&sql)?;
+    for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
         Ok((
             r.get::<_, String>(0)?,
             r.get::<_, String>(1)?,
@@ -206,6 +251,38 @@ fn query_albums(
         }
     }
     Ok(seen.into_values().collect())
+}
+
+fn rowid_placeholders(n: usize) -> String {
+    (0..n).map(|_| "?").collect::<Vec<_>>().join(", ")
+}
+
+fn fetch_tracks_by_rowids(
+    conn: &rusqlite::Connection,
+    rowids: &[i64],
+    server_id: &str,
+) -> rusqlite::Result<Vec<LibraryTrackDto>> {
+    let placeholders = rowid_placeholders(rowids.len());
+    let sql = format!(
+        "SELECT \
+          t.server_id, t.id, t.title, t.artist, t.artist_id, t.album, t.album_id, \
+          t.album_artist, t.duration_sec, t.track_number, t.disc_number, t.year, \
+          t.genre, t.suffix, t.bit_rate, t.size_bytes, t.cover_art_id, \
+          t.starred_at, t.user_rating, t.play_count, t.bpm, t.synced_at \
+         FROM track t \
+         WHERE t.rowid IN ({placeholders}) \
+           AND t.server_id = ? \
+           AND t.deleted = 0"
+    );
+    let mut params: Vec<rusqlite::types::Value> = rowids
+        .iter()
+        .copied()
+        .map(rusqlite::types::Value::Integer)
+        .collect();
+    params.push(rusqlite::types::Value::Text(server_id.to_string()));
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), map_live_hit)?;
+    rows.map(|r| r.map(|h| h.track)).collect()
 }
 
 fn map_live_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<LiveHit> {
@@ -304,6 +381,31 @@ mod tests {
     }
 
     #[test]
+    fn live_search_prefix_matches_partial_artist_name() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track(
+                    "s1",
+                    "t1",
+                    "Enter Sandman",
+                    "Metallica",
+                    "Metallica",
+                    "al1",
+                    "ar_meta",
+                ),
+                track("s1", "t2", "Other", "Other Artist", "Other Album", "al2", "ar2"),
+            ])
+            .unwrap();
+        let resp = run_live_search(&store, "s1", "metal", 5, 5, 10).unwrap();
+        assert!(
+            resp.artists.iter().any(|a| a.name == "Metallica"),
+            "expected Metallica from prefix query metal"
+        );
+        assert!(resp.tracks.iter().any(|t| t.artist.as_deref() == Some("Metallica")));
+    }
+
+    #[test]
     fn live_search_returns_songs_albums_artists_from_scoped_fts() {
         let store = LibraryStore::open_in_memory();
         TrackRepository::new(&store)
@@ -376,5 +478,56 @@ mod tests {
         assert!(resp.tracks.is_empty());
         assert!(resp.artists.is_empty());
         assert!(resp.albums.is_empty());
+    }
+
+    /// Manual: `cargo test -p psysonic-library bench_disk_live_search --release -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn bench_disk_live_search() {
+        use std::path::PathBuf;
+        use std::time::Instant;
+
+        let path: PathBuf = std::env::var("HOME")
+            .map(|h| PathBuf::from(h).join(".local/share/dev.psysonic.player/library.sqlite"))
+            .expect("HOME");
+        if !path.exists() {
+            eprintln!("skip: no db at {}", path.display());
+            return;
+        }
+        let conn = rusqlite::Connection::open_with_flags(
+            &path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .expect("open db");
+        conn.pragma_update(None, "cache_size", -64000).unwrap();
+
+        let server_id = std::env::var("PSYSONIC_BENCH_SERVER_ID").unwrap_or_else(|_| {
+            conn.query_row(
+                "SELECT server_id FROM track WHERE deleted = 0 LIMIT 1",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .expect("server_id")
+        });
+
+        for q in ["manowar", "metallica", "arch enemy", "metal", "meta"] {
+            let t0 = Instant::now();
+            let songs = query_songs(&conn, q, &server_id, 10).unwrap();
+            let t1 = Instant::now();
+            let artists = query_artists(&conn, q, &server_id, 5).unwrap();
+            let t2 = Instant::now();
+            let albums = query_albums(&conn, q, &server_id, 5).unwrap();
+            let t3 = Instant::now();
+            eprintln!(
+                "{q:?}: songs={} ({:.1}ms) artists={} ({:.1}ms) albums={} ({:.1}ms) total={:.1}ms",
+                songs.len(),
+                t1.duration_since(t0).as_secs_f64() * 1000.0,
+                artists.len(),
+                t2.duration_since(t1).as_secs_f64() * 1000.0,
+                albums.len(),
+                t3.duration_since(t2).as_secs_f64() * 1000.0,
+                t3.duration_since(t0).as_secs_f64() * 1000.0,
+            );
+        }
     }
 }

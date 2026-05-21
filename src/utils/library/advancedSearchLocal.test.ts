@@ -8,8 +8,6 @@ const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) 
   genre: '',
   yearFrom: '',
   yearTo: '',
-  bpmFrom: '',
-  bpmTo: '',
   resultType: 'all' as const,
   ...over,
 });

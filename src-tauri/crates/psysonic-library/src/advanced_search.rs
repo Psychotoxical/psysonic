@@ -20,8 +20,8 @@ use crate::dto::{
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
 use crate::search::{
-    aliased_track_columns, fts_album_match_query, fts_column_query, fts_query, fts_query_meets_min_len,
-    fts_track_match_query, like_contains, PAGE_LIMIT_MAX,
+    aliased_track_columns, fts_album_prefix_match_query, fts_column_prefix_query,
+    fts_query_meets_min_len, fts_track_prefix_match_query, like_contains, PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
 
@@ -40,6 +40,12 @@ const ALBUM_COLUMNS: &str = "a.server_id, a.id, a.name, a.artist, a.artist_id, \
 
 const ARTIST_COLUMNS: &str = "ar.server_id, ar.id, ar.name, ar.album_count, \
   ar.synced_at, ar.raw_json";
+
+/// Rowid pool for FTS prefilter — wide enough for scalar filters after the join.
+fn fts_candidate_pool_size(limit: u32, offset: u32) -> i64 {
+    let need = limit.saturating_add(offset) as i64;
+    need.saturating_mul(20).clamp(256, 10_000)
+}
 
 /// `library_advanced_search` (§5.13). Runs only the queries named in
 /// `entityTypes`; absent entities return empty + zero totals.
@@ -146,17 +152,6 @@ fn build_track(
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryTrackDto>, u32), String> {
     let mut w = WhereBuilder::new();
-    let from;
-    let default_order;
-    if let Some(q) = text.and_then(fts_track_match_query) {
-        from = "track_fts f JOIN track t ON t.rowid = f.rowid".to_string();
-        w.push_param("track_fts MATCH ?", SqlValue::Text(q));
-        default_order = "ORDER BY bm25(track_fts)".to_string();
-        applied.insert("text".to_string());
-    } else {
-        from = "track t".to_string();
-        default_order = "ORDER BY t.title COLLATE NOCASE ASC, t.id ASC".to_string();
-    }
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
@@ -173,12 +168,38 @@ fn build_track(
         applied.insert("starred".to_string());
     }
 
-    let order = order_clause(&req.sort, EntityKind::Track).unwrap_or(default_order);
     let cols = aliased_track_columns("t");
+    if let Some(q) = text.and_then(fts_track_prefix_match_query) {
+        applied.insert("text".to_string());
+        let pool = fts_candidate_pool_size(limit, offset);
+        let from = format!(
+            "track t INNER JOIN (\
+               SELECT rowid, bm25(track_fts) AS fts_rank FROM track_fts \
+               WHERE track_fts MATCH ? ORDER BY fts_rank LIMIT {pool}\
+             ) fts_pick ON t.rowid = fts_pick.rowid"
+        );
+        let order = order_clause(&req.sort, EntityKind::Track)
+            .unwrap_or_else(|| "ORDER BY fts_pick.fts_rank".to_string());
+        return query_rows_fts(
+            store,
+            &cols,
+            &from,
+            &q,
+            &w,
+            &order,
+            limit,
+            offset,
+            skip_totals,
+            |r| repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row)),
+        );
+    }
+
+    let order = order_clause(&req.sort, EntityKind::Track)
+        .unwrap_or_else(|| "ORDER BY t.title COLLATE NOCASE ASC, t.id ASC".to_string());
     query_rows(
         store,
         &cols,
-        &from,
+        "track t",
         &w,
         &order,
         limit,
@@ -203,7 +224,7 @@ fn build_album(
     if !table.0.is_empty() || table.1 > 0 {
         return Ok(table);
     }
-    if let Some(q) = text.and_then(fts_album_match_query) {
+    if let Some(q) = text.and_then(fts_album_prefix_match_query) {
         return build_album_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
     }
     build_album_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
@@ -327,7 +348,7 @@ fn build_artist(
     if !table.0.is_empty() || table.1 > 0 {
         return Ok(table);
     }
-    if let Some(q) = text.and_then(|t| fts_column_query("artist", t)) {
+    if let Some(q) = text.and_then(|t| fts_column_prefix_query("artist", t)) {
         return build_artist_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
     }
     build_artist_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
@@ -442,7 +463,12 @@ fn build_album_from_fts(
     let pool = (need.saturating_mul(8)).clamp(64, 2_000);
 
     let mut w = WhereBuilder::new();
-    w.push_param("track_fts MATCH ?", SqlValue::Text(fts.to_string()));
+    w.push_param(
+        &format!(
+            "t.rowid IN (SELECT rowid FROM track_fts WHERE track_fts MATCH ? ORDER BY bm25(track_fts) LIMIT {pool})"
+        ),
+        SqlValue::Text(fts.to_string()),
+    );
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
@@ -465,13 +491,10 @@ fn build_album_from_fts(
         let sql = format!(
             "SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.year, \
                     t.genre, t.cover_art_id, t.starred_at, t.synced_at \
-             FROM track_fts f JOIN track t ON t.rowid = f.rowid \
-             WHERE {where_sql} \
-             ORDER BY bm25(track_fts) \
-             LIMIT ?"
+             FROM track t \
+             WHERE {where_sql}"
         );
-        let mut params = w.params.clone();
-        params.push(SqlValue::Integer(pool));
+        let params = w.params.clone();
         let mut stmt = conn.prepare(&sql)?;
         let rows: Vec<(String, String, String, Option<String>, Option<String>, Option<i64>, Option<String>, Option<String>, Option<i64>, i64)> =
             stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
@@ -547,7 +570,12 @@ fn build_artist_from_fts(
     let pool = (need.saturating_mul(8)).clamp(64, 2_000);
 
     let mut w = WhereBuilder::new();
-    w.push_param("track_fts MATCH ?", SqlValue::Text(fts.to_string()));
+    w.push_param(
+        &format!(
+            "t.rowid IN (SELECT rowid FROM track_fts WHERE track_fts MATCH ? ORDER BY bm25(track_fts) LIMIT {pool})"
+        ),
+        SqlValue::Text(fts.to_string()),
+    );
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
@@ -565,13 +593,10 @@ fn build_artist_from_fts(
     store.with_read_conn(|conn| {
         let sql = format!(
             "SELECT t.server_id, t.artist_id, t.artist, t.synced_at \
-             FROM track_fts f JOIN track t ON t.rowid = f.rowid \
-             WHERE {where_sql} \
-             ORDER BY bm25(track_fts) \
-             LIMIT ?"
+             FROM track t \
+             WHERE {where_sql}"
         );
-        let mut params = w.params.clone();
-        params.push(SqlValue::Integer(pool));
+        let params = w.params.clone();
         let mut stmt = conn.prepare(&sql)?;
         let rows: Vec<(String, String, Option<String>, i64)> = stmt
             .query_map(rusqlite::params_from_iter(params.iter()), |r| {
@@ -761,6 +786,43 @@ where
             .query_map(rusqlite::params_from_iter(page_params.iter()), |r| map(r))?
             .collect();
         let rows = collected?;
+        Ok((rows, total))
+    })
+}
+
+/// Track search with FTS rowid prefilter — MATCH param is bound first (subquery in `from`).
+#[allow(clippy::too_many_arguments)]
+fn query_rows_fts<T, F>(
+    store: &LibraryStore,
+    select_cols: &str,
+    from: &str,
+    fts_match: &str,
+    w: &WhereBuilder,
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    map: F,
+) -> Result<(Vec<T>, u32), String>
+where
+    F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+{
+    let where_sql = w.where_sql();
+    store.with_read_conn(|conn| {
+        let mut bind: Vec<SqlValue> = vec![SqlValue::Text(fts_match.to_string())];
+        bind.extend(w.params.iter().cloned());
+
+        let total = count_matching_rows(conn, from, &where_sql, &bind, skip_totals)?;
+
+        let page_sql = format!(
+            "SELECT {select_cols} FROM {from} WHERE {where_sql} {order_sql} LIMIT ? OFFSET ?"
+        );
+        bind.push(SqlValue::Integer(limit as i64));
+        bind.push(SqlValue::Integer(offset as i64));
+        let mut stmt = conn.prepare(&page_sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(bind.iter()), |r| map(r))?
+            .collect::<rusqlite::Result<Vec<T>>>()?;
         Ok((rows, total))
     })
 }
@@ -1046,6 +1108,22 @@ mod tests {
     }
 
     // ── text / FTS ─────────────────────────────────────────────────────
+
+    #[test]
+    fn text_prefix_query_matches_partial_artist_name() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "Enter Sandman", "Metallica", "Metallica"),
+                track("s1", "t2", "Other", "Other Artist", "Other Album"),
+            ])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.query = Some("metal".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].artist.as_deref(), Some("Metallica"));
+    }
 
     #[test]
     fn text_query_matches_track_via_fts() {
