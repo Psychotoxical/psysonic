@@ -13,15 +13,16 @@ use crate::file_transfer::{finalize_streamed_download, subsonic_http_client};
 
 pub async fn enqueue_analysis_seed_from_file(
     app: &tauri::AppHandle,
+    server_id: &str,
     track_id: &str,
     file_path: &std::path::Path,
 ) {
     let cache = app.try_state::<analysis_cache::AnalysisCache>();
     let cache_ref: Option<&analysis_cache::AnalysisCache> = cache.as_ref().map(|s| s.inner());
-    let Some(bytes) = read_seed_bytes_if_needed(cache_ref, track_id, file_path).await else {
+    let Some(bytes) = read_seed_bytes_if_needed(cache_ref, server_id, track_id, file_path).await else {
         return;
     };
-    let _ = enqueue_analysis_seed(app, track_id, &bytes).await;
+    let _ = enqueue_analysis_seed(app, server_id, track_id, &bytes).await;
 }
 
 /// AppHandle-free decision: returns the file bytes when seeding is required
@@ -32,11 +33,12 @@ pub async fn enqueue_analysis_seed_from_file(
 /// branch with `AnalysisCache::open_in_memory()` plus a `tempfile::TempDir`.
 pub(crate) async fn read_seed_bytes_if_needed(
     cache: Option<&analysis_cache::AnalysisCache>,
+    server_id: &str,
     track_id: &str,
     file_path: &std::path::Path,
 ) -> Option<Vec<u8>> {
     if let Some(cache) = cache {
-        if cache.cpu_seed_redundant_for_track(track_id).unwrap_or(false) {
+        if cache.cpu_seed_redundant_for_track(server_id, track_id).unwrap_or(false) {
             return None;
         }
     }
@@ -162,7 +164,7 @@ pub async fn download_track_offline(
     )
     .await?;
 
-    enqueue_analysis_seed_from_file(&app, &track_id, &final_path).await;
+    enqueue_analysis_seed_from_file(&app, &server_id, &track_id, &final_path).await;
 
     Ok(path_str)
 }
@@ -421,7 +423,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("track.mp3");
         std::fs::write(&file, b"audio data").unwrap();
-        let bytes = read_seed_bytes_if_needed(None, "anything", &file).await;
+        let bytes = read_seed_bytes_if_needed(None, "", "anything", &file).await;
         assert_eq!(bytes.as_deref(), Some(b"audio data".as_slice()));
     }
 
@@ -431,7 +433,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("track.flac");
         std::fs::write(&file, b"some bytes").unwrap();
-        let bytes = read_seed_bytes_if_needed(Some(&cache), "fresh-track", &file).await;
+        let bytes = read_seed_bytes_if_needed(Some(&cache), "", "fresh-track", &file).await;
         assert_eq!(bytes.as_deref(), Some(b"some bytes".as_slice()));
     }
 
@@ -444,7 +446,7 @@ mod tests {
         let file = dir.path().join("track.mp3");
         std::fs::write(&file, b"would-be-decoded bytes").unwrap();
 
-        let bytes = read_seed_bytes_if_needed(Some(&cache), "redundant-track", &file).await;
+        let bytes = read_seed_bytes_if_needed(Some(&cache), "", "redundant-track", &file).await;
         assert!(
             bytes.is_none(),
             "redundant-cache short-circuit must skip the file read entirely"
@@ -455,7 +457,7 @@ mod tests {
     async fn read_seed_bytes_returns_none_for_missing_file() {
         let dir = tempfile::tempdir().unwrap();
         let phantom = dir.path().join("never-written.mp3");
-        let bytes = read_seed_bytes_if_needed(None, "any", &phantom).await;
+        let bytes = read_seed_bytes_if_needed(None, "", "any", &phantom).await;
         assert!(bytes.is_none());
     }
 
@@ -464,7 +466,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("empty.flac");
         std::fs::write(&file, b"").unwrap();
-        let bytes = read_seed_bytes_if_needed(None, "any", &file).await;
+        let bytes = read_seed_bytes_if_needed(None, "", "any", &file).await;
         assert!(bytes.is_none(), "empty file must not trigger seeding");
     }
 

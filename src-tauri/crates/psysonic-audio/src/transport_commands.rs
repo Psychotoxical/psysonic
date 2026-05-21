@@ -108,6 +108,7 @@ pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
     state.generation.fetch_add(1, Ordering::SeqCst);
     *state.current_playback_url.lock().unwrap() = None;
     *state.current_analysis_track_id.lock().unwrap() = None;
+    *state.current_playback_server_id.lock().unwrap() = None;
     *state.chained_info.lock().unwrap() = None;
     // Keep `stream_completed_cache`: natural track end often calls `audio_stop` when the
     // queue is exhausted; clearing here dropped the full ranged buffer and forced a

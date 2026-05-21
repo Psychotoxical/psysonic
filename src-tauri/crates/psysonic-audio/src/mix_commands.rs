@@ -50,12 +50,14 @@ pub fn audio_update_replay_gain(
         .filter(|s| !s.is_empty());
     // If `current_playback_url` is not pinned yet, still honour JS `loudness_gain_db`
     // for the uncached path (`effective_loudness_db` / UI gain follow from `compute_gain`).
+    let server_for_loudness = crate::helpers::current_playback_server_id_str(&state);
     let cache_loudness = url_for_loudness.as_deref().and_then(|u| {
         resolve_loudness_gain_from_cache_impl(
             &app,
             u,
             target_lufs,
             logical_for_loudness.as_deref(),
+            &server_for_loudness,
             ResolveLoudnessCacheOpts {
                 touch_waveform: false,
                 log_soft_misses: false,

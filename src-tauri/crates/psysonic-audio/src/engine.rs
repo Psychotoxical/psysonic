@@ -82,6 +82,11 @@ pub struct AudioEngine {
     /// Subsonic song id last passed from JS with `audio_play` (trimmed). Used
     /// for loudness/waveform cache when the URL is `psysonic-local://…`.
     pub(crate) current_analysis_track_id: Arc<Mutex<Option<String>>>,
+    /// App server id (`playbackServerId ?? activeServerId`) of the current
+    /// playback, pinned by `audio_play`. Scopes analysis-cache reads (loudness
+    /// gain, replay-gain updates, device resume) to the right server so a switch
+    /// can't surface another server's blob for the same bare `track_id`.
+    pub(crate) current_playback_server_id: Arc<Mutex<Option<String>>>,
     /// While a `RangedHttpSource` download task is filling the buffer for this
     /// `(track_id, play_generation)`, skip `analysis_enqueue_seed_from_url` for the
     /// same id — otherwise a parallel full GET + Symphonia competes with playback
@@ -381,6 +386,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         radio_state: Mutex::new(None),
         current_playback_url: Arc::new(Mutex::new(None)),
         current_analysis_track_id: Arc::new(Mutex::new(None)),
+        current_playback_server_id: Arc::new(Mutex::new(None)),
         ranged_loudness_seed_hold: Arc::new(Mutex::new(None)),
         preview_sink: Arc::new(Mutex::new(None)),
         preview_gen: Arc::new(AtomicU64::new(0)),

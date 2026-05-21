@@ -40,6 +40,7 @@ pub enum SeedFromBytesOutcome {
 /// single CPU-seed worker in `lib.rs` (`spawn_blocking`) so at most one heavy decode runs.
 pub fn seed_from_bytes_execute(
     app: &tauri::AppHandle,
+    server_id: &str,
     track_id: &str,
     bytes: &[u8],
 ) -> Result<SeedFromBytesOutcome, String> {
@@ -51,7 +52,7 @@ pub fn seed_from_bytes_execute(
         );
         return Ok(SeedFromBytesOutcome::SkippedNoAnalysisCache);
     };
-    seed_from_bytes_into_cache(&cache, track_id, bytes)
+    seed_from_bytes_into_cache(&cache, server_id, track_id, bytes)
 }
 
 /// AppHandle-free entry point for [`seed_from_bytes_execute`]: takes the cache
@@ -60,15 +61,16 @@ pub fn seed_from_bytes_execute(
 /// from tests against an in-memory cache.
 pub fn seed_from_bytes_into_cache(
     cache: &AnalysisCache,
+    server_id: &str,
     track_id: &str,
     bytes: &[u8],
 ) -> Result<SeedFromBytesOutcome, String> {
     let started = Instant::now();
-    // server_id is filled in by 6c-2 (playback/active server threaded through);
-    // until then every write lands under the legacy '' scope, behaviour-identical
-    // to the pre-002 cache.
+    // Write under the playback server's scope. An empty `server_id` (caller did
+    // not know the server) lands under the legacy '' pool — the read path's
+    // legacy fallback + lazy re-tag keeps it resolvable.
     let key = TrackKey {
-        server_id: String::new(),
+        server_id: server_id.to_string(),
         track_id: track_id.to_string(),
         md5_16kb: md5_first_16kb(bytes),
     };
@@ -744,7 +746,7 @@ mod tests {
     fn seed_from_bytes_into_cache_upserts_waveform_and_loudness_for_wav() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let outcome = seed_from_bytes_into_cache(&cache, "wav-track", &wav).unwrap();
+        let outcome = seed_from_bytes_into_cache(&cache, "", "wav-track", &wav).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         // Both a waveform AND a loudness row must exist after a successful
@@ -761,12 +763,36 @@ mod tests {
     }
 
     #[test]
+    fn seed_from_bytes_into_cache_writes_under_the_given_server_scope() {
+        let cache = AnalysisCache::open_in_memory();
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
+        seed_from_bytes_into_cache(&cache, "server-x", "scoped-track", &wav).unwrap();
+
+        let md5 = md5_first_16kb(&wav);
+        let scoped = TrackKey {
+            server_id: "server-x".to_string(),
+            track_id: "scoped-track".to_string(),
+            md5_16kb: md5.clone(),
+        };
+        let legacy = TrackKey {
+            server_id: String::new(),
+            track_id: "scoped-track".to_string(),
+            md5_16kb: md5,
+        };
+        assert!(cache.get_waveform(&scoped).unwrap().is_some(), "row lands under server scope");
+        assert!(
+            cache.get_waveform(&legacy).unwrap().is_none(),
+            "nothing written under the legacy '' scope"
+        );
+    }
+
+    #[test]
     fn seed_from_bytes_into_cache_returns_skipped_on_second_call() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let first = seed_from_bytes_into_cache(&cache, "wav-track-2", &wav).unwrap();
+        let first = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
-        let second = seed_from_bytes_into_cache(&cache, "wav-track-2", &wav).unwrap();
+        let second = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
         assert_eq!(
             second,
             SeedFromBytesOutcome::SkippedWaveformCacheHit,
@@ -780,7 +806,7 @@ mod tests {
         // Garbage bytes — Symphonia probe fails, the pipeline falls back to
         // `derive_waveform_bins` (no loudness row gets cached).
         let bytes = vec![0xAAu8; 8 * 1024];
-        let outcome = seed_from_bytes_into_cache(&cache, "garbage", &bytes).unwrap();
+        let outcome = seed_from_bytes_into_cache(&cache, "", "garbage", &bytes).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         let key = TrackKey {

@@ -40,9 +40,10 @@ pub async fn download_track_hot_cache(
         // prefetch worker runs invokes sequentially.
         let app_seed = app.clone();
         let tid = track_id.clone();
+        let sid = server_id.clone();
         let fp = file_path.clone();
         tokio::spawn(async move {
-            enqueue_analysis_seed_from_file(&app_seed, &tid, &fp).await;
+            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
         });
         return Ok(HotCacheDownloadResult {
             path: path_str,
@@ -79,9 +80,10 @@ pub async fn download_track_hot_cache(
 
     let app_seed = app.clone();
     let tid = track_id.clone();
+    let sid = server_id.clone();
     let fp = file_path.clone();
     tokio::spawn(async move {
-        enqueue_analysis_seed_from_file(&app_seed, &tid, &fp).await;
+        enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
     });
 
     let size = tokio::fs::metadata(&file_path)
@@ -134,9 +136,10 @@ pub async fn promote_stream_cache_to_hot_cache(
         );
         let app_seed = app.clone();
         let tid = track_id.clone();
+        let sid = server_id.clone();
         let fp = file_path.clone();
         tokio::spawn(async move {
-            enqueue_analysis_seed_from_file(&app_seed, &tid, &fp).await;
+            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
         });
         return Ok(Some(HotCacheDownloadResult { path: path_str, size }));
     }
@@ -151,7 +154,7 @@ pub async fn promote_stream_cache_to_hot_cache(
             .await
             .map_err(|e| e.to_string())?;
 
-        let _ = enqueue_analysis_seed(&app, &track_id, &bytes).await;
+        let _ = enqueue_analysis_seed(&app, &server_id, &track_id, &bytes).await;
 
         let size = tokio::fs::metadata(&file_path)
             .await
@@ -176,9 +179,10 @@ pub async fn promote_stream_cache_to_hot_cache(
         }
         let app_seed = app.clone();
         let tid = track_id.clone();
+        let sid = server_id.clone();
         let fp = file_path.clone();
         tokio::spawn(async move {
-            enqueue_analysis_seed_from_file(&app_seed, &tid, &fp).await;
+            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
         });
         let size = tokio::fs::metadata(&file_path)
             .await

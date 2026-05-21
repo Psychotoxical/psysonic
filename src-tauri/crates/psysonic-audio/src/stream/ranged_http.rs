@@ -460,6 +460,8 @@ pub(crate) async fn ranged_download_task(
     normalization_target_lufs: Arc<AtomicU32>,
     loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
     cache_track_id: Option<String>,
+    // Playback server scope for the analysis-cache write key (empty/`None` → legacy '').
+    server_id: Option<String>,
     // When `Some`, ranged playback seeds on completion — defer HTTP backfill for that
     // track; `None` for large files where ranged skips seed (needs backfill).
     loudness_seed_hold: Option<LoudnessSeedHold>,
@@ -643,7 +645,8 @@ pub(crate) async fn ranged_download_task(
             }
             if let Some(track_id) = cache_track_id {
                 let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
-                if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), track_id.clone(), data.clone(), high).await {
+                let sid = server_id.clone().unwrap_or_default();
+                if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), sid, track_id.clone(), data.clone(), high).await {
                     crate::app_eprintln!("[analysis] ranged seed failed for {}: {}", track_id, e);
                 }
             }
@@ -678,6 +681,7 @@ pub(crate) async fn ranged_download_task(
                     install_stream_completed_spill(&spill_cache_slot, url, path.clone());
                     spawn_analysis_seed_from_spill_file(
                         &app,
+                        server_id.as_deref(),
                         &track_id,
                         path,
                         gen,
