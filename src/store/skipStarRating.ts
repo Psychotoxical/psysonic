@@ -1,7 +1,7 @@
-import { setRating } from '../api/subsonicStarRating';
 import type { Track } from './playerStoreTypes';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
+import { queueSongRating } from './pendingStarSync';
 /**
  * Skip → 1★ behaviour: every user-initiated `next()` on an unrated track
  * counts in `authStore.skipStarManualSkipCountsByKey` (persisted). Once the
@@ -25,13 +25,7 @@ export function applySkipStarOnManualNext(skippedTrack: Track | null, manual: bo
     skippedTrack.userRating ??
     0;
   if (cur >= 1) return;
-  setRating(id, 1)
-    .then(() => {
-      usePlayerStore.setState(s => ({
-        queue: s.queue.map(t => (t.id === id ? { ...t, userRating: 1 } : t)),
-        currentTrack: s.currentTrack?.id === id ? { ...s.currentTrack, userRating: 1 } : s.currentTrack,
-        userRatingOverrides: { ...s.userRatingOverrides, [id]: 1 },
-      }));
-    })
-    .catch(() => {});
+  // F4: optimistic 1★ (patches queue + currentTrack + override) and retried
+  // server sync via the central helper; the override clears on success.
+  queueSongRating(id, 1);
 }

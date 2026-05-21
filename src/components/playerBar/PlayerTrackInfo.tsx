@@ -1,6 +1,6 @@
 import { Cast, Heart, Maximize2, Music } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { setRating } from '../../api/subsonicStarRating';
+import { queueSongRating } from '../../store/pendingStarSync';
 import type { InternetRadioStation, SubsonicAlbum, SubsonicOpenArtistRef } from '../../api/subsonicTypes';
 import type { PlayerState, Track } from '../../store/playerStoreTypes';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
@@ -39,7 +39,6 @@ interface Props {
   lastfmLoved: boolean;
   toggleLastfmLove: () => void;
   userRatingOverrides: Record<string, number>;
-  setUserRatingOverride: (id: string, r: number) => void;
   toggleFullscreen: () => void;
   navigate: (to: string) => void | Promise<void>;
   openContextMenu: PlayerState['openContextMenu'];
@@ -51,7 +50,7 @@ export function PlayerTrackInfo({
   coverSrc, coverKey, displayCoverArt, displayTitle, displayArtist, displayArtistRefs,
   showPreviewMeta, previewingTrack, isStarred, toggleStar,
   lastfmSessionKey, lastfmLoved, toggleLastfmLove,
-  userRatingOverrides, setUserRatingOverride, toggleFullscreen,
+  userRatingOverrides, toggleFullscreen,
   navigate, openContextMenu, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
@@ -159,7 +158,7 @@ export function PlayerTrackInfo({
         {currentTrack && !isRadio && !showPreviewMeta && isLayoutVisible('starRating') && (
           <StarRating
             value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
-            onChange={r => { setUserRatingOverride(currentTrack.id, r); setRating(currentTrack.id, r).catch(() => {}); }}
+            onChange={r => queueSongRating(currentTrack.id, r)}
             className="player-track-rating"
             ariaLabel={t('albumDetail.ratingLabel')}
           />

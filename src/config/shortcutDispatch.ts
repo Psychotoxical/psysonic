@@ -1,4 +1,4 @@
-import { setRating } from '../api/subsonicStarRating';
+import { queueSongRating } from '../store/pendingStarSync';
 import i18n from '../i18n';
 import { usePlayerStore } from '../store/playerStore';
 import { showToast } from '../utils/ui/toast';
@@ -90,11 +90,8 @@ export function executeCliPlayerCommand(ctx: CliContext): void | Promise<void> {
       showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
       return;
     }
-    return setRating(track.id, stars)
-      .then(() => {
-        usePlayerStore.getState().setUserRatingOverride(track.id, stars);
-      })
-      .catch(err => console.error('CLI set rating failed', err));
+    queueSongRating(track.id, stars);
+    return;
   }
   // no-op for unknown command
 }

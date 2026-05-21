@@ -1,5 +1,6 @@
 import { buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar, queueSongRating } from '../store/pendingStarSync';
 import { getArtistInfo } from '../api/subsonicArtists';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -41,7 +42,6 @@ export default function AlbumDetail() {
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
@@ -129,10 +129,10 @@ const handleShuffleAll = () => {
 
    const handleDoubleClickSong = (song: SubsonicSong) => addTrackToOrbit(song.id);
 
-  const handleRate = async (songId: string, rating: number) => {
+  const handleRate = (songId: string, rating: number) => {
     setRatings(r => ({ ...r, [songId]: rating }));
-    usePlayerStore.getState().setUserRatingOverride(songId, rating);
-    await setRating(songId, rating);
+    // F4: optimistic override + retried server sync via the central helper.
+    queueSongRating(songId, rating);
   };
 
   const handleAlbumEntityRating = async (rating: number) => {
@@ -206,21 +206,14 @@ const handleShuffleAll = () => {
     }
   };
 
-  const toggleSongStar = async (song: SubsonicSong, e: React.MouseEvent) => {
+  const toggleSongStar = (song: SubsonicSong, e: React.MouseEvent) => {
     e.stopPropagation();
     const wasStarred = starredSongs.has(song.id);
     const next = new Set(starredSongs);
     if (wasStarred) next.delete(song.id); else next.add(song.id);
     setStarredSongs(next);
-    setStarredOverride(song.id, !wasStarred);
-    try {
-      if (wasStarred) await unstar(song.id, 'song');
-      else await star(song.id, 'song');
-    } catch (err) {
-      console.error('Failed to toggle song star', err);
-      setStarredSongs(new Set(starredSongs));
-      setStarredOverride(song.id, wasStarred);
-    }
+    // F4: optimistic override + retried server sync via the central helper.
+    queueSongStar(song.id, !wasStarred);
   };
 
   const handleCacheOffline = useCallback(async () => {

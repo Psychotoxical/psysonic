@@ -1,4 +1,4 @@
-import { star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar } from '../store/pendingStarSync';
 import { getSong } from '../api/subsonicLibrary';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { invoke } from '@tauri-apps/api/core';
@@ -261,12 +261,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
         showToast(i18n.t('contextMenu.cliMixNeedsTrack', { defaultValue: 'Load a track first.' }), 5000, 'error');
         return;
       }
-      star(track.id, 'song')
-        .then(() => usePlayerStore.getState().setStarredOverride(track.id, true))
-        .catch(err => {
-          console.error('Favorite current track failed', err);
-          showToast(i18n.t('contextMenu.cliStarFailed', { defaultValue: 'Could not add the track to favorites.' }), 5000, 'error');
-        });
+      queueSongStar(track.id, true);
     },
   },
   'open-help': {
@@ -314,12 +309,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
         showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
         return;
       }
-      star(track.id, 'song')
-        .then(() => usePlayerStore.getState().setStarredOverride(track.id, true))
-        .catch(err => {
-          console.error('CLI star failed', err);
-          showToast(i18n.t('contextMenu.cliStarFailed', { defaultValue: 'Star/unstar failed.' }), 5000, 'error');
-        });
+      queueSongStar(track.id, true);
     },
     cli: { verb: 'star', description: 'star' },
   },
@@ -332,12 +322,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
         showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
         return;
       }
-      unstar(track.id, 'song')
-        .then(() => usePlayerStore.getState().setStarredOverride(track.id, false))
-        .catch(err => {
-          console.error('CLI star failed', err);
-          showToast(i18n.t('contextMenu.cliStarFailed', { defaultValue: 'Star/unstar failed.' }), 5000, 'error');
-        });
+      queueSongStar(track.id, false);
     },
     cli: { verb: 'unstar', description: 'unstar' },
   },
