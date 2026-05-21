@@ -382,6 +382,9 @@ export function libraryPatchTrack(args: {
     userRating?: number | null;
     playCount?: number | null;
     playedAt?: number | null;
+    /** E2: playback-derived `md5_16kb` content fingerprint. Normally written
+     *  by the Rust analysis bridge; exposed here for contract completeness. */
+    contentHash?: string | null;
   };
 }): Promise<void> {
   return invoke<void>('library_patch_track', args);

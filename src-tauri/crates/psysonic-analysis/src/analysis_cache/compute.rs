@@ -52,19 +52,39 @@ pub fn seed_from_bytes_execute(
         );
         return Ok(SeedFromBytesOutcome::SkippedNoAnalysisCache);
     };
-    seed_from_bytes_into_cache(&cache, server_id, track_id, bytes)
+    let (outcome, md5_16kb) = seed_from_bytes_into_cache(&cache, server_id, track_id, bytes)?;
+    // E2 bridge (analysis → library content_hash): once the playback-derived
+    // md5_16kb is known — whether freshly written or already cached — record it
+    // as `track.content_hash` via the registered sink. Decoupled from
+    // psysonic-library through the psysonic-core port; a no-op when the library
+    // has no row for this (server_id, track_id). Skipped under the legacy ''
+    // scope (no server known).
+    if !server_id.is_empty()
+        && matches!(
+            outcome,
+            SeedFromBytesOutcome::Upserted | SeedFromBytesOutcome::SkippedWaveformCacheHit
+        )
+    {
+        if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
+            sink.record_content_hash(server_id, track_id, &md5_16kb);
+        }
+    }
+    Ok(outcome)
 }
 
 /// AppHandle-free entry point for [`seed_from_bytes_execute`]: takes the cache
 /// directly, runs the same Symphonia → waveform → EBU R128 pipeline, and
 /// upserts the rows. Called from `seed_from_bytes_execute` in production and
 /// from tests against an in-memory cache.
+/// Returns the outcome plus the computed `md5_16kb` (the content fingerprint),
+/// so the AppHandle-aware caller can bridge it to the library `content_hash`
+/// (E2) without re-reading the bytes.
 pub fn seed_from_bytes_into_cache(
     cache: &AnalysisCache,
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
-) -> Result<SeedFromBytesOutcome, String> {
+) -> Result<(SeedFromBytesOutcome, String), String> {
     let started = Instant::now();
     // Write under the playback server's scope. An empty `server_id` (caller did
     // not know the server) lands under the legacy '' pool — the read path's
@@ -84,7 +104,7 @@ pub fn seed_from_bytes_into_cache(
                     existing.bins.len(),
                     started.elapsed().as_millis()
                 );
-                return Ok(SeedFromBytesOutcome::SkippedWaveformCacheHit);
+                return Ok((SeedFromBytesOutcome::SkippedWaveformCacheHit, key.md5_16kb.clone()));
             }
             crate::app_deprintln!(
                 "[analysis][waveform] waveform cache hit but loudness missing — full re-analysis track_id={} md5_16kb={}",
@@ -170,7 +190,7 @@ pub fn seed_from_bytes_into_cache(
     }
 
     match build {
-        Ok(_) => Ok(SeedFromBytesOutcome::Upserted),
+        Ok(_) => Ok((SeedFromBytesOutcome::Upserted, key.md5_16kb.clone())),
         Err(e) => Err(e),
     }
 }
@@ -746,8 +766,9 @@ mod tests {
     fn seed_from_bytes_into_cache_upserts_waveform_and_loudness_for_wav() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let outcome = seed_from_bytes_into_cache(&cache, "", "wav-track", &wav).unwrap();
+        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "", "wav-track", &wav).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
+        assert_eq!(md5, md5_first_16kb(&wav), "outcome carries the content fingerprint");
 
         // Both a waveform AND a loudness row must exist after a successful
         // PCM decode + EBU R128 analysis.
@@ -790,9 +811,9 @@ mod tests {
     fn seed_from_bytes_into_cache_returns_skipped_on_second_call() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let first = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
+        let (first, _) = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
-        let second = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
+        let (second, _) = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
         assert_eq!(
             second,
             SeedFromBytesOutcome::SkippedWaveformCacheHit,
@@ -806,7 +827,7 @@ mod tests {
         // Garbage bytes — Symphonia probe fails, the pipeline falls back to
         // `derive_waveform_bins` (no loudness row gets cached).
         let bytes = vec![0xAAu8; 8 * 1024];
-        let outcome = seed_from_bytes_into_cache(&cache, "", "garbage", &bytes).unwrap();
+        let (outcome, _) = seed_from_bytes_into_cache(&cache, "", "garbage", &bytes).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         let key = TrackKey {
