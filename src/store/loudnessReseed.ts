@@ -1,5 +1,6 @@
 import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import { invoke } from '@tauri-apps/api/core';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
 import { bumpWaveformRefreshGen } from './waveformRefreshGen';
@@ -42,13 +43,14 @@ export async function reseedLoudnessForTrackId(trackId: string): Promise<void> {
     normalizationTargetLufs: auth.loudnessTargetLufs,
     normalizationEngineLive: 'loudness',
   });
+  const serverId = getPlaybackServerId() || null;
   try {
-    await invoke('analysis_delete_waveform_for_track', { trackId });
+    await invoke('analysis_delete_waveform_for_track', { trackId, serverId });
   } catch (e) {
     console.error('[psysonic] analysis_delete_waveform_for_track failed:', e);
   }
   try {
-    await invoke('analysis_delete_loudness_for_track', { trackId });
+    await invoke('analysis_delete_loudness_for_track', { trackId, serverId });
   } catch (e) {
     console.error('[psysonic] analysis_delete_loudness_for_track failed:', e);
   }
@@ -59,6 +61,7 @@ export async function reseedLoudnessForTrackId(trackId: string): Promise<void> {
       trackId,
       url,
       force: true,
+      serverId,
     });
   } catch (e) {
     console.error('[psysonic] analysis_enqueue_seed_from_url (reseed) failed:', e);

@@ -169,6 +169,7 @@ export function runResume(set: SetState, get: GetState): void {
           manual: false,
           hiResEnabled: useAuthStore.getState().enableHiRes,
           analysisTrackId: trackToPlay.id,
+          serverId: coldServerId || null,
           streamFormatSuffix: trackToPlay.suffix ?? null,
         }).then(() => {
           if (getPlayGeneration() === gen && currentTime > 1) {
@@ -208,6 +209,7 @@ export function runResume(set: SetState, get: GetState): void {
           manual: false,
           hiResEnabled: useAuthStore.getState().enableHiRes,
           analysisTrackId: currentTrack.id,
+          serverId: coldServerId || null,
           streamFormatSuffix: currentTrack.suffix ?? null,
         }).catch((err: unknown) => {
           if (getPlayGeneration() !== gen) return;

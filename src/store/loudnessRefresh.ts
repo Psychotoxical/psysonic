@@ -1,5 +1,6 @@
 import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import { invoke } from '@tauri-apps/api/core';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { redactSubsonicUrlForLog } from '../utils/server/redactSubsonicUrl';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
@@ -69,9 +70,11 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
   usePlayerStore.setState({ normalizationDbgSource: 'refresh:start', normalizationDbgTrackId: trackId });
   try {
     const requestedTarget = useAuthStore.getState().loudnessTargetLufs;
+    const serverId = getPlaybackServerId() || null;
     const row = await invoke<LoudnessCachePayload | null>('analysis_get_loudness_for_track', {
       trackId,
       targetLufs: requestedTarget,
+      serverId,
     });
     if (useAuthStore.getState().loudnessTargetLufs !== requestedTarget) {
       emitNormalizationDebug('refresh:stale-target', { trackId, requestedTarget });
@@ -102,7 +105,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
           url: redactSubsonicUrlForLog(url),
           attempt: attempts + 1,
         });
-        void invoke('analysis_enqueue_seed_from_url', { trackId, url })
+        void invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId })
           .then(() => emitNormalizationDebug('backfill:queued', { trackId, attempt: attempts + 1 }))
           .catch((e) => emitNormalizationDebug('backfill:error', { trackId, error: String(e) }))
           .finally(() => {
