@@ -94,6 +94,12 @@ export const usePlayerStore = create<PlayerState>()(
           queue: windowedQueue,
           queueServerId: state.queueServerId,
           queueIndex: qi - start, // remap into the windowed slice
+          // F5: full ordered ref list (ids are tiny) so the *whole* queue can be
+          // rehydrated from the local index on startup. The windowed `queue`
+          // above stays as the no-index fallback (queue never empty when the
+          // index is off — the P6 default).
+          queueRefs: state.queue.map(t => t.id),
+          queueRefsIndex: qi,
           isQueueVisible: state.isQueueVisible,
           // currentTime is intentionally NOT persisted here.
           // handleAudioProgress fires every 100ms and each setState with a

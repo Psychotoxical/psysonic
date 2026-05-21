@@ -90,7 +90,7 @@ function buildRequest(
   };
 }
 
-function trackToSong(t: LibraryTrackDto): SubsonicSong {
+export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   const raw = isObject(t.rawJson) ? t.rawJson : {};
   const base: SubsonicSong = {
     id: t.id,

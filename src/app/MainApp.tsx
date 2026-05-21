@@ -15,6 +15,7 @@ import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
 import { ensureActiveServerSessionBound, resumeInitialSyncIfIncomplete } from '../utils/library/librarySession';
+import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
 import { useScanPolling } from '../hooks/useScanPolling';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
@@ -51,6 +52,9 @@ export default function MainApp() {
       if (bound && activeServerId) {
         await resumeInitialSyncIfIncomplete(activeServerId);
       }
+      // F5: restore the full persisted queue from the index when ready
+      // (windowed fallback already rehydrated; this swaps in the whole queue).
+      void hydrateQueueFromIndex();
     })();
   }, [activeServerId]);
 
