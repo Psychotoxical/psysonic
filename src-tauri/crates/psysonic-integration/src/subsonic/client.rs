@@ -24,7 +24,7 @@ pub const SUBSONIC_API_VERSION: &str = "1.16.1";
 /// paths.
 pub const SUBSONIC_CLIENT_ID: &str = concat!("psysonic/", env!("CARGO_PKG_VERSION"));
 
-/// How `SubsonicClient` obtains the `(token, salt)` pair on each request.
+#[derive(Clone)]
 enum CredentialsMode {
     /// Production path: cache the plaintext password and derive a fresh
     /// `(token = md5(password || salt), salt)` per request. Matches the
@@ -37,6 +37,7 @@ enum CredentialsMode {
     Static(SubsonicCredentials),
 }
 
+#[derive(Clone)]
 pub struct SubsonicClient {
     base_url: String,
     credentials: CredentialsMode,

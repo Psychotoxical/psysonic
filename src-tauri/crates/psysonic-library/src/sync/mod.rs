@@ -13,6 +13,7 @@ pub mod capability;
 pub mod cursor;
 pub mod delta;
 pub mod error;
+pub mod ingest_parallel;
 pub mod initial;
 pub mod mapping;
 pub mod poll_stats;

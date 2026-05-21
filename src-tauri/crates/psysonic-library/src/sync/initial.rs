@@ -17,9 +17,14 @@ use psysonic_integration::subsonic::SubsonicClient;
 use serde_json::Value;
 
 use super::backoff::{with_jitter, Backoff};
+use super::bandwidth::ParallelismBudget;
 use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::cursor::{CursorPhase, InitialSyncCursor, StrategyState};
 use super::error::SyncError;
+use super::ingest_parallel::{
+    check_cancel_flag, fetch_albums_parallel, linear_prefetch_depth, retry_fetch,
+    sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue,
+};
 use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
 use super::progress::{NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
@@ -62,6 +67,7 @@ pub struct InitialSyncRunner<'a> {
     n1_deep_offset_safe: u32,
     sleep_enabled: bool,
     progress: Arc<dyn Progress + Send + Sync>,
+    parallelism: ParallelismBudget,
 }
 
 impl<'a> InitialSyncRunner<'a> {
@@ -84,6 +90,7 @@ impl<'a> InitialSyncRunner<'a> {
             n1_deep_offset_safe: N1_DEEP_OFFSET_SAFE,
             sleep_enabled: true,
             progress: Arc::new(NoopProgress),
+            parallelism: ParallelismBudget::resolve(super::bandwidth::PlaybackHint::Idle),
         }
     }
 
@@ -123,6 +130,16 @@ impl<'a> InitialSyncRunner<'a> {
     pub fn with_sleep_disabled(mut self) -> Self {
         self.sleep_enabled = false;
         self
+    }
+
+    /// C11 — bulk crawl parallelism from the runtime playback hint.
+    pub fn with_parallelism_budget(mut self, budget: ParallelismBudget) -> Self {
+        self.parallelism = budget;
+        self
+    }
+
+    fn parallelism_budget(&self) -> ParallelismBudget {
+        self.parallelism
     }
 
     /// IS-1 → IS-6. Resumes from `sync_state.initial_sync_cursor_json`
@@ -184,7 +201,7 @@ impl<'a> InitialSyncRunner<'a> {
             self.persist_cursor(&sync_state, &cursor)?;
         }
 
-        // IS-6 — phase=ready, last_full_sync_at=now, clear cursor.
+        // IS-6 — phase=ready, clear cursor.
         sync_state
             .set_sync_phase(&self.server_id, &self.library_scope, "ready")
             .map_err(SyncError::Storage)?;
@@ -355,72 +372,191 @@ impl<'a> InitialSyncRunner<'a> {
             }
         };
 
+        let budget = self.parallelism_budget();
         let mut batch_count: u32 = 0;
+        if linear_prefetch_depth(&budget) <= 1 {
+            loop {
+                wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
+                    .await?;
+                self.check_cancellation()?;
+                sleep_request_gap(&budget, self.sleep_enabled).await;
+                let array = match self.fetch_n1_page(creds, offset).await {
+                    Err(e) if self.n1_hit_deep_offset_wall(&e, offset) => {
+                        return self.fall_back_n1_to_s1(cursor, report, sync_state).await;
+                    }
+                    other => other?,
+                };
+                if array.is_empty() {
+                    break;
+                }
+                offset = self
+                    .ingest_n1_page(
+                        &array,
+                        offset,
+                        cursor,
+                        report,
+                        sync_state,
+                        &mut batch_count,
+                    )
+                    .await?;
+                if (array.len() as u32) < self.batch_size {
+                    break;
+                }
+            }
+            return Ok(());
+        }
+
+        let batch_size = self.batch_size;
+        let cancel = self.cancel.clone();
+        let sleep_enabled = self.sleep_enabled;
+        let creds = creds.clone();
+        let mut queue = LinearPrefetchQueue::new(&budget, batch_size, offset);
+
         loop {
+            wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
+                .await?;
             self.check_cancellation()?;
-            let end = offset.saturating_add(self.batch_size);
-            let response = match retry_with_backoff(
-                self,
-                || nd_list_songs_internal(
+
+            queue.pump(|| self.check_cancellation(), |off| {
+                let creds = creds.clone();
+                let cancel = cancel.clone();
+                tokio::spawn(async move {
+                    retry_fetch(
+                        sleep_enabled,
+                        || check_cancel_flag(&cancel),
+                        || async {
+                            let end = off.saturating_add(batch_size);
+                            let response = nd_list_songs_internal(
+                                &creds.server_url,
+                                &creds.bearer_token,
+                                "id",
+                                "ASC",
+                                off,
+                                end,
+                            )
+                            .await
+                            .map_err(SyncError::Navidrome)?;
+                            Ok(response.as_array().cloned().unwrap_or_default())
+                        },
+                        |e| e,
+                    )
+                    .await
+                })
+            })?;
+
+            let array = match queue
+                .take_at(offset, || self.check_cancellation())
+                .await
+            {
+                Err(e) if self.n1_hit_deep_offset_wall(&e, offset) => {
+                    return self.fall_back_n1_to_s1(cursor, report, sync_state).await;
+                }
+                Err(e) => return Err(e),
+                Ok(Some(page)) => page,
+                Ok(None) => {
+                    sleep_request_gap(&budget, self.sleep_enabled).await;
+                    match self.fetch_n1_page(&creds, offset).await {
+                        Err(e) if self.n1_hit_deep_offset_wall(&e, offset) => {
+                            return self.fall_back_n1_to_s1(cursor, report, sync_state).await;
+                        }
+                        other => other?,
+                    }
+                }
+            };
+
+            if array.is_empty() {
+                break;
+            }
+
+            offset = self
+                .ingest_n1_page(
+                    &array,
+                    offset,
+                    cursor,
+                    report,
+                    sync_state,
+                    &mut batch_count,
+                )
+                .await?;
+
+            if (array.len() as u32) < self.batch_size {
+                queue.mark_exhausted();
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    async fn fetch_n1_page(
+        &self,
+        creds: &NavidromeProbeCredentials,
+        offset: u32,
+    ) -> Result<Vec<Value>, SyncError> {
+        let end = offset.saturating_add(self.batch_size);
+        let response = match retry_with_backoff(
+            self,
+            || {
+                nd_list_songs_internal(
                     &creds.server_url,
                     &creds.bearer_token,
                     "id",
                     "ASC",
                     offset,
                     end,
-                ),
-                SyncError::Navidrome,
-            )
-            .await
-            {
-                Ok(v) => v,
-                // R7-15 Q5: a persistent HTTP 500 at/after the deep-offset
-                // line is Navidrome's server-side wall, not a transient
-                // error. Stop hammering N1 — flag the server and finish the
-                // sync on S1.
-                Err(e) if self.n1_hit_deep_offset_wall(&e, offset) => {
-                    return self.fall_back_n1_to_s1(cursor, report, sync_state).await;
-                }
-                Err(e) => return Err(e),
-            };
-
-            let array = response.as_array().cloned().unwrap_or_default();
-            if array.is_empty() {
-                break;
+                )
+            },
+            SyncError::Navidrome,
+        )
+        .await
+        {
+            Ok(v) => v,
+            Err(e) if self.n1_hit_deep_offset_wall(&e, offset) => {
+                return Err(e);
             }
-            let synced_at = now_unix_ms();
-            let rows: Vec<TrackRow> = array
-                .iter()
-                .filter_map(|v| {
-                    navidrome_song_to_track_row(
-                        &self.server_id,
-                        v,
-                        synced_at,
-                        self.library_scope_opt(),
-                    )
-                })
-                .collect();
-            let stats = self.write_batch(&rows)?;
-            report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
-            report.remapped_count = report
-                .remapped_count
-                .saturating_add(stats.remapped.len() as u32);
+            Err(e) => return Err(e),
+        };
+        Ok(response.as_array().cloned().unwrap_or_default())
+    }
 
-            offset = end;
-            cursor.strategy_state = StrategyState::LinearOffset { offset };
-            cursor.ingested_count = report.ingested_count;
-            self.persist_cursor(sync_state, cursor)?;
-            batch_count += 1;
-            self.progress.emit(ProgressEvent::IngestPage {
-                ingested_total: report.ingested_count,
-                batch_count,
-            });
+    async fn ingest_n1_page(
+        &self,
+        array: &[Value],
+        offset: u32,
+        cursor: &mut InitialSyncCursor,
+        report: &mut InitialSyncReport,
+        sync_state: &SyncStateRepository<'_>,
+        batch_count: &mut u32,
+    ) -> Result<u32, SyncError> {
+        let synced_at = now_unix_ms();
+        let rows: Vec<TrackRow> = array
+            .iter()
+            .filter_map(|v| {
+                navidrome_song_to_track_row(
+                    &self.server_id,
+                    v,
+                    synced_at,
+                    self.library_scope_opt(),
+                )
+            })
+            .collect();
+        let stats = self.write_batch(&rows)?;
+        report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
+        report.remapped_count = report
+            .remapped_count
+            .saturating_add(stats.remapped.len() as u32);
 
-            if (array.len() as u32) < self.batch_size {
-                break;
-            }
-        }
-        Ok(())
+        let next_offset = offset.saturating_add(self.batch_size);
+        cursor.strategy_state = StrategyState::LinearOffset {
+            offset: next_offset,
+        };
+        cursor.ingested_count = report.ingested_count;
+        self.persist_cursor(sync_state, cursor)?;
+        *batch_count += 1;
+        self.progress.emit(ProgressEvent::IngestPage {
+            ingested_total: report.ingested_count,
+            batch_count: *batch_count,
+        });
+        Ok(next_offset)
     }
 
     /// True when an N1 error is the deep-offset wall: a persistent HTTP 500
@@ -480,76 +616,183 @@ impl<'a> InitialSyncRunner<'a> {
             }
         };
 
+        let budget = self.parallelism_budget();
         let mut batch_count: u32 = 0;
+        if linear_prefetch_depth(&budget) <= 1 {
+            loop {
+                wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
+                    .await?;
+                self.check_cancellation()?;
+                sleep_request_gap(&budget, self.sleep_enabled).await;
+                let (result, raw_body) = match self.fetch_s1_page(offset).await {
+                    Err(e) if is_fetch_failure(&e) => {
+                        return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
+                    }
+                    other => other?,
+                };
+                if result.song.is_empty() {
+                    break;
+                }
+                offset = self
+                    .ingest_s1_page(
+                        &result,
+                        &raw_body,
+                        offset,
+                        cursor,
+                        report,
+                        sync_state,
+                        &mut batch_count,
+                    )
+                    .await?;
+                if (result.song.len() as u32) < self.batch_size {
+                    break;
+                }
+            }
+            return Ok(());
+        }
+
+        let batch_size = self.batch_size;
+        let subsonic = self.subsonic.clone();
+        let library_scope = self.library_scope.clone();
+        let cancel = self.cancel.clone();
+        let sleep_enabled = self.sleep_enabled;
+        let mut queue = LinearPrefetchQueue::new(&budget, batch_size, offset);
+
         loop {
+            wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
+                .await?;
             self.check_cancellation()?;
-            let scope = self.library_scope_opt();
-            let (result, raw_body) = match retry_with_backoff(
-                self,
-                || self.subsonic.search3_with_raw("", self.batch_size, offset, scope),
-                SyncError::from,
-            )
-            .await
+
+            queue.pump(|| self.check_cancellation(), |off| {
+                let subsonic = subsonic.clone();
+                let library_scope = library_scope.clone();
+                let cancel = cancel.clone();
+                tokio::spawn(async move {
+                    retry_fetch(
+                        sleep_enabled,
+                        || check_cancel_flag(&cancel),
+                        || async {
+                            let scope = if library_scope.is_empty() {
+                                None
+                            } else {
+                                Some(library_scope.as_str())
+                            };
+                            subsonic
+                                .search3_with_raw("", batch_size, off, scope)
+                                .await
+                                .map_err(SyncError::from)
+                        },
+                        |e| e,
+                    )
+                    .await
+                })
+            })?;
+
+            let (result, raw_body) = match queue
+                .take_at(offset, || self.check_cancellation())
+                .await
             {
-                Ok(v) => v,
-                // Q8 (R7-15): S1 failing persistently (C12 retries already
-                // exhausted) → fall back to the universal S2 album crawl.
-                // Cancellation / storage errors propagate untouched.
                 Err(e) if is_fetch_failure(&e) => {
                     return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
                 }
                 Err(e) => return Err(e),
+                Ok(Some(page)) => page,
+                Ok(None) => {
+                    sleep_request_gap(&budget, self.sleep_enabled).await;
+                    match self.fetch_s1_page(offset).await {
+                        Err(e) if is_fetch_failure(&e) => {
+                            return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
+                        }
+                        other => other?,
+                    }
+                }
             };
 
             if result.song.is_empty() {
                 break;
             }
 
-            // Pull the per-song raw sub-trees from the envelope (ADR-7) —
-            // typed `Song` reserialise drops unknown OpenSubsonic fields
-            // like `replayGain` / contributor arrays, so we feed the
-            // original JSON into `track.raw_json` whenever it's there.
-            let raw_songs = raw_body
-                .get("song")
-                .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default();
-            let synced_at = now_unix_ms();
-            let mut rows: Vec<TrackRow> = Vec::with_capacity(result.song.len());
-            for (i, song) in result.song.iter().enumerate() {
-                let raw = raw_songs
-                    .get(i)
-                    .cloned()
-                    .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
-                rows.push(subsonic_song_to_track_row(
-                    &self.server_id,
-                    song,
-                    &raw,
-                    synced_at,
-                    self.library_scope_opt(),
-                ));
-            }
-            let stats = self.write_batch(&rows)?;
-            report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
-            report.remapped_count = report
-                .remapped_count
-                .saturating_add(stats.remapped.len() as u32);
-
-            offset = offset.saturating_add(self.batch_size);
-            cursor.strategy_state = StrategyState::LinearOffset { offset };
-            cursor.ingested_count = report.ingested_count;
-            self.persist_cursor(sync_state, cursor)?;
-            batch_count += 1;
-            self.progress.emit(ProgressEvent::IngestPage {
-                ingested_total: report.ingested_count,
-                batch_count,
-            });
+            offset = self
+                .ingest_s1_page(
+                    &result,
+                    &raw_body,
+                    offset,
+                    cursor,
+                    report,
+                    sync_state,
+                    &mut batch_count,
+                )
+                .await?;
 
             if (result.song.len() as u32) < self.batch_size {
+                queue.mark_exhausted();
                 break;
             }
         }
         Ok(())
+    }
+
+    async fn fetch_s1_page(
+        &self,
+        offset: u32,
+    ) -> Result<(psysonic_integration::subsonic::SearchResult, Value), SyncError> {
+        let scope = self.library_scope_opt();
+        retry_with_backoff(
+            self,
+            || self.subsonic.search3_with_raw("", self.batch_size, offset, scope),
+            SyncError::from,
+        )
+        .await
+    }
+
+    async fn ingest_s1_page(
+        &self,
+        result: &psysonic_integration::subsonic::SearchResult,
+        raw_body: &Value,
+        offset: u32,
+        cursor: &mut InitialSyncCursor,
+        report: &mut InitialSyncReport,
+        sync_state: &SyncStateRepository<'_>,
+        batch_count: &mut u32,
+    ) -> Result<u32, SyncError> {
+        let raw_songs = raw_body
+            .get("song")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let synced_at = now_unix_ms();
+        let mut rows: Vec<TrackRow> = Vec::with_capacity(result.song.len());
+        for (i, song) in result.song.iter().enumerate() {
+            let raw = raw_songs
+                .get(i)
+                .cloned()
+                .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
+            rows.push(subsonic_song_to_track_row(
+                &self.server_id,
+                song,
+                &raw,
+                synced_at,
+                self.library_scope_opt(),
+            ));
+        }
+        let stats = self.write_batch(&rows)?;
+        report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
+        report.remapped_count = report
+            .remapped_count
+            .saturating_add(stats.remapped.len() as u32);
+
+        let next_offset = offset.saturating_add(self.batch_size);
+        cursor.strategy_state = StrategyState::LinearOffset {
+            offset: next_offset,
+        };
+        cursor.ingested_count = report.ingested_count;
+        self.persist_cursor(sync_state, cursor)?;
+        *batch_count += 1;
+        self.progress.emit(ProgressEvent::IngestPage {
+            ingested_total: report.ingested_count,
+            batch_count: *batch_count,
+        });
+        Ok(next_offset)
     }
 
     /// Q8 (R7-15) — fall back to the universal S2 album crawl when S1 fails
@@ -588,9 +831,9 @@ impl<'a> InitialSyncRunner<'a> {
         report: &mut InitialSyncReport,
         sync_state: &SyncStateRepository<'_>,
     ) -> Result<(), SyncError> {
-        let (mut album_offset, _resumed_in_album) = match cursor.strategy_state {
-            StrategyState::AlbumCrawl { album_offset, ref current_album_id } => {
-                (album_offset, current_album_id.clone())
+        let (mut album_offset, resume_album_id) = match &cursor.strategy_state {
+            StrategyState::AlbumCrawl { album_offset, current_album_id } => {
+                (*album_offset, current_album_id.clone())
             }
             ref other => {
                 return Err(SyncError::Storage(format!(
@@ -599,18 +842,26 @@ impl<'a> InitialSyncRunner<'a> {
             }
         };
 
+        let budget = self.parallelism_budget();
         let mut batch_count: u32 = 0;
+        let mut resume_from = resume_album_id;
+
         loop {
+            wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
+                .await?;
             self.check_cancellation()?;
             let scope = self.library_scope_opt();
+            sleep_request_gap(&budget, self.sleep_enabled).await;
             let albums = retry_with_backoff(
                 self,
-                || self.subsonic.get_album_list2(
-                    "alphabeticalByName",
-                    self.batch_size,
-                    album_offset,
-                    scope,
-                ),
+                || {
+                    self.subsonic.get_album_list2(
+                        "alphabeticalByName",
+                        self.batch_size,
+                        album_offset,
+                        scope,
+                    )
+                },
                 SyncError::from,
             )
             .await?;
@@ -618,21 +869,31 @@ impl<'a> InitialSyncRunner<'a> {
                 break;
             }
 
+            let mut album_ids: Vec<String> = Vec::with_capacity(albums.len());
+            let mut skipping = resume_from.is_some();
             for album_summary in &albums {
+                if skipping {
+                    if resume_from.as_deref() == Some(album_summary.id.as_str()) {
+                        skipping = false;
+                    } else {
+                        continue;
+                    }
+                }
+                album_ids.push(album_summary.id.clone());
+            }
+            resume_from = None;
+
+            let fetched = fetch_albums_parallel(
+                self.subsonic,
+                &album_ids,
+                budget,
+                self.sleep_enabled,
+                self.cancel.clone(),
+            )
+            .await?;
+
+            for (album, raw_album) in fetched {
                 self.check_cancellation()?;
-                cursor.strategy_state = StrategyState::AlbumCrawl {
-                    album_offset,
-                    current_album_id: Some(album_summary.id.clone()),
-                };
-                self.persist_cursor(sync_state, cursor)?;
-
-                let (album, raw_album) = retry_with_backoff(
-                    self,
-                    || self.subsonic.get_album_with_raw(&album_summary.id),
-                    SyncError::from,
-                )
-                .await?;
-
                 let synced_at = now_unix_ms();
                 let raw_songs = raw_album
                     .get("song")
