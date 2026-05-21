@@ -36,6 +36,17 @@ pub struct SyncStateDto {
     pub local_tracks_max_updated_ms: Option<i64>,
 }
 
+/// E3 readiness summary attached to a single-track `library_get_track` read.
+/// Per-server, read-only, best-effort — never blocks on the network. Omitted
+/// from list/batch reads (would be one analysis probe per row).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackEnrichmentDto {
+    pub waveform_ready: bool,
+    pub loudness_ready: bool,
+    pub lyrics_cached: bool,
+}
+
 /// `library_get_track` / `library_search` row shape — flat projection
 /// over `track`'s hot columns plus the raw JSON sub-tree. Frontend
 /// re-assembles its own `LibraryTrack` shape from this.
@@ -80,6 +91,11 @@ pub struct LibraryTrackDto {
     pub server_created_at: Option<i64>,
     pub synced_at: i64,
 
+    /// E3 readiness summary. Only populated by `library_get_track`; `None`
+    /// (omitted on the wire) for list/batch projections via `from_row`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enrichment: Option<TrackEnrichmentDto>,
+
     /// Original Subsonic / Navidrome song JSON the sync engine stored.
     /// Frontend parses this lazily when it needs OpenSubsonic extras
     /// (contributors, replayGain detail, …).
@@ -123,6 +139,7 @@ impl LibraryTrackDto {
             server_updated_at: row.server_updated_at,
             server_created_at: row.server_created_at,
             synced_at: row.synced_at,
+            enrichment: None,
             raw_json,
         }
     }

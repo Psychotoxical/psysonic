@@ -95,6 +95,28 @@ impl<'a> ArtifactRepository<'a> {
             .map_err(|e| e.to_string())
     }
 
+    /// E3 readiness: is there a valid (non-expired, non-`not_found`) lyrics
+    /// artifact for `(server_id, track_id)`? Pure read — no lazy GC, no writes —
+    /// so the `library_get_track` enrichment summary stays read-only.
+    pub fn lyrics_cached(&self, server_id: &str, track_id: &str, now: i64) -> Result<bool, String> {
+        self.store
+            .with_conn(|conn| {
+                let exists: i64 = conn.query_row(
+                    "SELECT EXISTS ( \
+                       SELECT 1 FROM track_artifact \
+                       WHERE server_id = ?1 AND track_id = ?2 \
+                         AND artifact_kind = 'lyrics' \
+                         AND not_found = 0 \
+                         AND (expires_at IS NULL OR expires_at >= ?3) \
+                     )",
+                    params![server_id, track_id, now],
+                    |r| r.get(0),
+                )?;
+                Ok(exists != 0)
+            })
+            .map_err(|e| e.to_string())
+    }
+
     /// Upsert an artifact. Rejects content over [`MAX_ARTIFACT_BYTES`] unless
     /// it is a user import (§5.12). A negative-cache row (`not_found`) carries
     /// no content, so it always fits.
@@ -263,6 +285,42 @@ mod tests {
             .unwrap()
             .expect("negative-cache row still live");
         assert!(got.not_found, "caller sees the cached miss instead of refetching");
+    }
+
+    #[test]
+    fn lyrics_cached_only_for_live_found_row() {
+        // Live lyrics row → cached; nothing / negative-cache / expired → not.
+        let live = LibraryStore::open_in_memory();
+        seed_track(&live, "s1", "t1");
+        let repo = ArtifactRepository::new(&live);
+        assert!(!repo.lyrics_cached("s1", "t1", 200).unwrap(), "no row → not cached");
+        repo.put("s1", "t1", &artifact("lyrics", "plain", "lrclib", "lrclib"), 100)
+            .unwrap();
+        assert!(repo.lyrics_cached("s1", "t1", 200).unwrap(), "live row → cached");
+
+        let neg = LibraryStore::open_in_memory();
+        seed_track(&neg, "s1", "t1");
+        let repo_neg = ArtifactRepository::new(&neg);
+        let mut miss = artifact("lyrics", "plain", "lrclib", "lrclib");
+        miss.content_text = None;
+        miss.not_found = true;
+        miss.expires_at = Some(1000);
+        repo_neg.put("s1", "t1", &miss, 100).unwrap();
+        assert!(
+            !repo_neg.lyrics_cached("s1", "t1", 500).unwrap(),
+            "negative-cache row is not 'cached'"
+        );
+
+        let exp = LibraryStore::open_in_memory();
+        seed_track(&exp, "s1", "t1");
+        let repo_exp = ArtifactRepository::new(&exp);
+        let mut expired = artifact("lyrics", "plain", "lrclib", "lrclib");
+        expired.expires_at = Some(150);
+        repo_exp.put("s1", "t1", &expired, 100).unwrap();
+        assert!(
+            !repo_exp.lyrics_cached("s1", "t1", 200).unwrap(),
+            "expired lyrics not cached"
+        );
     }
 
     #[test]

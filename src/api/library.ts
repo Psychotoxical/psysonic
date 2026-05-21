@@ -17,6 +17,13 @@ export interface TrackRefDto {
   contentHash?: string | null;
 }
 
+/** E3 readiness summary — present only on single-track `libraryGetTrack` reads. */
+export interface TrackEnrichmentDto {
+  waveformReady: boolean;
+  loudnessReady: boolean;
+  lyricsCached: boolean;
+}
+
 export interface LibraryTrackDto {
   serverId: string;
   id: string;
@@ -51,6 +58,8 @@ export interface LibraryTrackDto {
   serverUpdatedAt?: number | null;
   serverCreatedAt?: number | null;
   syncedAt: number;
+  /** E3: populated only by `libraryGetTrack` (omitted on list/batch reads). */
+  enrichment?: TrackEnrichmentDto | null;
   rawJson: unknown;
 }
 
