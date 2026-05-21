@@ -16,6 +16,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.47.0]
 
+## Added
+
+### Servers — edit existing profiles
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
+
+* Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
+
+
+
+### Local library index + search (preview)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
+
+* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
+* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
+* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
+* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
+
+
+
+## Changed
+
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
@@ -44,40 +67,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Servers — edit existing profiles
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
-
-* Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
-
-
-
 ### Interface Scale — covers the whole window
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#781](https://github.com/Psychotoxical/psysonic/pull/781)**
 
 * Settings → Appearance → Interface Scale now scales sidebar, queue, player bar, modals/portals and the fullscreen player alongside the main content — same behaviour as browser Ctrl+/−.
-
-
-
-### Fixed
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
-
-* **In-page browse:** virtual artist/album/composer grids and lists no longer lose all rows after deep scroll — `scrollMargin` now targets the in-page overlay viewport, not the locked main route scrollport.
-* **Cover art on browse pages:** `CachedImage` priority scoring follows the real scrolling pane so visible thumbnails win network fetch slots; Artists infinite scroll loads one page per batch instead of re-entrantly queueing many pages during a fast fling.
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#785](https://github.com/Psychotoxical/psysonic/pull/785)**
-
-* **Lucky Mix after server switch:** starting a mix on the browsed server no longer spams cross-server enqueue errors — unpinned or foreign queues hand off cleanly before batch enqueue.
-
-
-
-### Radio — paused streams stay paused
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by drelabre on GitHub, PR [#786](https://github.com/Psychotoxical/psysonic/pull/786)**
-
-* Pausing a radio stream no longer auto-resumes after about a minute on macOS.
 
 
 
@@ -91,6 +85,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## Fixed
+
+### In-page browse — virtual scroll and cover-art priority
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
+
+* **In-page browse:** virtual artist/album/composer grids and lists no longer lose all rows after deep scroll — `scrollMargin` now targets the in-page overlay viewport, not the locked main route scrollport.
+* **Cover art on browse pages:** `CachedImage` priority scoring follows the real scrolling pane so visible thumbnails win network fetch slots; Artists infinite scroll loads one page per batch instead of re-entrantly queueing many pages during a fast fling.
+
+
+
+### Lucky Mix after server switch
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#785](https://github.com/Psychotoxical/psysonic/pull/785)**
+
+* Starting a mix on the browsed server no longer spams cross-server enqueue errors — unpinned or foreign queues hand off cleanly before batch enqueue.
+
+### Radio — paused streams stay paused
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by drelabre on GitHub, PR [#786](https://github.com/Psychotoxical/psysonic/pull/786)**
+
+* Pausing a radio stream no longer auto-resumes after about a minute on macOS.
+
+
+
 ### Mainstage — album rail hover controls
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#787](https://github.com/Psychotoxical/psysonic/pull/787)**
@@ -100,24 +119,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Fixed
+### Album view — bulk add to playlist selection
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#844](https://github.com/Psychotoxical/psysonic/pull/844)**
 
-* **Album view:** bulk "Add to playlist" no longer clears the track selection without opening the playlist picker.
-
-
-
-## Added
-
-### Local library index + search (preview)
-
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
-
-* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
-* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
-* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
-* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
+* Bulk "Add to playlist" no longer clears the track selection without opening the playlist picker.
 
 
 
