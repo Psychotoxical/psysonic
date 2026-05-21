@@ -24,7 +24,7 @@ use psysonic_integration::navidrome::queries::nd_list_songs_internal;
 use psysonic_integration::subsonic::SubsonicClient;
 use serde_json::Value;
 
-use super::backoff::{with_jitter, Backoff};
+use super::backoff::{jitter_salt, with_jitter, Backoff};
 use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::error::SyncError;
 use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
@@ -412,7 +412,7 @@ impl<'a> DeltaSyncRunner<'a> {
                     if let (Some(watermark), Some(server_updated)) =
                         (watermark, row.server_updated_at)
                     {
-                        if server_updated <= watermark {
+                        if server_updated < watermark {
                             crossed_watermark = true;
                             continue;
                         }
@@ -556,7 +556,7 @@ where
                     return Err(mapped);
                 }
                 let delay = backoff.next_delay();
-                let jittered = with_jitter(delay, attempt as u64);
+                let jittered = with_jitter(delay, jitter_salt(attempt));
                 runner.sleep(jittered).await;
             }
         }

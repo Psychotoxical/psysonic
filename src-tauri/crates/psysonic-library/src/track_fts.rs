@@ -51,6 +51,28 @@ mod tests {
     use crate::store::LibraryStore;
 
     #[test]
+    fn restore_track_fts_triggers_recreates_migration_triggers() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("misc", |conn| {
+                suspend_track_fts_triggers(conn)?;
+                restore_track_fts_triggers(conn)?;
+                let mut stmt = conn.prepare(
+                    "SELECT name FROM sqlite_master \
+                     WHERE type = 'trigger' AND name IN ('track_ai', 'track_ad', 'track_au') \
+                     ORDER BY name",
+                )?;
+                let names: Vec<String> = stmt
+                    .query_map([], |r| r.get(0))?
+                    .filter_map(Result::ok)
+                    .collect();
+                assert_eq!(names, vec!["track_ad", "track_ai", "track_au"]);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
     fn bulk_ingest_suspend_rebuild_restores_fts_search() {
         let store = LibraryStore::open_in_memory();
         store

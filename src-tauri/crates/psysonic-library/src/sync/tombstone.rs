@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use psysonic_integration::subsonic::{SubsonicClient, SubsonicError};
 
-use super::backoff::{with_jitter, Backoff};
+use super::backoff::{jitter_salt, with_jitter, Backoff};
 use super::error::SyncError;
 use crate::store::LibraryStore;
 
@@ -207,7 +207,7 @@ where
                     return Err(mapped);
                 }
                 let delay = backoff.next_delay();
-                let jittered = with_jitter(delay, attempt as u64);
+                let jittered = with_jitter(delay, jitter_salt(attempt));
                 reconciler.sleep(jittered).await;
             }
         }

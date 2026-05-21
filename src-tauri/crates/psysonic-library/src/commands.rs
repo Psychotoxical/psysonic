@@ -613,7 +613,14 @@ async fn library_sync_start_inner(
         if existing.kind == "initial_sync" {
             match kind {
                 "initial_sync" if existing.server_id == server_id => {
-                    // Same-server full resync replaces the in-flight job.
+                    // Same-server full resync: cancel and drain the in-flight
+                    // runner so its cursor writes can't race the replacement.
+                    let done = Arc::clone(&existing.done);
+                    existing
+                        .cancel
+                        .store(true, std::sync::atomic::Ordering::SeqCst);
+                    drop(existing);
+                    done.notified().await;
                 }
                 "initial_sync" => {
                     return Err(format!(
@@ -632,11 +639,13 @@ async fn library_sync_start_inner(
     }
     let job_id = format!("{}_{}", server_id, now_unix_ms());
     let cancel = Arc::new(AtomicBool::new(false));
+    let done = Arc::new(tokio::sync::Notify::new());
     let job = CurrentJob {
         job_id: job_id.clone(),
         server_id: server_id.clone(),
         kind: kind.to_string(),
         cancel: Arc::clone(&cancel),
+        done: Arc::clone(&done),
     };
     runtime.set_current_job(job);
 
@@ -753,6 +762,11 @@ async fn library_sync_start_inner(
         // Clear the slot only if it still names us — sync_start may
         // have already overwritten with a newer job.
         if let Some(state) = app_for_emit.try_state::<LibraryRuntime>() {
+            if let Some(job) = state.current_job() {
+                if job.job_id == job_id_for_emit {
+                    job.done.notify_waiters();
+                }
+            }
             state.clear_current_job_if_matches(&job_id_for_emit);
         }
     });

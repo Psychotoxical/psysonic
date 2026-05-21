@@ -11,7 +11,7 @@ use serde_json::Value;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 
-use super::backoff::{with_jitter, Backoff};
+use super::backoff::{jitter_salt, with_jitter, Backoff};
 use super::bandwidth::ParallelismBudget;
 use super::error::SyncError;
 
@@ -80,7 +80,7 @@ where
                     return Err(mapped);
                 }
                 let delay = backoff.next_delay();
-                let jittered = with_jitter(delay, attempt as u64);
+                let jittered = with_jitter(delay, jitter_salt(attempt));
                 if sleep_enabled && !jittered.is_zero() {
                     tokio::time::sleep(jittered).await;
                 }

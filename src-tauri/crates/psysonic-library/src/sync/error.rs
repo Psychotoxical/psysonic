@@ -71,6 +71,18 @@ impl fmt::Display for SyncError {
 
 impl std::error::Error for SyncError {}
 
+impl SyncError {
+    /// Parsed HTTP status when this is a Navidrome native REST failure
+    /// shaped like `HTTP 500` or `HTTP 500: body`.
+    pub fn navidrome_http_status(&self) -> Option<u16> {
+        let SyncError::Navidrome(msg) = self else {
+            return None;
+        };
+        let rest = msg.strip_prefix("HTTP ")?.split(':').next()?.trim();
+        rest.split_whitespace().next()?.parse().ok()
+    }
+}
+
 impl From<SubsonicError> for SyncError {
     fn from(e: SubsonicError) -> Self {
         match e {
@@ -109,6 +121,20 @@ mod tests {
     fn http_status_collapses_into_transport() {
         let e: SyncError = SubsonicError::HttpStatus(reqwest::StatusCode::SERVICE_UNAVAILABLE).into();
         assert!(matches!(e, SyncError::Transport(ref m) if m.contains("503")));
+    }
+
+    #[test]
+    fn navidrome_http_status_parses_status_line() {
+        let e = SyncError::Navidrome("HTTP 500".into());
+        assert_eq!(e.navidrome_http_status(), Some(500));
+        let with_body = SyncError::Navidrome("HTTP 503: upstream timeout".into());
+        assert_eq!(with_body.navidrome_http_status(), Some(503));
+        let with_reason = SyncError::Navidrome("HTTP 500 Internal Server Error".into());
+        assert_eq!(with_reason.navidrome_http_status(), Some(500));
+        assert_eq!(
+            SyncError::Transport("http 500".into()).navidrome_http_status(),
+            None
+        );
     }
 
     #[test]

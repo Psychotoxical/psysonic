@@ -65,7 +65,7 @@ export default function LiveSearch() {
   const [isFocused, setIsFocused] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchSource, setSearchSource] = useState<LiveSearchSource | null>(null);
-  const [localReady, setLocalReady] = useState(false);
+  const localReadyRef = useRef(false);
   const liveSearchGenRef = useRef(0);
   const navigate = useNavigate();
   const enqueue = usePlayerStore(state => state.enqueue);
@@ -84,10 +84,10 @@ export default function LiveSearch() {
 
   const refreshLocalReady = useCallback(async () => {
     if (!serverId || !indexEnabled) {
-      setLocalReady(false);
+      localReadyRef.current = false;
       return;
     }
-    setLocalReady(await libraryIsReady(serverId));
+    localReadyRef.current = await libraryIsReady(serverId);
   }, [serverId, indexEnabled]);
 
   useEffect(() => {
@@ -169,44 +169,45 @@ export default function LiveSearch() {
 
           const raceCtx = { epoch: gen, isStale, suppressLog: indexEnabled && !!serverId };
 
-          if (indexEnabled && serverId) {
-            const winner = await raceSearchSources(
-              [
-                {
-                  source: 'local',
-                  run: () => runLocalLiveSearch(serverId, q, raceCtx),
-                },
-                {
-                  source: 'network',
-                  run: () => runNetworkLiveSearch(q, abort.signal),
-                },
-              ],
-              isStale,
-            );
-            if (isStale()) return;
-            if (winner) {
-              setResults(winner.result);
-              setSearchSource(winner.source);
-              setOpen(true);
-              logLibrarySearch({
-                at: new Date().toISOString(),
-                query: q,
-                path: 'search_race',
-                durationMs: Math.round(performance.now() - searchT0),
-                debounceMs,
-                indexEnabled,
-                localReadyCached: localReady,
-                raceWinner: winner.source,
-                raceWinnerMs: winner.durationMs,
-                counts: {
-                  artists: winner.result.artists.length,
-                  albums: winner.result.albums.length,
-                  songs: winner.result.songs.length,
-                },
-              });
-              return;
-            }
-          } else if (serverId) {
+            if (indexEnabled && serverId) {
+              const winner = await raceSearchSources(
+                [
+                  {
+                    source: 'local',
+                    run: () => runLocalLiveSearch(serverId, q, raceCtx),
+                  },
+                  {
+                    source: 'network',
+                    run: () => runNetworkLiveSearch(q, abort.signal),
+                  },
+                ],
+                isStale,
+              );
+              if (isStale()) return;
+              if (winner) {
+                setResults(winner.result);
+                setSearchSource(winner.source);
+                setOpen(true);
+                logLibrarySearch({
+                  at: new Date().toISOString(),
+                  query: q,
+                  path: 'search_race',
+                  durationMs: Math.round(performance.now() - searchT0),
+                  debounceMs,
+                  indexEnabled,
+                  localReadyCached: localReadyRef.current,
+                  raceWinner: winner.source,
+                  raceWinnerMs: winner.durationMs,
+                  counts: {
+                    artists: winner.result.artists.length,
+                    albums: winner.result.albums.length,
+                    songs: winner.result.songs.length,
+                  },
+                });
+                return;
+              }
+              showToast(t('search.liveSearchFailed'), 3200, 'error');
+            } else if (serverId) {
             const network = await runNetworkLiveSearch(q, abort.signal);
             if (isStale()) return;
             if (network) {
@@ -232,6 +233,7 @@ export default function LiveSearch() {
           if (isStale()) return;
           const name = err instanceof Error ? err.name : '';
           if (name === 'CanceledError' || name === 'AbortError') return;
+          showToast(t('search.liveSearchFailed'), 3200, 'error');
         } finally {
           if (!isStale()) setLoading(false);
         }
@@ -243,7 +245,7 @@ export default function LiveSearch() {
       abort.abort();
       liveSearchGenRef.current += 1;
     };
-  }, [query, share.shareMatch, localReady, serverId, indexEnabled, musicLibraryFilterVersion]);
+  }, [query, share.shareMatch, serverId, indexEnabled, musicLibraryFilterVersion, t]);
 
   const isSearchActive = isFocused || open || query.trim().length > 0;
 

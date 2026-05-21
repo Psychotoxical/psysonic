@@ -50,9 +50,20 @@ impl Backoff {
     }
 }
 
+/// Salt for production jitter: attempt plus sub-second clock noise so
+/// concurrent retries don't share the same jitter slot.
+pub fn jitter_salt(attempt: u32) -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos() as u64)
+        .unwrap_or(0);
+    u64::from(attempt).saturating_add(nanos)
+}
+
 /// Add ±25% jitter to a planned sleep — deterministic per `salt` so
 /// tests can pin the result without pulling in `rand`. Production
-/// code passes `attempt + nanos` as the salt; tests pass a fixed
+/// code passes `jitter_salt(attempt)` as the salt; tests pass a fixed
 /// value to assert the formula.
 pub fn with_jitter(base: Duration, salt: u64) -> Duration {
     let millis = base.as_millis().min(u128::from(u64::MAX)) as u64;

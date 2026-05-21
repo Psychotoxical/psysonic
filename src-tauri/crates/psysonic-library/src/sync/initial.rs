@@ -16,7 +16,7 @@ use psysonic_integration::navidrome::queries::nd_list_songs_internal;
 use psysonic_integration::subsonic::SubsonicClient;
 use serde_json::Value;
 
-use super::backoff::{with_jitter, Backoff};
+use super::backoff::{jitter_salt, with_jitter, Backoff};
 use super::bandwidth::ParallelismBudget;
 use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::cursor::{CursorPhase, InitialSyncCursor, StrategyState};
@@ -691,8 +691,7 @@ impl<'a> InitialSyncRunner<'a> {
     /// at or beyond the safety line (R7-15 Q5). A 500 at a shallow offset is
     /// a different failure and propagates as an error instead.
     fn n1_hit_deep_offset_wall(&self, e: &SyncError, offset: u32) -> bool {
-        offset >= self.n1_deep_offset_safe
-            && matches!(e, SyncError::Navidrome(m) if m.contains("HTTP 500"))
+        offset >= self.n1_deep_offset_safe && e.navidrome_http_status() == Some(500)
     }
 
     /// R7-15 Q5 — one-way N1→S1 fallback. Learn `n1_bulk_unreliable` for this
@@ -1043,16 +1042,21 @@ impl<'a> InitialSyncRunner<'a> {
             }
 
             let mut album_ids: Vec<String> = Vec::with_capacity(albums.len());
-            let mut skipping = resume_from.is_some();
-            for album_summary in &albums {
-                if skipping {
-                    if resume_from.as_deref() == Some(album_summary.id.as_str()) {
-                        skipping = false;
-                    } else {
+            if let Some(ref resume_after) = resume_from {
+                let mut past_resume = false;
+                for album_summary in &albums {
+                    if !past_resume {
+                        if resume_after == &album_summary.id {
+                            past_resume = true;
+                        }
                         continue;
                     }
+                    album_ids.push(album_summary.id.clone());
                 }
-                album_ids.push(album_summary.id.clone());
+            } else {
+                for album_summary in &albums {
+                    album_ids.push(album_summary.id.clone());
+                }
             }
             resume_from = None;
 
@@ -1101,6 +1105,12 @@ impl<'a> InitialSyncRunner<'a> {
                         metrics: None,
                     });
                 }
+                cursor.strategy_state = StrategyState::AlbumCrawl {
+                    album_offset,
+                    current_album_id: Some(album.id.clone()),
+                };
+                cursor.ingested_count = report.ingested_count;
+                self.persist_cursor(sync_state, cursor)?;
             }
 
             album_offset = album_offset.saturating_add(self.batch_size);
@@ -1204,7 +1214,7 @@ where
                     return Err(mapped);
                 }
                 let delay = backoff.next_delay();
-                let jittered = with_jitter(delay, attempt as u64);
+                let jittered = with_jitter(delay, jitter_salt(attempt));
                 runner.sleep(jittered).await;
             }
         }

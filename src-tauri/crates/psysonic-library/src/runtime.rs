@@ -11,6 +11,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use tokio::sync::Notify;
+
 use crate::store::LibraryStore;
 use crate::sync::bandwidth::PlaybackHint;
 
@@ -43,6 +45,8 @@ pub struct CurrentJob {
     /// `"initial_sync"` or `"delta_sync"`.
     pub kind: String,
     pub cancel: Arc<AtomicBool>,
+    /// Signaled when this job's runner task finishes (success, error, or cancel).
+    pub done: Arc<Notify>,
 }
 
 pub struct LibraryRuntime {

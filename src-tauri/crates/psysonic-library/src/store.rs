@@ -8,7 +8,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 4;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 5;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -27,6 +27,8 @@ const MIGRATION_003_TRACK_REMAP_INDEXES: &str =
     include_str!("../migrations/003_track_remap_indexes.sql");
 const MIGRATION_004_TRACK_TITLE_INDEX: &str =
     include_str!("../migrations/004_track_title_index.sql");
+const MIGRATION_005_TRACK_GENRE_YEAR_INDEXES: &str =
+    include_str!("../migrations/005_track_genre_year_indexes.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -35,6 +37,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (2, MIGRATION_002_N1_BULK_UNRELIABLE),
     (3, MIGRATION_003_TRACK_REMAP_INDEXES),
     (4, MIGRATION_004_TRACK_TITLE_INDEX),
+    (5, MIGRATION_005_TRACK_GENRE_YEAR_INDEXES),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
