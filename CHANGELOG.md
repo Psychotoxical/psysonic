@@ -58,6 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Library browse — local index race and catalog paths
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#847](https://github.com/Psychotoxical/psysonic/pull/847)**
+
+* **Artists**, **Composers**, **Tracks**, and **Search Results** text search races local FTS against network search3; a ready index still serves hits when remote is down.
+* **All Albums** paginated browse and genre filter, plus **Artists** catalog browse-all, read from the local index when ready (network fallback unchanged).
+* DevTools: `[psysonic][library] browse-race …` lines for race winner, timings, hit counts, and fallback reason.
+
+
+
 ### Settings + Queue polish
 
 **By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**

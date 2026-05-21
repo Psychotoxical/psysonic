@@ -123,6 +123,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Lucky Mix: hand off queue to browsed server after multi-server switch (PR #785)',
       'Home album rails: stable play/enqueue hover on WebKitGTK/Wayland (PR #787)',
       'Local library index: multi-server settings UI, serial sync queue, music-library-scoped local search, parallel initial ingest, i18n across 9 locales (PR #846)',
+      'Library browse: local-vs-network text search race, All Albums/Artists catalog from index, DevTools browse-race logging (PR #847)',
     ],
   },
   {
