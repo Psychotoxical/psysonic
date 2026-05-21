@@ -1,22 +1,20 @@
-import React from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import FavoriteSongRow, { type FavoriteSongRowCallbacks } from './FavoriteSongRow';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import {
-  AudioLines, Check, ChevronDown, ChevronRight, Play, RotateCcw,
-  Square, X,
-} from 'lucide-react';
+import { Check, ChevronDown, RotateCcw } from 'lucide-react';
 import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useSelectionStore } from '../../store/selectionStore';
+import { useThemeStore } from '../../store/themeStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
-import { formatTrackTime } from '../../utils/format/formatDuration';
-import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
-import i18n from '../../i18n';
-import StarRating from '../StarRating';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
+import { useElementClientHeightById } from '../../hooks/useResizeClientHeight';
 
 const SORTABLE_COLUMNS = new Set(['title', 'artist', 'album', 'rating', 'duration', 'playCount', 'lastPlayed', 'bpm']);
 
@@ -61,8 +59,113 @@ export default function FavoritesSongsTracklist({
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
+  const showBitrate = useThemeStore(s => s.showBitrate);
   const psyDrag = useDragDrop();
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
+
+  const visibleTracks = useMemo(() => visibleSongs.map(songToTrack), [visibleSongs]);
+
+  const latestVals = {
+    visibleSongs, visibleTracks, selectedIds, inSelectMode, orbitActive,
+    toggleSelect, handleRate, removeSong, playTrack, openContextMenu,
+    navigate, queueHint, addTrackToOrbit, psyDrag,
+  };
+  const latest = useRef(latestVals);
+  latest.current = latestVals;
+
+  const cb = useMemo<FavoriteSongRowCallbacks>(() => ({
+    activate: (song, index, e) => {
+      if ((e.target as HTMLElement).closest('button, a, input')) return;
+      const L = latest.current;
+      if (e.ctrlKey || e.metaKey) L.toggleSelect(song.id, index, false);
+      else if (L.inSelectMode) L.toggleSelect(song.id, index, e.shiftKey);
+      else if (L.orbitActive) L.queueHint();
+      else L.playTrack(L.visibleTracks[index], L.visibleTracks);
+    },
+    dblOrbit: (songId, e) => {
+      if ((e.target as HTMLElement).closest('button, a, input')) return;
+      const L = latest.current;
+      if (e.ctrlKey || e.metaKey || L.inSelectMode) return;
+      L.addTrackToOrbit(songId);
+    },
+    context: (song, e) => {
+      e.preventDefault();
+      latest.current.openContextMenu(e.clientX, e.clientY, songToTrack(song), 'favorite-song');
+    },
+    mouseDownRow: (song, e) => {
+      if (e.button !== 0) return;
+      if ((e.target as HTMLElement).closest('button, a, input')) return;
+      e.preventDefault();
+      const sx = e.clientX, sy = e.clientY;
+      const track = songToTrack(song);
+      const onMove = (me: MouseEvent) => {
+        if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          const L = latest.current;
+          const { selectedIds: selIds } = useSelectionStore.getState();
+          if (selIds.has(song.id) && selIds.size > 1) {
+            const bulkTracks = L.visibleSongs.filter(s => selIds.has(s.id)).map(songToTrack);
+            L.psyDrag.startDrag({ data: JSON.stringify({ type: 'songs', tracks: bulkTracks }), label: `${bulkTracks.length} Songs` }, me.clientX, me.clientY);
+          } else {
+            L.psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
+          }
+        }
+      };
+      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+    toggleSelect: (songId, index, shift) => latest.current.toggleSelect(songId, index, shift),
+    play: (index) => {
+      const L = latest.current;
+      if (L.orbitActive) { L.queueHint(); return; }
+      L.playTrack(L.visibleTracks[index], L.visibleTracks);
+    },
+    startPreview: (song) => usePreviewStore.getState().startPreview(
+      { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration },
+      'favorites',
+    ),
+    rate: (songId, r) => latest.current.handleRate(songId, r),
+    remove: (songId) => latest.current.removeSong(songId),
+    navArtist: (artistId) => latest.current.navigate(`/artist/${artistId}`),
+    navAlbum: (albumId) => latest.current.navigate(`/album/${albumId}`),
+  }), []);
+
+  const listWrapRef = useRef<HTMLDivElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const viewportH = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
+
+  useLayoutEffect(() => {
+    const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    // scrollMargin must track height changes in sections above the list (filters, top artists).
+    // Intentionally coupled to the Favorites page shell class — keep in sync with that layout.
+    const root = tracklistRef.current?.closest('.content-body') as HTMLElement | null;
+    if (!sc) return;
+    const measure = () => {
+      const wrap = listWrapRef.current;
+      if (!wrap) return;
+      const m = wrap.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+      setScrollMargin(prev => (Math.abs(prev - m) > 0.5 ? m : prev));
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(sc);
+    if (root) ro.observe(root);
+    measure();
+    return () => ro.disconnect();
+  // selectedIds.size > 0 (boolean): bulk bar show/hide shifts listWrapRef top — remeasure on that edge only.
+  }, [tracklistRef, selectedIds.size > 0, pickerOpen, visibleSongs.length]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: visibleSongs.length,
+    getScrollElement: () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),
+    estimateSize: () => 48,
+    overscan: Math.max(8, Math.ceil(viewportH / 48)),
+    scrollMargin,
+    getItemKey: i => `${visibleSongs[i].id}:${i}`,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
     <div className="tracklist" data-preview-loc="favorites" style={{ padding: 0 }} ref={tracklistRef} onClick={e => {
@@ -178,178 +281,38 @@ export default function FavoritesSongsTracklist({
           })}
         </div>
       </div>
-      {visibleSongs.map((song, i) => {
-        const track = songToTrack(song);
-        const isSelected = selectedIds.has(song.id);
-        return (
-          <div
-            key={song.id}
-            className={`track-row track-row-va track-row-with-actions${currentTrack?.id === song.id ? ' active' : ''}${isSelected ? ' bulk-selected' : ''}`}
-            style={gridStyle}
-            onClick={e => {
-              if ((e.target as HTMLElement).closest('button, a, input')) return;
-              if (e.ctrlKey || e.metaKey) {
-                toggleSelect(song.id, i, false);
-              } else if (inSelectMode) {
-                toggleSelect(song.id, i, e.shiftKey);
-              } else if (orbitActive) {
-                queueHint();
-              } else {
-                playTrack(track, visibleSongs.map(songToTrack));
-              }
-            }}
-            onDoubleClick={orbitActive ? e => {
-              if ((e.target as HTMLElement).closest('button, a, input')) return;
-              if (e.ctrlKey || e.metaKey || inSelectMode) return;
-              addTrackToOrbit(song.id);
-            } : undefined}
-            onContextMenu={e => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, track, 'favorite-song'); }}
-            role="row"
-            onMouseDown={e => {
-              if (e.button !== 0) return;
-              e.preventDefault();
-              const sx = e.clientX, sy = e.clientY;
-              const onMove = (me: MouseEvent) => {
-                if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
-                  document.removeEventListener('mousemove', onMove);
-                  document.removeEventListener('mouseup', onUp);
-                  const { selectedIds: selIds } = useSelectionStore.getState();
-                  if (selIds.has(song.id) && selIds.size > 1) {
-                    const bulkTracks = visibleSongs.filter(s => selIds.has(s.id)).map(songToTrack);
-                    psyDrag.startDrag({ data: JSON.stringify({ type: 'songs', tracks: bulkTracks }), label: `${bulkTracks.length} Songs` }, me.clientX, me.clientY);
-                  } else {
-                    psyDrag.startDrag({ data: JSON.stringify({ type: 'song', track }), label: song.title }, me.clientX, me.clientY);
-                  }
-                }
-              };
-              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-              document.addEventListener('mousemove', onMove);
-              document.addEventListener('mouseup', onUp);
-            }}
-          >
-            {visibleCols.map(colDef => {
-              switch (colDef.key) {
-                case 'num': return (
-                  <div key="num" className={`track-num${currentTrack?.id === song.id ? ' track-num-active' : ''}`}>
-                    <span className={`bulk-check${isSelected ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`} onClick={e => { e.stopPropagation(); toggleSelect(song.id, i, e.shiftKey); }} />
-                    {currentTrack?.id === song.id && isPlaying ? (
-                      <span className="track-num-eq"><AudioLines className="eq-bars" size={14} /></span>
-                    ) : (
-                      <span className="track-num-number">{i + 1}</span>
-                    )}
-                  </div>
-                );
-                case 'title': return (
-                  <div key="title" className="track-info track-info-suggestion">
-                    <button
-                      type="button"
-                      className="playlist-suggestion-play-btn"
-                      onClick={e => { e.stopPropagation(); if (orbitActive) { queueHint(); return; } playTrack(track, visibleSongs.map(songToTrack)); }}
-                      data-tooltip={t('common.play')}
-                      aria-label={t('common.play')}
-                    >
-                      <Play size={10} fill="currentColor" strokeWidth={0} className="playlist-suggestion-play-icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
-                      onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'favorites'); }}
-                      data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                      aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
-                    >
-                      <svg className="playlist-suggestion-preview-ring" viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-track" />
-                        <circle cx="12" cy="12" r="10.5" className="playlist-suggestion-preview-ring-progress" />
-                      </svg>
-                      {previewingId === song.id
-                        ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
-                        : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
-                    </button>
-                    <span className="track-title">{song.title}</span>
-                  </div>
-                );
-                case 'artist': return (
-                  <div key="artist" className="track-artist-cell">
-                    <span
-                      className={`track-artist${song.artistId ? ' track-artist-link' : ''}`}
-                      style={{ cursor: song.artistId ? 'pointer' : 'default' }}
-                      onClick={(e) => {
-                        if (!song.artistId) return;
-                        e.stopPropagation();
-                        navigate(`/artist/${song.artistId}`);
-                      }}
-                    >
-                      {song.artist}
-                    </span>
-                  </div>
-                );
-                case 'album': return (
-                  <div key="album" className="track-artist-cell">
-                    {song.albumId ? (
-                      <span
-                        className="track-artist track-artist-link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/album/${song.albumId}`);
-                        }}
-                      >
-                        {song.album}
-                      </span>
-                    ) : (
-                      <span className="track-artist">{song.album}</span>
-                    )}
-                  </div>
-                );
-                case 'genre': return (
-                  <div key="genre" className="track-genre">
-                    {song.genre ?? '—'}
-                  </div>
-                );
-                case 'format': return (
-                  <div key="format" className="track-meta">
-                    {(song.suffix || song.bitRate) && (
-                      <span className="track-codec">
-                        {song.suffix?.toUpperCase()}
-                        {song.suffix && song.bitRate && ' · '}
-                        {song.bitRate && `${song.bitRate} kbps`}
-                      </span>
-                    )}
-                  </div>
-                );
-                case 'rating': return (
-                  <StarRating
-                    key="rating"
-                    value={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0}
-                    onChange={r => handleRate(song.id, r)}
-                  />
-                );
-                case 'duration': return (
-                  <div key="duration" className="track-duration">
-                    {formatTrackTime(song.duration)}
-                  </div>
-                );
-                case 'playCount': return (
-                  <div key="playCount" className="track-duration">{song.playCount ?? '—'}</div>
-                );
-                case 'lastPlayed': return (
-                  <div key="lastPlayed" className="track-genre">{song.played ? formatLastSeen(song.played, i18n.language, '—') : '—'}</div>
-                );
-                case 'bpm': return (
-                  <div key="bpm" className="track-duration">{song.bpm && song.bpm > 0 ? song.bpm : '—'}</div>
-                );
-                case 'remove': return (
-                  <div key="remove" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <button className="btn-icon fav-remove-btn" data-tooltip={t('favorites.removeSong')} onClick={e => { e.stopPropagation(); removeSong(song.id); }} aria-label={t('favorites.removeSong')}>
-                      <X size={14} />
-                    </button>
-                  </div>
-                );
-                default: return null;
-              }
-            })}
-          </div>
-        );
-      })}
+
+      <div ref={listWrapRef} style={{ height: rowVirtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+        {virtualItems.map(vi => {
+          const song = visibleSongs[vi.index];
+          const i = vi.index;
+          return (
+            <div
+              key={vi.key}
+              data-index={i}
+              ref={rowVirtualizer.measureElement}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start - scrollMargin}px)` }}
+            >
+              <FavoriteSongRow
+                song={song}
+                index={i}
+                visibleCols={visibleCols}
+                gridStyle={gridStyle}
+                showBitrate={showBitrate}
+                isActive={currentTrack?.id === song.id}
+                showEq={currentTrack?.id === song.id && isPlaying}
+                isSelected={selectedIds.has(song.id)}
+                inSelectMode={inSelectMode}
+                ratingValue={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0}
+                isPreviewing={previewingId === song.id}
+                previewStarted={previewingId === song.id && previewAudioStarted}
+                orbitActive={orbitActive}
+                cb={cb}
+              />
+            </div>
+          );
+        })}
+      </div>
 
       {/* Empty state when filters return no results */}
       {visibleSongs.length === 0 && hasFilters && (

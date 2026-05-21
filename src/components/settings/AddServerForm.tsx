@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff } from 'lucide-react';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { showToast } from '../../utils/ui/toast';
 import {
@@ -30,12 +29,10 @@ export function AddServerForm({
       : { name: '', url: '', username: '', password: '' },
   );
   const [magicString, setMagicString] = useState('');
-  const [showPass, setShowPass] = useState(false);
   const [blockPasswordReveal, setBlockPasswordReveal] = useState(false);
 
   useEffect(() => {
     if (!initialInvite) return;
-    setShowPass(false);
     setBlockPasswordReveal(true);
     setForm({
       name: (initialInvite.name && initialInvite.name.trim()) || shortHostFromServerUrl(initialInvite.url),
@@ -55,7 +52,6 @@ export function AddServerForm({
     const trimmed = v.trim();
     const decoded = decodeServerMagicString(trimmed);
     if (decoded) {
-      setShowPass(false);
       setBlockPasswordReveal(true);
       setForm({
         name: (decoded.name && decoded.name.trim()) || shortHostFromServerUrl(decoded.url),
@@ -135,23 +131,13 @@ export function AddServerForm({
               style={{ letterSpacing: '0.12em', cursor: 'default' }}
             />
           ) : (
-            <div style={{ position: 'relative' }}>
-              <input
-                className="input"
-                type={showPass ? 'text' : 'password'}
-                value={form.password}
-                onChange={update('password')}
-                placeholder="••••••••"
-                style={{ paddingRight: '2.5rem' }}
-              />
-              <button
-                type="button"
-                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
-                onClick={() => setShowPass(v => !v)}
-              >
-                {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
+            <input
+              className="input"
+              type="password"
+              value={form.password}
+              onChange={update('password')}
+              placeholder="••••••••"
+            />
           )}
         </div>
       </div>

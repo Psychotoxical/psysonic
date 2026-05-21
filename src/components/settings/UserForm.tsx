@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, Shield, Wand2 } from 'lucide-react';
+import { Shield, Wand2 } from 'lucide-react';
 import { ndUpdateUser, type NdLibrary, type NdUser } from '../../api/navidromeAdmin';
 import { showToast } from '../../utils/ui/toast';
 import {
@@ -54,7 +54,6 @@ export function UserForm({
 }) {
   const { t } = useTranslation();
   const [form, setForm] = useState<UserFormState>(() => initialUserFormState(initial ?? undefined, libraries));
-  const [showPass, setShowPass] = useState(false);
   const [magicGenBusy, setMagicGenBusy] = useState(false);
   const [showNewUserRequiredErrors, setShowNewUserRequiredErrors] = useState(false);
   const isEdit = !!initial;
@@ -206,28 +205,16 @@ export function UserForm({
           {t('settings.userMgmtPassword')}
           {!isEdit && <span style={{ color: 'var(--text-muted)' }}> *</span>}
         </label>
-        <div style={{ position: 'relative' }}>
-          <input
-            className="input"
-            type={showPass ? 'text' : 'password'}
-            value={form.password}
-            onChange={e => set('password', e.target.value)}
-            placeholder="••••••••"
-            autoComplete="new-password"
-            aria-invalid={markInvalid && !form.password.trim()}
-            style={{
-              paddingRight: '2.5rem',
-              ...(markInvalid && !form.password.trim() ? { borderColor: 'var(--danger)' } : {}),
-            }}
-          />
-          <button
-            type="button"
-            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
-            onClick={() => setShowPass(v => !v)}
-          >
-            {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-        </div>
+        <input
+          className="input"
+          type="password"
+          value={form.password}
+          onChange={e => set('password', e.target.value)}
+          placeholder="••••••••"
+          autoComplete="new-password"
+          aria-invalid={markInvalid && !form.password.trim()}
+          style={markInvalid && !form.password.trim() ? { borderColor: 'var(--danger)' } : undefined}
+        />
         {isEdit && (
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {t('settings.userMgmtPasswordEditHint')}

@@ -218,6 +218,7 @@ const CONTRIBUTOR_ENTRIES = [
     contributions: [
       'Player: cap persisted queue to ±250-track window — fixes QuotaExceededError on large playlists (PR #756)',
       'Playlists: virtualized tracklist for large playlists — no UI freeze on 10k+ tracks (PR #755)',
+      'Favorites: virtualized songs tracklist for large starred collections (PR #805)',
     ],
   },
   {

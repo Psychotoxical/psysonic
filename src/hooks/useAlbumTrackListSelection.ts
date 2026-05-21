@@ -20,7 +20,8 @@ interface UseAlbumTrackListSelectionResult {
 /**
  * Bulk selection + drag wiring for `AlbumTrackList`:
  *  - Clears selection whenever the song list changes (album switch or
- *    filter applied) and on mousedown outside the tracklist.
+ *    filter applied) and on mousedown outside the tracklist — but not when
+ *    the click lands on the bulk-action toolbar, which belongs to the selection.
  *  - `onToggleSelect` supports shift-click ranges anchored against the
  *    last toggled row.
  *  - `onDragStart` promotes a single-row drag into a multi-row drag when
@@ -48,9 +49,14 @@ export function useAlbumTrackListSelection({
   useEffect(() => {
     if (!inSelectMode) return;
     const handler = (e: MouseEvent) => {
-      if (tracklistRef.current && !tracklistRef.current.contains(e.target as Node)) {
-        useSelectionStore.getState().clearAll();
-      }
+      const target = e.target as HTMLElement;
+      if (!tracklistRef.current || tracklistRef.current.contains(target)) return;
+      // The bulk-action toolbar (filter, add-to-playlist picker, clear button)
+      // renders outside the tracklist DOM but belongs to the selection — a
+      // mousedown there must not wipe the selection before the button's own
+      // click handler runs (otherwise "Add to playlist" clears and never opens).
+      if (target.closest('.album-track-toolbar')) return;
+      useSelectionStore.getState().clearAll();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);

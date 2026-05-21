@@ -25,11 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Servers — scan triggers + edit existing profiles
+### Servers — edit existing profiles
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
 
-* Quick/Full Scan buttons on each server card and in the switcher dropdown (Full needs a two-step confirm).
 * Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
 
 
@@ -82,6 +81,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#785](https://github.com/Psychotoxical/psysonic/pull/785)**
 
 * **Lucky Mix after server switch:** starting a mix on the browsed server no longer spams cross-server enqueue errors — unpinned or foreign queues hand off cleanly before batch enqueue.
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#844](https://github.com/Psychotoxical/psysonic/pull/844)**
+
+* **Album view:** bulk "Add to playlist" no longer clears the track selection without opening the playlist picker.
 
 
 
@@ -359,6 +362,14 @@ Foundational work: faster reviews, narrower diffs, and a safety net under the pa
 * Opening a very large playlist (10 000+ tracks) no longer mounts every row into the DOM. The playlist tracklist is windowed with `@tanstack/react-virtual` on the shared app scroll viewport — the same convention as Artists, Composers, and the library card grids.
 * Row rendering moved into a memoized `PlaylistRow` with a stable callback bundle so virtualizer scroll updates do not re-render the full list.
 * Drag-and-drop reordering is preserved: drop-indicator overlay and edge auto-scroll during drags.
+
+### Favorites — virtualized songs tracklist for large collections
+
+**By [@artplan1](https://github.com/artplan1), PR [#805](https://github.com/Psychotoxical/psysonic/pull/805)**
+
+* Opening Favorites with 10 000+ starred songs no longer mounts every row into the DOM. The songs tracklist is windowed with `@tanstack/react-virtual` on the shared app scroll viewport — same shape as the playlist virtualization fix.
+* Row rendering moved into a memoized `FavoriteSongRow` with a stable callback bundle; `visibleTracks` is memoized once per filtered song list.
+* Drag-out, preview, orbit, context menu, bulk select, and column picker behaviour are unchanged.
 
 ## Changed
 
