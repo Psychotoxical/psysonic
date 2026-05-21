@@ -29,6 +29,11 @@ use super::state::{ChainedInfo, PreloadedTrack};
 /// cache to the track when playing `psysonic-local://` (hot/offline). Optional
 /// for HTTP streams (`playback_identity` is used as fallback).
 ///
+/// `server_id`: app id of the server that owns this track (`playbackServerId ??
+/// activeServerId` on the frontend). Scopes the analysis-cache write key so a
+/// later server switch can't surface another server's waveform for the same bare
+/// `track_id`. Empty/absent falls back to the legacy `''` scope.
+///
 /// `stream_format_suffix`: Subsonic `song.suffix` (e.g. m4a); `stream.view` URLs have no
 /// file extension, so this helps pick a Symphonia `format_hint` for ranged HTTP.
 #[tauri::command]
@@ -45,6 +50,7 @@ pub async fn audio_play(
     manual: bool, // true = user-initiated skip → bypass crossfade, start immediately
     hi_res_enabled: bool, // false = safe 44.1 kHz mode; true = native rate (alpha)
     analysis_track_id: Option<String>,
+    server_id: Option<String>,
     stream_format_suffix: Option<String>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
@@ -134,6 +140,11 @@ pub async fn audio_play(
         .filter(|s| !s.is_empty());
     *state.current_analysis_track_id.lock().unwrap() = logical_trim.clone();
     let cache_id_for_tasks = analysis_cache_track_id(logical_trim.as_deref(), &url);
+    // Playback server scope for the analysis-cache write key (empty → legacy '').
+    let analysis_server_id = server_id.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    // Pin it so the gain-resolution + replay-gain-update + device-resume reads
+    // scope to this server too (mirrors `current_analysis_track_id`).
+    *state.current_playback_server_id.lock().unwrap() = analysis_server_id.map(str::to_string);
 
     let format_hint = url_format_hint(&url);
 
@@ -145,6 +156,7 @@ pub async fn audio_play(
             stream_format_suffix: stream_format_suffix.as_deref(),
             format_hint: format_hint.as_deref(),
             cache_id_for_tasks: cache_id_for_tasks.as_deref(),
+            server_id: analysis_server_id,
             reuse_chained_bytes,
         },
         &state,
@@ -239,6 +251,7 @@ pub async fn audio_play(
             url: &url,
             gen,
             cache_id_for_tasks: cache_id_for_tasks.as_deref(),
+            server_id: analysis_server_id,
             url_format_hint: format_hint.as_deref(),
             stream_format_suffix: stream_format_suffix.as_deref(),
             done_flag: done_flag.clone(),

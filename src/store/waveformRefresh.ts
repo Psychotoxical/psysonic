@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { coerceWaveformBins } from '../utils/waveform/waveformParse';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { usePlayerStore } from './playerStore';
 import { getWaveformRefreshGen } from './waveformRefreshGen';
 
@@ -25,7 +26,10 @@ export async function refreshWaveformForTrack(trackId: string): Promise<void> {
   if (!trackId) return;
   const gen = getWaveformRefreshGen(trackId);
   try {
-    const row = await invoke<WaveformCachePayload | null>('analysis_get_waveform_for_track', { trackId });
+    const row = await invoke<WaveformCachePayload | null>('analysis_get_waveform_for_track', {
+      trackId,
+      serverId: getPlaybackServerId() || null,
+    });
     if (getWaveformRefreshGen(trackId) !== gen) return;
     // Never apply bins for a non-current track (e.g. gapless byte-preload fetches the neighbour).
     if (usePlayerStore.getState().currentTrack?.id !== trackId) return;

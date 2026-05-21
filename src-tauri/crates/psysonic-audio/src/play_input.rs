@@ -54,6 +54,9 @@ pub(super) struct PlayInputContext<'a> {
     pub stream_format_suffix: Option<&'a str>,
     pub format_hint: Option<&'a str>,
     pub cache_id_for_tasks: Option<&'a str>,
+    /// Playback server scope for the analysis-cache write key (empty/`None` →
+    /// legacy `''`). Rides alongside `cache_id_for_tasks` into every seed path.
+    pub server_id: Option<&'a str>,
     /// `Some(bytes)` when manual-skip onto a pre-chained track reuses bytes
     /// from the chained-info block.
     pub reuse_chained_bytes: Option<Vec<u8>>,
@@ -76,6 +79,7 @@ pub(super) async fn select_play_input(
     if let Some(d) = ctx.reuse_chained_bytes {
         spawn_analysis_seed_from_in_memory_bytes(
             app,
+            ctx.server_id,
             ctx.cache_id_for_tasks,
             ctx.gen,
             &state.generation,
@@ -112,6 +116,7 @@ pub(super) async fn select_play_input(
     };
     spawn_analysis_seed_from_in_memory_bytes(
         app,
+        ctx.server_id,
         ctx.cache_id_for_tasks,
         ctx.gen,
         &state.generation,
@@ -143,7 +148,10 @@ fn open_local_file_input(
     if let Some(seed_id) = ctx.cache_id_for_tasks {
         let skip_cpu_seed = app
             .try_state::<psysonic_analysis::analysis_cache::AnalysisCache>()
-            .map(|c| c.cpu_seed_redundant_for_track(seed_id).unwrap_or(false))
+            .map(|c| {
+                c.cpu_seed_redundant_for_track(ctx.server_id.unwrap_or(""), seed_id)
+                    .unwrap_or(false)
+            })
             .unwrap_or(false);
         if !skip_cpu_seed {
             let path_owned = std::path::PathBuf::from(path);
@@ -151,6 +159,7 @@ fn open_local_file_input(
             let gen_seed = ctx.gen;
             let gen_arc_seed = state.generation.clone();
             let seed_id = seed_id.to_string();
+            let seed_server = ctx.server_id.unwrap_or("").to_string();
             tokio::spawn(async move {
                 if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
                     return;
@@ -178,7 +187,7 @@ fn open_local_file_input(
                 );
                 let high = crate::engine::analysis_seed_high_priority_for_track(&app_seed, &seed_id);
                 if let Err(e) =
-                    psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app_seed.clone(), seed_id.clone(), data, high).await
+                    psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app_seed.clone(), seed_server.clone(), seed_id.clone(), data, high).await
                 {
                     crate::app_eprintln!(
                         "[analysis] local-file seed failed for {}: {}",
@@ -316,6 +325,7 @@ async fn open_ranged_or_streaming_input(
             state.normalization_target_lufs.clone(),
             state.loudness_pre_analysis_attenuation_db.clone(),
             ctx.cache_id_for_tasks.map(|s| s.to_string()),
+            ctx.server_id.map(|s| s.to_string()),
             loudness_hold_for_defer,
             playback_armed,
             stream_hint.clone(),
@@ -369,6 +379,7 @@ async fn open_ranged_or_streaming_input(
         state.normalization_target_lufs.clone(),
         state.loudness_pre_analysis_attenuation_db.clone(),
         ctx.cache_id_for_tasks.map(|s| s.to_string()),
+        ctx.server_id.map(|s| s.to_string()),
         playback_armed,
     ));
 
@@ -459,6 +470,7 @@ pub(crate) struct BuildSourceArgs<'a> {
     pub url: &'a str,
     pub gen: u64,
     pub cache_id_for_tasks: Option<&'a str>,
+    pub server_id: Option<&'a str>,
     pub url_format_hint: Option<&'a str>,
     pub stream_format_suffix: Option<&'a str>,
     pub done_flag: Arc<AtomicBool>,
@@ -686,6 +698,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
         url,
         gen,
         cache_id_for_tasks,
+        server_id,
         url_format_hint,
         stream_format_suffix,
         done_flag,
@@ -751,6 +764,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
             }
             spawn_analysis_seed_from_in_memory_bytes(
                 app,
+                server_id,
                 cache_id_for_tasks,
                 gen,
                 &state.generation,

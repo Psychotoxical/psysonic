@@ -298,6 +298,7 @@ export function runPlayTrack(
       manual,
       hiResEnabled: authStateNow.enableHiRes,
       analysisTrackId: track.id,
+      serverId: getPlaybackServerId() || null,
       streamFormatSuffix: track.suffix ?? null,
     })
       .then(() => {

@@ -326,12 +326,14 @@ pub(crate) fn resolve_loudness_gain_from_cache(
     url: &str,
     target_lufs: f32,
     logical_track_id: Option<&str>,
+    server_id: &str,
 ) -> Option<f32> {
     resolve_loudness_gain_from_cache_impl(
         app,
         url,
         target_lufs,
         logical_track_id,
+        server_id,
         ResolveLoudnessCacheOpts::default(),
     )
 }
@@ -341,6 +343,7 @@ pub(crate) fn resolve_loudness_gain_from_cache_impl(
     url: &str,
     target_lufs: f32,
     logical_track_id: Option<&str>,
+    server_id: &str,
     opts: ResolveLoudnessCacheOpts,
 ) -> Option<f32> {
     // Only a SQLite loudness row counts here. Ephemeral JS hints (`analysis:loudness-partial`)
@@ -363,7 +366,7 @@ pub(crate) fn resolve_loudness_gain_from_cache_impl(
         }
         return None;
     };
-    resolve_loudness_gain_with_cache(cache.inner(), &track_id, target_lufs, opts)
+    resolve_loudness_gain_with_cache(cache.inner(), server_id, &track_id, target_lufs, opts)
 }
 
 /// AppHandle-free core of [`resolve_loudness_gain_from_cache_impl`]. Looks up
@@ -376,15 +379,16 @@ pub(crate) fn resolve_loudness_gain_from_cache_impl(
 /// connection's row cache is warm for the next IPC tick.
 pub(crate) fn resolve_loudness_gain_with_cache(
     cache: &psysonic_analysis::analysis_cache::AnalysisCache,
+    server_id: &str,
     track_id: &str,
     target_lufs: f32,
     opts: ResolveLoudnessCacheOpts,
 ) -> Option<f32> {
     if opts.touch_waveform {
         // Bind / preload: verify waveform context exists alongside loudness lookup.
-        let _ = cache.get_latest_waveform_for_track(track_id);
+        let _ = cache.get_latest_waveform_for_track(server_id, track_id);
     }
-    match cache.get_latest_loudness_for_track(track_id) {
+    match cache.get_latest_loudness_for_track(server_id, track_id) {
         Ok(Some(row)) if row.integrated_lufs.is_finite() => {
             let recommended = psysonic_analysis::analysis_cache::recommended_gain_for_target(
                 row.integrated_lufs,
@@ -493,6 +497,17 @@ pub(crate) struct TrackGainInputs {
 /// Read engine state + resolve the loudness cache for a track that's about to
 /// start playing. JS-supplied `loudness_gain_db` is **not** consulted at bind
 /// time (only post-cache via `audio_update_replay_gain`).
+/// Current playback server scope (`current_playback_server_id`, empty when
+/// unset) for scoping analysis-cache reads on the gain-resolution path.
+pub(crate) fn current_playback_server_id_str(state: &AudioEngine) -> String {
+    state
+        .current_playback_server_id
+        .lock()
+        .ok()
+        .and_then(|g| (*g).clone())
+        .unwrap_or_default()
+}
+
 pub(crate) fn resolve_track_gain_inputs(
     state: &AudioEngine,
     app: &AppHandle,
@@ -503,7 +518,9 @@ pub(crate) fn resolve_track_gain_inputs(
     let target_lufs = f32::from_bits(state.normalization_target_lufs.load(Ordering::Relaxed));
     let norm_mode = state.normalization_engine.load(Ordering::Relaxed);
     let pre_analysis_db = loudness_pre_analysis_db_for_engine(state);
-    let cache_loudness_db = resolve_loudness_gain_from_cache(app, url, target_lufs, logical_track_id);
+    let server_id = current_playback_server_id_str(state);
+    let cache_loudness_db =
+        resolve_loudness_gain_from_cache(app, url, target_lufs, logical_track_id, &server_id);
     let effective_loudness_db = if norm_mode == 2 {
         loudness_gain_db_after_resolve(
             cache_loudness_db,
@@ -736,6 +753,7 @@ pub(crate) async fn fetch_data(
 /// loudness SQLite can fill **offline** without `analysis_enqueue_seed_from_url` HTTP.
 pub(crate) fn spawn_analysis_seed_from_in_memory_bytes(
     app: &AppHandle,
+    server_id: Option<&str>,
     cache_track_id: Option<&str>,
     gen: u64,
     gen_arc: &Arc<AtomicU64>,
@@ -748,6 +766,7 @@ pub(crate) fn spawn_analysis_seed_from_in_memory_bytes(
         return;
     }
     let track_id = track_id.to_string();
+    let server_id = server_id.unwrap_or("").to_string();
     let bytes = bytes.to_vec();
     let app = app.clone();
     let gen_arc = gen_arc.clone();
@@ -761,7 +780,7 @@ pub(crate) fn spawn_analysis_seed_from_in_memory_bytes(
         if gen_arc.load(Ordering::SeqCst) != gen {
             return;
         }
-        if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), track_id.clone(), bytes, high).await {
+        if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), server_id, track_id.clone(), bytes, high).await {
             crate::app_eprintln!(
                 "[analysis] in-memory play path seed failed for {}: {}",
                 track_id,
@@ -774,6 +793,7 @@ pub(crate) fn spawn_analysis_seed_from_in_memory_bytes(
 /// Full-track analysis for a completed ranged stream spilled to disk (> RAM promote cap).
 pub(crate) fn spawn_analysis_seed_from_spill_file(
     app: &AppHandle,
+    server_id: Option<&str>,
     track_id: &str,
     spill_path: std::path::PathBuf,
     gen: u64,
@@ -783,6 +803,7 @@ pub(crate) fn spawn_analysis_seed_from_spill_file(
     if track_id.is_empty() {
         return;
     }
+    let server_id = server_id.unwrap_or("").to_string();
     let app = app.clone();
     let gen_arc = gen_arc.clone();
     let max_bytes = crate::stream::LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES;
@@ -822,6 +843,7 @@ pub(crate) fn spawn_analysis_seed_from_spill_file(
         let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
         if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(
             app,
+            server_id,
             track_id.clone(),
             bytes,
             high,
@@ -1431,6 +1453,7 @@ mod tests {
         let cache = AnalysisCache::open_in_memory();
         let g = resolve_loudness_gain_with_cache(
             &cache,
+            "",
             "no-such-track",
             -14.0,
             ResolveLoudnessCacheOpts::default(),
@@ -1445,6 +1468,7 @@ mod tests {
         upsert_loudness_row(&cache, "abc", -23.0, -14.0);
         let g = resolve_loudness_gain_with_cache(
             &cache,
+            "",
             "abc",
             -14.0,
             ResolveLoudnessCacheOpts::default(),
@@ -1469,6 +1493,7 @@ mod tests {
         upsert_loudness_row(&cache, "stream:abc", -16.0, -14.0);
         let g = resolve_loudness_gain_with_cache(
             &cache,
+            "",
             "abc",
             -14.0,
             ResolveLoudnessCacheOpts::default(),
@@ -1482,6 +1507,7 @@ mod tests {
         upsert_loudness_row(&cache, "abc", -20.0, -14.0);
         let g_quiet = resolve_loudness_gain_with_cache(
             &cache,
+            "",
             "abc",
             -20.0,
             ResolveLoudnessCacheOpts::default(),
@@ -1489,6 +1515,7 @@ mod tests {
         .unwrap();
         let g_loud = resolve_loudness_gain_with_cache(
             &cache,
+            "",
             "abc",
             -10.0,
             ResolveLoudnessCacheOpts::default(),
@@ -1509,7 +1536,7 @@ mod tests {
             touch_waveform: false,
             log_soft_misses: false,
         };
-        let g = resolve_loudness_gain_with_cache(&cache, "abc", -14.0, opts);
+        let g = resolve_loudness_gain_with_cache(&cache, "", "abc", -14.0, opts);
         assert!(g.is_some());
     }
 }

@@ -272,6 +272,7 @@ export function handleAudioProgress(
         url: nextUrl,
         durationHint: nextTrack.duration,
         analysisTrackId: nextTrack.id,
+        serverId: serverId || null,
       }).catch(() => {});
     }
 

@@ -94,6 +94,7 @@ describe('reseedLoudnessForTrackId', () => {
       trackId: 't1',
       url: 'https://mock/stream/t1',
       force: true,
+      serverId: null,
     });
   });
 

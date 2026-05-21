@@ -143,6 +143,9 @@ pub(crate) async fn try_resume_after_device_change(
     engine.samples_played.store(0, Ordering::Relaxed);
 
     let hi_res_enabled = engine.current_sample_rate.load(Ordering::Relaxed) > 48_000;
+    // Resume re-plays the current track → scope its analysis writes to the
+    // pinned playback server (empty → legacy '').
+    let resume_server = crate::helpers::current_playback_server_id_str(&engine);
 
     let ps: PlaybackSource = match build_playback_source_with_probe_fallback(
         play_input,
@@ -150,6 +153,7 @@ pub(crate) async fn try_resume_after_device_change(
             url,
             gen,
             cache_id_for_tasks: snap.analysis_track_id.as_deref(),
+            server_id: Some(resume_server.as_str()),
             url_format_hint: format_hint.as_deref(),
             stream_format_suffix: stream_format_suffix.as_deref(),
             done_flag: done_flag.clone(),

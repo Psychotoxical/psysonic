@@ -59,6 +59,7 @@ export function queueUndoRestoreAudioEngine(opts: {
     manual: false,
     hiResEnabled: authState.enableHiRes,
     analysisTrackId: track.id,
+    serverId: playbackSid || null,
     streamFormatSuffix: track.suffix ?? null,
   })
     .then(() => {
