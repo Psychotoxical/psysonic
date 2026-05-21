@@ -27,6 +27,7 @@ use crate::repos::{SyncStateRepository, TrackRepository};
 use crate::runtime::{CurrentJob, LibraryRuntime, SyncSession};
 use crate::search::search_tracks;
 use crate::sync::bandwidth::PlaybackHint;
+use crate::sync::bandwidth::ParallelismBudget;
 use crate::sync::capability::{probe_and_persist, CapabilityFlags, NavidromeProbeCredentials};
 use crate::sync::delta::DeltaSyncRunner;
 use crate::sync::error::SyncError;
@@ -515,6 +516,7 @@ async fn library_sync_start_inner(
     let kind_for_task = kind.to_string();
     let cancel_for_task = Arc::clone(&cancel);
     let job_id_for_task = job_id.clone();
+    let parallelism = ParallelismBudget::resolve(runtime.current_playback_hint());
 
     let runner_handle: tokio::task::JoinHandle<Result<(), String>> = tokio::task::spawn(async move {
         let subsonic = SubsonicClient::new(
@@ -538,7 +540,8 @@ async fn library_sync_start_inner(
                 capability_flags,
             )
             .with_cancellation(Arc::clone(&cancel_for_task))
-            .with_progress(Arc::clone(&progress));
+            .with_progress(Arc::clone(&progress))
+            .with_parallelism_budget(parallelism);
             if let Some(creds) = navidrome_creds.clone() {
                 runner = runner.with_navidrome_credentials(creds);
             }
