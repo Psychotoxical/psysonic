@@ -11,6 +11,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID, COMPOSERS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById, useElementClientHeightForElement } from '../hooks/useResizeClientHeight';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
+import { useBrowseArtistTextSearch } from '../hooks/useBrowseArtistTextSearch';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
@@ -90,6 +92,14 @@ export default function Composers() {
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const serverId = useAuthStore(s => s.activeServerId);
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
+    filter,
+    indexEnabled,
+    serverId,
+  );
+  const composerSource = textSearchArtists ?? composers;
 
   useEffect(() => {
     let cancelled = false;
@@ -132,7 +142,7 @@ export default function Composers() {
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const filtered = useMemo(() => {
-    let out = composers;
+    let out = composerSource;
     if (letterFilter !== ALL_SENTINEL) {
       out = out.filter(a => {
         const first = a.name[0]?.toUpperCase() ?? '#';
@@ -141,15 +151,15 @@ export default function Composers() {
         return first === letterFilter;
       });
     }
-    if (filter) {
-      const needle = filter.toLowerCase();
+    if (effectiveFilter) {
+      const needle = effectiveFilter.toLowerCase();
       out = out.filter(a => a.name.toLowerCase().includes(needle));
     }
     if (starredOnly) {
       out = out.filter(a => a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred);
     }
     return out;
-  }, [composers, letterFilter, filter, starredOnly, starredOverrides]);
+  }, [composerSource, letterFilter, effectiveFilter, starredOnly, starredOverrides]);
 
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
@@ -284,6 +294,9 @@ export default function Composers() {
                 onChange={e => setFilter(e.target.value)}
                 id="composer-filter-input"
               />
+              {textSearchLoading && (
+                <div className="spinner" style={{ width: 16, height: 16, flexShrink: 0 }} />
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

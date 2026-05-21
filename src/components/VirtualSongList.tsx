@@ -8,29 +8,27 @@ import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ndListSongs } from '../api/navidromeBrowse';
 import { runLocalSongBrowse } from '../utils/library/advancedSearchLocal';
+import {
+  BROWSE_TEXT_DEBOUNCE_NETWORK_MS,
+  BROWSE_TEXT_DEBOUNCE_RACE_MS,
+  loadMoreLocalBrowseSongs,
+  raceBrowseWithLocalFallback,
+  runLocalBrowseSongPage,
+  runNetworkBrowseSongPage,
+} from '../utils/library/browseTextSearch';
 import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import SongRow, { SongListHeader } from './SongRow';
 
 const PAGE_SIZE = 50;
-const SEARCH_DEBOUNCE_MS = 300;
 const ROW_HEIGHT = 52;
 const PREFETCH_PX = 600;
 
-/**
- * Browse-all (empty query): local library index when ready (F1, same title-ASC
- * order), else Navidrome /api/song sorted by title, else Subsonic search3.
- * Non-empty → Subsonic search3 (search isn't a browse).
- * Either way, returns a SubsonicSong[].
- */
-async function fetchSongPage(query: string, offset: number): Promise<SubsonicSong[]> {
-  if (query !== '') {
-    return searchSongsPaged(query, PAGE_SIZE, offset);
-  }
-  const local = await runLocalSongBrowse(
-    useAuthStore.getState().activeServerId,
-    offset,
-    PAGE_SIZE,
-  );
+async function fetchBrowseAllPage(
+  serverId: string | null | undefined,
+  offset: number,
+): Promise<SubsonicSong[]> {
+  const local = await runLocalSongBrowse(serverId, offset, PAGE_SIZE);
   if (local) return local;
   try {
     return await ndListSongs(offset, offset + PAGE_SIZE, 'title', 'ASC');
@@ -46,6 +44,8 @@ interface Props {
 
 export default function VirtualSongList({ title, emptyBrowseText }: Props) {
   const { t } = useTranslation();
+  const serverId = useAuthStore(s => s.activeServerId);
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
@@ -58,29 +58,64 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
   const scrollParentHeight = useRefElementClientHeight(scrollParentRef);
   const songListOverscan = Math.max(8, Math.ceil(scrollParentHeight / ROW_HEIGHT));
   const requestSeqRef = useRef(0);
+  const localSearchModeRef = useRef(false);
 
-  // Debounce query
   useEffect(() => {
-    const h = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(h);
-  }, [query]);
+    const debounceMs = indexEnabled ? BROWSE_TEXT_DEBOUNCE_RACE_MS : BROWSE_TEXT_DEBOUNCE_NETWORK_MS;
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), debounceMs);
+    return () => window.clearTimeout(timer);
+  }, [query, indexEnabled]);
 
-  // Reset + first-page fetch on query change. One effect, no dep cascade,
-  // and a `cancelled` flag so a fast typist doesn't see results from stale queries.
+  const fetchSongPage = useCallback(
+    async (q: string, pageOffset: number, isStale: () => boolean): Promise<SubsonicSong[]> => {
+      if (q === '') {
+        return fetchBrowseAllPage(serverId, pageOffset);
+      }
+
+      if (pageOffset === 0 && indexEnabled && serverId) {
+        const winner = await raceBrowseWithLocalFallback(
+          isStale,
+          () => runLocalBrowseSongPage(serverId, q, 0, PAGE_SIZE),
+          () => runNetworkBrowseSongPage(q, 0, PAGE_SIZE),
+        );
+        if (isStale()) return [];
+        if (winner) {
+          localSearchModeRef.current = winner.source === 'local';
+          return winner.result ?? [];
+        }
+        localSearchModeRef.current = false;
+        return (await runNetworkBrowseSongPage(q, 0, PAGE_SIZE)) ?? [];
+      }
+
+      if (localSearchModeRef.current && serverId) {
+        try {
+          return await loadMoreLocalBrowseSongs(serverId, q, pageOffset, PAGE_SIZE);
+        } catch {
+          return [];
+        }
+      }
+
+      return (await runNetworkBrowseSongPage(q, pageOffset, PAGE_SIZE)) ?? [];
+    },
+    [indexEnabled, serverId],
+  );
+
   useEffect(() => {
     let cancelled = false;
     setSongs([]);
     setOffset(0);
     setHasMore(true);
     setBrowseUnsupported(false);
+    localSearchModeRef.current = false;
     if (scrollParentRef.current) scrollParentRef.current.scrollTop = 0;
 
     const seq = ++requestSeqRef.current;
+    const isStale = () => cancelled || seq !== requestSeqRef.current;
     setLoading(true);
-    (async () => {
+    void (async () => {
       try {
-        const page = await fetchSongPage(debouncedQuery, 0);
-        if (cancelled || seq !== requestSeqRef.current) return;
+        const page = await fetchSongPage(debouncedQuery, 0, isStale);
+        if (isStale()) return;
         if (page.length === 0) {
           setHasMore(false);
           if (debouncedQuery === '') setBrowseUnsupported(true);
@@ -90,22 +125,25 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
           if (page.length < PAGE_SIZE) setHasMore(false);
         }
       } catch {
-        if (!cancelled) setHasMore(false);
+        if (!isStale()) setHasMore(false);
       } finally {
-        if (!cancelled && seq === requestSeqRef.current) setLoading(false);
+        if (!isStale()) setLoading(false);
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [debouncedQuery]);
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, fetchSongPage]);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
     setLoading(true);
     const seq = ++requestSeqRef.current;
+    const isStale = () => seq !== requestSeqRef.current;
     try {
-      const page = await fetchSongPage(debouncedQuery, offset);
-      if (seq !== requestSeqRef.current) return;
+      const page = await fetchSongPage(debouncedQuery, offset, isStale);
+      if (isStale()) return;
       if (page.length === 0) {
         setHasMore(false);
       } else {
@@ -121,11 +159,10 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
     } catch {
       setHasMore(false);
     } finally {
-      if (seq === requestSeqRef.current) setLoading(false);
+      if (!isStale()) setLoading(false);
     }
-  }, [loading, hasMore, debouncedQuery, offset]);
+  }, [loading, hasMore, debouncedQuery, offset, fetchSongPage]);
 
-  // Scroll-based prefetch — uses ref so a stale loadMore can't loop
   const loadMoreRef = useRef(loadMore);
   useEffect(() => { loadMoreRef.current = loadMore; }, [loadMore]);
 

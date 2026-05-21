@@ -1,4 +1,4 @@
-import { search, searchSongsPaged } from '../api/subsonicSearch';
+import { searchSongsPaged } from '../api/subsonicSearch';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
@@ -8,6 +8,14 @@ import ArtistRow from '../components/ArtistRow';
 import SongRow, { SongListHeader } from '../components/SongRow';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import {
+  loadMoreLocalBrowseSongs,
+  raceBrowseWithLocalFallback,
+  runLocalBrowseFullSearch,
+  runNetworkBrowseFullSearch,
+} from '../utils/library/browseTextSearch';
+import { logLibrarySearch } from '../utils/library/libraryDevLog';
 
 const SONGS_INITIAL = 50;
 const SONGS_PAGE_SIZE = 50;
@@ -21,28 +29,85 @@ export default function SearchResults() {
   const [songsServerOffset, setSongsServerOffset] = useState(0);
   const [songsHasMore, setSongsHasMore] = useState(false);
   const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
+  const [localMode, setLocalMode] = useState(false);
   const songsSentinelRef = useRef<HTMLDivElement>(null);
+  const searchRunRef = useRef(0);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const serverId = useAuthStore(s => s.activeServerId);
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
 
   useEffect(() => {
+    const q = query.trim();
     setSongsServerOffset(0);
     setSongsHasMore(false);
-    if (!query.trim()) { setResults(null); return; }
+    setLocalMode(false);
+    if (!q) {
+      setResults(null);
+      return;
+    }
+
+    const runId = ++searchRunRef.current;
+    const isStale = () => runId !== searchRunRef.current;
     setLoading(true);
-    search(query, { artistCount: 20, albumCount: 20, songCount: SONGS_INITIAL })
-      .then(r => {
-        setResults(r);
-        setSongsServerOffset(r.songs.length);
-        setSongsHasMore(r.songs.length === SONGS_INITIAL);
-      })
-      .finally(() => setLoading(false));
-  }, [query, musicLibraryFilterVersion]);
+    const searchT0 = performance.now();
+
+    void (async () => {
+      try {
+        if (serverId && indexEnabled) {
+          const outcome = await raceBrowseWithLocalFallback(
+            isStale,
+            () => runLocalBrowseFullSearch(serverId, q, SONGS_INITIAL),
+            () => runNetworkBrowseFullSearch(q, SONGS_INITIAL),
+          );
+          if (isStale()) return;
+          if (outcome) {
+            setResults(outcome.result);
+            setSongsServerOffset(outcome.result.songs.length);
+            setSongsHasMore(outcome.result.songs.length >= SONGS_INITIAL);
+            setLocalMode(outcome.source === 'local');
+            logLibrarySearch({
+              at: new Date().toISOString(),
+              query: q,
+              path: 'search_race',
+              durationMs: Math.round(performance.now() - searchT0),
+              indexEnabled,
+              raceWinner: outcome.source,
+              raceWinnerMs: outcome.durationMs,
+              counts: {
+                artists: outcome.result.artists.length,
+                albums: outcome.result.albums.length,
+                songs: outcome.result.songs.length,
+              },
+            });
+            return;
+          }
+        }
+
+        const network = await runNetworkBrowseFullSearch(q, SONGS_INITIAL);
+        if (isStale()) return;
+        if (network) {
+          setResults(network);
+          setSongsServerOffset(network.songs.length);
+          setSongsHasMore(network.songs.length >= SONGS_INITIAL);
+        } else {
+          setResults({ artists: [], albums: [], songs: [] });
+        }
+      } catch {
+        if (!isStale()) setResults(null);
+      } finally {
+        if (!isStale()) setLoading(false);
+      }
+    })();
+  }, [query, musicLibraryFilterVersion, serverId, indexEnabled]);
 
   const loadMoreSongs = useCallback(async () => {
-    if (loadingMoreSongs || !songsHasMore || !query.trim()) return;
+    const q = query.trim();
+    if (loadingMoreSongs || !songsHasMore || !q) return;
     setLoadingMoreSongs(true);
     try {
-      const page = await searchSongsPaged(query.trim(), SONGS_PAGE_SIZE, songsServerOffset);
+      const page = localMode && serverId
+        ? await loadMoreLocalBrowseSongs(serverId, q, songsServerOffset, SONGS_PAGE_SIZE)
+        : await searchSongsPaged(q, SONGS_PAGE_SIZE, songsServerOffset);
       setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...page] } : prev);
       setSongsServerOffset(o => o + page.length);
       if (page.length < SONGS_PAGE_SIZE) setSongsHasMore(false);
@@ -51,7 +116,7 @@ export default function SearchResults() {
     } finally {
       setLoadingMoreSongs(false);
     }
-  }, [loadingMoreSongs, songsHasMore, query, songsServerOffset]);
+  }, [loadingMoreSongs, songsHasMore, query, songsServerOffset, localMode, serverId]);
 
   useEffect(() => {
     const el = songsSentinelRef.current;
