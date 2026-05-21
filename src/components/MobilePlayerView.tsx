@@ -1,4 +1,4 @@
-import { star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar } from '../store/pendingStarSync';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import type { Track } from '../store/playerStoreTypes';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
@@ -182,7 +182,6 @@ export default function MobilePlayerView() {
   const toggleRepeat = usePlayerStore(s => s.toggleRepeat);
   const shuffleQueue = usePlayerStore(s => s.shuffleQueue);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
 
   const duration = currentTrack?.duration ?? 0;
 
@@ -197,17 +196,10 @@ export default function MobilePlayerView() {
     ? (currentTrack.id in starredOverrides ? starredOverrides[currentTrack.id] : !!currentTrack.starred)
     : false;
 
-  const toggleStar = useCallback(async () => {
+  const toggleStar = useCallback(() => {
     if (!currentTrack) return;
-    const nextVal = !isStarred;
-    setStarredOverride(currentTrack.id, nextVal);
-    try {
-      if (nextVal) await star(currentTrack.id, 'song');
-      else await unstar(currentTrack.id, 'song');
-    } catch {
-      setStarredOverride(currentTrack.id, !nextVal);
-    }
-  }, [currentTrack, isStarred, setStarredOverride]);
+    queueSongStar(currentTrack.id, !isStarred);
+  }, [currentTrack, isStarred]);
 
   // Scrubber touch/mouse drag
   const scrubberRef = useRef<HTMLDivElement>(null);

@@ -1,4 +1,4 @@
-import { star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar } from '../store/pendingStarSync';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import { playbackCoverArtForId } from '../utils/playback/playbackServer';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -34,7 +34,6 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const previous           = usePlayerStore(s => s.previous);
   const stop               = usePlayerStore(s => s.stop);
   const toggleRepeat       = usePlayerStore(s => s.toggleRepeat);
-  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   // Derive isStarred inside the selector so we only re-render when the boolean
   // actually flips — not when any unrelated track's star status changes.
   const isStarred = usePlayerStore(s => {
@@ -43,17 +42,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
     return track.id in s.starredOverrides ? s.starredOverrides[track.id] : !!track.starred;
   });
 
-  const toggleStar = useCallback(async () => {
+  const toggleStar = useCallback(() => {
     if (!currentTrack) return;
-    const nextVal = !isStarred;
-    setStarredOverride(currentTrack.id, nextVal);
-    try {
-      if (nextVal) await star(currentTrack.id, 'song');
-      else await unstar(currentTrack.id, 'song');
-    } catch {
-      setStarredOverride(currentTrack.id, !nextVal);
-    }
-  }, [currentTrack, isStarred, setStarredOverride]);
+    queueSongStar(currentTrack.id, !isStarred);
+  }, [currentTrack, isStarred]);
 
   const duration = currentTrack?.duration ?? 0;
 

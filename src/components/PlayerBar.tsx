@@ -1,4 +1,4 @@
-import { star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar } from '../store/pendingStarSync';
 import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
@@ -62,8 +62,8 @@ export default function PlayerBar() {
     stop, toggleRepeat, repeatMode, toggleFullscreen,
     lastfmLoved, toggleLastfmLove,
     isQueueVisible, toggleQueue,
-    starredOverrides, setStarredOverride,
-    userRatingOverrides, setUserRatingOverride,
+    starredOverrides,
+    userRatingOverrides,
     openContextMenu,
   } = usePlayerStore(useShallow(s => ({
     currentTrack: s.currentTrack,
@@ -83,9 +83,7 @@ export default function PlayerBar() {
     isQueueVisible: s.isQueueVisible,
     toggleQueue: s.toggleQueue,
     starredOverrides: s.starredOverrides,
-    setStarredOverride: s.setStarredOverride,
     userRatingOverrides: s.userRatingOverrides,
-    setUserRatingOverride: s.setUserRatingOverride,
     openContextMenu: s.openContextMenu,
   })));
   const { lastfmSessionKey } = useAuthStore();
@@ -133,17 +131,10 @@ export default function PlayerBar() {
     ? (currentTrack.id in starredOverrides ? starredOverrides[currentTrack.id] : !!currentTrack.starred)
     : false;
 
-  const toggleStar = useCallback(async () => {
+  const toggleStar = useCallback(() => {
     if (!currentTrack) return;
-    const next = !isStarred;
-    setStarredOverride(currentTrack.id, next);
-    try {
-      if (next) await star(currentTrack.id, 'song');
-      else await unstar(currentTrack.id, 'song');
-    } catch {
-      setStarredOverride(currentTrack.id, !next);
-    }
-  }, [currentTrack, isStarred, setStarredOverride]);
+    queueSongStar(currentTrack.id, !isStarred);
+  }, [currentTrack, isStarred]);
 
   const duration = currentTrack?.duration ?? 0;
 
@@ -232,7 +223,6 @@ export default function PlayerBar() {
         lastfmLoved={lastfmLoved}
         toggleLastfmLove={toggleLastfmLove}
         userRatingOverrides={userRatingOverrides}
-        setUserRatingOverride={setUserRatingOverride}
         toggleFullscreen={toggleFullscreen}
         navigate={navigatePlaybackLibrary}
         openContextMenu={openContextMenu}

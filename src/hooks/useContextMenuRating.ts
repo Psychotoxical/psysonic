@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { setRating } from '../api/subsonicStarRating';
+import { queueSongRating } from '../store/pendingStarSync';
 import type { SubsonicAlbum, SubsonicArtist } from '../api/subsonicTypes';
 import type { Track } from '../store/playerStoreTypes';
 import { useAuthStore } from '../store/authStore';
@@ -31,9 +32,9 @@ export function useContextMenuRating({
   const activeServerId = useAuthStore(s => s.activeServerId);
 
   const applySongRating = useCallback((songId: string, rating: number) => {
-    setUserRatingOverride(songId, rating);
-    setRating(songId, rating).catch(() => {});
-  }, [setUserRatingOverride]);
+    // F4: optimistic override + retry-with-backoff sync via the central helper.
+    queueSongRating(songId, rating);
+  }, []);
 
   const applyAlbumRating = useCallback((album: SubsonicAlbum, rating: number) => {
     setUserRatingOverride(album.id, rating);

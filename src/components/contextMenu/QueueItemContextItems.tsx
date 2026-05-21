@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Play, Radio, Heart, ChevronRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, Share2 } from 'lucide-react';
-import { star, unstar } from '../../api/subsonicStarRating';
+import { queueSongStar } from '../../store/pendingStarSync';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../../api/lastfm';
 import type { Track } from '../../store/playerStoreTypes';
 import { useAuthStore } from '../../store/authStore';
@@ -13,7 +13,7 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
   const {
     type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride,
     playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
-    starredOverrides, setStarredOverride, lastfmLovedCache, setLastfmLovedForSong,
+    starredOverrides, lastfmLovedCache, setLastfmLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
@@ -71,9 +71,7 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
                 </div>
               )}
               <div className="context-menu-item" onClick={() => handleAction(() => {
-                const starred = isStarred(song.id, song.starred);
-                setStarredOverride(song.id, !starred);
-                return starred ? unstar(song.id, 'song') : star(song.id, 'song');
+                queueSongStar(song.id, !isStarred(song.id, song.starred));
               })}>
                 <Heart size={14} fill={isStarred(song.id, song.starred) ? 'currentColor' : 'none'} />
                 {isStarred(song.id, song.starred) ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
