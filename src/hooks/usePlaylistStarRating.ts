@@ -1,5 +1,5 @@
 import React from 'react';
-import { setRating, star, unstar } from '../api/subsonicStarRating';
+import { queueSongStar, queueSongRating } from '../store/pendingStarSync';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { usePlayerStore } from '../store/playerStore';
 
@@ -18,12 +18,11 @@ export interface PlaylistStarRatingActions {
 export function usePlaylistStarRating(deps: PlaylistStarRatingDeps): PlaylistStarRatingActions {
   const { setRatings, starredSongs, setStarredSongs } = deps;
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
 
   const handleRate = (songId: string, rating: number) => {
     setRatings(prev => ({ ...prev, [songId]: rating }));
-    usePlayerStore.getState().setUserRatingOverride(songId, rating);
-    setRating(songId, rating).catch(() => {});
+    // F4: optimistic override + retried server sync via the central helper.
+    queueSongRating(songId, rating);
   };
 
   const handleToggleStar = (song: SubsonicSong, e: React.MouseEvent) => {
@@ -34,8 +33,8 @@ export function usePlaylistStarRating(deps: PlaylistStarRatingDeps): PlaylistSta
       isStarred ? next.delete(song.id) : next.add(song.id);
       return next;
     });
-    setStarredOverride(song.id, !isStarred);
-    (isStarred ? unstar(song.id, 'song') : star(song.id, 'song')).catch(() => {});
+    // F4: optimistic override + retried server sync via the central helper (no rollback).
+    queueSongStar(song.id, !isStarred);
   };
 
   return { handleRate, handleToggleStar };
