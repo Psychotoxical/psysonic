@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { raceBrowseWithLocalFallback } from './browseTextSearch';
+import { browseRaceCountsArtists, raceBrowseWithLocalFallback } from './browseTextSearch';
 
 describe('raceBrowseWithLocalFallback', () => {
   it('returns local when network throws and local has data', async () => {
@@ -8,6 +8,11 @@ describe('raceBrowseWithLocalFallback', () => {
       async () => [{ id: 'a1', name: 'Local Artist' }],
       async () => {
         throw new Error('server down');
+      },
+      {
+        surface: 'artists_browse',
+        query: 'test',
+        counts: browseRaceCountsArtists,
       },
     );
     expect(outcome?.source).toBe('local');

@@ -10,12 +10,12 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import {
+  browseRaceCountsFullSearch,
   loadMoreLocalBrowseSongs,
   raceBrowseWithLocalFallback,
   runLocalBrowseFullSearch,
   runNetworkBrowseFullSearch,
 } from '../utils/library/browseTextSearch';
-import { logLibrarySearch } from '../utils/library/libraryDevLog';
 
 const SONGS_INITIAL = 50;
 const SONGS_PAGE_SIZE = 50;
@@ -49,7 +49,6 @@ export default function SearchResults() {
     const runId = ++searchRunRef.current;
     const isStale = () => runId !== searchRunRef.current;
     setLoading(true);
-    const searchT0 = performance.now();
 
     void (async () => {
       try {
@@ -58,6 +57,12 @@ export default function SearchResults() {
             isStale,
             () => runLocalBrowseFullSearch(serverId, q, SONGS_INITIAL),
             () => runNetworkBrowseFullSearch(q, SONGS_INITIAL),
+            {
+              surface: 'search_results',
+              query: q,
+              indexEnabled,
+              counts: browseRaceCountsFullSearch,
+            },
           );
           if (isStale()) return;
           if (outcome) {
@@ -65,20 +70,6 @@ export default function SearchResults() {
             setSongsServerOffset(outcome.result.songs.length);
             setSongsHasMore(outcome.result.songs.length >= SONGS_INITIAL);
             setLocalMode(outcome.source === 'local');
-            logLibrarySearch({
-              at: new Date().toISOString(),
-              query: q,
-              path: 'search_race',
-              durationMs: Math.round(performance.now() - searchT0),
-              indexEnabled,
-              raceWinner: outcome.source,
-              raceWinnerMs: outcome.durationMs,
-              counts: {
-                artists: outcome.result.artists.length,
-                albums: outcome.result.albums.length,
-                songs: outcome.result.songs.length,
-              },
-            });
             return;
           }
         }

@@ -26,8 +26,14 @@ import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeader
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import {
+  runLocalAlbumBrowsePage,
+  runLocalAlbumsByGenres,
+  type AlbumBrowseSort,
+} from '../utils/library/browseTextSearch';
 
-type SortType = 'alphabeticalByName' | 'alphabeticalByArtist';
+type SortType = AlbumBrowseSort;
 type CompFilter = 'all' | 'only' | 'hide';
 
 const PAGE_SIZE = 30;
@@ -47,6 +53,7 @@ export default function Albums() {
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const auth = useAuthStore();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
 
@@ -183,32 +190,50 @@ export default function Albums() {
   ) => {
     setLoading(true);
     try {
-      const extra = yearFilter ? { fromYear: yearFilter.from, toYear: yearFilter.to } : {};
-      const type = yearFilter ? 'byYear' : sortType;
-      const data = await getAlbumList(type, PAGE_SIZE, offset, extra);
+      let data: SubsonicAlbum[] | null = null;
+      if (indexEnabled && serverId) {
+        data = await runLocalAlbumBrowsePage(
+          serverId,
+          sortType,
+          offset,
+          PAGE_SIZE,
+          yearFilter,
+        );
+      }
+      if (data == null) {
+        const extra = yearFilter ? { fromYear: yearFilter.from, toYear: yearFilter.to } : {};
+        const type = yearFilter ? 'byYear' : sortType;
+        data = await getAlbumList(type, PAGE_SIZE, offset, extra);
+      }
       if (append) setAlbums(prev => [...prev, ...data]);
       else setAlbums(data);
       setHasMore(data.length === PAGE_SIZE);
     } finally {
       setLoading(false);
     }
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, indexEnabled, serverId]);
 
   const loadFiltered = useCallback(async (genres: string[], sortType: SortType) => {
     setLoading(true);
     try {
-      const data = await fetchByGenres(genres);
-      const sorted = [...data].sort((a, b) =>
-        sortType === 'alphabeticalByArtist'
-          ? a.artist.localeCompare(b.artist)
-          : a.name.localeCompare(b.name)
-      );
-      setAlbums(sorted);
+      let data: SubsonicAlbum[] | null = null;
+      if (indexEnabled && serverId) {
+        data = await runLocalAlbumsByGenres(serverId, genres, sortType);
+      }
+      if (data == null) {
+        data = await fetchByGenres(genres);
+        data = [...data].sort((a, b) =>
+          sortType === 'alphabeticalByArtist'
+            ? a.artist.localeCompare(b.artist)
+            : a.name.localeCompare(b.name),
+        );
+      }
+      setAlbums(data);
       setHasMore(false);
     } finally {
       setLoading(false);
     }
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, indexEnabled, serverId]);
 
   useEffect(() => {
     setPage(0);

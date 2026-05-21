@@ -27,6 +27,7 @@ import { useBrowseArtistTextSearch } from '../hooks/useBrowseArtistTextSearch';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { runLocalBrowseAllArtists } from '../utils/library/browseTextSearch';
 import { ArtistsGridView } from '../components/artists/ArtistsGridView';
 import { ArtistsListView } from '../components/artists/ArtistsListView';
 
@@ -92,8 +93,30 @@ export default function Artists() {
   const selectedArtists = artists.filter(a => selectedIds.has(a.id));
 
   useEffect(() => {
-    getArtists().then(data => { setCatalogArtists(data); setLoading(false); }).catch(() => setLoading(false));
-  }, [musicLibraryFilterVersion]);
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      if (indexEnabled && serverId) {
+        const local = await runLocalBrowseAllArtists(serverId);
+        if (!cancelled && local != null) {
+          setCatalogArtists(local);
+          setLoading(false);
+          return;
+        }
+      }
+      try {
+        const data = await getArtists();
+        if (!cancelled) setCatalogArtists(data);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [musicLibraryFilterVersion, indexEnabled, serverId]);
 
   const {
     filtered, visible, hasMore, groups, letters, artistListFlatRows,

@@ -2,14 +2,17 @@
  * Browse-page text search — local index vs network race (LiveSearch / AdvancedSearch pattern).
  */
 import { search, searchSongsPaged } from '../../api/subsonicSearch';
-import type { SearchResults, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
+import type { SearchResults, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
 import { libraryAdvancedSearch } from '../../api/library';
 import { libraryScopeForServer } from '../../api/subsonicClient';
 import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
   LIVE_SEARCH_DEBOUNCE_RACE_MS,
 } from './liveSearchLocal';
+import type { LibraryFilterClause, LibrarySortClause } from '../../api/library';
+import { dedupeById } from '../dedupeById';
 import {
+  albumToAlbum,
   artistToArtist,
   loadMoreLocalSongs,
   runLocalAdvancedSearch,
@@ -17,8 +20,45 @@ import {
   trackToSong,
   type LocalSearchOpts,
 } from './advancedSearchLocal';
+import {
+  logBrowseRace,
+  timed,
+  type BrowseRaceSurface,
+  type LibrarySearchDebugEntry,
+} from './libraryDevLog';
 import { libraryIsReady } from './libraryReady';
 import { raceSearchSources, type SearchRaceWinner } from './searchRace';
+
+export type { BrowseRaceSurface };
+
+export interface BrowseRaceLogOptions {
+  surface: BrowseRaceSurface;
+  query: string;
+  indexEnabled?: boolean;
+  counts?: (result: unknown) => LibrarySearchDebugEntry['counts'];
+}
+
+function logBrowseRaceOutcome(
+  log: BrowseRaceLogOptions | undefined,
+  path: LibrarySearchDebugEntry['path'],
+  winner: SearchRaceWinner<unknown> | null,
+  durationMs: number,
+  fallbackReason?: string,
+): void {
+  if (!log) return;
+  logBrowseRace({
+    at: new Date().toISOString(),
+    query: log.query,
+    path,
+    durationMs,
+    indexEnabled: log.indexEnabled,
+    surface: log.surface,
+    raceWinner: winner?.source,
+    raceWinnerMs: winner?.durationMs,
+    counts: winner && log.counts ? log.counts(winner.result) : undefined,
+    fallbackReason,
+  });
+}
 
 export {
   LIVE_SEARCH_DEBOUNCE_RACE_MS as BROWSE_TEXT_DEBOUNCE_RACE_MS,
@@ -43,9 +83,11 @@ export async function raceBrowseWithLocalFallback<T>(
   isStale: () => boolean,
   local: () => Promise<T | null>,
   network: () => Promise<T | null>,
+  log?: BrowseRaceLogOptions,
 ): Promise<SearchRaceWinner<T> | null> {
   if (isStale()) return null;
 
+  const t0 = performance.now();
   let winner: SearchRaceWinner<T> | null = null;
   try {
     winner = await raceSearchSources(
@@ -59,19 +101,72 @@ export async function raceBrowseWithLocalFallback<T>(
     // Local threw — fall through to explicit local retry below.
   }
 
-  if (winner && !isStale()) return winner;
+  if (winner && !isStale()) {
+    logBrowseRaceOutcome(log, 'browse_race', winner, Math.round(performance.now() - t0));
+    return winner;
+  }
 
-  const localResult = await local();
+  const { result: localResult, ms: localMs } = await timed(local);
   if (localResult != null && !isStale()) {
-    return { source: 'local', result: localResult, durationMs: 0 };
+    const outcome: SearchRaceWinner<T> = {
+      source: 'local',
+      result: localResult,
+      durationMs: localMs,
+    };
+    logBrowseRaceOutcome(
+      log,
+      'browse_local_fallback',
+      outcome,
+      Math.round(performance.now() - t0),
+      'race_no_winner',
+    );
+    return outcome;
   }
 
-  const networkResult = await safeNetwork(network);
+  const { result: networkResult, ms: networkMs } = await timed(() => safeNetwork(network));
   if (networkResult != null && !isStale()) {
-    return { source: 'network', result: networkResult, durationMs: 0 };
+    const outcome: SearchRaceWinner<T> = {
+      source: 'network',
+      result: networkResult,
+      durationMs: networkMs,
+    };
+    logBrowseRaceOutcome(
+      log,
+      'browse_network_fallback',
+      outcome,
+      Math.round(performance.now() - t0),
+      'local_unavailable',
+    );
+    return outcome;
   }
 
+  logBrowseRaceOutcome(
+    log,
+    'browse_race_miss',
+    null,
+    Math.round(performance.now() - t0),
+    'all_sources_empty',
+  );
   return null;
+}
+
+export function browseRaceCountsArtists(result: unknown): LibrarySearchDebugEntry['counts'] {
+  const n = Array.isArray(result) ? result.length : 0;
+  return { artists: n, albums: 0, songs: 0 };
+}
+
+export function browseRaceCountsSongs(result: unknown): LibrarySearchDebugEntry['counts'] {
+  const n = Array.isArray(result) ? result.length : 0;
+  return { artists: 0, albums: 0, songs: n };
+}
+
+export function browseRaceCountsFullSearch(result: unknown): LibrarySearchDebugEntry['counts'] {
+  const r = result as SearchResults;
+  return {
+    artists: r.artists?.length ?? 0,
+    albums: r.albums?.length ?? 0,
+    songs: r.songs?.length ?? 0,
+  };
 }
 
 const ARTIST_BROWSE_LIMIT = 500;
@@ -223,6 +318,90 @@ export async function loadMoreLocalBrowseSongs(
   pageSize: number,
 ): Promise<SubsonicSong[]> {
   return loadMoreLocalSongs(serverId, songBrowseOpts(query), offset, pageSize);
+}
+
+export type AlbumBrowseSort = 'alphabeticalByName' | 'alphabeticalByArtist';
+
+function albumSortClauses(sort: AlbumBrowseSort): LibrarySortClause[] {
+  if (sort === 'alphabeticalByArtist') {
+    return [{ field: 'artist', dir: 'asc' }];
+  }
+  return [{ field: 'name', dir: 'asc' }];
+}
+
+/** Paginated All Albums browse from the local `album` table (F1). */
+export async function runLocalAlbumBrowsePage(
+  serverId: string | null | undefined,
+  sort: AlbumBrowseSort,
+  offset: number,
+  pageSize: number,
+  yearFilter?: { from: number; to: number },
+): Promise<SubsonicAlbum[] | null> {
+  if (!serverId || !(await libraryIsReady(serverId))) return null;
+  const filters: LibraryFilterClause[] = [];
+  if (yearFilter) {
+    filters.push({
+      field: 'year',
+      op: 'between',
+      value: yearFilter.from,
+      valueTo: yearFilter.to,
+    });
+  }
+  try {
+    const resp = await libraryAdvancedSearch({
+      serverId,
+      libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      entityTypes: ['album'],
+      filters,
+      sort: yearFilter
+        ? [{ field: 'year', dir: 'desc' }, { field: 'name', dir: 'asc' }]
+        : albumSortClauses(sort),
+      limit: pageSize,
+      offset,
+      skipTotals: true,
+    });
+    if (resp.source !== 'local') return null;
+    return resp.albums.map(albumToAlbum);
+  } catch {
+    return null;
+  }
+}
+
+const GENRE_ALBUM_FETCH_LIMIT = 500;
+
+/** Genre-filtered album union for All Albums / Random Albums genre bar. */
+export async function runLocalAlbumsByGenres(
+  serverId: string | null | undefined,
+  genres: string[],
+  sort: AlbumBrowseSort,
+  limitPerGenre = GENRE_ALBUM_FETCH_LIMIT,
+): Promise<SubsonicAlbum[] | null> {
+  if (!serverId || !(await libraryIsReady(serverId)) || genres.length === 0) return null;
+  try {
+    const pages = await Promise.all(
+      genres.map(genre =>
+        libraryAdvancedSearch({
+          serverId,
+          libraryScope: libraryScopeForServer(serverId) ?? undefined,
+          entityTypes: ['album'],
+          filters: [{ field: 'genre', op: 'eq', value: genre }],
+          sort: albumSortClauses(sort),
+          limit: limitPerGenre,
+          offset: 0,
+          skipTotals: true,
+        }),
+      ),
+    );
+    if (pages.some(p => p.source !== 'local')) return null;
+    const merged = dedupeById(pages.flatMap(p => p.albums.map(albumToAlbum)));
+    return merged.sort((a, b) =>
+      sort === 'alphabeticalByArtist'
+        ? a.artist.localeCompare(b.artist) || a.name.localeCompare(b.name)
+        : a.name.localeCompare(b.name) || a.artist.localeCompare(b.artist),
+    );
+  } catch {
+    return null;
+  }
 }
 
 /** Local artist table browse-all when the index is ready (optional fast path). */

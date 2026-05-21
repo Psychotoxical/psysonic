@@ -98,6 +98,7 @@ export default function Composers() {
     filter,
     indexEnabled,
     serverId,
+    'composers_browse',
   );
   const composerSource = textSearchArtists ?? composers;
 

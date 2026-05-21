@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BROWSE_TEXT_DEBOUNCE_NETWORK_MS,
   BROWSE_TEXT_DEBOUNCE_RACE_MS,
+  browseRaceCountsArtists,
   raceBrowseWithLocalFallback,
   runLocalBrowseArtists,
   runNetworkBrowseArtists,
+  type BrowseRaceSurface,
 } from '../utils/library/browseTextSearch';
 
 /**
@@ -18,6 +20,7 @@ export function useBrowseArtistTextSearch(
   filter: string,
   indexEnabled: boolean,
   serverId: string | null | undefined,
+  surface: BrowseRaceSurface = 'artists_browse',
 ) {
   const [debouncedFilter, setDebouncedFilter] = useState('');
   const [textSearchArtists, setTextSearchArtists] = useState<SubsonicArtist[] | null>(null);
@@ -47,12 +50,18 @@ export function useBrowseArtistTextSearch(
         isStale,
         () => runLocalBrowseArtists(serverId, q),
         () => runNetworkBrowseArtists(q),
+        {
+          surface,
+          query: q,
+          indexEnabled,
+          counts: browseRaceCountsArtists,
+        },
       );
       if (isStale()) return;
       setTextSearchArtists(outcome?.result ?? null);
       setTextSearchLoading(false);
     })();
-  }, [debouncedFilter, indexEnabled, serverId]);
+  }, [debouncedFilter, indexEnabled, serverId, surface]);
 
   const effectiveFilter = textSearchArtists != null ? '' : filter;
   return { textSearchArtists, textSearchLoading, effectiveFilter };

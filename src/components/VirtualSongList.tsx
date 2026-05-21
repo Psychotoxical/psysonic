@@ -11,6 +11,7 @@ import { runLocalSongBrowse } from '../utils/library/advancedSearchLocal';
 import {
   BROWSE_TEXT_DEBOUNCE_NETWORK_MS,
   BROWSE_TEXT_DEBOUNCE_RACE_MS,
+  browseRaceCountsSongs,
   loadMoreLocalBrowseSongs,
   raceBrowseWithLocalFallback,
   runLocalBrowseSongPage,
@@ -77,6 +78,12 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
           isStale,
           () => runLocalBrowseSongPage(serverId, q, 0, PAGE_SIZE),
           () => runNetworkBrowseSongPage(q, 0, PAGE_SIZE),
+          {
+            surface: 'tracks_browse',
+            query: q,
+            indexEnabled,
+            counts: browseRaceCountsSongs,
+          },
         );
         if (isStale()) return [];
         if (winner) {

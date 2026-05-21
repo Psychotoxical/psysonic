@@ -14,8 +14,19 @@ export type LibrarySearchPath =
   | 'library_advanced_search'
   | 'search3'
   | 'search_race'
+  | 'browse_race'
+  | 'browse_local_fallback'
+  | 'browse_network_fallback'
+  | 'browse_race_miss'
   | 'skipped_not_ready'
   | 'local_empty_fallback';
+
+/** Browse surface for DevTools race lines (`[psysonic][library]`). */
+export type BrowseRaceSurface =
+  | 'artists_browse'
+  | 'composers_browse'
+  | 'tracks_browse'
+  | 'search_results';
 
 export interface LibrarySearchDebugEntry {
   at: string;
@@ -35,6 +46,8 @@ export interface LibrarySearchDebugEntry {
   /** Winner when local + network ran in parallel. */
   raceWinner?: 'local' | 'network';
   raceWinnerMs?: number;
+  /** Browse text-search race surface (Artists, Tracks, …). */
+  surface?: BrowseRaceSurface;
 }
 
 export interface LibrarySyncDebugEntry {
@@ -219,6 +232,23 @@ export function logLibrarySearch(entry: LibrarySearchDebugEntry): void {
   if (!libraryDevEnabled()) return;
   pushRing('search', entry);
   console.debug(PREFIX, 'search', entry);
+}
+
+/** One-line browse race summary + full entry in DevTools (filter: `[psysonic][library]`). */
+export function logBrowseRace(entry: LibrarySearchDebugEntry): void {
+  if (!libraryDevEnabled()) return;
+  pushRing('search', entry);
+  const counts = entry.counts
+    ? ` hits=${entry.counts.artists}/${entry.counts.albums}/${entry.counts.songs}`
+    : '';
+  const winner = entry.raceWinner ?? 'none';
+  const surface = entry.surface ?? '?';
+  const fallback = entry.fallbackReason ? ` fallback=${entry.fallbackReason}` : '';
+  console.debug(
+    PREFIX,
+    `browse-race [${surface}] path=${entry.path} winner=${winner} raceMs=${entry.raceWinnerMs ?? 0} totalMs=${entry.durationMs}${counts}${fallback}`,
+    entry,
+  );
 }
 
 export function logLibrarySync(entry: LibrarySyncDebugEntry): void {
