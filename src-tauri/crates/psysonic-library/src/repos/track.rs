@@ -426,7 +426,10 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   bpm                  = excluded.bpm,
   replay_gain_track_db = excluded.replay_gain_track_db,
   replay_gain_album_db = excluded.replay_gain_album_db,
-  content_hash         = excluded.content_hash,
+  -- E2: never let a sync (which passes NULL content_hash) clobber the
+  -- playback-derived md5_16kb written via library_patch_track / the analysis
+  -- bridge. A non-empty incoming hash still wins.
+  content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
   server_updated_at    = excluded.server_updated_at,
   server_created_at    = excluded.server_created_at,
   deleted              = excluded.deleted,
@@ -476,6 +479,52 @@ mod tests {
             synced_at: 1_700_000_500,
             raw_json: r#"{"id":"t1"}"#.into(),
         }
+    }
+
+    #[test]
+    fn resync_does_not_clobber_playback_content_hash() {
+        // E2 safety property: a sync (which passes content_hash = None) must
+        // never wipe the playback-derived md5 written via patch / the bridge.
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+
+        let mut initial = row("s1", "t1", "First");
+        initial.content_hash = None;
+        repo.upsert_batch(&[initial]).unwrap();
+
+        // Playback records the content fingerprint.
+        store
+            .with_conn(|c| {
+                c.execute(
+                    "UPDATE track SET content_hash = 'playback-md5' WHERE server_id='s1' AND id='t1'",
+                    [],
+                )
+            })
+            .unwrap();
+
+        let read = |store: &LibraryStore| -> Option<String> {
+            store
+                .with_conn(|c| {
+                    c.query_row(
+                        "SELECT content_hash FROM track WHERE server_id='s1' AND id='t1'",
+                        [],
+                        |r| r.get(0),
+                    )
+                })
+                .unwrap()
+        };
+
+        // Resync with a NULL hash preserves the playback value.
+        let mut resync = row("s1", "t1", "First (resynced)");
+        resync.content_hash = None;
+        repo.upsert_batch(&[resync]).unwrap();
+        assert_eq!(read(&store).as_deref(), Some("playback-md5"));
+
+        // A non-empty incoming hash still wins.
+        let mut with_hash = row("s1", "t1", "First");
+        with_hash.content_hash = Some("server-hash".into());
+        repo.upsert_batch(&[with_hash]).unwrap();
+        assert_eq!(read(&store).as_deref(), Some("server-hash"));
     }
 
     #[test]

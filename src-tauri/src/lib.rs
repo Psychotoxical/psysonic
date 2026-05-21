@@ -212,6 +212,28 @@ pub fn run() {
                 app.manage(handle);
             }
 
+            // ── Content-hash sink (analysis → library E2 back-edge) ───────
+            // After a seed the analysis pipeline records the playback-derived
+            // md5_16kb as `track.content_hash` so id-remap can rebind a track
+            // when the server reassigns ids. Decoupled from psysonic-library
+            // via a psysonic-core port; a no-op when the library has no row for
+            // the (server_id, track_id) — i.e. the index is off for that server.
+            {
+                let app_for_hash = app.handle().clone();
+                let sink = psysonic_core::ports::ContentHashSink::new(
+                    move |server_id: &str, track_id: &str, md5: &str| {
+                        if let Some(runtime) =
+                            app_for_hash.try_state::<psysonic_library::LibraryRuntime>()
+                        {
+                            let _ = psysonic_library::commands::patch_content_hash(
+                                &runtime, server_id, track_id, md5,
+                            );
+                        }
+                    },
+                );
+                app.manage(sink);
+            }
+
             // Periodic analysis queue sizes (debug logging mode only).
             tauri::async_runtime::spawn(psysonic_analysis::analysis_runtime::analysis_queue_snapshot_loop());
 
