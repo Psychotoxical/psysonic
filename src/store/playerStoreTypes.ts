@@ -58,6 +58,12 @@ export interface PlayerState {
   /** Saved server for stream/hot-cache/offline resolution while this queue plays. */
   queueServerId: string | null;
   queueIndex: number;
+  /** F5 (transient): full ordered track-id list + index persisted alongside the
+   *  windowed `queue`. On startup, when the library index is ready, the whole
+   *  queue is rehydrated from these refs (`library_get_tracks_batch`) and they
+   *  are then cleared. Absent / index-off → the windowed `queue` is used as-is. */
+  queueRefs?: string[];
+  queueRefsIndex?: number;
   isPlaying: boolean;
   /** HTTP stream still buffering (network / demux probe) — show loading on cover art. */
   isPlaybackBuffering: boolean;
