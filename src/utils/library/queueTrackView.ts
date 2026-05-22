@@ -2,6 +2,36 @@ import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import { getCachedTrack, placeholderTrack, applyQueueOverrides } from './queueTrackResolver';
 
 /**
+ * Dual-write bridge (thin-state phase 4): rebuild the legacy `queue: Track[]`
+ * from the canonical `QueueItemRef[]` after a ref-native mutation. Each ref's
+ * track is sourced from the supplied `pools` (the previous queue + any tracks
+ * just handed to the mutation) by id — **purely structural**: no resolver cache
+ * read and no F4 override merge (display still applies those), so the derived
+ * array is byte-identical to the old fat-array mutation result. The ref is the
+ * source of truth for the queue-only flags. A ref with no pooled track falls
+ * back to a placeholder (does not happen during dual-write, where every ref's
+ * track is in hand). Removed in the final step together with `queue: Track[]`.
+ */
+export function bridgeQueueFromItems(items: QueueItemRef[], pools: Track[][]): Track[] {
+  const byId = new Map<string, Track>();
+  for (const pool of pools) {
+    for (const t of pool) if (!byId.has(t.id)) byId.set(t.id, t);
+  }
+  return items.map(ref => {
+    const base = byId.get(ref.trackId);
+    if (!base) return placeholderTrack(ref);
+    if (
+      base.autoAdded === ref.autoAdded &&
+      base.radioAdded === ref.radioAdded &&
+      base.playNextAdded === ref.playNextAdded
+    ) {
+      return base;
+    }
+    return { ...base, autoAdded: ref.autoAdded, radioAdded: ref.radioAdded, playNextAdded: ref.playNextAdded };
+  });
+}
+
+/**
  * Queue thin-state phase 4: turn a `QueueItemRef` into a display `Track` for the
  * upcoming consumer migration off `queue: Track[]`.
  *

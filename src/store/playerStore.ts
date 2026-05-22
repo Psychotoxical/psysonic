@@ -132,3 +132,23 @@ usePlayerStore.subscribe((state, prev) => {
     buffered: state.buffered,
   });
 });
+
+// DEV guardrail (queue thin-state): the canonical `queueItems` ref list must
+// stay in id-parity with the dual-written `queue: Track[]` after every change.
+// Catches a mutation that updates one but not the other while both still exist
+// (removed in the final step with `queue: Track[]`). DEV-only — no prod cost.
+if (import.meta.env.DEV) {
+  usePlayerStore.subscribe((state, prev) => {
+    if (state.queue === prev.queue && state.queueItems === prev.queueItems) return;
+    const items = state.queueItems ?? [];
+    const mismatch =
+      state.queue.length !== items.length ||
+      state.queue.some((t, i) => t.id !== items[i]?.trackId);
+    if (mismatch) {
+      console.error(
+        '[psysonic][queue-thin-state] queue / queueItems desync',
+        { queue: state.queue.map(t => t.id), queueItems: items.map(r => r.trackId) },
+      );
+    }
+  });
+}

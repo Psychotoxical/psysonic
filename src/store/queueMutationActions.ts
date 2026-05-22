@@ -3,8 +3,10 @@ import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { useAuthStore } from './authStore';
 import { setIsAudioPaused } from './engineState';
 import { prefetchLoudnessForEnqueuedTracks } from './loudnessPrefetch';
-import type { PlayerState, Track } from './playerStoreTypes';
+import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import { bridgeQueueFromItems } from '../utils/library/queueTrackView';
+import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import { pushQueueUndoFromGetter } from './queueUndo';
 import { syncQueueToServer } from './queueSync';
 import {
@@ -34,6 +36,25 @@ function blockCrossServerEnqueue(): boolean {
   if (!playbackServerDiffersFromActive()) return false;
   showToast(i18n.t('queue.crossServerEnqueueBlocked'), 4500, 'error');
   return true;
+}
+
+/**
+ * The canonical working ref list for a mutation (thin-state phase 4). Mutations
+ * splice/filter/reorder these refs, then {@link bridgeQueueFromItems} rebuilds
+ * the dual-written `queue: Track[]`. During dual-write it derives from
+ * `queue: Track[]` so the contract tests (which seed only `queue`) keep passing;
+ * the final step swaps this single line to `state.queueItems` once the fat queue
+ * is gone.
+ */
+const itemsOf = (state: PlayerState): QueueItemRef[] =>
+  toQueueItemRefs(state.queueServerId ?? '', state.queue);
+
+/** Seed the resolver cache with tracks entering the queue, so they resolve
+ *  without a network round-trip once `queue: Track[]` is dropped (seed-before-
+ *  splice). No-op without a real playback server (e.g. unit tests). */
+function seedIncoming(state: PlayerState, tracks: Track[]): void {
+  const serverId = state.queueServerId ?? '';
+  if (serverId) seedQueueResolver(serverId, tracks);
 }
 
 /**
@@ -68,21 +89,19 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       }
       if (!skipQueueUndo) pushQueueUndoFromGetter(get);
       set(state => {
+        seedIncoming(state, tracks);
+        const items = itemsOf(state);
+        const incoming = toQueueItemRefs(state.queueServerId ?? '', tracks);
         // Insert before the first upcoming auto-added track so the
         // "Added automatically" separator always stays at the boundary.
-        const firstAutoIdx = state.queue.findIndex(
-          (t, i) => t.autoAdded && i > state.queueIndex
-        );
-        const newQueue = firstAutoIdx === -1
-          ? [...state.queue, ...tracks]
-          : [
-              ...state.queue.slice(0, firstAutoIdx),
-              ...tracks,
-              ...state.queue.slice(firstAutoIdx),
-            ];
+        const firstAutoIdx = items.findIndex((r, i) => r.autoAdded && i > state.queueIndex);
+        const newItems = firstAutoIdx === -1
+          ? [...items, ...incoming]
+          : [...items.slice(0, firstAutoIdx), ...incoming, ...items.slice(firstAutoIdx)];
+        const newQueue = bridgeQueueFromItems(newItems, [state.queue, tracks]);
         syncQueueToServer(newQueue, state.currentTrack, state.currentTime);
         prefetchLoudnessForEnqueuedTracks(newQueue, state.queueIndex);
-        return { queue: newQueue, queueItems: toQueueItemRefs(state.queueServerId ?? '', newQueue) };
+        return { queue: newQueue, queueItems: newItems };
       });
     },
 
@@ -102,22 +121,23 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       }
       pushQueueUndoFromGetter(get);
       set(state => {
+        const items = itemsOf(state);
         // Drop all upcoming (not yet played) radio tracks — clicking "Start Radio"
         // again replaces the pending radio batch instead of stacking on top.
-        const beforeAndCurrent = state.queue.slice(0, state.queueIndex + 1);
-        const upcoming = state.queue.slice(state.queueIndex + 1).filter(t => !t.radioAdded);
+        const beforeAndCurrent = items.slice(0, state.queueIndex + 1);
+        const upcoming = items.slice(state.queueIndex + 1).filter(r => !r.radioAdded);
         // Tracks about to leave the queue here. Callers like ContextMenu.startRadio
         // pass the previous pending radio back in `tracks` to merge with new
         // similars — the seen-set must not block those re-introductions.
-        const droppedRadioIds = state.queue
+        const droppedRadioIds = items
           .slice(state.queueIndex + 1)
-          .filter(t => t.radioAdded)
-          .map(t => t.id);
+          .filter(r => r.radioAdded)
+          .map(r => r.trackId);
         for (const id of droppedRadioIds) deleteRadioSessionSeen(id);
         // Capture surviving queue ids in the seen-set so the next radio top-up
         // can dedupe against the seed track + already-queued non-radio items.
-        for (const t of beforeAndCurrent) addRadioSessionSeen(t.id);
-        for (const t of upcoming) addRadioSessionSeen(t.id);
+        for (const r of beforeAndCurrent) addRadioSessionSeen(r.trackId);
+        for (const r of upcoming) addRadioSessionSeen(r.trackId);
         // Drop incoming tracks already seen earlier this session AND
         // intra-batch duplicates (top + similar Last.fm responses commonly
         // overlap). The seen-set is mutated inside the loop so a repeated
@@ -129,18 +149,17 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
           addRadioSessionSeen(t.id);
           dedupedTracks.push(t);
         }
+        seedIncoming(state, dedupedTracks);
+        const incoming = toQueueItemRefs(state.queueServerId ?? '', dedupedTracks);
         // Insert new radio tracks before any autoAdded tracks in the upcoming section.
-        const firstAutoIdx = upcoming.findIndex(t => t.autoAdded);
-        const merged = firstAutoIdx === -1
-          ? [...upcoming, ...dedupedTracks]
-          : [
-              ...upcoming.slice(0, firstAutoIdx),
-              ...dedupedTracks,
-              ...upcoming.slice(firstAutoIdx),
-            ];
-        const newQueue = [...beforeAndCurrent, ...merged];
+        const firstAutoIdx = upcoming.findIndex(r => r.autoAdded);
+        const mergedItems = firstAutoIdx === -1
+          ? [...upcoming, ...incoming]
+          : [...upcoming.slice(0, firstAutoIdx), ...incoming, ...upcoming.slice(firstAutoIdx)];
+        const newItems = [...beforeAndCurrent, ...mergedItems];
+        const newQueue = bridgeQueueFromItems(newItems, [state.queue, tracks]);
         syncQueueToServer(newQueue, state.currentTrack, state.currentTime);
-        return { queue: newQueue, queueItems: toQueueItemRefs(state.queueServerId ?? '', newQueue) };
+        return { queue: newQueue, queueItems: newItems };
       });
     },
 
@@ -154,22 +173,18 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       }
       pushQueueUndoFromGetter(get);
       set(state => {
-        const idx = Math.max(0, Math.min(insertIndex, state.queue.length));
-        const newQueue = [
-          ...state.queue.slice(0, idx),
-          ...tracks,
-          ...state.queue.slice(idx),
-        ];
+        seedIncoming(state, tracks);
+        const items = itemsOf(state);
+        const idx = Math.max(0, Math.min(insertIndex, items.length));
+        const incoming = toQueueItemRefs(state.queueServerId ?? '', tracks);
+        const newItems = [...items.slice(0, idx), ...incoming, ...items.slice(idx)];
         const newQueueIndex = idx <= state.queueIndex
           ? state.queueIndex + tracks.length
           : state.queueIndex;
+        const newQueue = bridgeQueueFromItems(newItems, [state.queue, tracks]);
         syncQueueToServer(newQueue, state.currentTrack, state.currentTime);
         prefetchLoudnessForEnqueuedTracks(newQueue, newQueueIndex);
-        return {
-          queue: newQueue,
-          queueItems: toQueueItemRefs(state.queueServerId ?? '', newQueue),
-          queueIndex: newQueueIndex,
-        };
+        return { queue: newQueue, queueItems: newItems, queueIndex: newQueueIndex };
       });
     },
 
@@ -185,8 +200,8 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       const baseIdx = state.queueIndex + 1;
       let insertIdx = baseIdx;
       if (useAuthStore.getState().preservePlayNextOrder) {
-        const q = state.queue;
-        while (insertIdx < q.length && q[insertIdx].playNextAdded) insertIdx++;
+        const items = itemsOf(state);
+        while (insertIdx < items.length && items[insertIdx].playNextAdded) insertIdx++;
       }
       get().enqueueAt(tagged, insertIdx);
     },
@@ -202,13 +217,14 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         return;
       }
       if (!skipQueueUndo) pushQueueUndoFromGetter(get);
-      const at = s.queue.findIndex(t => t.id === s.currentTrack!.id);
-      const newQueue: Track[] =
-        at >= 0
-          ? s.queue.slice(0, at + 1)
-          : [s.currentTrack!];
+      const items = itemsOf(s);
+      const at = items.findIndex(r => r.trackId === s.currentTrack!.id);
+      const newItems = at >= 0
+        ? items.slice(0, at + 1)
+        : toQueueItemRefs(s.queueServerId ?? '', [s.currentTrack!]);
       const newIndex = at >= 0 ? at : 0;
-      set({ queue: newQueue, queueItems: toQueueItemRefs(s.queueServerId ?? '', newQueue), queueIndex: newIndex });
+      const newQueue = bridgeQueueFromItems(newItems, [s.queue, [s.currentTrack!]]);
+      set({ queue: newQueue, queueItems: newItems, queueIndex: newIndex });
       syncQueueToServer(newQueue, s.currentTrack, s.currentTime);
     },
 
@@ -227,60 +243,70 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
 
     reorderQueue: (startIndex, endIndex) => {
       pushQueueUndoFromGetter(get);
-      const { queue, queueIndex, queueServerId, currentTrack } = get();
-      const result = Array.from(queue);
+      const state = get();
+      const { queue, queueIndex, currentTrack } = state;
+      const result = itemsOf(state);
       const [removed] = result.splice(startIndex, 1);
       result.splice(endIndex, 0, removed);
       let newIndex = queueIndex;
-      if (currentTrack) newIndex = result.findIndex(t => t.id === currentTrack.id);
-      set({ queue: result, queueItems: toQueueItemRefs(queueServerId ?? '', result), queueIndex: Math.max(0, newIndex) });
-      syncQueueToServer(result, currentTrack, get().currentTime);
+      if (currentTrack) newIndex = result.findIndex(r => r.trackId === currentTrack.id);
+      const newQueue = bridgeQueueFromItems(result, [queue]);
+      set({ queue: newQueue, queueItems: result, queueIndex: Math.max(0, newIndex) });
+      syncQueueToServer(newQueue, currentTrack, get().currentTime);
     },
 
     shuffleQueue: () => {
-      const { queue, queueServerId, currentTrack } = get();
+      const state = get();
+      const { queue, currentTrack } = state;
       if (queue.length < 2) return;
       pushQueueUndoFromGetter(get);
-      const currentIdx = currentTrack ? queue.findIndex(t => t.id === currentTrack.id) : -1;
-      const others = queue.filter((_, i) => i !== currentIdx);
+      const items = itemsOf(state);
+      const currentIdx = currentTrack ? items.findIndex(r => r.trackId === currentTrack.id) : -1;
+      const others = items.filter((_, i) => i !== currentIdx);
       for (let i = others.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [others[i], others[j]] = [others[j], others[i]];
       }
       const result = currentIdx >= 0
-        ? [queue[currentIdx], ...others]
+        ? [items[currentIdx], ...others]
         : others;
       const newIndex = currentIdx >= 0 ? 0 : -1;
-      set({ queue: result, queueItems: toQueueItemRefs(queueServerId ?? '', result), queueIndex: Math.max(0, newIndex) });
-      syncQueueToServer(result, currentTrack, get().currentTime);
+      const newQueue = bridgeQueueFromItems(result, [queue]);
+      set({ queue: newQueue, queueItems: result, queueIndex: Math.max(0, newIndex) });
+      syncQueueToServer(newQueue, currentTrack, get().currentTime);
     },
 
     shuffleUpcomingQueue: () => {
-      const { queue, queueIndex, queueServerId, currentTrack } = get();
+      const state = get();
+      const { queue, queueIndex, currentTrack } = state;
       const upcomingStart = queueIndex + 1;
       const upcomingCount = queue.length - upcomingStart;
       if (upcomingCount < 2) return;
       pushQueueUndoFromGetter(get);
-      const head     = queue.slice(0, upcomingStart);
-      const upcoming = queue.slice(upcomingStart);
+      const items = itemsOf(state);
+      const head     = items.slice(0, upcomingStart);
+      const upcoming = items.slice(upcomingStart);
       for (let i = upcoming.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [upcoming[i], upcoming[j]] = [upcoming[j], upcoming[i]];
       }
       const result = [...head, ...upcoming];
-      set({ queue: result, queueItems: toQueueItemRefs(queueServerId ?? '', result) });
-      syncQueueToServer(result, currentTrack, get().currentTime);
+      const newQueue = bridgeQueueFromItems(result, [queue]);
+      set({ queue: newQueue, queueItems: result });
+      syncQueueToServer(newQueue, currentTrack, get().currentTime);
     },
 
     removeTrack: (index) => {
       pushQueueUndoFromGetter(get);
-      const { queue, queueIndex, queueServerId } = get();
-      const newQueue = [...queue];
-      newQueue.splice(index, 1);
+      const state = get();
+      const { queue, queueIndex } = state;
+      const newItems = itemsOf(state);
+      newItems.splice(index, 1);
+      const newQueue = bridgeQueueFromItems(newItems, [queue]);
       set({
         queue: newQueue,
-        queueItems: toQueueItemRefs(queueServerId ?? '', newQueue),
-        queueIndex: Math.min(queueIndex, newQueue.length - 1),
+        queueItems: newItems,
+        queueIndex: Math.min(queueIndex, newItems.length - 1),
       });
       syncQueueToServer(newQueue, get().currentTrack, get().currentTime);
     },
