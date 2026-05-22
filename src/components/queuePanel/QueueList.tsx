@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Play } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import OverlayScrollArea from '../OverlayScrollArea';
@@ -35,12 +36,52 @@ export function QueueList({
   suppressNextAutoScrollRef, isQueueDrag, psyDragFromIdxRef, externalDropTarget,
   startDrag, orbitAttributionLabel, luckyRolling, t,
 }: Props) {
+  // Virtualize so a 10k+ Artist-Radio queue keeps DOM at O(visible rows).
+  // Scroll element is the OverlayScrollArea viewport (`queueListRef`); rows have
+  // variable height (radio/auto dividers, lucky-mix loader) so we measure them.
+  const rowVirtualizer = useVirtualizer({
+    count: queue.length,
+    getScrollElement: () => queueListRef.current,
+    estimateSize: () => 52,
+    overscan: 10,
+    getItemKey: i => `${queue[i].id}:${i}`,
+    // Start with a sensible viewport height so rows render before the
+    // ResizeObserver reports the real size (SSR / jsdom, where the observer
+    // never fires). The real height overrides this on first measure.
+    initialRect: { width: 0, height: 600 },
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  // Auto-scroll the upcoming track into view on track change. Replaces the
+  // scrollIntoView path in useQueueAutoScroll, which relied on every row being
+  // in the DOM. Honours the suppression flag (row click / undo restore).
+  useEffect(() => {
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false;
+      return;
+    }
+    if (activeTab !== 'queue' || queueIndex < 0 || queue.length === 0) return;
+    const target = Math.min(queueIndex + 1, queue.length - 1);
+    // First bring the target row into the rendered range via the virtualizer
+    // (estimate-based, so it can land a few px off). Then snap to the real DOM
+    // element so it sits flush at the top — no sliver of the now-playing row,
+    // which already shows in the header. scrollIntoView is exact (no estimate).
+    rowVirtualizer.scrollToIndex(target, { align: 'start' });
+    const id = requestAnimationFrame(() => {
+      const el = queueListRef.current?.querySelector<HTMLElement>(`[data-queue-idx="${target}"]`);
+      el?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    });
+    return () => cancelAnimationFrame(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueIndex, activeTab]);
+
   return (
     <OverlayScrollArea
       viewportRef={queueListRef}
       className="queue-list-wrap"
       viewportClassName="queue-list"
-      measureDeps={[activeTab, queue.length]}
+      measureDeps={[activeTab, queue.length, totalSize]}
       railInset="panel"
       viewportScrollBehaviorAuto={isQueueDrag}
     >
@@ -49,8 +90,10 @@ export function QueueList({
           {t('queue.emptyQueue')}
         </div>
       ) : (
-        <>
-        {queue.map((track, idx) => {
+        <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
+        {virtualItems.map(vi => {
+          const idx = vi.index;
+          const track = queue[idx];
           const isPlaying = idx === queueIndex;
           const isFirstAutoAdded = track.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
           const isFirstRadioAdded = track.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
@@ -67,7 +110,12 @@ export function QueueList({
           }
 
           return (
-            <React.Fragment key={`${track.id}-${idx}`}>
+            <div
+              key={vi.key}
+              data-index={idx}
+              ref={rowVirtualizer.measureElement}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
+            >
             {isFirstRadioAdded && (
               <div className="queue-divider" style={{ margin: '2px 0' }}>
                 <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>{t('queue.radioAdded')}</span>
@@ -154,10 +202,10 @@ export function QueueList({
                 </div>
               </button>
             )}
-            </React.Fragment>
+            </div>
           );
         })}
-        </>
+        </div>
       )}
     </OverlayScrollArea>
   );

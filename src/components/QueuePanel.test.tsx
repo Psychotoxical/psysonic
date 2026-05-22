@@ -62,6 +62,20 @@ beforeEach(() => {
 });
 
 describe('QueuePanel — render surface', () => {
+  // jsdom has no layout, so the virtualized QueueList sees a 0px viewport and
+  // renders nothing. @tanstack/virtual-core measures via offsetHeight, so give
+  // the scroll viewport a height and rows a fixed height — then the virtualizer
+  // produces rows the way it does in the browser.
+  let offsetSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    offsetSpy = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains('queue-list') ? 600 : 52;
+      });
+  });
+  afterEach(() => offsetSpy.mockRestore());
+
   it('renders an empty-queue affordance when the queue is empty', () => {
     const { container } = renderWithProviders(<QueuePanel />);
     expect(container.querySelector('.queue-panel')).not.toBeNull();

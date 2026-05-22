@@ -160,7 +160,6 @@ function QueuePanelHostOrSolo() {
     queue,
     queueIndex,
     currentTrack,
-    activeTab,
     queueListRef,
     suppressNextAutoScrollRef,
   });
