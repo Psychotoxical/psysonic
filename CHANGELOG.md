@@ -141,6 +141,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — on-demand track loading for very large queues
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#859](https://github.com/Psychotoxical/psysonic/pull/859)**
+
+* Continued groundwork for multi-thousand-track queues: track details are resolved on demand through a shared cache rather than all being held at once. No change to how the queue looks or behaves.
+
+
+
 ## Fixed
 
 ### In-page browse — virtual scroll and cover-art priority
