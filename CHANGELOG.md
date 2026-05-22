@@ -29,6 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Playback speed — global tempo and pitch strategies
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#852](https://github.com/Psychotoxical/psysonic/pull/852)**
+
+* **Settings → Audio** and player bar: global speed **0.5–2.0×** with three strategies — **Speed** (pitch-corrected, default), **Varispeed**, and **Pitch shift** (manual semitone offset).
+* Rust path: preserve-pitch worker (`pitch_shift`) for Speed / Pitch shift; varispeed via sample-rate scaling; seek-restart on strategy or enable changes.
+* Unified content timeline for seek bar, elapsed time, and seek; player bar popover anchored like volume (compact controls; full hints in Settings).
+* **Orbit:** passthrough **1.0×** while a session is active. Not applied to radio or preview.
+
+
+
 ### Servers — edit existing profiles
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
