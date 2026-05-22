@@ -45,7 +45,7 @@ export const player = {
   collapseQueueResize: 'Warteschlange einklappen, Breite ändern',
   moreOptions: 'Weitere Optionen',
   equalizer: 'Equalizer',
-  playbackRate: 'Playback speed',
+  playbackRate: 'Geschwindigkeit',
   miniPlayer: 'Mini-Player',
   lyrics: 'Lyrics',
   fsLyricsToggle: 'Lyrics im Vollbild',

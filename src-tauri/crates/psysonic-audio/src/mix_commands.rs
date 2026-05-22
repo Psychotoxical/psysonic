@@ -152,30 +152,78 @@ pub fn audio_set_playback_rate(
     state: State<'_, AudioEngine>,
 ) {
     use crate::playback_rate::{
-        STRATEGY_PRESERVE_PITCH, STRATEGY_SPEED_CORRECTED, STRATEGY_VARISPEED,
+        content_position_from_samples, is_effect_active, raw_counter_samples_for_content_position,
+        uses_preserve_dsp, STRATEGY_PRESERVE_PITCH, STRATEGY_SPEED_CORRECTED,
+        STRATEGY_VARISPEED,
+    };
+
+    let clamped_speed = speed.clamp(0.5, 2.0);
+    let clamped_pitch = pitch_semitones.clamp(-12.0, 12.0);
+    let old_enabled = state.playback_rate.enabled.load(Ordering::Relaxed);
+    let old_strat = state.playback_rate.load_strategy();
+    let old_speed = state.playback_rate.load_speed();
+    let was_active = is_effect_active(&state.playback_rate);
+    let new_strat = match strategy.as_str() {
+        "preserve_pitch" => STRATEGY_PRESERVE_PITCH,
+        "speed_corrected" => STRATEGY_SPEED_CORRECTED,
+        _ => STRATEGY_VARISPEED,
+    };
+    let speed_changed = (clamped_speed - old_speed).abs() > 0.001;
+
+    let restamp_content = if was_active
+        && enabled == old_enabled
+        && uses_preserve_dsp(old_strat)
+        && new_strat == old_strat
+        && speed_changed
+    {
+        let sample_rate = state.current_sample_rate.load(Ordering::Relaxed);
+        let channels = state.current_channels.load(Ordering::Relaxed);
+        if sample_rate > 0 && channels > 0 {
+            Some(content_position_from_samples(
+                state.samples_played.load(Ordering::Relaxed),
+                sample_rate,
+                channels,
+                &state.playback_rate,
+            ))
+        } else {
+            None
+        }
+    } else {
+        None
     };
 
     state
         .playback_rate
         .enabled
         .store(enabled, Ordering::Relaxed);
-    let strat = match strategy.as_str() {
-        "preserve_pitch" => STRATEGY_PRESERVE_PITCH,
-        "speed_corrected" => STRATEGY_SPEED_CORRECTED,
-        _ => STRATEGY_VARISPEED,
-    };
     state
         .playback_rate
         .strategy
-        .store(strat, Ordering::Relaxed);
+        .store(new_strat, Ordering::Relaxed);
     state
         .playback_rate
         .speed
-        .store(speed.clamp(0.5, 2.0).to_bits(), Ordering::Relaxed);
+        .store(clamped_speed.to_bits(), Ordering::Relaxed);
     state
         .playback_rate
         .pitch_semitones
-        .store(pitch_semitones.clamp(-12.0, 12.0).to_bits(), Ordering::Relaxed);
+        .store(clamped_pitch.to_bits(), Ordering::Relaxed);
+
+    if let Some(content_secs) = restamp_content {
+        if is_effect_active(&state.playback_rate) {
+            let sample_rate = state.current_sample_rate.load(Ordering::Relaxed);
+            let channels = state.current_channels.load(Ordering::Relaxed);
+            state.samples_played.store(
+                raw_counter_samples_for_content_position(
+                    content_secs,
+                    sample_rate,
+                    channels,
+                    &state.playback_rate,
+                ),
+                Ordering::Relaxed,
+            );
+        }
+    }
 }
 
 #[tauri::command]

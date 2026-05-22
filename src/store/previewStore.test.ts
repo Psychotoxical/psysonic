@@ -30,6 +30,7 @@ import { usePreviewStore } from './previewStore';
 import { useAuthStore } from './authStore';
 import { useOrbitStore } from './orbitStore';
 import { usePlayerStore } from './playerStore';
+import './previewPlayerVolumeSync';
 import { onInvoke, invokeMock } from '@/test/mocks/tauri';
 import { resetAuthStore, resetPreviewStore, resetPlayerStore, resetOrbitStore } from '@/test/helpers/storeReset';
 

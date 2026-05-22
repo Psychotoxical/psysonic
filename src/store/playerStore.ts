@@ -127,4 +127,3 @@ usePlayerStore.subscribe((state, prev) => {
     buffered: state.buffered,
   });
 });
-

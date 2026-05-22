@@ -1,4 +1,6 @@
 import type { Track } from './playerStoreTypes';
+import { usePlayerStore } from './playerStore';
+import { usePreviewStore } from './previewStore';
 import {
   libraryRecordPlaySession,
   type PlaySessionEndReason,
@@ -48,9 +50,7 @@ function noteDurationHint(durationSec?: number): void {
   }
 }
 
-async function playerGateBlocks(): Promise<boolean> {
-  const { usePlayerStore } = await import('./playerStore');
-  const { usePreviewStore } = await import('./previewStore');
+function playerGateBlocks(): boolean {
   if (usePreviewStore.getState().previewingId) return true;
   if (usePlayerStore.getState().currentRadio) return true;
   return false;
@@ -59,7 +59,7 @@ async function playerGateBlocks(): Promise<boolean> {
 async function recordingEnabledForServer(serverId: string): Promise<boolean> {
   if (!serverId) return false;
   if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return false;
-  if (await playerGateBlocks()) return false;
+  if (playerGateBlocks()) return false;
   return libraryIsReady(serverId);
 }
 
@@ -94,7 +94,6 @@ export async function playListenSessionOnProgress(
 ): Promise<void> {
   if (!open?.recordingEnabled) return;
   noteDurationHint(durationSecHint);
-  const { usePlayerStore } = await import('./playerStore');
   const store = usePlayerStore.getState();
   const track = store.currentTrack;
   if (track?.id === open.trackId) {
@@ -126,7 +125,6 @@ export async function playListenSessionFinalize(reason: PlaySessionEndReason): P
     return;
   }
 
-  const { usePlayerStore } = await import('./playerStore');
   const track = usePlayerStore.getState().currentTrack;
   const durationSecHint = resolveDurationSecHint(
     track?.id === session.trackId ? track : null,

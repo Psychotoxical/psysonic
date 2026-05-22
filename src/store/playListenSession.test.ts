@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { onInvoke } from '../test/mocks/tauri';
 import { useLibraryIndexStore } from './libraryIndexStore';
+import { usePlayerStore } from './playerStore';
+import { usePreviewStore } from './previewStore';
 import {
   _resetPlayListenSessionForTest,
   playListenSessionFinalize,
@@ -31,14 +33,12 @@ const testTrack: Track = {
 };
 
 describe('playListenSession', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     _resetPlayListenSessionForTest();
     useLibraryIndexStore.setState({
       masterEnabled: true,
       syncExcludedByServer: {},
     });
-    const { usePlayerStore } = await import('./playerStore');
-    const { usePreviewStore } = await import('./previewStore');
     usePlayerStore.setState({
       currentRadio: null,
       isPlaying: true,
@@ -76,7 +76,6 @@ describe('playListenSession', () => {
   });
 
   it('picks up engine duration from progress ticks', async () => {
-    const { usePlayerStore } = await import('./playerStore');
     usePlayerStore.setState({
       currentTrack: { ...testTrack, duration: 0 },
     });
@@ -118,7 +117,6 @@ describe('playListenSession', () => {
   });
 
   it('skips radio playback', async () => {
-    const { usePlayerStore } = await import('./playerStore');
     usePlayerStore.setState({
       currentRadio: { id: 'r1', name: 'Radio', streamUrl: 'http://x' },
     });

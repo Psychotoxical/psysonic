@@ -11,6 +11,7 @@ use rodio::{Player, Source};
 use tauri::{AppHandle, Emitter, State};
 
 use super::decode::SizedDecoder;
+use super::playback_rate::PlaybackRateAtomics;
 use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::{content_type_to_hint, MASTER_HEADROOM};
 use super::progress_task::spawn_progress_task;
@@ -190,7 +191,7 @@ pub async fn audio_play_radio(
         state.gapless_switch_at.clone(),
         state.current_playback_url.clone(),
         state.stream_playback_armed.clone(),
-        state.playback_rate.clone(),
+        PlaybackRateAtomics::default(),
     );
 
     Ok(())

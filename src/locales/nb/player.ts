@@ -45,7 +45,7 @@ export const player = {
   collapseQueueResize: 'Skjul kø, endre bredde',
   moreOptions: 'Flere alternativer',
   equalizer: 'Equalizer',
-  playbackRate: 'Playback speed',
+  playbackRate: 'Hastighet',
   miniPlayer: 'Minispiller',
   lyrics: 'Sangtekst',
   fsLyricsToggle: 'Sangtekst i fullskjerm',

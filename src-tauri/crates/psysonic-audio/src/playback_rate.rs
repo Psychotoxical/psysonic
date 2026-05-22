@@ -639,4 +639,24 @@ mod tests {
         assert!(out_rms > in_rms * 0.8, "out_rms={out_rms} in_rms={in_rms}");
         assert!(out_rms < in_rms * 1.25, "out_rms={out_rms} in_rms={in_rms}");
     }
+
+    #[test]
+    fn live_speed_change_represerves_content_position() {
+        let atomics = PlaybackRateAtomics::new();
+        atomics.enabled.store(true, Ordering::Relaxed);
+        atomics
+            .strategy
+            .store(STRATEGY_SPEED_CORRECTED, Ordering::Relaxed);
+        atomics.speed.store(1.5f32.to_bits(), Ordering::Relaxed);
+
+        let samples = raw_counter_samples_for_content_position(30.0, 44_100, 2, &atomics);
+        let content = content_position_from_samples(samples, 44_100, 2, &atomics);
+        assert!((content - 30.0).abs() < 0.05);
+
+        atomics.speed.store(1.8f32.to_bits(), Ordering::Relaxed);
+        let restamped =
+            raw_counter_samples_for_content_position(content, 44_100, 2, &atomics);
+        let after = content_position_from_samples(restamped, 44_100, 2, &atomics);
+        assert!((after - 30.0).abs() < 0.05);
+    }
 }

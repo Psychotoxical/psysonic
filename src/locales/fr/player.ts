@@ -45,7 +45,7 @@ export const player = {
   collapseQueueResize: 'Réduire la file, redimensionner',
   moreOptions: 'Plus d’options',
   equalizer: 'Égaliseur',
-  playbackRate: 'Playback speed',
+  playbackRate: 'Vitesse',
   miniPlayer: 'Mini-lecteur',
   lyrics: 'Paroles',
   fsLyricsToggle: 'Paroles en plein écran',

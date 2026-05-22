@@ -45,7 +45,7 @@ export const player = {
   collapseQueueResize: '收起队列，调整宽度',
   moreOptions: '更多选项',
   equalizer: '均衡器',
-  playbackRate: 'Playback speed',
+  playbackRate: '速度',
   miniPlayer: '迷你播放器',
   lyrics: '歌词',
   fsLyricsToggle: '全屏歌词',

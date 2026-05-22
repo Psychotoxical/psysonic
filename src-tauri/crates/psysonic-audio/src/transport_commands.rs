@@ -134,11 +134,7 @@ pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
 
 #[tauri::command]
 pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), String> {
-    seek_playing_source(&state, seconds)
-}
-
-/// Seek the active main-playback sink (`audio_seek`).
-pub(crate) fn seek_playing_source(state: &AudioEngine, seconds: f64) -> Result<(), String> {
+    let state = state.inner();
     const AUDIO_SEEK_TIMEOUT_MS: u64 = 700;
     const AUDIO_SEEK_LOCK_TIMEOUT_MS: u64 = 40;
     // Ghost-command guard: reject seeks within 500 ms of a gapless auto-advance.
