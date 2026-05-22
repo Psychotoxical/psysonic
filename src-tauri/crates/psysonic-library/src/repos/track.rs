@@ -210,7 +210,7 @@ impl<'a> TrackRepository<'a> {
                 params![server_id, resync_gen, now],
             )
         })?;
-        Ok(changed.max(0) as u32)
+        Ok(changed as u32)
     }
 
     /// SELECT a single track by `(server_id, id)`. Returns `None`
