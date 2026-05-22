@@ -207,6 +207,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Local library index — full resync removes server-deleted tracks
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#861](https://github.com/Psychotoxical/psysonic/pull/861)**
+
+* **Settings → Library → Full resync** now soft-deletes local rows that no longer exist on the server after a successful re-sync (mark-and-sweep via `resync_gen`), so **Ready (N tracks)** no longer stays inflated when tracks were removed on Navidrome/Subsonic. Delta tombstone reconcile is unchanged.
+
+
+
 ### Playlists & Favorites — column picker on short lists
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#853](https://github.com/Psychotoxical/psysonic/pull/853)**
