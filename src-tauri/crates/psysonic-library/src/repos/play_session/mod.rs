@@ -43,7 +43,7 @@ fn validate_date_iso(date_iso: &str) -> Result<(), String> {
     let day: u32 = date_iso[8..10]
         .parse()
         .map_err(|_| "dateIso must be YYYY-MM-DD".to_string())?;
-    if year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 {
+    if year < 1970 || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
         return Err("dateIso must be YYYY-MM-DD".into());
     }
     Ok(())

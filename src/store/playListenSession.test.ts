@@ -120,7 +120,7 @@ describe('playListenSession', () => {
   it('skips radio playback', async () => {
     const { usePlayerStore } = await import('./playerStore');
     usePlayerStore.setState({
-      currentRadio: { id: 'r1', title: 'Radio', url: 'http://x' },
+      currentRadio: { id: 'r1', name: 'Radio', streamUrl: 'http://x' },
     });
     vi.useFakeTimers();
     await playListenSessionOpen(testTrack, 'server-1');
