@@ -77,22 +77,3 @@
   border-radius: var(--radius-lg);
 }
 
-.virtual-song-list-scroll {
-  max-height: 70vh;
-  min-height: 320px;
-  overflow-y: auto;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-}
-
-.virtual-song-list-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: var(--space-3);
-  font-size: 12px;
-  color: var(--text-muted);
-}
-

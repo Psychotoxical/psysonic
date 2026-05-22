@@ -5,7 +5,7 @@ import { Search } from 'lucide-react';
 import type { SearchResults as ISearchResults } from '../api/subsonicTypes';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
-import SongRow, { SongListHeader } from '../components/SongRow';
+import PagedSongList from '../components/PagedSongList';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
@@ -30,7 +30,6 @@ export default function SearchResults() {
   const [songsHasMore, setSongsHasMore] = useState(false);
   const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
   const [localMode, setLocalMode] = useState(false);
-  const songsSentinelRef = useRef<HTMLDivElement>(null);
   const searchRunRef = useRef(0);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
@@ -109,16 +108,6 @@ export default function SearchResults() {
     }
   }, [loadingMoreSongs, songsHasMore, query, songsServerOffset, localMode, serverId]);
 
-  useEffect(() => {
-    const el = songsSentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting) loadMoreSongs();
-    }, { rootMargin: '600px' });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [loadMoreSongs]);
-
   const hasResults = results && (results.artists.length || results.albums.length || results.songs.length);
 
   return (
@@ -151,15 +140,12 @@ export default function SearchResults() {
           {results.songs.length > 0 && (
             <section>
               <h2 className="section-title" style={{ marginBottom: '0.75rem' }}>{t('search.songs')}</h2>
-              <SongListHeader />
-              {results.songs.map(song => (
-                <SongRow key={song.id} song={song} />
-              ))}
-              {songsHasMore && (
-                <div ref={songsSentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
-                  {loadingMoreSongs && <div className="spinner" style={{ width: 20, height: 20 }} />}
-                </div>
-              )}
+              <PagedSongList
+                songs={results.songs}
+                hasMore={songsHasMore}
+                loadingMore={loadingMoreSongs}
+                onLoadMore={loadMoreSongs}
+              />
             </section>
           )}
         </>

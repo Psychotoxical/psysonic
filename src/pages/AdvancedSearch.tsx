@@ -8,7 +8,7 @@ import { SlidersVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
-import SongRow, { SongListHeader } from '../components/SongRow';
+import PagedSongList from '../components/PagedSongList';
 import CustomSelect from '../components/CustomSelect';
 import StarFilterButton from '../components/StarFilterButton';
 import { useAuthStore } from '../store/authStore';
@@ -79,7 +79,6 @@ export default function AdvancedSearch() {
   const [songsServerOffset, setSongsServerOffset] = useState(0);
   const [songsHasMore, setSongsHasMore] = useState(false);
   const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
-  const songsSentinelRef = useRef<HTMLDivElement>(null);
 
   const applySongFilters = (
     list: SubsonicSong[],
@@ -294,17 +293,6 @@ export default function AdvancedSearch() {
     }
   }, [loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset, localMode, serverId]);
 
-  // IntersectionObserver on the bottom sentinel — fires loadMoreSongs as it nears the viewport.
-  useEffect(() => {
-    const el = songsSentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting) loadMoreSongs();
-    }, { rootMargin: '600px' });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [loadMoreSongs]);
-
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     runSearch({ query, genre, yearFrom, yearTo, resultType });
@@ -461,15 +449,12 @@ export default function AdvancedSearch() {
                   </span>
                 )}
               </h2>
-              <SongListHeader />
-              {filteredResults.songs.map(song => (
-                <SongRow key={song.id} song={song} />
-              ))}
-              {songsHasMore && (
-                <div ref={songsSentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
-                  {loadingMoreSongs && <div className="spinner" style={{ width: 20, height: 20 }} />}
-                </div>
-              )}
+              <PagedSongList
+                songs={filteredResults.songs}
+                hasMore={songsHasMore}
+                loadingMore={loadingMoreSongs}
+                onLoadMore={loadMoreSongs}
+              />
             </section>
           )}
         </div>

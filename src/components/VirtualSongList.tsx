@@ -1,11 +1,8 @@
 import { searchSongsPaged } from '../api/subsonicSearch';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useRefElementClientHeight } from '../hooks/useResizeClientHeight';
-import { useVirtualizerScrollMargin } from '../hooks/useVirtualizerScrollMargin';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { ndListSongs } from '../api/navidromeBrowse';
 import { runLocalSongBrowse } from '../utils/library/advancedSearchLocal';
 import {
@@ -19,11 +16,9 @@ import {
 } from '../utils/library/browseTextSearch';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import SongRow, { SongListHeader } from './SongRow';
+import PagedSongList from './PagedSongList';
 
 const PAGE_SIZE = 50;
-const ROW_HEIGHT = 52;
-const PREFETCH_PX = 600;
 
 async function fetchBrowseAllPage(
   serverId: string | null | undefined,
@@ -43,6 +38,11 @@ interface Props {
   emptyBrowseText?: string;
 }
 
+/**
+ * Browse-all-tracks list. Renders through the shared `PagedSongList` in the page
+ * flow (sticky header + plain rows + sentinel paging), so it matches the Search
+ * pages and the column header can't be painted over while scrolling (issue #841).
+ */
 export default function VirtualSongList({ title, emptyBrowseText }: Props) {
   const { t } = useTranslation();
   const serverId = useAuthStore(s => s.activeServerId);
@@ -55,9 +55,6 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
   const [hasMore, setHasMore] = useState(true);
   const [browseUnsupported, setBrowseUnsupported] = useState(false);
 
-  const scrollParentRef = useRef<HTMLDivElement>(null);
-  const scrollParentHeight = useRefElementClientHeight(scrollParentRef);
-  const songListOverscan = Math.max(8, Math.ceil(scrollParentHeight / ROW_HEIGHT));
   const requestSeqRef = useRef(0);
   const localSearchModeRef = useRef(false);
 
@@ -114,7 +111,6 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
     setHasMore(true);
     setBrowseUnsupported(false);
     localSearchModeRef.current = false;
-    if (scrollParentRef.current) scrollParentRef.current.scrollTop = 0;
 
     const seq = ++requestSeqRef.current;
     const isStale = () => cancelled || seq !== requestSeqRef.current;
@@ -170,45 +166,6 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
     }
   }, [loading, hasMore, debouncedQuery, offset, fetchSongPage]);
 
-  const loadMoreRef = useRef(loadMore);
-  useEffect(() => { loadMoreRef.current = loadMore; }, [loadMore]);
-
-  useEffect(() => {
-    const el = scrollParentRef.current;
-    if (!el) return;
-    let rafId = 0;
-    const onScroll = () => {
-      if (rafId) return;
-      rafId = requestAnimationFrame(() => {
-        rafId = 0;
-        if (el.scrollTop + el.clientHeight >= el.scrollHeight - PREFETCH_PX) {
-          loadMoreRef.current();
-        }
-      });
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      el.removeEventListener('scroll', onScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, []);
-
-  const virtualWrapRef = useRef<HTMLDivElement>(null);
-  const scrollMargin = useVirtualizerScrollMargin(
-    virtualWrapRef,
-    () => scrollParentRef.current,
-    { active: true, deps: [songs.length] },
-  );
-
-  const virtualizer = useVirtualizer({
-    count: songs.length,
-    getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: songListOverscan,
-    scrollMargin,
-  });
-
-  const totalSize = virtualizer.getTotalSize();
   const showEmptyBrowse = !loading && songs.length === 0 && debouncedQuery === '' && (browseUnsupported || !hasMore);
 
   return (
@@ -246,40 +203,12 @@ export default function VirtualSongList({ title, emptyBrowseText }: Props) {
           {emptyBrowseText ?? t('tracks.browseUnsupported')}
         </div>
       ) : (
-        <>
-          <div ref={scrollParentRef} className="virtual-song-list-scroll">
-            <SongListHeader />
-            <div ref={virtualWrapRef} style={{ height: totalSize, width: '100%', position: 'relative' }}>
-            {virtualizer.getVirtualItems().map(vi => {
-              const song = songs[vi.index];
-              if (!song) return null;
-              return (
-                <div
-                  key={vi.key}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: ROW_HEIGHT,
-                    transform: `translateY(${vi.start - scrollMargin}px)`,
-                  }}
-                >
-                  <SongRow
-                    song={song}
-                  />
-                </div>
-              );
-            })}
-          </div>
-            {loading && (
-              <div className="virtual-song-list-loading">
-                <div className="spinner" style={{ width: 18, height: 18 }} />
-                <span>{t('common.loadingMore')}</span>
-              </div>
-            )}
-          </div>
-        </>
+        <PagedSongList
+          songs={songs}
+          hasMore={hasMore}
+          loadingMore={loading}
+          onLoadMore={loadMore}
+        />
       )}
     </section>
   );
