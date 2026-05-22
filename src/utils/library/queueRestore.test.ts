@@ -119,6 +119,24 @@ describe('hydrateQueueFromIndex', () => {
     expect(s.queueRefs).toBeUndefined();
   });
 
+  it('upgrades a legacy queueRefs-only store (no queueItems) via queueServerId', async () => {
+    ready();
+    echoBatch();
+    seedStore({
+      queueItems: undefined, // pre-Phase-1 persist shape
+      queueRefs: ['t1', 't2', 't3'],
+      queueRefsIndex: 1,
+      queueServerId: 's1',
+      currentTrack: track('t2'),
+    });
+    await hydrateQueueFromIndex();
+    const s = usePlayerStore.getState();
+    expect(s.queue.map(t => t.id)).toEqual(['t1', 't2', 't3']);
+    expect(s.queueIndex).toBe(1);
+    expect(s.queueRefs).toBeUndefined(); // both ref lists cleared after success
+    expect(s.queueItems).toBeUndefined();
+  });
+
   it('carries queue-only flags from queueItems onto hydrated tracks', async () => {
     ready();
     echoBatch();
