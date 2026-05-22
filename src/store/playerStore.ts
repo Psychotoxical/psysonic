@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { emitPlaybackProgress } from './playbackProgress';
-import type { PlayerState } from './playerStoreTypes';
+import type { PlayerState, QueueItemRef } from './playerStoreTypes';
 import { readInitialQueueVisibility } from './queueVisibilityStorage';
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
@@ -94,12 +94,19 @@ export const usePlayerStore = create<PlayerState>()(
           queue: windowedQueue,
           queueServerId: state.queueServerId,
           queueIndex: qi - start, // remap into the windowed slice
-          // F5: full ordered ref list (ids are tiny) so the *whole* queue can be
-          // rehydrated from the local index on startup. The windowed `queue`
-          // above stays as the no-index fallback (queue never empty when the
-          // index is off — the P6 default).
-          queueRefs: state.queue.map(t => t.id),
-          queueRefsIndex: qi,
+          // Phase 1: full ordered thin-ref list (tiny) so the *whole* queue can
+          // be rehydrated from the local index on startup. Dual-write — the
+          // windowed `queue` above stays as the no-index fallback (queue never
+          // empty when the index is off, the P6 default). Per-item serverId is
+          // the playback server (single-server v1); supersedes `queueRefs`.
+          queueItems: state.queue.map((t): QueueItemRef => {
+            const ref: QueueItemRef = { serverId: state.queueServerId ?? '', trackId: t.id };
+            if (t.autoAdded) ref.autoAdded = true;
+            if (t.radioAdded) ref.radioAdded = true;
+            if (t.playNextAdded) ref.playNextAdded = true;
+            return ref;
+          }),
+          queueItemsIndex: qi,
           isQueueVisible: state.isQueueVisible,
           // currentTime is intentionally NOT persisted here.
           // handleAudioProgress fires every 100ms and each setState with a

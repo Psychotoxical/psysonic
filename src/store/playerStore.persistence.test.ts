@@ -285,4 +285,25 @@ describe('partialize: localStorage queue window', () => {
     expect((partial.queue as unknown[]).length).toBe(0);
     expect(partial.queueIndex).toBe(0);
   });
+
+  it('persists the whole queue as thin queueItems (refs + serverId + flags), not just the window', () => {
+    const tracks = makeTracks(600);
+    tracks[3].radioAdded = true;
+    tracks[4].autoAdded = true;
+    usePlayerStore.setState({ queue: tracks, queueIndex: 300, queueServerId: 's1' });
+
+    const partial = getPartialize()(usePlayerStore.getState());
+    const items = partial.queueItems as {
+      serverId: string; trackId: string; radioAdded?: boolean; autoAdded?: boolean;
+    }[];
+
+    // windowed `queue` is capped, but queueItems carries the WHOLE queue
+    expect((partial.queue as unknown[]).length).toBe(501);
+    expect(items.length).toBe(600);
+    expect(partial.queueItemsIndex).toBe(300);
+    expect(items[0].serverId).toBe('s1');
+    expect(items[3].radioAdded).toBe(true);
+    expect(items[4].autoAdded).toBe(true);
+    expect(items[0].radioAdded).toBeUndefined();
+  });
 });

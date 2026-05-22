@@ -34,6 +34,21 @@ export interface Track {
   playNextAdded?: boolean;
 }
 
+/**
+ * Thin canonical queue item (queue thin-state plan, §5.10). Identity plus the
+ * queue-only flags; library metadata (title/artist/cover/…) is resolved from
+ * the local index or network on demand from Phase 2 on. `serverId` is per-item
+ * (day-1 schema for mixed-server queues); v1 fills it with the single playback
+ * server.
+ */
+export interface QueueItemRef {
+  serverId: string;
+  trackId: string;
+  autoAdded?: boolean;
+  radioAdded?: boolean;
+  playNextAdded?: boolean;
+}
+
 export interface PlayerState {
   currentTrack: Track | null;
   waveformBins: number[] | null;
@@ -64,6 +79,12 @@ export interface PlayerState {
    *  are then cleared. Absent / index-off → the windowed `queue` is used as-is. */
   queueRefs?: string[];
   queueRefsIndex?: number;
+  /** Phase 1 (transient): thin canonical ref list persisted alongside the
+   *  windowed `queue`, superseding `queueRefs`. Carries per-item `serverId` +
+   *  queue-only flags. Rehydrated like `queueRefs` and cleared after a full
+   *  hydrate from the index. The in-memory queue stays `Track[]` until Phase 2. */
+  queueItems?: QueueItemRef[];
+  queueItemsIndex?: number;
   isPlaying: boolean;
   /** HTTP stream still buffering (network / demux probe) — show loading on cover art. */
   isPlaybackBuffering: boolean;

@@ -98,4 +98,43 @@ describe('hydrateQueueFromIndex', () => {
     await hydrateQueueFromIndex();
     expect(usePlayerStore.getState().queue.map(t => t.id)).toEqual(['w1']); // unchanged
   });
+
+  it('hydrates from queueItems (preferred) and clears the ref lists', async () => {
+    ready();
+    echoBatch();
+    seedStore({
+      queueItems: [
+        { serverId: 's1', trackId: 't1' },
+        { serverId: 's1', trackId: 't2' },
+        { serverId: 's1', trackId: 't3' },
+      ],
+      queueItemsIndex: 1,
+      currentTrack: track('t2'),
+    });
+    await hydrateQueueFromIndex();
+    const s = usePlayerStore.getState();
+    expect(s.queue.map(t => t.id)).toEqual(['t1', 't2', 't3']);
+    expect(s.queueIndex).toBe(1); // re-located to current track t2
+    expect(s.queueItems).toBeUndefined();
+    expect(s.queueRefs).toBeUndefined();
+  });
+
+  it('carries queue-only flags from queueItems onto hydrated tracks', async () => {
+    ready();
+    echoBatch();
+    seedStore({
+      queueItems: [
+        { serverId: 's1', trackId: 't1' },
+        { serverId: 's1', trackId: 't2', radioAdded: true },
+        { serverId: 's1', trackId: 't3', autoAdded: true, playNextAdded: true },
+      ],
+      queueItemsIndex: 0,
+    });
+    await hydrateQueueFromIndex();
+    const q = usePlayerStore.getState().queue;
+    expect(q.find(t => t.id === 't1')?.radioAdded).toBeUndefined();
+    expect(q.find(t => t.id === 't2')?.radioAdded).toBe(true);
+    expect(q.find(t => t.id === 't3')?.autoAdded).toBe(true);
+    expect(q.find(t => t.id === 't3')?.playNextAdded).toBe(true);
+  });
 });
