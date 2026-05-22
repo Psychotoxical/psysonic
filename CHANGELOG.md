@@ -117,6 +117,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Lyrics — sources can be turned off entirely
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), suggested by sddania, PR [#855](https://github.com/Psychotoxical/psysonic/pull/855)**
+
+* YouLyPlus is now an independent toggle instead of an either/or with the standard sources, so lyrics can be switched off completely — turn off YouLyPlus and every source under **Settings → Lyrics**. With nothing selected, no lyrics are fetched or shown and the queue lyric tab says so. Fresh installs start with all sources off.
+
+
+
 ## Fixed
 
 ### In-page browse — virtual scroll and cover-art priority
