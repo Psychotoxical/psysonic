@@ -79,64 +79,138 @@ impl<'a> TrackRepository<'a> {
     /// IS-3 initial-sync fast path: upsert rows only. Skips §6.9 remap
     /// detection and inline canonical linking — both run on delta sync
     /// or in a post-ingest canonical pass so 500-row batches stay fast.
+    ///
+    /// When `resync_gen` is `Some`, each row is stamped with that
+    /// generation so IS-7 can soft-delete stale rows after a successful
+    /// full resync.
     pub fn upsert_batch_initial_ingest(&self, rows: &[TrackRow]) -> Result<(), String> {
-        self.upsert_batch_initial_ingest_timed(rows).map(|_| ())
+        self.upsert_batch_initial_ingest_timed(rows, None).map(|_| ())
     }
 
     pub fn upsert_batch_initial_ingest_timed(
         &self,
         rows: &[TrackRow],
+        resync_gen: Option<i64>,
     ) -> Result<WriteOpTiming, String> {
         if rows.is_empty() {
             return Ok(WriteOpTiming::default());
         }
+        let sql = match resync_gen {
+            Some(_) => UPSERT_INITIAL_RESYNC_SQL,
+            None => UPSERT_SQL,
+        };
         let (_, timing) = self.store.with_conn_mut_timed("track.upsert_initial_ingest", |conn| {
             let tx = conn.transaction()?;
-            let mut upsert = tx.prepare_cached(UPSERT_SQL)?;
+            let mut upsert = tx.prepare_cached(sql)?;
             for r in rows {
-                upsert.execute(params![
-                    r.server_id,
-                    r.id,
-                    r.title,
-                    r.title_sort,
-                    r.artist,
-                    r.artist_id,
-                    r.album,
-                    r.album_id,
-                    r.album_artist,
-                    r.duration_sec,
-                    r.track_number,
-                    r.disc_number,
-                    r.year,
-                    r.genre,
-                    r.suffix,
-                    r.bit_rate,
-                    r.size_bytes,
-                    r.cover_art_id,
-                    r.starred_at,
-                    r.user_rating,
-                    r.play_count,
-                    r.played_at,
-                    r.server_path,
-                    r.library_id,
-                    r.isrc,
-                    r.mbid_recording,
-                    r.bpm,
-                    r.replay_gain_track_db,
-                    r.replay_gain_album_db,
-                    r.content_hash,
-                    r.server_updated_at,
-                    r.server_created_at,
-                    if r.deleted { 1_i64 } else { 0 },
-                    r.synced_at,
-                    r.raw_json,
-                ])?;
+                if let Some(gen) = resync_gen {
+                    upsert.execute(params![
+                        r.server_id,
+                        r.id,
+                        r.title,
+                        r.title_sort,
+                        r.artist,
+                        r.artist_id,
+                        r.album,
+                        r.album_id,
+                        r.album_artist,
+                        r.duration_sec,
+                        r.track_number,
+                        r.disc_number,
+                        r.year,
+                        r.genre,
+                        r.suffix,
+                        r.bit_rate,
+                        r.size_bytes,
+                        r.cover_art_id,
+                        r.starred_at,
+                        r.user_rating,
+                        r.play_count,
+                        r.played_at,
+                        r.server_path,
+                        r.library_id,
+                        r.isrc,
+                        r.mbid_recording,
+                        r.bpm,
+                        r.replay_gain_track_db,
+                        r.replay_gain_album_db,
+                        r.content_hash,
+                        r.server_updated_at,
+                        r.server_created_at,
+                        if r.deleted { 1_i64 } else { 0 },
+                        r.synced_at,
+                        r.raw_json,
+                        gen,
+                    ])?;
+                } else {
+                    upsert.execute(params![
+                        r.server_id,
+                        r.id,
+                        r.title,
+                        r.title_sort,
+                        r.artist,
+                        r.artist_id,
+                        r.album,
+                        r.album_id,
+                        r.album_artist,
+                        r.duration_sec,
+                        r.track_number,
+                        r.disc_number,
+                        r.year,
+                        r.genre,
+                        r.suffix,
+                        r.bit_rate,
+                        r.size_bytes,
+                        r.cover_art_id,
+                        r.starred_at,
+                        r.user_rating,
+                        r.play_count,
+                        r.played_at,
+                        r.server_path,
+                        r.library_id,
+                        r.isrc,
+                        r.mbid_recording,
+                        r.bpm,
+                        r.replay_gain_track_db,
+                        r.replay_gain_album_db,
+                        r.content_hash,
+                        r.server_updated_at,
+                        r.server_created_at,
+                        if r.deleted { 1_i64 } else { 0 },
+                        r.synced_at,
+                        r.raw_json,
+                    ])?;
+                }
             }
             drop(upsert);
             tx.commit()?;
             Ok(())
         })?;
         Ok(timing)
+    }
+
+    /// Next generation stamp for a full-resync orphan sweep on this server.
+    pub fn next_resync_gen(&self, server_id: &str) -> Result<i64, String> {
+        self.store.with_conn("misc", |c| {
+            c.query_row(
+                "SELECT COALESCE(MAX(resync_gen), 0) + 1 FROM track WHERE server_id = ?1",
+                params![server_id],
+                |r| r.get(0),
+            )
+        })
+    }
+
+    /// IS-7 — soft-delete live rows not re-stamped during the active resync.
+    pub fn sweep_resync_orphans(&self, server_id: &str, resync_gen: i64) -> Result<u32, String> {
+        let now = now_unix_ms();
+        let changed = self.store.with_conn_mut("misc", |c| {
+            c.execute(
+                "UPDATE track SET deleted = 1, synced_at = ?3 \
+                 WHERE server_id = ?1 AND deleted = 0 AND resync_gen != ?2",
+                params![server_id, resync_gen, now],
+            )
+        })?;
+        Ok(changed.max(0) as u32)
     }
 
     /// SELECT a single track by `(server_id, id)`. Returns `None`
@@ -514,6 +588,64 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   raw_json             = excluded.raw_json
 "#;
 
+const UPSERT_INITIAL_RESYNC_SQL: &str = r#"
+INSERT INTO track (
+  server_id, id, title, title_sort, artist, artist_id, album, album_id,
+  album_artist, duration_sec, track_number, disc_number, year, genre, suffix,
+  bit_rate, size_bytes, cover_art_id, starred_at, user_rating, play_count,
+  played_at, server_path, library_id, isrc, mbid_recording, bpm,
+  replay_gain_track_db, replay_gain_album_db, content_hash, server_updated_at,
+  server_created_at, deleted, synced_at, raw_json, resync_gen
+) VALUES (
+  ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+  ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32,
+  ?33, ?34, ?35, ?36
+)
+ON CONFLICT(server_id, id) DO UPDATE SET
+  title                = excluded.title,
+  title_sort           = excluded.title_sort,
+  artist               = excluded.artist,
+  artist_id            = excluded.artist_id,
+  album                = excluded.album,
+  album_id             = excluded.album_id,
+  album_artist         = excluded.album_artist,
+  duration_sec         = excluded.duration_sec,
+  track_number         = excluded.track_number,
+  disc_number          = excluded.disc_number,
+  year                 = excluded.year,
+  genre                = excluded.genre,
+  suffix               = excluded.suffix,
+  bit_rate             = excluded.bit_rate,
+  size_bytes           = excluded.size_bytes,
+  cover_art_id         = excluded.cover_art_id,
+  starred_at           = excluded.starred_at,
+  user_rating          = excluded.user_rating,
+  play_count           = excluded.play_count,
+  played_at            = excluded.played_at,
+  server_path          = excluded.server_path,
+  library_id           = excluded.library_id,
+  isrc                 = excluded.isrc,
+  mbid_recording       = excluded.mbid_recording,
+  bpm                  = excluded.bpm,
+  replay_gain_track_db = excluded.replay_gain_track_db,
+  replay_gain_album_db = excluded.replay_gain_album_db,
+  content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
+  server_updated_at    = excluded.server_updated_at,
+  server_created_at    = excluded.server_created_at,
+  deleted              = 0,
+  synced_at            = excluded.synced_at,
+  raw_json             = excluded.raw_json,
+  resync_gen           = excluded.resync_gen
+"#;
+
+fn now_unix_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -556,6 +688,47 @@ mod tests {
             synced_at: 1_700_000_500,
             raw_json: r#"{"id":"t1"}"#.into(),
         }
+    }
+
+    #[test]
+    fn resync_upsert_stamps_generation_and_sweep_deletes_stale_rows() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch_initial_ingest_timed(&[row("s1", "seen", "Seen")], Some(2))
+            .unwrap();
+        store
+            .with_conn_mut("misc", |c| {
+                c.execute(
+                    "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, resync_gen) \
+                     VALUES ('s1', 'orphan', 'Orphan', 'Al', 1, 0, 1, '{}', 1)",
+                    [],
+                )
+            })
+            .unwrap();
+
+        assert_eq!(repo.sweep_resync_orphans("s1", 2).unwrap(), 1);
+
+        let live: i64 = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track WHERE server_id = 's1' AND deleted = 0",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(live, 1);
+
+        let orphan_deleted: i64 = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT deleted FROM track WHERE id = 'orphan'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(orphan_deleted, 1);
     }
 
     #[test]

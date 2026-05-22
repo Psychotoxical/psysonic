@@ -29,6 +29,11 @@ pub struct InitialSyncCursor {
     /// future field add doesn't break old cursors.
     #[serde(default)]
     pub strategy_state: StrategyState,
+    /// Active full-resync generation for mark-and-sweep orphan cleanup
+    /// (IS-7). `Some(n)` when re-syncing an already-indexed server;
+    /// persisted so resume keeps the same generation.
+    #[serde(default)]
+    pub resync_gen: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -73,6 +78,7 @@ impl InitialSyncCursor {
             library_scope,
             ingested_count: 0,
             strategy_state,
+            resync_gen: None,
         }
     }
 
@@ -120,6 +126,7 @@ mod tests {
             library_scope: Some("lib-1".into()),
             ingested_count: 2500,
             strategy_state: StrategyState::LinearOffset { offset: 2500 },
+            resync_gen: Some(2),
         };
         let json = serde_json::to_value(&c).unwrap();
         let back: InitialSyncCursor = serde_json::from_value(json.clone()).unwrap();

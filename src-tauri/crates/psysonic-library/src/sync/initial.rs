@@ -1,4 +1,4 @@
-//! `InitialSyncRunner` — spec §6.3 IS-1 … IS-6. PR-3b lands the runner,
+//! `InitialSyncRunner` — spec §6.3 IS-1 … IS-7. PR-3b lands the runner,
 //! cursor persistence, and the N1/S1/S2 ingest loops. S3 (file-tree)
 //! is enumerated but returns `StrategyUnsupported`. IS-4 artist pass +
 //! IS-5 watermarks run after the bulk loop completes.
@@ -29,6 +29,7 @@ use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
 use super::progress::{IngestBatchMetrics, NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
 use crate::bulk_ingest::{restore_track_secondary_indexes, suspend_track_secondary_indexes};
+use crate::dto::track_index_nonempty;
 use crate::repos::{RemapStats, SyncStateRepository, TrackRepository, TrackRow};
 use crate::store::LibraryStore;
 use crate::store::WriteOpTiming;
@@ -207,6 +208,7 @@ impl<'a> InitialSyncRunner<'a> {
         });
 
         let mut cursor = self.load_or_init_cursor(&sync_state)?;
+        self.ensure_resync_generation(&mut cursor, &sync_state)?;
         let mut report = InitialSyncReport {
             strategy: Some(cursor.strategy.clone()),
             ingested_count: cursor.ingested_count,
@@ -265,8 +267,19 @@ impl<'a> InitialSyncRunner<'a> {
             self.persist_cursor(&sync_state, &cursor)?;
         }
 
-        // IS-6 — phase=ready, clear cursor, stamp watermarks.
+        // IS-6 — phase=ready, optional IS-7 orphan sweep, clear cursor, stamp watermarks.
         let finished_at = now_unix_ms();
+        if let Some(gen) = cursor.resync_gen {
+            let swept = TrackRepository::new(self.store)
+                .sweep_resync_orphans(&self.server_id, gen)
+                .map_err(SyncError::Storage)?;
+            if swept > 0 {
+                self.progress.emit(ProgressEvent::Tombstoned {
+                    deleted_count: swept,
+                    checked_count: swept,
+                });
+            }
+        }
         let local_count = crate::dto::count_local_tracks(self.store, &self.server_id)
             .map_err(SyncError::Storage)?;
         sync_state
@@ -419,9 +432,36 @@ impl<'a> InitialSyncRunner<'a> {
         }
     }
 
-    fn write_batch_timed(&self, rows: &[TrackRow]) -> Result<WriteOpTiming, SyncError> {
+    fn ensure_resync_generation(
+        &self,
+        cursor: &mut InitialSyncCursor,
+        sync_state: &SyncStateRepository<'_>,
+    ) -> Result<(), SyncError> {
+        if cursor.resync_gen.is_some() {
+            return Ok(());
+        }
+        let is_resync = sync_state
+            .has_last_full_sync_at(&self.server_id, &self.library_scope)
+            .map_err(SyncError::Storage)?
+            || track_index_nonempty(self.store, &self.server_id).map_err(SyncError::Storage)?;
+        if !is_resync {
+            return Ok(());
+        }
+        let gen = TrackRepository::new(self.store)
+            .next_resync_gen(&self.server_id)
+            .map_err(SyncError::Storage)?;
+        cursor.resync_gen = Some(gen);
+        self.persist_cursor(sync_state, cursor)?;
+        Ok(())
+    }
+
+    fn write_batch_timed(
+        &self,
+        rows: &[TrackRow],
+        resync_gen: Option<i64>,
+    ) -> Result<WriteOpTiming, SyncError> {
         TrackRepository::new(self.store)
-            .upsert_batch_initial_ingest_timed(rows)
+            .upsert_batch_initial_ingest_timed(rows, resync_gen)
             .map_err(SyncError::Storage)
     }
 
@@ -430,8 +470,9 @@ impl<'a> InitialSyncRunner<'a> {
         rows: &[TrackRow],
         label: &str,
         offset: u32,
+        resync_gen: Option<i64>,
     ) -> Result<(RemapStats, WriteOpTiming), SyncError> {
-        let timing = self.write_batch_timed(rows)?;
+        let timing = self.write_batch_timed(rows, resync_gen)?;
         let total_ms = timing.total_ms();
         if total_ms >= 500 {
             crate::app_eprintln!(
@@ -667,7 +708,8 @@ impl<'a> InitialSyncRunner<'a> {
                 )
             })
             .collect();
-        let (_stats, _timing) = self.write_batch_logged(&rows, "N1", offset)?;
+        let (_stats, _timing) =
+            self.write_batch_logged(&rows, "N1", offset, ctx.cursor.resync_gen)?;
         ctx.report.ingested_count = ctx.report.ingested_count.saturating_add(rows.len() as u32);
 
         let next_offset = offset.saturating_add(self.batch_size);
@@ -923,7 +965,8 @@ impl<'a> InitialSyncRunner<'a> {
             ));
         }
         let row_count = rows.len() as u32;
-        let (_stats, write_timing) = self.write_batch_logged(&rows, "S1", offset)?;
+        let (_stats, write_timing) =
+            self.write_batch_logged(&rows, "S1", offset, ctx.cursor.resync_gen)?;
         ctx.report.ingested_count = ctx.report.ingested_count.saturating_add(row_count);
 
         let next_offset = offset.saturating_add(self.batch_size);
@@ -1094,7 +1137,8 @@ impl<'a> InitialSyncRunner<'a> {
                     ));
                 }
                 if !rows.is_empty() {
-                    let (_stats, _timing) = self.write_batch_logged(&rows, "S2", album_offset)?;
+                    let (_stats, _timing) =
+                        self.write_batch_logged(&rows, "S2", album_offset, cursor.resync_gen)?;
                     report.ingested_count = report
                         .ingested_count
                         .saturating_add(rows.len() as u32);
@@ -1365,6 +1409,68 @@ mod tests {
             .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 7);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn full_resync_sweeps_orphans_not_seen_in_ingest() {
+        let server = MockServer::start().await;
+        mount_search3_pages(&server, /*total*/ 3, /*batch*/ 10).await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state
+            .set_last_full_sync_at("s1", "", 1)
+            .unwrap();
+
+        store
+            .with_conn_mut("misc", |c| {
+                for id in ["tr_stale_a", "tr_stale_b"] {
+                    c.execute(
+                        "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, resync_gen) \
+                         VALUES ('s1', ?1, 'stale', 'Al', 1, 0, 1, '{}', 1)",
+                        rusqlite::params![id],
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK | CapabilityFlags::SCAN_STATUS_AVAILABLE),
+        )
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        let live: i64 = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track WHERE server_id = 's1' AND deleted = 0",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(live, 3);
+
+        let stale_deleted: i64 = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track WHERE id IN ('tr_stale_a', 'tr_stale_b') AND deleted = 1",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(stale_deleted, 2);
     }
 
     // ── Per-batch progress is emitted during ingest ───────────────────
