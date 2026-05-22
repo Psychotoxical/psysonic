@@ -125,6 +125,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — smoother scrolling for very long queues
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#857](https://github.com/Psychotoxical/psysonic/pull/857)**
+
+* The queue panel now renders only the rows in view, so very long queues (e.g. hours of Artist Radio) stay smooth instead of bogging down the interface.
+
+
+
 ## Fixed
 
 ### In-page browse — virtual scroll and cover-art priority
