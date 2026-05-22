@@ -36,13 +36,13 @@ export function LyricsSourcesCustomizer() {
   const { t } = useTranslation();
   const lyricsSources = useAuthStore(useShallow(s => s.lyricsSources));
   const setLyricsSources = useAuthStore(s => s.setLyricsSources);
-  const lyricsMode = useAuthStore(s => s.lyricsMode);
-  const setLyricsMode = useAuthStore(s => s.setLyricsMode);
+  const youLyPlusEnabled = useAuthStore(s => s.youLyPlusEnabled);
+  const setYouLyPlusEnabled = useAuthStore(s => s.setYouLyPlusEnabled);
   const lyricsStaticOnly = useAuthStore(s => s.lyricsStaticOnly);
   const setLyricsStaticOnly = useAuthStore(s => s.setLyricsStaticOnly);
   const { isDragging: isPsyDragging } = useDragDrop();
-  // useState (not useRef) so the listener-effect re-runs when the container
-  // gets unmounted/remounted by the {lyricsMode === 'standard'} wrapper.
+  // useState (not useRef) so the listener-effect re-binds if the container
+  // element is ever remounted.
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const [dropTarget, setDropTarget] = useState<LyricsDropTarget>(null);
   const dropTargetRef = useRef<LyricsDropTarget>(null);
@@ -107,48 +107,35 @@ export function LyricsSourcesCustomizer() {
         {t('settings.lyricsSourcesDesc')}
       </p>
 
-      {/* Mode switch — standard three-provider pipeline vs. YouLyPlus karaoke.
-          YouLyPlus misses silently fall back to the standard pipeline. */}
+      {/* YouLyPlus (karaoke) — independent toggle. When on it is tried first and
+          the enabled sources below act as fallback; when off only those sources
+          are used. YouLyPlus off + every source off = lyrics fully disabled. */}
       <div className="settings-card" style={{ marginBottom: '0.75rem' }}>
         <div className="settings-toggle-row">
           <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.lyricsModeLyricsplus')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsModeLyricsplusDesc')}</div>
+            <div style={{ fontWeight: 500 }}>{t('settings.lyricsYouLyPlus')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsYouLyPlusDesc')}</div>
           </div>
-          <label className="toggle-switch" aria-label={t('settings.lyricsModeLyricsplus')}>
+          <label className="toggle-switch" aria-label={t('settings.lyricsYouLyPlus')}>
             <input
               type="checkbox"
-              checked={lyricsMode === 'lyricsplus'}
-              onChange={e => { if (e.target.checked) setLyricsMode('lyricsplus'); else setLyricsMode('standard'); }}
-            />
-            <span className="toggle-track" />
-          </label>
-        </div>
-      </div>
-      <div className="settings-card" style={{ marginBottom: '0.75rem' }}>
-        <div className="settings-toggle-row">
-          <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.lyricsModeStandard')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsModeStandardDesc')}</div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.lyricsModeStandard')}>
-            <input
-              type="checkbox"
-              checked={lyricsMode === 'standard'}
-              onChange={e => { if (e.target.checked) setLyricsMode('standard'); else setLyricsMode('lyricsplus'); }}
+              checked={youLyPlusEnabled}
+              onChange={e => setYouLyPlusEnabled(e.target.checked)}
             />
             <span className="toggle-track" />
           </label>
         </div>
       </div>
 
-      {lyricsMode === 'standard' && (
-        <div
-          className="settings-card"
-          style={{ padding: '4px 0', marginBottom: '0.75rem', marginLeft: '1rem' }}
-          ref={setContainerEl}
-          onMouseMove={handleMouseMove}
-        >
+      <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 0.4rem' }}>
+        {youLyPlusEnabled ? t('settings.lyricsSourcesFallbackHint') : t('settings.lyricsSourcesPrimaryHint')}
+      </div>
+      <div
+        className="settings-card"
+        style={{ padding: '4px 0', marginBottom: '0.75rem' }}
+        ref={setContainerEl}
+        onMouseMove={handleMouseMove}
+      >
           {lyricsSources.map((src, i) => {
             const label = t(LYRICS_SOURCE_LABEL_KEYS[src.id]);
             const isBefore = isPsyDragging && dropTarget?.idx === i && dropTarget.before;
@@ -173,7 +160,6 @@ export function LyricsSourcesCustomizer() {
             );
           })}
         </div>
-      )}
 
       {/* Static-only toggle — suppresses line/word tracking in both modes. */}
       <div className="settings-card" style={{ marginBottom: '0.75rem' }}>

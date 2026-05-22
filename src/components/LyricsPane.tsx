@@ -23,10 +23,14 @@ export default function LyricsPane({ currentTrack }: Props) {
   const { t } = useTranslation();
 
   const { syncedLines, wordLines, plainLyrics, source, loading, notFound } = useLyrics(currentTrack);
-  const { staticOnly, sidebarLyricsStyle } = useAuthStore(useShallow(s => ({
+  const { staticOnly, sidebarLyricsStyle, youLyPlusEnabled, lyricsSources } = useAuthStore(useShallow(s => ({
     staticOnly: s.lyricsStaticOnly,
     sidebarLyricsStyle: s.sidebarLyricsStyle,
+    youLyPlusEnabled: s.youLyPlusEnabled,
+    lyricsSources: s.lyricsSources,
   })));
+  // Lyrics fully off: YouLyPlus off and no source enabled (issue #810).
+  const lyricsDisabled = !youLyPlusEnabled && !lyricsSources.some(s => s.enabled);
 
   const useWords  = !staticOnly && wordLines !== null && wordLines.length > 0;
   const hasSynced = !staticOnly && !useWords && syncedLines !== null && syncedLines.length > 0;
@@ -142,6 +146,14 @@ export default function LyricsPane({ currentTrack }: Props) {
     return (
       <div className="lyrics-pane-empty">
         <p className="lyrics-status">{t('player.lyricsNotFound')}</p>
+      </div>
+    );
+  }
+
+  if (lyricsDisabled) {
+    return (
+      <div className="lyrics-pane-empty">
+        <p className="lyrics-status">{t('player.lyricsNoSources')}</p>
       </div>
     );
   }
