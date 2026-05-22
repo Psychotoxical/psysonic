@@ -520,6 +520,7 @@ pub fn run() {
             audio::mix_commands::audio_set_volume,
             audio::mix_commands::audio_update_replay_gain,
             audio::mix_commands::audio_set_eq,
+            audio::mix_commands::audio_set_playback_rate,
             audio::autoeq_commands::autoeq_entries,
             audio::autoeq_commands::autoeq_fetch_profile,
             audio::preload_commands::audio_preload,

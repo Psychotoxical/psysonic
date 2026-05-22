@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart, PictureInPicture2, SlidersVertical, Star } from 'lucide-react';
+import { Gauge, Heart, PictureInPicture2, SlidersVertical, Star } from 'lucide-react';
 import LastfmIcon from '../LastfmIcon';
 import {
   usePlayerBarLayoutStore,
@@ -11,6 +11,7 @@ const PLAYER_BAR_LAYOUT_LABEL_KEYS: Record<PlayerBarLayoutItemId, string> = {
   starRating: 'settings.playerBarStarRating',
   favorite:   'settings.playerBarFavorite',
   lastfmLove: 'settings.playerBarLastfmLove',
+  playbackRate: 'settings.playerBarPlaybackRate',
   equalizer:  'settings.playerBarEqualizer',
   miniPlayer: 'settings.playerBarMiniPlayer',
 };
@@ -23,6 +24,7 @@ const PLAYER_BAR_LAYOUT_ICONS: Record<PlayerBarLayoutItemId, React.ReactNode> = 
       <LastfmIcon size={16} />
     </span>
   ),
+  playbackRate: <Gauge size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   equalizer:  <SlidersVertical size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   miniPlayer: <PictureInPicture2 size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
 };

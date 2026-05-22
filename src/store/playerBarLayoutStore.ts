@@ -5,6 +5,7 @@ export type PlayerBarLayoutItemId =
   | 'starRating'
   | 'favorite'
   | 'lastfmLove'
+  | 'playbackRate'
   | 'equalizer'
   | 'miniPlayer';
 
@@ -17,6 +18,7 @@ export const DEFAULT_PLAYER_BAR_LAYOUT_ITEMS: PlayerBarLayoutItemConfig[] = [
   { id: 'starRating',  visible: true },
   { id: 'favorite',    visible: true },
   { id: 'lastfmLove',  visible: true },
+  { id: 'playbackRate', visible: true },
   { id: 'equalizer',   visible: true },
   { id: 'miniPlayer',  visible: true },
 ];

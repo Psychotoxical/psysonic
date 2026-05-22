@@ -34,6 +34,7 @@ import { PlaybackTime, RemainingTime } from './playerBar/PlaybackClock';
 import { PlayerTrackInfo } from './playerBar/PlayerTrackInfo';
 import { PlayerTransportControls } from './playerBar/PlayerTransportControls';
 import { PlayerSeekbarSection } from './playerBar/PlayerSeekbarSection';
+import { PlayerPlaybackRate } from './playerBar/PlayerPlaybackRate';
 import { PlayerVolume } from './playerBar/PlayerVolume';
 import { PlayerOverflowMenu } from './playerBar/PlayerOverflowMenu';
 import { useFloatingPlayerBar } from '../hooks/useFloatingPlayerBar';
@@ -50,6 +51,7 @@ export default function PlayerBar() {
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
   const [eqOpen, setEqOpen] = useState(false);
+  const [playbackRateOpen, setPlaybackRateOpen] = useState(false);
   const [showVolPct, setShowVolPct] = useState(false);
   const [localShowRemaining, setLocalShowRemaining] = useState(() => useThemeStore.getState().showRemainingTime);
   const premuteVolumeRef = useRef(1);
@@ -279,6 +281,15 @@ export default function PlayerBar() {
         </div>
       ) : (
         <>
+          {isLayoutVisible('playbackRate') && (
+            <PlayerPlaybackRate
+              t={t}
+              open={playbackRateOpen}
+              onToggle={() => setPlaybackRateOpen(v => !v)}
+              onClose={() => setPlaybackRateOpen(false)}
+            />
+          )}
+
           {isLayoutVisible('equalizer') && (
             <button
               className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}

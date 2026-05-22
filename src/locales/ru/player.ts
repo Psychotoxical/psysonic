@@ -45,6 +45,7 @@ export const player = {
   collapseQueueResize: 'Свернуть очередь, изменить ширину',
   moreOptions: 'Дополнительно',
   equalizer: 'Эквалайзер',
+  playbackRate: 'Скорость',
   miniPlayer: 'Мини-плеер',
   lyrics: 'Текст',
   lyricsLoading: 'Загрузка текста…',

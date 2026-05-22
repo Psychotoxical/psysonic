@@ -45,6 +45,7 @@ export const player = {
   collapseQueueResize: 'Strânge coada, redimensionează',
   moreOptions: 'Mai multe opțiuni',
   equalizer: 'Egalizator',
+  playbackRate: 'Playback speed',
   miniPlayer: 'Player Mini',
   lyrics: 'Versuri',
   fsLyricsToggle: 'Versuri în ecran complet',

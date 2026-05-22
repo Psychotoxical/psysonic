@@ -19,6 +19,7 @@ use super::play_input::{
     spawn_legacy_stream_start_when_armed, swap_in_new_sink, url_format_hint, BuildSourceArgs,
     PlayInputContext, SinkSwapInputs,
 };
+use super::playback_rate::preserve_pitch_will_run;
 use super::preview::preview_clear_for_new_main_playback;
 use super::progress_task::spawn_progress_task;
 use super::state::{ChainedInfo, PreloadedTrack};
@@ -347,7 +348,11 @@ pub async fn audio_play(
     // we resume — the buffer is already full and the hardware gets its frames
     // without an underrun on the very first period.
     // Standard mode: no pre-fill needed — default 44.1/48 kHz quantum is small.
-    let needs_prefill = hi_res_enabled && output_rate > 48_000;
+    // Preserve-pitch phase vocoder runs on a worker thread; pre-fill gives the
+    // ring buffer time to build headroom before the cpal callback drains it.
+    let needs_preserve_prefill = preserve_pitch_will_run(&state.playback_rate);
+    let needs_prefill =
+        (hi_res_enabled && output_rate > 48_000) || needs_preserve_prefill;
     let defer_playback_start = !state.stream_playback_armed.load(Ordering::Relaxed);
     if needs_prefill || defer_playback_start {
         sink.pause();
@@ -387,12 +392,12 @@ pub async fn audio_play(
     sink.append(source);
 
     if needs_prefill {
-        // 500 ms lets rodio decode several seconds of hi-res audio into its
-        // internal buffer while the sink is paused. The hardware sees no gap
-        // because the output is held — it only starts draining after sink.play().
-        // 500 ms gives ~5 quanta of headroom at 8192-frame/88200 Hz quantum size,
-        // absorbing scheduler jitter and PipeWire graph wake-up latency.
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        let prefill_ms = if needs_preserve_prefill {
+            800
+        } else {
+            500
+        };
+        tokio::time::sleep(Duration::from_millis(prefill_ms)).await;
         if state.generation.load(Ordering::SeqCst) != gen {
             return Ok(()); // skipped during pre-fill — abort silently
         }
@@ -568,6 +573,7 @@ pub async fn audio_chain_preload(
         state.eq_gains.clone(),
         state.eq_enabled.clone(),
         state.eq_pre_gain.clone(),
+        state.playback_rate.clone(),
         done_next.clone(),
         Duration::ZERO, // gapless: no fade-in — sample-accurate boundary, no click
         chain_counter.clone(),

@@ -12,7 +12,7 @@ describe('playerBarLayoutStore', () => {
   it('starts with all five items visible in declared order', () => {
     const items = usePlayerBarLayoutStore.getState().items;
     expect(items.map(i => i.id)).toEqual([
-      'starRating', 'favorite', 'lastfmLove', 'equalizer', 'miniPlayer',
+      'starRating', 'favorite', 'lastfmLove', 'playbackRate', 'equalizer', 'miniPlayer',
     ]);
     expect(items.every(i => i.visible)).toBe(true);
   });

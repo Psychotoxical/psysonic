@@ -32,6 +32,7 @@ pub struct AudioEngine {
     pub eq_gains: Arc<[AtomicU32; 10]>,
     pub eq_enabled: Arc<AtomicBool>,
     pub eq_pre_gain: Arc<AtomicU32>,
+    pub playback_rate: crate::playback_rate::PlaybackRateAtomics,
     pub(crate) preloaded: Arc<Mutex<Option<PreloadedTrack>>>,
     /// Last fully downloaded manual-stream track bytes (same playback identity),
     /// used to recover seek/replay without waiting for network again.
@@ -366,6 +367,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         eq_gains: Arc::new(std::array::from_fn(|_| AtomicU32::new(0f32.to_bits()))),
         eq_enabled: Arc::new(AtomicBool::new(false)),
         eq_pre_gain: Arc::new(AtomicU32::new(0f32.to_bits())),
+        playback_rate: crate::playback_rate::PlaybackRateAtomics::new(),
         preloaded: Arc::new(Mutex::new(None)),
         stream_completed_cache: Arc::new(Mutex::new(None)),
         stream_completed_spill: Arc::new(Mutex::new(None)),

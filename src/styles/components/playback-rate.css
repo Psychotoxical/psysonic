@@ -1,0 +1,65 @@
+.playback-rate-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.playback-rate-strategy-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.playback-rate-strategy-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.playback-rate-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.playback-rate-label {
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 4.5rem;
+  flex-shrink: 0;
+}
+
+.playback-rate-slider {
+  flex: 1;
+  min-width: 80px;
+}
+
+.playback-rate-value {
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 3rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.playback-rate-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.playback-rate-popup {
+  max-width: min(420px, calc(100vw - 2rem));
+}
+
+.player-playback-rate-btn {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
+  letter-spacing: -0.02em;
+}
+
+.player-playback-rate-btn--live {
+  color: var(--accent);
+}

@@ -45,6 +45,7 @@ export const player = {
   collapseQueueResize: 'Wachtrij inklappen, breedte wijzigen',
   moreOptions: 'Meer opties',
   equalizer: 'Equalizer',
+  playbackRate: 'Playback speed',
   miniPlayer: 'Minispeler',
   lyrics: 'Songtekst',
   fsLyricsToggle: 'Songtekst in volledig scherm',

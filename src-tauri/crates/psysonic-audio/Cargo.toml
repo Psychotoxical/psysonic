@@ -26,6 +26,7 @@ url = "2"
 thread-priority = "3"
 lofty = "0.24"
 id3 = "1.16.4"
+pitch_shift = "2.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

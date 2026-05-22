@@ -8,7 +8,9 @@ import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/lou
 import { useAudioDevicesProbe } from '../../hooks/useAudioDevicesProbe';
 import { AudioOutputDeviceSection } from './audio/AudioOutputDeviceSection';
 import { NormalizationBlock } from './audio/NormalizationBlock';
+import { Gauge } from 'lucide-react';
 import { PlaybackBehaviorBlock } from './audio/PlaybackBehaviorBlock';
+import { PlaybackRateBlock } from './audio/PlaybackRateBlock';
 import { TrackPreviewsSection } from './audio/TrackPreviewsSection';
 
 export function AudioTab() {
@@ -74,6 +76,16 @@ export function AudioTab() {
       >
         <div className="settings-card">
           <Equalizer />
+        </div>
+      </SettingsSubSection>
+
+      {/* Playback speed */}
+      <SettingsSubSection
+        title={t('settings.playbackRateTitle')}
+        icon={<Gauge size={16} />}
+      >
+        <div className="settings-card">
+          <PlaybackRateBlock t={t} />
         </div>
       </SettingsSubSection>
 

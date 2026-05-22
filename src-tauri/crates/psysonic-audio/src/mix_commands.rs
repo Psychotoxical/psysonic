@@ -144,6 +144,41 @@ pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
 }
 
 #[tauri::command]
+pub fn audio_set_playback_rate(
+    enabled: bool,
+    strategy: String,
+    speed: f32,
+    pitch_semitones: f32,
+    state: State<'_, AudioEngine>,
+) {
+    use crate::playback_rate::{
+        STRATEGY_PRESERVE_PITCH, STRATEGY_SPEED_CORRECTED, STRATEGY_VARISPEED,
+    };
+
+    state
+        .playback_rate
+        .enabled
+        .store(enabled, Ordering::Relaxed);
+    let strat = match strategy.as_str() {
+        "preserve_pitch" => STRATEGY_PRESERVE_PITCH,
+        "speed_corrected" => STRATEGY_SPEED_CORRECTED,
+        _ => STRATEGY_VARISPEED,
+    };
+    state
+        .playback_rate
+        .strategy
+        .store(strat, Ordering::Relaxed);
+    state
+        .playback_rate
+        .speed
+        .store(speed.clamp(0.5, 2.0).to_bits(), Ordering::Relaxed);
+    state
+        .playback_rate
+        .pitch_semitones
+        .store(pitch_semitones.clamp(-12.0, 12.0).to_bits(), Ordering::Relaxed);
+}
+
+#[tauri::command]
 pub fn audio_set_normalization(
     engine: String,
     target_lufs: f32,

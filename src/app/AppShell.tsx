@@ -56,6 +56,8 @@ import { usePlayerStore } from '../store/playerStore';
 import { useThemeStore } from '../store/themeStore';
 import { useFontStore } from '../store/fontStore';
 import { useEqStore } from '../store/eqStore';
+import { usePlaybackRateStore } from '../store/playbackRateStore';
+import { usePlaybackRateOrbitSync } from '../hooks/usePlaybackRateOrbitSync';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
   persistSidebarCollapsed,
@@ -78,6 +80,7 @@ export function AppShell() {
   useOrbitHost();
   useOrbitGuest();
   useOrbitBodyAttrs();
+  usePlaybackRateOrbitSync();
   useTrayMenuI18n();
   useServerCapabilitiesProbe();
   const isFullscreenOpen = usePlayerStore(s => s.isFullscreenOpen);
@@ -124,6 +127,7 @@ export function AppShell() {
 
   useEffect(() => {
     useEqStore.getState().syncToRust();
+    usePlaybackRateStore.getState().syncToRust();
   }, []);
 
   useEffect(() => {

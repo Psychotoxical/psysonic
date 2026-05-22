@@ -17,6 +17,7 @@ use symphonia::core::{
 };
 
 use super::codec::{psysonic_codec_registry, try_make_radio_decoder};
+use super::playback_rate::{PlaybackRateAtomics, PlaybackRateSource};
 use super::sources::*;
 
 // ─── SizedCursorSource — correct byte_len for seekable in-memory sources ──────
@@ -546,6 +547,7 @@ pub(crate) fn build_source(
     eq_gains: Arc<[AtomicU32; 10]>,
     eq_enabled: Arc<AtomicBool>,
     eq_pre_gain: Arc<AtomicU32>,
+    playback_rate: PlaybackRateAtomics,
     done_flag: Arc<AtomicBool>,
     fade_in_dur: Duration,
     sample_counter: Arc<AtomicU64>,
@@ -616,7 +618,9 @@ pub(crate) fn build_source(
     let fadeout_trigger = Arc::new(AtomicBool::new(false));
     let fadeout_samples = Arc::new(AtomicU64::new(0));
 
-    let eq_src = EqSource::new(dyn_src, eq_gains, eq_enabled, eq_pre_gain);
+    let rate_src = PlaybackRateSource::new(dyn_src, playback_rate.clone());
+    let rate_dyn = DynSource::new(rate_src);
+    let eq_src = EqSource::new(rate_dyn, eq_gains, eq_enabled, eq_pre_gain);
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
     let notifying = NotifyingSource::new(fade_out, done_flag);
@@ -625,7 +629,7 @@ pub(crate) fn build_source(
 
     Ok(BuiltSource {
         source: boosted,
-        duration_secs: effective_dur,
+        duration_secs: crate::playback_rate::effective_duration_secs(effective_dur, &playback_rate),
         output_rate,
         output_channels: channels.get(),
         fadeout_trigger,
@@ -643,6 +647,7 @@ pub(crate) fn build_streaming_source(
     eq_gains: Arc<[AtomicU32; 10]>,
     eq_enabled: Arc<AtomicBool>,
     eq_pre_gain: Arc<AtomicU32>,
+    playback_rate: PlaybackRateAtomics,
     done_flag: Arc<AtomicBool>,
     fade_in_dur: Duration,
     sample_counter: Arc<AtomicU64>,
@@ -682,7 +687,9 @@ pub(crate) fn build_streaming_source(
     let fadeout_trigger = Arc::new(AtomicBool::new(false));
     let fadeout_samples = Arc::new(AtomicU64::new(0));
 
-    let eq_src = EqSource::new(dyn_src, eq_gains, eq_enabled, eq_pre_gain);
+    let rate_src = PlaybackRateSource::new(dyn_src, playback_rate.clone());
+    let rate_dyn = DynSource::new(rate_src);
+    let eq_src = EqSource::new(rate_dyn, eq_gains, eq_enabled, eq_pre_gain);
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
     let notifying = NotifyingSource::new(fade_out, done_flag);
@@ -694,7 +701,7 @@ pub(crate) fn build_streaming_source(
 
     Ok(BuiltSource {
         source: boosted,
-        duration_secs: effective_dur,
+        duration_secs: crate::playback_rate::effective_duration_secs(effective_dur, &playback_rate),
         output_rate,
         output_channels: channels.get(),
         fadeout_trigger,
@@ -915,21 +922,29 @@ mod build_source_tests {
     }
 
     type EqGains = Arc<[AtomicU32; 10]>;
-    type SourceArgs = (EqGains, Arc<AtomicBool>, Arc<AtomicU32>, Arc<AtomicBool>, Arc<AtomicU64>);
+    type SourceArgs = (
+        EqGains,
+        Arc<AtomicBool>,
+        Arc<AtomicU32>,
+        PlaybackRateAtomics,
+        Arc<AtomicBool>,
+        Arc<AtomicU64>,
+    );
 
     fn default_source_args() -> SourceArgs {
         let eq_gains: Arc<[AtomicU32; 10]> =
             Arc::new(std::array::from_fn(|_| AtomicU32::new(0f32.to_bits())));
         let eq_enabled = Arc::new(AtomicBool::new(false));
         let eq_pre_gain = Arc::new(AtomicU32::new(0f32.to_bits()));
+        let playback_rate = PlaybackRateAtomics::new();
         let done_flag = Arc::new(AtomicBool::new(false));
         let sample_counter = Arc::new(AtomicU64::new(0));
-        (eq_gains, eq_enabled, eq_pre_gain, done_flag, sample_counter)
+        (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter)
     }
 
     #[test]
     fn build_source_succeeds_for_synthetic_wav() {
-        let (eq_gains, eq_enabled, eq_pre_gain, done_flag, sample_counter) = default_source_args();
+        let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) = default_source_args();
         let wav = synthetic_wav_bytes_local(0.4);
         let built = build_source(
             wav,
@@ -937,6 +952,7 @@ mod build_source_tests {
             eq_gains,
             eq_enabled,
             eq_pre_gain,
+            playback_rate,
             done_flag,
             Duration::ZERO,
             sample_counter,
@@ -952,13 +968,14 @@ mod build_source_tests {
 
     #[test]
     fn build_source_returns_err_for_garbage_bytes() {
-        let (eq_gains, eq_enabled, eq_pre_gain, done_flag, sample_counter) = default_source_args();
+        let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) = default_source_args();
         let result = build_source(
             vec![0u8; 32],
             0.0,
             eq_gains,
             eq_enabled,
             eq_pre_gain,
+            playback_rate,
             done_flag,
             Duration::ZERO,
             sample_counter,
@@ -971,7 +988,7 @@ mod build_source_tests {
 
     #[test]
     fn build_streaming_source_succeeds_for_synthetic_wav() {
-        let (eq_gains, eq_enabled, eq_pre_gain, done_flag, sample_counter) = default_source_args();
+        let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) = default_source_args();
         let wav = synthetic_wav_bytes_local(0.4);
         let decoder = SizedDecoder::new(wav, Some("wav"), false).unwrap();
         let built = build_streaming_source(
@@ -980,6 +997,7 @@ mod build_source_tests {
             eq_gains,
             eq_enabled,
             eq_pre_gain,
+            playback_rate,
             done_flag,
             Duration::ZERO,
             sample_counter,
@@ -993,7 +1011,7 @@ mod build_source_tests {
 
     #[test]
     fn build_source_with_target_rate_resamples() {
-        let (eq_gains, eq_enabled, eq_pre_gain, done_flag, sample_counter) = default_source_args();
+        let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) = default_source_args();
         let wav = synthetic_wav_bytes_local(0.3);
         let built = build_source(
             wav,
@@ -1001,6 +1019,7 @@ mod build_source_tests {
             eq_gains,
             eq_enabled,
             eq_pre_gain,
+            playback_rate,
             done_flag,
             Duration::from_millis(5),
             sample_counter,

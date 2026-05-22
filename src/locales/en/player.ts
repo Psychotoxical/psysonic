@@ -45,6 +45,7 @@ export const player = {
   collapseQueueResize: 'Collapse queue, resize',
   moreOptions: 'More options',
   equalizer: 'Equalizer',
+  playbackRate: 'Playback speed',
   miniPlayer: 'Mini Player',
   lyrics: 'Lyrics',
   fsLyricsToggle: 'Lyrics in fullscreen',

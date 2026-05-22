@@ -31,6 +31,7 @@ export {
   serialiseOrbitState,
   suggestionKey,
 } from './orbit/helpers';
+export { isOrbitPlaybackSyncActive } from './orbit/sessionActive';
 export {
   applyOutboxSnapshotsToState,
   computeOrbitDriftMs,

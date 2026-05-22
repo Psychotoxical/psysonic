@@ -14,6 +14,8 @@ mod dev_io;
 pub mod device_commands;
 pub mod mix_commands;
 mod play_input;
+pub mod playback_rate;
+mod preserve_worker;
 pub mod preload_commands;
 pub(crate) mod progress_task;
 pub mod radio_commands;

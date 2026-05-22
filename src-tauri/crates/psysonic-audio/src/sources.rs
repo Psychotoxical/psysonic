@@ -14,7 +14,6 @@ const EQ_CHECK_INTERVAL: usize = 1024;
 
 pub(crate) struct EqSource<S: Source<Item = f32>> {
     inner: S,
-    sample_rate: rodio::SampleRate,
     channels: rodio::ChannelCount,
     gains: Arc<[AtomicU32; 10]>,
     enabled: Arc<AtomicBool>,
@@ -47,7 +46,7 @@ impl<S: Source<Item = f32>> EqSource<S> {
             })
         });
         Self {
-            inner, sample_rate, channels, gains, enabled, pre_gain,
+            inner, channels, gains, enabled, pre_gain,
             filters,
             current_gains: [0.0; 10],
             sample_counter: 0,
@@ -57,14 +56,15 @@ impl<S: Source<Item = f32>> EqSource<S> {
 
     #[allow(clippy::needless_range_loop)]
     fn refresh_if_needed(&mut self) {
+        let sample_rate = self.inner.sample_rate();
         for band in 0..10 {
             let gain_db = f32::from_bits(self.gains[band].load(Ordering::Relaxed));
             if (gain_db - self.current_gains[band]).abs() > 0.01 {
                 self.current_gains[band] = gain_db;
-                let freq = EQ_BANDS_HZ[band].clamp(20.0, (self.sample_rate.get() as f32 / 2.0) - 100.0);
+                let freq = EQ_BANDS_HZ[band].clamp(20.0, (sample_rate.get() as f32 / 2.0) - 100.0);
                 if let Ok(coeffs) = Coefficients::<f32>::from_params(
                     FilterType::PeakingEQ(gain_db),
-                    (self.sample_rate.get() as f32).hz(),
+                    (sample_rate.get() as f32).hz(),
                     freq.hz(),
                     EQ_Q,
                 ) {
@@ -109,19 +109,20 @@ impl<S: Source<Item = f32>> Iterator for EqSource<S> {
 impl<S: Source<Item = f32>> Source for EqSource<S> {
     fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
     fn channels(&self) -> rodio::ChannelCount { self.channels }
-    fn sample_rate(&self) -> rodio::SampleRate { self.sample_rate }
+    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
     fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
 
     #[allow(clippy::needless_range_loop)]
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        let sample_rate = self.inner.sample_rate();
         // Reset biquad filter state to avoid glitches after seek.
         for band in 0..10 {
             let gain_db = f32::from_bits(self.gains[band].load(Ordering::Relaxed));
             self.current_gains[band] = gain_db;
-            let freq = EQ_BANDS_HZ[band].clamp(20.0, (self.sample_rate.get() as f32 / 2.0) - 100.0);
+            let freq = EQ_BANDS_HZ[band].clamp(20.0, (sample_rate.get() as f32 / 2.0) - 100.0);
             if let Ok(coeffs) = Coefficients::<f32>::from_params(
                 FilterType::PeakingEQ(gain_db),
-                (self.sample_rate.get() as f32).hz(),
+                (sample_rate.get() as f32).hz(),
                 freq.hz(),
                 EQ_Q,
             ) {
@@ -144,14 +145,12 @@ impl<S: Source<Item = f32>> Source for EqSource<S> {
 pub(crate) struct DynSource {
     inner: Box<dyn Source<Item = f32> + Send>,
     channels: rodio::ChannelCount,
-    sample_rate: rodio::SampleRate,
 }
 
 impl DynSource {
     pub(crate) fn new(src: impl Source<Item = f32> + Send + 'static) -> Self {
         let channels = src.channels();
-        let sample_rate = src.sample_rate();
-        Self { inner: Box::new(src), channels, sample_rate }
+        Self { inner: Box::new(src), channels }
     }
 }
 
@@ -163,7 +162,7 @@ impl Iterator for DynSource {
 impl Source for DynSource {
     fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len() }
     fn channels(&self) -> rodio::ChannelCount { self.channels }
-    fn sample_rate(&self) -> rodio::SampleRate { self.sample_rate }
+    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
     fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
         self.inner.try_seek(pos)
