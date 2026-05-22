@@ -54,6 +54,7 @@ import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { usePlayerStore } from '../store/playerStore';
 import '../store/previewPlayerVolumeSync';
+import '../store/queueResolverBridge';
 import { useThemeStore } from '../store/themeStore';
 import { useFontStore } from '../store/fontStore';
 import { useEqStore } from '../store/eqStore';
