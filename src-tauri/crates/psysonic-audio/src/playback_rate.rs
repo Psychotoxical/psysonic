@@ -125,12 +125,12 @@ pub(crate) fn raw_counter_samples_for_content_position(
     atomics: &PlaybackRateAtomics,
 ) -> u64 {
     let divisor = (sample_rate_hz as f64 * channels as f64).max(1.0);
-    let raw_secs = if !is_effect_active(atomics) {
-        content_secs
-    } else if atomics.load_strategy() == STRATEGY_VARISPEED {
-        content_secs
-    } else {
+    let raw_secs = if is_effect_active(atomics)
+        && atomics.load_strategy() != STRATEGY_VARISPEED
+    {
         content_secs / atomics.load_speed().max(0.001) as f64
+    } else {
+        content_secs
     };
     (raw_secs * divisor).round() as u64
 }
