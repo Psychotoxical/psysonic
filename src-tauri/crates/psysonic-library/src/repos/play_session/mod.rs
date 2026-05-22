@@ -1,5 +1,11 @@
 //! Append-only player listening sessions (`play_session`).
 
+mod cluster;
+mod completion;
+
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashMap;
 
 use rusqlite::{params, OptionalExtension};
@@ -11,37 +17,10 @@ use crate::dto::{
 };
 use crate::store::LibraryStore;
 
-const MIN_LISTENED_SEC: f64 = 10.0;
-const FULL_COMPLETION_RATIO: f64 = 0.70;
-/// Idle gap after which the next play starts a new listening session.
-const LISTENING_SESSION_GAP_MS: i64 = 30 * 60 * 1000;
-
-#[derive(Clone, Copy)]
-struct PlaySpan {
-    started_at_ms: i64,
-    listened_sec: f64,
-}
-
-fn play_end_ms(span: PlaySpan) -> i64 {
-    span.started_at_ms + (span.listened_sec * 1000.0) as i64
-}
-
-fn count_listening_sessions(plays: &[PlaySpan]) -> u32 {
-    if plays.is_empty() {
-        return 0;
-    }
-    let mut sorted = plays.to_vec();
-    sorted.sort_by_key(|p| p.started_at_ms);
-    let mut sessions = 1u32;
-    let mut prev_end = play_end_ms(sorted[0]);
-    for span in sorted.iter().skip(1) {
-        if span.started_at_ms - prev_end > LISTENING_SESSION_GAP_MS {
-            sessions += 1;
-        }
-        prev_end = prev_end.max(play_end_ms(*span));
-    }
-    sessions
-}
+use cluster::{count_listening_sessions, PlaySpan};
+use completion::{
+    completion_from_position, effective_duration_sec, MIN_LISTENED_SEC,
+};
 
 struct DayAgg {
     total_listened_sec: f64,
@@ -49,6 +28,25 @@ struct DayAgg {
     full_count: u32,
     partial_count: u32,
     plays: Vec<PlaySpan>,
+}
+
+fn validate_date_iso(date_iso: &str) -> Result<(), String> {
+    if date_iso.len() != 10 || date_iso.as_bytes()[4] != b'-' || date_iso.as_bytes()[7] != b'-' {
+        return Err("dateIso must be YYYY-MM-DD".into());
+    }
+    let year: i32 = date_iso[0..4]
+        .parse()
+        .map_err(|_| "dateIso must be YYYY-MM-DD".to_string())?;
+    let month: u32 = date_iso[5..7]
+        .parse()
+        .map_err(|_| "dateIso must be YYYY-MM-DD".to_string())?;
+    let day: u32 = date_iso[8..10]
+        .parse()
+        .map_err(|_| "dateIso must be YYYY-MM-DD".to_string())?;
+    if year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 {
+        return Err("dateIso must be YYYY-MM-DD".into());
+    }
+    Ok(())
 }
 
 pub struct PlaySessionRepository<'a> {
@@ -89,7 +87,8 @@ impl<'a> PlaySessionRepository<'a> {
 
                 let duration_for_completion =
                     effective_duration_sec(duration_sec, input.duration_sec_hint);
-                let completion = completion_from_position(input.position_max_sec, duration_for_completion);
+                let completion =
+                    completion_from_position(input.position_max_sec, duration_for_completion);
                 conn.execute(
                     "INSERT INTO play_session \
                      (server_id, track_id, started_at_ms, listened_sec, position_max_sec, \
@@ -107,6 +106,7 @@ impl<'a> PlaySessionRepository<'a> {
                 )?;
                 Ok(())
             })
+            .map_err(|e| e.to_string())
     }
 
     pub fn year_summary(&self, year: i32) -> Result<PlaySessionYearSummaryDto, String> {
@@ -199,9 +199,7 @@ impl<'a> PlaySessionRepository<'a> {
     }
 
     pub fn day_detail(&self, date_iso: &str) -> Result<PlaySessionDayDetailDto, String> {
-        if date_iso.len() != 10 || date_iso.as_bytes()[4] != b'-' || date_iso.as_bytes()[7] != b'-' {
-            return Err("dateIso must be YYYY-MM-DD".into());
-        }
+        validate_date_iso(date_iso)?;
         self.store
             .with_read_conn(|conn| {
                 let totals_row = conn.query_row(
@@ -347,296 +345,5 @@ impl<'a> PlaySessionRepository<'a> {
                 Ok(out)
             })
             .map_err(|e| e.to_string())
-    }
-}
-
-fn effective_duration_sec(db_duration_sec: i64, hint: Option<i64>) -> i64 {
-    let hint = hint.filter(|d| *d > 0).unwrap_or(0);
-    if db_duration_sec > 0 && hint > 0 {
-        return db_duration_sec.max(hint);
-    }
-    if db_duration_sec > 0 {
-        return db_duration_sec;
-    }
-    hint
-}
-
-fn completion_from_position(position_max_sec: f64, duration_sec: i64) -> &'static str {
-    if duration_sec <= 0 {
-        return "partial";
-    }
-    if position_max_sec / duration_sec as f64 >= FULL_COMPLETION_RATIO {
-        "full"
-    } else {
-        "partial"
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::repos::{TrackRepository, TrackRow};
-
-    fn seed_track(store: &LibraryStore, server_id: &str, track_id: &str, duration_sec: i64) {
-        TrackRepository::new(store)
-            .upsert_batch(&[TrackRow {
-                server_id: server_id.into(),
-                id: track_id.into(),
-                title: "Test".into(),
-                title_sort: None,
-                artist: Some("Artist".into()),
-                artist_id: None,
-                album: "Album".into(),
-                album_id: None,
-                album_artist: None,
-                duration_sec,
-                track_number: None,
-                disc_number: None,
-                year: None,
-                genre: None,
-                suffix: None,
-                bit_rate: None,
-                size_bytes: None,
-                cover_art_id: None,
-                starred_at: None,
-                user_rating: None,
-                play_count: None,
-                played_at: None,
-                server_path: None,
-                library_id: None,
-                isrc: None,
-                mbid_recording: None,
-                bpm: None,
-                replay_gain_track_db: None,
-                replay_gain_album_db: None,
-                content_hash: None,
-                server_updated_at: None,
-                server_created_at: None,
-                deleted: false,
-                synced_at: 1,
-                raw_json: "{}".into(),
-            }])
-            .expect("seed track");
-    }
-
-    #[test]
-    fn insert_rejects_short_sessions() {
-        let store = LibraryStore::open_in_memory();
-        seed_track(&store, "s1", "t1", 200);
-        let repo = PlaySessionRepository::new(&store);
-        let input = PlaySessionInputDto {
-            server_id: "s1".into(),
-            track_id: "t1".into(),
-            started_at_ms: 1_000,
-            listened_sec: 10.0,
-            position_max_sec: 50.0,
-            end_reason: "ended".into(),
-            duration_sec_hint: None,
-        };
-        assert!(repo.insert(&input).is_err());
-    }
-
-    #[test]
-    fn insert_full_vs_partial_completion() {
-        let store = LibraryStore::open_in_memory();
-        seed_track(&store, "s1", "t1", 100);
-        let repo = PlaySessionRepository::new(&store);
-
-        repo.insert(&PlaySessionInputDto {
-            server_id: "s1".into(),
-            track_id: "t1".into(),
-            started_at_ms: 1_000,
-            listened_sec: 80.0,
-            position_max_sec: 75.0,
-            end_reason: "ended".into(),
-            duration_sec_hint: None,
-        })
-        .expect("insert full");
-
-        repo.insert(&PlaySessionInputDto {
-            server_id: "s1".into(),
-            track_id: "t1".into(),
-            started_at_ms: 2_000,
-            listened_sec: 30.0,
-            position_max_sec: 40.0,
-            end_reason: "skip".into(),
-            duration_sec_hint: None,
-        })
-        .expect("insert partial");
-
-        let summary = repo.year_summary(1970).expect("summary");
-        assert_eq!(summary.track_play_count, 2);
-        assert_eq!(summary.session_count, 1);
-        assert_eq!(summary.unique_track_count, 1);
-        assert_eq!(summary.listening_day_count, 1);
-        assert_eq!(summary.full_count, 1);
-        assert_eq!(summary.partial_count, 1);
-    }
-
-    #[test]
-    fn listening_sessions_cluster_by_idle_gap() {
-        let store = LibraryStore::open_in_memory();
-        seed_track(&store, "s1", "t1", 200);
-        seed_track(&store, "s1", "t2", 200);
-        seed_track(&store, "s1", "t3", 200);
-        let repo = PlaySessionRepository::new(&store);
-        let base = 1_700_000_000_000_i64;
-        let insert = |offset_ms: i64, track_id: &str| {
-            repo.insert(&PlaySessionInputDto {
-                server_id: "s1".into(),
-                track_id: track_id.into(),
-                started_at_ms: base + offset_ms,
-                listened_sec: 120.0,
-                position_max_sec: 100.0,
-                end_reason: "ended".into(),
-                duration_sec_hint: None,
-            })
-            .expect("insert");
-        };
-        // Three plays within 30 min → one session.
-        insert(0, "t1");
-        insert(5 * 60 * 1000, "t2");
-        insert(10 * 60 * 1000, "t3");
-        // Gap > 30 min → second session.
-        insert(45 * 60 * 1000, "t1");
-
-        let year = repo
-            .year_bounds()
-            .expect("bounds")
-            .max_year
-            .expect("year with data");
-        let summary = repo.year_summary(year).expect("summary");
-        assert_eq!(summary.track_play_count, 4);
-        assert_eq!(summary.session_count, 2);
-        assert_eq!(summary.unique_track_count, 3);
-        assert_eq!(summary.listening_day_count, 1);
-
-        let heat = repo.heatmap(year).expect("heatmap");
-        assert_eq!(heat.len(), 1);
-        assert_eq!(heat[0].track_play_count, 4);
-
-        let days = repo.recent_days(10).expect("recent");
-        assert_eq!(days[0].track_play_count, 4);
-        assert_eq!(days[0].session_count, 2);
-    }
-
-    #[test]
-    fn year_bounds_empty_and_populated() {
-        let store = LibraryStore::open_in_memory();
-        let repo = PlaySessionRepository::new(&store);
-        let empty = repo.year_bounds().expect("empty bounds");
-        assert_eq!(empty.min_year, None);
-        assert_eq!(empty.max_year, None);
-
-        seed_track(&store, "s1", "t1", 200);
-        seed_track(&store, "s1", "t2", 200);
-        let insert = |started_at_ms: i64, track_id: &str| {
-            repo.insert(&PlaySessionInputDto {
-                server_id: "s1".into(),
-                track_id: track_id.into(),
-                started_at_ms,
-                listened_sec: 20.0,
-                position_max_sec: 15.0,
-                end_reason: "ended".into(),
-                duration_sec_hint: None,
-            })
-            .expect("insert");
-        };
-        // 2020-01-01 and 2021-01-01 UTC — stable across TZ for year extraction.
-        insert(1_577_836_800_000, "t1");
-        insert(1_609_459_200_000, "t2");
-
-        let bounds = repo.year_bounds().expect("bounds");
-        assert_eq!(bounds.min_year, Some(2020));
-        assert_eq!(bounds.max_year, Some(2021));
-    }
-
-    #[test]
-    fn recent_days_newest_first_with_limit() {
-        let store = LibraryStore::open_in_memory();
-        let repo = PlaySessionRepository::new(&store);
-        seed_track(&store, "s1", "t1", 200);
-        seed_track(&store, "s1", "t2", 200);
-        let insert = |started_at_ms: i64, track_id: &str| {
-            repo.insert(&PlaySessionInputDto {
-                server_id: "s1".into(),
-                track_id: track_id.into(),
-                started_at_ms,
-                listened_sec: 20.0,
-                position_max_sec: 15.0,
-                end_reason: "ended".into(),
-                duration_sec_hint: None,
-            })
-            .expect("insert");
-        };
-        insert(1_577_836_800_000, "t1"); // 2020-01-01
-        insert(1_609_459_200_000, "t2"); // 2021-01-01
-
-        let days = repo.recent_days(30).expect("recent");
-        assert_eq!(days.len(), 2);
-        assert_eq!(days[0].date, "2021-01-01");
-        assert_eq!(days[1].date, "2020-01-01");
-        assert_eq!(days[0].session_count, 1);
-        assert_eq!(days[0].track_play_count, 1);
-    }
-
-    #[test]
-    fn zero_index_duration_uses_hint_and_stays_partial() {
-        let store = LibraryStore::open_in_memory();
-        seed_track(&store, "s1", "t1", 0);
-        let repo = PlaySessionRepository::new(&store);
-        repo.insert(&PlaySessionInputDto {
-            server_id: "s1".into(),
-            track_id: "t1".into(),
-            started_at_ms: 1_000,
-            listened_sec: 45.0,
-            position_max_sec: 40.0,
-            end_reason: "skip".into(),
-            duration_sec_hint: Some(300),
-        })
-        .expect("insert");
-
-        let detail = repo.day_detail("1970-01-01").expect("detail");
-        assert_eq!(detail.tracks[0].completion, "partial");
-    }
-
-    #[test]
-    fn zero_duration_without_hint_is_partial_not_full() {
-        let store = LibraryStore::open_in_memory();
-        seed_track(&store, "s1", "t1", 0);
-        let repo = PlaySessionRepository::new(&store);
-        repo.insert(&PlaySessionInputDto {
-            server_id: "s1".into(),
-            track_id: "t1".into(),
-            started_at_ms: 1_000,
-            listened_sec: 45.0,
-            position_max_sec: 40.0,
-            end_reason: "skip".into(),
-            duration_sec_hint: None,
-        })
-        .expect("insert");
-
-        let detail = repo.day_detail("1970-01-01").expect("detail");
-        assert_eq!(detail.tracks[0].completion, "partial");
-    }
-
-    #[test]
-    fn corrupt_short_db_duration_prefers_player_hint() {
-        let store = LibraryStore::open_in_memory();
-        seed_track(&store, "s1", "t1", 1);
-        let repo = PlaySessionRepository::new(&store);
-        repo.insert(&PlaySessionInputDto {
-            server_id: "s1".into(),
-            track_id: "t1".into(),
-            started_at_ms: 1_000,
-            listened_sec: 45.0,
-            position_max_sec: 40.0,
-            end_reason: "skip".into(),
-            duration_sec_hint: Some(300),
-        })
-        .expect("insert");
-
-        let detail = repo.day_detail("1970-01-01").expect("detail");
-        assert_eq!(detail.tracks[0].completion, "partial");
     }
 }

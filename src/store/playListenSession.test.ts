@@ -7,6 +7,7 @@ import {
   playListenSessionFinalize,
   playListenSessionOnProgress,
   playListenSessionOpen,
+  resolveDurationSecHint,
 } from './playListenSession';
 import { onPlaySessionRecorded } from './playSessionRecorded';
 
@@ -104,6 +105,58 @@ describe('playListenSession', () => {
     expect(invoke).not.toHaveBeenCalledWith('library_record_play_session', expect.anything());
   });
 
+  it('skips preview playback', async () => {
+    const { usePreviewStore } = await import('./previewStore');
+    usePreviewStore.setState({ previewingId: 'preview-1' });
+    vi.useFakeTimers();
+    await playListenSessionOpen(testTrack, 'server-1');
+    vi.setSystemTime(Date.now() + 20_000);
+    await playListenSessionOnProgress(15, false);
+    await playListenSessionFinalize('ended');
+    vi.useRealTimers();
+    expect(invoke).not.toHaveBeenCalledWith('library_record_play_session', expect.anything());
+  });
+
+  it('skips radio playback', async () => {
+    const { usePlayerStore } = await import('./playerStore');
+    usePlayerStore.setState({
+      currentRadio: { id: 'r1', title: 'Radio', url: 'http://x' },
+    });
+    vi.useFakeTimers();
+    await playListenSessionOpen(testTrack, 'server-1');
+    vi.setSystemTime(Date.now() + 20_000);
+    await playListenSessionOnProgress(15, false);
+    await playListenSessionFinalize('ended');
+    vi.useRealTimers();
+    expect(invoke).not.toHaveBeenCalledWith('library_record_play_session', expect.anything());
+  });
+
+  it('does not accumulate listened time while paused or buffering', async () => {
+    const { usePlayerStore } = await import('./playerStore');
+    vi.useFakeTimers();
+    await playListenSessionOpen(testTrack, 'server-1');
+    vi.setSystemTime(Date.now() + 15_000);
+    usePlayerStore.setState({ isPlaying: false });
+    await playListenSessionOnProgress(12, false);
+    vi.setSystemTime(Date.now() + 30_000);
+    await playListenSessionOnProgress(12, true);
+    await playListenSessionFinalize('ended');
+    vi.useRealTimers();
+    expect(invoke).not.toHaveBeenCalledWith('library_record_play_session', expect.anything());
+  });
+
+  it('skips when library is not ready', async () => {
+    const { libraryIsReady } = await import('../utils/library/libraryReady');
+    vi.mocked(libraryIsReady).mockResolvedValueOnce(false);
+    vi.useFakeTimers();
+    await playListenSessionOpen(testTrack, 'server-1');
+    vi.setSystemTime(Date.now() + 20_000);
+    await playListenSessionOnProgress(15, false);
+    await playListenSessionFinalize('ended');
+    vi.useRealTimers();
+    expect(invoke).not.toHaveBeenCalledWith('library_record_play_session', expect.anything());
+  });
+
   it('emits play-session-recorded after a persisted listen', async () => {
     const listener = vi.fn();
     const unsub = onPlaySessionRecorded(listener);
@@ -119,5 +172,16 @@ describe('playListenSession', () => {
       trackId: 't1',
       startedAtMs: expect.any(Number),
     });
+  });
+});
+
+describe('resolveDurationSecHint', () => {
+  it('returns zero when no positive durations are available', () => {
+    expect(resolveDurationSecHint(null)).toBe(0);
+    expect(resolveDurationSecHint({ duration: 0 }, 0, undefined)).toBe(0);
+  });
+
+  it('prefers the largest finite positive hint', () => {
+    expect(resolveDurationSecHint({ duration: 180 }, 240, 200)).toBe(240);
   });
 });
