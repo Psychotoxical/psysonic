@@ -51,6 +51,7 @@ export const player = {
   fsLyricsToggle: 'Paroles en plein écran',
   lyricsLoading: 'Chargement des paroles…',
   lyricsNotFound: 'Aucune parole trouvée pour ce titre',
+  lyricsNoSources: 'Aucune source de paroles sélectionnée — activez-en dans Réglages → Paroles',
   lyricsSourceServer: 'Source : Serveur',
   lyricsSourceLrclib: 'Source : LRCLIB',
   lyricsSourceNetease: 'Source : Netease',

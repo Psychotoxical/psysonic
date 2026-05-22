@@ -51,6 +51,7 @@ export const player = {
   fsLyricsToggle: 'Sangtekst i fullskjerm',
   lyricsLoading: 'Laster sangtekst…',
   lyricsNotFound: 'Ingen sangtekst funnet for dette sporet',
+  lyricsNoSources: 'Ingen tekstkilder valgt — aktiver noen i Innstillinger → Tekster',
   lyricsSourceServer: 'Kilde: Server',
   lyricsSourceLrclib: 'Kilde: LRCLIB',
   lyricsSourceNetease: 'Kilde: Netease',

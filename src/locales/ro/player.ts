@@ -51,6 +51,7 @@ export const player = {
   fsLyricsToggle: 'Versuri în ecran complet',
   lyricsLoading: 'Se încarcă versurile…',
   lyricsNotFound: 'Niciun vers găsit pentru această piesă',
+  lyricsNoSources: 'Nicio sursă de versuri selectată — activează una în Setări → Versuri',
   lyricsSourceServer: 'Sursa: Server',
   lyricsSourceLrclib: 'Sursa: LRCLIB',
   lyricsSourceNetease: 'Sursa: Netease',

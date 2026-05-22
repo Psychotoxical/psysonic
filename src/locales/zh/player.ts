@@ -51,6 +51,7 @@ export const player = {
   fsLyricsToggle: '全屏歌词',
   lyricsLoading: '正在加载歌词…',
   lyricsNotFound: '未找到此曲目的歌词',
+  lyricsNoSources: '未选择歌词来源 — 请在设置 → 歌词中启用',
   lyricsSourceServer: '来源：服务器',
   lyricsSourceLrclib: '来源：LRCLIB',
   lyricsSourceNetease: '来源：网易云',

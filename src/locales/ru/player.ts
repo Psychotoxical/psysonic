@@ -50,6 +50,7 @@ export const player = {
   lyrics: 'Текст',
   lyricsLoading: 'Загрузка текста…',
   lyricsNotFound: 'Текст не найден',
+  lyricsNoSources: 'Источники текста не выбраны — включите их в Настройки → Текст',
   lyricsSourceNetease: 'Источник: Netease',
   lyricsSourceLyricsplus: 'Источник: YouLyPlus',
   showDuration: 'Показать длительность',

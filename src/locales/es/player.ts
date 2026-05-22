@@ -51,6 +51,7 @@ export const player = {
   fsLyricsToggle: 'Letras en pantalla completa',
   lyricsLoading: 'Cargando letras…',
   lyricsNotFound: 'No se encontraron letras para esta pista',
+  lyricsNoSources: 'No hay fuentes de letras seleccionadas — activa alguna en Ajustes → Letras',
   lyricsSourceServer: 'Fuente: Servidor',
   lyricsSourceLrclib: 'Fuente: LRCLIB',
   lyricsSourceNetease: 'Fuente: Netease',

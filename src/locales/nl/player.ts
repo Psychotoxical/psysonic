@@ -51,6 +51,7 @@ export const player = {
   fsLyricsToggle: 'Songtekst in volledig scherm',
   lyricsLoading: 'Songtekst laden…',
   lyricsNotFound: 'Geen songtekst gevonden voor dit nummer',
+  lyricsNoSources: 'Geen songtekstbronnen geselecteerd — schakel er enkele in via Instellingen → Songteksten',
   lyricsSourceServer: 'Bron: Server',
   lyricsSourceLrclib: 'Bron: LRCLIB',
   lyricsSourceNetease: 'Bron: Netease',
