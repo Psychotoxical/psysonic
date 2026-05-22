@@ -71,7 +71,6 @@ export function PlayerPlaybackRate({ t }: Props) {
           ref={popRef}
           className="player-playback-rate-popover"
           style={popStyle}
-          onWheel={handleWheel}
         >
           <PlaybackRateControls t={t} showEnable={false} />
         </div>,

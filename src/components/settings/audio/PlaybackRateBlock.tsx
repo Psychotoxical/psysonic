@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import type { TFunction } from 'i18next';
 import {
   PLAYBACK_PITCH_MAX,
@@ -9,6 +9,8 @@ import {
   PLAYBACK_SPEED_PRESETS,
   PLAYBACK_SPEED_STEP,
   PLAYBACK_STRATEGIES,
+  clampPlaybackPitch,
+  clampPlaybackSpeed,
   derivedVarispeedSemitones,
   formatPitchLabel,
   formatSpeedLabel,
@@ -56,8 +58,27 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
     }
   };
 
+  const handleWheelSpeed = useCallback((e: React.WheelEvent<HTMLElement>) => {
+    if (!compact || !enabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY > 0 ? -PLAYBACK_SPEED_STEP : PLAYBACK_SPEED_STEP;
+    setSpeed(clampPlaybackSpeed(speed + delta));
+  }, [compact, enabled, speed, setSpeed]);
+
+  const handleWheelPitch = useCallback((e: React.WheelEvent<HTMLElement>) => {
+    if (!compact || !enabled || strategy !== 'preserve_pitch') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY > 0 ? -PLAYBACK_PITCH_STEP : PLAYBACK_PITCH_STEP;
+    setPitchSemitones(clampPlaybackPitch(pitchSemitones + delta));
+  }, [compact, enabled, strategy, pitchSemitones, setPitchSemitones]);
+
   return (
-    <div className={`playback-rate-controls${compact ? ' playback-rate-controls--compact' : ''}`}>
+    <div
+      className={`playback-rate-controls${compact ? ' playback-rate-controls--compact' : ''}`}
+      onWheel={compact ? handleWheelSpeed : undefined}
+    >
       {showEnable && (
         <div className="settings-toggle-row">
           <div>
@@ -144,7 +165,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
           )}
 
           {strategy === 'preserve_pitch' && (
-            <div className="playback-rate-slider-row">
+            <div className="playback-rate-slider-row" onWheel={compact ? handleWheelPitch : undefined}>
               {!compact && (
                 <span className="playback-rate-label">{t('settings.playbackRatePitch')}</span>
               )}
