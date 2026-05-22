@@ -126,6 +126,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Library browse: local-vs-network text search race, All Albums/Artists catalog from index, DevTools browse-race logging (PR #847)',
       'Player stats: local listening history tab with heatmap, year summary, recent days, and day drill-down (PR #849)',
       'Settings → Library: exclude/include index buttons show busy state and block repeat clicks (PR #850)',
+      'Statistics → Player stats: tab stays visible without local index; notice links to library settings (PR #851)',
     ],
   },
   {
