@@ -36,6 +36,11 @@ interface Props {
   t: TFunction;
 }
 
+// Stable reference so the virtualizer never sees a "changed" option on re-render
+// (an inline object literal would be a new ref every render). Only used until the
+// ResizeObserver reports the real viewport height.
+const INITIAL_RECT = { width: 0, height: 600 };
+
 export function QueueList({
   queue, queueIndex, contextMenu, playTrack, activeTab, queueListRef,
   suppressNextAutoScrollRef, isQueueDrag, psyDragFromIdxRef, externalDropTarget,
@@ -60,7 +65,7 @@ export function QueueList({
     // Start with a sensible viewport height so rows render before the
     // ResizeObserver reports the real size (SSR / jsdom, where the observer
     // never fires). The real height overrides this on first measure.
-    initialRect: { width: 0, height: 600 },
+    initialRect: INITIAL_RECT,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
