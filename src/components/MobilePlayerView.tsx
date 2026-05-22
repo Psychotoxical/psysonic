@@ -16,6 +16,11 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCachedUrl } from './CachedImage';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { formatTrackTime } from '../utils/format/formatDuration';
+import {
+  getCachedTrack,
+  getQueueResolverVersion,
+  subscribeQueueResolver,
+} from '../utils/library/queueTrackResolver';
 import LyricsPane from './LyricsPane';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
@@ -81,8 +86,13 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const queue = usePlayerStore(s => s.queue);
   const queueIndex = usePlayerStore(s => s.queueIndex);
+  const serverId = usePlayerStore(s => s.queueServerId);
   const playTrack = usePlayerStore(s => s.playTrack);
   const listRef = useRef<HTMLDivElement>(null);
+  // Resolver-first row data (cache → queue: Track[] fallback until phase 4),
+  // matching the desktop QueueList. Subscribe once so rows re-render as the
+  // resolver cache fills.
+  useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
 
   // Virtualize so a multi-thousand-track queue keeps DOM at O(visible rows) on
   // mobile too (matches the desktop QueuePanel).
@@ -125,7 +135,8 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
             <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
             {virtualItems.map(vi => {
               const idx = vi.index;
-              const track = queue[idx];
+              const base = queue[idx];
+              const track = (serverId ? getCachedTrack({ serverId, trackId: base.id }) : undefined) ?? base;
               const isActive = idx === queueIndex;
               return (
                 <div
