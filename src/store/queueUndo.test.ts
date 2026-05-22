@@ -44,13 +44,11 @@ beforeEach(() => {
 });
 
 describe('queueUndoSnapshotFromState', () => {
-  it('deep-clones queue tracks and currentTrack', () => {
+  it('captures the queue as thin refs and clones currentTrack', () => {
     const original = state([track('a'), track('b')]);
     const snap = queueUndoSnapshotFromState(original);
-    expect(snap.queue).not.toBe(original.queue);
-    expect(snap.queue[0]).not.toBe(original.queue[0]);
     expect(snap.currentTrack).not.toBe(original.currentTrack);
-    expect(snap.queue.map(t => t.id)).toEqual(['a', 'b']);
+    expect(snap.queueItems.map(r => r.trackId)).toEqual(['a', 'b']);
   });
 
   it('preserves currentTrack=null', () => {
@@ -69,7 +67,7 @@ describe('pushQueueUndoFromGetter', () => {
   it('captures the current state on top of the undo stack', () => {
     pushQueueUndoFromGetter(() => state([track('a')]));
     const snap = popQueueUndoSnapshot();
-    expect(snap?.queue[0].id).toBe('a');
+    expect(snap?.queueItems[0].trackId).toBe('a');
   });
 
   it('wipes the redo stack — a fresh action invalidates redo history', () => {
@@ -100,8 +98,8 @@ describe('pushQueueUndoSnapshot / pushQueueRedoSnapshot', () => {
   it('undo-snapshot push keeps order LIFO', () => {
     pushQueueUndoSnapshot(queueUndoSnapshotFromState(state([track('first')])));
     pushQueueUndoSnapshot(queueUndoSnapshotFromState(state([track('second')])));
-    expect(popQueueUndoSnapshot()?.queue[0].id).toBe('second');
-    expect(popQueueUndoSnapshot()?.queue[0].id).toBe('first');
+    expect(popQueueUndoSnapshot()?.queueItems[0].trackId).toBe('second');
+    expect(popQueueUndoSnapshot()?.queueItems[0].trackId).toBe('first');
   });
 });
 

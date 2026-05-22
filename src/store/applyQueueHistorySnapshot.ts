@@ -12,7 +12,8 @@ import { clearPreloadingIds } from './gaplessPreloadState';
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
 import type { PlayerState } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
-import { sameQueueTrackId, shallowCloneQueueTracks } from '../utils/playback/queueIdentity';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
+import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import {
   setPendingQueueListScrollTop,
@@ -55,7 +56,12 @@ export function applyQueueHistorySnapshot(
   if (prior.currentRadio) {
     stopRadio();
   }
-  let nextQueue = shallowCloneQueueTracks(snap.queue);
+  // Rebuild the queue from the snapshot's thin refs (thin-state phase 4):
+  // resolver cache → the live queue by id (covers tracks the edit didn't remove)
+  // → placeholder. The playing track is restored separately from the full
+  // `snap.currentTrack` below.
+  const liveById = new Map(prior.queue.map(t => [t.id, t]));
+  let nextQueue = snap.queueItems.map(ref => resolveQueueTrack(ref, liveById.get(ref.trackId)));
   let nextIndex = snap.queueIndex;
   let nextTrack = snap.currentTrack ? { ...snap.currentTrack } : null;
 

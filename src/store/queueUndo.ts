@@ -1,10 +1,15 @@
-import type { PlayerState, Track } from './playerStoreTypes';
+import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 /** Hard cap on undo/redo depth — keeps memory bounded for very long sessions. */
 export const QUEUE_UNDO_MAX = 32;
 
 export type QueueUndoSnapshot = {
-  queue: Track[];
+  /** Thin queue refs (thin-state phase 4) — not hydrated `Track[]`, so 32
+   *  snapshots of a 50k queue cost refs, not 32×50k full tracks. Rebuilt to a
+   *  display `Track[]` through the resolver on restore. */
+  queueItems: QueueItemRef[];
   queueIndex: number;
+  /** Kept full — one resolved playing track, restored to the engine on undo. */
   currentTrack: Track | null;
   /** Seconds — captured with the snapshot (older entries may omit). */
   currentTime?: number;
@@ -50,7 +55,9 @@ export function consumePendingQueueListScrollTop(): number | undefined {
 export function queueUndoSnapshotFromState(s: PlayerState): QueueUndoSnapshot {
   const scrollTop = readQueueListScrollTopForUndo();
   return {
-    queue: s.queue.map(t => ({ ...t })),
+    // Derived from queue: Track[] during dual-write (so tests that seed only
+    // `queue` keep working); the final step swaps this to `[...s.queueItems]`.
+    queueItems: toQueueItemRefs(s.queueServerId ?? '', s.queue),
     queueIndex: s.queueIndex,
     currentTrack: s.currentTrack ? { ...s.currentTrack } : null,
     currentTime: s.currentTime,
