@@ -119,6 +119,7 @@ export default function AlbumTrackList({
   return (
     <>
       <TracklistColumnPicker
+        allColumns={COLUMNS}
         pickerRef={pickerRef}
         pickerOpen={pickerOpen}
         setPickerOpen={setPickerOpen}

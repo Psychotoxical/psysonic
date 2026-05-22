@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import PlaylistRow, { type PlaylistRowCallbacks } from './PlaylistRow';
+import { TracklistColumnPicker } from '../albumTrackList/TracklistColumnPicker';
 import { useTranslation } from 'react-i18next';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import { useElementClientHeightById } from '../../hooks/useResizeClientHeight';
 import { useNavigate } from 'react-router-dom';
 import {
-  Check, ChevronDown, ListPlus, RotateCcw, Search, Trash2, X,
+  ListPlus, Search, Trash2, X,
 } from 'lucide-react';
 import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
@@ -235,6 +236,17 @@ export default function PlaylistTracklist({
   }
 
   return (
+    <>
+      <TracklistColumnPicker
+        allColumns={allColumns}
+        pickerRef={pickerRef}
+        pickerOpen={pickerOpen}
+        setPickerOpen={setPickerOpen}
+        colVisible={colVisible}
+        toggleColumn={toggleColumn}
+        resetColumns={resetColumns}
+        t={t}
+      />
     <div className="tracklist" data-preview-loc="playlists" ref={tracklistRef}>
 
       {/* Bulk action bar */}
@@ -276,43 +288,6 @@ export default function PlaylistTracklist({
           </button>
         </div>
       )}
-
-      {/* Column visibility picker */}
-      <div className="tracklist-col-picker-wrapper" ref={pickerRef}>
-        <div className="tracklist-col-picker">
-          <button
-            className="tracklist-col-picker-btn"
-            onClick={e => { e.stopPropagation(); setPickerOpen(v => !v); }}
-            data-tooltip={t('albumDetail.columns')}
-          >
-            <ChevronDown size={14} />
-          </button>
-          {pickerOpen && (
-            <div className="tracklist-col-picker-menu">
-              <div className="tracklist-col-picker-label">{t('albumDetail.columns')}</div>
-              {allColumns.filter(c => !c.required).map(c => {
-                const label = c.i18nKey ? t(`albumDetail.${c.i18nKey}`) : c.key;
-                const isOn = colVisible.has(c.key);
-                return (
-                  <button
-                    key={c.key}
-                    className={`tracklist-col-picker-item${isOn ? ' active' : ''}`}
-                    onClick={() => toggleColumn(c.key)}
-                  >
-                    <span className="tracklist-col-picker-check">{isOn && <Check size={13} />}</span>
-                    {label}
-                  </button>
-                );
-              })}
-              <div className="tracklist-col-picker-divider" />
-              <button className="tracklist-col-picker-reset" onClick={resetColumns}>
-                <RotateCcw size={13} />
-                {t('albumDetail.resetColumns')}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Header */}
       <div style={{ position: 'relative' }}>
@@ -481,5 +456,6 @@ export default function PlaylistTracklist({
 
 
     </div>
+    </>
   );
 }

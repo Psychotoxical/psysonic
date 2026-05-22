@@ -1,9 +1,11 @@
 import React from 'react';
 import { Check, ChevronDown, RotateCcw } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { COLUMNS } from '../../utils/componentHelpers/albumTrackListHelpers';
+import type { ColDef } from '../../utils/useTracklistColumns';
 
 interface Props {
+  /** Every column (required ones are filtered out of the menu). */
+  allColumns: readonly ColDef[];
   pickerRef: React.RefObject<HTMLDivElement | null>;
   pickerOpen: boolean;
   setPickerOpen: (updater: (v: boolean) => boolean) => void;
@@ -20,6 +22,7 @@ interface Props {
  * button.
  */
 export function TracklistColumnPicker({
+  allColumns,
   pickerRef,
   pickerOpen,
   setPickerOpen,
@@ -41,7 +44,7 @@ export function TracklistColumnPicker({
         {pickerOpen && (
           <div className="tracklist-col-picker-menu">
             <div className="tracklist-col-picker-label">{t('albumDetail.columns')}</div>
-            {COLUMNS.filter(c => !c.required).map(c => {
+            {allColumns.filter(c => !c.required).map(c => {
               const label = c.i18nKey ? t(`albumDetail.${c.i18nKey as string}`) : c.key;
               const isOn = colVisible.has(c.key);
               return (

@@ -1,9 +1,9 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import FavoriteSongRow, { type FavoriteSongRowCallbacks } from './FavoriteSongRow';
+import { TracklistColumnPicker } from '../albumTrackList/TracklistColumnPicker';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, RotateCcw } from 'lucide-react';
 import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
@@ -168,38 +168,20 @@ export default function FavoritesSongsTracklist({
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
+    <>
+      <TracklistColumnPicker
+        allColumns={allColumns}
+        pickerRef={pickerRef}
+        pickerOpen={pickerOpen}
+        setPickerOpen={setPickerOpen}
+        colVisible={colVisible}
+        toggleColumn={toggleColumn}
+        resetColumns={resetColumns}
+        t={t}
+      />
     <div className="tracklist" data-preview-loc="favorites" style={{ padding: 0 }} ref={tracklistRef} onClick={e => {
       if (inSelectMode && e.target === e.currentTarget) useSelectionStore.getState().clearAll();
     }}>
-
-      {/* Column visibility picker */}
-      <div className="tracklist-col-picker-wrapper" ref={pickerRef}>
-        <div className="tracklist-col-picker">
-          <button className="tracklist-col-picker-btn" onClick={e => { e.stopPropagation(); setPickerOpen(v => !v); }} data-tooltip={t('albumDetail.columns')}>
-            <ChevronDown size={14} />
-          </button>
-          {pickerOpen && (
-            <div className="tracklist-col-picker-menu">
-              <div className="tracklist-col-picker-label">{t('albumDetail.columns')}</div>
-              {allColumns.filter(c => !c.required).map(c => {
-                const label = c.i18nKey ? t(`albumDetail.${c.i18nKey}`) : c.key;
-                const isOn = colVisible.has(c.key);
-                return (
-                  <button key={c.key} className={`tracklist-col-picker-item${isOn ? ' active' : ''}`} onClick={() => toggleColumn(c.key)}>
-                    <span className="tracklist-col-picker-check">{isOn && <Check size={13} />}</span>
-                    {label}
-                  </button>
-                );
-              })}
-              <div className="tracklist-col-picker-divider" />
-              <button className="tracklist-col-picker-reset" onClick={resetColumns}>
-                <RotateCcw size={13} />
-                {t('albumDetail.resetColumns')}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
 
       <div style={{ position: 'relative' }}>
         <div className="tracklist-header tracklist-va" style={gridStyle}>
@@ -321,5 +303,6 @@ export default function FavoritesSongsTracklist({
         </div>
       )}
     </div>
+    </>
   );
 }
