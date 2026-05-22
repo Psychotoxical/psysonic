@@ -48,15 +48,6 @@ export function subscribeQueueResolver(cb: () => void): () => void {
   return () => { listeners.delete(cb); };
 }
 
-function cacheTouch(key: string): Track | undefined {
-  const t = cache.get(key);
-  if (t !== undefined) {
-    cache.delete(key);
-    cache.set(key, t); // move to most-recent
-  }
-  return t;
-}
-
 function cacheSet(key: string, track: Track): void {
   if (cache.has(key)) cache.delete(key);
   cache.set(key, track);
@@ -76,7 +67,10 @@ function carryFlags(track: Track, ref: QueueItemRef | undefined): Track {
 
 /** Synchronous cache read (no fetch); undefined on miss. */
 export function getCachedTrack(ref: QueueItemRef): Track | undefined {
-  return cacheTouch(refKey(ref));
+  // Pure read — no LRU bump. Called from component render (QueueList rows), where
+  // a Map mutation (delete+set) is a render side-effect. Recency is set at write
+  // time in cacheSet instead; this cache is effectively insertion-order/FIFO.
+  return cache.get(refKey(ref));
 }
 
 /** Lightweight placeholder shown until a ref resolves. */
