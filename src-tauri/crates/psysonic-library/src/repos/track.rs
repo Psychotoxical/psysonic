@@ -365,6 +365,7 @@ fn remap_existing_to_new(
         "track_fact",
         "track_artifact",
         "track_canonical_link",
+        "play_session",
     ] {
         tx.execute(
             &format!(

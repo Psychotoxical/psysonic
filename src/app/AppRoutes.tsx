@@ -66,6 +66,7 @@ export default function AppRoutes() {
       <Route path="/search" element={<SearchResults />} />
       <Route path="/search/advanced" element={<AdvancedSearch />} />
       <Route path="/statistics" element={<Statistics />} />
+      <Route path="/player-stats" element={<Statistics />} />
       <Route path="/most-played" element={<MostPlayed />} />
       <Route path="/lossless-albums" element={<LosslessAlbums />} />
       <Route path="/now-playing" element={isMobile ? <MobilePlayerView /> : <NowPlayingPage />} />

@@ -4,6 +4,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../api/lastfm';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { notifyLibraryPlaybackHint } from './libraryPlaybackHint';
+import {
+  playListenSessionFinalize,
+  playListenSessionOnProgress,
+  playListenSessionOnTrackSwitched,
+  playListenSessionOpen,
+} from './playListenSession';
 import { getPerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
@@ -75,13 +81,15 @@ export type NormalizationStatePayload = {
   targetLufs: number;
 };
 
-export function handleAudioPlaying(_duration: number): void {
+export function handleAudioPlaying(duration: number): void {
   setDeferHotCachePrefetch(false);
   resetProgressEmitThrottles();
   usePlayerStore.setState({ isPlaying: true, isPlaybackBuffering: false });
-  // Tell the library scheduler to throttle bulk crawl while a stream
-  // is active (spec §6.2.4). No-op unless the index is enabled.
   notifyLibraryPlaybackHint('playing');
+  const track = usePlayerStore.getState().currentTrack;
+  if (track) {
+    void playListenSessionOpen(track, getPlaybackServerId(), duration);
+  }
 }
 
 export function handleAudioProgress(
@@ -142,6 +150,7 @@ export function handleAudioProgress(
   const dur = duration > 0 ? duration : track.duration;
   if (dur <= 0) return;
   const progress = displayTime / dur;
+  playListenSessionOnProgress(current_time, buffering, dur).catch(() => {});
   if (!progressUiDisabled) {
     const nowLive = Date.now();
     const live = getPlaybackProgressSnapshot();
@@ -311,15 +320,13 @@ export function handleAudioProgress(
 }
 
 export function handleAudioEnded(): void {
-  // Playback stopped — let the library scheduler resume normal crawl
-  // parallelism (spec §6.2.4). No-op unless the index is enabled.
   notifyLibraryPlaybackHint('idle');
 
-  // If a gapless switch happened recently, this ended event is stale — the
-  // progress task fired it for the OLD source before seeing the chained one.
   if (Date.now() - getLastGaplessSwitchTime() < 600) {
     return;
   }
+
+  void playListenSessionFinalize('ended');
 
   // Radio stream disconnected — just stop; don't advance queue.
   if (usePlayerStore.getState().currentRadio) {
@@ -391,6 +398,8 @@ export function handleAudioTrackSwitched(_duration: number): void {
   }
 
   if (!nextTrack) return;
+
+  void playListenSessionOnTrackSwitched(nextTrack);
 
   const switchServerId = getPlaybackServerId();
   const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);

@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { NavigateFunction } from 'react-router-dom';
 import { flushPlayQueuePosition } from '../../store/queueSync';
+import { playListenSessionFinalize } from '../../store/playListenSession';
 import { getPlaybackProgressSnapshot } from '../../store/playbackProgress';
 import { usePlayerStore } from '../../store/playerStore';
 import { useAuthStore } from '../../store/authStore';
@@ -107,6 +108,10 @@ export function useMediaAndWindowBridge(navigate: NavigateFunction) {
       // server can't keep the app hanging on quit; the playback heartbeat
       // is the safety net for anything that didn't make it out in time.
       const performExit = async () => {
+        await Promise.race([
+          playListenSessionFinalize('close'),
+          new Promise(r => setTimeout(r, 1500)),
+        ]);
         await Promise.race([
           flushPlayQueuePosition(),
           new Promise(r => setTimeout(r, 1500)),

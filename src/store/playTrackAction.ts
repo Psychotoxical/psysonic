@@ -36,6 +36,7 @@ import {
 import type { PlayerState, Track } from './playerStoreTypes';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { syncQueueToServer } from './queueSync';
+import { playListenSessionFinalize } from './playListenSession';
 import { pushQueueUndoFromGetter } from './queueUndo';
 import { stopRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
@@ -151,6 +152,8 @@ export function runPlayTrack(
   if (Date.now() - getLastGaplessSwitchTime() < 500) {
     return;
   }
+
+  void playListenSessionFinalize('skip');
 
   clearAllPlaybackScheduleTimers();
   set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });

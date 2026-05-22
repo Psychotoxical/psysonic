@@ -464,6 +464,95 @@ export function libraryDeleteServerData(serverId: string): Promise<void> {
   return invoke<void>('library_delete_server_data', { serverId });
 }
 
+// ── Player stats (local listening history) ────────────────────────────
+
+export type PlaySessionEndReason = 'ended' | 'skip' | 'stop' | 'switch' | 'close';
+
+export type PlaySessionInput = {
+  serverId: string;
+  trackId: string;
+  startedAtMs: number;
+  listenedSec: number;
+  positionMaxSec: number;
+  endReason: PlaySessionEndReason;
+  /** Player-known track duration when the library index has none. */
+  durationSecHint?: number;
+};
+
+export type PlaySessionYearSummary = {
+  totalListenedSec: number;
+  sessionCount: number;
+  trackPlayCount: number;
+  uniqueTrackCount: number;
+  listeningDayCount: number;
+  fullCount: number;
+  partialCount: number;
+};
+
+export type PlaySessionHeatmapDay = {
+  date: string;
+  trackPlayCount: number;
+};
+
+export type PlaySessionDayTrack = {
+  serverId: string;
+  trackId: string;
+  title: string;
+  artist: string | null;
+  listenedSec: number;
+  completion: 'partial' | 'full' | string;
+  startedAtMs: number;
+};
+
+export type PlaySessionDayDetail = {
+  totals: {
+    totalListenedSec: number;
+    sessionCount: number;
+    trackPlayCount: number;
+    fullCount: number;
+    partialCount: number;
+  };
+  tracks: PlaySessionDayTrack[];
+};
+
+export type PlaySessionYearBounds = {
+  minYear: number | null;
+  maxYear: number | null;
+};
+
+export type PlaySessionRecentDay = {
+  date: string;
+  totalListenedSec: number;
+  sessionCount: number;
+  trackPlayCount: number;
+  fullCount: number;
+  partialCount: number;
+};
+
+export function libraryRecordPlaySession(input: PlaySessionInput): Promise<void> {
+  return invoke<void>('library_record_play_session', { input });
+}
+
+export function libraryGetPlayerStatsYearSummary(year: number): Promise<PlaySessionYearSummary> {
+  return invoke<PlaySessionYearSummary>('library_get_player_stats_year_summary', { year });
+}
+
+export function libraryGetPlayerStatsHeatmap(year: number): Promise<PlaySessionHeatmapDay[]> {
+  return invoke<PlaySessionHeatmapDay[]>('library_get_player_stats_heatmap', { year });
+}
+
+export function libraryGetPlayerStatsDayDetail(dateIso: string): Promise<PlaySessionDayDetail> {
+  return invoke<PlaySessionDayDetail>('library_get_player_stats_day_detail', { dateIso });
+}
+
+export function libraryGetPlayerStatsYearBounds(): Promise<PlaySessionYearBounds> {
+  return invoke<PlaySessionYearBounds>('library_get_player_stats_year_bounds');
+}
+
+export function libraryGetPlayerStatsRecentDays(limit = 30): Promise<PlaySessionRecentDay[]> {
+  return invoke<PlaySessionRecentDay[]>('library_get_player_stats_recent_days', { limit });
+}
+
 // ── Event subscriptions ───────────────────────────────────────────────
 
 export interface LibrarySyncProgressPayload {

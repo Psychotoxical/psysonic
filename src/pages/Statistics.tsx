@@ -6,9 +6,11 @@ import { Share2 } from 'lucide-react';
 import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import AlbumRow from '../components/AlbumRow';
 import StatsExportModal from '../components/StatsExportModal';
+import PlayerStatisticsPanel from '../components/statistics/PlayerStatisticsPanel';
+import StatisticsTabBar from '../components/statistics/StatisticsTabBar';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { lastfmIsConfigured, lastfmGetTopArtists, lastfmGetTopAlbums, lastfmGetTopTracks, lastfmGetRecentTracks, LastfmPeriod, LastfmTopArtist, LastfmTopAlbum, LastfmTopTrack, LastfmRecentTrack } from '../api/lastfm';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,7 +33,8 @@ const PERIODS: { key: LastfmPeriod; label: string }[] = [
 
 export default function Statistics() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const location = useLocation();
+  const isPlayerStats = location.pathname === '/player-stats';
   const { lastfmSessionKey, lastfmUsername } = useAuthStore();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
@@ -172,8 +175,11 @@ export default function Statistics() {
   return (
     <div className="content-body animate-fade-in">
       <h1 className="page-title">{t('statistics.title')}</h1>
+      <StatisticsTabBar />
 
-      {loading ? (
+      {isPlayerStats ? (
+        <PlayerStatisticsPanel />
+      ) : loading ? (
         <div className="loading-center"><div className="spinner" /></div>
       ) : (
         <div className="stats-page">
@@ -394,11 +400,13 @@ export default function Statistics() {
 
         </div>
       )}
+      {!isPlayerStats && (
       <StatsExportModal
         open={exportOpen}
         albums={frequent}
         onClose={() => setExportOpen(false)}
       />
+      )}
     </div>
   );
 }

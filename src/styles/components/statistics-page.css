@@ -3,6 +3,8 @@
   display: flex;
   flex-direction: column;
   gap: 3rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .stats-overview {
@@ -103,10 +105,273 @@
   overflow: hidden;
 }
 
-.genre-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 3px;
-  transition: width 0.8s ease-out;
+.player-heatmap-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-bottom: var(--space-4);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
+.player-heatmap {
+  --hm-cell: 12px;
+  --hm-gap: 2px;
+  --hm-label-w: 24px;
+  --hm-body-gap: 8px;
+  --hm-pitch: calc(var(--hm-cell) + var(--hm-gap));
+  --hm-grid-w: calc(var(--hm-weeks) * var(--hm-pitch) - var(--hm-gap));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 100%;
+}
+
+.player-heatmap-months {
+  position: relative;
+  height: calc(var(--hm-cell) + 2px);
+  width: var(--hm-grid-w);
+  margin-left: calc(var(--hm-label-w) + var(--hm-body-gap));
+  flex-shrink: 0;
+}
+
+.player-heatmap-month {
+  position: absolute;
+  top: 0;
+  left: calc(var(--column-index, 0) * var(--hm-pitch));
+  font-size: max(8px, calc(var(--hm-cell) * 0.72));
+  line-height: calc(var(--hm-cell) + 2px);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.player-heatmap-body {
+  display: flex;
+  gap: var(--hm-body-gap);
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.player-heatmap-weekdays {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hm-gap);
+  width: var(--hm-label-w);
+  flex-shrink: 0;
+}
+
+.player-heatmap-weekdays span {
+  height: var(--hm-cell);
+  line-height: var(--hm-cell);
+  font-size: max(8px, calc(var(--hm-cell) * 0.72));
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.player-heatmap-columns {
+  display: flex;
+  gap: var(--hm-gap);
+  width: var(--hm-grid-w);
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.player-heatmap-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hm-gap);
+  flex: 0 0 var(--hm-cell);
+  width: var(--hm-cell);
+}
+
+.player-heatmap-cell {
+  width: var(--hm-cell);
+  height: var(--hm-cell);
+  flex: 0 0 var(--hm-cell);
+  border-radius: clamp(2px, calc(var(--hm-cell) * 0.22), 3px);
+  border: 1px solid transparent;
+  padding: 0;
+  box-sizing: border-box;
+  cursor: default;
+}
+
+.player-heatmap-cell--pad {
+  background: transparent;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.player-heatmap-cell--empty {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  border-color: color-mix(in srgb, var(--text-muted) 10%, transparent);
+}
+
+button.player-heatmap-cell {
+  cursor: pointer;
+}
+
+button.player-heatmap-cell:hover:not(.player-heatmap-cell--pad) {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.player-heatmap-cell--selected {
+  border-color: var(--accent) !important;
+  outline: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: 1px;
+}
+
+.player-heatmap-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: max(8px, calc(var(--hm-cell) * 0.72));
+  color: var(--text-muted);
+  padding-left: calc(var(--hm-label-w) + var(--hm-body-gap));
+}
+
+.player-heatmap-cell--sample {
+  cursor: default;
+}
+
+.player-stats-partial-index-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.player-stats-partial-index-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.player-stats-partial-index-link:hover {
+  color: var(--accent-hover, var(--accent));
+}
+
+.player-stats-year-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: var(--space-3);
+}
+
+.player-stats-year-nav .btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.35);
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+  background: var(--bg-card);
+  transform: none;
+  box-shadow: none;
+}
+
+.player-stats-year-nav .btn:disabled:hover {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  transform: none;
+}
+
+.player-stats-recent {
+  margin-top: var(--space-5);
+}
+
+.player-stats-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.player-stats-day-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.player-stats-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-stats-day-header:hover {
+  background: var(--bg-hover);
+}
+
+.player-stats-day-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.player-stats-day-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.player-stats-day-summary {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.player-stats-day-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.player-stats-day-item--open .player-stats-day-chevron {
+  transform: rotate(180deg);
+}
+
+.player-stats-day-body {
+  padding: 0 var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.player-stats-day-meta {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin: var(--space-3) 0 var(--space-3);
+}
+
+.player-stats-day-tracks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.player-stats-day-track-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.player-stats-day-track-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

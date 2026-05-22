@@ -18,6 +18,7 @@ import { clearSeekDebounce } from './seekDebounce';
 import { clearSeekFallbackRetry } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
 import i18n from '../i18n';
+import { playListenSessionFinalize } from './playListenSession';
 import { playbackServerDiffersFromActive, clearQueueServerForPlayback } from '../utils/playback/playbackServer';
 import { useLuckyMixStore } from './luckyMixStore';
 import { showToast } from '../utils/ui/toast';
@@ -207,6 +208,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
     },
 
     clearQueue: () => {
+      void playListenSessionFinalize('stop');
       invoke('audio_stop').catch(console.error);
       setIsAudioPaused(false);
       clearSeekFallbackRetry();

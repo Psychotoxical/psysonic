@@ -20,12 +20,13 @@ use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
     FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
     LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse, LibraryTrackDto,
-    LibraryTracksEnvelope, OfflinePathDto, PurgeReportDto, SyncJobDto, SyncStateDto,
+    LibraryTracksEnvelope, OfflinePathDto, PlaySessionDayDetailDto, PlaySessionHeatmapDayDto,
+    PlaySessionInputDto, PlaySessionRecentDayDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto, SyncStateDto,
     TrackArtifactDto, TrackFactDto, TrackRefDto,
 };
 use crate::live_search;
 use crate::payload::LibrarySyncProgressPayload;
-use crate::repos::{SyncStateRepository, TrackRepository};
+use crate::repos::{PlaySessionRepository, SyncStateRepository, TrackRepository};
 use crate::runtime::{CurrentJob, LibraryRuntime, SyncSession};
 use crate::search::search_tracks;
 use crate::store::LibraryStore;
@@ -956,6 +957,53 @@ pub fn library_put_fact(
 }
 
 #[tauri::command]
+pub fn library_record_play_session(
+    runtime: State<'_, LibraryRuntime>,
+    input: PlaySessionInputDto,
+) -> Result<(), String> {
+    PlaySessionRepository::new(&runtime.store).insert(&input)
+}
+
+#[tauri::command]
+pub fn library_get_player_stats_year_summary(
+    runtime: State<'_, LibraryRuntime>,
+    year: i32,
+) -> Result<PlaySessionYearSummaryDto, String> {
+    PlaySessionRepository::new(&runtime.store).year_summary(year)
+}
+
+#[tauri::command]
+pub fn library_get_player_stats_heatmap(
+    runtime: State<'_, LibraryRuntime>,
+    year: i32,
+) -> Result<Vec<PlaySessionHeatmapDayDto>, String> {
+    PlaySessionRepository::new(&runtime.store).heatmap(year)
+}
+
+#[tauri::command]
+pub fn library_get_player_stats_day_detail(
+    runtime: State<'_, LibraryRuntime>,
+    date_iso: String,
+) -> Result<PlaySessionDayDetailDto, String> {
+    PlaySessionRepository::new(&runtime.store).day_detail(&date_iso)
+}
+
+#[tauri::command]
+pub fn library_get_player_stats_year_bounds(
+    runtime: State<'_, LibraryRuntime>,
+) -> Result<PlaySessionYearBoundsDto, String> {
+    PlaySessionRepository::new(&runtime.store).year_bounds()
+}
+
+#[tauri::command]
+pub fn library_get_player_stats_recent_days(
+    runtime: State<'_, LibraryRuntime>,
+    limit: Option<u32>,
+) -> Result<Vec<PlaySessionRecentDayDto>, String> {
+    PlaySessionRepository::new(&runtime.store).recent_days(limit.unwrap_or(30))
+}
+
+#[tauri::command]
 pub fn library_purge_server(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -1011,6 +1059,10 @@ pub fn library_purge_server(
             )?;
             tx.execute(
                 "DELETE FROM track_id_history WHERE server_id = ?1",
+                params![server_id],
+            )?;
+            tx.execute(
+                "DELETE FROM play_session WHERE server_id = ?1",
                 params![server_id],
             )?;
             tx.execute(

@@ -281,6 +281,94 @@ fn default_confidence() -> f64 {
     1.0
 }
 
+/// Input to `library_record_play_session`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionInputDto {
+    pub server_id: String,
+    pub track_id: String,
+    pub started_at_ms: i64,
+    pub listened_sec: f64,
+    pub position_max_sec: f64,
+    pub end_reason: String,
+    /// Player-known duration when `track.duration_sec` in the index is missing/zero.
+    #[serde(default)]
+    pub duration_sec_hint: Option<i64>,
+}
+
+/// Cross-server year summary for the Player stats tab.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionYearSummaryDto {
+    pub total_listened_sec: f64,
+    /// Listening sessions (plays clustered by idle gap).
+    pub session_count: u32,
+    /// Individual track plays (`COUNT(*)`).
+    pub track_play_count: u32,
+    /// Distinct tracks heard at least once in the year.
+    pub unique_track_count: u32,
+    /// Calendar days with at least one recorded play.
+    pub listening_day_count: u32,
+    pub full_count: u32,
+    pub partial_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionHeatmapDayDto {
+    pub date: String,
+    pub track_play_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionDayTotalsDto {
+    pub total_listened_sec: f64,
+    pub session_count: u32,
+    pub track_play_count: u32,
+    pub full_count: u32,
+    pub partial_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionDayTrackDto {
+    pub server_id: String,
+    pub track_id: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub listened_sec: f64,
+    pub completion: String,
+    pub started_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionDayDetailDto {
+    pub totals: PlaySessionDayTotalsDto,
+    pub tracks: Vec<PlaySessionDayTrackDto>,
+}
+
+/// Summary for one day in the recent-days list (no track rows).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionRecentDayDto {
+    pub date: String,
+    pub total_listened_sec: f64,
+    pub session_count: u32,
+    pub track_play_count: u32,
+    pub full_count: u32,
+    pub partial_count: u32,
+}
+
+/// Earliest/latest calendar years with at least one session (local TZ).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySessionYearBoundsDto {
+    pub min_year: Option<i32>,
+    pub max_year: Option<i32>,
+}
+
 /// `library_purge_server` outcome.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

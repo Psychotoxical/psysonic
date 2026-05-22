@@ -5,10 +5,12 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../../i18n', () => ({
   default: {
     t: (key: string, params: Record<string, unknown>) => `${key}|${JSON.stringify(params)}`,
+    resolvedLanguage: 'en',
+    language: 'en',
   },
 }));
 
-import { formatHumanHoursMinutes } from './formatHumanDuration';
+import { formatHumanHoursMinutes, formatPlayerStatsListeningTotal, formatPlayerStatsListenedSec } from './formatHumanDuration';
 
 describe('formatHumanHoursMinutes', () => {
   it('rounds to the nearest minute instead of truncating', () => {
@@ -31,5 +33,36 @@ describe('formatHumanHoursMinutes', () => {
 
   it('clamps negative input to zero', () => {
     expect(formatHumanHoursMinutes(-5)).toBe('common.durationMinutesOnly|{"minutes":0}');
+  });
+});
+
+describe('formatPlayerStatsListeningTotal', () => {
+  it('formats 25.5 hours as compact day hour minute parts', () => {
+    expect(formatPlayerStatsListeningTotal(25.5 * 3600)).toBe(
+      'statistics.playerListeningDayShort|{"count":1} statistics.playerListeningHourShort|{"count":1} statistics.playerListeningMinuteShort|{"count":30}',
+    );
+  });
+
+  it('shows minutes only for sub-hour totals', () => {
+    expect(formatPlayerStatsListeningTotal(45 * 60)).toBe(
+      'statistics.playerListeningMinuteShort|{"count":45}',
+    );
+  });
+
+  it('omits zero day and hour parts', () => {
+    expect(formatPlayerStatsListeningTotal(2 * 24 * 3600)).toBe(
+      'statistics.playerListeningDayShort|{"count":2}',
+    );
+  });
+});
+
+describe('formatPlayerStatsListenedSec', () => {
+  it('uses seconds below one minute', () => {
+    expect(formatPlayerStatsListenedSec(45.6)).toBe('statistics.playerListenedSecShort|{"seconds":46}');
+  });
+
+  it('uses decimal minutes from one minute upward', () => {
+    expect(formatPlayerStatsListenedSec(90)).toBe('statistics.playerListenedMinDecimal|{"minutes":"1.5"}');
+    expect(formatPlayerStatsListenedSec(125)).toBe('statistics.playerListenedMinDecimal|{"minutes":"2.1"}');
   });
 });

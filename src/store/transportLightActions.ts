@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { setIsAudioPaused } from './engineState';
 import type { PlayerState } from './playerStoreTypes';
 import { flushQueueSyncToServer } from './queueSync';
+import { playListenSessionFinalize } from './playListenSession';
 import { pauseRadio, stopRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
 import { clearSeekDebounce } from './seekDebounce';
@@ -28,6 +29,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
 > {
   return {
     stop: () => {
+      void playListenSessionFinalize('stop');
       clearAllPlaybackScheduleTimers();
       if (get().currentRadio) {
         stopRadio();

@@ -16,3 +16,36 @@ export function formatHumanHoursMinutes(seconds: number): string {
   }
   return i18n.t('common.durationMinutesOnly', { minutes: totalMin });
 }
+
+/** Player stats totals: compact days, hours, minutes (omit zero parts). */
+export function formatPlayerStatsListeningTotal(seconds: number): string {
+  const totalMin = Math.max(0, Math.round(seconds / 60));
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const minutes = totalMin % 60;
+
+  const parts: string[] = [];
+  if (days > 0) {
+    parts.push(i18n.t('statistics.playerListeningDayShort', { count: days }));
+  }
+  if (hours > 0) {
+    parts.push(i18n.t('statistics.playerListeningHourShort', { count: hours }));
+  }
+  if (minutes > 0 || parts.length === 0) {
+    parts.push(i18n.t('statistics.playerListeningMinuteShort', { count: minutes }));
+  }
+  return parts.join(' ');
+}
+
+/** Per-track listened time in player stats drill-down. */
+export function formatPlayerStatsListenedSec(seconds: number): string {
+  const sec = Math.max(0, seconds);
+  if (sec >= 60) {
+    const minutes = (sec / 60).toLocaleString(i18n.resolvedLanguage ?? i18n.language, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+    return i18n.t('statistics.playerListenedMinDecimal', { minutes });
+  }
+  return i18n.t('statistics.playerListenedSecShort', { seconds: Math.round(sec) });
+}
