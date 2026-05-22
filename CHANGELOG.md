@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Player stats — local listening history
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#849](https://github.com/Psychotoxical/psysonic/pull/849)**
+
+* **Statistics → Player stats** tab (`/player-stats`): year summary (listening time, clustered sessions, track plays, unique tracks, listening days, full/partial counts), GitHub-style heatmap by track plays per day, recent-days accordion, and day drill-down with per-track completion.
+* Records finalized listens to `play_session` in `library.sqlite` when the playback server's local index is enabled and ready (not preview/radio; `listenedSec > 10`).
+* Live UI refresh after a persisted listen; partial-index notice when only some servers are indexed.
+* i18n across 9 locales.
+
+
+
 ### Servers — edit existing profiles
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
