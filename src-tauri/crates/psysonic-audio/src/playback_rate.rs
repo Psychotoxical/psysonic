@@ -89,15 +89,50 @@ pub(crate) fn preserve_pitch_will_run(atomics: &PlaybackRateAtomics) -> bool {
         && is_effect_active(atomics)
 }
 
-pub fn effective_duration_secs(base_secs: f64, atomics: &PlaybackRateAtomics) -> f64 {
+/// Content timeline length for seek bar / duration labels (always the full track).
+pub fn effective_duration_secs(base_secs: f64, _atomics: &PlaybackRateAtomics) -> f64 {
+    base_secs
+}
+
+/// Map counter-derived seconds to timeline position for UI / near-end checks.
+pub fn effective_position_secs(raw_secs: f64, atomics: &PlaybackRateAtomics) -> f64 {
     if !is_effect_active(atomics) {
-        return base_secs;
+        return raw_secs;
     }
-    let speed = atomics.load_speed() as f64;
-    if speed <= 0.0 {
-        return base_secs;
+    if atomics.load_strategy() == STRATEGY_VARISPEED {
+        return raw_secs;
     }
-    base_secs / speed
+    // Preserve DSP outputs at the base sample rate; scale to content timeline.
+    raw_secs * atomics.load_speed() as f64
+}
+
+/// Sample-counter position mapped to the content timeline (seek bar / labels).
+pub(crate) fn content_position_from_samples(
+    samples: u64,
+    sample_rate_hz: u32,
+    channels: u32,
+    atomics: &PlaybackRateAtomics,
+) -> f64 {
+    let divisor = (sample_rate_hz as f64 * channels as f64).max(1.0);
+    effective_position_secs(samples as f64 / divisor, atomics)
+}
+
+/// Counter value that matches `content_position_from_samples` after a content-timeline seek.
+pub(crate) fn raw_counter_samples_for_content_position(
+    content_secs: f64,
+    sample_rate_hz: u32,
+    channels: u32,
+    atomics: &PlaybackRateAtomics,
+) -> u64 {
+    let divisor = (sample_rate_hz as f64 * channels as f64).max(1.0);
+    let raw_secs = if !is_effect_active(atomics) {
+        content_secs
+    } else if atomics.load_strategy() == STRATEGY_VARISPEED {
+        content_secs
+    } else {
+        content_secs / atomics.load_speed().max(0.001) as f64
+    };
+    (raw_secs * divisor).round() as u64
 }
 
 pub(crate) fn preserve_out_samples(speed: f32) -> usize {
@@ -176,6 +211,29 @@ impl<S: Source<Item = f32> + Send + 'static> PlaybackRateSource<S> {
             .map(Source::sample_rate)
             .unwrap_or(self.base_sample_rate)
     }
+
+    fn try_recover_inner_from_offload(&mut self) {
+        if self.inner.is_some() || self.offload.is_none() {
+            return;
+        }
+        self.request_handback_if_needed();
+        self.poll_handback();
+    }
+
+    fn next_from_inner_or_pad(&mut self) -> Option<f32> {
+        self.try_recover_inner_from_offload();
+        if let Some(inner) = self.inner.as_mut() {
+            return inner.next();
+        }
+        if self
+            .offload
+            .as_ref()
+            .is_some_and(|offload| !offload.is_done())
+        {
+            return Some(0.0);
+        }
+        None
+    }
 }
 
 impl<S: Source<Item = f32> + Send + 'static> Iterator for PlaybackRateSource<S> {
@@ -187,36 +245,30 @@ impl<S: Source<Item = f32> + Send + 'static> Iterator for PlaybackRateSource<S> 
                 if let Some(s) = offload.pop() {
                     return Some(s);
                 }
-                if !offload.is_done() {
-                    self.request_handback_if_needed();
-                    self.poll_handback();
-                    if let Some(inner) = self.inner.as_mut() {
-                        return inner.next();
-                    }
-                }
-            } else if let Some(inner) = self.inner.as_mut() {
-                return inner.next();
             }
-            return None;
+            return self.next_from_inner_or_pad();
         }
 
         if uses_preserve_dsp(self.atomics.load_strategy()) {
             self.ensure_offload();
-            if let Some(offload) = self.offload.as_mut() {
-                if let Some(s) = offload.pop() {
-                    return Some(s);
-                }
-                if offload.is_done() {
-                    return None;
-                }
-                // Ring starved while worker catches up — pad one frame rather than
-                // ending the source (Iterator::None would stop the track).
+            if let Some(s) = self.offload.as_mut().and_then(|o| o.pop()) {
+                return Some(s);
+            }
+            if self
+                .offload
+                .as_ref()
+                .is_some_and(|offload| !offload.is_done())
+            {
                 return Some(0.0);
             }
             return None;
         }
 
-        self.inner.as_mut()?.next()
+        // Varispeed: decoder must stay in `inner` (never in the preserve worker).
+        if self.offload.is_some() {
+            self.try_recover_inner_from_offload();
+        }
+        self.next_from_inner_or_pad()
     }
 }
 
@@ -240,21 +292,12 @@ impl<S: Source<Item = f32> + Send + 'static> Source for PlaybackRateSource<S> {
     }
 
     fn total_duration(&self) -> Option<Duration> {
-        let base = self.inner.as_ref()?.total_duration()?;
-        Some(if is_effect_active(&self.atomics) {
-            base.div_f32(self.atomics.load_speed().max(0.001))
-        } else {
-            base
-        })
+        self.inner.as_ref()?.total_duration()
     }
 
     fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
-        if is_effect_active(&self.atomics) && self.atomics.load_strategy() == STRATEGY_VARISPEED {
-            let factor = self.atomics.load_speed().max(0.001);
-            if let Some(inner) = self.inner.as_mut() {
-                inner.try_seek(pos.mul_f32(factor))?;
-            }
-        } else if let Some(inner) = self.inner.as_mut() {
+        // UI / transport always pass content-timeline seconds (0..full track).
+        if let Some(inner) = self.inner.as_mut() {
             inner.try_seek(pos)?;
         }
         if let Some(offload) = self.offload.as_mut() {
@@ -292,11 +335,140 @@ mod tests {
     }
 
     #[test]
-    fn effective_duration_scales() {
+    fn effective_duration_is_content_timeline() {
         let a = PlaybackRateAtomics::new();
         a.enabled.store(true, Ordering::Relaxed);
         a.speed.store(2.0f32.to_bits(), Ordering::Relaxed);
-        assert!((effective_duration_secs(100.0, &a) - 50.0).abs() < 0.001);
+        for strat in [
+            STRATEGY_VARISPEED,
+            STRATEGY_SPEED_CORRECTED,
+            STRATEGY_PRESERVE_PITCH,
+        ] {
+            a.strategy.store(strat, Ordering::Relaxed);
+            assert!(
+                (effective_duration_secs(200.0, &a) - 200.0).abs() < 0.001,
+                "strategy {strat}"
+            );
+        }
+    }
+
+    #[test]
+    fn effective_position_varispeed_uses_counter() {
+        let a = PlaybackRateAtomics::new();
+        a.enabled.store(true, Ordering::Relaxed);
+        a
+            .strategy
+            .store(STRATEGY_VARISPEED, Ordering::Relaxed);
+        a.speed.store(2.0f32.to_bits(), Ordering::Relaxed);
+        assert!((effective_position_secs(20.0, &a) - 20.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn effective_position_preserve_scales_with_speed() {
+        let a = PlaybackRateAtomics::new();
+        a.enabled.store(true, Ordering::Relaxed);
+        a
+            .strategy
+            .store(STRATEGY_SPEED_CORRECTED, Ordering::Relaxed);
+        a.speed.store(2.0f32.to_bits(), Ordering::Relaxed);
+        assert!((effective_position_secs(10.0, &a) - 20.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn effective_position_inactive_is_raw() {
+        let a = PlaybackRateAtomics::new();
+        assert!((effective_position_secs(15.0, &a) - 15.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn raw_counter_samples_roundtrip_content_timeline() {
+        let a = PlaybackRateAtomics::new();
+        a.enabled.store(true, Ordering::Relaxed);
+        a
+            .strategy
+            .store(STRATEGY_SPEED_CORRECTED, Ordering::Relaxed);
+        a.speed.store(2.0f32.to_bits(), Ordering::Relaxed);
+        let samples = raw_counter_samples_for_content_position(120.0, 44_100, 2, &a);
+        let back = content_position_from_samples(samples, 44_100, 2, &a);
+        assert!((back - 120.0).abs() < 0.05, "roundtrip at 2x preserve");
+    }
+
+    #[test]
+    fn raw_counter_samples_roundtrip_varispeed() {
+        let a = PlaybackRateAtomics::new();
+        a.enabled.store(true, Ordering::Relaxed);
+        a
+            .strategy
+            .store(STRATEGY_VARISPEED, Ordering::Relaxed);
+        a.speed.store(2.0f32.to_bits(), Ordering::Relaxed);
+        let samples = raw_counter_samples_for_content_position(90.0, 44_100, 2, &a);
+        let back = content_position_from_samples(samples, 44_100, 2, &a);
+        assert!((back - 90.0).abs() < 0.05, "roundtrip at 2x varispeed");
+    }
+
+    #[test]
+    fn varispeed_seek_uses_content_timeline() {
+        use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+        use std::sync::Arc;
+
+        struct SeekSpy {
+            rate: SampleRate,
+            last_seek_secs: Arc<AtomicU64>,
+            remaining: usize,
+        }
+
+        impl Iterator for SeekSpy {
+            type Item = f32;
+            fn next(&mut self) -> Option<f32> {
+                if self.remaining == 0 {
+                    return None;
+                }
+                self.remaining -= 1;
+                Some(0.0)
+            }
+        }
+
+        impl Source for SeekSpy {
+            fn current_span_len(&self) -> Option<usize> {
+                Some(self.remaining)
+            }
+            fn channels(&self) -> ChannelCount {
+                ChannelCount::new(1).unwrap()
+            }
+            fn sample_rate(&self) -> SampleRate {
+                self.rate
+            }
+            fn total_duration(&self) -> Option<Duration> {
+                Some(Duration::from_secs(200))
+            }
+            fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
+                self.last_seek_secs
+                    .store(pos.as_secs_f64().to_bits(), AtomicOrdering::Relaxed);
+                Ok(())
+            }
+        }
+
+        let last = Arc::new(AtomicU64::new(f64::NAN.to_bits()));
+        let spy = SeekSpy {
+            rate: SampleRate::new(44_100).unwrap(),
+            last_seek_secs: last.clone(),
+            remaining: 44_100,
+        };
+
+        let a = PlaybackRateAtomics::new();
+        a.enabled.store(true, Ordering::Relaxed);
+        a
+            .strategy
+            .store(STRATEGY_VARISPEED, Ordering::Relaxed);
+        a.speed.store(2.0f32.to_bits(), Ordering::Relaxed);
+
+        let mut src = PlaybackRateSource::new(spy, a);
+        src.try_seek(Duration::from_secs(120)).unwrap();
+        let got = f64::from_bits(last.load(AtomicOrdering::Relaxed));
+        assert!(
+            (got - 120.0).abs() < 0.001,
+            "varispeed seek must not scale content position, got {got}"
+        );
     }
 
     #[test]
@@ -359,6 +531,44 @@ mod tests {
         atomics.pitch_semitones.store(3.0f32.to_bits(), Ordering::Relaxed);
         assert!(is_effect_active(&atomics));
         assert_eq!(effective_pitch(&atomics), 3.0);
+    }
+
+    #[test]
+    fn strategy_switch_preserve_to_varispeed_does_not_end_early() {
+        let atomics = PlaybackRateAtomics::new();
+        atomics.enabled.store(true, Ordering::Relaxed);
+        atomics
+            .strategy
+            .store(STRATEGY_SPEED_CORRECTED, Ordering::Relaxed);
+        atomics.speed.store(1.5f32.to_bits(), Ordering::Relaxed);
+
+        let mut src = PlaybackRateSource::new(
+            FixedRateSource {
+                rate: 44_100,
+                remaining: 50_000,
+            },
+            atomics.clone(),
+        );
+        for _ in 0..5_000 {
+            assert!(src.next().is_some());
+        }
+
+        atomics
+            .strategy
+            .store(STRATEGY_VARISPEED, Ordering::Relaxed);
+
+        let mut got = 0usize;
+        for _ in 0..2_000 {
+            if src.next().is_some() {
+                got += 1;
+            } else {
+                break;
+            }
+        }
+        assert!(
+            got > 100,
+            "varispeed should continue after preserve strategy switch, got {got} samples"
+        );
     }
 
     #[test]

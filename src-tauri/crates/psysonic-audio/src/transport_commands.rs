@@ -11,6 +11,9 @@ use ringbuf::HeapRb;
 use tauri::{AppHandle, State};
 
 use super::engine::{audio_http_client, AudioEngine};
+use super::playback_rate::{
+    content_position_from_samples, raw_counter_samples_for_content_position,
+};
 use super::preview::preview_clear_for_new_main_playback;
 use super::stream::{radio_download_task, RADIO_BUF_CAPACITY};
 
@@ -19,9 +22,15 @@ pub fn audio_pause(state: State<'_, AudioEngine>) {
     let mut cur = state.current.lock().unwrap();
     if let Some(sink) = &cur.sink {
         if !sink.is_paused() {
-            let pos = cur.position();
+            let pos = content_position_from_samples(
+                state.samples_played.load(Ordering::Relaxed),
+                state.current_sample_rate.load(Ordering::Relaxed),
+                state.current_channels.load(Ordering::Relaxed),
+                &state.playback_rate,
+            )
+            .min(cur.duration_secs.max(0.001));
             sink.pause();
-            cur.paused_at    = Some(pos);
+            cur.paused_at = Some(pos);
             cur.play_started = None;
         }
     }
@@ -125,6 +134,11 @@ pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
 
 #[tauri::command]
 pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), String> {
+    seek_playing_source(&state, seconds)
+}
+
+/// Seek the active main-playback sink (`audio_seek`).
+pub(crate) fn seek_playing_source(state: &AudioEngine, seconds: f64) -> Result<(), String> {
     const AUDIO_SEEK_TIMEOUT_MS: u64 = 700;
     const AUDIO_SEEK_LOCK_TIMEOUT_MS: u64 = 40;
     // Ghost-command guard: reject seeks within 500 ms of a gapless auto-advance.
@@ -169,10 +183,12 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
     };
 
     // Seeking back invalidates any pending gapless chain.
-    let cur_pos = {
-        let cur = lock_current_with_timeout(AUDIO_SEEK_LOCK_TIMEOUT_MS)?;
-        cur.position()
-    };
+    let cur_pos = content_position_from_samples(
+        state.samples_played.load(Ordering::Relaxed),
+        state.current_sample_rate.load(Ordering::Relaxed),
+        state.current_channels.load(Ordering::Relaxed),
+        &state.playback_rate,
+    );
     if seconds < cur_pos - 1.0 {
         *state.chained_info.lock().unwrap() = None;
     }
@@ -219,5 +235,14 @@ pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), Str
         cur.seek_offset = seek_seconds;
         cur.play_started = Some(Instant::now());
     }
+    state.samples_played.store(
+        raw_counter_samples_for_content_position(
+            seek_seconds,
+            state.current_sample_rate.load(Ordering::Relaxed),
+            state.current_channels.load(Ordering::Relaxed),
+            &state.playback_rate,
+        ),
+        Ordering::Relaxed,
+    );
     Ok(())
 }

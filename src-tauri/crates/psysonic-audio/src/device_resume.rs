@@ -222,6 +222,15 @@ pub(crate) async fn try_resume_after_device_change(
                     let mut cur = engine.current.lock().unwrap();
                     cur.seek_offset = snap.current_time_secs;
                     cur.play_started = Some(Instant::now());
+                    engine.samples_played.store(
+                        crate::playback_rate::raw_counter_samples_for_content_position(
+                            snap.current_time_secs,
+                            engine.current_sample_rate.load(Ordering::Relaxed),
+                            engine.current_channels.load(Ordering::Relaxed),
+                            &engine.playback_rate,
+                        ),
+                        Ordering::Relaxed,
+                    );
                 }
                 Ok(Err(e)) => {
                     crate::app_eprintln!("[device-resume] seek failed: {e}");
@@ -251,6 +260,7 @@ pub(crate) async fn try_resume_after_device_change(
         engine.gapless_switch_at.clone(),
         engine.current_playback_url.clone(),
         engine.stream_playback_armed.clone(),
+        engine.playback_rate.clone(),
     );
 
     crate::app_deprintln!(

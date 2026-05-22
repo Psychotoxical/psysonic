@@ -452,6 +452,7 @@ pub async fn audio_play(
         state.gapless_switch_at.clone(),
         state.current_playback_url.clone(),
         state.stream_playback_armed.clone(),
+        state.playback_rate.clone(),
     );
 
     Ok(())

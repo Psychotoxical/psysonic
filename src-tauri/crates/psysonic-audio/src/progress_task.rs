@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 
 use super::engine::AudioCurrent;
 use super::helpers::{ramp_sink_volume, ProgressPayload, MASTER_HEADROOM};
+use super::playback_rate::{effective_duration_secs, effective_position_secs, PlaybackRateAtomics};
 use super::state::ChainedInfo;
 
 /// Sink for the three progress events the task emits. Production wraps an
@@ -68,6 +69,7 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
     gapless_switch_at: Arc<AtomicU64>,
     current_playback_url: Arc<Mutex<Option<String>>>,
     stream_playback_armed: Arc<AtomicBool>,
+    playback_rate: PlaybackRateAtomics,
 ) {
     // Keep progress aligned with audible output (ALSA/PipeWire/Pulse queue) on
     // Linux; mirrors the quantum policy used for stream open/reopen plus a small
@@ -196,10 +198,11 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
 
             // Read playback snapshot under a single lock to minimize contention
             // with seek/play/pause commands that also touch `current`.
-            let (dur, paused_at) = {
+            let (base_dur, paused_at) = {
                 let cur = current_arc.lock().unwrap();
                 (cur.duration_secs, cur.paused_at)
             };
+            let dur = effective_duration_secs(base_dur, &playback_rate);
             let is_paused = paused_at.is_some();
 
             let pos_raw = if !stream_playback_armed.load(Ordering::Relaxed) {
@@ -207,7 +210,8 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
             } else if let Some(p) = paused_at {
                 p
             } else {
-                (samples / divisor).min(dur.max(0.001))
+                effective_position_secs(samples / divisor, &playback_rate)
+                    .min(dur.max(0.001))
             };
             let progress_latency = if is_paused {
                 0.0
@@ -333,6 +337,7 @@ mod tests {
         gapless_switch_at: Arc<AtomicU64>,
         playback_url: Arc<Mutex<Option<String>>>,
         stream_playback_armed: Arc<AtomicBool>,
+        playback_rate: PlaybackRateAtomics,
     }
 
     impl TaskHarness {
@@ -362,6 +367,7 @@ mod tests {
                 gapless_switch_at: Arc::new(AtomicU64::new(0)),
                 playback_url: Arc::new(Mutex::new(None)),
                 stream_playback_armed: Arc::new(AtomicBool::new(true)),
+                playback_rate: PlaybackRateAtomics::new(),
             }
         }
 
@@ -381,6 +387,7 @@ mod tests {
                 self.gapless_switch_at.clone(),
                 self.playback_url.clone(),
                 self.stream_playback_armed.clone(),
+                self.playback_rate.clone(),
             );
         }
     }

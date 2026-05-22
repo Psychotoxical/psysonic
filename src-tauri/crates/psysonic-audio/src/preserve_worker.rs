@@ -398,7 +398,6 @@ fn worker_main<S: Source<Item = f32> + Send>(
 mod tests {
     use super::*;
     use crate::playback_rate::STRATEGY_PRESERVE_PITCH;
-    use ringbuf::traits::Consumer;
     use rodio::{ChannelCount, SampleRate};
     use std::time::Duration as StdDuration;
 

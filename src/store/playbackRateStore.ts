@@ -8,13 +8,14 @@ import {
   effectivePlaybackPitch,
   type PlaybackStrategy,
 } from '../utils/audio/playbackRateHelpers';
+import {
+  restartPlaybackForRateChange,
+  shouldRestartPlaybackForRateChange,
+  type PlaybackRateSnapshot,
+} from '../utils/audio/playbackRateRestart';
 import { isOrbitPlaybackSyncActive } from '../utils/orbit';
 
-interface PlaybackRateState {
-  enabled: boolean;
-  strategy: PlaybackStrategy;
-  speed: number;
-  pitchSemitones: number;
+interface PlaybackRateState extends PlaybackRateSnapshot {
 
   setEnabled: (v: boolean) => void;
   setStrategy: (s: PlaybackStrategy) => void;
@@ -24,15 +25,19 @@ interface PlaybackRateState {
   syncToRust: () => void;
 }
 
-function syncPlaybackRate(state: Pick<PlaybackRateState, 'enabled' | 'strategy' | 'speed' | 'pitchSemitones'>) {
+function syncPlaybackRate(state: PlaybackRateSnapshot, prev?: PlaybackRateSnapshot) {
   // Orbit sync assumes 1.0× wall-clock playback; suppress DSP without mutating prefs.
   const effectiveEnabled = state.enabled && !isOrbitPlaybackSyncActive();
   invoke('audio_set_playback_rate', {
     enabled: effectiveEnabled,
     strategy: state.strategy,
     speed: state.speed,
-    pitchSemitones: state.pitchSemitones,
+    pitchSemitones: effectivePlaybackPitch(state.strategy, state.pitchSemitones),
   }).catch(() => {});
+
+  if (prev && shouldRestartPlaybackForRateChange(prev, state)) {
+    restartPlaybackForRateChange();
+  }
 }
 
 export const usePlaybackRateStore = create<PlaybackRateState>()(
@@ -44,31 +49,36 @@ export const usePlaybackRateStore = create<PlaybackRateState>()(
       pitchSemitones: 0,
 
       setEnabled: (v) => {
+        const prev = get();
         set({ enabled: v });
-        syncPlaybackRate(get());
+        syncPlaybackRate(get(), prev);
       },
 
       setStrategy: (strategy) => {
+        const prev = get();
         set({ strategy });
-        syncPlaybackRate(get());
+        syncPlaybackRate(get(), prev);
       },
 
       setSpeed: (speed) => {
+        const prev = get();
         const clamped = clampPlaybackSpeed(speed);
         set({ speed: clamped });
-        syncPlaybackRate(get());
+        syncPlaybackRate(get(), prev);
       },
 
       setPitchSemitones: (semitones) => {
+        const prev = get();
         const clamped = clampPlaybackPitch(semitones);
         set({ pitchSemitones: clamped });
-        syncPlaybackRate(get());
+        syncPlaybackRate(get(), prev);
       },
 
       applyPresetSpeed: (speed) => {
+        const prev = get();
         const clamped = clampPlaybackSpeed(speed);
         set({ speed: clamped });
-        syncPlaybackRate(get());
+        syncPlaybackRate(get(), prev);
       },
 
       syncToRust: () => {
