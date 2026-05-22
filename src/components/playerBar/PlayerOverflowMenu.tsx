@@ -4,6 +4,7 @@ import { PictureInPicture2, SlidersVertical } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import type { TFunction } from 'i18next';
 import { PlayerVolume } from './PlayerVolume';
+import { PlayerPlaybackRateMenuSection } from './PlayerPlaybackRate';
 import {
   usePlayerBarLayoutStore,
   type PlayerBarLayoutItemId,
@@ -38,6 +39,7 @@ export function PlayerOverflowMenu({
     layoutItems.find(i => i.id === id)?.visible !== false;
   const showEqualizer = isLayoutVisible('equalizer');
   const showMiniPlayer = isLayoutVisible('miniPlayer');
+  const showPlaybackRate = isLayoutVisible('playbackRate');
   return createPortal(
     <div
       className={`player-overflow-menu${utilityMenuMode === 'volume' ? ' player-overflow-menu--volume-only' : ''}`}
@@ -72,6 +74,9 @@ export function PlayerOverflowMenu({
             </button>
           )}
         </div>
+      )}
+      {utilityMenuMode === 'full' && showPlaybackRate && (
+        <PlayerPlaybackRateMenuSection t={t} />
       )}
       <PlayerVolume
         volume={volume}

@@ -76,7 +76,7 @@ export function useUtilityOverflowMenu(
 
   useEffect(() => {
     if (!utilityMenuOpen) return;
-    const MENU_WIDTH = 238;
+    const MENU_WIDTH = utilityMenuMode === 'volume' ? 238 : 320;
     const MARGIN = 8;
     const updateMenuPos = () => {
       const btn = utilityBtnRef.current;
@@ -101,7 +101,7 @@ export function useUtilityOverflowMenu(
       window.removeEventListener('resize', updateMenuPos);
       window.removeEventListener('scroll', updateMenuPos, true);
     };
-  }, [utilityMenuOpen]);
+  }, [utilityMenuOpen, utilityMenuMode]);
 
   return {
     utilityOverflow,

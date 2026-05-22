@@ -339,6 +339,7 @@ export const settings = {
   playbackRateHint: 'Speed keeps pitch natural. Varispeed changes pitch with speed. Pitch shift adds a manual offset. Uses more CPU than varispeed.',
   playbackRateNeutral: 'At 1.0× with no pitch offset, playback is normal.',
   playbackRateOrbitPaused: 'Not applied during Orbit sessions — playback stays at 1.0× for sync.',
+  playbackRateOrbitPausedShort: 'Orbit: 1.0× for sync.',
   advancedMode: '高级',
   advancedModeTooltip: '在所有设置选项卡中显示高级选项。由社区贡献，未必体现 Psysonic 维护者的设计理念。',
   advancedBadge: '高级',

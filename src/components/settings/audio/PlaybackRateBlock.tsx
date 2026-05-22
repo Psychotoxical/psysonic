@@ -26,6 +26,7 @@ interface Props {
 }
 
 export function PlaybackRateControls({ t, showEnable = true }: Props) {
+  const compact = !showEnable;
   const enabled = usePlaybackRateStore(s => s.enabled);
   const strategy = usePlaybackRateStore(s => s.strategy);
   const speed = usePlaybackRateStore(s => s.speed);
@@ -56,7 +57,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
   };
 
   return (
-    <div className="playback-rate-controls">
+    <div className={`playback-rate-controls${compact ? ' playback-rate-controls--compact' : ''}`}>
       {showEnable && (
         <div className="settings-toggle-row">
           <div>
@@ -81,7 +82,9 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
           {showEnable && <div className="divider" />}
 
           <div className="playback-rate-strategy-row">
-            <span className="playback-rate-label">{t('settings.playbackRateStrategy')}</span>
+            {!compact && (
+              <span className="playback-rate-label">{t('settings.playbackRateStrategy')}</span>
+            )}
             <div className="playback-rate-strategy-btns">
               {PLAYBACK_STRATEGIES.map(s => (
                 <button
@@ -97,7 +100,9 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
           </div>
 
           <div className="playback-rate-slider-row">
-            <span className="playback-rate-label">{t('settings.playbackRateSpeed')}</span>
+            {!compact && (
+              <span className="playback-rate-label">{t('settings.playbackRateSpeed')}</span>
+            )}
             <input
               type="range"
               min={PLAYBACK_SPEED_MIN}
@@ -124,7 +129,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
             ))}
           </div>
 
-          {strategy === 'varispeed' && (
+          {strategy === 'varispeed' && !compact && (
             <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {t('settings.playbackRateDerivedPitch', {
                 value: formatPitchLabel(derivedPitch),
@@ -132,7 +137,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
             </div>
           )}
 
-          {strategy === 'speed_corrected' && (
+          {strategy === 'speed_corrected' && !compact && (
             <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {t('settings.playbackRateAutoPitch')}
             </div>
@@ -140,7 +145,9 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
 
           {strategy === 'preserve_pitch' && (
             <div className="playback-rate-slider-row">
-              <span className="playback-rate-label">{t('settings.playbackRatePitch')}</span>
+              {!compact && (
+                <span className="playback-rate-label">{t('settings.playbackRatePitch')}</span>
+              )}
               <input
                 type="range"
                 min={PLAYBACK_PITCH_MIN}
@@ -155,17 +162,19 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
             </div>
           )}
 
-          <p className="playback-rate-hint" style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-            {t('settings.playbackRateHint')}
-          </p>
-
-          {orbitActive && enabled && (
-            <p className="playback-rate-orbit" style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
-              {t('settings.playbackRateOrbitPaused')}
+          {!compact && (
+            <p className="playback-rate-hint" style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+              {t('settings.playbackRateHint')}
             </p>
           )}
 
-          {!effectActive && enabled && !orbitActive && (
+          {orbitActive && enabled && (
+            <p className="playback-rate-orbit" style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+              {t(compact ? 'settings.playbackRateOrbitPausedShort' : 'settings.playbackRateOrbitPaused')}
+            </p>
+          )}
+
+          {!compact && !effectActive && enabled && !orbitActive && (
             <p className="playback-rate-neutral" style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
               {t('settings.playbackRateNeutral')}
             </p>

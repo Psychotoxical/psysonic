@@ -51,7 +51,6 @@ export default function PlayerBar() {
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
   const [eqOpen, setEqOpen] = useState(false);
-  const [playbackRateOpen, setPlaybackRateOpen] = useState(false);
   const [showVolPct, setShowVolPct] = useState(false);
   const [localShowRemaining, setLocalShowRemaining] = useState(() => useThemeStore.getState().showRemainingTime);
   const premuteVolumeRef = useRef(1);
@@ -282,12 +281,7 @@ export default function PlayerBar() {
       ) : (
         <>
           {isLayoutVisible('playbackRate') && (
-            <PlayerPlaybackRate
-              t={t}
-              open={playbackRateOpen}
-              onToggle={() => setPlaybackRateOpen(v => !v)}
-              onClose={() => setPlaybackRateOpen(false)}
-            />
+            <PlayerPlaybackRate t={t} />
           )}
 
           {isLayoutVisible('equalizer') && (

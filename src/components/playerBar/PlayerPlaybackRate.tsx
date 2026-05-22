@@ -1,6 +1,5 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { PlaybackRateControls } from '../settings/audio/PlaybackRateBlock';
 import { usePlaybackRateStore } from '../../store/playbackRateStore';
@@ -12,15 +11,25 @@ import {
   isPlaybackRateApplied,
 } from '../../utils/audio/playbackRateHelpers';
 import { isOrbitPlaybackSyncActive } from '../../utils/orbit';
+import { usePlayerBarAnchoredPopover } from '../../hooks/usePlayerBarAnchoredPopover';
+
+const POPOVER_WIDTH = 320;
 
 interface Props {
   t: TFunction;
-  open: boolean;
-  onToggle: () => void;
-  onClose: () => void;
 }
 
-export function PlayerPlaybackRate({ t, open, onToggle, onClose }: Props) {
+export function PlayerPlaybackRateMenuSection({ t }: Props) {
+  const enabled = usePlaybackRateStore(s => s.enabled);
+  if (!enabled) return null;
+  return (
+    <div className="player-playback-rate-menu-section">
+      <PlaybackRateControls t={t} showEnable={false} />
+    </div>
+  );
+}
+
+export function PlayerPlaybackRate({ t }: Props) {
   const enabled = usePlaybackRateStore(s => s.enabled);
   const strategy = usePlaybackRateStore(s => s.strategy);
   const speed = usePlaybackRateStore(s => s.speed);
@@ -28,7 +37,7 @@ export function PlayerPlaybackRate({ t, open, onToggle, onClose }: Props) {
   const setSpeed = usePlaybackRateStore(s => s.setSpeed);
   const orbitRole = useOrbitStore(s => s.role);
   const orbitPhase = useOrbitStore(s => s.phase);
-  const sliderWrapRef = useRef<HTMLDivElement>(null);
+  const { open, setOpen, popStyle, btnRef, popRef } = usePlayerBarAnchoredPopover(POPOVER_WIDTH);
 
   const orbitActive = isOrbitPlaybackSyncActive(orbitRole, orbitPhase);
   const effectActive = isPlaybackRateApplied(enabled, strategy, speed, pitchSemitones, orbitActive);
@@ -45,31 +54,27 @@ export function PlayerPlaybackRate({ t, open, onToggle, onClose }: Props) {
   return (
     <>
       <button
+        ref={btnRef}
         type="button"
         className={`player-btn player-btn-sm player-playback-rate-btn${open ? ' active' : ''}${effectActive ? ' player-playback-rate-btn--live' : ''}`}
-        onClick={onToggle}
+        onClick={() => setOpen(v => !v)}
         onWheel={handleWheel}
         aria-label={t('player.playbackRate')}
+        aria-expanded={open}
         data-tooltip={t('player.playbackRate')}
       >
         {formatSpeedLabel(speed)}
       </button>
 
       {open && createPortal(
-        <>
-          <div className="eq-popup-backdrop" onClick={onClose} />
-          <div className="eq-popup playback-rate-popup">
-            <div className="eq-popup-header">
-              <span className="eq-popup-title">{t('settings.playbackRateTitle')}</span>
-              <button type="button" className="eq-popup-close" onClick={onClose} aria-label={t('common.close')}>
-                <X size={16} />
-              </button>
-            </div>
-            <div ref={sliderWrapRef} onWheel={handleWheel}>
-              <PlaybackRateControls t={t} showEnable={false} />
-            </div>
-          </div>
-        </>,
+        <div
+          ref={popRef}
+          className="player-playback-rate-popover"
+          style={popStyle}
+          onWheel={handleWheel}
+        >
+          <PlaybackRateControls t={t} showEnable={false} />
+        </div>,
         document.body,
       )}
     </>

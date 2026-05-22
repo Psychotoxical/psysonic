@@ -356,6 +356,7 @@ export const settings = {
   playbackRateHint: '«Скорость» сохраняет pitch при изменении темпа. Varispeed меняет pitch вместе со скоростью. «Сдвиг pitch» — ручной offset. Больше нагрузка на CPU, чем varispeed. Не для радио, превью и Orbit.',
   playbackRateNeutral: 'При 1.0× и нулевом pitch воспроизведение обычное.',
   playbackRateOrbitPaused: 'Во время сессии Orbit не применяется — воспроизведение остаётся 1.0× для синхронизации.',
+  playbackRateOrbitPausedShort: 'Orbit: 1.0× для синхронизации.',
   advancedMode: 'Дополнительно',
   advancedModeTooltip: 'Показывать расширенные параметры во всех вкладках настроек. Вклады сообщества, которые не обязательно соответствуют дизайн-философии мейнтейнеров Psysonic.',
   advancedBadge: 'Дополнительно',

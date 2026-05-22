@@ -48,8 +48,36 @@
   gap: 0.4rem;
 }
 
-.playback-rate-popup {
-  max-width: min(420px, calc(100vw - 2rem));
+.player-playback-rate-popover,
+.player-playback-rate-menu-section {
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.player-playback-rate-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-playback-rate-menu-section {
+  box-shadow: none;
+}
+
+.playback-rate-controls--compact .playback-rate-slider-row {
+  gap: 0.5rem;
+}
+
+.playback-rate-controls--compact .playback-rate-slider {
+  flex: 1;
+  min-width: 0;
+}
+
+.playback-rate-controls--compact .playback-rate-strategy-row {
+  gap: 0.35rem;
 }
 
 .player-playback-rate-btn {
