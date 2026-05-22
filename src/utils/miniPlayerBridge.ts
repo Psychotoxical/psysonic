@@ -56,13 +56,24 @@ function toMini(t: any): MiniTrackInfo {
   };
 }
 
+/** Cap the queue pushed to the mini at ±100 tracks around the playing song — a
+ *  50k Artist-Radio queue must not serialize in full over IPC on every push. The
+ *  mini stays slice-relative (no component change); control events (jump/reorder/
+ *  remove) are translated back to absolute indices via {@link miniWindowStart}. */
+const MINI_QUEUE_HALF = 100;
+let miniWindowStart = 0;
+
 function snapshot(): MiniSyncPayload {
   const s = usePlayerStore.getState();
   const a = useAuthStore.getState();
+  const idx = s.queueIndex ?? 0;
+  const start = Math.max(0, idx - MINI_QUEUE_HALF);
+  const windowed = (s.queue ?? []).slice(start, idx + MINI_QUEUE_HALF + 1);
+  miniWindowStart = start;
   return {
     track: s.currentTrack ? toMini(s.currentTrack) : null,
-    queue: (s.queue ?? []).map(toMini),
-    queueIndex: s.queueIndex ?? 0,
+    queue: windowed.map(toMini),
+    queueIndex: idx - start, // local position within the windowed slice
     queueServerId: s.queueServerId ?? null,
     isPlaying: s.isPlaying,
     volume: s.volume,
@@ -153,29 +164,32 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     }
   });
 
-  // Jump to a specific queue index.
+  // Jump to a specific queue index. The mini sends a slice-relative index; add
+  // the window offset from the last push to land on the absolute queue position.
   const jumpUnlisten = listen<{ index: number }>('mini:jump', (e) => {
     const store = usePlayerStore.getState();
-    const idx = e.payload?.index ?? -1;
+    const idx = (e.payload?.index ?? -1) + miniWindowStart;
     if (idx < 0 || idx >= store.queue.length) return;
     const track = store.queue[idx];
-    if (track) store.playTrack(track, store.queue, true);
+    if (track) store.playTrack(track, store.queue, true, false, idx);
   });
 
-  // PsyDnD reorder forwarded from the mini queue.
+  // PsyDnD reorder forwarded from the mini queue (slice-relative → absolute).
   const reorderUnlisten = listen<{ from: number; to: number }>('mini:reorder', (e) => {
     const store = usePlayerStore.getState();
-    const { from, to } = e.payload ?? { from: -1, to: -1 };
+    const raw = e.payload ?? { from: -1, to: -1 };
+    const from = raw.from + miniWindowStart;
+    const to = raw.to + miniWindowStart;
     if (from < 0 || from >= store.queue.length) return;
     if (to < 0 || to > store.queue.length) return;
     if (from === to) return;
     store.reorderQueue(from, to);
   });
 
-  // Remove a track at index (context menu → "Remove from queue").
+  // Remove a track at index (context menu → "Remove from queue"; slice-relative).
   const removeUnlisten = listen<{ index: number }>('mini:remove', (e) => {
     const store = usePlayerStore.getState();
-    const idx = e.payload?.index ?? -1;
+    const idx = (e.payload?.index ?? -1) + miniWindowStart;
     if (idx < 0 || idx >= store.queue.length) return;
     store.removeTrack(idx);
   });
