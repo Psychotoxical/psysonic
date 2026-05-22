@@ -13,7 +13,13 @@ const SEED_BACK = 50;
 const SEED_AHEAD = 200;
 
 usePlayerStore.subscribe((state, prev) => {
-  if (state.queue === prev.queue && state.queueServerId === prev.queueServerId) return;
+  // Re-seed when the queue, its server, or the current index changes — the
+  // prefetch window travels with the playing track.
+  if (
+    state.queue === prev.queue &&
+    state.queueServerId === prev.queueServerId &&
+    state.queueIndex === prev.queueIndex
+  ) return;
   const serverId = state.queueServerId ?? '';
   if (!serverId || state.queue.length === 0) return;
   const start = Math.max(0, state.queueIndex - SEED_BACK);

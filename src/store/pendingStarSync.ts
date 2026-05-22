@@ -1,5 +1,6 @@
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { usePlayerStore } from './playerStore';
+import { invalidateQueueResolver } from '../utils/library/queueTrackResolver';
 
 /**
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
@@ -94,6 +95,8 @@ function onStarSuccess(id: string, starred: boolean): void {
         s.currentTrack?.id === id ? { ...s.currentTrack, starred: starredVal } : s.currentTrack,
     };
   });
+  // Drop the resolver's cached copy so the next read reflects the synced value.
+  invalidateQueueResolver(id);
 }
 
 function onRatingSuccess(id: string): void {
@@ -104,6 +107,7 @@ function onRatingSuccess(id: string): void {
     delete next[id];
     return { userRatingOverrides: next };
   });
+  invalidateQueueResolver(id);
 }
 
 /** Optimistically (un)star a song and sync it to the server with retry. */

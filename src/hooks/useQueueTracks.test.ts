@@ -13,13 +13,28 @@ const track = (id: string, over: Partial<Track> = {}): Track =>
 describe('useQueueTracks selectors', () => {
   beforeEach(() => {
     _resetQueueResolverForTest();
-    usePlayerStore.setState({ queue: [], queueIndex: 0, queueServerId: 's1', currentTrack: null });
+    usePlayerStore.setState({
+      queue: [], queueIndex: 0, queueServerId: 's1', currentTrack: null,
+      starredOverrides: {}, userRatingOverrides: {},
+    });
   });
 
   it('useQueueTrackAt returns the track at the index, or null', () => {
     usePlayerStore.setState({ queue: [track('t1'), track('t2')] });
     expect(renderHook(() => useQueueTrackAt(1)).result.current?.id).toBe('t2');
     expect(renderHook(() => useQueueTrackAt(9)).result.current).toBeNull();
+  });
+
+  it('useQueueTrackAt merges session star/rating overrides', () => {
+    usePlayerStore.setState({
+      queue: [track('t1')],
+      queueServerId: 's1',
+      starredOverrides: { t1: true },
+      userRatingOverrides: { t1: 5 },
+    });
+    const { result } = renderHook(() => useQueueTrackAt(0));
+    expect(!!result.current?.starred).toBe(true);
+    expect(result.current?.userRating).toBe(5);
   });
 
   it('useCurrentTrack returns the current track', () => {

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Play } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -7,6 +7,11 @@ import { usePlayerStore } from '../../store/playerStore';
 import { useLuckyMixStore } from '../../store/luckyMixStore';
 import type { Track, PlayerState } from '../../store/playerStoreTypes';
 import { formatTrackTime } from '../../utils/format/formatDuration';
+import {
+  getCachedTrack,
+  getQueueResolverVersion,
+  subscribeQueueResolver,
+} from '../../utils/library/queueTrackResolver';
 
 type StartDrag = (
   payload: { data: string; label: string },
@@ -36,6 +41,13 @@ export function QueueList({
   suppressNextAutoScrollRef, isQueueDrag, psyDragFromIdxRef, externalDropTarget,
   startDrag, orbitAttributionLabel, luckyRolling, t,
 }: Props) {
+  // Phase 3: row data comes from the resolver (cache), falling back to the
+  // canonical queue: Track[] until phase 4 drops it. Rows show title/artist/
+  // duration only (no star/rating), so no override merge here. Subscribe once to
+  // the resolver so the list re-renders as the cache fills.
+  const serverId = usePlayerStore(s => s.queueServerId);
+  useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
+
   // Virtualize so a 10k+ Artist-Radio queue keeps DOM at O(visible rows).
   // Scroll element is the OverlayScrollArea viewport (`queueListRef`); rows have
   // variable height (radio/auto dividers, lucky-mix loader) so we measure them.
@@ -93,10 +105,11 @@ export function QueueList({
         <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
         {virtualItems.map(vi => {
           const idx = vi.index;
-          const track = queue[idx];
+          const base = queue[idx];
+          const track = (serverId ? getCachedTrack({ serverId, trackId: base.id }) : undefined) ?? base;
           const isPlaying = idx === queueIndex;
-          const isFirstAutoAdded = track.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
-          const isFirstRadioAdded = track.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
+          const isFirstAutoAdded = base.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
+          const isFirstRadioAdded = base.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
 
           let dragStyle: React.CSSProperties = {};
           if (isQueueDrag && psyDragFromIdxRef.current === idx) {
