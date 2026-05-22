@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { emitPlaybackProgress } from './playbackProgress';
-import type { PlayerState, QueueItemRef } from './playerStoreTypes';
+import type { PlayerState } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { readInitialQueueVisibility } from './queueVisibilityStorage';
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
@@ -99,13 +100,7 @@ export const usePlayerStore = create<PlayerState>()(
           // windowed `queue` above stays as the no-index fallback (queue never
           // empty when the index is off, the P6 default). Per-item serverId is
           // the playback server (single-server v1); supersedes `queueRefs`.
-          queueItems: state.queue.map((t): QueueItemRef => {
-            const ref: QueueItemRef = { serverId: state.queueServerId ?? '', trackId: t.id };
-            if (t.autoAdded) ref.autoAdded = true;
-            if (t.radioAdded) ref.radioAdded = true;
-            if (t.playNextAdded) ref.playNextAdded = true;
-            return ref;
-          }),
+          queueItems: toQueueItemRefs(state.queueServerId ?? '', state.queue),
           queueItemsIndex: qi,
           isQueueVisible: state.isQueueVisible,
           // currentTime is intentionally NOT persisted here.
