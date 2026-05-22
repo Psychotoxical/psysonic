@@ -133,6 +133,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — section dividers kept when restoring from the local index
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#858](https://github.com/Psychotoxical/psysonic/pull/858)**
+
+* When the queue is rebuilt from the local library index on startup, the **Radio** and **Auto-added** section dividers are now preserved. Groundwork toward keeping very large queues fast and light.
+
+
+
 ## Fixed
 
 ### In-page browse — virtual scroll and cover-art priority
