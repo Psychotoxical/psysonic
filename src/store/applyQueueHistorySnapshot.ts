@@ -11,6 +11,7 @@ import {
 import { clearPreloadingIds } from './gaplessPreloadState';
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
 import type { PlayerState } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { sameQueueTrackId, shallowCloneQueueTracks } from '../utils/playback/queueIdentity';
 import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import {
@@ -159,6 +160,7 @@ export function applyQueueHistorySnapshot(
 
   set({
     queue: nextQueue,
+    queueItems: toQueueItemRefs(get().queueServerId ?? '', nextQueue),
     queueIndex: nextIndex,
     currentTrack: nextTrack,
     currentRadio: null,

@@ -34,6 +34,7 @@ import {
   recordEnginePlayUrl,
 } from './playbackUrlRouting';
 import type { PlayerState, Track } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { syncQueueToServer } from './queueSync';
 import { playListenSessionFinalize } from './playListenSession';
@@ -251,6 +252,7 @@ export function runPlayTrack(
       waveformBins: null,
       ...deriveNormalizationSnapshot(track, newQueue, idx >= 0 ? idx : 0),
       queue: newQueue,
+      queueItems: toQueueItemRefs(get().queueServerId ?? '', newQueue),
       queueIndex: idx >= 0 ? idx : 0,
       progress: initialProgress,
       buffered: 0,

@@ -3,6 +3,7 @@ import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
+import { toQueueItemRefs } from './queueItemRef';
 import { trackToSong } from './advancedSearchLocal';
 import { libraryIsReady } from './libraryReady';
 
@@ -22,10 +23,22 @@ const BATCH = 100;
  *
  * Best-effort: missing refs / index not ready / any failure leave the windowed
  * `queue` untouched — no regression when the index is off (the P6 default).
- * Clears the ref lists once a full hydrate succeeds so it runs at most once.
+ * Clears the restore-pending sentinel once a full hydrate succeeds so it runs at
+ * most once; `queueItems` stays the canonical in-memory mirror (Phase 1b).
  */
 export async function hydrateQueueFromIndex(): Promise<void> {
   const player = usePlayerStore.getState();
+
+  // Restore-pending sentinel: `partialize` writes `queueItemsIndex` alongside the
+  // full `queueItems` on every persist, so a fresh rehydrate carries it back.
+  // Normal in-memory mutations keep `queueItems` canonical but never set the
+  // index, so its presence — not a non-empty `queueItems` — marks "the windowed
+  // queue still needs a full hydrate". Legacy pre-Phase-1 blobs use `queueRefs`.
+  // Without a pending restore (steady state / later server switch) there is
+  // nothing to do.
+  const restorePending =
+    player.queueItemsIndex !== undefined || (player.queueRefs?.length ?? 0) > 0;
+  if (!restorePending) return;
 
   const items = player.queueItems;
   let refs: TrackRefDto[] | null = null;
@@ -37,9 +50,11 @@ export async function hydrateQueueFromIndex(): Promise<void> {
   }
   if (!refs || refs.length === 0) return;
 
+  // Clear only the restore-pending sentinel + legacy refs; `queueItems` stays the
+  // canonical mirror.
   const clearRefs = () =>
     usePlayerStore.setState({
-      queueItems: undefined, queueItemsIndex: undefined,
+      queueItemsIndex: undefined,
       queueRefs: undefined, queueRefsIndex: undefined,
     });
 
@@ -80,7 +95,10 @@ export async function hydrateQueueFromIndex(): Promise<void> {
     usePlayerStore.setState({
       queue: hydrated,
       queueIndex: idx >= 0 ? idx : 0,
-      queueItems: undefined, queueItemsIndex: undefined,
+      // queueItems becomes the canonical mirror of the now-whole queue; only the
+      // restore-pending sentinel + legacy refs are cleared.
+      queueItems: toQueueItemRefs(serverId, hydrated),
+      queueItemsIndex: undefined,
       queueRefs: undefined, queueRefsIndex: undefined,
     });
   } catch {

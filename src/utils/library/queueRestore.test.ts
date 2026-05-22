@@ -38,6 +38,8 @@ function seedStore(over: Partial<ReturnType<typeof usePlayerStore.getState>> = {
     queueServerId: 's1',
     queueIndex: 0,
     currentTrack: null,
+    queueItems: undefined,
+    queueItemsIndex: undefined,
     queueRefs: undefined,
     queueRefsIndex: undefined,
     ...over,
@@ -115,7 +117,10 @@ describe('hydrateQueueFromIndex', () => {
     const s = usePlayerStore.getState();
     expect(s.queue.map(t => t.id)).toEqual(['t1', 't2', 't3']);
     expect(s.queueIndex).toBe(1); // re-located to current track t2
-    expect(s.queueItems).toBeUndefined();
+    // Phase 1b: the restore-pending sentinel is cleared, but queueItems stays the
+    // canonical in-memory mirror of the now-whole queue.
+    expect(s.queueItemsIndex).toBeUndefined();
+    expect(s.queueItems?.map(r => r.trackId)).toEqual(['t1', 't2', 't3']);
     expect(s.queueRefs).toBeUndefined();
   });
 
@@ -133,8 +138,11 @@ describe('hydrateQueueFromIndex', () => {
     const s = usePlayerStore.getState();
     expect(s.queue.map(t => t.id)).toEqual(['t1', 't2', 't3']);
     expect(s.queueIndex).toBe(1);
-    expect(s.queueRefs).toBeUndefined(); // both ref lists cleared after success
-    expect(s.queueItems).toBeUndefined();
+    expect(s.queueRefs).toBeUndefined(); // legacy refs cleared after success
+    // Phase 1b: queueItems is rebuilt as the canonical mirror (serverId taken
+    // from the legacy queueServerId upgrade path).
+    expect(s.queueItemsIndex).toBeUndefined();
+    expect(s.queueItems?.map(r => r.trackId)).toEqual(['t1', 't2', 't3']);
   });
 
   it('carries queue-only flags from queueItems onto hydrated tracks', async () => {

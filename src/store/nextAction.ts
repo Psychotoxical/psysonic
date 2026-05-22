@@ -10,6 +10,7 @@ import {
 } from './infiniteQueueState';
 import { isInOrbitSession } from './orbitSession';
 import type { PlayerState, Track } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import {
   addRadioSessionSeen,
   getCurrentRadioArtistId,
@@ -66,7 +67,10 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
           // an Orbit session between scheduling and resolving.
           if (isInOrbitSession()) return;
           if (newTracks.length > 0) {
-            set(state => ({ queue: [...state.queue, ...newTracks] }));
+            set(state => {
+              const newQueue = [...state.queue, ...newTracks];
+              return { queue: newQueue, queueItems: toQueueItemRefs(state.queueServerId ?? '', newQueue) };
+            });
           }
         }).catch(() => {}).finally(() => { setInfiniteQueueFetching(false); });
       }
@@ -106,8 +110,10 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
                 const HISTORY_KEEP = 5;
                 set(state => {
                   const trimStart = Math.max(0, state.queueIndex - HISTORY_KEEP);
+                  const newQueue = [...state.queue.slice(trimStart), ...fresh];
                   return {
-                    queue: [...state.queue.slice(trimStart), ...fresh],
+                    queue: newQueue,
+                    queueItems: toQueueItemRefs(state.queueServerId ?? '', newQueue),
                     queueIndex: state.queueIndex - trimStart,
                   };
                 });

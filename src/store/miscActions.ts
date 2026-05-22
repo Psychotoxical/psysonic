@@ -13,6 +13,7 @@ import { reseedLoudnessForTrackId } from './loudnessReseed';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
 import { shouldRebindPlaybackToHotCache } from './playbackUrlRouting';
 import type { PlayerState, Track } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { pushQueueUndoFromGetter } from './queueUndo';
 import { syncQueueToServer } from './queueSync';
 import {
@@ -96,6 +97,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
         normalizationEngineLive: 'off',
         currentPlaybackSource: null,
         queue: [],
+        queueItems: [],
         queueIndex: 0,
         isPlaying: true,
         progress: 0,
@@ -155,8 +157,10 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
           // queue position, which may not flush before app close).
           const serverTime = q.position ? q.position / 1000 : 0;
           const localTime = get().currentTime;
+          const sid = get().queueServerId ?? useAuthStore.getState().activeServerId ?? '';
           set({
             queue: mappedTracks,
+            queueItems: toQueueItemRefs(sid, mappedTracks),
             queueIndex,
             currentTrack,
             currentTime: serverTime > 0 ? serverTime : localTime,
@@ -187,6 +191,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
       const wasPlaying = s.isPlaying;
       set({
         queue: [track],
+        queueItems: toQueueItemRefs(s.queueServerId ?? '', [track]),
         queueIndex: 0,
         currentTrack: track,
       });

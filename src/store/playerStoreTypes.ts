@@ -79,11 +79,17 @@ export interface PlayerState {
    *  are then cleared. Absent / index-off → the windowed `queue` is used as-is. */
   queueRefs?: string[];
   queueRefsIndex?: number;
-  /** Phase 1 (transient): thin canonical ref list persisted alongside the
-   *  windowed `queue`, superseding `queueRefs`. Carries per-item `serverId` +
-   *  queue-only flags. Rehydrated like `queueRefs` and cleared after a full
-   *  hydrate from the index. The in-memory queue stays `Track[]` until Phase 2. */
+  /** Phase 1b: canonical in-memory thin ref list — kept in sync with `queue`
+   *  at every write site (single playback server per item in v1; carries the
+   *  queue-only flags). Persisted by `partialize` and the source the resolver/
+   *  consumers move onto in Phase 2/3; `queue: Track[]` is dropped in Phase 4. */
   queueItems?: QueueItemRef[];
+  /** Restore-pending sentinel (transient). `partialize` writes it alongside the
+   *  full `queueItems` on every persist; a fresh rehydrate brings it back, which
+   *  is what tells `hydrateQueueFromIndex` the windowed `queue` still needs a
+   *  full hydrate. Normal mutations keep `queueItems` canonical but never set
+   *  this, so its presence — not `queueItems` — gates the restore. Cleared once
+   *  a full hydrate succeeds. */
   queueItemsIndex?: number;
   isPlaying: boolean;
   /** HTTP stream still buffering (network / demux probe) — show loading on cover art. */

@@ -40,6 +40,9 @@ export const usePlayerStore = create<PlayerState>()(
       currentPlaybackSource: null,
       enginePreloadedTrackId: null,
       queue: [],
+      // Phase 1b: canonical thin mirror of `queue`, kept in sync at every write
+      // site so the resolver/consumers (Phase 2/3) can move onto refs.
+      queueItems: [],
       queueServerId: null,
       queueIndex: 0,
       isPlaying: false,

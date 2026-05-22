@@ -3,6 +3,7 @@ import { filterSongsToActiveLibrary, getRandomSongs } from '../../api/subsonicLi
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
+import { toQueueItemRefs } from '../library/queueItemRef';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../../i18n';
 import { useAuthStore } from '../../store/authStore';
@@ -390,6 +391,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     if (!startedPlayback) {
       usePlayerStore.setState({
         queue: queueSnapshot.queue,
+        queueItems: toQueueItemRefs(queueSnapshot.queueServerId ?? '', queueSnapshot.queue),
         queueIndex: queueSnapshot.queueIndex,
         queueServerId: queueSnapshot.queueServerId,
       });
