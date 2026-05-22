@@ -6,6 +6,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExtern
 import { useNavigate } from 'react-router-dom';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useTranslation } from 'react-i18next';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1, Heart, Music, MicVocal, ListMusic, X,
@@ -71,6 +72,11 @@ function useAlbumAccentColor(imageUrl: string): string {
 
 // ── Queue Drawer ──────────────────────────────────────────────────────────────
 
+// Stable initial rect so the virtualizer never re-initializes on re-render (an
+// inline literal would be a new ref each render → render loop). Replaced by the
+// real height on first ResizeObserver measure.
+const QUEUE_INITIAL_RECT = { width: 0, height: 600 };
+
 function QueueDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const queue = usePlayerStore(s => s.queue);
@@ -78,10 +84,26 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
   const playTrack = usePlayerStore(s => s.playTrack);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Scroll active track into view on open
+  // Virtualize so a multi-thousand-track queue keeps DOM at O(visible rows) on
+  // mobile too (matches the desktop QueuePanel).
+  const rowVirtualizer = useVirtualizer({
+    count: queue.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 56,
+    overscan: 10,
+    getItemKey: i => `${queue[i].id}:${i}`,
+    initialRect: QUEUE_INITIAL_RECT,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  // Scroll the active track into view on open. Rows are uniform height, so the
+  // virtualizer's estimate lands the centred index accurately.
   useEffect(() => {
-    const el = listRef.current?.querySelector('.mq-item.active');
-    el?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    if (queueIndex >= 0 && queue.length > 0) {
+      rowVirtualizer.scrollToIndex(queueIndex, { align: 'center' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -100,12 +122,18 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
           {queue.length === 0 ? (
             <div className="mq-drawer-empty">{t('queue.emptyQueue')}</div>
           ) : (
-            queue.map((track, idx) => {
+            <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
+            {virtualItems.map(vi => {
+              const idx = vi.index;
+              const track = queue[idx];
               const isActive = idx === queueIndex;
               return (
                 <div
-                  key={`${track.id}-${idx}`}
+                  key={vi.key}
+                  data-index={idx}
+                  ref={rowVirtualizer.measureElement}
                   className={`mq-item${isActive ? ' active' : ''}`}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
                   onClick={() => { playTrack(track, queue); onClose(); }}
                 >
                   <div className="mq-item-info">
@@ -118,7 +146,8 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
                   <span className="mq-item-dur">{formatTrackTime(track.duration)}</span>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
         </div>
       </div>
