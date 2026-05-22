@@ -183,6 +183,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Playlists & Favorites — column picker on short lists
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#853](https://github.com/Psychotoxical/psysonic/pull/853)**
+
+* On a one-song playlist (or short favorites list) the column menu was clipped behind the list, added a stray scrollbar, and could hide the row when scrolled. The picker now sits outside the scroll area, so it opens fully on lists of any length.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
