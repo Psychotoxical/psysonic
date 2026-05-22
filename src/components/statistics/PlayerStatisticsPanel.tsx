@@ -9,7 +9,9 @@ import {
   type PlaySessionYearSummary,
 } from '../../api/library';
 import { usePlayerStatsLiveRefresh } from '../../hooks/usePlayerStatsLiveRefresh';
+import { usePlayerStatsRecordingEnabled } from '../../hooks/usePlayerStatsRecordingEnabled';
 import PlayerStatsHeatmap from './PlayerStatsHeatmap';
+import PlayerStatsIndexRequiredNotice from './PlayerStatsIndexRequiredNotice';
 import PlayerStatsPartialIndexNotice from './PlayerStatsPartialIndexNotice';
 import PlayerStatsRecentDays from './PlayerStatsRecentDays';
 import { formatPlayerStatsListeningTotal } from '../../utils/format/formatHumanDuration';
@@ -18,6 +20,7 @@ const currentCalendarYear = () => new Date().getFullYear();
 
 export default function PlayerStatisticsPanel() {
   const { t } = useTranslation();
+  const recordingEnabled = usePlayerStatsRecordingEnabled();
   const [year, setYear] = useState(currentCalendarYear);
   const [yearBounds, setYearBounds] = useState<PlaySessionYearBounds | null>(null);
   const [summary, setSummary] = useState<PlaySessionYearSummary | null>(null);
@@ -28,6 +31,13 @@ export default function PlayerStatisticsPanel() {
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
 
   useEffect(() => {
+    if (!recordingEnabled) {
+      setLoading(false);
+      setSummary(null);
+      setDayCounts(new Map());
+      setSelectedDate(null);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setSelectedDate(null);
@@ -52,9 +62,10 @@ export default function PlayerStatisticsPanel() {
         }
       });
     return () => { cancelled = true; };
-  }, [year]);
+  }, [year, recordingEnabled]);
 
   const refreshLive = useCallback(async () => {
+    if (!recordingEnabled) return;
     try {
       const [s, heat] = await Promise.all([
         libraryGetPlayerStatsYearSummary(year),
@@ -66,9 +77,17 @@ export default function PlayerStatisticsPanel() {
     } catch {
       /* ignore transient read errors during live refresh */
     }
-  }, [year]);
+  }, [year, recordingEnabled]);
 
   usePlayerStatsLiveRefresh(refreshLive);
+
+  if (!recordingEnabled) {
+    return (
+      <div className="stats-page">
+        <PlayerStatsIndexRequiredNotice />
+      </div>
+    );
+  }
 
   const empty = !loading && (summary?.trackPlayCount ?? 0) === 0;
   const calYear = currentCalendarYear();

@@ -56,6 +56,7 @@ export const statistics = {
   playerSummaryUniqueTracks: 'Unike spor',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: 'Noen servere er ekskludert fra det lokale biblioteksindeks. Lytting på disse serverne registreres ikke i spillerstatistikken.',
+  playerIndexRequired: 'Spillerstatistikk er ikke tilgjengelig før du aktiverer det lokale biblioteksindeks.',
   playerPartialIndexSettings: 'Bibliotekinnstillinger',
   playerSummaryCompletion: 'Full / delvis',
   playerYearPrev: 'Forrige år',

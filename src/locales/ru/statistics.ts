@@ -67,6 +67,7 @@ export const statistics = {
   playerSummaryUniqueTracks: 'Уникальные треки',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: 'Не все серверы включены в локальный индекс библиотеки. Прослушивание с выключенных серверов не попадает в эту статистику.',
+  playerIndexRequired: 'Статистика плеера недоступна, пока не включён локальный индекс библиотеки.',
   playerPartialIndexSettings: 'Настройки библиотеки',
   playerSummaryCompletion: 'Полные / частичные',
   playerYearPrev: 'Предыдущий год',

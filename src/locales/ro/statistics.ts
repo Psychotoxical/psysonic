@@ -74,6 +74,7 @@ export const statistics = {
   playerSummaryUniqueTracks: 'Piese unice',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: 'Unele servere sunt excluse din indexul local al bibliotecii. Ascultarea pe aceste servere nu este înregistrată în statisticile playerului.',
+  playerIndexRequired: 'Statisticile playerului nu sunt disponibile până când activezi indexul local al bibliotecii.',
   playerPartialIndexSettings: 'Setări bibliotecă',
   playerSummaryCompletion: 'Complete / parțiale',
   playerYearPrev: 'Anul anterior',

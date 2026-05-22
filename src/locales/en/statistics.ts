@@ -74,6 +74,7 @@ export const statistics = {
   playerSummaryUniqueTracks: 'Unique tracks',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: 'Some servers are excluded from the local library index. Listening on those servers is not recorded in player statistics.',
+  playerIndexRequired: 'Player statistics are not available until you enable the local library index.',
   playerPartialIndexSettings: 'Library settings',
   playerSummaryCompletion: 'Full / partial',
   playerYearPrev: 'Previous year',

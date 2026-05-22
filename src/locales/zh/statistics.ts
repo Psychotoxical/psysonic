@@ -56,6 +56,7 @@ export const statistics = {
   playerSummaryUniqueTracks: '独立曲目',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: '部分服务器未纳入本地库索引，在这些服务器上的收听不会计入播放器统计。',
+  playerIndexRequired: '启用本地库索引后才会显示播放器统计。',
   playerPartialIndexSettings: '库设置',
   playerSummaryCompletion: '完整 / 部分',
   playerYearPrev: '上一年',

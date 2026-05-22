@@ -56,6 +56,7 @@ export const statistics = {
   playerSummaryUniqueTracks: 'Unieke nummers',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: 'Sommige servers zijn uitgesloten van de lokale bibliotheekindex. Luisteren op die servers wordt niet vastgelegd in de playerstatistieken.',
+  playerIndexRequired: 'Playerstatistieken zijn niet beschikbaar totdat je de lokale bibliotheekindex inschakelt.',
   playerPartialIndexSettings: 'Bibliotheekinstellingen',
   playerSummaryCompletion: 'Volledig / gedeeltelijk',
   playerYearPrev: 'Vorig jaar',

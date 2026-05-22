@@ -74,6 +74,7 @@ export const statistics = {
   playerSummaryUniqueTracks: 'Einzigartige Titel',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: 'Einige Server sind vom lokalen Bibliotheksindex ausgeschlossen. Wiedergaben auf diesen Servern werden nicht in der Player-Statistik erfasst.',
+  playerIndexRequired: 'Player-Statistiken sind erst verfügbar, wenn der lokale Bibliotheksindex aktiviert ist.',
   playerPartialIndexSettings: 'Bibliothekseinstellungen',
   playerSummaryCompletion: 'Voll / teilweise',
   playerYearPrev: 'Vorheriges Jahr',

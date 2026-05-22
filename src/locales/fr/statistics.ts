@@ -56,6 +56,7 @@ export const statistics = {
   playerSummaryUniqueTracks: 'Morceaux uniques',
   playerSummaryDays: 'Days',
   playerPartialIndexNotice: 'Certains serveurs sont exclus de l’index local de bibliothèque. L’écoute sur ces serveurs n’est pas enregistrée dans les statistiques du lecteur.',
+  playerIndexRequired: 'Les statistiques du lecteur ne sont pas disponibles tant que l’index local de bibliothèque n’est pas activé.',
   playerPartialIndexSettings: 'Paramètres bibliothèque',
   playerSummaryCompletion: 'Complets / partiels',
   playerYearPrev: 'Année précédente',
