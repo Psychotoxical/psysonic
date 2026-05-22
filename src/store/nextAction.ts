@@ -11,6 +11,8 @@ import {
 import { isInOrbitSession } from './orbitSession';
 import type { PlayerState, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import { bridgeQueueFromItems } from '../utils/library/queueTrackView';
+import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import {
   addRadioSessionSeen,
   getCurrentRadioArtistId,
@@ -68,8 +70,11 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
           if (isInOrbitSession()) return;
           if (newTracks.length > 0) {
             set(state => {
-              const newQueue = [...state.queue, ...newTracks];
-              return { queue: newQueue, queueItems: toQueueItemRefs(state.queueServerId ?? '', newQueue) };
+              const serverId = state.queueServerId ?? '';
+              if (serverId) seedQueueResolver(serverId, newTracks);
+              const newItems = [...toQueueItemRefs(serverId, state.queue), ...toQueueItemRefs(serverId, newTracks)];
+              const newQueue = bridgeQueueFromItems(newItems, [state.queue, newTracks]);
+              return { queue: newQueue, queueItems: newItems };
             });
           }
         }).catch(() => {}).finally(() => { setInfiniteQueueFetching(false); });
@@ -109,11 +114,17 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
                 // navigate backwards a few songs. Trimmed ids stay in the seen-set.
                 const HISTORY_KEEP = 5;
                 set(state => {
+                  const serverId = state.queueServerId ?? '';
+                  if (serverId) seedQueueResolver(serverId, fresh);
                   const trimStart = Math.max(0, state.queueIndex - HISTORY_KEEP);
-                  const newQueue = [...state.queue.slice(trimStart), ...fresh];
+                  const newItems = [
+                    ...toQueueItemRefs(serverId, state.queue).slice(trimStart),
+                    ...toQueueItemRefs(serverId, fresh),
+                  ];
+                  const newQueue = bridgeQueueFromItems(newItems, [state.queue, fresh]);
                   return {
                     queue: newQueue,
-                    queueItems: toQueueItemRefs(state.queueServerId ?? '', newQueue),
+                    queueItems: newItems,
                     queueIndex: state.queueIndex - trimStart,
                   };
                 });
