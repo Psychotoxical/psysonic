@@ -149,6 +149,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — panel now reads through the shared track cache
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#860](https://github.com/Psychotoxical/psysonic/pull/860)**
+
+* The queue panel sources its row details through the on-demand track cache, another step toward keeping multi-thousand-track queues light on memory. No visible change.
+
+
+
 ## Fixed
 
 ### In-page browse — virtual scroll and cover-art priority
