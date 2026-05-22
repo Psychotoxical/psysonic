@@ -30,9 +30,16 @@ const refKey = (r: { serverId: string; trackId: string }) => `${r.serverId}:${r.
 const cache = new Map<string, Track>();
 const inFlight = new Set<string>();
 const listeners = new Set<() => void>();
+let cacheVersion = 0;
 
 function notify(): void {
+  cacheVersion++;
   for (const l of listeners) l();
+}
+
+/** Monotonic version, bumped on every cache change (for `useSyncExternalStore`). */
+export function getQueueResolverVersion(): number {
+  return cacheVersion;
 }
 
 /** Subscribe to cache changes (for `useSyncExternalStore` selectors). */
