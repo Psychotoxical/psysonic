@@ -28,9 +28,12 @@ export const DEFAULT_TRACK_PREVIEW_LOCATIONS: TrackPreviewLocations = {
   randomMix: true,
 };
 
+// Fresh installs ship with every lyrics source off (issue #810 — users who
+// don't want lyrics get none until they opt in). Existing users keep their
+// persisted `lyricsSources`; the rehydrate migration preserves them.
 export const DEFAULT_LYRICS_SOURCES: LyricsSourceConfig[] = [
-  { id: 'server',  enabled: true  },
-  { id: 'lrclib',  enabled: true  },
+  { id: 'server',  enabled: false },
+  { id: 'lrclib',  enabled: false },
   { id: 'netease', enabled: false },
 ];
 

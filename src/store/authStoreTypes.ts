@@ -123,11 +123,12 @@ export interface AuthState {
   enableNeteaselyrics: boolean;
   lyricsSources: LyricsSourceConfig[];
   /**
-   * `'standard'`  → server + lrclib + netease pipeline (configurable order).
-   * `'lyricsplus'` → YouLyPlus / lyricsplus first, silent fallback to standard
-   *                  pipeline when no data is returned.
+   * YouLyPlus (karaoke) as the primary lyrics source. When on, it is tried
+   * first and the enabled `lyricsSources` act as fallback; when off, only the
+   * enabled `lyricsSources` are used. Independent of the source toggles, so all
+   * lyrics can be turned off (YouLyPlus off + every source off).
    */
-  lyricsMode: 'standard' | 'lyricsplus';
+  youLyPlusEnabled: boolean;
   /**
    * Render synced lines as static text (no auto-scroll, no word highlighting).
    * Honoured in both lyrics modes.
@@ -294,7 +295,7 @@ export interface AuthState {
   setLyricsServerFirst: (v: boolean) => void;
   setEnableNeteaselyrics: (v: boolean) => void;
   setLyricsSources: (sources: LyricsSourceConfig[]) => void;
-  setLyricsMode: (v: 'standard' | 'lyricsplus') => void;
+  setYouLyPlusEnabled: (v: boolean) => void;
   setLyricsStaticOnly: (v: boolean) => void;
   setShowFullscreenLyrics: (v: boolean) => void;
   setFsLyricsStyle: (v: 'rail' | 'apple') => void;

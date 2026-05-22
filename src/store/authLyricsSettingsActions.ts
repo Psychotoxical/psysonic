@@ -15,14 +15,14 @@ export function createLyricsSettingsActions(set: SetState): Pick<
   | 'setLyricsServerFirst'
   | 'setEnableNeteaselyrics'
   | 'setLyricsSources'
-  | 'setLyricsMode'
+  | 'setYouLyPlusEnabled'
   | 'setLyricsStaticOnly'
 > {
   return {
     setLyricsServerFirst: (v) => set({ lyricsServerFirst: v }),
     setEnableNeteaselyrics: (v) => set({ enableNeteaselyrics: v }),
     setLyricsSources: (sources) => set({ lyricsSources: sources }),
-    setLyricsMode: (v) => set({ lyricsMode: v }),
+    setYouLyPlusEnabled: (v) => set({ youLyPlusEnabled: v }),
     setLyricsStaticOnly: (v) => set({ lyricsStaticOnly: v }),
   };
 }

@@ -71,11 +71,13 @@ export interface UseLyricsResult {
 }
 
 export function useLyrics(currentTrack: Track | null): UseLyricsResult {
-  const cached = currentTrack ? lyricsCache.get(currentTrack.id) : undefined;
-  const { lyricsSources, lyricsMode } = useAuthStore(useShallow(s => ({
+  const { lyricsSources, youLyPlusEnabled } = useAuthStore(useShallow(s => ({
     lyricsSources: s.lyricsSources,
-    lyricsMode: s.lyricsMode,
+    youLyPlusEnabled: s.youLyPlusEnabled,
   })));
+  // Lyrics are fully off when YouLyPlus is off and no source is enabled.
+  const lyricsActive = youLyPlusEnabled || lyricsSources.some(s => s.enabled);
+  const cached = (currentTrack && lyricsActive) ? lyricsCache.get(currentTrack.id) : undefined;
 
   const [loading, setLoading]         = useState(!cached && !!currentTrack);
   const [syncedLines, setSyncedLines] = useState<LrcLine[] | null>(cached?.syncedLines ?? null);
@@ -86,6 +88,19 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
 
   useEffect(() => {
     if (!currentTrack) return;
+
+    // Lyrics fully disabled (YouLyPlus off + every source off): fetch nothing,
+    // show nothing — not even embedded/cache (issue #810). LyricsPane surfaces
+    // the "no sources selected" hint.
+    if (!lyricsActive) {
+      setSyncedLines(null);
+      setWordLines(null);
+      setPlainLyrics(null);
+      setSource(null);
+      setNotFound(false);
+      setLoading(false);
+      return;
+    }
 
     const hit = lyricsCache.get(currentTrack.id);
     if (hit) {
@@ -200,7 +215,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
 
     /**
      * lyricsplus (YouLyPlus). Silent miss → caller falls back to the standard
-     * pipeline. Only consumed when `lyricsMode === 'lyricsplus'`.
+     * pipeline. Only consumed when `youLyPlusEnabled`.
      */
     const fetchLyricsPlusFn = async (): Promise<boolean> => {
       try {
@@ -258,7 +273,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
       // Skip for 'lyricsplus' mode since the persisted entry might be from
       // the standard pipeline (no word-level sync) and the user explicitly
       // wants a fresh lyricsplus attempt.
-      if (lyricsMode !== 'lyricsplus') {
+      if (!youLyPlusEnabled) {
         const serverId = useAuthStore.getState().activeServerId ?? '';
         const persisted = await getCachedLyrics(lyricsCacheKey(serverId, currentTrack.id));
         if (cancelled) return;
@@ -270,8 +285,8 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
         }
       }
 
-      // YouLyPlus mode: try lyricsplus first, silent fallback to standard.
-      if (lyricsMode === 'lyricsplus') {
+      // YouLyPlus on: try lyricsplus first, silent fallback to enabled sources.
+      if (youLyPlusEnabled) {
         if (cancelled) return;
         if (await fetchLyricsPlusFn()) return;
       }
@@ -288,7 +303,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
     })();
 
     return () => { cancelled = true; };
-  }, [currentTrack?.id, lyricsSources, lyricsMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentTrack?.id, lyricsSources, youLyPlusEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { syncedLines, wordLines, plainLyrics, source, loading, notFound };
 }

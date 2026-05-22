@@ -40,3 +40,39 @@ describe('computeAuthStoreRehydration — queueDurationDisplayMode', () => {
     },
   );
 });
+
+describe('computeAuthStoreRehydration — lyrics', () => {
+  beforeEach(() => {
+    resetAuthStore();
+    localStorage.clear();
+  });
+
+  it('migrates legacy lyricsMode "lyricsplus" → youLyPlusEnabled true', () => {
+    const base = useAuthStore.getState();
+    const patch = computeAuthStoreRehydration({ ...base, lyricsMode: 'lyricsplus' } as AuthState);
+    expect(patch.youLyPlusEnabled).toBe(true);
+  });
+
+  it('migrates legacy lyricsMode "standard" → youLyPlusEnabled false', () => {
+    const base = useAuthStore.getState();
+    const patch = computeAuthStoreRehydration({ ...base, lyricsMode: 'standard' } as AuthState);
+    expect(patch.youLyPlusEnabled).toBe(false);
+  });
+
+  it('fresh install (no persisted state) keeps every source off — issue #810', () => {
+    localStorage.removeItem('psysonic-auth');
+    const patch = computeAuthStoreRehydration(useAuthStore.getState());
+    // No migration: the all-off default must survive.
+    expect(patch.lyricsSources).toBeUndefined();
+  });
+
+  it('upgrade from a build without lyricsSources migrates the old on-by-default set', () => {
+    localStorage.setItem('psysonic-auth', JSON.stringify({ state: { lyricsServerFirst: true } }));
+    const patch = computeAuthStoreRehydration(useAuthStore.getState());
+    expect(patch.lyricsSources).toEqual([
+      { id: 'server', enabled: true },
+      { id: 'lrclib', enabled: true },
+      { id: 'netease', enabled: false },
+    ]);
+  });
+});

@@ -40,10 +40,13 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
       : {};
 
   // Migrate lyricsServerFirst + enableNeteaselyrics → lyricsSources (one-time).
+  // Only for an *existing* persisted state (upgrade from a build without
+  // lyricsSources). Fresh installs have no persisted state → keep the
+  // all-off default (issue #810); don't resurrect the old on-by-default set.
   let lyricsSourcesMigrated: { lyricsSources?: LyricsSourceConfig[] } = {};
   try {
     const raw = JSON.parse(localStorage.getItem('psysonic-auth') ?? '{}') as { state?: Record<string, unknown> };
-    if (!raw?.state?.lyricsSources) {
+    if (raw?.state && !raw.state.lyricsSources) {
       const serverFirst = (raw?.state?.lyricsServerFirst as boolean | undefined) ?? true;
       const neteaseOn   = (raw?.state?.enableNeteaselyrics as boolean | undefined) ?? false;
       const migrated: LyricsSourceConfig[] = serverFirst
@@ -52,6 +55,16 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
       lyricsSourcesMigrated = { lyricsSources: migrated };
     }
   } catch { /* ignore */ }
+
+  // Migrate legacy `lyricsMode` ('standard' | 'lyricsplus') → `youLyPlusEnabled`
+  // (one-time). Existing users keep YouLyPlus on iff they were on lyricsplus
+  // mode; the legacy field is then stripped so it doesn't sit as cruft.
+  let youLyPlusMigrated: { youLyPlusEnabled?: boolean } = {};
+  const legacyLyricsMode = (state as { lyricsMode?: unknown }).lyricsMode;
+  if (legacyLyricsMode === 'lyricsplus' || legacyLyricsMode === 'standard') {
+    youLyPlusMigrated = { youLyPlusEnabled: legacyLyricsMode === 'lyricsplus' };
+  }
+  delete (state as { lyricsMode?: unknown }).lyricsMode;
 
   // One-time: older builds could persist smooth=false as the default. Force smooth on once
   // so updates do not leave users on discrete scrolling; after this flag exists, only an
@@ -145,6 +158,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     loudnessPreIsRefV1: true,
     ...conflictingLegacyState,
     ...lyricsSourcesMigrated,
+    ...youLyPlusMigrated,
     ...wheelSmoothOneTime,
     ...seekbarStyleMigrated,
     ...queueDurationDisplayModeMigrated,

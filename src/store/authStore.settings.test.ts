@@ -294,9 +294,11 @@ describe('lyrics source setters', () => {
     expect(useAuthStore.getState().lyricsSources).toEqual(sources);
   });
 
-  it('setLyricsMode + setFsLyricsStyle + setSidebarLyricsStyle write enum values through', () => {
-    useAuthStore.getState().setLyricsMode('lyricsplus');
-    expect(useAuthStore.getState().lyricsMode).toBe('lyricsplus');
+  it('setYouLyPlusEnabled + setFsLyricsStyle + setSidebarLyricsStyle write values through', () => {
+    useAuthStore.getState().setYouLyPlusEnabled(true);
+    expect(useAuthStore.getState().youLyPlusEnabled).toBe(true);
+    useAuthStore.getState().setYouLyPlusEnabled(false);
+    expect(useAuthStore.getState().youLyPlusEnabled).toBe(false);
 
     useAuthStore.getState().setFsLyricsStyle('apple');
     expect(useAuthStore.getState().fsLyricsStyle).toBe('apple');
