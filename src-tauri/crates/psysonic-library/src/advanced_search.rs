@@ -26,8 +26,8 @@ use crate::search::{
 };
 use crate::store::LibraryStore;
 
-/// `bpm` dual-storage resolution (§5.13.4): prefer the hot `track.bpm`
-/// column, fall back to the highest-priority `track_fact(bpm)` value.
+/// `bpm` dual-storage resolution (§5.13.4): prefer analysis `track_fact(bpm)`,
+/// then hot `track.bpm` tag, then other fact sources.
 fn bpm_resolved_sql() -> String {
     bpm_resolved_expr("t")
 }
@@ -180,10 +180,16 @@ fn build_track(
         applied.insert("starred".to_string());
     }
 
-    let cols = if scalar.iter().any(|c| c.field == "bpm") {
+    let bpm_resolved = scalar.iter().any(|c| c.field == "bpm");
+    let cols = if bpm_resolved {
         aliased_track_columns_resolved_bpm("t")
     } else {
         aliased_track_columns("t")
+    };
+    let map_track = if bpm_resolved {
+        map_track_row_resolved_bpm
+    } else {
+        map_track_row_default
     };
     if let Some(q) = text.and_then(fts_track_prefix_match_query) {
         applied.insert("text".to_string());
@@ -206,7 +212,7 @@ fn build_track(
             limit,
             offset,
             skip_totals,
-            |r| repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row)),
+            map_track,
         );
     }
 
@@ -221,8 +227,16 @@ fn build_track(
         limit,
         offset,
         skip_totals,
-        |r| repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row)),
+        map_track,
     )
+}
+
+fn map_track_row_default(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryTrackDto> {
+    repos::row_to_track_row(row).map(|r| LibraryTrackDto::from_row(&r))
+}
+
+fn map_track_row_resolved_bpm(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryTrackDto> {
+    crate::search::row_to_track_dto_resolved_bpm(row)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1353,6 +1367,45 @@ mod tests {
         r.filters = vec![clause("bpm", FilterOp::Between, Some(json!(125)), Some(json!(130)))];
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.tracks.len(), 1, "bpm should resolve via track_fact fallback");
+        assert_eq!(resp.tracks[0].bpm, Some(128));
+        assert_eq!(resp.tracks[0].bpm_source.as_deref(), Some("analysis"));
+    }
+
+    #[test]
+    fn bpm_filter_prefers_analysis_fact_over_hot_tag() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = track("s1", "t1", "A", "X", "Alb");
+        a.bpm = Some(90);
+        TrackRepository::new(&store).upsert_batch(&[a]).unwrap();
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO track_fact \
+                     (server_id, track_id, fact_kind, value_int, source_kind, source_id, confidence, fetched_at) \
+                     VALUES ('s1', 't1', 'bpm', 128, 'analysis', 'oximedia-60s-center', 1.0, 1)",
+                    [],
+                )
+            })
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("bpm", FilterOp::Between, Some(json!(125)), Some(json!(130)))];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].bpm, Some(128));
+        assert_eq!(resp.tracks[0].bpm_source.as_deref(), Some("analysis"));
+    }
+
+    #[test]
+    fn bpm_source_is_tag_when_only_hot_column_set() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = track("s1", "t1", "A", "X", "Alb");
+        a.bpm = Some(125);
+        TrackRepository::new(&store).upsert_batch(&[a]).unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("bpm", FilterOp::Between, Some(json!(120)), Some(json!(130)))];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].bpm_source.as_deref(), Some("tag"));
     }
 
     // ── mood tag / group filters ─────────────────────────────────────

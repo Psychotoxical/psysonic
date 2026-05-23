@@ -4,7 +4,7 @@ import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicGenre, SubsonicArtist, SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SlidersVertical } from 'lucide-react';
+import { SlidersVertical, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
@@ -39,6 +39,13 @@ interface Results {
   artists: SubsonicArtist[];
   albums: SubsonicAlbum[];
   songs: SubsonicSong[];
+}
+
+function parseBpmInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = parseInt(trimmed, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 export default function AdvancedSearch() {
@@ -343,6 +350,13 @@ export default function AdvancedSearch() {
   const trackFilterActive =
     (MOOD_UI_ENABLED && !!moodGroup) || !!(bpmFrom || bpmTo);
 
+  const bpmFilterDraftActive = !!(bpmFrom || bpmTo);
+
+  const clearBpmFilter = () => {
+    setBpmFrom('');
+    setBpmTo('');
+  };
+
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     const effectiveType = trackFilterActive ? 'songs' : resultType;
@@ -463,6 +477,11 @@ export default function AdvancedSearch() {
                   max={999}
                   value={bpmFrom}
                   onChange={e => setBpmFrom(e.target.value)}
+                  onBlur={e => {
+                    const from = parseBpmInput(e.target.value);
+                    const to = parseBpmInput(bpmTo);
+                    if (from != null && to != null && from > to) setBpmTo('');
+                  }}
                   placeholder={t('search.advancedYearFrom')}
                   style={{ width: 96 }}
                 />
@@ -474,9 +493,32 @@ export default function AdvancedSearch() {
                   max={999}
                   value={bpmTo}
                   onChange={e => setBpmTo(e.target.value)}
+                  onBlur={e => {
+                    const to = parseBpmInput(e.target.value);
+                    const from = parseBpmInput(bpmFrom);
+                    if (from != null && to != null && to < from) setBpmFrom('');
+                  }}
                   placeholder={t('search.advancedYearTo')}
                   style={{ width: 96 }}
                 />
+                {bpmFilterDraftActive && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={clearBpmFilter}
+                    style={{
+                      padding: '0.3rem 0.55rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      fontSize: '0.8rem',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <X size={13} />
+                    {t('search.advancedBpmClear')}
+                  </button>
+                )}
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   {t('search.advancedBpmLocalNote')}
                 </span>

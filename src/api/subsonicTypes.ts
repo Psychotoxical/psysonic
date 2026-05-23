@@ -80,6 +80,8 @@ export interface SubsonicSong {
   played?: string;
   /** Beats per minute, surfaced by Navidrome when the tag is set on the file. */
   bpm?: number;
+  /** Local index Advanced Search: `'tag'` (server/file tag) or `'analysis'` (measured). */
+  localBpmSource?: 'tag' | 'analysis';
   replayGain?: {
     trackGain?: number;
     albumGain?: number;

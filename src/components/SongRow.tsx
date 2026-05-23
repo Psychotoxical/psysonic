@@ -17,6 +17,7 @@ interface Props {
 
 function SongRow({ song, showBpm }: Props) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const isCurrent = usePlayerStore(s => s.currentTrack?.id === song.id);
@@ -34,6 +35,13 @@ function SongRow({ song, showBpm }: Props) {
     if (orbitActive) { addTrackToOrbit(song.id); return; }
     enqueue([songToTrack(song)]);
   };
+
+  const bpmTooltip =
+    song.localBpmSource === 'analysis'
+      ? t('search.bpmSourceAnalysis')
+      : song.localBpmSource === 'tag'
+        ? t('search.bpmSourceTag')
+        : undefined;
 
   return (
     <div
@@ -104,7 +112,10 @@ function SongRow({ song, showBpm }: Props) {
         {song.genre ?? '—'}
       </div>
       {showBpm && (
-        <div className="song-list-row-cell song-list-row-bpm">
+        <div
+          className="song-list-row-cell song-list-row-bpm"
+          data-tooltip={bpmTooltip}
+        >
           {song.bpm != null && song.bpm > 0 ? song.bpm : '—'}
         </div>
       )}

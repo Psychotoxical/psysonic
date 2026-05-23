@@ -383,6 +383,7 @@ fn map_live_hit_row(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<
             user_rating: row.get(offset + 18)?,
             play_count: row.get(offset + 19)?,
             bpm: row.get(offset + 20)?,
+            bpm_source: None,
             played_at: None,
             server_path: None,
             library_id: None,

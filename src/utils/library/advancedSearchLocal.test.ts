@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
-import { runLocalAdvancedSearch, runLocalSongBrowse } from './advancedSearchLocal';
+import { runLocalAdvancedSearch, runLocalSongBrowse, trackToSong } from './advancedSearchLocal';
 
 const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) => ({
   query: '',
@@ -78,6 +78,22 @@ describe('runLocalAdvancedSearch', () => {
     expect(captured).toMatchObject({
       request: { filters: [{ field: 'bpm', op: 'between', value: 120, valueTo: 130 }] },
     });
+  });
+
+  it('trackToSong keeps resolved bpm and source over rawJson tag', () => {
+    const song = trackToSong({
+      serverId: 's1',
+      id: 't1',
+      title: 'T',
+      album: 'Alb',
+      durationSec: 100,
+      syncedAt: 0,
+      bpm: 128,
+      bpmSource: 'analysis',
+      rawJson: { id: 't1', title: 'T', artist: 'A', album: 'Alb', albumId: 'al1', duration: 100, bpm: 90 },
+    });
+    expect(song.bpm).toBe(128);
+    expect(song.localBpmSource).toBe('analysis');
   });
 
   it('prefers rawJson, falls back to hot columns, and reports the full total', async () => {

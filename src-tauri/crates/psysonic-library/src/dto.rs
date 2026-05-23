@@ -99,6 +99,9 @@ pub struct LibraryTrackDto {
     pub isrc: Option<String>,
     pub mbid_recording: Option<String>,
     pub bpm: Option<i64>,
+    /// `'analysis'` | `'tag'` — only on Advanced Search rows with BPM dual-storage projection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bpm_source: Option<String>,
     pub replay_gain_track_db: Option<f64>,
     pub replay_gain_album_db: Option<f64>,
 
@@ -149,6 +152,7 @@ impl LibraryTrackDto {
             isrc: row.isrc.clone(),
             mbid_recording: row.mbid_recording.clone(),
             bpm: row.bpm,
+            bpm_source: None,
             replay_gain_track_db: row.replay_gain_track_db,
             replay_gain_album_db: row.replay_gain_album_db,
             server_updated_at: row.server_updated_at,

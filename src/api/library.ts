@@ -53,6 +53,8 @@ export interface LibraryTrackDto {
   isrc?: string | null;
   mbidRecording?: string | null;
   bpm?: number | null;
+  /** `'analysis'` | `'tag'` — Advanced Search BPM dual-storage projection only. */
+  bpmSource?: string | null;
   replayGainTrackDb?: number | null;
   replayGainAlbumDb?: number | null;
   serverUpdatedAt?: number | null;

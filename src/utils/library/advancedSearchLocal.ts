@@ -134,6 +134,7 @@ function buildRequest(
 
 export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   const raw = isObject(t.rawJson) ? t.rawJson : {};
+  const resolvedBpm = t.bpm != null && t.bpm > 0 ? t.bpm : undefined;
   const base: SubsonicSong = {
     id: t.id,
     title: t.title,
@@ -153,13 +154,18 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
     starred: t.starredAt != null ? new Date(t.starredAt).toISOString() : undefined,
     userRating: t.userRating ?? undefined,
     playCount: t.playCount ?? undefined,
-    bpm: t.bpm ?? undefined,
+    bpm: resolvedBpm,
     isrc: t.isrc ?? undefined,
     albumArtist: t.albumArtist ?? undefined,
   };
   // `rawJson` is the authoritative original song — let it override the
   // hot-column fallbacks (it carries OpenSubsonic extras too).
-  return { ...base, ...(raw as Partial<SubsonicSong>) };
+  const merged: SubsonicSong = { ...base, ...(raw as Partial<SubsonicSong>) };
+  if (resolvedBpm != null) merged.bpm = resolvedBpm;
+  if (t.bpmSource === 'analysis' || t.bpmSource === 'tag') {
+    merged.localBpmSource = t.bpmSource;
+  }
+  return merged;
 }
 
 export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
