@@ -61,5 +61,6 @@ export const search = {
     dance: 'Танцы',
     work: 'Работа',
     romance: 'Романтика',
+    anger: 'Злость',
   },
 };

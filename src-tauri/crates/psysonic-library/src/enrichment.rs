@@ -36,9 +36,8 @@ pub fn plan_track_enrichment(
     let mut need_moods = !fact_current(&facts, "moods", content_hash);
     if !mood_tags_current(&facts, content_hash) {
         if backfill_mood_tags_from_stored_moods(store, server_id, track_id, content_hash, now)? {
-            // Tags derived from existing moods JSON — no re-analysis needed.
+            // mood_tag rows derived from existing moods JSON.
         } else if !need_moods {
-            // Moods JSON missing or empty — force a fresh oximedia pass.
             need_moods = true;
         }
     }
@@ -171,7 +170,7 @@ fn replace_mood_tag_facts(
 
     let repo = FactRepository::new(store);
     for tag in tags {
-        if !mood_groups::is_valid_mood_tag(tag) {
+        if !mood_groups::is_oximedia_mood_tag(tag) {
             continue;
         }
         repo.put(
@@ -204,7 +203,7 @@ fn mood_tag_ids_from_moods_json(json: &str) -> Vec<String> {
         .into_iter()
         .take(3)
         .map(|(k, _)| k)
-        .filter(|k| mood_groups::is_valid_mood_tag(k))
+        .filter(|k| mood_groups::is_oximedia_mood_tag(k))
         .collect()
 }
 

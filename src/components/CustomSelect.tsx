@@ -30,10 +30,13 @@ export default function CustomSelect({ value, options, onChange, className = '',
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const MARGIN = 6;
-    const maxH = 240;
+    const maxH = 320;
     const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
     const spaceAbove = rect.top - MARGIN;
     const useAbove = spaceBelow < 80 && spaceAbove > spaceBelow;
+    const viewportCap = Math.min(maxH, useAbove ? spaceAbove : spaceBelow);
+    const contentH = listRef.current?.scrollHeight ?? 0;
+    const needsScroll = contentH > viewportCap;
     setDropStyle({
       position: 'fixed',
       left: rect.left,
@@ -41,7 +44,8 @@ export default function CustomSelect({ value, options, onChange, className = '',
       ...(useAbove
         ? { bottom: window.innerHeight - rect.top + MARGIN }
         : { top: rect.bottom + MARGIN }),
-      maxHeight: Math.min(maxH, useAbove ? spaceAbove : spaceBelow),
+      maxHeight: needsScroll ? viewportCap : contentH || viewportCap,
+      overflowY: needsScroll ? 'auto' : 'hidden',
       zIndex: 99998,
     });
   };
@@ -49,7 +53,10 @@ export default function CustomSelect({ value, options, onChange, className = '',
   useLayoutEffect(() => {
     if (!open) return;
     updateDropStyle();
-  }, [open]);
+    // Re-measure after layout so short lists (e.g. mood groups) don't get a spurious scrollbar.
+    const id = requestAnimationFrame(updateDropStyle);
+    return () => cancelAnimationFrame(id);
+  }, [open, options]);
 
   useEffect(() => {
     if (!open) return;

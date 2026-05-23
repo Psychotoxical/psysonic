@@ -12,19 +12,22 @@ export const OXIMEDIA_MOOD_TAG_IDS = [
 
 export type OximediaMoodTagId = (typeof OXIMEDIA_MOOD_TAG_IDS)[number];
 
-export type MoodGroupId = 'joy' | 'sadness' | 'dance' | 'work' | 'romance';
+export type MoodGroupId = 'joy' | 'sadness' | 'dance' | 'work' | 'romance' | 'anger';
 
-/** Product mood groups for Advanced Search (not stored on tracks). */
+/** Virtual mood groups for Advanced Search — overlaps are intentional. */
 export const MOOD_GROUPS: ReadonlyArray<{
   readonly id: MoodGroupId;
-  readonly tags: readonly OximediaMoodTagId[];
+  readonly tags: readonly string[];
 }> = [
   { id: 'joy', tags: ['happy', 'excited'] },
   { id: 'sadness', tags: ['sad', 'melancholic'] },
-  { id: 'dance', tags: ['excited', 'tense', 'happy', 'angry'] },
+  { id: 'dance', tags: ['excited', 'happy', 'tense', 'angry'] },
   { id: 'work', tags: ['calm', 'peaceful'] },
   { id: 'romance', tags: ['peaceful', 'calm', 'melancholic'] },
+  { id: 'anger', tags: ['angry', 'tense'] },
 ] as const;
+
+export const MOOD_GROUP_IDS: readonly MoodGroupId[] = MOOD_GROUPS.map(g => g.id);
 
 export function moodGroupById(id: string): (typeof MOOD_GROUPS)[number] | undefined {
   return MOOD_GROUPS.find(g => g.id === id);

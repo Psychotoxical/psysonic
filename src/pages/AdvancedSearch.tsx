@@ -17,7 +17,7 @@ import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearc
 import { raceSearchSources } from '../utils/library/searchRace';
 import { logLibrarySearch } from '../utils/library/libraryDevLog';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import { MOOD_GROUPS } from '../config/moodGroups';
+import { MOOD_GROUP_IDS } from '../config/moodGroups';
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -313,7 +313,8 @@ export default function AdvancedSearch() {
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    runSearch({ query, genre, yearFrom, yearTo, moodGroup, resultType });
+    const effectiveType = moodGroup ? 'songs' : resultType;
+    runSearch({ query, genre, yearFrom, yearTo, moodGroup, resultType: effectiveType });
   };
 
   const typeOptions: { id: ResultType; label: string }[] = [
@@ -331,9 +332,9 @@ export default function AdvancedSearch() {
   const moodSelectOptions = useMemo(
     () => [
       { value: '', label: t('search.advancedAllMoods') },
-      ...MOOD_GROUPS.map(g => ({
-        value: g.id,
-        label: t(`search.moodGroups.${g.id}`),
+      ...MOOD_GROUP_IDS.map(id => ({
+        value: id,
+        label: t(`search.moodGroups.${id}`),
       })),
     ],
     [t],
@@ -430,7 +431,7 @@ export default function AdvancedSearch() {
             {/* Row 4: Result type + Search button */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {typeOptions.map(opt => (
+                {!moodGroup && typeOptions.map(opt => (
                   <button
                     key={opt.id}
                     type="button"

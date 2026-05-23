@@ -236,9 +236,11 @@ fn build_album(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
-    let table = build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
-    if !table.0.is_empty() || table.1 > 0 {
-        return Ok(table);
+    if !scalar_requires_track_derived_entities(scalar) {
+        let table = build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
+        if !table.0.is_empty() || table.1 > 0 {
+            return Ok(table);
+        }
     }
     if let Some(q) = text.and_then(fts_album_prefix_match_query) {
         return build_album_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
@@ -361,9 +363,11 @@ fn build_artist(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
-    let table = build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
-    if !table.0.is_empty() || table.1 > 0 {
-        return Ok(table);
+    if !scalar_requires_track_derived_entities(scalar) {
+        let table = build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
+        if !table.0.is_empty() || table.1 > 0 {
+            return Ok(table);
+        }
     }
     if let Some(q) = text.and_then(|t| fts_column_prefix_query("artist", t)) {
         return build_artist_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
@@ -659,6 +663,17 @@ fn build_artist_from_fts(
 
 // ── clause resolution ──────────────────────────────────────────────────
 
+/// Track-only filters (mood, bpm, …) must not use album/artist table shortcuts
+/// that would ignore them.
+fn scalar_requires_track_derived_entities(scalar: &[&LibraryFilterClause]) -> bool {
+    scalar.iter().any(|c| {
+        filter::lookup(&c.field).is_some_and(|field| {
+            filter::applies_to(field, EntityKind::Track)
+                && !filter::applies_to(field, EntityKind::Album)
+        })
+    })
+}
+
 /// Resolve one scalar clause to a WHERE fragment for `entity`. `Ok(None)`
 /// means the field is known but doesn't route to this entity (§5.13.3 skip).
 fn resolve_clause(
@@ -710,30 +725,38 @@ fn resolve_clause(
 }
 
 fn resolve_mood_clause(c: &LibraryFilterClause) -> Result<Option<SqlFragment>, String> {
-    let tags = match c.field.as_str() {
+    match c.field.as_str() {
         "mood_group" => {
             let group_ids = json_to_string_list(&c.field, c.op, c.value.as_ref())?;
-            mood_groups::expand_mood_groups(&group_ids).map_err(|detail| {
+            mood_groups::normalize_mood_groups(&group_ids).map_err(|detail| {
                 filter::FilterError::BadValue {
                     field: c.field.clone(),
                     detail,
                 }
                 .to_string()
-            })?
+            })?;
+            let tags = mood_groups::expand_mood_groups(&group_ids).map_err(|detail| {
+                filter::FilterError::BadValue {
+                    field: c.field.clone(),
+                    detail,
+                }
+                .to_string()
+            })?;
+            Ok(Some(mood_tag_exists_fragment(&tags)))
         }
         "mood_tag" => {
             let tag_ids = json_to_string_list(&c.field, c.op, c.value.as_ref())?;
-            mood_groups::normalize_mood_tags(&tag_ids).map_err(|detail| {
+            let tags = mood_groups::normalize_mood_tags(&tag_ids).map_err(|detail| {
                 filter::FilterError::BadValue {
                     field: c.field.clone(),
                     detail,
                 }
                 .to_string()
-            })?
+            })?;
+            Ok(Some(mood_tag_exists_fragment(&tags)))
         }
         _ => unreachable!("resolve_mood_clause called for non-mood field"),
-    };
-    Ok(Some(mood_tag_exists_fragment(&tags)))
+    }
 }
 
 fn mood_tag_exists_fragment(tags: &[String]) -> SqlFragment {
@@ -1442,6 +1465,39 @@ mod tests {
                 )
             })
             .unwrap();
+    }
+
+    #[test]
+    fn mood_group_joy_matches_happy_mood_tag() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "A", "X", "Alb"),
+                track("s1", "t2", "B", "X", "Alb"),
+            ])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t1", "happy");
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("mood_group", FilterOp::Eq, Some(json!("joy")), None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn mood_groups_overlap_work_and_romance_on_calm_peaceful_track() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[track("s1", "t1", "Calm", "X", "Alb")])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t1", "calm");
+        insert_mood_tag(&store, "s1", "t1", "peaceful");
+        for group in ["work", "romance"] {
+            let mut r = req("s1", &[EntityKind::Track]);
+            r.filters = vec![clause("mood_group", FilterOp::Eq, Some(json!(group)), None)];
+            let resp = run_advanced_search(&store, &r).unwrap();
+            assert_eq!(resp.tracks.len(), 1, "group `{group}` should match calm/peaceful");
+        }
     }
 
     #[test]

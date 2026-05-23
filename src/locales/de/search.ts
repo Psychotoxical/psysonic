@@ -57,5 +57,6 @@ export const search = {
     dance: 'Dance',
     work: 'Work',
     romance: 'Romance',
+    anger: 'Anger',
   },
 };

@@ -57,5 +57,6 @@ export const search = {
     dance: 'Dans',
     work: 'Muncă',
     romance: 'Romantic',
+    anger: 'Furie',
   },
 };
