@@ -1,4 +1,4 @@
-use psysonic_analysis::analysis_runtime::enqueue_analysis_seed;
+use psysonic_analysis::analysis_runtime::enqueue_track_analysis;
 use psysonic_audio as audio;
 use psysonic_core::user_agent::subsonic_wire_user_agent;
 
@@ -154,7 +154,9 @@ pub async fn promote_stream_cache_to_hot_cache(
             .await
             .map_err(|e| e.to_string())?;
 
-        let _ = enqueue_analysis_seed(&app, &server_id, &track_id, &bytes).await;
+        let high =
+            psysonic_analysis::analysis_runtime::analysis_backfill_is_current_track(&app, &track_id);
+        let _ = enqueue_track_analysis(&app, &server_id, &track_id, &bytes, high).await;
 
         let size = tokio::fs::metadata(&file_path)
             .await

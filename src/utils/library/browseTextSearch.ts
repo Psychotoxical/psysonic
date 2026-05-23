@@ -176,6 +176,7 @@ const emptyBrowseOpts = (query: string): LocalSearchOpts => ({
   genre: '',
   yearFrom: '',
   yearTo: '',
+  moodGroup: '',
   resultType: 'artists',
 });
 
@@ -184,6 +185,7 @@ const songBrowseOpts = (query: string): LocalSearchOpts => ({
   genre: '',
   yearFrom: '',
   yearTo: '',
+  moodGroup: '',
   resultType: 'songs',
 });
 
@@ -192,6 +194,7 @@ const fullSearchOpts = (query: string): LocalSearchOpts => ({
   genre: '',
   yearFrom: '',
   yearTo: '',
+  moodGroup: '',
   resultType: 'all',
 });
 

@@ -356,6 +356,25 @@ impl AnalysisCache {
         Ok(None)
     }
 
+    /// Latest `md5_16kb` fingerprint for `(server_id, track_id)` with legacy fallback.
+    pub fn get_latest_md5_16kb_for_track(
+        &self,
+        server_id: &str,
+        track_id: &str,
+    ) -> Result<Option<String>, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        if let Some(md5) = query_latest_md5_16kb_scoped(&conn, server_id, track_id)? {
+            return Ok(Some(md5));
+        }
+        if !server_id.is_empty() {
+            if let Some(md5) = query_latest_md5_16kb_scoped(&conn, "", track_id)? {
+                let _ = relabel_legacy_to_server(&conn, server_id, track_id);
+                return Ok(Some(md5));
+            }
+        }
+        Ok(None)
+    }
+
     /// Both waveform and loudness rows exist for this `(server_id, track_id)`
     /// (including the legacy `''` fallback) — a CPU seed from bytes/file would
     /// only decode the file to immediately skip with `SkippedWaveformCacheHit`.
@@ -439,6 +458,40 @@ fn query_latest_waveform_scoped(
         if let Some(e) = row {
             if waveform_cache_blob_len_ok(&e.bins, e.bin_count) {
                 return Ok(Some(e));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn query_latest_md5_16kb_scoped(
+    conn: &Connection,
+    server_id: &str,
+    track_id: &str,
+) -> Result<Option<String>, String> {
+    const SQL: &str = r#"
+        SELECT w.md5_16kb
+        FROM waveform_cache w
+        JOIN analysis_track a
+          ON a.server_id = w.server_id
+         AND a.track_id = w.track_id
+         AND a.md5_16kb = w.md5_16kb
+        WHERE w.server_id = ?1
+          AND w.track_id = ?2
+          AND a.waveform_algo_version = ?3
+        ORDER BY w.updated_at DESC
+        LIMIT 1
+        "#;
+    for tid in track_id_cache_variants(track_id) {
+        let row: Option<String> = conn
+            .query_row(SQL, params![server_id, tid, WAVEFORM_ALGO_VERSION], |row| {
+                row.get(0)
+            })
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(md5) = row {
+            if !md5.is_empty() {
+                return Ok(Some(md5));
             }
         }
     }

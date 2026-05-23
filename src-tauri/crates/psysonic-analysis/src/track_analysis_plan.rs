@@ -1,0 +1,154 @@
+//! Plan what a track still needs: waveform, LUFS, enrichment (BPM/mood), …
+//!
+//! All byte-backed enqueue paths should call [`crate::analysis_runtime::enqueue_track_analysis`],
+//! which uses this module to decide full CPU seed vs enrichment-only vs no-op.
+
+use psysonic_core::track_analysis::TrackAnalysisPlan;
+use psysonic_core::track_enrichment::TrackEnrichmentPort;
+use tauri::{AppHandle, Manager};
+
+use crate::analysis_cache::AnalysisCache;
+
+pub fn plan_track_analysis(
+    app: &AppHandle,
+    server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+) -> TrackAnalysisPlan {
+    let (need_waveform, need_loudness) = cache_gaps(app, server_id, track_id);
+    let enrichment = enrichment_plan(app, server_id, track_id, content_hash);
+    TrackAnalysisPlan {
+        need_waveform,
+        need_loudness,
+        enrichment,
+    }
+}
+
+/// Plan from the latest cached fingerprint when bytes are not available yet (HTTP backfill gate).
+pub fn plan_track_analysis_from_cache(
+    app: &AppHandle,
+    server_id: &str,
+    track_id: &str,
+) -> Result<TrackAnalysisPlan, String> {
+    let Some(cache) = app.try_state::<AnalysisCache>() else {
+        return Ok(TrackAnalysisPlan {
+            need_waveform: true,
+            need_loudness: true,
+            enrichment: Default::default(),
+        });
+    };
+    let Some(md5) = cache.get_latest_md5_16kb_for_track(server_id, track_id)? else {
+        return Ok(TrackAnalysisPlan {
+            need_waveform: true,
+            need_loudness: true,
+            enrichment: Default::default(),
+        });
+    };
+    Ok(plan_track_analysis(app, server_id, track_id, &md5))
+}
+
+pub fn track_analysis_needs_work(
+    app: &AppHandle,
+    server_id: &str,
+    track_id: &str,
+) -> Result<bool, String> {
+    Ok(plan_track_analysis_from_cache(app, server_id, track_id)?.any())
+}
+
+fn cache_gaps(app: &AppHandle, server_id: &str, track_id: &str) -> (bool, bool) {
+    cache_gaps_with(
+        app.try_state::<AnalysisCache>().as_deref(),
+        server_id,
+        track_id,
+    )
+}
+
+fn enrichment_plan(
+    app: &AppHandle,
+    server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+) -> psysonic_core::track_enrichment::TrackEnrichmentPlan {
+    if server_id.is_empty() {
+        return Default::default();
+    }
+    app.try_state::<TrackEnrichmentPort>()
+        .map(|port| port.plan(server_id, track_id, content_hash))
+        .unwrap_or_default()
+}
+
+fn cache_gaps_with(
+    cache: Option<&AnalysisCache>,
+    server_id: &str,
+    track_id: &str,
+) -> (bool, bool) {
+    let Some(cache) = cache else {
+        return (true, true);
+    };
+    let need_waveform = cache
+        .get_latest_waveform_for_track(server_id, track_id)
+        .ok()
+        .flatten()
+        .is_none();
+    let need_loudness = cache
+        .get_latest_loudness_for_track(server_id, track_id)
+        .ok()
+        .flatten()
+        .is_none();
+    (need_waveform, need_loudness)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis_cache::{LoudnessEntry, TrackKey, WaveformEntry};
+
+    fn seed_waveform_loudness(cache: &AnalysisCache, server_id: &str, track_id: &str, md5: &str) {
+        let key = TrackKey {
+            server_id: server_id.to_string(),
+            track_id: track_id.to_string(),
+            md5_16kb: md5.to_string(),
+        };
+        cache.touch_track_status(&key, "ready").unwrap();
+        cache
+            .upsert_waveform(
+                &key,
+                &WaveformEntry {
+                    bins: vec![0u8; 1000],
+                    bin_count: 500,
+                    is_partial: false,
+                    known_until_sec: 0.0,
+                    duration_sec: 0.0,
+                    updated_at: 1,
+                },
+            )
+            .unwrap();
+        cache
+            .upsert_loudness(
+                &key,
+                &LoudnessEntry {
+                    integrated_lufs: -14.0,
+                    true_peak: 1.0,
+                    recommended_gain_db: 0.0,
+                    target_lufs: -14.0,
+                    updated_at: 1,
+                },
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn cache_gaps_true_when_empty() {
+        let cache = AnalysisCache::open_in_memory();
+        let (wf, ld) = cache_gaps_with(Some(&cache), "s1", "t1");
+        assert!(wf && ld);
+    }
+
+    #[test]
+    fn cache_gaps_false_when_both_present() {
+        let cache = AnalysisCache::open_in_memory();
+        seed_waveform_loudness(&cache, "s1", "t1", "abc");
+        let (wf, ld) = cache_gaps_with(Some(&cache), "s1", "t1");
+        assert!(!wf && !ld);
+    }
+}

@@ -170,7 +170,14 @@ pub(crate) async fn track_download_task(
                 let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
                 let sid = server_id.clone().unwrap_or_default();
                 if let Err(e) =
-                    psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), sid, track_id.clone(), capture.clone(), high).await
+                    psysonic_analysis::analysis_runtime::enqueue_track_analysis(
+                        &app.clone(),
+                        &sid,
+                        &track_id,
+                        &capture,
+                        high,
+                    )
+                    .await
                 {
                     crate::app_eprintln!("[analysis] track seed failed for {}: {}", track_id, e);
                 }

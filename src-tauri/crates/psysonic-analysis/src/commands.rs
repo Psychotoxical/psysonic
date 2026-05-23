@@ -12,7 +12,7 @@ use psysonic_core::ports::PlaybackQueryHandle;
 use crate::analysis_cache;
 use crate::analysis_runtime::{
     analysis_backfill_is_current_track, analysis_backfill_shared, prune_analysis_queues,
-    AnalysisBackfillEnqueueKind,
+    track_analysis_needs_work, AnalysisBackfillEnqueueKind,
 };
 
 #[derive(serde::Serialize)]
@@ -228,12 +228,25 @@ pub fn analysis_enqueue_seed_from_url(
     }
     if !force {
         if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
-            if cache.get_latest_loudness_for_track(&server_id, &track_id)?.is_some() {
+            if cache.cpu_seed_redundant_for_track(&server_id, &track_id)? {
+                if server_id.is_empty() {
+                    crate::app_deprintln!(
+                        "[analysis] backfill skip (no server scope): {}",
+                        track_id
+                    );
+                    return Ok(());
+                }
+                if !track_analysis_needs_work(&app, &server_id, &track_id)? {
+                    crate::app_deprintln!(
+                        "[analysis] backfill skip (analysis complete): {}",
+                        track_id
+                    );
+                    return Ok(());
+                }
                 crate::app_deprintln!(
-                    "[analysis] backfill skip (already cached): {}",
+                    "[analysis] backfill enqueue (analysis pending) track_id={}",
                     track_id
                 );
-                return Ok(());
             }
         }
     }

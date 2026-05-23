@@ -126,59 +126,107 @@ pub fn analysis_backfill_shared(app: &tauri::AppHandle) -> Arc<AnalysisBackfillS
         .clone()
 }
 
-/// Decode `bytes` for `track_id` via the cpu-seed queue. Returns `Ok(true)` when
-/// a loudness row exists in the cache after the seed (cache-hit short-circuits as
-/// well as fresh decode hits).
+use crate::track_analysis_plan::plan_track_analysis;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnqueueTrackAnalysisOutcome {
+    /// Waveform, LUFS, and enrichment facts are all current.
+    Complete,
+    /// Symphonia full-file decode queued (enrichment runs after seed when needed).
+    QueuedFullSeed,
+    /// Oximedia pass ran inline (waveform + LUFS already cached).
+    RanEnrichmentOnly,
+}
+
+/// **Single entry point** for byte-backed track analysis.
+///
+/// 1. Plan: waveform / LUFS gaps in analysis cache + enrichment facts in library.
+/// 2. If nothing missing → no-op.
+/// 3. If waveform or LUFS missing → CPU seed queue (Symphonia + EBU R128).
+/// 4. Else if enrichment missing → oximedia 60 s window only.
+pub async fn enqueue_track_analysis(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    high_priority: bool,
+) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    if bytes.is_empty() {
+        return Ok(EnqueueTrackAnalysisOutcome::Complete);
+    }
+    let content_hash = analysis_cache::md5_first_16kb(bytes);
+    let plan = plan_track_analysis(app, server_id, track_id, &content_hash);
+    if !plan.any() {
+        crate::app_deprintln!(
+            "[analysis] track complete track_id={} hash={}",
+            track_id,
+            content_hash
+        );
+        return Ok(EnqueueTrackAnalysisOutcome::Complete);
+    }
+    if plan.needs_full_cpu_seed() {
+        crate::app_deprintln!(
+            "[analysis] queue full seed track_id={} need_waveform={} need_loudness={} need_enrichment={}",
+            track_id,
+            plan.need_waveform,
+            plan.need_loudness,
+            plan.enrichment.any()
+        );
+        submit_analysis_cpu_seed(
+            app.clone(),
+            server_id.to_string(),
+            track_id.to_string(),
+            bytes.to_vec(),
+            high_priority,
+        )
+        .await?;
+        return Ok(EnqueueTrackAnalysisOutcome::QueuedFullSeed);
+    }
+    if plan.needs_enrichment_only() {
+        crate::app_deprintln!(
+            "[analysis] enrichment-only track_id={} hash={}",
+            track_id,
+            content_hash
+        );
+        run_track_enrichment_from_bytes(app, server_id, track_id, bytes).await;
+        return Ok(EnqueueTrackAnalysisOutcome::RanEnrichmentOnly);
+    }
+    Ok(EnqueueTrackAnalysisOutcome::Complete)
+}
+
+/// Re-export for HTTP backfill gate (no bytes yet).
+pub use crate::track_analysis_plan::track_analysis_needs_work;
+
+/// Oximedia BPM/mood pass only — prefer [`enqueue_track_analysis`].
+pub async fn run_track_enrichment_from_bytes(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+) {
+    if server_id.is_empty() {
+        return;
+    }
+    let app = app.clone();
+    let sid = server_id.to_string();
+    let tid = track_id.to_string();
+    let data = bytes.to_vec();
+    let _ = tokio::task::spawn_blocking(move || {
+        crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data);
+    })
+    .await;
+}
+
+/// Decode `bytes` for `track_id` via the cpu-seed queue. Prefer [`enqueue_track_analysis`].
 pub async fn enqueue_analysis_seed(
     app: &tauri::AppHandle,
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
 ) -> Result<bool, String> {
-    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
-        if cache.cpu_seed_redundant_for_track(server_id, track_id).unwrap_or(false) {
-            if !server_id.is_empty() {
-                let app2 = app.clone();
-                let sid = server_id.to_string();
-                let tid = track_id.to_string();
-                let data = bytes.to_vec();
-                let _ = tokio::task::spawn_blocking(move || {
-                    crate::track_enrichment::run_track_enrichment_if_needed(
-                        &app2,
-                        &sid,
-                        &tid,
-                        &data,
-                    )
-                })
-                .await;
-            }
-            return Ok(true);
-        }
-    }
     let high = analysis_backfill_is_current_track(app, track_id);
-    let outcome = submit_analysis_cpu_seed(
-        app.clone(),
-        server_id.to_string(),
-        track_id.to_string(),
-        bytes.to_vec(),
-        high,
-    )
-    .await
-    .map_err(|e| {
-        crate::app_eprintln!("[analysis] failed to seed {}: {}", track_id, e);
-        e
-    })?;
-    let has_loudness = app
-        .try_state::<analysis_cache::AnalysisCache>()
-        .and_then(|cache| cache.get_latest_loudness_for_track(server_id, track_id).ok().flatten())
-        .is_some();
-    crate::app_deprintln!(
-        "[analysis] seed result track_id={} bytes={} has_loudness={} outcome={outcome:?}",
-        track_id,
-        bytes.len(),
-        has_loudness
-    );
-    Ok(has_loudness)
+    let outcome = enqueue_track_analysis(app, server_id, track_id, bytes, high).await?;
+    Ok(!matches!(outcome, EnqueueTrackAnalysisOutcome::Complete))
 }
 
 async fn analysis_backfill_download_and_seed(

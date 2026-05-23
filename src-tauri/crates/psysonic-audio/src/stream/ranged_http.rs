@@ -646,7 +646,14 @@ pub(crate) async fn ranged_download_task(
             if let Some(track_id) = cache_track_id {
                 let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
                 let sid = server_id.clone().unwrap_or_default();
-                if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), sid, track_id.clone(), data.clone(), high).await {
+                if let Err(e) = psysonic_analysis::analysis_runtime::enqueue_track_analysis(
+                    &app.clone(),
+                    &sid,
+                    &track_id,
+                    &data,
+                    high,
+                )
+                .await {
                     crate::app_eprintln!("[analysis] ranged seed failed for {}: {}", track_id, e);
                 }
             }

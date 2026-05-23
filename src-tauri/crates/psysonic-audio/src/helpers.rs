@@ -780,7 +780,14 @@ pub(crate) fn spawn_analysis_seed_from_in_memory_bytes(
         if gen_arc.load(Ordering::SeqCst) != gen {
             return;
         }
-        if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), server_id, track_id.clone(), bytes, high).await {
+        if let Err(e) = psysonic_analysis::analysis_runtime::enqueue_track_analysis(
+            &app.clone(),
+            &server_id,
+            &track_id,
+            &bytes,
+            high,
+        )
+        .await {
             crate::app_eprintln!(
                 "[analysis] in-memory play path seed failed for {}: {}",
                 track_id,
@@ -841,11 +848,11 @@ pub(crate) fn spawn_analysis_seed_from_spill_file(
             bytes.len() as f64 / (1024.0 * 1024.0)
         );
         let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
-        if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(
-            app,
-            server_id,
-            track_id.clone(),
-            bytes,
+        if let Err(e) = psysonic_analysis::analysis_runtime::enqueue_track_analysis(
+            &app,
+            &server_id,
+            &track_id,
+            &bytes,
             high,
         )
         .await

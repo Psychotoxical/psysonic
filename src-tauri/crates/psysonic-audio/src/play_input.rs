@@ -9,7 +9,7 @@ use std::time::Duration;
 use ringbuf::traits::Split;
 use ringbuf::{HeapCons, HeapRb};
 use symphonia::core::io::MediaSource;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 use super::decode::{build_source, build_streaming_source, BuiltSource, SizedDecoder};
 use super::engine::{audio_http_client, AudioEngine};
@@ -146,20 +146,13 @@ fn open_local_file_input(
         local_hint
     );
     if let Some(seed_id) = ctx.cache_id_for_tasks {
-        let skip_cpu_seed = app
-            .try_state::<psysonic_analysis::analysis_cache::AnalysisCache>()
-            .map(|c| {
-                c.cpu_seed_redundant_for_track(ctx.server_id.unwrap_or(""), seed_id)
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false);
-        if !skip_cpu_seed {
+        let seed_server = ctx.server_id.unwrap_or("").to_string();
+        if !seed_server.is_empty() {
             let path_owned = std::path::PathBuf::from(path);
             let app_seed = app.clone();
             let gen_seed = ctx.gen;
             let gen_arc_seed = state.generation.clone();
             let seed_id = seed_id.to_string();
-            let seed_server = ctx.server_id.unwrap_or("").to_string();
             tokio::spawn(async move {
                 if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
                     return;
@@ -173,7 +166,7 @@ fn open_local_file_input(
                 }
                 if data.is_empty() || data.len() > LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES {
                     crate::app_deprintln!(
-                        "[stream] psysonic-local: skip analysis seed track_id={} bytes={} (over {} MiB cap)",
+                        "[stream] psysonic-local: skip analysis track_id={} bytes={} (over {} MiB cap)",
                         seed_id,
                         data.len(),
                         LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES / (1024 * 1024)
@@ -181,16 +174,23 @@ fn open_local_file_input(
                     return;
                 }
                 crate::app_deprintln!(
-                    "[stream] psysonic-local: file read complete track_id={} size_mib={:.2} — full-track analysis (cpu-seed queue)",
+                    "[stream] psysonic-local: scheduling track analysis track_id={} size_mib={:.2}",
                     seed_id,
                     data.len() as f64 / (1024.0 * 1024.0)
                 );
-                let high = crate::engine::analysis_seed_high_priority_for_track(&app_seed, &seed_id);
-                if let Err(e) =
-                    psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app_seed.clone(), seed_server.clone(), seed_id.clone(), data, high).await
+                let high =
+                    crate::engine::analysis_seed_high_priority_for_track(&app_seed, &seed_id);
+                if let Err(e) = psysonic_analysis::analysis_runtime::enqueue_track_analysis(
+                    &app_seed,
+                    &seed_server,
+                    &seed_id,
+                    &data,
+                    high,
+                )
+                .await
                 {
                     crate::app_eprintln!(
-                        "[analysis] local-file seed failed for {}: {}",
+                        "[analysis] local-file analysis failed for {}: {}",
                         seed_id,
                         e
                     );
