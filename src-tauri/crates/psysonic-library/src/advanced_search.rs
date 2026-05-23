@@ -20,20 +20,17 @@ use crate::dto::{
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
 use crate::search::{
-    aliased_track_columns, fts_album_prefix_match_query, fts_column_prefix_query,
-    fts_query_meets_min_len, fts_track_prefix_match_query, library_scope_equals_sql,
-    like_contains, PAGE_LIMIT_MAX,
+    aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
+    fts_album_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
+    fts_track_prefix_match_query, library_scope_equals_sql, like_contains, PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
 
 /// `bpm` dual-storage resolution (§5.13.4): prefer the hot `track.bpm`
-/// column, fall back to the highest-priority `track_fact(bpm)` value. The
-/// spec's `not_found = 0` guard is dropped — the live `track_fact` schema
-/// has no such column (that lives on `track_artifact`).
-const BPM_RESOLVED_EXPR: &str = "COALESCE(t.bpm, (SELECT f.value_int FROM track_fact f \
-  WHERE f.server_id = t.server_id AND f.track_id = t.id AND f.fact_kind = 'bpm' \
-  ORDER BY CASE f.source_kind WHEN 'user' THEN 0 WHEN 'server_tag' THEN 1 \
-  WHEN 'analysis' THEN 2 ELSE 3 END LIMIT 1))";
+/// column, fall back to the highest-priority `track_fact(bpm)` value.
+fn bpm_resolved_sql() -> String {
+    bpm_resolved_expr("t")
+}
 
 const ALBUM_COLUMNS: &str = "a.server_id, a.id, a.name, a.artist, a.artist_id, \
   a.song_count, a.duration_sec, a.year, a.genre, a.cover_art_id, a.starred_at, \
@@ -183,7 +180,11 @@ fn build_track(
         applied.insert("starred".to_string());
     }
 
-    let cols = aliased_track_columns("t");
+    let cols = if scalar.iter().any(|c| c.field == "bpm") {
+        aliased_track_columns_resolved_bpm("t")
+    } else {
+        aliased_track_columns("t")
+    };
     if let Some(q) = text.and_then(fts_track_prefix_match_query) {
         applied.insert("text".to_string());
         let pool = fts_candidate_pool_size(limit, offset);
@@ -680,6 +681,14 @@ fn resolve_clause(
     if !applies {
         return Ok(None);
     }
+    if c.field == "bpm" && entity == EntityKind::Track {
+        let col = bpm_resolved_sql();
+        let value = json_to_opt_i64(&c.field, c.value.as_ref())?;
+        let value_to = json_to_opt_i64(&c.field, c.value_to.as_ref())?;
+        return filter::compare_fragment(&c.field, &col, c.op, value, value_to)
+            .map(Some)
+            .map_err(|e| e.to_string());
+    }
     let col = match (c.field.as_str(), entity) {
         ("genre", EntityKind::Track) => "t.genre",
         ("genre", EntityKind::Album) => "a.genre",
@@ -690,7 +699,6 @@ fn resolve_clause(
         // `starred` routes to artist in the registry, but the `artist`
         // table has no `starred_at` column — skip rather than error.
         ("starred", EntityKind::Artist) => return Ok(None),
-        ("bpm", EntityKind::Track) => BPM_RESOLVED_EXPR,
         ("mood_group" | "mood_tag", EntityKind::Track) => {
             return crate::advanced_search_mood::resolve_mood_clause(c);
         }

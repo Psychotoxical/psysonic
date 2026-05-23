@@ -10,6 +10,8 @@ interface Props {
   loadingMore: boolean;
   /** Fetch the next page. Called as the sentinel nears the viewport. */
   onLoadMore: () => void;
+  /** Show a BPM column (Advanced Search when the BPM filter is active). */
+  showBpm?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ interface Props {
  * one chrome + paging path (no transform-positioned rows, so the sticky header
  * is never painted over — issue #841).
  */
-export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore }: Props) {
+export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore, showBpm }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Re-observe whenever `onLoadMore` changes identity (callers rebuild it after
@@ -36,9 +38,9 @@ export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore 
 
   return (
     <>
-      <SongListHeader />
+      <SongListHeader showBpm={showBpm} />
       {songs.map(song => (
-        <SongRow key={song.id} song={song} />
+        <SongRow key={song.id} song={song} showBpm={showBpm} />
       ))}
       {hasMore && (
         <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>

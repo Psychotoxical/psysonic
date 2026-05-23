@@ -9,6 +9,8 @@ import {
 
 /** Oximedia mood labels in queue/Song Info — off until a reliable model ships. */
 export const OXIMEDIA_MOOD_UI_ENABLED = false;
+/** Mood group filter in Advanced Search — off while oximedia mood is disabled. */
+export const OXIMEDIA_MOOD_SEARCH_ENABLED = false;
 export const OXIMEDIA_ENRICHMENT_SOURCE_KIND = 'analysis';
 export const OXIMEDIA_ENRICHMENT_SOURCE_ID = 'oximedia-60s-center';
 

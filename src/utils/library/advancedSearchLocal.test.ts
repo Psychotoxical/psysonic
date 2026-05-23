@@ -9,6 +9,8 @@ const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) 
   genre: '',
   yearFrom: '',
   yearTo: '',
+  bpmFrom: '',
+  bpmTo: '',
   moodGroup: '',
   resultType: 'all' as const,
   ...over,
@@ -59,7 +61,7 @@ describe('runLocalAdvancedSearch', () => {
     expect(captured).toMatchObject({ request: { libraryScope: 'lib7' } });
   });
 
-  it('passes mood_group filter to library_advanced_search', async () => {
+  it('passes bpm between filter to library_advanced_search', async () => {
     ready();
     let captured: unknown;
     onInvoke('library_advanced_search', (args) => {
@@ -72,9 +74,9 @@ describe('runLocalAdvancedSearch', () => {
         source: 'local',
       };
     });
-    await runLocalAdvancedSearch('s1', opts({ moodGroup: 'joy' }), 100);
+    await runLocalAdvancedSearch('s1', opts({ bpmFrom: '120', bpmTo: '130' }), 100);
     expect(captured).toMatchObject({
-      request: { filters: [{ field: 'mood_group', op: 'eq', value: 'joy' }] },
+      request: { filters: [{ field: 'bpm', op: 'between', value: 120, valueTo: 130 }] },
     });
   });
 

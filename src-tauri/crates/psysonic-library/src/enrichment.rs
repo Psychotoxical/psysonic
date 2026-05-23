@@ -10,10 +10,12 @@ use crate::store::LibraryStore;
 pub const OXIMEDIA_ENRICHMENT_SOURCE_KIND: &str = "analysis";
 pub const OXIMEDIA_ENRICHMENT_SOURCE_ID: &str = "oximedia-60s-center";
 
-/// Oximedia 0.1.7 mood is a spectral energy heuristic (not ML). Valence tracks
-/// brightness/energy, so metal and lyrical tracks often false-positive as joy.
-/// Keep valence/arousal/moods JSON for a future model; skip mood_tag + UI.
-pub const OXIMEDIA_MOOD_TAGS_ENABLED: bool = false;
+/// Oximedia 0.1.7 mood is a spectral energy heuristic (not ML). Disabled until
+/// the crate ships a reliable classifier; re-enable plan/store/analysis together.
+pub const OXIMEDIA_MOOD_ANALYSIS_ENABLED: bool = false;
+
+/// Derived mood tags for search/UI — requires analysis + a usable model.
+pub const OXIMEDIA_MOOD_TAGS_ENABLED: bool = OXIMEDIA_MOOD_ANALYSIS_ENABLED;
 
 const ENRICHMENT_KINDS: [&str; 5] = ["bpm", "valence", "arousal", "moods", "mood_tag"];
 
@@ -36,24 +38,39 @@ pub fn plan_track_enrichment(
         now,
     )?;
 
-    let mut need_moods = !fact_current(&facts, "moods", content_hash);
-    if OXIMEDIA_MOOD_TAGS_ENABLED {
-        if !mood_tags_current(&facts, content_hash)
-            && !backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?
-            && !need_moods
-        {
-            need_moods = true;
-        } else if mood_tags_current(&facts, content_hash)
-            && mood_tags_need_va_refresh(&facts, content_hash)
-        {
-            let _ = backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?;
+    let (need_valence, need_arousal, need_moods) = if OXIMEDIA_MOOD_ANALYSIS_ENABLED {
+        let mut need_moods = !fact_current(&facts, "moods", content_hash);
+        if OXIMEDIA_MOOD_TAGS_ENABLED {
+            if !mood_tags_current(&facts, content_hash)
+                && !backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?
+                && !need_moods
+            {
+                need_moods = true;
+            } else if mood_tags_current(&facts, content_hash)
+                && mood_tags_need_va_refresh(&facts, content_hash)
+            {
+                let _ = backfill_mood_tags_from_stored_facts(
+                    store,
+                    server_id,
+                    track_id,
+                    content_hash,
+                    now,
+                )?;
+            }
         }
-    }
+        (
+            !fact_current(&facts, "valence", content_hash),
+            !fact_current(&facts, "arousal", content_hash),
+            need_moods,
+        )
+    } else {
+        (false, false, false)
+    };
 
     Ok(TrackEnrichmentPlan {
         need_bpm: !fact_current(&facts, "bpm", content_hash),
-        need_valence: !fact_current(&facts, "valence", content_hash),
-        need_arousal: !fact_current(&facts, "arousal", content_hash),
+        need_valence,
+        need_arousal,
         need_moods,
     })
 }
@@ -75,42 +92,44 @@ pub fn store_track_enrichment_facts(
             now,
         )?;
     }
-    if let Some(valence) = facts.valence {
-        repo.put(
-            server_id,
-            track_id,
-            &analysis_fact(
-                "valence",
-                Some(valence.value),
-                None,
-                content_hash,
-                valence.confidence,
-            ),
-            now,
-        )?;
-    }
-    if let Some(arousal) = facts.arousal {
-        repo.put(
-            server_id,
-            track_id,
-            &analysis_fact(
-                "arousal",
-                Some(arousal.value),
-                None,
-                content_hash,
-                arousal.confidence,
-            ),
-            now,
-        )?;
-    }
-    if let Some(json) = &facts.moods {
-        if !json.is_empty() {
+    if OXIMEDIA_MOOD_ANALYSIS_ENABLED {
+        if let Some(valence) = facts.valence {
             repo.put(
                 server_id,
                 track_id,
-                &analysis_fact_text("moods", json, content_hash, 1.0),
+                &analysis_fact(
+                    "valence",
+                    Some(valence.value),
+                    None,
+                    content_hash,
+                    valence.confidence,
+                ),
                 now,
             )?;
+        }
+        if let Some(arousal) = facts.arousal {
+            repo.put(
+                server_id,
+                track_id,
+                &analysis_fact(
+                    "arousal",
+                    Some(arousal.value),
+                    None,
+                    content_hash,
+                    arousal.confidence,
+                ),
+                now,
+            )?;
+        }
+        if let Some(json) = &facts.moods {
+            if !json.is_empty() {
+                repo.put(
+                    server_id,
+                    track_id,
+                    &analysis_fact_text("moods", json, content_hash, 1.0),
+                    now,
+                )?;
+            }
         }
     }
     let tags = mood_tags_for_enrichment_facts(facts, 2);
@@ -375,11 +394,12 @@ mod tests {
     }
 
     #[test]
-    fn plan_requests_all_when_no_facts() {
+    fn plan_requests_bpm_only_while_mood_analysis_disabled() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
         let plan = plan_track_enrichment(&store, "s1", "t1", "abc", 2).unwrap();
-        assert!(plan.need_bpm && plan.need_valence && plan.need_arousal && plan.need_moods);
+        assert!(plan.need_bpm);
+        assert!(!plan.need_valence && !plan.need_arousal && !plan.need_moods);
     }
 
     #[test]
@@ -389,34 +409,18 @@ mod tests {
         put_analysis_fact(&store, "bpm", "abc", Some(120), None, None);
         let plan = plan_track_enrichment(&store, "s1", "t1", "abc", 2).unwrap();
         assert!(!plan.need_bpm);
-        assert!(plan.need_valence && plan.need_arousal && plan.need_moods);
+        assert!(!plan.need_valence && !plan.need_arousal && !plan.need_moods);
         let plan2 = plan_track_enrichment(&store, "s1", "t1", "def", 2).unwrap();
         assert!(plan2.need_bpm);
     }
 
     #[test]
-    fn plan_does_not_backfill_mood_tags_while_oximedia_tags_disabled() {
+    fn plan_skips_mood_analysis_while_oximedia_mood_disabled() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
-        put_analysis_fact(
-            &store,
-            "moods",
-            "abc",
-            None,
-            None,
-            Some(r#"{"calm":0.6,"peaceful":0.4}"#),
-        );
         let plan = plan_track_enrichment(&store, "s1", "t1", "abc", 2).unwrap();
-        assert!(!plan.need_moods, "moods JSON is current — no re-analysis");
-        let repo = FactRepository::new(&store);
-        let tags: Vec<_> = repo
-            .get("s1", "t1", &["mood_tag".into()], 3)
-            .unwrap()
-            .into_iter()
-            .filter(|f| f.fact_kind == "mood_tag")
-            .map(|f| f.value_text.unwrap_or_default())
-            .collect();
-        assert!(tags.is_empty());
+        assert!(plan.need_bpm);
+        assert!(!plan.need_valence && !plan.need_arousal && !plan.need_moods);
     }
 
     #[test]
@@ -508,11 +512,14 @@ mod tests {
     }
 
     #[test]
-    fn store_skips_mood_tag_rows_while_oximedia_tags_disabled() {
+    fn store_skips_mood_facts_while_oximedia_mood_disabled() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
         let facts = TrackEnrichmentFacts {
-            bpm: None,
+            bpm: Some(TrackEnrichmentIntFact {
+                value: 128,
+                confidence: 0.9,
+            }),
             valence: Some(TrackEnrichmentRealFact {
                 value: 0.4,
                 confidence: 1.0,
@@ -525,18 +532,14 @@ mod tests {
         };
         store_track_enrichment_facts(&store, "s1", "t1", "abc", &facts, 10).unwrap();
         let repo = FactRepository::new(&store);
-        let mood_tags: Vec<_> = repo
-            .get("s1", "t1", &[], 20)
-            .unwrap()
-            .into_iter()
-            .filter(|r| r.fact_kind == "mood_tag")
-            .collect();
-        assert!(mood_tags.is_empty());
-        assert!(repo
-            .get("s1", "t1", &[], 20)
-            .unwrap()
-            .iter()
-            .any(|r| r.fact_kind == "valence"));
+        let rows = repo.get("s1", "t1", &[], 20).unwrap();
+        assert!(rows.iter().any(|r| r.fact_kind == "bpm"));
+        assert!(!rows.iter().any(|r| {
+            matches!(
+                r.fact_kind.as_str(),
+                "mood_tag" | "moods" | "valence" | "arousal" | "mood_labels"
+            )
+        }));
     }
 
     #[test]
@@ -611,9 +614,9 @@ mod tests {
         store_track_enrichment_facts(&store, "s1", "t1", "abc", &facts, 10).unwrap();
         let repo = FactRepository::new(&store);
         let rows = repo.get("s1", "t1", &[], 20).unwrap();
-        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.len(), 1);
         assert!(rows.iter().any(|r| r.fact_kind == "bpm" && r.value_int == Some(128)));
-        assert!(rows.iter().any(|r| r.fact_kind == "valence"));
+        assert!(!rows.iter().any(|r| r.fact_kind == "valence"));
         assert!(!rows.iter().any(|r| r.fact_kind == "arousal"));
     }
 }

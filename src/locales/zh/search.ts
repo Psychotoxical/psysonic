@@ -23,6 +23,7 @@ export const search = {
   advancedYearFrom: '从',
   advancedYearTo: '至',
   advancedBpm: 'BPM',
+  advancedBpmLocalNote: 'Uses tag BPM and measured analysis when the local index is enabled',
   advancedMoodGroup: 'Mood',
   advancedAllMoods: 'All moods',
   advancedMoodLocalNote: 'Requires local library index and track analysis',

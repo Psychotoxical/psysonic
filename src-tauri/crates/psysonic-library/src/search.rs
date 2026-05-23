@@ -169,6 +169,34 @@ pub(crate) fn aliased_track_columns(alias: &str) -> String {
         .join(", ")
 }
 
+/// Same projection as [`aliased_track_columns`], but `bpm` uses tag + `track_fact`
+/// dual-storage resolution (§5.13.4) so list rows match BPM filter semantics.
+pub(crate) fn aliased_track_columns_resolved_bpm(alias: &str) -> String {
+    let bpm_expr = bpm_resolved_expr(alias);
+    crate::repos::track_columns()
+        .split(',')
+        .map(|c| {
+            let col = c.trim();
+            if col == "bpm" {
+                format!("({bpm_expr}) AS bpm")
+            } else {
+                format!("{alias}.{col}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub(crate) fn bpm_resolved_expr(table_alias: &str) -> String {
+    format!(
+        "COALESCE({table_alias}.bpm, (SELECT f.value_int FROM track_fact f \
+         WHERE f.server_id = {table_alias}.server_id AND f.track_id = {table_alias}.id \
+         AND f.fact_kind = 'bpm' \
+         ORDER BY CASE f.source_kind WHEN 'user' THEN 0 WHEN 'server_tag' THEN 1 \
+         WHEN 'analysis' THEN 2 ELSE 3 END LIMIT 1))"
+    )
+}
+
 /// Build a `%…%` LIKE pattern with the LIKE wildcards (`%`, `_`) and the
 /// `\` escape char escaped, for use with `LIKE ? ESCAPE '\'`. Shared by the
 /// Advanced Search album/artist name match and the cross-server fuzzy

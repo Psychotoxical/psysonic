@@ -5,6 +5,7 @@ import { usePlaybackServerId } from './usePlaybackServerId';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import {
   enrichmentDisplayComplete,
+  OXIMEDIA_MOOD_UI_ENABLED,
   parseTrackEnrichmentFacts,
   type ParsedTrackEnrichment,
 } from '../utils/library/trackEnrichment';
@@ -20,7 +21,9 @@ const EMPTY: ParsedTrackEnrichment = {
 /** Enrichment may finish several seconds after CPU seed / playback start. */
 const REFETCH_MS = [3_000, 8_000, 15_000, 30_000, 60_000] as const;
 
-const ENRICHMENT_FACT_KINDS = ['bpm', 'moods', 'mood_tag', 'mood_labels', 'valence', 'arousal'] as const;
+const ENRICHMENT_FACT_KINDS = OXIMEDIA_MOOD_UI_ENABLED
+  ? (['bpm', 'moods', 'mood_tag', 'mood_labels', 'valence', 'arousal'] as const)
+  : (['bpm'] as const);
 
 /**
  * Loads server BPM + oximedia mood facts for the queue "now playing" block.

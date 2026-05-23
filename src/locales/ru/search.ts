@@ -23,6 +23,7 @@ export const search = {
   advancedYearFrom: 'от',
   advancedYearTo: 'до',
   advancedBpm: 'BPM',
+  advancedBpmLocalNote: 'Тег BPM и измеренный анализ — при включённом локальном индексе',
   advancedMoodGroup: 'Настроение',
   advancedAllMoods: 'Все настроения',
   advancedMoodLocalNote: 'Только локальный индекс и анализ треков',
