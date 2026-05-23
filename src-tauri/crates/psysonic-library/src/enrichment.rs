@@ -10,6 +10,11 @@ use crate::store::LibraryStore;
 pub const OXIMEDIA_ENRICHMENT_SOURCE_KIND: &str = "analysis";
 pub const OXIMEDIA_ENRICHMENT_SOURCE_ID: &str = "oximedia-60s-center";
 
+/// Oximedia 0.1.7 mood is a spectral energy heuristic (not ML). Valence tracks
+/// brightness/energy, so metal and lyrical tracks often false-positive as joy.
+/// Keep valence/arousal/moods JSON for a future model; skip mood_tag + UI.
+pub const OXIMEDIA_MOOD_TAGS_ENABLED: bool = false;
+
 const ENRICHMENT_KINDS: [&str; 5] = ["bpm", "valence", "arousal", "moods", "mood_tag"];
 
 pub fn mood_tag_source_id(tag: &str) -> String {
@@ -32,15 +37,17 @@ pub fn plan_track_enrichment(
     )?;
 
     let mut need_moods = !fact_current(&facts, "moods", content_hash);
-    if !mood_tags_current(&facts, content_hash)
-        && !backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?
-        && !need_moods
-    {
-        need_moods = true;
-    } else if mood_tags_current(&facts, content_hash)
-        && mood_tags_need_va_refresh(&facts, content_hash)
-    {
-        let _ = backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?;
+    if OXIMEDIA_MOOD_TAGS_ENABLED {
+        if !mood_tags_current(&facts, content_hash)
+            && !backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?
+            && !need_moods
+        {
+            need_moods = true;
+        } else if mood_tags_current(&facts, content_hash)
+            && mood_tags_need_va_refresh(&facts, content_hash)
+        {
+            let _ = backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?;
+        }
     }
 
     Ok(TrackEnrichmentPlan {
@@ -107,7 +114,7 @@ pub fn store_track_enrichment_facts(
         }
     }
     let tags = mood_tags_for_enrichment_facts(facts, 2);
-    if !tags.is_empty() {
+    if OXIMEDIA_MOOD_TAGS_ENABLED && !tags.is_empty() {
         replace_mood_tag_facts(store, server_id, track_id, content_hash, &tags, now)?;
     }
     Ok(())
@@ -388,6 +395,32 @@ mod tests {
     }
 
     #[test]
+    fn plan_does_not_backfill_mood_tags_while_oximedia_tags_disabled() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "s1", "t1");
+        put_analysis_fact(
+            &store,
+            "moods",
+            "abc",
+            None,
+            None,
+            Some(r#"{"calm":0.6,"peaceful":0.4}"#),
+        );
+        let plan = plan_track_enrichment(&store, "s1", "t1", "abc", 2).unwrap();
+        assert!(!plan.need_moods, "moods JSON is current — no re-analysis");
+        let repo = FactRepository::new(&store);
+        let tags: Vec<_> = repo
+            .get("s1", "t1", &["mood_tag".into()], 3)
+            .unwrap()
+            .into_iter()
+            .filter(|f| f.fact_kind == "mood_tag")
+            .map(|f| f.value_text.unwrap_or_default())
+            .collect();
+        assert!(tags.is_empty());
+    }
+
+    #[test]
+    #[ignore = "re-enable with OXIMEDIA_MOOD_TAGS_ENABLED"]
     fn plan_refreshes_stale_quadrant_mood_tags_when_valence_arousal_present() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
@@ -427,6 +460,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "re-enable with OXIMEDIA_MOOD_TAGS_ENABLED"]
     fn plan_backfills_mood_tags_from_valence_arousal_over_quadrant_moods_json() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
@@ -448,6 +482,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "re-enable with OXIMEDIA_MOOD_TAGS_ENABLED"]
     fn plan_backfills_mood_tags_from_moods_json_without_reanalysis() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
@@ -473,6 +508,39 @@ mod tests {
     }
 
     #[test]
+    fn store_skips_mood_tag_rows_while_oximedia_tags_disabled() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "s1", "t1");
+        let facts = TrackEnrichmentFacts {
+            bpm: None,
+            valence: Some(TrackEnrichmentRealFact {
+                value: 0.4,
+                confidence: 1.0,
+            }),
+            arousal: Some(TrackEnrichmentRealFact {
+                value: 0.75,
+                confidence: 1.0,
+            }),
+            moods: Some(r#"{"happy":0.7,"excited":0.5}"#.into()),
+        };
+        store_track_enrichment_facts(&store, "s1", "t1", "abc", &facts, 10).unwrap();
+        let repo = FactRepository::new(&store);
+        let mood_tags: Vec<_> = repo
+            .get("s1", "t1", &[], 20)
+            .unwrap()
+            .into_iter()
+            .filter(|r| r.fact_kind == "mood_tag")
+            .collect();
+        assert!(mood_tags.is_empty());
+        assert!(repo
+            .get("s1", "t1", &[], 20)
+            .unwrap()
+            .iter()
+            .any(|r| r.fact_kind == "valence"));
+    }
+
+    #[test]
+    #[ignore = "re-enable with OXIMEDIA_MOOD_TAGS_ENABLED"]
     fn store_writes_mood_tag_rows_from_valence_arousal() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
@@ -502,6 +570,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "re-enable with OXIMEDIA_MOOD_TAGS_ENABLED"]
     fn store_writes_mood_tag_rows_from_moods_json_when_va_missing() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");

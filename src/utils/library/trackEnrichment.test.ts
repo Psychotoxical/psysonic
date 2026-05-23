@@ -19,7 +19,7 @@ const t = ((key: string, opts?: Record<string, unknown>) => {
 }) as TFunction;
 
 describe('parseTrackEnrichmentFacts', () => {
-  it('reads raw moods json from oximedia fact', () => {
+  it('does not surface oximedia mood labels in UI while detector is disabled', () => {
     const parsed = parseTrackEnrichmentFacts(
       [
         {
@@ -32,15 +32,6 @@ describe('parseTrackEnrichmentFacts', () => {
           confidence: 0.9,
           fetchedAt: 1,
         },
-      ],
-      null,
-    );
-    expect(parsed.moodLabels).toEqual(['calm']);
-  });
-
-  it('derives mood labels from valence/arousal with soft scoring', () => {
-    const parsed = parseTrackEnrichmentFacts(
-      [
         {
           serverId: 's1',
           trackId: 't1',
@@ -64,47 +55,7 @@ describe('parseTrackEnrichmentFacts', () => {
       ],
       null,
     );
-    expect(parsed.moodLabels.some(id => id === 'calm' || id === 'peaceful')).toBe(true);
-  });
-
-  it('prefers valence/arousal over quadrant moods json in facts', () => {
-    const parsed = parseTrackEnrichmentFacts(
-      [
-        {
-          serverId: 's1',
-          trackId: 't1',
-          factKind: 'moods',
-          sourceKind: 'analysis',
-          sourceId: 'oximedia-60s-center',
-          valueText: '{"happy":0.9,"excited":0.8}',
-          confidence: 0.9,
-          fetchedAt: 1,
-        },
-        {
-          serverId: 's1',
-          trackId: 't1',
-          factKind: 'valence',
-          sourceKind: 'analysis',
-          sourceId: 'oximedia-60s-center',
-          valueReal: 0.55,
-          confidence: 0.9,
-          fetchedAt: 1,
-        },
-        {
-          serverId: 's1',
-          trackId: 't1',
-          factKind: 'arousal',
-          sourceKind: 'analysis',
-          sourceId: 'oximedia-60s-center',
-          valueReal: 0.42,
-          confidence: 0.9,
-          fetchedAt: 1,
-        },
-      ],
-      null,
-    );
-    expect(parsed.moodLabels.includes('happy') && parsed.moodLabels.includes('excited')).toBe(false);
-    expect(parsed.moodLabels.length).toBeLessThanOrEqual(2);
+    expect(parsed.moodLabels).toEqual([]);
   });
 });
 

@@ -7,7 +7,8 @@ import {
   moodScoresFromValenceArousal,
 } from '../../config/moodGroups';
 
-/** Matches `psysonic_library::enrichment::OXIMEDIA_ENRICHMENT_*`. */
+/** Oximedia mood labels in queue/Song Info — off until a reliable model ships. */
+export const OXIMEDIA_MOOD_UI_ENABLED = false;
 export const OXIMEDIA_ENRICHMENT_SOURCE_KIND = 'analysis';
 export const OXIMEDIA_ENRICHMENT_SOURCE_ID = 'oximedia-60s-center';
 
@@ -55,12 +56,13 @@ export function parseTrackEnrichmentFacts(
     valence != null && arousal != null
       ? topDistinctOximediaMoodTagIdsFromValenceArousal(valence, arousal)
       : [];
-  const moodLabels =
+  const rawMoodLabels =
     (fromValenceArousal.length > 0 ? fromValenceArousal : null)
     ?? (fromMoodTags.length > 0 ? fromMoodTags : null)
     ?? (fromMoodsJson.length > 0 ? fromMoodsJson : null)
     ?? (fromLegacy && fromLegacy.length > 0 ? fromLegacy : null)
     ?? [];
+  const moodLabels = OXIMEDIA_MOOD_UI_ENABLED ? rawMoodLabels : [];
 
   return {
     serverBpm: hotBpm,
