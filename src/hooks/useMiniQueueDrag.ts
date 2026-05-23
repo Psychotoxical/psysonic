@@ -52,7 +52,7 @@ export function useMiniQueueDrag({
       if (parsed.type !== 'queue_reorder') return;
       const fromIdx = parsed.index as number;
       psyDragFromIdxRef.current = null;
-      const queueLen = usePlayerStore.getState().queue.length || fallbackQueueLen;
+      const queueLen = usePlayerStore.getState().queueItems.length || fallbackQueueLen;
       const insertIdx = tgt
         ? (tgt.before ? tgt.idx : tgt.idx + 1)
         : queueLen;
