@@ -79,9 +79,8 @@ pub(crate) fn resolve_server_id_for_app(
     app: &AppHandle,
     explicit: Option<&str>,
 ) -> String {
-    use tauri::Manager;
     let engine = app.try_state::<AudioEngine>();
-    resolve_analysis_server_id(explicit, engine.as_ref().map(|e| &**e))
+    resolve_analysis_server_id(explicit, engine.as_deref())
 }
 
 pub(crate) fn high_priority_for_app(
@@ -89,9 +88,8 @@ pub(crate) fn high_priority_for_app(
     track_id: &str,
     explicit: Option<bool>,
 ) -> bool {
-    use tauri::Manager;
     let engine = app.try_state::<AudioEngine>();
-    resolve_high_priority(app, engine.as_ref().map(|e| &**e), track_id, explicit)
+    resolve_high_priority(app, engine.as_deref(), track_id, explicit)
 }
 
 /// Gapless boundary: chained track became audible — run unified analysis if needed.

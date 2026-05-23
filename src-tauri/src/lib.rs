@@ -295,14 +295,26 @@ pub fn run() {
                         else {
                             return TrackEnrichmentPlan::default();
                         };
-                        psysonic_library::enrichment::plan_track_enrichment(
+                        match psysonic_library::enrichment::plan_track_enrichment(
                             &runtime.store,
                             server_id,
                             track_id,
                             content_hash,
                             enrichment_now_unix_ms(),
-                        )
-                        .unwrap_or_default()
+                        ) {
+                            Ok(plan) => plan,
+                            Err(e) => {
+                                eprintln!(
+                                    "[enrichment] plan failed server_id={server_id} track_id={track_id}: {e}"
+                                );
+                                TrackEnrichmentPlan {
+                                    need_bpm: true,
+                                    need_valence: true,
+                                    need_arousal: true,
+                                    need_moods: true,
+                                }
+                            }
+                        }
                     },
                     move |server_id: &str,
                           track_id: &str,

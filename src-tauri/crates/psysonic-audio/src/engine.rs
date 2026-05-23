@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use rodio::Player;
-use tauri::{AppHandle, Manager};
 
 use super::state::{ChainedInfo, PreloadedTrack, StreamCompletedSpill};
 

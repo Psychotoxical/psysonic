@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { TrackFactDto } from '../../api/library';
+import { OXIMEDIA_MOOD_TAG_IDS } from '../../config/moodGroups';
 
 /** Matches `psysonic_library::enrichment::OXIMEDIA_ENRICHMENT_*`. */
 export const OXIMEDIA_ENRICHMENT_SOURCE_KIND = 'analysis';
@@ -111,7 +112,9 @@ export function topMoodLabelIds(
   limit = 3,
 ): string[] {
   if (!scores) return [];
+  const allowed = new Set<string>(OXIMEDIA_MOOD_TAG_IDS);
   return Object.entries(scores)
+    .filter(([id]) => allowed.has(id))
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([id]) => id);

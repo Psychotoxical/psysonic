@@ -663,15 +663,12 @@ fn build_artist_from_fts(
 
 // ── clause resolution ──────────────────────────────────────────────────
 
-/// Track-only filters (mood, bpm, …) must not use album/artist table shortcuts
-/// that would ignore them.
+/// Track-only filters that require joining through `track` (mood enrichment facts).
+/// Other track-only fields (e.g. `bpm`) are skipped silently on album/artist queries.
 fn scalar_requires_track_derived_entities(scalar: &[&LibraryFilterClause]) -> bool {
-    scalar.iter().any(|c| {
-        filter::lookup(&c.field).is_some_and(|field| {
-            filter::applies_to(field, EntityKind::Track)
-                && !filter::applies_to(field, EntityKind::Album)
-        })
-    })
+    scalar
+        .iter()
+        .any(|c| matches!(c.field.as_str(), "mood_group" | "mood_tag"))
 }
 
 /// Resolve one scalar clause to a WHERE fragment for `entity`. `Ok(None)`

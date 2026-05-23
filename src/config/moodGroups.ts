@@ -32,15 +32,3 @@ export const MOOD_GROUP_IDS: readonly MoodGroupId[] = MOOD_GROUPS.map(g => g.id)
 export function moodGroupById(id: string): (typeof MOOD_GROUPS)[number] | undefined {
   return MOOD_GROUPS.find(g => g.id === id);
 }
-
-export function expandMoodGroups(groupIds: readonly string[]): string[] {
-  const out: string[] = [];
-  for (const gid of groupIds) {
-    const group = moodGroupById(gid);
-    if (!group) continue;
-    for (const tag of group.tags) {
-      if (!out.includes(tag)) out.push(tag);
-    }
-  }
-  return out;
-}
