@@ -5,13 +5,30 @@ use psysonic_core::track_enrichment::{
     TrackEnrichmentFacts, TrackEnrichmentIntFact, TrackEnrichmentOutcome, TrackEnrichmentPort,
     TrackEnrichmentPlan, TrackEnrichmentRealFact,
 };
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::analysis_cache::{
     analysis_pcm_window, audio_duration_from_bytes, decode_mono_pcm_window, md5_first_16kb,
 };
 
 pub const ENRICHMENT_WINDOW_SEC: f64 = 60.0;
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnrichmentUpdatedPayload {
+    pub track_id: String,
+    pub server_id: String,
+}
+
+fn emit_enrichment_updated(app: &AppHandle, server_id: &str, track_id: &str) {
+    let _ = app.emit(
+        "analysis:enrichment-updated",
+        EnrichmentUpdatedPayload {
+            track_id: track_id.to_string(),
+            server_id: server_id.to_string(),
+        },
+    );
+}
 
 pub fn run_track_enrichment_if_needed(
     app: &AppHandle,
@@ -39,6 +56,7 @@ pub fn run_track_enrichment_if_needed(
                 server_id,
                 content_hash
             );
+            emit_enrichment_updated(app, server_id, track_id);
             TrackEnrichmentOutcome::Applied
         }
         Err(e) => {

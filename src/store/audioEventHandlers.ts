@@ -232,8 +232,16 @@ export function handleAudioProgress(
     shouldBytePreloadFromMode ||
     shouldBytePreloadForCrossfade
   );
+  // Hot cache serves playback from disk; still queue enrichment via audio_preload (local read).
+  const shouldPreloadHotCacheAnalysis = hotCacheEnabled && preloadMode !== 'off' && (
+    preloadMode === 'early'
+      ? current_time >= 5
+      : preloadMode === 'custom'
+        ? remaining < preloadCustomSeconds && remaining > 0
+        : remaining < 30 && remaining > 0
+  );
 
-  if (shouldChainGapless || shouldBytePreload || gaplessEnabled) {
+  if (shouldChainGapless || shouldBytePreload || shouldPreloadHotCacheAnalysis || gaplessEnabled) {
     const { queue, queueIndex, repeatMode } = store;
     const nextIdx = queueIndex + 1;
     const nextTrack = repeatMode === 'one'
@@ -260,9 +268,13 @@ export function handleAudioProgress(
 
     const serverId = getPlaybackServerId();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
+    const nextIsHotLocal = hotCacheEnabled && nextUrl.startsWith('psysonic-local://');
 
     // Byte pre-download — runs early so bytes are cached by chain time.
-    if ((shouldBytePreload || shouldBytePreloadForGaplessBackup) && nextTrack.id !== getBytePreloadingId()) {
+    if (
+      (shouldBytePreload || shouldBytePreloadForGaplessBackup || (shouldPreloadHotCacheAnalysis && nextIsHotLocal))
+      && nextTrack.id !== getBytePreloadingId()
+    ) {
       setBytePreloadingId(nextTrack.id);
       // Loudness cache only — do not call refreshWaveformForTrack(next): it writes global
       // waveformBins and would replace the current track's seekbar while still playing it.
@@ -273,6 +285,8 @@ export function handleAudioProgress(
           nextUrl,
           shouldBytePreload,
           shouldBytePreloadForGaplessBackup,
+          shouldPreloadHotCacheAnalysis,
+          nextIsHotLocal,
           remaining,
           gaplessEnabled,
         });
@@ -314,6 +328,7 @@ export function handleAudioProgress(
         fallbackDb: authState.replayGainFallbackDb,
         hiResEnabled: authState.enableHiRes,
         analysisTrackId: nextTrack.id,
+        serverId: serverId || null,
       }).catch(() => {});
     }
   }

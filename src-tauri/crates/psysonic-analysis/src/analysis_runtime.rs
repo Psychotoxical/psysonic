@@ -166,8 +166,9 @@ pub async fn enqueue_track_analysis(
     }
     if plan.needs_full_cpu_seed() {
         crate::app_deprintln!(
-            "[analysis] queue full seed track_id={} need_waveform={} need_loudness={} need_enrichment={}",
+            "[analysis] queue full seed track_id={} hash={} need_waveform={} need_loudness={} need_enrichment={}",
             track_id,
+            content_hash,
             plan.need_waveform,
             plan.need_loudness,
             plan.enrichment.any()
@@ -215,6 +216,23 @@ pub async fn run_track_enrichment_from_bytes(
         crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data);
     })
     .await;
+}
+
+/// Read a local file and run [`enqueue_track_analysis`] (hot cache, offline, spill promote).
+pub async fn enqueue_track_analysis_from_file(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    file_path: &std::path::Path,
+    high_priority: bool,
+) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    let bytes = tokio::fs::read(file_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    if bytes.is_empty() {
+        return Ok(EnqueueTrackAnalysisOutcome::Complete);
+    }
+    enqueue_track_analysis(app, server_id, track_id, &bytes, high_priority).await
 }
 
 /// Decode `bytes` for `track_id` via the cpu-seed queue. Prefer [`enqueue_track_analysis`].

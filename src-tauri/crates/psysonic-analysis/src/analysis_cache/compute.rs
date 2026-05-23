@@ -103,24 +103,22 @@ pub fn seed_from_bytes_into_cache(
         track_id: track_id.to_string(),
         md5_16kb: md5_first_16kb(bytes),
     };
-    if let Some(existing) = cache.get_waveform(&key)? {
-        if !existing.bins.is_empty() {
-            if cache.loudness_row_exists_for_key(&key)? {
-                crate::app_deprintln!(
-                    "[analysis][waveform] build skip track_id={} reason=waveform_cache_hit md5_16kb={} bins_len={} elapsed_ms={}",
-                    track_id,
-                    key.md5_16kb,
-                    existing.bins.len(),
-                    started.elapsed().as_millis()
-                );
-                return Ok((SeedFromBytesOutcome::SkippedWaveformCacheHit, key.md5_16kb.clone()));
-            }
-            crate::app_deprintln!(
-                "[analysis][waveform] waveform cache hit but loudness missing — full re-analysis track_id={} md5_16kb={}",
-                track_id,
-                key.md5_16kb
-            );
-        }
+    let coverage = cache.content_cache_coverage(server_id, track_id, &key.md5_16kb)?;
+    if coverage.complete() {
+        crate::app_deprintln!(
+            "[analysis][waveform] build skip track_id={} reason=waveform_cache_hit md5_16kb={} elapsed_ms={}",
+            track_id,
+            key.md5_16kb,
+            started.elapsed().as_millis()
+        );
+        return Ok((SeedFromBytesOutcome::SkippedWaveformCacheHit, key.md5_16kb.clone()));
+    }
+    if coverage.has_waveform && !coverage.has_loudness {
+        crate::app_deprintln!(
+            "[analysis][waveform] waveform cache hit but loudness missing — full re-analysis track_id={} md5_16kb={}",
+            track_id,
+            key.md5_16kb
+        );
     }
     let mib = bytes.len() as f64 / (1024.0 * 1024.0);
     crate::app_deprintln!(

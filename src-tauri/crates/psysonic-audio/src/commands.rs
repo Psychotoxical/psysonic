@@ -437,6 +437,7 @@ pub async fn audio_play(
     }
 
     // ── Progress + ended detection ────────────────────────────────────────────
+    let analysis_app = app.clone();
     spawn_progress_task(
         gen,
         state.generation.clone(),
@@ -446,6 +447,7 @@ pub async fn audio_play(
         state.crossfade_secs.clone(),
         done_flag,
         app,
+        Some(analysis_app),
         state.samples_played.clone(),
         state.current_sample_rate.clone(),
         state.current_channels.clone(),
@@ -480,6 +482,7 @@ pub async fn audio_chain_preload(
     fallback_db: f32,
     hi_res_enabled: bool,
     analysis_track_id: Option<String>,
+    server_id: Option<String>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -542,6 +545,27 @@ pub async fn audio_chain_preload(
         .as_ref()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
+    let analysis_server_id = server_id.as_deref().map(str::trim).filter(|s| !s.is_empty());
+
+    if let Some(track_id) = analysis_cache_track_id(logical_trim.as_deref(), &url) {
+        let (sid, high) = crate::analysis_dispatch::prepare_playback_analysis(
+            &app,
+            &state,
+            analysis_server_id,
+            &track_id,
+            Some(false),
+        );
+        let bytes = (*raw_bytes).clone();
+        crate::analysis_dispatch::spawn_track_analysis_bytes(
+            app.clone(),
+            crate::analysis_dispatch::TrackAnalysisOrigin::GaplessChainReady,
+            sid,
+            track_id,
+            bytes,
+            high,
+            None,
+        );
+    }
 
     // Only `gain_linear` is needed — `effective_volume` is intentionally NOT
     // applied to the Sink here. `audio_chain_preload` runs ~30 s before the
@@ -623,6 +647,8 @@ pub async fn audio_chain_preload(
 
     *state.chained_info.lock().unwrap() = Some(ChainedInfo {
         url,
+        analysis_track_id: logical_trim,
+        server_id: analysis_server_id.map(str::to_string),
         raw_bytes,
         duration_secs,
         replay_gain_linear: gain_linear,

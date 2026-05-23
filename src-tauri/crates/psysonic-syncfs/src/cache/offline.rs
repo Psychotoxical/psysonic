@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
-use psysonic_analysis::analysis_runtime::enqueue_track_analysis;
+use psysonic_analysis::analysis_runtime::{
+    analysis_backfill_is_current_track, enqueue_track_analysis_from_file,
+};
 use crate::{offline_cancel_flags, DownloadSemaphore};
 
 use crate::file_transfer::{finalize_streamed_download, subsonic_http_client};
@@ -16,12 +18,8 @@ pub async fn enqueue_analysis_seed_from_file(
     track_id: &str,
     file_path: &std::path::Path,
 ) {
-    let bytes = match tokio::fs::read(file_path).await {
-        Ok(b) if !b.is_empty() => b,
-        _ => return,
-    };
-    let high = psysonic_analysis::analysis_runtime::analysis_backfill_is_current_track(app, track_id);
-    let _ = enqueue_track_analysis(app, server_id, track_id, &bytes, high).await;
+    let high = analysis_backfill_is_current_track(app, track_id);
+    let _ = enqueue_track_analysis_from_file(app, server_id, track_id, file_path, high).await;
 }
 
 /// AppHandle-free download primitive: ensures `cache_dir` exists, returns

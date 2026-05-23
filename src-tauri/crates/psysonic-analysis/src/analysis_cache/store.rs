@@ -39,6 +39,20 @@ pub struct TrackKey {
     pub md5_16kb: String,
 }
 
+/// Waveform / loudness rows present for a specific content fingerprint
+/// (`md5_16kb`), after track-id variant + legacy server fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContentCacheCoverage {
+    pub has_waveform: bool,
+    pub has_loudness: bool,
+}
+
+impl ContentCacheCoverage {
+    pub fn complete(self) -> bool {
+        self.has_waveform && self.has_loudness
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct WaveformEntry {
     pub bins: Vec<u8>,
@@ -304,6 +318,59 @@ impl AnalysisCache {
             .optional()
             .map_err(|e| e.to_string())?;
         Ok(row.filter(|e| waveform_cache_blob_len_ok(&e.bins, e.bin_count)))
+    }
+
+    /// Lookup waveform + loudness for an exact content fingerprint, trying bare /
+    /// `stream:` track-id variants and the legacy `''` server pool (with lazy
+    /// re-tag onto `server_id` when a legacy hit occurs).
+    pub fn content_cache_coverage(
+        &self,
+        server_id: &str,
+        track_id: &str,
+        md5_16kb: &str,
+    ) -> Result<ContentCacheCoverage, String> {
+        let mut has_waveform = false;
+        let mut has_loudness = false;
+        let mut relabel = false;
+        for tid in track_id_cache_variants(track_id) {
+            if !server_id.is_empty() {
+                let key = TrackKey {
+                    server_id: server_id.to_string(),
+                    track_id: tid.clone(),
+                    md5_16kb: md5_16kb.to_string(),
+                };
+                if self.get_waveform(&key)?.is_some() {
+                    has_waveform = true;
+                }
+                if self.loudness_row_exists_for_key(&key)? {
+                    has_loudness = true;
+                }
+            }
+            let legacy = TrackKey {
+                server_id: String::new(),
+                track_id: tid,
+                md5_16kb: md5_16kb.to_string(),
+            };
+            if self.get_waveform(&legacy)?.is_some() {
+                has_waveform = true;
+                if !server_id.is_empty() {
+                    relabel = true;
+                }
+            }
+            if self.loudness_row_exists_for_key(&legacy)? {
+                has_loudness = true;
+                if !server_id.is_empty() {
+                    relabel = true;
+                }
+            }
+        }
+        if relabel {
+            let _ = self.relabel_legacy_to_server(server_id, track_id);
+        }
+        Ok(ContentCacheCoverage {
+            has_waveform,
+            has_loudness,
+        })
     }
 
     /// True when this exact `(track_id, md5_16kb)` has a loudness row for the current algo version.

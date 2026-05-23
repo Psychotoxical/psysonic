@@ -18,7 +18,8 @@ export interface ParsedTrackEnrichment {
 function isOximediaFact(f: TrackFactDto): boolean {
   return (
     f.sourceKind === OXIMEDIA_ENRICHMENT_SOURCE_KIND
-    && f.sourceId === OXIMEDIA_ENRICHMENT_SOURCE_ID
+    && (f.sourceId === OXIMEDIA_ENRICHMENT_SOURCE_ID
+      || f.sourceId.startsWith(`${OXIMEDIA_ENRICHMENT_SOURCE_ID}:`))
   );
 }
 
@@ -32,6 +33,9 @@ export function parseTrackEnrichmentFacts(
   );
   const moodsFact = oximedia.find(f => f.factKind === 'moods' && f.valueText);
   const legacyLabelsFact = oximedia.find(f => f.factKind === 'mood_labels' && f.valueText);
+  const moodTagFacts = facts.filter(
+    f => isOximediaFact(f) && f.factKind === 'mood_tag' && f.valueText,
+  );
   const valence = oximedia.find(f => f.factKind === 'valence')?.valueReal ?? null;
   const arousal = oximedia.find(f => f.factKind === 'arousal')?.valueReal ?? null;
 
@@ -39,10 +43,15 @@ export function parseTrackEnrichmentFacts(
 
   const fromMoodsJson = topMoodLabelIds(parseMoodsScoresJson(moodsFact?.valueText));
   const fromLegacy = parseMoodLabelsArray(legacyLabelsFact?.valueText);
+  const fromMoodTags = moodTagFacts
+    .map(f => f.valueText!)
+    .filter(Boolean)
+    .slice(0, 3);
   const fromValenceArousal =
     valence != null && arousal != null ? topMoodLabelIds(deriveMoodScores(valence, arousal)) : [];
   const moodLabels =
     (fromMoodsJson.length > 0 ? fromMoodsJson : null)
+    ?? (fromMoodTags.length > 0 ? fromMoodTags : null)
     ?? (fromLegacy && fromLegacy.length > 0 ? fromLegacy : null)
     ?? fromValenceArousal;
 
@@ -134,4 +143,12 @@ export function formatQueueMoodLabels(labels: readonly string[], t: TFunction): 
 
 export function enrichmentHasMoodLabels(data: ParsedTrackEnrichment): boolean {
   return data.moodLabels.length > 0;
+}
+
+export function enrichmentHasMeasuredBpm(data: ParsedTrackEnrichment): boolean {
+  return data.measuredBpm != null && data.measuredBpm > 0;
+}
+
+export function enrichmentDisplayComplete(data: ParsedTrackEnrichment): boolean {
+  return enrichmentHasMoodLabels(data) || enrichmentHasMeasuredBpm(data);
 }

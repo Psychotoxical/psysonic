@@ -15,7 +15,7 @@ pub fn plan_track_analysis(
     track_id: &str,
     content_hash: &str,
 ) -> TrackAnalysisPlan {
-    let (need_waveform, need_loudness) = cache_gaps(app, server_id, track_id);
+    let (need_waveform, need_loudness) = cache_gaps(app, server_id, track_id, content_hash);
     let enrichment = enrichment_plan(app, server_id, track_id, content_hash);
     TrackAnalysisPlan {
         need_waveform,
@@ -55,11 +55,17 @@ pub fn track_analysis_needs_work(
     Ok(plan_track_analysis_from_cache(app, server_id, track_id)?.any())
 }
 
-fn cache_gaps(app: &AppHandle, server_id: &str, track_id: &str) -> (bool, bool) {
-    cache_gaps_with(
+fn cache_gaps(
+    app: &AppHandle,
+    server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+) -> (bool, bool) {
+    cache_gaps_for_content(
         app.try_state::<AnalysisCache>().as_deref(),
         server_id,
         track_id,
+        content_hash,
     )
 }
 
@@ -77,25 +83,19 @@ fn enrichment_plan(
         .unwrap_or_default()
 }
 
-fn cache_gaps_with(
+fn cache_gaps_for_content(
     cache: Option<&AnalysisCache>,
     server_id: &str,
     track_id: &str,
+    content_hash: &str,
 ) -> (bool, bool) {
     let Some(cache) = cache else {
         return (true, true);
     };
-    let need_waveform = cache
-        .get_latest_waveform_for_track(server_id, track_id)
-        .ok()
-        .flatten()
-        .is_none();
-    let need_loudness = cache
-        .get_latest_loudness_for_track(server_id, track_id)
-        .ok()
-        .flatten()
-        .is_none();
-    (need_waveform, need_loudness)
+    match cache.content_cache_coverage(server_id, track_id, content_hash) {
+        Ok(coverage) => (!coverage.has_waveform, !coverage.has_loudness),
+        Err(_) => (true, true),
+    }
 }
 
 #[cfg(test)]
@@ -140,15 +140,23 @@ mod tests {
     #[test]
     fn cache_gaps_true_when_empty() {
         let cache = AnalysisCache::open_in_memory();
-        let (wf, ld) = cache_gaps_with(Some(&cache), "s1", "t1");
+        let (wf, ld) = cache_gaps_for_content(Some(&cache), "s1", "t1", "abc");
         assert!(wf && ld);
     }
 
     #[test]
-    fn cache_gaps_false_when_both_present() {
+    fn cache_gaps_false_when_fingerprint_present() {
         let cache = AnalysisCache::open_in_memory();
         seed_waveform_loudness(&cache, "s1", "t1", "abc");
-        let (wf, ld) = cache_gaps_with(Some(&cache), "s1", "t1");
+        let (wf, ld) = cache_gaps_for_content(Some(&cache), "s1", "t1", "abc");
         assert!(!wf && !ld);
+    }
+
+    #[test]
+    fn cache_gaps_finds_stream_prefix_row_for_bare_track_id() {
+        let cache = AnalysisCache::open_in_memory();
+        seed_waveform_loudness(&cache, "s1", "stream:t1", "abc");
+        let (wf, ld) = cache_gaps_for_content(Some(&cache), "s1", "t1", "abc");
+        assert!(!wf && !ld, "bare id should resolve stream: cached fingerprint");
     }
 }
