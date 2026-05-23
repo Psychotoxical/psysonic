@@ -1,8 +1,8 @@
 //! Oximedia mood tags and UI/search mood groups (static catalog).
 //!
 //! Tracks store **atomic tags** in `track_fact` (`fact_kind = mood_tag`).
-//! Product mood groups (Радость, Грусть, …) map to oximedia tags here —
-//! never stored on the track row.
+//! Product mood groups (joy, sadness, dance, work, romance) map to oximedia
+//! tags here — never stored on the track row.
 
 /// Oximedia `MoodDetector` label ids (mirrors `src/config/moodGroups.ts`).
 pub const OXIMEDIA_MOOD_TAG_IDS: &[&str] = &[
