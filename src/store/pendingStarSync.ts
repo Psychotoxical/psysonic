@@ -1,6 +1,6 @@
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { usePlayerStore } from './playerStore';
-import { invalidateQueueResolver } from '../utils/library/queueTrackResolver';
+import { patchCachedTrack } from '../utils/library/queueTrackResolver';
 
 /**
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
@@ -94,20 +94,23 @@ function onStarSuccess(id: string, starred: boolean): void {
         s.currentTrack?.id === id ? { ...s.currentTrack, starred: starredVal } : s.currentTrack,
     };
   });
-  // Thin-state: the queue's copy lives in the resolver cache. Drop the cached
-  // entry so the next read reflects the synced value (re-resolved from index).
-  invalidateQueueResolver(id);
+  // Thin-state: the queue's copy lives in the resolver cache. Patch it in place
+  // to the synced value rather than dropping it — a dropped entry would blank the
+  // visible queue row to a "…" placeholder until the next window re-resolve.
+  patchCachedTrack(id, { starred: starredVal });
 }
 
 function onRatingSuccess(id: string): void {
-  // `setUserRatingOverride` already patched track.userRating; just drop the override.
+  const rating = usePlayerStore.getState().userRatingOverrides[id];
   usePlayerStore.setState(s => {
     if (!(id in s.userRatingOverrides)) return {};
     const next = { ...s.userRatingOverrides };
     delete next[id];
     return { userRatingOverrides: next };
   });
-  invalidateQueueResolver(id);
+  // Patch the cached queue track in place (see onStarSuccess) so the row keeps
+  // its title and shows the synced rating without flashing a placeholder.
+  if (rating !== undefined) patchCachedTrack(id, { userRating: rating });
 }
 
 /** Optimistically (un)star a song and sync it to the server with retry. */

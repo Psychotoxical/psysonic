@@ -32,7 +32,7 @@ describe('pendingStarSync', () => {
     _resetPendingStarSyncForTest();
     _resetQueueResolverForTest();
     // Thin-state: the queue's track copy lives in the resolver cache. Seed it so
-    // a star-success invalidation has something to drop.
+    // a star/rating success has a cached entry to patch in place.
     seedQueueResolver('', [track('t1')]);
     usePlayerStore.setState({
       currentTrack: track('t1'),
@@ -57,9 +57,12 @@ describe('pendingStarSync', () => {
     const s = usePlayerStore.getState();
     expect('t1' in s.starredOverrides).toBe(false); // cleared on success
     expect(s.currentTrack?.starred).toBeTruthy(); // in-memory track patched
-    // Thin-state: the resolver cache entry is invalidated (dropped) so the next
-    // read re-fetches the synced value rather than patching a fat queue copy.
-    expect(getCachedTrack({ serverId: '', trackId: 't1' })).toBeUndefined();
+    // Thin-state: the resolver cache entry is patched in place (not dropped) so
+    // the visible queue row keeps its title and reflects the synced star —
+    // dropping it would blank the row to a "…" placeholder.
+    const cached = getCachedTrack({ serverId: '', trackId: 't1' });
+    expect(cached?.title).toBe('t1');
+    expect(cached?.starred).toBeTruthy();
   });
 
   it('does NOT roll back on a network failure and keeps retrying', async () => {
