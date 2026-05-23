@@ -33,10 +33,14 @@ pub fn plan_track_enrichment(
 
     let mut need_moods = !fact_current(&facts, "moods", content_hash);
     if !mood_tags_current(&facts, content_hash)
-        && !backfill_mood_tags_from_stored_moods(store, server_id, track_id, content_hash, now)?
+        && !backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?
         && !need_moods
     {
         need_moods = true;
+    } else if mood_tags_current(&facts, content_hash)
+        && mood_tags_need_va_refresh(&facts, content_hash)
+    {
+        let _ = backfill_mood_tags_from_stored_facts(store, server_id, track_id, content_hash, now)?;
     }
 
     Ok(TrackEnrichmentPlan {
@@ -100,16 +104,54 @@ pub fn store_track_enrichment_facts(
                 &analysis_fact_text("moods", json, content_hash, 1.0),
                 now,
             )?;
-            let tags = mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, 3);
-            if !tags.is_empty() {
-                replace_mood_tag_facts(store, server_id, track_id, content_hash, &tags, now)?;
-            }
         }
+    }
+    let tags = mood_tags_for_enrichment_facts(facts, 3);
+    if !tags.is_empty() {
+        replace_mood_tag_facts(store, server_id, track_id, content_hash, &tags, now)?;
     }
     Ok(())
 }
 
-fn backfill_mood_tags_from_stored_moods(
+fn mood_tags_for_enrichment_facts(facts: &TrackEnrichmentFacts, limit: usize) -> Vec<String> {
+    if let (Some(v), Some(a)) = (facts.valence, facts.arousal) {
+        return mood_groups::top_mood_tag_ids_from_valence_arousal(v.value, a.value, limit);
+    }
+    if let Some(json) = &facts.moods {
+        return mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, limit);
+    }
+    Vec::new()
+}
+
+fn mood_tags_from_stored_facts(
+    facts: &[crate::dto::TrackFactDto],
+    content_hash: &str,
+    limit: usize,
+) -> Vec<String> {
+    let matches_hash =
+        |f: &&crate::dto::TrackFactDto| f.content_hash.as_deref() == Some(content_hash);
+    let valence = facts
+        .iter()
+        .find(|f| is_oximedia_primary_fact(f) && f.fact_kind == "valence" && matches_hash(f))
+        .and_then(|f| f.value_real);
+    let arousal = facts
+        .iter()
+        .find(|f| is_oximedia_primary_fact(f) && f.fact_kind == "arousal" && matches_hash(f))
+        .and_then(|f| f.value_real);
+    if let (Some(v), Some(a)) = (valence, arousal) {
+        return mood_groups::top_mood_tag_ids_from_valence_arousal(v, a, limit);
+    }
+    let Some(json) = facts
+        .iter()
+        .find(|f| is_oximedia_primary_fact(f) && f.fact_kind == "moods" && matches_hash(f))
+        .and_then(|f| f.value_text.as_deref())
+    else {
+        return Vec::new();
+    };
+    mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, limit)
+}
+
+fn backfill_mood_tags_from_stored_facts(
     store: &LibraryStore,
     server_id: &str,
     track_id: &str,
@@ -117,24 +159,39 @@ fn backfill_mood_tags_from_stored_moods(
     now: i64,
 ) -> Result<bool, String> {
     let repo = FactRepository::new(store);
-    let facts = repo.get(server_id, track_id, &["moods".into()], now)?;
-    let Some(json) = facts
-        .iter()
-        .find(|f| {
-            is_oximedia_primary_fact(f)
-                && f.fact_kind == "moods"
-                && f.content_hash.as_deref() == Some(content_hash)
-        })
-        .and_then(|f| f.value_text.as_deref())
-    else {
-        return Ok(false);
-    };
-    let tags = mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, 3);
+    let facts = repo.get(
+        server_id,
+        track_id,
+        &["moods".into(), "valence".into(), "arousal".into()],
+        now,
+    )?;
+    let tags = mood_tags_from_stored_facts(&facts, content_hash, 3);
     if tags.is_empty() {
         return Ok(false);
     }
     replace_mood_tag_facts(store, server_id, track_id, content_hash, &tags, now)?;
     Ok(true)
+}
+
+fn mood_tags_need_va_refresh(facts: &[crate::dto::TrackFactDto], content_hash: &str) -> bool {
+    let expected = mood_tags_from_stored_facts(facts, content_hash, 3);
+    if expected.is_empty() {
+        return false;
+    }
+    let mut current: Vec<String> = facts
+        .iter()
+        .filter(|f| {
+            f.fact_kind == "mood_tag"
+                && f.source_kind == OXIMEDIA_ENRICHMENT_SOURCE_KIND
+                && f.source_id.starts_with(&format!("{OXIMEDIA_ENRICHMENT_SOURCE_ID}:"))
+                && f.content_hash.as_deref() == Some(content_hash)
+        })
+        .filter_map(|f| f.value_text.clone())
+        .collect();
+    current.sort();
+    let mut expected_sorted = expected;
+    expected_sorted.sort();
+    current != expected_sorted
 }
 
 fn replace_mood_tag_facts(
@@ -331,6 +388,66 @@ mod tests {
     }
 
     #[test]
+    fn plan_refreshes_stale_quadrant_mood_tags_when_valence_arousal_present() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "s1", "t1");
+        put_analysis_fact(&store, "moods", "abc", None, None, Some(r#"{"happy":0.9,"excited":0.8}"#));
+        put_analysis_fact(&store, "valence", "abc", None, Some(0.55), None);
+        put_analysis_fact(&store, "arousal", "abc", None, Some(0.42), None);
+        let repo = FactRepository::new(&store);
+        for tag in ["happy", "excited"] {
+            repo.put(
+                "s1",
+                "t1",
+                &FactInputDto {
+                    fact_kind: "mood_tag".into(),
+                    value_text: Some(tag.into()),
+                    value_real: None,
+                    value_int: None,
+                    unit: None,
+                    source_kind: OXIMEDIA_ENRICHMENT_SOURCE_KIND.into(),
+                    source_id: mood_tag_source_id(tag),
+                    confidence: 1.0,
+                    content_hash: Some("abc".into()),
+                    expires_at: None,
+                },
+                1,
+            )
+            .unwrap();
+        }
+        let _ = plan_track_enrichment(&store, "s1", "t1", "abc", 2).unwrap();
+        let tags: Vec<_> = repo
+            .get("s1", "t1", &["mood_tag".into()], 3)
+            .unwrap()
+            .into_iter()
+            .filter(|f| f.fact_kind == "mood_tag")
+            .map(|f| f.value_text.unwrap_or_default())
+            .collect();
+        assert_ne!(tags, vec!["happy", "excited"]);
+    }
+
+    #[test]
+    fn plan_backfills_mood_tags_from_valence_arousal_over_quadrant_moods_json() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "s1", "t1");
+        put_analysis_fact(&store, "moods", "abc", None, None, Some(r#"{"happy":0.9,"excited":0.8}"#));
+        put_analysis_fact(&store, "valence", "abc", None, Some(0.55), None);
+        put_analysis_fact(&store, "arousal", "abc", None, Some(0.42), None);
+        let plan = plan_track_enrichment(&store, "s1", "t1", "abc", 2).unwrap();
+        assert!(!plan.need_moods);
+        let repo = FactRepository::new(&store);
+        let tags: Vec<_> = repo
+            .get("s1", "t1", &["mood_tag".into()], 3)
+            .unwrap()
+            .into_iter()
+            .filter(|f| f.fact_kind == "mood_tag")
+            .map(|f| f.value_text.unwrap_or_default())
+            .collect();
+        assert_ne!(tags, vec!["happy", "excited"]);
+        assert!(!tags.is_empty());
+    }
+
+    #[test]
     fn plan_backfills_mood_tags_from_moods_json_without_reanalysis() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
@@ -356,7 +473,36 @@ mod tests {
     }
 
     #[test]
-    fn store_writes_mood_tag_rows_from_moods_json() {
+    fn store_writes_mood_tag_rows_from_valence_arousal() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "s1", "t1");
+        let facts = TrackEnrichmentFacts {
+            bpm: None,
+            valence: Some(TrackEnrichmentRealFact {
+                value: 0.4,
+                confidence: 1.0,
+            }),
+            arousal: Some(TrackEnrichmentRealFact {
+                value: 0.75,
+                confidence: 1.0,
+            }),
+            moods: Some(r#"{"happy":0.7,"excited":0.5}"#.into()),
+        };
+        store_track_enrichment_facts(&store, "s1", "t1", "abc", &facts, 10).unwrap();
+        let repo = FactRepository::new(&store);
+        let mood_tags: Vec<_> = repo
+            .get("s1", "t1", &[], 20)
+            .unwrap()
+            .into_iter()
+            .filter(|r| r.fact_kind == "mood_tag")
+            .map(|r| r.value_text.as_deref().unwrap_or("").to_string())
+            .collect();
+        assert_ne!(mood_tags, vec!["happy", "excited"]);
+        assert!(!mood_tags.is_empty());
+    }
+
+    #[test]
+    fn store_writes_mood_tag_rows_from_moods_json_when_va_missing() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "s1", "t1");
         let facts = TrackEnrichmentFacts {

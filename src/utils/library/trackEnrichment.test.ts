@@ -9,6 +9,7 @@ import {
   resolveDisplayBpm,
   topMoodLabelIds,
 } from './trackEnrichment';
+import { topOximediaMoodTagIds } from '../../config/moodGroups';
 
 const t = ((key: string, opts?: Record<string, unknown>) => {
   if (key === 'queue.bpm') return `${opts?.bpm} BPM`;
@@ -37,7 +38,7 @@ describe('parseTrackEnrichmentFacts', () => {
     expect(parsed.moodLabels).toEqual(['calm', 'peaceful']);
   });
 
-  it('derives mood labels from valence/arousal when moods fact missing', () => {
+  it('derives mood labels from valence/arousal with soft scoring', () => {
     const parsed = parseTrackEnrichmentFacts(
       [
         {
@@ -46,7 +47,7 @@ describe('parseTrackEnrichmentFacts', () => {
           factKind: 'valence',
           sourceKind: 'analysis',
           sourceId: 'oximedia-60s-center',
-          valueReal: 0.8,
+          valueReal: 0.55,
           confidence: 0.9,
           fetchedAt: 1,
         },
@@ -56,15 +57,53 @@ describe('parseTrackEnrichmentFacts', () => {
           factKind: 'arousal',
           sourceKind: 'analysis',
           sourceId: 'oximedia-60s-center',
-          valueReal: 0.2,
+          valueReal: 0.42,
           confidence: 0.9,
           fetchedAt: 1,
         },
       ],
       null,
     );
-    expect(parsed.moodLabels).toContain('calm');
-    expect(parsed.moodLabels).toContain('peaceful');
+    expect(parsed.moodLabels.some(id => id === 'calm' || id === 'peaceful')).toBe(true);
+  });
+
+  it('prefers valence/arousal over quadrant moods json in facts', () => {
+    const parsed = parseTrackEnrichmentFacts(
+      [
+        {
+          serverId: 's1',
+          trackId: 't1',
+          factKind: 'moods',
+          sourceKind: 'analysis',
+          sourceId: 'oximedia-60s-center',
+          valueText: '{"happy":0.9,"excited":0.8}',
+          confidence: 0.9,
+          fetchedAt: 1,
+        },
+        {
+          serverId: 's1',
+          trackId: 't1',
+          factKind: 'valence',
+          sourceKind: 'analysis',
+          sourceId: 'oximedia-60s-center',
+          valueReal: 0.55,
+          confidence: 0.9,
+          fetchedAt: 1,
+        },
+        {
+          serverId: 's1',
+          trackId: 't1',
+          factKind: 'arousal',
+          sourceKind: 'analysis',
+          sourceId: 'oximedia-60s-center',
+          valueReal: 0.42,
+          confidence: 0.9,
+          fetchedAt: 1,
+        },
+      ],
+      null,
+    );
+    expect(parsed.moodLabels).not.toEqual(['happy', 'excited']);
   });
 });
 
@@ -101,8 +140,8 @@ describe('topMoodLabelIds', () => {
 });
 
 describe('deriveMoodScores', () => {
-  it('matches high-valence low-arousal quadrant', () => {
-    const scores = deriveMoodScores(0.8, 0.2);
-    expect(Object.keys(scores)).toEqual(expect.arrayContaining(['calm', 'peaceful']));
+  it('delegates to soft valence/arousal scoring', () => {
+    const scores = deriveMoodScores(0.55, 0.42);
+    expect(topOximediaMoodTagIds(scores, 2).some(id => id === 'calm' || id === 'peaceful')).toBe(true);
   });
 });

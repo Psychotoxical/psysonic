@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { TrackFactDto } from '../../api/library';
-import { topOximediaMoodTagIds } from '../../config/moodGroups';
+import { topOximediaMoodTagIds, moodScoresFromValenceArousal } from '../../config/moodGroups';
 
 /** Matches `psysonic_library::enrichment::OXIMEDIA_ENRICHMENT_*`. */
 export const OXIMEDIA_ENRICHMENT_SOURCE_KIND = 'analysis';
@@ -48,12 +48,15 @@ export function parseTrackEnrichmentFacts(
     .filter(Boolean)
     .slice(0, 3);
   const fromValenceArousal =
-    valence != null && arousal != null ? topOximediaMoodTagIds(deriveMoodScores(valence, arousal)) : [];
+    valence != null && arousal != null
+      ? topOximediaMoodTagIds(moodScoresFromValenceArousal(valence, arousal))
+      : [];
   const moodLabels =
-    (fromMoodsJson.length > 0 ? fromMoodsJson : null)
+    (fromValenceArousal.length > 0 ? fromValenceArousal : null)
     ?? (fromMoodTags.length > 0 ? fromMoodTags : null)
+    ?? (fromMoodsJson.length > 0 ? fromMoodsJson : null)
     ?? (fromLegacy && fromLegacy.length > 0 ? fromLegacy : null)
-    ?? fromValenceArousal;
+    ?? [];
 
   return {
     serverBpm: hotBpm,
@@ -89,21 +92,9 @@ function parseMoodLabelsArray(raw: string | null | undefined): string[] | null {
   }
 }
 
-/** Mirror oximedia `map_to_moods` — display fallback when only valence/arousal exist. */
+/** @deprecated Use `moodScoresFromValenceArousal` — oximedia quadrant copy. */
 export function deriveMoodScores(valence: number, arousal: number): Record<string, number> {
-  if (valence > 0 && arousal > 0.5) {
-    return { happy: (valence + arousal) / 2, excited: arousal };
-  }
-  if (valence > 0 && arousal <= 0.5) {
-    return { calm: valence * (1 - arousal), peaceful: (valence + (1 - arousal)) / 2 };
-  }
-  if (valence <= 0 && arousal > 0.5) {
-    return { angry: arousal * Math.abs(valence), tense: arousal };
-  }
-  return {
-    sad: Math.abs(valence) * (1 - arousal),
-    melancholic: (Math.abs(valence) + (1 - arousal)) / 2,
-  };
+  return moodScoresFromValenceArousal(valence, arousal);
 }
 
 /** @deprecated Use `topOximediaMoodTagIds` from `config/moodGroups`. */

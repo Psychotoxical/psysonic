@@ -400,9 +400,11 @@ mod tests {
         let id = "test-cancel-offline-dl";
         clear_offline_cancel(id.to_string());
         cancel_offline_downloads(vec![id.to_string()]);
-        let flags = offline_cancel_flags().lock().unwrap();
-        let flag = flags.get(id).expect("cancel flag registered");
-        assert!(flag.load(Ordering::Relaxed));
+        {
+            let flags = offline_cancel_flags().lock().unwrap();
+            let flag = flags.get(id).expect("cancel flag registered");
+            assert!(flag.load(Ordering::Relaxed));
+        }
         clear_offline_cancel(id.to_string());
     }
 

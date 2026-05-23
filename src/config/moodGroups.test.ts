@@ -4,6 +4,7 @@ import {
   MOOD_GROUPS,
   OXIMEDIA_MOOD_TAG_IDS,
   TOP_OXIMEDIA_MOOD_TAG_TEST_SCORES,
+  moodScoresFromValenceArousal,
   topOximediaMoodTagIds,
 } from './moodGroups';
 
@@ -31,6 +32,18 @@ describe('moodGroups catalog invariants', () => {
 
   it('anger group tags match Rust expand_mood_groups', () => {
     expect(MOOD_GROUPS.find(g => g.id === 'anger')?.tags).toEqual(['angry', 'tense']);
+  });
+});
+
+describe('moodScoresFromValenceArousal', () => {
+  it('does not collapse typical oximedia pop to only happy and excited', () => {
+    const labels = topOximediaMoodTagIds(moodScoresFromValenceArousal(0.4, 0.75), 3);
+    expect(labels).not.toEqual(['happy', 'excited']);
+  });
+
+  it('prefers calm or peaceful for low arousal', () => {
+    const labels = topOximediaMoodTagIds(moodScoresFromValenceArousal(0.55, 0.42), 2);
+    expect(labels.some(id => id === 'calm' || id === 'peaceful')).toBe(true);
   });
 });
 
