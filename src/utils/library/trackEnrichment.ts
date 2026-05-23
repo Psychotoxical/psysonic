@@ -31,14 +31,23 @@ function isOximediaFact(f: TrackFactDto): boolean {
   );
 }
 
+function pickBestAnalysisBpmFact(facts: readonly TrackFactDto[]): TrackFactDto | undefined {
+  let best: TrackFactDto | undefined;
+  for (const f of facts) {
+    if (f.factKind !== 'bpm') continue;
+    if (f.sourceKind !== 'analysis') continue;
+    if (f.valueInt == null || f.valueInt <= 0) continue;
+    if (!best || (f.confidence ?? 0) > (best.confidence ?? 0)) best = f;
+  }
+  return best;
+}
+
 export function parseTrackEnrichmentFacts(
   facts: readonly TrackFactDto[],
   serverBpm: number | null | undefined,
 ): ParsedTrackEnrichment {
   const oximedia = facts.filter(isOximediaFact);
-  const measured = oximedia.find(
-    f => f.factKind === 'bpm' && f.valueInt != null && f.valueInt > 0,
-  );
+  const measured = pickBestAnalysisBpmFact(facts);
   const moodsFact = oximedia.find(f => f.factKind === 'moods' && f.valueText);
   const legacyLabelsFact = oximedia.find(f => f.factKind === 'mood_labels' && f.valueText);
   const moodTagFacts = facts.filter(
@@ -108,17 +117,17 @@ export function deriveMoodScores(valence: number, arousal: number): Record<strin
 /** @deprecated Use `topDistinctOximediaMoodTagIdsFromValenceArousal`. */
 export { topDistinctOximediaMoodTagIdsFromValenceArousal as topMoodLabelIds } from '../../config/moodGroups';
 
-/** Tag BPM when present; otherwise oximedia measured BPM. */
+/** Analysis/measured BPM when present; otherwise file tag BPM. */
 export function resolveDisplayBpm(
   tagBpm: number | null | undefined,
   measuredBpm: number | null | undefined,
 ): number | null {
-  if (tagBpm != null && tagBpm > 0) return tagBpm;
   if (measuredBpm != null && measuredBpm > 0) return measuredBpm;
+  if (tagBpm != null && tagBpm > 0) return tagBpm;
   return null;
 }
 
-/** Server BPM wins; measured BPM is the fallback. */
+/** Analysis fact wins; tag BPM is shown until a fact is stored. */
 export function resolveQueueBpm(data: ParsedTrackEnrichment): number | null {
   return resolveDisplayBpm(data.serverBpm, data.measuredBpm);
 }

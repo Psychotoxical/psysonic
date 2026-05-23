@@ -57,11 +57,46 @@ describe('parseTrackEnrichmentFacts', () => {
     );
     expect(parsed.moodLabels).toEqual([]);
   });
+
+  it('reads analysis bpm fact with highest confidence', () => {
+    const parsed = parseTrackEnrichmentFacts(
+      [
+        {
+          serverId: 's1',
+          trackId: 't1',
+          factKind: 'bpm',
+          sourceKind: 'analysis',
+          sourceId: 'oximedia-60s-center',
+          valueInt: 128,
+          confidence: 0.9,
+          fetchedAt: 1,
+        },
+        {
+          serverId: 's1',
+          trackId: 't1',
+          factKind: 'bpm',
+          sourceKind: 'analysis',
+          sourceId: 'other',
+          valueInt: 110,
+          confidence: 0.5,
+          fetchedAt: 1,
+        },
+      ],
+      120,
+    );
+    expect(parsed.measuredBpm).toBe(128);
+    expect(parsed.serverBpm).toBe(120);
+    expect(resolveQueueBpm(parsed)).toBe(128);
+  });
 });
 
 describe('resolveQueueBpm', () => {
-  it('prefers server bpm over measured', () => {
-    expect(resolveQueueBpm({ serverBpm: 120, measuredBpm: 128, moodLabels: [] })).toBe(120);
+  it('prefers measured analysis bpm over tag', () => {
+    expect(resolveQueueBpm({ serverBpm: 120, measuredBpm: 128, moodLabels: [] })).toBe(128);
+  });
+
+  it('falls back to tag bpm when no analysis fact', () => {
+    expect(resolveQueueBpm({ serverBpm: 120, measuredBpm: null, moodLabels: [] })).toBe(120);
   });
 
   it('falls back to measured when tag bpm missing', () => {
@@ -77,7 +112,7 @@ describe('resolveDisplayBpm', () => {
 
 describe('formatters', () => {
   it('formats bpm for tech row', () => {
-    expect(formatQueueBpmTech({ serverBpm: 120, measuredBpm: 128, moodLabels: [] }, t)).toBe('120 BPM');
+    expect(formatQueueBpmTech({ serverBpm: 120, measuredBpm: 128, moodLabels: [] }, t)).toBe('128 BPM');
   });
 
   it('localizes mood labels without weights', () => {
