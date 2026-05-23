@@ -3,6 +3,7 @@
 //! (which constructs the gapless source chain) and `audio_play` (which
 //! starts playback). All three live in this audio submodule.
 
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
@@ -10,7 +11,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use super::analysis_dispatch::{
-    dispatch_track_analysis_bytes, prepare_playback_analysis, TrackAnalysisOrigin,
+    dispatch_track_analysis_bytes, prepare_playback_analysis, spawn_track_analysis_file,
+    TrackAnalysisOrigin,
 };
 use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::{analysis_cache_track_id, same_playback_target};
@@ -23,7 +25,7 @@ struct PreloadEventPayload {
     track_id: Option<String>,
 }
 
-async fn seed_preload_analysis(
+async fn seed_preload_analysis_bytes(
     app: &AppHandle,
     state: &State<'_, AudioEngine>,
     url: &str,
@@ -31,28 +33,63 @@ async fn seed_preload_analysis(
     analysis_track_id: Option<&str>,
     server_id: Option<&str>,
 ) {
-    if let Some(track_id) = analysis_cache_track_id(analysis_track_id, url) {
-        let (sid, high) = prepare_playback_analysis(
-            app,
-            state,
-            server_id,
-            &track_id,
-            // Next-track prefetch — never steal CPU from the audible track.
-            Some(false),
-        );
-        if let Err(e) = dispatch_track_analysis_bytes(
-            app,
-            TrackAnalysisOrigin::PrefetchOrCacheFile,
-            &sid,
-            &track_id,
-            data.to_vec(),
-            high,
-        )
-        .await
-        {
-            crate::app_eprintln!("[analysis] preload seed failed for {track_id}: {e}");
-        }
+    let Some(track_id) = analysis_cache_track_id(analysis_track_id, url) else {
+        return;
+    };
+    let (sid, high) = prepare_playback_analysis(
+        app,
+        state,
+        server_id,
+        &track_id,
+        // Next-track prefetch — never steal CPU from the audible track.
+        Some(false),
+    );
+    if let Err(e) = dispatch_track_analysis_bytes(
+        app,
+        TrackAnalysisOrigin::PrefetchOrCacheFile,
+        &sid,
+        &track_id,
+        data.to_vec(),
+        high,
+    )
+    .await
+    {
+        crate::app_eprintln!("[analysis] preload seed failed for {track_id}: {e}");
     }
+}
+
+fn seed_preload_analysis_file(
+    app: &AppHandle,
+    state: &State<'_, AudioEngine>,
+    url: &str,
+    file_path: PathBuf,
+    analysis_track_id: Option<&str>,
+    server_id: Option<&str>,
+) {
+    let Some(track_id) = analysis_cache_track_id(analysis_track_id, url) else {
+        return;
+    };
+    let (sid, high) = prepare_playback_analysis(
+        app,
+        state,
+        server_id,
+        &track_id,
+        Some(false),
+    );
+    crate::app_deprintln!(
+        "[stream] audio_preload: local file analysis track_id={} path={}",
+        track_id,
+        file_path.display()
+    );
+    spawn_track_analysis_file(
+        app.clone(),
+        TrackAnalysisOrigin::LocalFilePlayback,
+        sid,
+        track_id,
+        file_path,
+        high,
+        None,
+    );
 }
 
 fn emit_preload_ready(app: &AppHandle, url: String, track_id: Option<String>) {
@@ -90,7 +127,33 @@ pub async fn audio_preload(
         .filter(|s| !s.is_empty());
     let track_id_for_events = logical_trim.clone();
 
-    // RAM slot already holds this URL — still run analysis if the planner says work is needed.
+    let is_local = url.starts_with("psysonic-local://");
+
+    // Hot/offline cache: playback reads from disk — seed analysis from the file
+    // (512 MiB cap) without copying into the RAM preload slot.
+    if is_local {
+        let path = PathBuf::from(url.strip_prefix("psysonic-local://").unwrap());
+        if !path.is_file() {
+            crate::app_deprintln!(
+                "[stream] audio_preload: local file missing path={}",
+                path.display()
+            );
+            emit_preload_cancelled(&app, url, track_id_for_events);
+            return Ok(());
+        }
+        seed_preload_analysis_file(
+            &app,
+            &state,
+            &url,
+            path,
+            logical_trim.as_deref(),
+            server_id.as_deref(),
+        );
+        emit_preload_ready(&app, url, track_id_for_events);
+        return Ok(());
+    }
+
+    // Remote URL — reuse in-memory bytes when a prior HTTP preload finished.
     {
         let cached = {
             let preloaded = state.preloaded.lock().unwrap();
@@ -101,7 +164,7 @@ pub async fn audio_preload(
         };
         if let Some(data) = cached {
             if !data.is_empty() {
-                seed_preload_analysis(
+                seed_preload_analysis_bytes(
                     &app,
                     &state,
                     &url,
@@ -111,40 +174,31 @@ pub async fn audio_preload(
                 )
                 .await;
             }
-            emit_preload_ready(&app, url, track_id_for_events);
             return Ok(());
         }
     }
-
-    let is_local = url.starts_with("psysonic-local://");
-    // Local hot-cache reads are cheap — skip the HTTP throttle so enrichment can start early.
-    if !is_local {
-        // Throttle: wait 8 s before starting the background download so it does not
-        // compete with the decode + sink-feed work of the just-started current track.
-        // If the user skips during the wait the generation counter changes and we abort.
-        let gen_snapshot = state.generation.load(Ordering::Relaxed);
-        tokio::time::sleep(Duration::from_secs(8)).await;
-        if state.generation.load(Ordering::Relaxed) != gen_snapshot {
-            emit_preload_cancelled(&app, url, track_id_for_events);
-            return Ok(());
-        }
-    }
-
-    let data: Vec<u8> = if let Some(path) = url.strip_prefix("psysonic-local://") {
-        tokio::fs::read(path).await.map_err(|e| e.to_string())?
-    } else {
-        let response = audio_http_client(&state).get(&url).send().await.map_err(|e| e.to_string())?;
-        if !response.status().is_success() {
-            emit_preload_cancelled(&app, url, track_id_for_events);
-            return Ok(());
-        }
-        response.bytes().await.map_err(|e| e.to_string())?.into()
-    };
 
     let _ = duration_hint; // kept in API for compatibility
 
+    // Throttle: wait 8 s before starting the background download so it does not
+    // compete with the decode + sink-feed work of the just-started current track.
+    // If the user skips during the wait the generation counter changes and we abort.
+    let gen_snapshot = state.generation.load(Ordering::Relaxed);
+    tokio::time::sleep(Duration::from_secs(8)).await;
+    if state.generation.load(Ordering::Relaxed) != gen_snapshot {
+        emit_preload_cancelled(&app, url, track_id_for_events);
+        return Ok(());
+    }
+
+    let response = audio_http_client(&state).get(&url).send().await.map_err(|e| e.to_string())?;
+    if !response.status().is_success() {
+        emit_preload_cancelled(&app, url, track_id_for_events);
+        return Ok(());
+    }
+    let data: Vec<u8> = response.bytes().await.map_err(|e| e.to_string())?.into();
+
     if !data.is_empty() {
-        seed_preload_analysis(
+        seed_preload_analysis_bytes(
             &app,
             &state,
             &url,

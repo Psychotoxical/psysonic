@@ -232,8 +232,8 @@ export function handleAudioProgress(
     shouldBytePreloadFromMode ||
     shouldBytePreloadForCrossfade
   );
-  // Hot cache serves playback from disk; still queue enrichment via audio_preload (local read).
-  const shouldPreloadHotCacheAnalysis = hotCacheEnabled && preloadMode !== 'off' && (
+  // Hot/offline cache: seed enrichment from disk (playback also uses psysonic-local://).
+  const shouldPreloadLocalFileAnalysis = preloadMode !== 'off' && (
     preloadMode === 'early'
       ? current_time >= 5
       : preloadMode === 'custom'
@@ -241,7 +241,7 @@ export function handleAudioProgress(
         : remaining < 30 && remaining > 0
   );
 
-  if (shouldChainGapless || shouldBytePreload || shouldPreloadHotCacheAnalysis || gaplessEnabled) {
+  if (shouldChainGapless || shouldBytePreload || shouldPreloadLocalFileAnalysis || gaplessEnabled) {
     const { queue, queueIndex, repeatMode } = store;
     const nextIdx = queueIndex + 1;
     const nextTrack = repeatMode === 'one'
@@ -268,11 +268,11 @@ export function handleAudioProgress(
 
     const serverId = getPlaybackServerId();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
-    const nextIsHotLocal = hotCacheEnabled && nextUrl.startsWith('psysonic-local://');
+    const nextIsLocalFile = nextUrl.startsWith('psysonic-local://');
 
     // Byte pre-download — runs early so bytes are cached by chain time.
     if (
-      (shouldBytePreload || shouldBytePreloadForGaplessBackup || (shouldPreloadHotCacheAnalysis && nextIsHotLocal))
+      (shouldBytePreload || shouldBytePreloadForGaplessBackup || (shouldPreloadLocalFileAnalysis && nextIsLocalFile))
       && nextTrack.id !== getBytePreloadingId()
     ) {
       setBytePreloadingId(nextTrack.id);
@@ -285,8 +285,8 @@ export function handleAudioProgress(
           nextUrl,
           shouldBytePreload,
           shouldBytePreloadForGaplessBackup,
-          shouldPreloadHotCacheAnalysis,
-          nextIsHotLocal,
+          shouldPreloadLocalFileAnalysis,
+          nextIsLocalFile,
           remaining,
           gaplessEnabled,
         });

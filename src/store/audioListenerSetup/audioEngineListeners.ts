@@ -155,7 +155,6 @@ export function setupAudioEngineListeners(): () => void {
     }),
     listen<PreloadEventPayload>('audio:preload-ready', ({ payload }) => {
       const tid = payload.trackId ?? streamUrlTrackId(payload.url);
-      setBytePreloadingId(null);
       if (import.meta.env.DEV) {
         console.info('[psysonic][preload-ready]', {
           payload,
