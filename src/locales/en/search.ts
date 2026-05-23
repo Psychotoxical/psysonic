@@ -23,6 +23,9 @@ export const search = {
   advancedYearFrom: 'from',
   advancedYearTo: 'to',
   advancedBpm: 'BPM',
+  advancedMoodGroup: 'Mood',
+  advancedAllMoods: 'All moods',
+  advancedMoodLocalNote: 'Requires local library index and track analysis',
   advancedAll: 'All',
   advancedSearch: 'Search',
   advancedEmpty: 'Enter a search term or select a filter to begin.',
@@ -48,4 +51,11 @@ export const search = {
   shareQueuePreviewLoading: 'Loading tracks…',
   shareQueuePreviewEmpty: 'No tracks from this link could be found on the server.',
   shareQueuePreviewSkipped: '{{skipped}} of {{total}} tracks were not found on this server.',
+  moodGroups: {
+    joy: 'Joy',
+    sadness: 'Sadness',
+    dance: 'Dance',
+    work: 'Work',
+    romance: 'Romance',
+  },
 };

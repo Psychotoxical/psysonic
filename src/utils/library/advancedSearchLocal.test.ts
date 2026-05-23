@@ -9,6 +9,7 @@ const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) 
   genre: '',
   yearFrom: '',
   yearTo: '',
+  moodGroup: '',
   resultType: 'all' as const,
   ...over,
 });
@@ -56,6 +57,25 @@ describe('runLocalAdvancedSearch', () => {
     });
     await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(captured).toMatchObject({ request: { libraryScope: 'lib7' } });
+  });
+
+  it('passes mood_group filter to library_advanced_search', async () => {
+    ready();
+    let captured: unknown;
+    onInvoke('library_advanced_search', (args) => {
+      captured = args;
+      return {
+        artists: [],
+        albums: [],
+        tracks: [],
+        totals: { artists: 0, albums: 0, tracks: 0 },
+        source: 'local',
+      };
+    });
+    await runLocalAdvancedSearch('s1', opts({ moodGroup: 'joy' }), 100);
+    expect(captured).toMatchObject({
+      request: { filters: [{ field: 'mood_group', op: 'eq', value: 'joy' }] },
+    });
   });
 
   it('prefers rawJson, falls back to hot columns, and reports the full total', async () => {

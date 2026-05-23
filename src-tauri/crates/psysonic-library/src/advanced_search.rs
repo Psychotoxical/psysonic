@@ -18,6 +18,7 @@ use crate::dto::{
     LibraryFilterClause, LibrarySearchTotals, LibrarySortClause, LibraryTrackDto, SortDir,
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
+use crate::mood_groups;
 use crate::repos;
 use crate::search::{
     aliased_track_columns, fts_album_prefix_match_query, fts_column_prefix_query,
@@ -679,6 +680,9 @@ fn resolve_clause(
         // table has no `starred_at` column — skip rather than error.
         ("starred", EntityKind::Artist) => return Ok(None),
         ("bpm", EntityKind::Track) => BPM_RESOLVED_EXPR,
+        ("mood_group" | "mood_tag", EntityKind::Track) => {
+            return resolve_mood_clause(c);
+        }
         // `text` is handled by the entity builder (FTS / LIKE), never here.
         ("text", _) => return Ok(None),
         // Registered but no v1 SQL builder (user_rating / suffix / bit_rate).
@@ -703,6 +707,99 @@ fn resolve_clause(
     filter::compare_fragment(&c.field, col, c.op, value, value_to)
         .map(Some)
         .map_err(|e| e.to_string())
+}
+
+fn resolve_mood_clause(c: &LibraryFilterClause) -> Result<Option<SqlFragment>, String> {
+    let tags = match c.field.as_str() {
+        "mood_group" => {
+            let group_ids = json_to_string_list(&c.field, c.op, c.value.as_ref())?;
+            mood_groups::expand_mood_groups(&group_ids).map_err(|detail| {
+                filter::FilterError::BadValue {
+                    field: c.field.clone(),
+                    detail,
+                }
+                .to_string()
+            })?
+        }
+        "mood_tag" => {
+            let tag_ids = json_to_string_list(&c.field, c.op, c.value.as_ref())?;
+            mood_groups::normalize_mood_tags(&tag_ids).map_err(|detail| {
+                filter::FilterError::BadValue {
+                    field: c.field.clone(),
+                    detail,
+                }
+                .to_string()
+            })?
+        }
+        _ => unreachable!("resolve_mood_clause called for non-mood field"),
+    };
+    Ok(Some(mood_tag_exists_fragment(&tags)))
+}
+
+fn mood_tag_exists_fragment(tags: &[String]) -> SqlFragment {
+    let placeholders = (0..tags.len()).map(|_| "?").collect::<Vec<_>>().join(", ");
+    SqlFragment {
+        sql: format!(
+            "EXISTS (SELECT 1 FROM track_fact mf \
+             WHERE mf.server_id = t.server_id AND mf.track_id = t.id \
+               AND mf.fact_kind = 'mood_tag' AND mf.value_text IN ({placeholders}))"
+        ),
+        params: tags
+            .iter()
+            .map(|t| SqlValue::Text(t.clone()))
+            .collect(),
+    }
+}
+
+fn json_to_string_list(
+    field: &str,
+    op: FilterOp,
+    v: Option<&Value>,
+) -> Result<Vec<String>, String> {
+    match op {
+        FilterOp::Eq => {
+            let s = json_to_text(field, v)?;
+            Ok(vec![match s {
+                SqlValue::Text(t) => t,
+                _ => unreachable!(),
+            }])
+        }
+        FilterOp::In => match v {
+            Some(Value::Array(items)) => {
+                if items.is_empty() {
+                    return Err(filter::FilterError::BadValue {
+                        field: field.to_string(),
+                        detail: "operator `in` requires a non-empty array".to_string(),
+                    }
+                    .to_string());
+                }
+                let mut out = Vec::with_capacity(items.len());
+                for item in items {
+                    match item {
+                        Value::String(s) => out.push(s.clone()),
+                        _ => {
+                            return Err(filter::FilterError::BadValue {
+                                field: field.to_string(),
+                                detail: "expected an array of strings".to_string(),
+                            }
+                            .to_string());
+                        }
+                    }
+                }
+                Ok(out)
+            }
+            _ => Err(filter::FilterError::BadValue {
+                field: field.to_string(),
+                detail: "operator `in` requires an array value".to_string(),
+            }
+            .to_string()),
+        }
+        _ => Err(filter::FilterError::UnsupportedOp {
+            field: field.to_string(),
+            op: op.as_str(),
+        }
+        .to_string()),
+    }
 }
 
 // ── query execution ────────────────────────────────────────────────────
@@ -1330,6 +1427,60 @@ mod tests {
         r.filters = vec![clause("bpm", FilterOp::Between, Some(json!(125)), Some(json!(130)))];
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.tracks.len(), 1, "bpm should resolve via track_fact fallback");
+    }
+
+    // ── mood tag / group filters ─────────────────────────────────────
+
+    fn insert_mood_tag(store: &LibraryStore, server: &str, track: &str, tag: &str) {
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO track_fact \
+                     (server_id, track_id, fact_kind, value_text, source_kind, source_id, confidence, fetched_at) \
+                     VALUES (?1, ?2, 'mood_tag', ?3, 'analysis', ?4, 1.0, 1)",
+                    rusqlite::params![server, track, tag, format!("oximedia-60s-center:{tag}")],
+                )
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn mood_group_in_joy_matches_happy_tag() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "A", "X", "Alb"),
+                track("s1", "t2", "B", "X", "Alb"),
+            ])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t1", "happy");
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause(
+            "mood_group",
+            FilterOp::In,
+            Some(json!(["joy"])),
+            None,
+        )];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn mood_tag_eq_calm_matches_calm_fact() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "A", "X", "Alb"),
+                track("s1", "t2", "B", "X", "Alb"),
+            ])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t2", "calm");
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("mood_tag", FilterOp::Eq, Some(json!("calm")), None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t2");
     }
 
     // ── entity routing / errors ────────────────────────────────────────

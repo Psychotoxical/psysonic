@@ -137,6 +137,21 @@ pub async fn enqueue_analysis_seed(
 ) -> Result<bool, String> {
     if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
         if cache.cpu_seed_redundant_for_track(server_id, track_id).unwrap_or(false) {
+            if !server_id.is_empty() {
+                let app2 = app.clone();
+                let sid = server_id.to_string();
+                let tid = track_id.to_string();
+                let data = bytes.to_vec();
+                let _ = tokio::task::spawn_blocking(move || {
+                    crate::track_enrichment::run_track_enrichment_if_needed(
+                        &app2,
+                        &sid,
+                        &tid,
+                        &data,
+                    )
+                })
+                .await;
+            }
             return Ok(true);
         }
     }

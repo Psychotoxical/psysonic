@@ -23,6 +23,9 @@ export const search = {
   advancedYearFrom: 'от',
   advancedYearTo: 'до',
   advancedBpm: 'BPM',
+  advancedMoodGroup: 'Настроение',
+  advancedAllMoods: 'Все настроения',
+  advancedMoodLocalNote: 'Только локальный индекс и анализ треков',
   advancedAll: 'Все',
   advancedSearch: 'Найти',
   advancedEmpty: 'Введите запрос или выберите фильтр.',
@@ -52,4 +55,11 @@ export const search = {
   shareQueuePreviewLoading: 'Загрузка треков…',
   shareQueuePreviewEmpty: 'Треки из этой ссылки не найдены на сервере.',
   shareQueuePreviewSkipped: '{{skipped}} из {{total}} треков не найдено на этом сервере.',
+  moodGroups: {
+    joy: 'Радость',
+    sadness: 'Грусть',
+    dance: 'Танцы',
+    work: 'Работа',
+    romance: 'Романтика',
+  },
 };

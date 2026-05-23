@@ -5,10 +5,11 @@ use ebur128::{EbuR128, Mode as Ebur128Mode};
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::{Decoder, DecoderOptions, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error as SymphoniaError;
-use symphonia::core::formats::{FormatOptions, FormatReader};
+use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
+use symphonia::core::units::Time;
 use tauri::Manager;
 
 use super::store::{now_unix_ts, AnalysisCache, LoudnessEntry, TrackKey, WaveformEntry};
@@ -68,6 +69,14 @@ pub fn seed_from_bytes_execute(
         if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
             sink.record_content_hash(server_id, track_id, &md5_16kb);
         }
+    }
+    if !server_id.is_empty() {
+        let _ = crate::track_enrichment::run_track_enrichment_if_needed(
+            app,
+            server_id,
+            track_id,
+            bytes,
+        );
     }
     Ok(outcome)
 }
@@ -195,7 +204,7 @@ pub fn seed_from_bytes_into_cache(
     }
 }
 
-fn md5_first_16kb(bytes: &[u8]) -> String {
+pub fn md5_first_16kb(bytes: &[u8]) -> String {
     let n = bytes.len().min(16 * 1024);
     format!("{:x}", md5::compute(&bytes[..n]))
 }
@@ -529,6 +538,169 @@ fn decode_scan_pcm(
     Some(PcmScanResult { bins, loudness })
 }
 
+/// PCM window for short MIR-style analysis (typically 60 s from track center).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PcmAnalysisWindow {
+    pub start_sec: f64,
+    pub duration_sec: f64,
+}
+
+/// Pick a centered analysis window, or the full track when shorter than `window_sec`.
+pub fn analysis_pcm_window(total_duration_sec: f64, window_sec: f64) -> PcmAnalysisWindow {
+    let total = total_duration_sec.max(0.0);
+    let window = window_sec.max(0.1);
+    if total <= window || !total.is_finite() {
+        return PcmAnalysisWindow {
+            start_sec: 0.0,
+            duration_sec: if total > 0.0 { total } else { window },
+        };
+    }
+    let start = ((total - window) / 2.0).max(0.0);
+    PcmAnalysisWindow {
+        start_sec: start,
+        duration_sec: window,
+    }
+}
+
+/// Best-effort container duration from codec metadata (seconds).
+pub fn audio_duration_from_bytes(bytes: &[u8]) -> Option<f64> {
+    let session = open_decode_session(bytes)?;
+    let sample_rate = session
+        .format
+        .default_track()
+        .or_else(|| session.format.tracks().first())
+        .and_then(|t| t.codec_params.sample_rate)
+        .filter(|&sr| sr > 0)?;
+    let frames = session.timeline_hint?;
+    Some(frames as f64 / sample_rate as f64)
+}
+
+/// Decode mono PCM for a time window. Seeks when `start_sec > 0`.
+pub fn decode_mono_pcm_window(
+    bytes: &[u8],
+    start_sec: f64,
+    window_sec: f64,
+) -> Result<(Vec<f32>, f32), String> {
+    if bytes.is_empty() {
+        return Err("empty audio buffer".to_string());
+    }
+    let DecodeSession {
+        mut format,
+        mut decoder,
+        track_id,
+        ..
+    } = open_decode_session(bytes).ok_or_else(|| "failed to open audio decode session".to_string())?;
+
+    if start_sec.is_finite() && start_sec > 0.0 {
+        let time: Time = start_sec.max(0.0).into();
+        format
+            .seek(
+                SeekMode::Accurate,
+                SeekTo::Time {
+                    time,
+                    track_id: Some(track_id),
+                },
+            )
+            .map_err(|e| format!("pcm window seek failed: {e}"))?;
+    }
+
+    decode_mono_pcm_from_session(&mut format, &mut decoder, track_id, Some(window_sec))
+}
+
+/// Decode audio bytes to mono f32 PCM, optionally capped at `max_seconds`.
+pub fn decode_mono_pcm_limited(
+    bytes: &[u8],
+    max_seconds: Option<f64>,
+) -> Result<(Vec<f32>, f32), String> {
+    if bytes.is_empty() {
+        return Err("empty audio buffer".to_string());
+    }
+    let DecodeSession {
+        mut format,
+        mut decoder,
+        track_id,
+        ..
+    } = open_decode_session(bytes).ok_or_else(|| "failed to open audio decode session".to_string())?;
+    decode_mono_pcm_from_session(&mut format, &mut decoder, track_id, max_seconds)
+}
+
+fn decode_mono_pcm_from_session(
+    format: &mut Box<dyn FormatReader>,
+    decoder: &mut Box<dyn Decoder>,
+    track_id: u32,
+    max_seconds: Option<f64>,
+) -> Result<(Vec<f32>, f32), String> {
+    let mut mono = Vec::new();
+    let mut sample_rate = 0_f32;
+    let mut max_frames: Option<u64> = None;
+    let mut loop_i: u32 = 0;
+
+    while let Ok(packet) = format.next_packet() {
+        if packet.track_id() != track_id {
+            continue;
+        }
+        let decoded = match decoder.decode(&packet) {
+            Ok(buf) => buf,
+            Err(SymphoniaError::DecodeError(_)) => continue,
+            Err(SymphoniaError::ResetRequired) => break,
+            Err(_) => break,
+        };
+
+        let spec = *decoded.spec();
+        let n_ch = spec.channels.count();
+        if n_ch == 0 {
+            continue;
+        }
+        if sample_rate <= 0.0 {
+            sample_rate = spec.rate as f32;
+            if sample_rate <= 0.0 {
+                return Err("invalid sample rate".to_string());
+            }
+            max_frames = max_seconds.and_then(|sec| {
+                if sec.is_finite() && sec > 0.0 {
+                    Some((sec * sample_rate as f64).max(1.0) as u64)
+                } else {
+                    None
+                }
+            });
+        }
+
+        let mut samples = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
+        samples.copy_interleaved_ref(decoded);
+        let slice = samples.samples();
+        if slice.len() < n_ch || !slice.len().is_multiple_of(n_ch) {
+            continue;
+        }
+        let frames = slice.len() / n_ch;
+        for f in 0..frames {
+            if let Some(limit) = max_frames {
+                if mono.len() as u64 >= limit {
+                    break;
+                }
+            }
+            let base = f * n_ch;
+            let mut acc = 0.0_f32;
+            for c in 0..n_ch {
+                acc += slice[base + c];
+            }
+            mono.push(acc / (n_ch as f32));
+        }
+        if max_frames.is_some_and(|limit| mono.len() as u64 >= limit) {
+            break;
+        }
+
+        loop_i = loop_i.wrapping_add(1);
+        if loop_i.is_multiple_of(128) {
+            std::thread::yield_now();
+        }
+    }
+
+    if mono.is_empty() {
+        return Err("no PCM frames decoded".to_string());
+    }
+    Ok((mono, sample_rate))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -559,6 +731,20 @@ mod tests {
         let huge_down = recommended_gain_for_target(100.0, 0.0, -100.0);
         assert_eq!(huge_up, 24.0);
         assert_eq!(huge_down, -24.0);
+    }
+
+    #[test]
+    fn analysis_pcm_window_uses_center_for_long_tracks() {
+        let w = analysis_pcm_window(180.0, 60.0);
+        assert!((w.start_sec - 60.0).abs() < 1e-9);
+        assert!((w.duration_sec - 60.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn analysis_pcm_window_uses_full_track_when_short() {
+        let w = analysis_pcm_window(45.0, 60.0);
+        assert_eq!(w.start_sec, 0.0);
+        assert!((w.duration_sec - 45.0).abs() < 1e-9);
     }
 
     // ── md5_first_16kb ────────────────────────────────────────────────────────

@@ -134,6 +134,18 @@ pub const FILTER_FIELD_REGISTRY: &[FilterField] = &[
         ops: &[FilterOp::Gte, FilterOp::Lte, FilterOp::Between],
         status: FilterStatus::SchemaV1UiLater,
     },
+    FilterField {
+        id: "mood_group",
+        entities: &[EntityKind::Track],
+        ops: &[FilterOp::Eq, FilterOp::In],
+        status: FilterStatus::V1,
+    },
+    FilterField {
+        id: "mood_tag",
+        entities: &[EntityKind::Track],
+        ops: &[FilterOp::Eq, FilterOp::In],
+        status: FilterStatus::SchemaV1UiLater,
+    },
 ];
 
 pub fn lookup(id: &str) -> Option<&'static FilterField> {

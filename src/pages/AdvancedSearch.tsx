@@ -17,6 +17,7 @@ import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearc
 import { raceSearchSources } from '../utils/library/searchRace';
 import { logLibrarySearch } from '../utils/library/libraryDevLog';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { MOOD_GROUPS } from '../config/moodGroups';
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -25,6 +26,7 @@ interface SearchOpts {
   genre: string;
   yearFrom: string;
   yearTo: string;
+  moodGroup: string;
   resultType: ResultType;
 }
 
@@ -42,6 +44,7 @@ export default function AdvancedSearch() {
   const [genre, setGenre] = useState('');
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
+  const [moodGroup, setMoodGroup] = useState('');
   const [resultType, setResultType] = useState<ResultType>('all');
   const [starredOnly, setStarredOnly] = useState(false);
   const [genres, setGenres] = useState<SubsonicGenre[]>([]);
@@ -106,8 +109,10 @@ export default function AdvancedSearch() {
 
     const q = opts.query.trim();
     const searchT0 = performance.now();
+    const moodFilterActive = !!opts.moodGroup;
 
-    if (q && serverId && indexEnabled) {
+    // Mood groups are indexed locally only — skip the network race when set.
+    if (q && serverId && indexEnabled && !moodFilterActive) {
       try {
         const winner = await raceSearchSources(
           [
@@ -155,7 +160,7 @@ export default function AdvancedSearch() {
         if (isStale()) return;
       }
       setLocalMode(false);
-    } else {
+    } else if (serverId && indexEnabled) {
       const localPage = await runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
       if (isStale()) return;
       if (localPage) {
@@ -170,7 +175,20 @@ export default function AdvancedSearch() {
         setLoading(false);
         return;
       }
+      if (moodFilterActive) {
+        setResults({ artists: [], albums: [], songs: [] });
+        setLoading(false);
+        return;
+      }
       setLocalMode(false);
+    } else {
+      setLocalMode(false);
+    }
+
+    if (moodFilterActive) {
+      setResults({ artists: [], albums: [], songs: [] });
+      setLoading(false);
+      return;
     }
 
     const { genre: g, yearFrom: yf, yearTo: yt, resultType: rt } = opts;
@@ -250,7 +268,7 @@ export default function AdvancedSearch() {
     getGenres().then(data =>
       setGenres(data.sort((a, b) => a.value.localeCompare(b.value)))
     ).catch(() => {});
-    if (qFromUrl) runSearch({ query: qFromUrl, genre: '', yearFrom: '', yearTo: '', resultType: 'all' });
+    if (qFromUrl) runSearch({ query: qFromUrl, genre: '', yearFrom: '', yearTo: '', moodGroup: '', resultType: 'all' });
   }, [musicLibraryFilterVersion, qFromUrl]);
 
   const loadMoreSongs = useCallback(async () => {
@@ -295,7 +313,7 @@ export default function AdvancedSearch() {
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    runSearch({ query, genre, yearFrom, yearTo, resultType });
+    runSearch({ query, genre, yearFrom, yearTo, moodGroup, resultType });
   };
 
   const typeOptions: { id: ResultType; label: string }[] = [
@@ -309,6 +327,17 @@ export default function AdvancedSearch() {
     { value: '', label: t('search.advancedAllGenres') },
     ...genres.map(g => ({ value: g.value, label: g.value })),
   ];
+
+  const moodSelectOptions = useMemo(
+    () => [
+      { value: '', label: t('search.advancedAllMoods') },
+      ...MOOD_GROUPS.map(g => ({
+        value: g.id,
+        label: t(`search.moodGroups.${g.id}`),
+      })),
+    ],
+    [t],
+  );
 
   return (
     <div className="content-body animate-fade-in">
@@ -379,7 +408,26 @@ export default function AdvancedSearch() {
               />
             </div>
 
-            {/* Row 3: Result type + Search button */}
+            {/* Row 3: Mood (local index + enrichment) */}
+            {indexEnabled && (
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
+                  {t('search.advancedMoodGroup')}
+                </span>
+                <div style={{ minWidth: 240, flex: '1 1 240px', maxWidth: 360 }}>
+                  <CustomSelect
+                    value={moodGroup}
+                    options={moodSelectOptions}
+                    onChange={setMoodGroup}
+                  />
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('search.advancedMoodLocalNote')}
+                </span>
+              </div>
+            )}
+
+            {/* Row 4: Result type + Search button */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {typeOptions.map(opt => (

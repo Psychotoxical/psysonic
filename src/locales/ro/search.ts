@@ -23,6 +23,9 @@ export const search = {
   advancedYearFrom: 'de la',
   advancedYearTo: 'până la',
   advancedBpm: 'BPM',
+  advancedMoodGroup: 'Mood',
+  advancedAllMoods: 'All moods',
+  advancedMoodLocalNote: 'Requires local library index and track analysis',
   advancedAll: 'Toate',
   advancedSearch: 'Căutare',
   advancedEmpty: 'Introdu un termen de căutare sau alege un filtru pentru a începe',
@@ -48,4 +51,11 @@ export const search = {
   shareQueuePreviewLoading: 'Loading tracks…',
   shareQueuePreviewEmpty: 'No tracks from this link could be found on the server.',
   shareQueuePreviewSkipped: '{{skipped}} of {{total}} tracks were not found on this server.',
+  moodGroups: {
+    joy: 'Bucurie',
+    sadness: 'Tristețe',
+    dance: 'Dans',
+    work: 'Muncă',
+    romance: 'Romantic',
+  },
 };

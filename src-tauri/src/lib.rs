@@ -274,6 +274,58 @@ pub fn run() {
                 app.manage(query);
             }
 
+            // ── Track enrichment port (analysis → library facts) ───────────
+            {
+                use psysonic_core::track_enrichment::{TrackEnrichmentPlan, TrackEnrichmentPort};
+                use std::time::{SystemTime, UNIX_EPOCH};
+
+                fn enrichment_now_unix_ms() -> i64 {
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0)
+                }
+
+                let app_for_enrichment_plan = app.handle().clone();
+                let app_for_enrichment_store = app.handle().clone();
+                let port = TrackEnrichmentPort::new(
+                    move |server_id: &str, track_id: &str, content_hash: &str| {
+                        let Some(runtime) =
+                            app_for_enrichment_plan.try_state::<psysonic_library::LibraryRuntime>()
+                        else {
+                            return TrackEnrichmentPlan::default();
+                        };
+                        psysonic_library::enrichment::plan_track_enrichment(
+                            &runtime.store,
+                            server_id,
+                            track_id,
+                            content_hash,
+                            enrichment_now_unix_ms(),
+                        )
+                        .unwrap_or_default()
+                    },
+                    move |server_id: &str,
+                          track_id: &str,
+                          content_hash: &str,
+                          facts: &psysonic_core::track_enrichment::TrackEnrichmentFacts| {
+                        let Some(runtime) =
+                            app_for_enrichment_store.try_state::<psysonic_library::LibraryRuntime>()
+                        else {
+                            return Err("library runtime unavailable".into());
+                        };
+                        psysonic_library::enrichment::store_track_enrichment_facts(
+                            &runtime.store,
+                            server_id,
+                            track_id,
+                            content_hash,
+                            facts,
+                            enrichment_now_unix_ms(),
+                        )
+                    },
+                );
+                app.manage(port);
+            }
+
             // Periodic analysis queue sizes (debug logging mode only).
             tauri::async_runtime::spawn(psysonic_analysis::analysis_runtime::analysis_queue_snapshot_loop());
 

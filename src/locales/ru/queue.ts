@@ -43,4 +43,15 @@ export const queue = {
   sourceStream: 'Играет из сетевого потока',
   clearCachedLoudnessWaveform: 'Сбросить кэш громкости (LUFS) и формы волны и заново проанализировать трек',
   recalculatingLoudnessWaveform: 'Пересчёт громкости и формы волны для этого трека…',
+  bpm: '{{bpm}} BPM',
+  moods: {
+    happy: 'Радостный',
+    excited: 'Возбуждённый',
+    calm: 'Спокойный',
+    peaceful: 'Мирный',
+    angry: 'Злой',
+    tense: 'Напряжённый',
+    sad: 'Грустный',
+    melancholic: 'Меланхоличный',
+  },
 };

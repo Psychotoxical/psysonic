@@ -28,12 +28,13 @@ import { logLibrarySearch, timed } from './libraryDevLog';
 
 export type AdvancedResultType = 'all' | 'artists' | 'albums' | 'songs';
 
-/** UI opts for Advanced Search — BPM filter hidden until enrichment ships. */
+/** UI opts for Advanced Search — mood filter requires local index + enrichment. */
 export interface LocalSearchOpts {
   query: string;
   genre: string;
   yearFrom: string;
   yearTo: string;
+  moodGroup: string;
   resultType: AdvancedResultType;
 }
 
@@ -72,6 +73,9 @@ function buildFilters(opts: LocalSearchOpts): LibraryFilterClause[] {
     filters.push({ field: 'year', op: 'gte', value: from });
   } else if (to !== null) {
     filters.push({ field: 'year', op: 'lte', value: to });
+  }
+  if (opts.moodGroup) {
+    filters.push({ field: 'mood_group', op: 'eq', value: opts.moodGroup });
   }
   return filters;
 }

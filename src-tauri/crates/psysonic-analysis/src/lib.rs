@@ -8,6 +8,7 @@
 pub mod analysis_cache;
 pub mod analysis_runtime;
 pub mod commands;
+pub mod track_enrichment;
 
 // Re-export logging facade so submodules can write `crate::app_eprintln!()`
 // the same way they did when they lived in the top crate.
