@@ -40,6 +40,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Track enrichment — oximedia BPM/mood, mood search, queue display
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#863](https://github.com/Psychotoxical/psysonic/pull/863)**
+
+* **Analysis:** client-side oximedia pass (60s center window) writes BPM, valence, arousal, moods JSON, and mood_tag facts to the local library index; unified playback→analysis dispatch covers stream, hot/offline files, preload, and gapless.
+* **Queue:** measured BPM and top mood labels when the playback server's index is enabled; `analysis:enrichment-updated` refreshes the UI without waiting for poll.
+* **Advanced Search:** virtual mood groups (joy, sadness, dance, work, romance, anger) filter via local index + mood_tag rows (migration 008).
+* Mood search requires persisted mood_tag facts; queue display may still show labels from valence/arousal fallback before tags land.
+
+
+
 ### Servers — edit existing profiles
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
