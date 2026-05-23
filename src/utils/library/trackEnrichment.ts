@@ -7,8 +7,7 @@ export const OXIMEDIA_ENRICHMENT_SOURCE_KIND = 'analysis';
 export const OXIMEDIA_ENRICHMENT_SOURCE_ID = 'oximedia-60s-center';
 
 /** Oximedia mood label ids — see `src/config/moodGroups.ts` and Rust `mood_groups`. */
-export { OXIMEDIA_MOOD_TAG_IDS as OXIMEDIA_MOOD_LABELS } from '../../config/moodGroups';
-export type { OximediaMoodTagId as OximediaMoodLabel } from '../../config/moodGroups';
+export type { OximediaMoodTagId } from '../../config/moodGroups';
 
 export interface ParsedTrackEnrichment {
   serverBpm: number | null;
@@ -144,14 +143,15 @@ export function formatQueueMoodLabels(labels: readonly string[], t: TFunction): 
   return names.length > 0 ? names.join(' · ') : null;
 }
 
-export function enrichmentHasMoodLabels(data: ParsedTrackEnrichment): boolean {
+function enrichmentHasMoodLabels(data: ParsedTrackEnrichment): boolean {
   return data.moodLabels.length > 0;
 }
 
-export function enrichmentHasMeasuredBpm(data: ParsedTrackEnrichment): boolean {
-  return data.measuredBpm != null && data.measuredBpm > 0;
+function enrichmentHasBpm(data: ParsedTrackEnrichment): boolean {
+  return (data.measuredBpm != null && data.measuredBpm > 0)
+    || (data.serverBpm != null && data.serverBpm > 0);
 }
 
 export function enrichmentDisplayComplete(data: ParsedTrackEnrichment): boolean {
-  return enrichmentHasMoodLabels(data) || enrichmentHasMeasuredBpm(data);
+  return enrichmentHasMoodLabels(data) || enrichmentHasBpm(data);
 }

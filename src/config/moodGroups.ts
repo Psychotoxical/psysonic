@@ -28,7 +28,3 @@ export const MOOD_GROUPS: ReadonlyArray<{
 ] as const;
 
 export const MOOD_GROUP_IDS: readonly MoodGroupId[] = MOOD_GROUPS.map(g => g.id);
-
-export function moodGroupById(id: string): (typeof MOOD_GROUPS)[number] | undefined {
-  return MOOD_GROUPS.find(g => g.id === id);
-}

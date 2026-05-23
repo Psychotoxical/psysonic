@@ -34,12 +34,11 @@ pub fn plan_track_enrichment(
     )?;
 
     let mut need_moods = !fact_current(&facts, "moods", content_hash);
-    if !mood_tags_current(&facts, content_hash) {
-        if !backfill_mood_tags_from_stored_moods(store, server_id, track_id, content_hash, now)?
-            && !need_moods
-        {
-            need_moods = true;
-        }
+    if !mood_tags_current(&facts, content_hash)
+        && !backfill_mood_tags_from_stored_moods(store, server_id, track_id, content_hash, now)?
+        && !need_moods
+    {
+        need_moods = true;
     }
 
     Ok(TrackEnrichmentPlan {
