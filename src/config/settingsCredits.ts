@@ -127,6 +127,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Player stats: local listening history tab with heatmap, year summary, recent days, and day drill-down (PR #849)',
       'Playback speed: global 0.5–2.0× with Speed / Varispeed / Pitch shift strategies, player bar popover, Orbit passthrough (PR #852)',
       'Local library index: full resync orphan sweep (IS-7) — remove server-deleted tracks after successful re-sync (PR #861)',
+      'Track enrichment: oximedia BPM/mood analysis, mood-group Advanced Search, queue display, unified playback analysis dispatch (PR #863)',
     ],
   },
   {
