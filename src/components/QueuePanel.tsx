@@ -74,6 +74,9 @@ function QueuePanelHostOrSolo() {
     return t('orbit.queueAddedByUser', { user: addedBy });
   };
   const queue = usePlayerStore(s => s.queue);
+  // Thin-state: id/length reads (save / share / playlist) read the canonical refs;
+  // `queue` is still used for the rendered list + auto-scroll until the field is dropped.
+  const queueItems = usePlayerStore(s => s.queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
@@ -170,11 +173,11 @@ function QueuePanelHostOrSolo() {
   const [loadModalOpen, setLoadModalOpen] = useState(false);
 
   const handleSave = async () => {
-    if (queue.length === 0) return;
+    if (queueItems.length === 0) return;
     if (activePlaylist) {
       setSaveState('saving');
       try {
-        await updatePlaylist(activePlaylist.id, queue.map(t => t.id));
+        await updatePlaylist(activePlaylist.id, queueItems.map(r => r.trackId));
         setSaveState('saved');
         setTimeout(() => setSaveState('idle'), 1500);
       } catch (e) {
@@ -196,13 +199,13 @@ function QueuePanelHostOrSolo() {
   };
 
   const handleCopyQueueShare = async () => {
-    if (queue.length === 0) {
+    if (queueItems.length === 0) {
       showToast(t('queue.shareQueueEmpty'), 3000, 'info');
       return;
     }
     const srv = useAuthStore.getState().getBaseUrl();
     if (!srv) return;
-    const ids = queue.map(t => t.id);
+    const ids = queueItems.map(r => r.trackId);
     const ok = await copyTextToClipboard(encodeSharePayload({ srv, k: 'queue', ids }));
     if (ok) showToast(t('contextMenu.shareCopied'));
     else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
@@ -305,7 +308,7 @@ function QueuePanelHostOrSolo() {
           />
         )}
 
-      {currentTrack && queue.length > 0 && <div className="queue-divider"><span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.nextTracks')}</span></div>}
+      {currentTrack && queueItems.length > 0 && <div className="queue-divider"><span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.nextTracks')}</span></div>}
 
       <QueueList
         queue={queue}
@@ -337,7 +340,7 @@ function QueuePanelHostOrSolo() {
           onSave={async (name) => {
             try {
               const createPlaylist = usePlaylistStore.getState().createPlaylist;
-              const pl = await createPlaylist(name, queue.map(t => t.id));
+              const pl = await createPlaylist(name, queueItems.map(r => r.trackId));
               if (pl) setActivePlaylist({ id: pl.id, name: pl.name });
               setSaveModalOpen(false);
             } catch (e) {
