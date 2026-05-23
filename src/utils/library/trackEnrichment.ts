@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { TrackFactDto } from '../../api/library';
-import { OXIMEDIA_MOOD_TAG_IDS } from '../../config/moodGroups';
+import { topOximediaMoodTagIds } from '../../config/moodGroups';
 
 /** Matches `psysonic_library::enrichment::OXIMEDIA_ENRICHMENT_*`. */
 export const OXIMEDIA_ENRICHMENT_SOURCE_KIND = 'analysis';
@@ -41,14 +41,14 @@ export function parseTrackEnrichmentFacts(
 
   const hotBpm = serverBpm != null && serverBpm > 0 ? serverBpm : null;
 
-  const fromMoodsJson = topMoodLabelIds(parseMoodsScoresJson(moodsFact?.valueText));
+  const fromMoodsJson = topOximediaMoodTagIds(parseMoodsScoresJson(moodsFact?.valueText));
   const fromLegacy = parseMoodLabelsArray(legacyLabelsFact?.valueText);
   const fromMoodTags = moodTagFacts
     .map(f => f.valueText!)
     .filter(Boolean)
     .slice(0, 3);
   const fromValenceArousal =
-    valence != null && arousal != null ? topMoodLabelIds(deriveMoodScores(valence, arousal)) : [];
+    valence != null && arousal != null ? topOximediaMoodTagIds(deriveMoodScores(valence, arousal)) : [];
   const moodLabels =
     (fromMoodsJson.length > 0 ? fromMoodsJson : null)
     ?? (fromMoodTags.length > 0 ? fromMoodTags : null)
@@ -106,24 +106,22 @@ export function deriveMoodScores(valence: number, arousal: number): Record<strin
   };
 }
 
-export function topMoodLabelIds(
-  scores: Record<string, number> | null | undefined,
-  limit = 3,
-): string[] {
-  if (!scores) return [];
-  const allowed = new Set<string>(OXIMEDIA_MOOD_TAG_IDS);
-  return Object.entries(scores)
-    .filter(([id]) => allowed.has(id))
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([id]) => id);
+/** @deprecated Use `topOximediaMoodTagIds` from `config/moodGroups`. */
+export { topOximediaMoodTagIds as topMoodLabelIds } from '../../config/moodGroups';
+
+/** Tag BPM when present; otherwise oximedia measured BPM. */
+export function resolveDisplayBpm(
+  tagBpm: number | null | undefined,
+  measuredBpm: number | null | undefined,
+): number | null {
+  if (tagBpm != null && tagBpm > 0) return tagBpm;
+  if (measuredBpm != null && measuredBpm > 0) return measuredBpm;
+  return null;
 }
 
 /** Server BPM wins; measured BPM is the fallback. */
 export function resolveQueueBpm(data: ParsedTrackEnrichment): number | null {
-  if (data.serverBpm != null) return data.serverBpm;
-  if (data.measuredBpm != null) return data.measuredBpm;
-  return null;
+  return resolveDisplayBpm(data.serverBpm, data.measuredBpm);
 }
 
 export function formatQueueBpmTech(data: ParsedTrackEnrichment, t: TFunction): string | null {

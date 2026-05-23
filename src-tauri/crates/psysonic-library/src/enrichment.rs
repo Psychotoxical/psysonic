@@ -1,7 +1,5 @@
 //! Client-side track enrichment — plan/store analysis facts (oximedia BPM/mood).
 
-use std::cmp::Ordering;
-
 use psysonic_core::track_enrichment::{TrackEnrichmentFacts, TrackEnrichmentPlan};
 
 use crate::dto::FactInputDto;
@@ -102,7 +100,7 @@ pub fn store_track_enrichment_facts(
                 &analysis_fact_text("moods", json, content_hash, 1.0),
                 now,
             )?;
-            let tags = mood_tag_ids_from_moods_json(json);
+            let tags = mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, 3);
             if !tags.is_empty() {
                 replace_mood_tag_facts(store, server_id, track_id, content_hash, &tags, now)?;
             }
@@ -131,7 +129,7 @@ fn backfill_mood_tags_from_stored_moods(
     else {
         return Ok(false);
     };
-    let tags = mood_tag_ids_from_moods_json(json);
+    let tags = mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, 3);
     if tags.is_empty() {
         return Ok(false);
     }
@@ -180,30 +178,6 @@ fn replace_mood_tag_facts(
         )?;
     }
     Ok(())
-}
-
-fn mood_tag_ids_from_moods_json(json: &str) -> Vec<String> {
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json) else {
-        return Vec::new();
-    };
-    let Some(obj) = parsed.as_object() else {
-        return Vec::new();
-    };
-    let mut scored: Vec<(String, f64)> = obj
-        .iter()
-        .filter_map(|(k, v)| v.as_f64().map(|score| (k.clone(), score)))
-        .collect();
-    scored.sort_by(|a, b| {
-        b.1.partial_cmp(&a.1)
-            .unwrap_or(Ordering::Equal)
-            .then_with(|| a.0.cmp(&b.0))
-    });
-    scored
-        .into_iter()
-        .take(3)
-        .map(|(k, _)| k)
-        .filter(|k| mood_groups::is_oximedia_mood_tag(k))
-        .collect()
 }
 
 fn mood_tag_fact(tag: &str, content_hash: &str) -> FactInputDto {

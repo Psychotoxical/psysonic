@@ -41,7 +41,10 @@ pub struct TrackEnrichmentFacts {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrackEnrichmentOutcome {
     Applied,
+    /// Nothing to compute for the current content hash.
     SkippedComplete,
+    /// Oximedia analysis or persistence failed; facts were not stored (retry on next seed).
+    Failed,
     SkippedNoServer,
     SkippedNoPort,
 }

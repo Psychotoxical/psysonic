@@ -7,6 +7,8 @@
 //! include `happy`). New tags can be added to the catalog without schema
 //! changes.
 
+use std::cmp::Ordering;
+
 /// Oximedia `MoodDetector` label ids shipped today (mirrors TS catalog).
 pub const OXIMEDIA_MOOD_TAG_IDS: &[&str] = &[
     "happy",
@@ -111,6 +113,40 @@ pub fn normalize_mood_groups(group_ids: &[String]) -> Result<Vec<String>, String
     Ok(out)
 }
 
+/// Top oximedia mood tag ids by score (filter unknown labels first, then sort
+/// by score desc, id asc). Mirrors TS `topOximediaMoodTagIds`.
+pub fn top_oximedia_mood_tag_ids_from_moods_json(json: &str, limit: usize) -> Vec<String> {
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json) else {
+        return Vec::new();
+    };
+    let Some(obj) = parsed.as_object() else {
+        return Vec::new();
+    };
+    let scores: Vec<(String, f64)> = obj
+        .iter()
+        .filter_map(|(k, v)| v.as_f64().map(|score| (k.clone(), score)))
+        .collect();
+    top_oximedia_mood_tag_ids_from_scores(&scores, limit)
+}
+
+pub fn top_oximedia_mood_tag_ids_from_scores(
+    scores: &[(String, f64)],
+    limit: usize,
+) -> Vec<String> {
+    let mut scored = scores.to_vec();
+    scored.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| a.0.cmp(&b.0))
+    });
+    scored
+        .into_iter()
+        .filter(|(k, _)| is_oximedia_mood_tag(k))
+        .take(limit)
+        .map(|(k, _)| k)
+        .collect()
+}
+
 /// Validate atomic mood-tag ids for direct `mood_tag` filters.
 pub fn normalize_mood_tags(tag_ids: &[String]) -> Result<Vec<String>, String> {
     if tag_ids.is_empty() {
@@ -171,5 +207,14 @@ mod tests {
     #[test]
     fn unknown_group_errors() {
         assert!(expand_mood_groups(&["nope".into()]).is_err());
+    }
+
+    #[test]
+    fn top_mood_tags_ignore_unknown_labels_before_limit() {
+        let json = r#"{"noise":0.99,"calm":0.2,"happy":0.9,"excited":0.5}"#;
+        assert_eq!(
+            top_oximedia_mood_tag_ids_from_moods_json(json, 3),
+            vec!["happy", "excited", "calm"]
+        );
     }
 }

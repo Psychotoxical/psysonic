@@ -66,7 +66,7 @@ pub fn run_track_enrichment_if_needed(
                 server_id,
                 e
             );
-            TrackEnrichmentOutcome::SkippedComplete
+            TrackEnrichmentOutcome::Failed
         }
     }
 }

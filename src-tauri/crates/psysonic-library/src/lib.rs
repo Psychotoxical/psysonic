@@ -9,6 +9,7 @@
 
 pub(crate) mod bulk_ingest;
 pub mod advanced_search;
+mod advanced_search_mood;
 pub mod canonical;
 pub mod commands;
 pub mod cross_server;

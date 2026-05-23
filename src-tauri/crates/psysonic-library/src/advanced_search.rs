@@ -18,7 +18,6 @@ use crate::dto::{
     LibraryFilterClause, LibrarySearchTotals, LibrarySortClause, LibraryTrackDto, SortDir,
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
-use crate::mood_groups;
 use crate::repos;
 use crate::search::{
     aliased_track_columns, fts_album_prefix_match_query, fts_column_prefix_query,
@@ -693,7 +692,7 @@ fn resolve_clause(
         ("starred", EntityKind::Artist) => return Ok(None),
         ("bpm", EntityKind::Track) => BPM_RESOLVED_EXPR,
         ("mood_group" | "mood_tag", EntityKind::Track) => {
-            return resolve_mood_clause(c);
+            return crate::advanced_search_mood::resolve_mood_clause(c);
         }
         // `text` is handled by the entity builder (FTS / LIKE), never here.
         ("text", _) => return Ok(None),
@@ -719,107 +718,6 @@ fn resolve_clause(
     filter::compare_fragment(&c.field, col, c.op, value, value_to)
         .map(Some)
         .map_err(|e| e.to_string())
-}
-
-fn resolve_mood_clause(c: &LibraryFilterClause) -> Result<Option<SqlFragment>, String> {
-    match c.field.as_str() {
-        "mood_group" => {
-            let group_ids = json_to_string_list(&c.field, c.op, c.value.as_ref())?;
-            mood_groups::normalize_mood_groups(&group_ids).map_err(|detail| {
-                filter::FilterError::BadValue {
-                    field: c.field.clone(),
-                    detail,
-                }
-                .to_string()
-            })?;
-            let tags = mood_groups::expand_mood_groups(&group_ids).map_err(|detail| {
-                filter::FilterError::BadValue {
-                    field: c.field.clone(),
-                    detail,
-                }
-                .to_string()
-            })?;
-            Ok(Some(mood_tag_exists_fragment(&tags)))
-        }
-        "mood_tag" => {
-            let tag_ids = json_to_string_list(&c.field, c.op, c.value.as_ref())?;
-            let tags = mood_groups::normalize_mood_tags(&tag_ids).map_err(|detail| {
-                filter::FilterError::BadValue {
-                    field: c.field.clone(),
-                    detail,
-                }
-                .to_string()
-            })?;
-            Ok(Some(mood_tag_exists_fragment(&tags)))
-        }
-        _ => unreachable!("resolve_mood_clause called for non-mood field"),
-    }
-}
-
-fn mood_tag_exists_fragment(tags: &[String]) -> SqlFragment {
-    let placeholders = (0..tags.len()).map(|_| "?").collect::<Vec<_>>().join(", ");
-    SqlFragment {
-        sql: format!(
-            "EXISTS (SELECT 1 FROM track_fact mf \
-             WHERE mf.server_id = t.server_id AND mf.track_id = t.id \
-               AND mf.fact_kind = 'mood_tag' AND mf.value_text IN ({placeholders}))"
-        ),
-        params: tags
-            .iter()
-            .map(|t| SqlValue::Text(t.clone()))
-            .collect(),
-    }
-}
-
-fn json_to_string_list(
-    field: &str,
-    op: FilterOp,
-    v: Option<&Value>,
-) -> Result<Vec<String>, String> {
-    match op {
-        FilterOp::Eq => {
-            let s = json_to_text(field, v)?;
-            Ok(vec![match s {
-                SqlValue::Text(t) => t,
-                _ => unreachable!(),
-            }])
-        }
-        FilterOp::In => match v {
-            Some(Value::Array(items)) => {
-                if items.is_empty() {
-                    return Err(filter::FilterError::BadValue {
-                        field: field.to_string(),
-                        detail: "operator `in` requires a non-empty array".to_string(),
-                    }
-                    .to_string());
-                }
-                let mut out = Vec::with_capacity(items.len());
-                for item in items {
-                    match item {
-                        Value::String(s) => out.push(s.clone()),
-                        _ => {
-                            return Err(filter::FilterError::BadValue {
-                                field: field.to_string(),
-                                detail: "expected an array of strings".to_string(),
-                            }
-                            .to_string());
-                        }
-                    }
-                }
-                Ok(out)
-            }
-            _ => Err(filter::FilterError::BadValue {
-                field: field.to_string(),
-                detail: "operator `in` requires an array value".to_string(),
-            }
-            .to_string()),
-        }
-        _ => Err(filter::FilterError::UnsupportedOp {
-            field: field.to_string(),
-            op: op.as_str(),
-        }
-        .to_string()),
-    }
 }
 
 // ── query execution ────────────────────────────────────────────────────

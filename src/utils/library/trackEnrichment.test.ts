@@ -6,6 +6,7 @@ import {
   formatQueueMoodLabels,
   parseTrackEnrichmentFacts,
   resolveQueueBpm,
+  resolveDisplayBpm,
   topMoodLabelIds,
 } from './trackEnrichment';
 
@@ -70,6 +71,16 @@ describe('parseTrackEnrichmentFacts', () => {
 describe('resolveQueueBpm', () => {
   it('prefers server bpm over measured', () => {
     expect(resolveQueueBpm({ serverBpm: 120, measuredBpm: 128, moodLabels: [] })).toBe(120);
+  });
+
+  it('falls back to measured when tag bpm missing', () => {
+    expect(resolveQueueBpm({ serverBpm: null, measuredBpm: 128, moodLabels: [] })).toBe(128);
+  });
+});
+
+describe('resolveDisplayBpm', () => {
+  it('ignores zero tag bpm and uses measured', () => {
+    expect(resolveDisplayBpm(0, 132)).toBe(132);
   });
 });
 
