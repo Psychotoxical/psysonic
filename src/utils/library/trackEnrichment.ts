@@ -1,6 +1,11 @@
 import type { TFunction } from 'i18next';
 import type { TrackFactDto } from '../../api/library';
-import { topOximediaMoodTagIds, moodScoresFromValenceArousal } from '../../config/moodGroups';
+import {
+  distinctOximediaMoodTagIds,
+  topDistinctOximediaMoodTagIds,
+  topDistinctOximediaMoodTagIdsFromValenceArousal,
+  moodScoresFromValenceArousal,
+} from '../../config/moodGroups';
 
 /** Matches `psysonic_library::enrichment::OXIMEDIA_ENRICHMENT_*`. */
 export const OXIMEDIA_ENRICHMENT_SOURCE_KIND = 'analysis';
@@ -41,15 +46,14 @@ export function parseTrackEnrichmentFacts(
 
   const hotBpm = serverBpm != null && serverBpm > 0 ? serverBpm : null;
 
-  const fromMoodsJson = topOximediaMoodTagIds(parseMoodsScoresJson(moodsFact?.valueText));
+  const fromMoodsJson = topDistinctOximediaMoodTagIds(parseMoodsScoresJson(moodsFact?.valueText));
   const fromLegacy = parseMoodLabelsArray(legacyLabelsFact?.valueText);
-  const fromMoodTags = moodTagFacts
-    .map(f => f.valueText!)
-    .filter(Boolean)
-    .slice(0, 3);
+  const fromMoodTags = distinctOximediaMoodTagIds(
+    moodTagFacts.map(f => f.valueText!).filter(Boolean),
+  );
   const fromValenceArousal =
     valence != null && arousal != null
-      ? topOximediaMoodTagIds(moodScoresFromValenceArousal(valence, arousal))
+      ? topDistinctOximediaMoodTagIdsFromValenceArousal(valence, arousal)
       : [];
   const moodLabels =
     (fromValenceArousal.length > 0 ? fromValenceArousal : null)
@@ -97,8 +101,8 @@ export function deriveMoodScores(valence: number, arousal: number): Record<strin
   return moodScoresFromValenceArousal(valence, arousal);
 }
 
-/** @deprecated Use `topOximediaMoodTagIds` from `config/moodGroups`. */
-export { topOximediaMoodTagIds as topMoodLabelIds } from '../../config/moodGroups';
+/** @deprecated Use `topDistinctOximediaMoodTagIdsFromValenceArousal`. */
+export { topDistinctOximediaMoodTagIdsFromValenceArousal as topMoodLabelIds } from '../../config/moodGroups';
 
 /** Tag BPM when present; otherwise oximedia measured BPM. */
 export function resolveDisplayBpm(

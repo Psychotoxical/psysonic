@@ -9,7 +9,7 @@ import {
   resolveDisplayBpm,
   topMoodLabelIds,
 } from './trackEnrichment';
-import { topOximediaMoodTagIds } from '../../config/moodGroups';
+import { topDistinctOximediaMoodTagIds, topOximediaMoodTagIds } from '../../config/moodGroups';
 
 const t = ((key: string, opts?: Record<string, unknown>) => {
   if (key === 'queue.bpm') return `${opts?.bpm} BPM`;
@@ -35,7 +35,7 @@ describe('parseTrackEnrichmentFacts', () => {
       ],
       null,
     );
-    expect(parsed.moodLabels).toEqual(['calm', 'peaceful']);
+    expect(parsed.moodLabels).toEqual(['calm']);
   });
 
   it('derives mood labels from valence/arousal with soft scoring', () => {
@@ -103,7 +103,8 @@ describe('parseTrackEnrichmentFacts', () => {
       ],
       null,
     );
-    expect(parsed.moodLabels).not.toEqual(['happy', 'excited']);
+    expect(parsed.moodLabels.includes('happy') && parsed.moodLabels.includes('excited')).toBe(false);
+    expect(parsed.moodLabels.length).toBeLessThanOrEqual(2);
   });
 });
 
@@ -134,14 +135,30 @@ describe('formatters', () => {
 });
 
 describe('topMoodLabelIds', () => {
-  it('sorts by score descending', () => {
-    expect(topMoodLabelIds({ calm: 0.2, happy: 0.9, excited: 0.5 })).toEqual(['happy', 'excited', 'calm']);
+  it('returns at most two distinct cluster labels from valence/arousal', () => {
+    const labels = topMoodLabelIds(0.4, 0.75);
+    expect(labels.includes('happy') && labels.includes('excited')).toBe(false);
+    expect(labels.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('distinct mood tag picking', () => {
+  it('never keeps both happy and excited from raw scores', () => {
+    expect(topDistinctOximediaMoodTagIds({ calm: 0.52, happy: 0.9, excited: 0.5 })).toEqual(['happy', 'calm']);
+  });
+
+  it('sorts by score descending with id tie-break', () => {
+    expect(topOximediaMoodTagIds({ calm: 0.2, happy: 0.9, excited: 0.5 })).toEqual([
+      'happy',
+      'excited',
+      'calm',
+    ]);
   });
 });
 
 describe('deriveMoodScores', () => {
   it('delegates to soft valence/arousal scoring', () => {
     const scores = deriveMoodScores(0.55, 0.42);
-    expect(topOximediaMoodTagIds(scores, 2).some(id => id === 'calm' || id === 'peaceful')).toBe(true);
+    expect(topDistinctOximediaMoodTagIds(scores, 2).some(id => id === 'calm' || id === 'peaceful')).toBe(true);
   });
 });

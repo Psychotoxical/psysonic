@@ -8,6 +8,7 @@
 //! changes.
 
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 /// Oximedia `MoodDetector` label ids shipped today (mirrors TS catalog).
 pub const OXIMEDIA_MOOD_TAG_IDS: &[&str] = &[
@@ -132,6 +133,26 @@ const MOOD_VA_ANCHORS: &[MoodVaAnchor] = &[
 ];
 
 const MOOD_VA_MAX_DIST: f64 = 1.35;
+const MOOD_VA_VALENCE_BIAS: f64 = 0.12;
+const MOOD_VA_VALENCE_SCALE: f64 = 1.4;
+const MOOD_VA_AROUSAL_OFFSET: f64 = 0.48;
+const MOOD_VA_AROUSAL_SCALE: f64 = 0.40;
+const MOOD_DISPLAY_MIN_RELATIVE: f64 = 0.55;
+const MOOD_DISPLAY_MIN_ABSOLUTE: f64 = 0.28;
+
+/// Pairs shown as one mood in UI/search tags — never both `happy` and `excited`.
+const MOOD_DISPLAY_CLUSTERS: &[&[&str]] = &[
+    &["happy", "excited"],
+    &["calm", "peaceful"],
+    &["angry", "tense"],
+    &["sad", "melancholic"],
+];
+
+fn mood_display_cluster(tag: &str) -> Option<usize> {
+    MOOD_DISPLAY_CLUSTERS
+        .iter()
+        .position(|cluster| cluster.contains(&tag))
+}
 
 /// Soft scores for all oximedia mood tags from raw valence/arousal.
 ///
@@ -139,8 +160,8 @@ const MOOD_VA_MAX_DIST: f64 = 1.35;
 /// only two labels (usually `happy` + `excited` for typical pop/rock). We
 /// recalibrate V/A and score every catalog tag by distance to anchor points.
 pub fn mood_scores_from_valence_arousal(valence: f64, arousal: f64) -> Vec<(String, f64)> {
-    let v = (valence * 1.25).clamp(-1.0, 1.0);
-    let a = ((arousal - 0.35) / 0.55).clamp(0.0, 1.0);
+    let v = ((valence - MOOD_VA_VALENCE_BIAS) * MOOD_VA_VALENCE_SCALE).clamp(-1.0, 1.0);
+    let a = ((arousal - MOOD_VA_AROUSAL_OFFSET) / MOOD_VA_AROUSAL_SCALE).clamp(0.0, 1.0);
     MOOD_VA_ANCHORS
         .iter()
         .map(|anchor| {
@@ -153,12 +174,57 @@ pub fn mood_scores_from_valence_arousal(valence: f64, arousal: f64) -> Vec<(Stri
         .collect()
 }
 
+pub fn top_distinct_oximedia_mood_tag_ids_from_scores(
+    scores: &[(String, f64)],
+    limit: usize,
+) -> Vec<String> {
+    let mut scored = scores.to_vec();
+    scored.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| a.0.cmp(&b.0))
+    });
+    scored.retain(|(k, _)| is_oximedia_mood_tag(k));
+    let top_score = scored.first().map(|(_, s)| *s).unwrap_or(0.0);
+    let mut out = Vec::new();
+    let mut used_clusters = HashSet::new();
+    for (tag, score) in scored {
+        if score < MOOD_DISPLAY_MIN_ABSOLUTE || score < top_score * MOOD_DISPLAY_MIN_RELATIVE {
+            continue;
+        }
+        if let Some(cluster) = mood_display_cluster(&tag) {
+            if !used_clusters.insert(cluster) {
+                continue;
+            }
+        }
+        out.push(tag);
+        if out.len() >= limit {
+            break;
+        }
+    }
+    out
+}
+
+pub fn top_distinct_oximedia_mood_tag_ids_from_moods_json(json: &str, limit: usize) -> Vec<String> {
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json) else {
+        return Vec::new();
+    };
+    let Some(obj) = parsed.as_object() else {
+        return Vec::new();
+    };
+    let scores: Vec<(String, f64)> = obj
+        .iter()
+        .filter_map(|(k, v)| v.as_f64().map(|score| (k.clone(), score)))
+        .collect();
+    top_distinct_oximedia_mood_tag_ids_from_scores(&scores, limit)
+}
+
 pub fn top_mood_tag_ids_from_valence_arousal(
     valence: f64,
     arousal: f64,
     limit: usize,
 ) -> Vec<String> {
-    top_oximedia_mood_tag_ids_from_scores(
+    top_distinct_oximedia_mood_tag_ids_from_scores(
         &mood_scores_from_valence_arousal(valence, arousal),
         limit,
     )
@@ -270,11 +336,19 @@ mod tests {
     }
 
     #[test]
+    fn valence_arousal_never_returns_both_happy_and_excited() {
+        let tags = top_mood_tag_ids_from_valence_arousal(0.4, 0.75, 2);
+        assert!(
+            !(tags.contains(&"happy".to_string()) && tags.contains(&"excited".to_string())),
+            "got {tags:?}"
+        );
+        assert_eq!(tags.len(), 2);
+    }
+
+    #[test]
     fn valence_arousal_soft_scores_differ_from_quadrant_happy_excited() {
-        // Typical oximedia output for upbeat pop: quadrant mapper → happy/excited only.
-        let tags = top_mood_tag_ids_from_valence_arousal(0.4, 0.75, 3);
+        let tags = top_mood_tag_ids_from_valence_arousal(0.4, 0.75, 2);
         assert_ne!(tags, vec!["happy", "excited"]);
-        assert!(tags.contains(&"happy".to_string()) || tags.contains(&"excited".to_string()));
     }
 
     #[test]

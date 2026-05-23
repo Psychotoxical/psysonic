@@ -106,7 +106,7 @@ pub fn store_track_enrichment_facts(
             )?;
         }
     }
-    let tags = mood_tags_for_enrichment_facts(facts, 3);
+    let tags = mood_tags_for_enrichment_facts(facts, 2);
     if !tags.is_empty() {
         replace_mood_tag_facts(store, server_id, track_id, content_hash, &tags, now)?;
     }
@@ -118,7 +118,7 @@ fn mood_tags_for_enrichment_facts(facts: &TrackEnrichmentFacts, limit: usize) ->
         return mood_groups::top_mood_tag_ids_from_valence_arousal(v.value, a.value, limit);
     }
     if let Some(json) = &facts.moods {
-        return mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, limit);
+        return mood_groups::top_distinct_oximedia_mood_tag_ids_from_moods_json(json, limit);
     }
     Vec::new()
 }
@@ -148,7 +148,7 @@ fn mood_tags_from_stored_facts(
     else {
         return Vec::new();
     };
-    mood_groups::top_oximedia_mood_tag_ids_from_moods_json(json, limit)
+    mood_groups::top_distinct_oximedia_mood_tag_ids_from_moods_json(json, limit)
 }
 
 fn backfill_mood_tags_from_stored_facts(
@@ -165,7 +165,7 @@ fn backfill_mood_tags_from_stored_facts(
         &["moods".into(), "valence".into(), "arousal".into()],
         now,
     )?;
-    let tags = mood_tags_from_stored_facts(&facts, content_hash, 3);
+    let tags = mood_tags_from_stored_facts(&facts, content_hash, 2);
     if tags.is_empty() {
         return Ok(false);
     }
@@ -174,7 +174,7 @@ fn backfill_mood_tags_from_stored_facts(
 }
 
 fn mood_tags_need_va_refresh(facts: &[crate::dto::TrackFactDto], content_hash: &str) -> bool {
-    let expected = mood_tags_from_stored_facts(facts, content_hash, 3);
+    let expected = mood_tags_from_stored_facts(facts, content_hash, 2);
     if expected.is_empty() {
         return false;
     }
@@ -469,7 +469,7 @@ mod tests {
             .filter(|f| f.fact_kind == "mood_tag")
             .map(|f| f.value_text.unwrap_or_default())
             .collect();
-        assert_eq!(tags, vec!["calm", "peaceful"]);
+        assert_eq!(tags, vec!["calm"]);
     }
 
     #[test]
@@ -520,7 +520,7 @@ mod tests {
             .filter(|r| r.fact_kind == "mood_tag")
             .map(|r| r.value_text.as_deref().unwrap_or(""))
             .collect();
-        assert_eq!(mood_tags, vec!["happy", "excited"]);
+        assert_eq!(mood_tags, vec!["happy"]);
     }
 
     #[test]

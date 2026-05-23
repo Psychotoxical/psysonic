@@ -42,15 +42,34 @@ const MOOD_VA_ANCHORS: ReadonlyArray<{ readonly id: OximediaMoodTagId; readonly 
 ] as const;
 
 const MOOD_VA_MAX_DIST = 1.35;
+const MOOD_VA_VALENCE_BIAS = 0.12;
+const MOOD_VA_VALENCE_SCALE = 1.4;
+const MOOD_VA_AROUSAL_OFFSET = 0.48;
+const MOOD_VA_AROUSAL_SCALE = 0.40;
+const MOOD_DISPLAY_MIN_RELATIVE = 0.55;
+const MOOD_DISPLAY_MIN_ABSOLUTE = 0.28;
+
+/** One label per cluster in UI — mirrors Rust `MOOD_DISPLAY_CLUSTERS`. */
+const MOOD_DISPLAY_CLUSTERS: readonly (readonly OximediaMoodTagId[])[] = [
+  ['happy', 'excited'],
+  ['calm', 'peaceful'],
+  ['angry', 'tense'],
+  ['sad', 'melancholic'],
+] as const;
+
+function moodDisplayCluster(tag: string): number | null {
+  const idx = MOOD_DISPLAY_CLUSTERS.findIndex(cluster => cluster.includes(tag as OximediaMoodTagId));
+  return idx >= 0 ? idx : null;
+}
 
 /**
  * Soft scores for all oximedia mood tags from raw valence/arousal.
- * Oximedia's quadrant mapper returns only two labels (often happy/excited);
- * this spreads scores across the full catalog.
+ * Oximedia's built-in mapper returns only two labels (often happy/excited);
+ * we recalibrate V/A and score every catalog tag by distance to anchors.
  */
 export function moodScoresFromValenceArousal(valence: number, arousal: number): Record<string, number> {
-  const v = Math.max(-1, Math.min(1, valence * 1.25));
-  const a = Math.max(0, Math.min(1, (arousal - 0.35) / 0.55));
+  const v = Math.max(-1, Math.min(1, (valence - MOOD_VA_VALENCE_BIAS) * MOOD_VA_VALENCE_SCALE));
+  const a = Math.max(0, Math.min(1, (arousal - MOOD_VA_AROUSAL_OFFSET) / MOOD_VA_AROUSAL_SCALE));
   const scores: Record<string, number> = {};
   for (const anchor of MOOD_VA_ANCHORS) {
     const dv = v - anchor.v;
@@ -69,7 +88,7 @@ export const TOP_OXIMEDIA_MOOD_TAG_TEST_SCORES = {
   excited: 0.5,
 } as const;
 
-/** Top oximedia mood tag ids by score — mirrors Rust `mood_groups::top_oximedia_mood_tag_ids_from_scores`. */
+/** Top oximedia mood tag ids by score — mirrors Rust `top_oximedia_mood_tag_ids_from_scores`. */
 export function topOximediaMoodTagIds(
   scores: Record<string, number> | null | undefined,
   limit = 3,
@@ -81,4 +100,43 @@ export function topOximediaMoodTagIds(
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([id]) => id);
+}
+
+/** One tag per display cluster (never happy+excited together). Mirrors Rust distinct picker. */
+export function topDistinctOximediaMoodTagIds(
+  scores: Record<string, number> | null | undefined,
+  limit = 2,
+): string[] {
+  if (!scores) return [];
+  const ranked = topOximediaMoodTagIds(scores, OXIMEDIA_MOOD_TAG_IDS.length);
+  if (ranked.length === 0) return [];
+  const topScore = scores[ranked[0]] ?? 0;
+  const usedClusters = new Set<number>();
+  const out: string[] = [];
+  for (const id of ranked) {
+    const score = scores[id] ?? 0;
+    if (score < MOOD_DISPLAY_MIN_ABSOLUTE || score < topScore * MOOD_DISPLAY_MIN_RELATIVE) continue;
+    const cluster = moodDisplayCluster(id);
+    if (cluster != null) {
+      if (usedClusters.has(cluster)) continue;
+      usedClusters.add(cluster);
+    }
+    out.push(id);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export function topDistinctOximediaMoodTagIdsFromValenceArousal(
+  valence: number,
+  arousal: number,
+  limit = 2,
+): string[] {
+  return topDistinctOximediaMoodTagIds(moodScoresFromValenceArousal(valence, arousal), limit);
+}
+
+/** Dedupe a stored tag list to one label per cluster (preserves rank order). */
+export function distinctOximediaMoodTagIds(tags: readonly string[], limit = 2): string[] {
+  const scores = Object.fromEntries(tags.map((id, index) => [id, tags.length - index]));
+  return topDistinctOximediaMoodTagIds(scores, limit);
 }

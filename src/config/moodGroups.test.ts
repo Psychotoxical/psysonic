@@ -5,6 +5,8 @@ import {
   OXIMEDIA_MOOD_TAG_IDS,
   TOP_OXIMEDIA_MOOD_TAG_TEST_SCORES,
   moodScoresFromValenceArousal,
+  topDistinctOximediaMoodTagIds,
+  topDistinctOximediaMoodTagIdsFromValenceArousal,
   topOximediaMoodTagIds,
 } from './moodGroups';
 
@@ -36,13 +38,14 @@ describe('moodGroups catalog invariants', () => {
 });
 
 describe('moodScoresFromValenceArousal', () => {
-  it('does not collapse typical oximedia pop to only happy and excited', () => {
-    const labels = topOximediaMoodTagIds(moodScoresFromValenceArousal(0.4, 0.75), 3);
-    expect(labels).not.toEqual(['happy', 'excited']);
+  it('never shows both happy and excited for typical oximedia pop', () => {
+    const labels = topDistinctOximediaMoodTagIdsFromValenceArousal(0.4, 0.75);
+    expect(labels.includes('happy') && labels.includes('excited')).toBe(false);
+    expect(labels.length).toBeLessThanOrEqual(2);
   });
 
   it('prefers calm or peaceful for low arousal', () => {
-    const labels = topOximediaMoodTagIds(moodScoresFromValenceArousal(0.55, 0.42), 2);
+    const labels = topDistinctOximediaMoodTagIdsFromValenceArousal(0.55, 0.42);
     expect(labels.some(id => id === 'calm' || id === 'peaceful')).toBe(true);
   });
 });
