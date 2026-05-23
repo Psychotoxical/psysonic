@@ -66,5 +66,6 @@ export function restartPlaybackForRateChange(): void {
       setAtMs: Date.now(),
     });
   }
-  player.playTrack(track, player.queue, true);
+  // No-arg queue: keep the canonical refs, restart the current track in place.
+  player.playTrack(track, undefined, true);
 }

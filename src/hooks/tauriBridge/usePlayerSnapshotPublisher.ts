@@ -3,6 +3,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { getPlaybackProgressSnapshot } from '../../store/playbackProgress';
 import { usePlayerStore } from '../../store/playerStore';
 import { useAuthStore } from '../../store/authStore';
+import { resolveQueueTrack } from '../../utils/library/queueTrackView';
+
+/** Half-width of the CLI snapshot queue window (thin-state — like the mini
+ *  bridge, the full 50k queue must not serialize over IPC on every change). */
+const SNAPSHOT_QUEUE_HALF = 100;
 
 /** `psysonic --info`: publishes a JSON snapshot under XDG_RUNTIME_DIR (Rust
  * writes atomically). Coalesces store changes through a 200 ms debounce and
@@ -27,12 +32,19 @@ export function usePlayerSnapshotPublisher() {
         ct != null
           ? (ct.id in s.starredOverrides ? s.starredOverrides[ct.id] : Boolean(ct.starred))
           : null;
+      // Thin-state: resolve only a window around the playing track (resolver
+      // cache → placeholder) instead of the whole 50k queue. `queue_length`
+      // stays the true total; `queue_index` is remapped into the window.
+      const total = s.queueItems.length;
+      const winStart = Math.max(0, s.queueIndex - SNAPSHOT_QUEUE_HALF);
+      const winEnd = Math.min(total, s.queueIndex + SNAPSHOT_QUEUE_HALF + 1);
+      const windowedQueue = s.queueItems.slice(winStart, winEnd).map(r => resolveQueueTrack(r));
       const snapshot = {
         current_track: s.currentTrack,
         current_radio: s.currentRadio,
-        queue: s.queue,
-        queue_index: s.queueIndex,
-        queue_length: s.queue.length,
+        queue: windowedQueue,
+        queue_index: s.queueIndex - winStart,
+        queue_length: total,
         is_playing: s.isPlaying,
         current_time: getPlaybackProgressSnapshot().currentTime,
         volume: s.volume,
@@ -50,7 +62,7 @@ export function usePlayerSnapshotPublisher() {
         trackId: s.currentTrack?.id ?? null,
         radioId: s.currentRadio?.id ?? null,
         queueIndex: s.queueIndex,
-        queueLength: s.queue.length,
+        queueLength: total,
         isPlaying: s.isPlaying,
         volume: Math.round(s.volume * 100),
         repeatMode: s.repeatMode,

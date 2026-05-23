@@ -3,14 +3,14 @@ import {
   Check, FolderOpen, Infinity, MoveRight, Save, Share2, Shuffle, Trash2, Waves,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import type { Track } from '../../store/playerStoreTypes';
+import type { QueueItemRef } from '../../store/playerStoreTypes';
 import type {
   QueueToolbarButtonConfig,
   QueueToolbarButtonId,
 } from '../../store/queueToolbarStore';
 
 interface Props {
-  queue: Track[];
+  queue: QueueItemRef[];
   activePlaylist: { id: string; name: string } | null;
   saveState: 'idle' | 'saving' | 'saved';
   toolbarButtons: QueueToolbarButtonConfig[];

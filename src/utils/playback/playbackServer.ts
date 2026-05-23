@@ -8,12 +8,12 @@ import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import { sameQueueTrackId } from './queueIdentity';
-import type { Track } from '../../store/playerStoreTypes';
+import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 
 /** Server that owns the current queue / stream URLs (may differ from the browsed server). */
 export function getPlaybackServerId(): string {
-  const { queueServerId, queue } = usePlayerStore.getState();
-  if ((queue?.length ?? 0) > 0 && queueServerId) return queueServerId;
+  const { queueServerId, queueItems } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) > 0 && queueServerId) return queueServerId;
   return useAuthStore.getState().activeServerId ?? '';
 }
 
@@ -28,8 +28,8 @@ export function clearQueueServerForPlayback(): void {
 }
 
 export function playbackServerDiffersFromActive(): boolean {
-  const { queueServerId, queue } = usePlayerStore.getState();
-  if ((queue?.length ?? 0) === 0 || !queueServerId) return false;
+  const { queueServerId, queueItems } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) === 0 || !queueServerId) return false;
   const activeSid = useAuthStore.getState().activeServerId;
   return !!activeSid && queueServerId !== activeSid;
 }
@@ -41,8 +41,8 @@ export function playbackServerDiffersFromActive(): boolean {
 export function shouldHandoffQueueToActiveServer(): boolean {
   const activeSid = useAuthStore.getState().activeServerId;
   if (!activeSid) return false;
-  const { queue, queueServerId } = usePlayerStore.getState();
-  if ((queue?.length ?? 0) === 0) return false;
+  const { queueItems, queueServerId } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) === 0) return false;
   if (!queueServerId) return true;
   return queueServerId !== activeSid;
 }
@@ -86,7 +86,7 @@ export function playbackCoverArtForId(coverId: string, size: number): { src: str
 }
 
 export function shouldBindQueueServerForPlay(
-  prevQueue: Track[],
+  prevQueue: QueueItemRef[],
   newQueue: Track[],
   explicitQueueArg: Track[] | undefined,
 ): boolean {
@@ -94,5 +94,5 @@ export function shouldBindQueueServerForPlay(
   if (prevQueue.length === 0) return true;
   if (explicitQueueArg === undefined) return false;
   if (explicitQueueArg.length !== prevQueue.length) return true;
-  return !explicitQueueArg.every((t, i) => sameQueueTrackId(prevQueue[i]?.id, t.id));
+  return !explicitQueueArg.every((t, i) => sameQueueTrackId(prevQueue[i]?.trackId, t.id));
 }

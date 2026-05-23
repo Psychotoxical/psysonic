@@ -56,7 +56,7 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
         setAtMs: Date.now(),
       });
       clearSeekFallbackRetry();
-      s0.playTrack(s0.currentTrack, s0.queue, true);
+      s0.playTrack(s0.currentTrack, undefined, true);
       return;
     }
     invoke('audio_seek', { seconds: time }).then(() => {
@@ -95,7 +95,7 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
         setSeekFallbackTrackId(s.currentTrack.id);
         setSeekFallbackRestartAt(now);
         // Keep manual semantics (no crossfade) for seek recovery restarts.
-        s.playTrack(s.currentTrack, s.queue, true);
+        s.playTrack(s.currentTrack, undefined, true);
       }
       scheduleSeekFallbackRetry(s.currentTrack.id, time);
     });

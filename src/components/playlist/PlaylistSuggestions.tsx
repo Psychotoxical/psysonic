@@ -9,6 +9,7 @@ import { usePreviewStore } from '../../store/previewStore';
 import { useThemeStore } from '../../store/themeStore';
 import { usePlaylistLayoutStore } from '../../store/playlistLayoutStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
+import { getQueueTracksView } from '../../utils/library/queueTrackView';
 import { codecLabel } from '../../utils/componentHelpers/playlistDetailHelpers';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 
@@ -114,19 +115,22 @@ export default function PlaylistSuggestions({
                         className="playlist-suggestion-play-btn"
                         onClick={e => {
                           e.stopPropagation();
-                          const { queue, queueIndex, currentTrack, playTrack } = usePlayerStore.getState();
+                          const { queueItems, queueIndex, currentTrack, playTrack } = usePlayerStore.getState();
                           const track = songToTrack(song);
-                          if (!currentTrack || queue.length === 0) {
+                          if (!currentTrack || queueItems.length === 0) {
                             playTrack(track, [track]);
                             return;
                           }
-                          const insertAt = Math.min(queueIndex + 1, queue.length);
+                          // Thin-state: resolve the current queue, insert after
+                          // the playing track, and play the inserted track.
+                          const resolved = getQueueTracksView(queueItems);
+                          const insertAt = Math.min(queueIndex + 1, resolved.length);
                           const newQueue = [
-                            ...queue.slice(0, insertAt),
+                            ...resolved.slice(0, insertAt),
                             track,
-                            ...queue.slice(insertAt),
+                            ...resolved.slice(insertAt),
                           ];
-                          playTrack(track, newQueue);
+                          playTrack(track, newQueue, undefined, undefined, insertAt);
                         }}
                         data-tooltip={t('playlists.playNextSuggestion')}
                         aria-label={t('playlists.playNextSuggestion')}

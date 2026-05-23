@@ -1,5 +1,9 @@
 import { usePlayerStore } from '../../store/playerStore';
+import { resolveQueueTrack } from '../library/queueTrackView';
 import type { MiniSyncPayload, MiniTrackInfo } from '../miniPlayerBridge';
+
+/** Half-width of the mini initial-snapshot queue window (matches the bridge). */
+const MINI_SNAPSHOT_HALF = 100;
 
 export const COLLAPSED_SIZE = { w: 340, h: 260 };
 export const EXPANDED_SIZE  = { w: 340, h: 500 };
@@ -54,10 +58,17 @@ export function toMini(t: any): MiniTrackInfo {
 export function initialSnapshot(): MiniSyncPayload {
   try {
     const s = usePlayerStore.getState();
+    // Thin-state: resolve a window around the index (resolver cache →
+    // placeholder), remapping queueIndex like the live bridge snapshot.
+    const idx = s.queueIndex ?? 0;
+    const start = Math.max(0, idx - MINI_SNAPSHOT_HALF);
+    const windowed = (s.queueItems ?? [])
+      .slice(start, idx + MINI_SNAPSHOT_HALF + 1)
+      .map(r => resolveQueueTrack(r));
     return {
       track: s.currentTrack ? toMini(s.currentTrack) : null,
-      queue: (s.queue ?? []).map(toMini),
-      queueIndex: s.queueIndex ?? 0,
+      queue: windowed.map(toMini),
+      queueIndex: idx - start,
       queueServerId: s.queueServerId ?? null,
       isPlaying: s.isPlaying,
       volume: s.volume ?? 1,

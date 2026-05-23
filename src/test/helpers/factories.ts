@@ -8,6 +8,9 @@
 import type { SubsonicSong } from '@/api/subsonicTypes';
 import type { ServerProfile } from '@/store/authStoreTypes';
 import type { Track } from '@/store/playerStoreTypes';
+import { usePlayerStore } from '@/store/playerStore';
+import { toQueueItemRefs } from '@/utils/library/queueItemRef';
+import { seedQueueResolver } from '@/utils/library/queueTrackResolver';
 let trackCounter = 0;
 let songCounter = 0;
 let serverCounter = 0;
@@ -69,6 +72,31 @@ export function makeAuthState(opts: { servers?: ServerProfile[]; activeServerId?
     servers,
     activeServerId: opts.activeServerId === undefined ? servers[0]?.id ?? null : opts.activeServerId,
   };
+}
+
+/**
+ * Seed the player store with a queue (thin-state). Replaces the old
+ * `setState({ queue: [...] })` seeds: it seeds the resolver cache with the full
+ * `tracks` (so rows / hot paths resolve them) AND sets the canonical
+ * `queueItems` refs + index + currentTrack + queueServerId. Pass `serverId` to
+ * match the active server when the test resolves through a real server id;
+ * defaults to `''` (the resolver / refs use that same empty id).
+ */
+export function seedQueue(
+  tracks: Track[],
+  opts: { index?: number; currentTrack?: Track | null; serverId?: string } = {},
+): void {
+  const serverId = opts.serverId ?? '';
+  const index = opts.index ?? 0;
+  const currentTrack =
+    opts.currentTrack === undefined ? (tracks[index] ?? null) : opts.currentTrack;
+  seedQueueResolver(serverId, tracks);
+  usePlayerStore.setState({
+    queueItems: toQueueItemRefs(serverId, tracks),
+    queueIndex: index,
+    currentTrack,
+    queueServerId: serverId || null,
+  });
 }
 
 /** Minimal `usePlayerStore.setState(...)` partial for queue characterization tests. */

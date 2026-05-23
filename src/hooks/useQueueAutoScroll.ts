@@ -1,9 +1,9 @@
 import React, { useLayoutEffect } from 'react';
 import { registerQueueListScrollTopReader, consumePendingQueueListScrollTop } from '../store/queueUndo';
-import type { Track } from '../store/playerStoreTypes';
+import type { QueueItemRef, Track } from '../store/playerStoreTypes';
 
 interface Args {
-  queue: Track[];
+  queue: QueueItemRef[];
   queueIndex: number;
   currentTrack: Track | null;
   queueListRef: React.RefObject<HTMLDivElement | null>;

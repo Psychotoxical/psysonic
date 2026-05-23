@@ -14,7 +14,7 @@ type AnalysisPrunePendingResult = {
 };
 
 export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
-  const { queue, currentTrack } = usePlayerStore.getState();
+  const { queueItems, currentTrack } = usePlayerStore.getState();
   const keepTrackIds: string[] = [];
   const seen = new Set<string>();
   const pushId = (id: string | undefined | null) => {
@@ -25,8 +25,8 @@ export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
     keepTrackIds.push(tid);
   };
   pushId(currentTrack?.id);
-  for (const track of queue) {
-    pushId(track.id);
+  for (const ref of queueItems) {
+    pushId(ref.trackId);
     if (keepTrackIds.length >= 1000) break;
   }
   const sig = JSON.stringify(keepTrackIds);

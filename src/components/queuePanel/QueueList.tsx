@@ -5,10 +5,10 @@ import type { TFunction } from 'i18next';
 import OverlayScrollArea from '../OverlayScrollArea';
 import { usePlayerStore } from '../../store/playerStore';
 import { useLuckyMixStore } from '../../store/luckyMixStore';
-import type { Track, PlayerState } from '../../store/playerStoreTypes';
+import type { QueueItemRef, PlayerState } from '../../store/playerStoreTypes';
 import { formatTrackTime } from '../../utils/format/formatDuration';
+import { resolveQueueTrack } from '../../utils/library/queueTrackView';
 import {
-  getCachedTrack,
   getQueueResolverVersion,
   subscribeQueueResolver,
 } from '../../utils/library/queueTrackResolver';
@@ -20,7 +20,7 @@ type StartDrag = (
 ) => void;
 
 interface Props {
-  queue: Track[];
+  queue: QueueItemRef[];
   queueIndex: number;
   contextMenu: PlayerState['contextMenu'];
   playTrack: PlayerState['playTrack'];
@@ -46,11 +46,10 @@ export function QueueList({
   suppressNextAutoScrollRef, isQueueDrag, psyDragFromIdxRef, externalDropTarget,
   startDrag, orbitAttributionLabel, luckyRolling, t,
 }: Props) {
-  // Phase 3: row data comes from the resolver (cache), falling back to the
-  // canonical queue: Track[] until phase 4 drops it. Rows show title/artist/
-  // duration only (no star/rating), so no override merge here. Subscribe once to
-  // the resolver so the list re-renders as the cache fills.
-  const serverId = usePlayerStore(s => s.queueServerId);
+  // Thin-state: the queue prop is the canonical `QueueItemRef[]`. Each row's
+  // full Track comes from the resolver (cache → placeholder; F4 overrides merged
+  // in resolveQueueTrack). Subscribe once so the list re-renders as the cache
+  // fills. Pure read in render — no cache mutation (the freeze landmine).
   useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
 
   // Virtualize so a 10k+ Artist-Radio queue keeps DOM at O(visible rows).
@@ -61,7 +60,7 @@ export function QueueList({
     getScrollElement: () => queueListRef.current,
     estimateSize: () => 52,
     overscan: 10,
-    getItemKey: i => `${queue[i].id}:${i}`,
+    getItemKey: i => `${queue[i].trackId}:${i}`,
     // Start with a sensible viewport height so rows render before the
     // ResizeObserver reports the real size (SSR / jsdom, where the observer
     // never fires). The real height overrides this on first measure.
@@ -111,7 +110,7 @@ export function QueueList({
         {virtualItems.map(vi => {
           const idx = vi.index;
           const base = queue[idx];
-          const track = (serverId ? getCachedTrack({ serverId, trackId: base.id }) : undefined) ?? base;
+          const track = resolveQueueTrack(base);
           const isPlaying = idx === queueIndex;
           const isFirstAutoAdded = base.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
           const isFirstRadioAdded = base.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
@@ -149,9 +148,10 @@ export function QueueList({
               className={`queue-item ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === 'queue-item' && contextMenu.queueIndex === idx ? 'context-active' : ''}`}
               onClick={() => {
                 suppressNextAutoScrollRef.current = true;
-                // Pass the row index so a click on a duplicate track lands on
-                // *this* slot, not the first occurrence (issue #500).
-                playTrack(track, queue, undefined, undefined, idx);
+                // Same-queue jump: undefined keeps the canonical refs; the row
+                // index lands a click on a duplicate track on *this* slot, not
+                // the first occurrence (issue #500).
+                playTrack(track, undefined, undefined, undefined, idx);
               }}
               onContextMenu={(e) => {
                 e.preventDefault();

@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { SubsonicAlbum, SubsonicArtist } from '../../api/subsonicTypes';
-import type { Track } from '../../store/playerStoreTypes';
+import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import type { EntityShareKind } from '../../utils/share/shareLink';
 
 export type RatingKind = 'song' | 'album' | 'artist';
@@ -22,7 +22,9 @@ export interface ContextMenuItemsProps {
   playNext: (tracks: Track[]) => void;
   enqueue: (tracks: Track[]) => void;
   removeTrack: (idx: number) => void;
-  queue: Track[];
+  /** Thin-state: the canonical queue refs. The queue-item "Play now" action uses
+   *  the row's `queueIndex` to jump in place — no full Track[] needed. */
+  queue: QueueItemRef[];
   currentTrack: Track | null;
   closeContextMenu: () => void;
   starredOverrides: Record<string, boolean>;

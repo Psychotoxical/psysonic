@@ -1,4 +1,4 @@
-import type { Track } from './playerStoreTypes';
+import type { QueueItemRef, Track } from './playerStoreTypes';
 /**
  * After a bulk enqueue (queue replace, append-many, lucky-mix) the runtime
  * warms the loudness cache for the current track + the next N entries so
@@ -15,7 +15,7 @@ export const LOUDNESS_BACKFILL_WINDOW_AHEAD = 5;
 
 export function isTrackInsideLoudnessBackfillWindow(
   trackId: string,
-  queue: Track[],
+  queue: QueueItemRef[],
   queueIndex: number,
   currentTrack: Track | null,
 ): boolean {
@@ -25,13 +25,13 @@ export function isTrackInsideLoudnessBackfillWindow(
   const start = Math.max(0, queueIndex + 1);
   const end = Math.min(queue.length, start + LOUDNESS_BACKFILL_WINDOW_AHEAD);
   for (let i = start; i < end; i++) {
-    if (queue[i]?.id === trackId) return true;
+    if (queue[i]?.trackId === trackId) return true;
   }
   return false;
 }
 
 export function collectLoudnessBackfillWindowTrackIds(
-  queue: Track[],
+  queue: QueueItemRef[],
   queueIndex: number,
   currentTrack: Track | null,
 ): string[] {
@@ -40,7 +40,7 @@ export function collectLoudnessBackfillWindowTrackIds(
   const start = Math.max(0, queueIndex + 1);
   const end = Math.min(queue.length, start + LOUDNESS_BACKFILL_WINDOW_AHEAD);
   for (let i = start; i < end; i++) {
-    const tid = queue[i]?.id;
+    const tid = queue[i]?.trackId;
     if (tid) ids.add(tid);
   }
   return Array.from(ids);

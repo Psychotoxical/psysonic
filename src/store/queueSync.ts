@@ -1,5 +1,5 @@
 import { savePlayQueue } from '../api/subsonicPlayQueue';
-import type { Track } from './playerStoreTypes';
+import type { QueueItemRef, Track } from './playerStoreTypes';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
 import { usePlayerStore } from './playerStore';
@@ -26,11 +26,11 @@ const QUEUE_ID_LIMIT = 1000;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 let lastQueueHeartbeatAt = 0;
 
-export function syncQueueToServer(queue: Track[], currentTrack: Track | null, currentTime: number): void {
+export function syncQueueToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): void {
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => {
     syncTimeout = null;
-    const ids = queue.slice(0, QUEUE_ID_LIMIT).map(t => t.id);
+    const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
     const pos = Math.floor(currentTime * 1000);
     const serverId = getPlaybackServerId();
     savePlayQueue(ids, currentTrack?.id, pos, serverId).catch(err => {
@@ -39,14 +39,14 @@ export function syncQueueToServer(queue: Track[], currentTrack: Track | null, cu
   }, SYNC_DEBOUNCE_MS);
 }
 
-export function flushQueueSyncToServer(queue: Track[], currentTrack: Track | null, currentTime: number): Promise<void> {
+export function flushQueueSyncToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): Promise<void> {
   if (syncTimeout) {
     clearTimeout(syncTimeout);
     syncTimeout = null;
   }
   if (!currentTrack || queue.length === 0) return Promise.resolve();
   lastQueueHeartbeatAt = Date.now();
-  const ids = queue.slice(0, QUEUE_ID_LIMIT).map(t => t.id);
+  const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
   const pos = Math.floor(currentTime * 1000);
   const serverId = getPlaybackServerId();
   return savePlayQueue(ids, currentTrack.id, pos, serverId).catch(err => {
@@ -68,7 +68,7 @@ export function getLastQueueHeartbeatAt(): number {
 export function flushPlayQueuePosition(): Promise<void> {
   const s = usePlayerStore.getState();
   if (s.currentRadio) return Promise.resolve();
-  return flushQueueSyncToServer(s.queue, s.currentTrack, getPlaybackProgressSnapshot().currentTime);
+  return flushQueueSyncToServer(s.queueItems, s.currentTrack, getPlaybackProgressSnapshot().currentTime);
 }
 
 /** Test-only: drop the debounce + reset the heartbeat. */

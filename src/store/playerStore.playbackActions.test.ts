@@ -49,7 +49,7 @@ import { usePlayerStore } from './playerStore';
 import { useAuthStore } from './authStore';
 import { onInvoke, invokeMock } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
-import { makeTrack, makeTracks } from '@/test/helpers/factories';
+import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 
 function stubPlaybackInvokes(): void {
   onInvoke('audio_play', () => undefined);
@@ -201,11 +201,7 @@ describe('seek', () => {
 describe('next', () => {
   it('advances to queue[queueIndex + 1] when one is available', () => {
     const queue = makeTracks(3);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 0,
-      currentTrack: queue[0],
-    });
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
     usePlayerStore.getState().next();
     expect(usePlayerStore.getState().currentTrack?.id).toBe(queue[1].id);
     expect(usePlayerStore.getState().queueIndex).toBe(1);
@@ -213,12 +209,8 @@ describe('next', () => {
 
   it('wraps to queue[0] when at the end with repeatMode=all', () => {
     const queue = makeTracks(3);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 2,
-      currentTrack: queue[2],
-      repeatMode: 'all',
-    });
+    seedQueue(queue, { index: 2, currentTrack: queue[2] });
+    usePlayerStore.setState({ repeatMode: 'all' });
     usePlayerStore.getState().next();
     expect(usePlayerStore.getState().currentTrack?.id).toBe(queue[0].id);
     expect(usePlayerStore.getState().queueIndex).toBe(0);
@@ -228,13 +220,8 @@ describe('next', () => {
     // infiniteQueueEnabled and the radio fetch path are both off by default,
     // so the no-next branch falls through to `audio_stop`.
     const queue = makeTracks(2);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 1,
-      currentTrack: queue[1],
-      repeatMode: 'off',
-      isPlaying: true,
-    });
+    seedQueue(queue, { index: 1, currentTrack: queue[1] });
+    usePlayerStore.setState({ repeatMode: 'off', isPlaying: true });
     usePlayerStore.getState().next();
     expect(invokeMock).toHaveBeenCalledWith('audio_stop');
     const s = usePlayerStore.getState();
@@ -247,11 +234,7 @@ describe('next', () => {
 describe('previous', () => {
   it('restarts the current track when currentTime > 3 s', () => {
     const queue = makeTracks(3);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 1,
-      currentTrack: queue[1],
-    });
+    seedQueue(queue, { index: 1, currentTrack: queue[1] });
     // The store's `currentTime` is the source for the "restart vs jump back"
     // branch. `getPlaybackProgressSnapshot` reads from the same field.
     usePlayerStore.setState({ currentTime: 10, progress: 10 / queue[1].duration });
@@ -262,12 +245,8 @@ describe('previous', () => {
 
   it('jumps to the previous track when currentTime ≤ 3 s and queueIndex > 0', () => {
     const queue = makeTracks(3);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 2,
-      currentTrack: queue[2],
-      currentTime: 1.0,
-    });
+    seedQueue(queue, { index: 2, currentTrack: queue[2] });
+    usePlayerStore.setState({ currentTime: 1.0 });
     usePlayerStore.getState().previous();
     expect(usePlayerStore.getState().currentTrack?.id).toBe(queue[1].id);
     expect(usePlayerStore.getState().queueIndex).toBe(1);
@@ -275,12 +254,8 @@ describe('previous', () => {
 
   it('is a no-op when queueIndex is 0 and currentTime ≤ 3 s', () => {
     const queue = makeTracks(2);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 0,
-      currentTrack: queue[0],
-      currentTime: 0.5,
-    });
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
+    usePlayerStore.setState({ currentTime: 0.5 });
     usePlayerStore.getState().previous();
     expect(usePlayerStore.getState().queueIndex).toBe(0);
     expect(usePlayerStore.getState().currentTrack?.id).toBe(queue[0].id);

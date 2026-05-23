@@ -69,7 +69,6 @@ export interface PlayerState {
    * Cleared after a successful `audio_play` consumed that preload, or when starting another track.
    */
   enginePreloadedTrackId: string | null;
-  queue: Track[];
   /** Saved server for stream/hot-cache/offline resolution while this queue plays. */
   queueServerId: string | null;
   queueIndex: number;
@@ -79,10 +78,9 @@ export interface PlayerState {
    *  are then cleared. Absent / index-off → the windowed `queue` is used as-is. */
   queueRefs?: string[];
   queueRefsIndex?: number;
-  /** Canonical thin queue list (thin-state), always in sync with `queue: Track[]`
-   *  during the dual-write transition (single playback server per item in v1;
-   *  carries the queue-only flags). Persisted by `partialize`; the source the
-   *  resolver/consumers read from. `queue: Track[]` is dropped in the final step. */
+  /** Canonical thin queue list (thin-state). Single playback server per item in
+   *  v1; carries the queue-only flags. Persisted by `partialize`; the source the
+   *  resolver/consumers read from — full `Track`s resolve on demand. */
   queueItems: QueueItemRef[];
   /** Restore-pending sentinel (transient). `partialize` writes it alongside the
    *  full `queueItems` on every persist; a fresh rehydrate brings it back, which

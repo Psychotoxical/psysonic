@@ -16,8 +16,8 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCachedUrl } from './CachedImage';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { formatTrackTime } from '../utils/format/formatDuration';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import {
-  getCachedTrack,
   getQueueResolverVersion,
   subscribeQueueResolver,
 } from '../utils/library/queueTrackResolver';
@@ -84,14 +84,13 @@ const QUEUE_INITIAL_RECT = { width: 0, height: 600 };
 
 function QueueDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const queue = usePlayerStore(s => s.queue);
+  const queue = usePlayerStore(s => s.queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
-  const serverId = usePlayerStore(s => s.queueServerId);
   const playTrack = usePlayerStore(s => s.playTrack);
   const listRef = useRef<HTMLDivElement>(null);
-  // Resolver-first row data (cache → queue: Track[] fallback until phase 4),
-  // matching the desktop QueueList. Subscribe once so rows re-render as the
-  // resolver cache fills.
+  // Thin-state: the queue is the canonical `QueueItemRef[]`; each row's Track
+  // comes from the resolver (cache → placeholder), matching the desktop
+  // QueueList. Subscribe once so rows re-render as the resolver cache fills.
   useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
 
   // Virtualize so a multi-thousand-track queue keeps DOM at O(visible rows) on
@@ -101,7 +100,7 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
     getScrollElement: () => listRef.current,
     estimateSize: () => 56,
     overscan: 10,
-    getItemKey: i => `${queue[i].id}:${i}`,
+    getItemKey: i => `${queue[i].trackId}:${i}`,
     initialRect: QUEUE_INITIAL_RECT,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
@@ -135,8 +134,7 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
             <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
             {virtualItems.map(vi => {
               const idx = vi.index;
-              const base = queue[idx];
-              const track = (serverId ? getCachedTrack({ serverId, trackId: base.id }) : undefined) ?? base;
+              const track = resolveQueueTrack(queue[idx]);
               const isActive = idx === queueIndex;
               return (
                 <div
@@ -145,7 +143,7 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
                   ref={rowVirtualizer.measureElement}
                   className={`mq-item${isActive ? ' active' : ''}`}
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
-                  onClick={() => { playTrack(track, queue); onClose(); }}
+                  onClick={() => { playTrack(track, undefined, undefined, undefined, idx); onClose(); }}
                 >
                   <div className="mq-item-info">
                     <div className="mq-item-title">

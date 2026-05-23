@@ -1,6 +1,7 @@
 import type { Track } from './playerStoreTypes';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
+import { getCachedTrack } from '../utils/library/queueTrackResolver';
 import { queueSongRating } from './pendingStarSync';
 /**
  * Skip → 1★ behaviour: every user-initiated `next()` on an unrated track
@@ -18,10 +19,12 @@ export function applySkipStarOnManualNext(skippedTrack: Track | null, manual: bo
   const adv = useAuthStore.getState().recordSkipStarManualAdvance(id);
   if (!adv?.crossedThreshold) return;
   const live = usePlayerStore.getState();
-  const fromQueue = live.queue.find(t => t.id === id);
+  // Thin-state: the queue's copy of the rating now lives in the resolver cache.
+  const sid = live.queueServerId ?? '';
+  const fromCache = sid ? getCachedTrack({ serverId: sid, trackId: id }) : undefined;
   const cur =
     live.userRatingOverrides[id] ??
-    fromQueue?.userRating ??
+    fromCache?.userRating ??
     skippedTrack.userRating ??
     0;
   if (cur >= 1) return;

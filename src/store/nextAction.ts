@@ -9,9 +9,9 @@ import {
   setInfiniteQueueFetching,
 } from './infiniteQueueState';
 import { isInOrbitSession } from './orbitSession';
-import type { PlayerState, Track } from './playerStoreTypes';
+import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
-import { bridgeQueueFromItems } from '../utils/library/queueTrackView';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import {
   addRadioSessionSeen,
@@ -26,6 +26,25 @@ type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
 ) => void;
 type GetState = () => PlayerState;
+
+/**
+ * Queue-exhausted radio / infinite-queue refill: append the freshly fetched
+ * tracks to the canonical `queueItems`, seed the resolver with them (so they
+ * resolve without a network round-trip), then play the first appended track at
+ * its new tail index. Refs in / Track for the play call only — thin-state.
+ */
+function appendTracksAndPlayFirst(set: SetState, get: GetState, fresh: Track[]): void {
+  if (fresh.length === 0) return;
+  const state = get();
+  const serverId = state.queueServerId ?? '';
+  if (serverId) seedQueueResolver(serverId, fresh);
+  const incoming: QueueItemRef[] = toQueueItemRefs(serverId, fresh);
+  const playAt = state.queueItems.length;
+  // Append the refs first so playTrack (queue arg undefined) reads them off the
+  // canonical list and its targetQueueIndex validates against the new tail.
+  set({ queueItems: [...state.queueItems, ...incoming] });
+  get().playTrack(fresh[0], undefined, false, false, playAt);
+}
 
 /**
  * Advance to the next track. Three top-level outcomes:
@@ -47,11 +66,16 @@ type GetState = () => PlayerState;
  *      sync to the host's next track.
  */
 export function runNext(set: SetState, get: GetState, manual: boolean): void {
-  const { queue, queueIndex, repeatMode, currentTrack } = get();
+  const { queueItems, queueIndex, repeatMode, currentTrack } = get();
   applySkipStarOnManualNext(currentTrack, manual);
   const nextIdx = queueIndex + 1;
-  if (nextIdx < queue.length) {
-    get().playTrack(queue[nextIdx], queue, manual, false, nextIdx);
+  if (nextIdx < queueItems.length) {
+    // Resolver bridge keeps the [queueIndex-50, +200] window warm, so the next
+    // ref is cache-hot here; resolveQueueTrack falls back to a placeholder
+    // (carrying the correct trackId) on a cold miss so playback still starts.
+    const nextRef = queueItems[nextIdx];
+    const nextTrack = resolveQueueTrack(nextRef);
+    get().playTrack(nextTrack, undefined, manual, false, nextIdx);
     // Proactively top up auto-added tracks when ≤ 2 remain ahead,
     // so the queue never runs dry without a visible loading pause.
     // Skipped while in Orbit — the host's queue is the source of
@@ -60,10 +84,10 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
     // the next track-end fallback.
     const { infiniteQueueEnabled } = useAuthStore.getState();
     if (infiniteQueueEnabled && repeatMode === 'off' && !isInfiniteQueueFetching() && !isInOrbitSession()) {
-      const remainingAuto = queue.slice(nextIdx + 1).filter(t => t.autoAdded).length;
+      const remainingAuto = queueItems.slice(nextIdx + 1).filter(r => r.autoAdded).length;
       if (remainingAuto <= 2) {
         setInfiniteQueueFetching(true);
-        const existingIds = new Set(get().queue.map(t => t.id));
+        const existingIds = new Set(get().queueItems.map(r => r.trackId));
         buildInfiniteQueueCandidates(currentTrack, existingIds, 5).then(newTracks => {
           // Re-check at resolution time — the user may have joined
           // an Orbit session between scheduling and resolving.
@@ -72,9 +96,8 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
             set(state => {
               const serverId = state.queueServerId ?? '';
               if (serverId) seedQueueResolver(serverId, newTracks);
-              const newItems = [...toQueueItemRefs(serverId, state.queue), ...toQueueItemRefs(serverId, newTracks)];
-              const newQueue = bridgeQueueFromItems(newItems, [state.queue, newTracks]);
-              return { queue: newQueue, queueItems: newItems };
+              const newItems = [...state.queueItems, ...toQueueItemRefs(serverId, newTracks)];
+              return { queueItems: newItems };
             });
           }
         }).catch(() => {}).finally(() => { setInfiniteQueueFetching(false); });
@@ -82,9 +105,8 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
     }
     // Proactively top up radio tracks when ≤ 2 remain — always, regardless
     // of infinite queue setting.
-    const nextTrack = queue[nextIdx];
-    if (nextTrack.radioAdded && !isRadioFetching()) {
-      const remainingRadio = queue.slice(nextIdx + 1).filter(t => t.radioAdded).length;
+    if (nextRef.radioAdded && !isRadioFetching()) {
+      const remainingRadio = queueItems.slice(nextIdx + 1).filter(r => r.radioAdded).length;
       if (remainingRadio <= 2) {
         const artistId = nextTrack.artistId ?? getCurrentRadioArtistId() ?? null;
         const artistName = nextTrack.artist;
@@ -92,7 +114,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
           setRadioFetching(true);
           Promise.all([getSimilarSongs2(artistId), getTopSongs(artistName)])
             .then(([similar, top]) => {
-              const existingIds = new Set(get().queue.map(t => t.id));
+              const existingIds = new Set(get().queueItems.map(r => r.trackId));
               // Lead with similar (other artists) for variety; top tracks
               // of the upcoming artist are only a fallback when similar
               // is empty. Single-pass loop dedupes against the live queue,
@@ -118,12 +140,10 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
                   if (serverId) seedQueueResolver(serverId, fresh);
                   const trimStart = Math.max(0, state.queueIndex - HISTORY_KEEP);
                   const newItems = [
-                    ...toQueueItemRefs(serverId, state.queue).slice(trimStart),
+                    ...state.queueItems.slice(trimStart),
                     ...toQueueItemRefs(serverId, fresh),
                   ];
-                  const newQueue = bridgeQueueFromItems(newItems, [state.queue, fresh]);
                   return {
-                    queue: newQueue,
                     queueItems: newItems,
                     queueIndex: state.queueIndex - trimStart,
                   };
@@ -135,8 +155,9 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
         }
       }
     }
-  } else if (repeatMode === 'all' && queue.length > 0) {
-    get().playTrack(queue[0], queue, manual, false, 0);
+  } else if (repeatMode === 'all' && queueItems.length > 0) {
+    const firstTrack = resolveQueueTrack(queueItems[0]);
+    get().playTrack(firstTrack, undefined, manual, false, 0);
   } else {
     // ── Orbit short-circuit ──
     // The host owns the shared queue. The radio / infinite-queue
@@ -169,7 +190,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
               set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
               return;
             }
-            const existingIds = new Set(get().queue.map(t => t.id));
+            const existingIds = new Set(get().queueItems.map(r => r.trackId));
             // Same source preference + dedup contract as the proactive
             // top-up: similar first, top only as a fallback (issue #500).
             const sourceList = similar.length > 0 ? similar : top;
@@ -182,9 +203,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
               fresh.push({ ...t, radioAdded: true as const });
             }
             if (fresh.length > 0) {
-              const currentQueue = get().queue;
-              const newQueue = [...currentQueue, ...fresh];
-              get().playTrack(fresh[0], newQueue, false, false, currentQueue.length);
+              appendTracksAndPlayFirst(set, get, fresh);
             } else {
               invoke('audio_stop').catch(console.error);
               setIsAudioPaused(false);
@@ -204,7 +223,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
     if (infiniteQueueEnabled && repeatMode === 'off') {
       if (isInfiniteQueueFetching()) return;
       setInfiniteQueueFetching(true);
-      const existingIds = new Set(get().queue.map(t => t.id));
+      const existingIds = new Set(get().queueItems.map(r => r.trackId));
       buildInfiniteQueueCandidates(currentTrack, existingIds, 5).then(newTracks => {
         setInfiniteQueueFetching(false);
         // The user may have joined an Orbit session while this
@@ -221,9 +240,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
           set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
           return;
         }
-        const currentQueue = get().queue;
-        const newQueue = [...currentQueue, ...newTracks];
-        get().playTrack(newTracks[0], newQueue, false);
+        appendTracksAndPlayFirst(set, get, newTracks);
       }).catch(() => {
         setInfiniteQueueFetching(false);
         invoke('audio_stop').catch(console.error);

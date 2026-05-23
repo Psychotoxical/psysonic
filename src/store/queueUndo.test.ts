@@ -5,6 +5,7 @@
  * to restore list scroll position after an undo/redo commit.
  */
 import type { PlayerState, Track } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   QUEUE_UNDO_MAX,
@@ -24,14 +25,17 @@ function track(id: string): Track {
   return { id, title: id, artist: 'A', album: 'X', albumId: 'X', duration: 100 };
 }
 
-function state(queue: Track[], overrides: Partial<PlayerState> = {}): PlayerState {
+// Thin-state: the snapshot reads `queueItems`; the `tracks` arg is a convenience
+// for tests — it's lowered to refs (with the currentTrack defaulting to the head).
+function state(tracks: Track[], overrides: Partial<PlayerState> = {}): PlayerState {
   return {
-    queue,
+    queueItems: toQueueItemRefs('', tracks),
     queueIndex: 0,
-    currentTrack: queue[0] ?? null,
+    currentTrack: tracks[0] ?? null,
     currentTime: 0,
     progress: 0,
     isPlaying: false,
+    queueServerId: null,
     ...overrides,
   } as PlayerState;
 }

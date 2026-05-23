@@ -10,9 +10,9 @@ import {
 } from './engineState';
 import { clearPreloadingIds } from './gaplessPreloadState';
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
-import type { PlayerState } from './playerStoreTypes';
-import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import type { PlayerState, QueueItemRef } from './playerStoreTypes';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
+import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import {
@@ -56,12 +56,13 @@ export function applyQueueHistorySnapshot(
   if (prior.currentRadio) {
     stopRadio();
   }
-  // Rebuild the queue from the snapshot's thin refs (thin-state phase 4):
-  // resolver cache → the live queue by id (covers tracks the edit didn't remove)
-  // → placeholder. The playing track is restored separately from the full
-  // `snap.currentTrack` below.
-  const liveById = new Map(prior.queue.map(t => [t.id, t]));
-  let nextQueue = snap.queueItems.map(ref => resolveQueueTrack(ref, liveById.get(ref.trackId)));
+  // Rebuild the display queue from the snapshot's thin refs (thin-state):
+  // resolver cache → placeholder. The canonical queue is the snapshot's refs;
+  // this resolved `nextQueue` is only for the engine restore / normalization /
+  // prepend logic below. The playing track is restored separately from the full
+  // `snap.currentTrack`.
+  let nextQueue = snap.queueItems.map(ref => resolveQueueTrack(ref));
+  let nextItems: QueueItemRef[] = [...snap.queueItems];
   let nextIndex = snap.queueIndex;
   let nextTrack = snap.currentTrack ? { ...snap.currentTrack } : null;
 
@@ -70,6 +71,10 @@ export function applyQueueHistorySnapshot(
     const pos = nextQueue.findIndex(t => sameQueueTrackId(t.id, playing.id));
     if (pos === -1) {
       nextQueue = [{ ...playing }, ...nextQueue];
+      nextItems = [
+        { serverId: get().queueServerId ?? '', trackId: playing.id },
+        ...nextItems,
+      ];
       nextIndex = 0;
       nextTrack = { ...playing };
     } else {
@@ -164,9 +169,12 @@ export function applyQueueHistorySnapshot(
     }
   }
 
+  // Seed the resolver with the playing track so its ref always resolves (it may
+  // have been prepended and not yet in the cache window).
+  const seedSid = get().queueServerId ?? '';
+  if (seedSid && nextTrack) seedQueueResolver(seedSid, [nextTrack]);
   set({
-    queue: nextQueue,
-    queueItems: toQueueItemRefs(get().queueServerId ?? '', nextQueue),
+    queueItems: nextItems,
     queueIndex: nextIndex,
     currentTrack: nextTrack,
     currentRadio: null,
@@ -182,7 +190,7 @@ export function applyQueueHistorySnapshot(
   if (!nextTrack) {
     invoke('audio_stop').catch(console.error);
     setIsAudioPaused(false);
-    syncQueueToServer(nextQueue, null, 0);
+    syncQueueToServer(nextItems, null, 0);
     if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
       setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
     }
@@ -209,6 +217,6 @@ export function applyQueueHistorySnapshot(
   if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
     setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
   }
-  syncQueueToServer(nextQueue, nextTrack, tRestore);
+  syncQueueToServer(nextItems, nextTrack, tRestore);
   return true;
 }

@@ -47,7 +47,7 @@ import { usePlayerStore } from './playerStore';
 import { useAuthStore } from './authStore';
 import { onInvoke, invokeMock } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
-import { makeTrack, makeTracks } from '@/test/helpers/factories';
+import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 
 beforeEach(() => {
   resetPlayerStore();
@@ -209,10 +209,8 @@ describe('setProgress', () => {
 
 describe('stop', () => {
   it('invokes audio_stop and clears playback state', () => {
+    seedQueue(makeTracks(2), { index: 0, currentTrack: makeTrack() });
     usePlayerStore.setState({
-      queue: makeTracks(2),
-      queueIndex: 0,
-      currentTrack: makeTrack(),
       isPlaying: true,
       progress: 0.5,
       currentTime: 60,
@@ -229,15 +227,15 @@ describe('stop', () => {
 describe('shuffleQueue', () => {
   it('is a no-op when the queue has fewer than 2 tracks', () => {
     const t = makeTrack({ id: 'only' });
-    usePlayerStore.setState({ queue: [t], queueIndex: 0, currentTrack: t });
+    seedQueue([t], { index: 0, currentTrack: t });
     usePlayerStore.getState().shuffleQueue();
-    expect(usePlayerStore.getState().queue.map(q => q.id)).toEqual(['only']);
+    expect(usePlayerStore.getState().queueItems.map(r => r.trackId)).toEqual(['only']);
   });
 
   it('keeps the current track at queueIndex 0 with the rest shuffled around it', () => {
     const tracks = makeTracks(5, i => ({ id: `t-${i}` }));
     const current = tracks[2];
-    usePlayerStore.setState({ queue: tracks, queueIndex: 2, currentTrack: current });
+    seedQueue(tracks, { index: 2, currentTrack: current });
 
     // Pin the RNG so the shuffle is deterministic.
     vi.spyOn(Math, 'random').mockReturnValue(0);
@@ -245,25 +243,25 @@ describe('shuffleQueue', () => {
     vi.restoreAllMocks();
 
     const s = usePlayerStore.getState();
-    expect(s.queue[0].id).toBe(current.id);
+    expect(s.queueItems[0].trackId).toBe(current.id);
     expect(s.queueIndex).toBe(0);
     // The set of ids is preserved.
-    expect([...s.queue.map(t => t.id)].sort()).toEqual(['t-0', 't-1', 't-2', 't-3', 't-4'].sort());
+    expect([...s.queueItems.map(r => r.trackId)].sort()).toEqual(['t-0', 't-1', 't-2', 't-3', 't-4'].sort());
   });
 });
 
 describe('shuffleUpcomingQueue', () => {
   it('is a no-op when fewer than 2 upcoming tracks remain', () => {
     const tracks = makeTracks(3, i => ({ id: `t-${i}` }));
-    usePlayerStore.setState({ queue: tracks, queueIndex: 2, currentTrack: tracks[2] });
+    seedQueue(tracks, { index: 2, currentTrack: tracks[2] });
     const beforeIds = tracks.map(t => t.id);
     usePlayerStore.getState().shuffleUpcomingQueue();
-    expect(usePlayerStore.getState().queue.map(t => t.id)).toEqual(beforeIds);
+    expect(usePlayerStore.getState().queueItems.map(r => r.trackId)).toEqual(beforeIds);
   });
 
   it('keeps the head + current in place and shuffles only the upcoming tail', () => {
     const tracks = makeTracks(5, i => ({ id: `t-${i}` }));
-    usePlayerStore.setState({ queue: tracks, queueIndex: 1, currentTrack: tracks[1] });
+    seedQueue(tracks, { index: 1, currentTrack: tracks[1] });
 
     vi.spyOn(Math, 'random').mockReturnValue(0);
     usePlayerStore.getState().shuffleUpcomingQueue();
@@ -271,35 +269,35 @@ describe('shuffleUpcomingQueue', () => {
 
     const s = usePlayerStore.getState();
     // First two entries unchanged (head + current).
-    expect(s.queue[0].id).toBe('t-0');
-    expect(s.queue[1].id).toBe('t-1');
+    expect(s.queueItems[0].trackId).toBe('t-0');
+    expect(s.queueItems[1].trackId).toBe('t-1');
     // The tail still contains the same ids in some order.
-    expect([...s.queue.slice(2).map(t => t.id)].sort()).toEqual(['t-2', 't-3', 't-4'].sort());
+    expect([...s.queueItems.slice(2).map(r => r.trackId)].sort()).toEqual(['t-2', 't-3', 't-4'].sort());
   });
 });
 
 describe('pruneUpcomingToCurrent', () => {
   it('drops everything after queueIndex', () => {
     const tracks = makeTracks(5);
-    usePlayerStore.setState({ queue: tracks, queueIndex: 1, currentTrack: tracks[1] });
+    seedQueue(tracks, { index: 1, currentTrack: tracks[1] });
     usePlayerStore.getState().pruneUpcomingToCurrent();
     const s = usePlayerStore.getState();
-    expect(s.queue.map(t => t.id)).toEqual([tracks[0].id, tracks[1].id]);
+    expect(s.queueItems.map(r => r.trackId)).toEqual([tracks[0].id, tracks[1].id]);
     expect(s.queueIndex).toBe(1);
   });
 
   it('clears the queue entirely when there is no current track (orphaned queue → empty)', () => {
-    usePlayerStore.setState({ queue: makeTracks(3), queueIndex: 0, currentTrack: null });
+    seedQueue(makeTracks(3), { index: 0, currentTrack: null });
     usePlayerStore.getState().pruneUpcomingToCurrent();
     const s = usePlayerStore.getState();
-    expect(s.queue).toEqual([]);
+    expect(s.queueItems).toEqual([]);
     expect(s.queueIndex).toBe(0);
   });
 
   it('returns early without clearing when no current track AND queue is already empty', () => {
-    usePlayerStore.setState({ queue: [], queueIndex: 0, currentTrack: null });
+    usePlayerStore.setState({ queueItems: [], queueIndex: 0, currentTrack: null });
     usePlayerStore.getState().pruneUpcomingToCurrent();
-    expect(usePlayerStore.getState().queue).toEqual([]);
+    expect(usePlayerStore.getState().queueItems).toEqual([]);
   });
 });
 

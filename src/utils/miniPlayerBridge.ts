@@ -2,6 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, emitTo } from '@tauri-apps/api/event';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
+import { resolveQueueTrack } from './library/queueTrackView';
 import type { SubsonicOpenArtistRef } from '../api/subsonicTypes';
 
 export const MINI_WINDOW_LABEL = 'mini';
@@ -68,7 +69,10 @@ function snapshot(): MiniSyncPayload {
   const a = useAuthStore.getState();
   const idx = s.queueIndex ?? 0;
   const start = Math.max(0, idx - MINI_QUEUE_HALF);
-  const windowed = (s.queue ?? []).slice(start, idx + MINI_QUEUE_HALF + 1);
+  // Thin-state: resolve the windowed slice (resolver cache → placeholder).
+  const windowed = (s.queueItems ?? [])
+    .slice(start, idx + MINI_QUEUE_HALF + 1)
+    .map(r => resolveQueueTrack(r));
   miniWindowStart = start;
   return {
     track: s.currentTrack ? toMini(s.currentTrack) : null,
@@ -123,7 +127,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
       || state.isPlaying !== prev.isPlaying
       || state.currentTrack?.starred !== prev.currentTrack?.starred
       || state.queueIndex !== prev.queueIndex
-      || state.queue !== prev.queue
+      || state.queueItems !== prev.queueItems
       || state.queueServerId !== prev.queueServerId
       || state.volume !== prev.volume) {
       push();
@@ -169,9 +173,13 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   const jumpUnlisten = listen<{ index: number }>('mini:jump', (e) => {
     const store = usePlayerStore.getState();
     const idx = (e.payload?.index ?? -1) + miniWindowStart;
-    if (idx < 0 || idx >= store.queue.length) return;
-    const track = store.queue[idx];
-    if (track) store.playTrack(track, store.queue, true, false, idx);
+    if (idx < 0 || idx >= store.queueItems.length) return;
+    const ref = store.queueItems[idx];
+    if (ref) {
+      // Resolve the target ref; pass undefined so playTrack keeps the canonical
+      // queue and just jumps to this slot.
+      store.playTrack(resolveQueueTrack(ref), undefined, true, false, idx);
+    }
   });
 
   // PsyDnD reorder forwarded from the mini queue (slice-relative → absolute).
@@ -180,8 +188,8 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     const raw = e.payload ?? { from: -1, to: -1 };
     const from = raw.from + miniWindowStart;
     const to = raw.to + miniWindowStart;
-    if (from < 0 || from >= store.queue.length) return;
-    if (to < 0 || to > store.queue.length) return;
+    if (from < 0 || from >= store.queueItems.length) return;
+    if (to < 0 || to > store.queueItems.length) return;
     if (from === to) return;
     store.reorderQueue(from, to);
   });
@@ -190,7 +198,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   const removeUnlisten = listen<{ index: number }>('mini:remove', (e) => {
     const store = usePlayerStore.getState();
     const idx = (e.payload?.index ?? -1) + miniWindowStart;
-    if (idx < 0 || idx >= store.queue.length) return;
+    if (idx < 0 || idx >= store.queueItems.length) return;
     store.removeTrack(idx);
   });
 

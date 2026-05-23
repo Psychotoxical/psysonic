@@ -90,12 +90,12 @@ function onStarSuccess(id: string, starred: boolean): void {
     delete next[id];
     return {
       starredOverrides: next,
-      queue: s.queue.map(t => (t.id === id ? { ...t, starred: starredVal } : t)),
       currentTrack:
         s.currentTrack?.id === id ? { ...s.currentTrack, starred: starredVal } : s.currentTrack,
     };
   });
-  // Drop the resolver's cached copy so the next read reflects the synced value.
+  // Thin-state: the queue's copy lives in the resolver cache. Drop the cached
+  // entry so the next read reflects the synced value (re-resolved from index).
   invalidateQueueResolver(id);
 }
 

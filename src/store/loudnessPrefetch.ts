@@ -1,4 +1,4 @@
-import type { Track } from './playerStoreTypes';
+import type { QueueItemRef } from './playerStoreTypes';
 import { useAuthStore } from './authStore';
 import { collectLoudnessBackfillWindowTrackIds } from './loudnessBackfillWindow';
 import { refreshLoudnessForTrack } from './loudnessRefresh';
@@ -15,7 +15,7 @@ import { usePlayerStore } from './playerStore';
  * the upcoming ones.
  */
 export function prefetchLoudnessForEnqueuedTracks(
-  mergedQueue: Track[],
+  mergedQueue: QueueItemRef[],
   queueIndex: number,
 ): void {
   if (useAuthStore.getState().normalizationEngine !== 'loudness') return;

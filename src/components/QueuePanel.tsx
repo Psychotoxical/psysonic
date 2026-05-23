@@ -73,9 +73,9 @@ function QueuePanelHostOrSolo() {
     if (!addedBy || addedBy === orbitHostUsername) return t('orbit.queueAddedByYou');
     return t('orbit.queueAddedByUser', { user: addedBy });
   };
-  const queue = usePlayerStore(s => s.queue);
-  // Thin-state: id/length reads (save / share / playlist) read the canonical refs;
-  // `queue` is still used for the rendered list + auto-scroll until the field is dropped.
+  // Thin-state: the queue is the canonical `QueueItemRef[]`; rows resolve their
+  // Track from the resolver. List, header, toolbar and id/length reads (save /
+  // share / playlist) all read off the refs.
   const queueItems = usePlayerStore(s => s.queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
@@ -160,7 +160,7 @@ function QueuePanelHostOrSolo() {
   });
 
   useQueueAutoScroll({
-    queue,
+    queue: queueItems,
     queueIndex,
     currentTrack,
     queueListRef,
@@ -247,7 +247,7 @@ function QueuePanelHostOrSolo() {
         </>
       )}
       <QueueHeader
-        queue={queue}
+        queue={queueItems}
         queueIndex={queueIndex}
         activePlaylist={activePlaylist}
         isNowPlayingCollapsed={isNowPlayingCollapsed}
@@ -287,7 +287,7 @@ function QueuePanelHostOrSolo() {
       {activeTab === 'queue' ? (<>
         {!isNowPlayingCollapsed && toolbarButtons.some(b => b.visible && b.id !== 'separator') && (
           <QueueToolbar
-            queue={queue}
+            queue={queueItems}
             activePlaylist={activePlaylist}
             saveState={saveState}
             toolbarButtons={toolbarButtons}
@@ -311,7 +311,7 @@ function QueuePanelHostOrSolo() {
       {currentTrack && queueItems.length > 0 && <div className="queue-divider"><span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.nextTracks')}</span></div>}
 
       <QueueList
-        queue={queue}
+        queue={queueItems}
         queueIndex={queueIndex}
         contextMenu={contextMenu}
         playTrack={playTrack}

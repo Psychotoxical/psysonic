@@ -69,7 +69,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
         // server with the right resume point for other devices.
         const s = get();
         if (s.currentTrack) {
-          void flushQueueSyncToServer(s.queue, s.currentTrack, s.currentTime);
+          void flushQueueSyncToServer(s.queueItems, s.currentTrack, s.currentTime);
         }
       }
       set({ isPlaying: false, scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
