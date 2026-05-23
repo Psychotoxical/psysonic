@@ -9,6 +9,7 @@ export const songInfo = {
   duration: 'Durată',
   track: 'Piesă',
   bpm: 'BPM',
+  mood: 'Stare de spirit',
   playCount: 'Număr de redări',
   lastPlayed: 'Ultima redare',
   format: 'Format',

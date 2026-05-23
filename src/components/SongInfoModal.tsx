@@ -15,7 +15,12 @@ import { showToast } from '../utils/ui/toast';
 import { formatTrackTime } from '../utils/format/formatDuration';
 import { formatLastSeen } from '../utils/componentHelpers/userMgmtHelpers';
 import { libraryIsReady } from '../utils/library/libraryReady';
-import { parseTrackEnrichmentFacts, resolveQueueBpm } from '../utils/library/trackEnrichment';
+import {
+  formatQueueMoodLabels,
+  parseTrackEnrichmentFacts,
+  resolveQueueBpm,
+  type ParsedTrackEnrichment,
+} from '../utils/library/trackEnrichment';
 import i18n from '../i18n';
 
 function formatSize(bytes?: number): string | null {
@@ -65,7 +70,7 @@ export default function SongInfoModal() {
     useShallow(s => ({ songInfoModal: s.songInfoModal, closeSongInfo: s.closeSongInfo }))
   );
   const [song, setSong] = useState<SubsonicSong | null>(null);
-  const [displayBpm, setDisplayBpm] = useState<number | null>(null);
+  const [enrichment, setEnrichment] = useState<ParsedTrackEnrichment | null>(null);
   const [loading, setLoading] = useState(false);
   // Absolute filesystem path resolved via Navidrome's native API in parallel
   // with the Subsonic getSong call. Subsonic only ever returns a relative
@@ -76,13 +81,13 @@ export default function SongInfoModal() {
   useEffect(() => {
     if (!songInfoModal.isOpen || !songInfoModal.songId) {
       setSong(null);
-      setDisplayBpm(null);
+      setEnrichment(null);
       setAbsolutePath(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    setDisplayBpm(null);
+    setEnrichment(null);
     setAbsolutePath(null);
     const songId = songInfoModal.songId;
     void (async () => {
@@ -91,23 +96,24 @@ export default function SongInfoModal() {
       setSong(s);
       setLoading(false);
       if (!s) {
-        setDisplayBpm(null);
+        setEnrichment(null);
         return;
       }
-      let bpm = s.bpm != null && s.bpm > 0 ? s.bpm : null;
       const auth = useAuthStore.getState();
       const sid = auth.activeServerId;
       const indexEnabled = sid ? useLibraryIndexStore.getState().isIndexEnabled(sid) : false;
       if (sid && indexEnabled && await libraryIsReady(sid)) {
         try {
-          const facts = await libraryGetFacts(sid, songId, ['bpm']);
-          const resolved = resolveQueueBpm(parseTrackEnrichmentFacts(facts, s.bpm ?? null));
-          if (resolved != null) bpm = resolved;
+          const facts = await libraryGetFacts(sid, songId);
+          if (!cancelled) {
+            setEnrichment(parseTrackEnrichmentFacts(facts, s.bpm ?? null));
+          }
         } catch {
-          // keep tag BPM only
+          if (!cancelled) setEnrichment(null);
         }
+      } else if (!cancelled) {
+        setEnrichment(null);
       }
-      if (!cancelled) setDisplayBpm(bpm);
     })();
     // Try the native API in parallel; only when the active server is Navidrome
     // and we have credentials. Failures are silent — modal falls back to
@@ -152,6 +158,17 @@ export default function SongInfoModal() {
   const hasReplayGain = song?.replayGain &&
     (song.replayGain.trackGain !== undefined || song.replayGain.albumGain !== undefined);
 
+  const displayBpm = song
+    ? resolveQueueBpm(
+      enrichment ?? {
+        serverBpm: song.bpm != null && song.bpm > 0 ? song.bpm : null,
+        measuredBpm: null,
+        moodLabels: [],
+      },
+    )
+    : null;
+  const displayMood = enrichment ? formatQueueMoodLabels(enrichment.moodLabels, t) : null;
+
   return createPortal(
     <>
       <div className="song-info-backdrop" onClick={closeSongInfo} />
@@ -180,6 +197,7 @@ export default function SongInfoModal() {
                 <Row label={t('songInfo.duration')} value={formatTrackTime(song.duration)} />
                 <Row label={t('songInfo.track')} value={trackLabel} />
                 <Row label={t('songInfo.bpm')} value={displayBpm} />
+                <Row label={t('songInfo.mood')} value={displayMood} />
                 <Row label={t('songInfo.playCount')} value={song.playCount} />
                 <Row label={t('songInfo.lastPlayed')} value={song.played ? formatLastSeen(song.played, i18n.language, '—') : null} />
 

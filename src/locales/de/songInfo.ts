@@ -9,6 +9,7 @@ export const songInfo = {
   duration: 'Länge',
   track: 'Track',
   bpm: 'BPM',
+  mood: 'Stimmung',
   playCount: 'Wiedergaben',
   lastPlayed: 'Zuletzt gespielt',
   format: 'Format',

@@ -390,6 +390,32 @@ mod tests {
         .unwrap_err();
         assert_eq!(err, "VOLUME_NOT_FOUND");
     }
+
+    // ── offline download cancellation registry ───────────────────────────────
+
+    #[test]
+    fn cancel_offline_downloads_marks_ids_for_cancellation() {
+        use crate::offline_cancel_flags;
+
+        let id = "test-cancel-offline-dl";
+        clear_offline_cancel(id.to_string());
+        cancel_offline_downloads(vec![id.to_string()]);
+        let flags = offline_cancel_flags().lock().unwrap();
+        let flag = flags.get(id).expect("cancel flag registered");
+        assert!(flag.load(Ordering::Relaxed));
+        clear_offline_cancel(id.to_string());
+    }
+
+    #[test]
+    fn clear_offline_cancel_removes_flag_entry() {
+        use crate::offline_cancel_flags;
+
+        let id = "test-clear-offline-dl";
+        cancel_offline_downloads(vec![id.to_string()]);
+        clear_offline_cancel(id.to_string());
+        let flags = offline_cancel_flags().lock().unwrap();
+        assert!(!flags.contains_key(id));
+    }
 }
 
 /// Returns the total size in bytes of all files in the offline cache directory (and optional custom dir).
