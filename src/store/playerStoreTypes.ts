@@ -79,11 +79,11 @@ export interface PlayerState {
    *  are then cleared. Absent / index-off → the windowed `queue` is used as-is. */
   queueRefs?: string[];
   queueRefsIndex?: number;
-  /** Phase 1b: canonical in-memory thin ref list — kept in sync with `queue`
-   *  at every write site (single playback server per item in v1; carries the
-   *  queue-only flags). Persisted by `partialize` and the source the resolver/
-   *  consumers move onto in Phase 2/3; `queue: Track[]` is dropped in Phase 4. */
-  queueItems?: QueueItemRef[];
+  /** Canonical thin queue list (thin-state), always in sync with `queue: Track[]`
+   *  during the dual-write transition (single playback server per item in v1;
+   *  carries the queue-only flags). Persisted by `partialize`; the source the
+   *  resolver/consumers read from. `queue: Track[]` is dropped in the final step. */
+  queueItems: QueueItemRef[];
   /** Restore-pending sentinel (transient). `partialize` writes it alongside the
    *  full `queueItems` on every persist; a fresh rehydrate brings it back, which
    *  is what tells `hydrateQueueFromIndex` the windowed `queue` still needs a
