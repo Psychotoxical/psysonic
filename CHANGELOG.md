@@ -18,6 +18,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Servers — edit existing profiles
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
+
+* Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
+
+
+
+### Local library index + search (preview)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
+
+* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
+* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
+* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
+* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
+
+
+
 ### Player stats — local listening history
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#849](https://github.com/Psychotoxical/psysonic/pull/849)**
@@ -48,25 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Queue:** measured BPM and top mood labels when the playback server's index is enabled; `analysis:enrichment-updated` refreshes the UI without waiting for poll.
 * **Advanced Search:** virtual mood groups (joy, sadness, dance, work, romance, anger) filter via local index + mood_tag rows (migration 008).
 * Mood search requires persisted mood_tag facts; queue display may still show labels from valence/arousal fallback before tags land.
-
-
-
-### Servers — edit existing profiles
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
-
-* Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
-
-
-
-### Local library index + search (preview)
-
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
-
-* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
-* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
-* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
-* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
 
 
 
@@ -111,16 +111,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Library browse — local index race and catalog paths
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#847](https://github.com/Psychotoxical/psysonic/pull/847)**
-
-* **Artists**, **Composers**, **Tracks**, and **Search Results** text search races local FTS against network search3; a ready index still serves hits when remote is down.
-* **All Albums** paginated browse and genre filter, plus **Artists** catalog browse-all, read from the local index when ready (network fallback unchanged).
-* DevTools: `[psysonic][library] browse-race …` lines for race winner, timings, hit counts, and fallback reason.
-
-
-
 ### Settings + Queue polish
 
 **By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**
@@ -145,6 +135,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Repeat is disabled while a radio stream plays.
 * Deleting the playing station fades out instead of cutting hard.
 * Play / Stop tooltip on the cover-overlay button; stop uses a Square icon.
+
+
+
+### Library browse — local index race and catalog paths
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#847](https://github.com/Psychotoxical/psysonic/pull/847)**
+
+* **Artists**, **Composers**, **Tracks**, and **Search Results** text search races local FTS against network search3; a ready index still serves hits when remote is down.
+* **All Albums** paginated browse and genre filter, plus **Artists** catalog browse-all, read from the local index when ready (network fallback unchanged).
+* DevTools: `[psysonic][library] browse-race …` lines for race winner, timings, hit counts, and fallback reason.
 
 
 
@@ -254,6 +254,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Playlists & Favorites — column picker on short lists
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#853](https://github.com/Psychotoxical/psysonic/pull/853)**
+
+* On a one-song playlist (or short favorites list) the column menu was clipped behind the list, added a stray scrollbar, and could hide the row when scrolled. The picker now sits outside the scroll area, so it opens fully on lists of any length.
+
+
+
+### Browse all tracks — sticky header no longer overlapped
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#854](https://github.com/Psychotoxical/psysonic/pull/854)**
+
+* Scrolling the full tracks list painted rows over the sticky column header. Browse now flows in the page like the search results, so the header stays put; it shares one list view with Search and Advanced Search.
+
+
+
 ### Local library index — full resync removes server-deleted tracks
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#861](https://github.com/Psychotoxical/psysonic/pull/861)**
@@ -269,22 +285,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Legacy destructive migration paths were replaced with a dual-DB import/switch flow that keeps old DBs as source until verification passes.
 * Rows belonging to removed servers are explicitly skipped/purged from the active migrated DB scope instead of being silently carried forward.
 * Legacy sqlite artifacts from old paths are now cleaned up after successful path migration (including WAL/SHM sidecars) to prevent stale old-version leftovers.
-
-
-
-### Playlists & Favorites — column picker on short lists
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#853](https://github.com/Psychotoxical/psysonic/pull/853)**
-
-* On a one-song playlist (or short favorites list) the column menu was clipped behind the list, added a stray scrollbar, and could hide the row when scrolled. The picker now sits outside the scroll area, so it opens fully on lists of any length.
-
-
-
-### Browse all tracks — sticky header no longer overlapped
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#854](https://github.com/Psychotoxical/psysonic/pull/854)**
-
-* Scrolling the full tracks list painted rows over the sticky column header. Browse now flows in the page like the search results, so the header stays put; it shares one list view with Search and Advanced Search.
 
 
 
