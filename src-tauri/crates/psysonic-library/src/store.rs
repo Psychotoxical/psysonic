@@ -90,6 +90,7 @@ impl LibraryStore {
         let write_conn = Connection::open(db_path).map_err(|e| e.to_string())?;
         configure_write_connection(&write_conn).map_err(|e| e.to_string())?;
         run_migrations(&write_conn).map_err(|e| e.to_string())?;
+        checkpoint_wal_conn(&write_conn, "open").map_err(|e| e.to_string())?;
         let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|e| e.to_string())?;
         configure_read_connection(&read_conn).map_err(|e| e.to_string())?;
@@ -183,10 +184,7 @@ impl LibraryStore {
 
     pub(crate) fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
         self.with_conn_mut(op, |conn| {
-            let _: (i32, i32, i32) =
-                conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-                })?;
+            checkpoint_wal_conn(conn, op)?;
             Ok(())
         })
     }
@@ -284,6 +282,19 @@ fn configure_read_connection(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     // Search / browse hot path on large libraries (read-only handle).
     conn.pragma_update(None, "cache_size", -64_000)?;
+    Ok(())
+}
+
+fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
+    let (busy, log, checkpointed): (i32, i32, i32) =
+        conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+    if busy != 0 {
+        crate::app_eprintln!(
+            "[library-db] wal checkpoint busy op={op} busy={busy} log={log} checkpointed={checkpointed}"
+        );
+    }
     Ok(())
 }
 

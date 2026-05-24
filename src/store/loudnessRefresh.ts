@@ -1,6 +1,6 @@
 import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import { invoke } from '@tauri-apps/api/core';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import { getPlaybackIndexKey } from '../utils/playback/playbackServer';
 import { redactSubsonicUrlForLog } from '../utils/server/redactSubsonicUrl';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
@@ -71,7 +71,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
   usePlayerStore.setState({ normalizationDbgSource: 'refresh:start', normalizationDbgTrackId: trackId });
   try {
     const requestedTarget = useAuthStore.getState().loudnessTargetLufs;
-    const serverId = getPlaybackServerId() || null;
+    const serverId = getPlaybackIndexKey() || null;
     const row = await invoke<LoudnessCachePayload | null>('analysis_get_loudness_for_track', {
       trackId,
       targetLufs: requestedTarget,

@@ -1,6 +1,6 @@
 import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import { invoke } from '@tauri-apps/api/core';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import { getPlaybackIndexKey } from '../utils/playback/playbackServer';
 import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
 import { bumpWaveformRefreshGen } from './waveformRefreshGen';
@@ -43,7 +43,7 @@ export async function reseedLoudnessForTrackId(trackId: string): Promise<void> {
     normalizationTargetLufs: auth.loudnessTargetLufs,
     normalizationEngineLive: 'loudness',
   });
-  const serverId = getPlaybackServerId() || null;
+  const serverId = getPlaybackIndexKey() || null;
   try {
     await invoke('analysis_delete_waveform_for_track', { trackId, serverId });
   } catch (e) {

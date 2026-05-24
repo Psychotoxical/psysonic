@@ -2,7 +2,7 @@ import { getSong } from '../api/subsonicLibrary';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateLivePosition } from '../api/orbit';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import { getPlaybackIndexKey, getPlaybackServerId } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -151,7 +151,7 @@ export function runResume(set: SetState, get: GetState): void {
           isReplayGainActive(), authStateCold.replayGainMode,
         );
         const replayGainPeakCold = isReplayGainActive() ? (trackToPlay.replayGainPeak ?? null) : null;
-        const coldServerId = getPlaybackServerId();
+        const coldServerId = getPlaybackIndexKey();
         setDeferHotCachePrefetch(true);
         const coldUrl = resolvePlaybackUrl(trackToPlay.id, coldServerId);
         set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(trackToPlay.id, coldServerId, coldUrl) });
@@ -191,7 +191,7 @@ export function runResume(set: SetState, get: GetState): void {
           isReplayGainActive(), authStateCold.replayGainMode,
         );
         const replayGainPeakCold = isReplayGainActive() ? (currentTrack.replayGainPeak ?? null) : null;
-        const coldServerId = getPlaybackServerId();
+        const coldServerId = getPlaybackIndexKey();
         setDeferHotCachePrefetch(true);
         const coldUrl = resolvePlaybackUrl(currentTrack.id, coldServerId);
         set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(currentTrack.id, coldServerId, coldUrl) });

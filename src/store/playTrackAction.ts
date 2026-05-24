@@ -6,6 +6,7 @@ import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import {
   bindQueueServerForPlayback,
+  getPlaybackIndexKey,
   getPlaybackServerId,
   shouldBindQueueServerForPlay,
 } from '../utils/playback/playbackServer';
@@ -301,7 +302,7 @@ export function runPlayTrack(
       manual,
       hiResEnabled: authStateNow.enableHiRes,
       analysisTrackId: track.id,
-      serverId: getPlaybackServerId() || null,
+      serverId: getPlaybackIndexKey() || null,
       streamFormatSuffix: track.suffix ?? null,
     })
       .then(() => {

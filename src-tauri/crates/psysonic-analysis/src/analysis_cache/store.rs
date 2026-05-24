@@ -127,6 +127,7 @@ impl AnalysisCache {
         let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
         configure_connection(&conn).map_err(|e| e.to_string())?;
         run_migrations(&mut conn).map_err(|e| e.to_string())?;
+        checkpoint_wal_conn(&conn, "open").map_err(|e| e.to_string())?;
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -143,6 +144,7 @@ impl AnalysisCache {
         let mut conn = Connection::open_in_memory().expect("in-memory connection");
         conn.pragma_update(None, "foreign_keys", "ON").expect("pragma foreign_keys");
         run_migrations(&mut conn).expect("schema migration");
+        let _ = checkpoint_wal_conn(&conn, "open");
         Self { conn: Mutex::new(conn) }
     }
 
@@ -234,6 +236,14 @@ impl AnalysisCache {
             waveforms: waveforms as u64,
             loudness: loudness as u64,
         })
+    }
+
+    pub fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        checkpoint_wal_conn(&conn, op).map_err(|e| e.to_string())
     }
 
     /// Re-key analysis rows from legacy server ids to URL-based index keys.
@@ -839,6 +849,19 @@ fn analysis_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     }
 
     Ok(db_path)
+}
+
+fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
+    let (busy, log, checkpointed): (i32, i32, i32) =
+        conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+    if busy != 0 {
+        crate::app_eprintln!(
+            "[analysis-db] wal checkpoint busy op={op} busy={busy} log={log} checkpointed={checkpointed}"
+        );
+    }
+    Ok(())
 }
 
 fn migrate_db_file(from: &Path, to: &Path) -> io::Result<()> {

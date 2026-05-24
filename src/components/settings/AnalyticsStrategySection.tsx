@@ -53,7 +53,7 @@ export default function AnalyticsStrategySection() {
     return Array.from(known).filter(id => !activeServerIds.has(id));
   }, [strategyByServer, advancedParallelismByServer, activeServerIds]);
 
-  const anyAdvanced = useMemo(() => {
+  const anyAggressive = useMemo(() => {
     return servers.some(server => getStrategyForServer(server.id) === 'advanced');
   }, [servers, getStrategyForServer]);
 
@@ -105,15 +105,6 @@ export default function AnalyticsStrategySection() {
         return t('settings.analyticsStrategyLazy');
       case 'advanced':
         return t('settings.analyticsStrategyAdvanced');
-    }
-  };
-
-  const strategyDesc = (s: AnalyticsStrategy) => {
-    switch (s) {
-      case 'lazy':
-        return t('settings.analyticsStrategyLazyDesc');
-      case 'advanced':
-        return t('settings.analyticsStrategyAdvancedDesc');
     }
   };
 
@@ -187,9 +178,6 @@ export default function AnalyticsStrategySection() {
                             {strategyLabel(s)}
                           </button>
                         ))}
-                      </div>
-                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                        {strategyDesc(strategy)}
                       </div>
                     </td>
                     <td style={{ padding: '10px', minWidth: 160 }}>
@@ -275,7 +263,35 @@ export default function AnalyticsStrategySection() {
           </ul>
         </div>
 
-        {anyAdvanced && (
+        <div
+          style={{
+            marginTop: '0.85rem',
+            padding: '0.65rem 0.75rem',
+            borderRadius: 8,
+            background: 'var(--surface-elevated, rgba(255,255,255,0.03))',
+            border: '1px solid var(--border-subtle, rgba(255,255,255,0.06))',
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            lineHeight: 1.55,
+          }}
+        >
+          <div style={{ marginBottom: '0.4rem' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {t('settings.analyticsStrategyLazy')}
+            </span>
+            {' '}
+            {t('settings.analyticsStrategyLazyDesc')}
+          </div>
+          <div>
+            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {t('settings.analyticsStrategyAdvanced')}
+            </span>
+            {' '}
+            {t('settings.analyticsStrategyAdvancedDesc')}
+          </div>
+        </div>
+
+        {anyAggressive && (
           <div
             className="settings-hint settings-hint-info"
             role="note"
