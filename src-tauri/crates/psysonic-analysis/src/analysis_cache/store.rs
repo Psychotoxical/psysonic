@@ -683,20 +683,22 @@ fn analysis_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| e.to_string())?;
     let db_dir = base.join("databases").join("analysis");
     let db_path = db_dir.join("audio-analysis.sqlite");
-    if let Some(parent) = db_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-
-    if db_path.exists() {
-        return Ok(db_path);
-    }
-
     let legacy_data = base.join("audio-analysis.sqlite");
     let legacy_config = app
         .path()
         .app_config_dir()
         .map_err(|e| e.to_string())?
         .join("audio-analysis.sqlite");
+    if let Some(parent) = db_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    if db_path.exists() {
+        cleanup_legacy_db_if_present(&legacy_data, &db_path)?;
+        cleanup_legacy_db_if_present(&legacy_config, &db_path)?;
+        return Ok(db_path);
+    }
+
     if legacy_data.exists() {
         migrate_db_file(&legacy_data, &db_path).map_err(|e| e.to_string())?;
         migrate_db_sidecar(&legacy_data, &db_path, "-wal").map_err(|e| e.to_string())?;
@@ -706,8 +708,17 @@ fn analysis_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         migrate_db_sidecar(&legacy_config, &db_path, "-wal").map_err(|e| e.to_string())?;
         migrate_db_sidecar(&legacy_config, &db_path, "-shm").map_err(|e| e.to_string())?;
     }
+    cleanup_legacy_db_if_present(&legacy_data, &db_path)?;
+    cleanup_legacy_db_if_present(&legacy_config, &db_path)?;
 
     Ok(db_path)
+}
+
+fn cleanup_legacy_db_if_present(legacy_path: &Path, active_path: &Path) -> Result<(), String> {
+    if legacy_path == active_path {
+        return Ok(());
+    }
+    remove_db_with_sidecars(legacy_path)
 }
 
 fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
