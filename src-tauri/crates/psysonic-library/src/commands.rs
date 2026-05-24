@@ -15,7 +15,7 @@ use psysonic_integration::navidrome::navidrome_token;
 use psysonic_integration::subsonic::SubsonicClient;
 
 use crate::advanced_search;
-use crate::analysis_backfill::{self, LibraryAnalysisBackfillBatchDto};
+use crate::analysis_backfill::{self, LibraryAnalysisBackfillBatchDto, LibraryAnalysisProgressDto};
 use crate::cross_server;
 use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
@@ -42,6 +42,7 @@ use crate::sync::tombstone::should_auto_reconcile;
 
 /// Cap for `library_get_tracks_batch` per spec §7.1 ("max 100 refs/call").
 const TRACKS_BATCH_LIMIT: usize = 100;
+const ANALYSIS_PROGRESS_CACHE_TTL: Duration = Duration::from_secs(30);
 
 #[tauri::command]
 pub fn library_analysis_backfill_batch(
@@ -58,6 +59,56 @@ pub fn library_analysis_backfill_batch(
         cursor.as_deref().filter(|s| !s.is_empty()),
         limit,
     )
+}
+
+#[tauri::command]
+pub fn library_analysis_progress(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<LibraryAnalysisProgressDto, String> {
+    let server_id = server_id.trim().to_string();
+    if server_id.is_empty() {
+        return Ok(LibraryAnalysisProgressDto {
+            total_tracks: 0,
+            pending_tracks: 0,
+            done_tracks: 0,
+        });
+    }
+
+    let cached = runtime.analysis_progress_snapshot(&server_id);
+    if let Some(entry) = cached.as_ref() {
+        if entry.updated_at.elapsed() <= ANALYSIS_PROGRESS_CACHE_TTL {
+            return Ok(entry.value.clone());
+        }
+    }
+
+    if runtime.mark_analysis_progress_in_flight(&server_id) {
+        let app_handle = app.clone();
+        let server_id_clone = server_id.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let Some(runtime) = app_handle.try_state::<LibraryRuntime>() else {
+                return;
+            };
+            let progress = analysis_backfill::collect_analysis_progress(
+                &app_handle,
+                &runtime,
+                server_id_clone.trim(),
+            );
+            match progress {
+                Ok(value) => runtime.set_analysis_progress(&server_id_clone, value),
+                Err(_) => runtime.clear_analysis_progress_in_flight(&server_id_clone),
+            }
+        });
+    }
+
+    Ok(cached
+        .map(|entry| entry.value)
+        .unwrap_or(LibraryAnalysisProgressDto {
+            total_tracks: 0,
+            pending_tracks: 0,
+            done_tracks: 0,
+        }))
 }
 
 #[tauri::command]

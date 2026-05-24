@@ -83,6 +83,13 @@ pub struct LoudnessSnapshot {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct AnalysisDeleteServerReport {
+    pub analysis_tracks: u64,
+    pub waveforms: u64,
+    pub loudness: u64,
+}
+
 pub struct AnalysisCache {
     conn: Mutex<Connection>,
 }
@@ -198,6 +205,33 @@ impl AnalysisCache {
             .execute("DELETE FROM waveform_cache", [])
             .map_err(|e| e.to_string())?;
         Ok(n as u64)
+    }
+
+    /// Remove all analysis cache entries for a specific server id.
+    pub fn delete_all_for_server(
+        &self,
+        server_id: &str,
+    ) -> Result<AnalysisDeleteServerReport, String> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        let waveforms = tx
+            .execute("DELETE FROM waveform_cache WHERE server_id = ?1", params![server_id])
+            .map_err(|e| e.to_string())?;
+        let loudness = tx
+            .execute("DELETE FROM loudness_cache WHERE server_id = ?1", params![server_id])
+            .map_err(|e| e.to_string())?;
+        let analysis_tracks = tx
+            .execute("DELETE FROM analysis_track WHERE server_id = ?1", params![server_id])
+            .map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(AnalysisDeleteServerReport {
+            analysis_tracks: analysis_tracks as u64,
+            waveforms: waveforms as u64,
+            loudness: loudness as u64,
+        })
     }
 
     pub fn touch_track_status(&self, key: &TrackKey, status: &str) -> Result<(), String> {

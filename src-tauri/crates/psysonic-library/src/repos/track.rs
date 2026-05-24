@@ -326,6 +326,18 @@ impl<'a> TrackRepository<'a> {
         })
     }
 
+    /// Count non-deleted tracks for a server (analysis progress baseline).
+    pub fn count_live_tracks(&self, server_id: &str) -> Result<i64, String> {
+        self.store.with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
+                params![server_id],
+                |row| row.get(0),
+            )
+        })
+        .map_err(|e| e.to_string())
+    }
+
     /// Batch upsert with optional §6.9 id-remap detection. When
     /// `unstable_track_ids` is `true`, each incoming row is checked
     /// against the existing `track` table for a collision via

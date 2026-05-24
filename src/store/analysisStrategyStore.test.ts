@@ -48,4 +48,13 @@ describe('analysisStrategyStore', () => {
     expect(store.getAdvancedParallelismForServer('s1')).toBe(8);
     expect(store.getAdvancedParallelismForServer('s2')).toBe(DEFAULT_ADVANCED_PARALLELISM);
   });
+
+  it('clears per-server overrides', () => {
+    const store = useAnalysisStrategyStore.getState();
+    store.setServerStrategy('s1', 'advanced');
+    store.setServerAdvancedParallelism('s1', 6);
+    store.clearServerOverrides('s1');
+    expect(store.getStrategyForServer('s1')).toBe(DEFAULT_ANALYTICS_STRATEGY);
+    expect(store.getAdvancedParallelismForServer('s1')).toBe(DEFAULT_ADVANCED_PARALLELISM);
+  });
 });

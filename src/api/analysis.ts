@@ -32,6 +32,18 @@ export interface LibraryAnalysisBackfillBatchDto {
   exhausted: boolean;
 }
 
+export interface LibraryAnalysisProgressDto {
+  totalTracks: number;
+  pendingTracks: number;
+  doneTracks: number;
+}
+
+export interface AnalysisDeleteServerReportDto {
+  analysisTracks: number;
+  waveforms: number;
+  loudness: number;
+}
+
 export const LIBRARY_ANALYSIS_BACKFILL_BATCH_SIZE = 20;
 
 export function analysisGetBackfillQueueStats(): Promise<AnalysisBackfillQueueStatsDto> {
@@ -52,6 +64,18 @@ export function libraryAnalysisBackfillBatch(
     cursor: cursor ?? null,
     limit,
   });
+}
+
+export function libraryAnalysisProgress(
+  serverId: string,
+): Promise<LibraryAnalysisProgressDto> {
+  return invoke<LibraryAnalysisProgressDto>('library_analysis_progress', { serverId });
+}
+
+export function analysisDeleteAllForServer(
+  serverId: string,
+): Promise<AnalysisDeleteServerReportDto> {
+  return invoke<AnalysisDeleteServerReportDto>('analysis_delete_all_for_server', { serverId });
 }
 
 export type AnalysisBackfillPriority = 'high' | 'middle' | 'low';

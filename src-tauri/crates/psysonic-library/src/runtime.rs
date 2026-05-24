@@ -10,11 +10,20 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tokio::sync::Notify;
 
+use crate::analysis_backfill::LibraryAnalysisProgressDto;
 use crate::store::LibraryStore;
 use crate::sync::bandwidth::PlaybackHint;
+
+#[derive(Debug, Clone)]
+pub struct AnalysisProgressCacheEntry {
+    pub value: LibraryAnalysisProgressDto,
+    pub updated_at: Instant,
+    pub in_flight: bool,
+}
 
 /// Per-server credentials cache for the sync runner. Lives only in
 /// `LibraryRuntime` process memory; `library_sync_clear_session`
@@ -67,6 +76,8 @@ pub struct LibraryRuntime {
     /// Latest `library_live_search` epoch from the UI — stale commands
     /// skip FTS when a newer keystroke generation was registered.
     live_search_epoch: AtomicU64,
+    /// Cached analysis progress snapshots keyed by server id.
+    analysis_progress_cache: Mutex<HashMap<String, AnalysisProgressCacheEntry>>,
 }
 
 impl LibraryRuntime {
@@ -78,6 +89,7 @@ impl LibraryRuntime {
             current_job: Mutex::new(None),
             scheduler_cancel: Arc::new(AtomicBool::new(false)),
             live_search_epoch: AtomicU64::new(0),
+            analysis_progress_cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -160,6 +172,71 @@ impl LibraryRuntime {
     pub fn set_playback_hint(&self, hint: PlaybackHint) {
         if let Ok(mut h) = self.playback_hint.lock() {
             *h = hint;
+        }
+    }
+
+    pub fn analysis_progress_snapshot(
+        &self,
+        server_id: &str,
+    ) -> Option<AnalysisProgressCacheEntry> {
+        self.analysis_progress_cache
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(server_id).cloned())
+    }
+
+    pub fn mark_analysis_progress_in_flight(&self, server_id: &str) -> bool {
+        if let Ok(mut cache) = self.analysis_progress_cache.lock() {
+            match cache.get_mut(server_id) {
+                Some(entry) => {
+                    if entry.in_flight {
+                        return false;
+                    }
+                    entry.in_flight = true;
+                    return true;
+                }
+                None => {
+                    cache.insert(
+                        server_id.to_string(),
+                        AnalysisProgressCacheEntry {
+                            value: LibraryAnalysisProgressDto {
+                                total_tracks: 0,
+                                pending_tracks: 0,
+                                done_tracks: 0,
+                            },
+                            updated_at: Instant::now() - Duration::from_secs(60),
+                            in_flight: true,
+                        },
+                    );
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn set_analysis_progress(
+        &self,
+        server_id: &str,
+        value: LibraryAnalysisProgressDto,
+    ) {
+        if let Ok(mut cache) = self.analysis_progress_cache.lock() {
+            cache.insert(
+                server_id.to_string(),
+                AnalysisProgressCacheEntry {
+                    value,
+                    updated_at: Instant::now(),
+                    in_flight: false,
+                },
+            );
+        }
+    }
+
+    pub fn clear_analysis_progress_in_flight(&self, server_id: &str) {
+        if let Ok(mut cache) = self.analysis_progress_cache.lock() {
+            if let Some(entry) = cache.get_mut(server_id) {
+                entry.in_flight = false;
+            }
         }
     }
 }

@@ -11,6 +11,7 @@ const SCAN_CHUNK: usize = 500;
 const MAX_SCAN_IDS_PER_CALL: usize = 10_000;
 const DEFAULT_BATCH: u32 = 20;
 const MAX_BATCH: u32 = 50;
+const PROGRESS_SCAN_CHUNK: usize = 1000;
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +19,14 @@ pub struct LibraryAnalysisBackfillBatchDto {
     pub track_ids: Vec<String>,
     pub next_cursor: Option<String>,
     pub exhausted: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryAnalysisProgressDto {
+    pub total_tracks: i64,
+    pub pending_tracks: i64,
+    pub done_tracks: i64,
 }
 
 enum ScanMode {
@@ -106,5 +115,51 @@ pub fn collect_analysis_backfill_batch(
         track_ids: found,
         next_cursor: after,
         exhausted: false,
+    })
+}
+
+pub fn collect_analysis_progress(
+    app: &AppHandle,
+    runtime: &LibraryRuntime,
+    server_id: &str,
+) -> Result<LibraryAnalysisProgressDto, String> {
+    let needs_work = app
+        .try_state::<TrackAnalysisNeedsWorkQuery>()
+        .ok_or_else(|| "TrackAnalysisNeedsWorkQuery not registered".to_string())?;
+
+    let repo = TrackRepository::new(&runtime.store);
+    let total = repo.count_live_tracks(server_id)?;
+    if total <= 0 {
+        return Ok(LibraryAnalysisProgressDto {
+            total_tracks: 0,
+            pending_tracks: 0,
+            done_tracks: 0,
+        });
+    }
+
+    let mut pending: i64 = 0;
+    let mut after: Option<String> = None;
+    loop {
+        let page = repo.list_track_ids_after(
+            server_id,
+            after.as_deref(),
+            PROGRESS_SCAN_CHUNK,
+        )?;
+        if page.is_empty() {
+            break;
+        }
+        for id in page {
+            after = Some(id.clone());
+            if needs_work.needs_work(server_id, &id)? {
+                pending += 1;
+            }
+        }
+    }
+
+    let done = total.saturating_sub(pending);
+    Ok(LibraryAnalysisProgressDto {
+        total_tracks: total,
+        pending_tracks: pending,
+        done_tracks: done,
     })
 }

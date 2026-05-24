@@ -51,6 +51,24 @@ pub struct LoudnessCachePayload {
     pub updated_at: i64,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisDeleteServerReportDto {
+    pub analysis_tracks: u64,
+    pub waveforms: u64,
+    pub loudness: u64,
+}
+
+impl From<analysis_cache::AnalysisDeleteServerReport> for AnalysisDeleteServerReportDto {
+    fn from(value: analysis_cache::AnalysisDeleteServerReport) -> Self {
+        Self {
+            analysis_tracks: value.analysis_tracks,
+            waveforms: value.waveforms,
+            loudness: value.loudness,
+        }
+    }
+}
+
 /// AppHandle-free helper: looks up a waveform by exact `(server_id, track_id,
 /// md5_16kb)` key, falling back to the legacy `''` scope and re-tagging it onto
 /// `server_id` on a hit (best-effort). Converts the `WaveformEntry` into the
@@ -202,6 +220,18 @@ pub fn analysis_delete_all_waveforms(
     cache: tauri::State<'_, analysis_cache::AnalysisCache>,
 ) -> Result<u64, String> {
     cache.delete_all_waveforms()
+}
+
+#[tauri::command]
+pub fn analysis_delete_all_for_server(
+    server_id: String,
+    cache: tauri::State<'_, analysis_cache::AnalysisCache>,
+) -> Result<AnalysisDeleteServerReportDto, String> {
+    if server_id.trim().is_empty() {
+        return Err("server_id required".to_string());
+    }
+    let report = cache.delete_all_for_server(&server_id)?;
+    Ok(report.into())
 }
 
 #[tauri::command]

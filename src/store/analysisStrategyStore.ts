@@ -16,6 +16,7 @@ interface AnalysisStrategyState {
   setAdvancedParallelism: (workers: number) => void;
   setServerStrategy: (serverId: string, strategy: AnalyticsStrategy) => void;
   setServerAdvancedParallelism: (serverId: string, workers: number) => void;
+  clearServerOverrides: (serverId: string) => void;
   getStrategyForServer: (serverId: string | null | undefined) => AnalyticsStrategy;
   getAdvancedParallelismForServer: (serverId: string | null | undefined) => number;
 }
@@ -41,6 +42,12 @@ export const useAnalysisStrategyStore = create<AnalysisStrategyState>()(
             [serverId]: clampAdvancedParallelism(workers),
           },
         })),
+      clearServerOverrides: (serverId) =>
+        set(s => {
+          const { [serverId]: _, ...strategyByServer } = s.strategyByServer;
+          const { [serverId]: __, ...advancedParallelismByServer } = s.advancedParallelismByServer;
+          return { strategyByServer, advancedParallelismByServer };
+        }),
       getStrategyForServer: serverId => {
         if (!serverId) return DEFAULT_ANALYTICS_STRATEGY;
         return get().strategyByServer[serverId] ?? get().strategy;

@@ -6,4 +6,6 @@ pub use compute::{
     decode_mono_pcm_window, md5_first_16kb, recommended_gain_for_target,
     seed_from_bytes_execute, seed_from_bytes_into_cache, PcmAnalysisWindow, SeedFromBytesOutcome,
 };
-pub use store::{AnalysisCache, LoudnessEntry, TrackKey, WaveformEntry};
+pub use store::{
+    AnalysisCache, AnalysisDeleteServerReport, LoudnessEntry, TrackKey, WaveformEntry,
+};
