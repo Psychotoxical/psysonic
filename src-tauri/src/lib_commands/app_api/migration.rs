@@ -38,6 +38,7 @@ pub struct ServerIndexMapping {
 #[serde(rename_all = "camelCase")]
 pub struct MigrationScopeInspect {
     pub total_legacy_rows: u64,
+    pub skipped_unknown_server_rows: u64,
     pub tables: HashMap<String, u64>,
 }
 
@@ -45,6 +46,7 @@ pub struct MigrationScopeInspect {
 #[serde(rename_all = "camelCase")]
 pub struct MigrationInspectReport {
     pub needs_migration: bool,
+    pub has_skipped_unknown_server_rows: bool,
     pub can_run: bool,
     pub warnings: Vec<String>,
     pub unmapped_empty_bucket: bool,
@@ -67,6 +69,7 @@ pub struct MigrationProgressEvent {
 pub struct MigrationRunScope {
     pub imported_rows: u64,
     pub source_rows: u64,
+    pub skipped_unknown_server_rows: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -74,6 +77,7 @@ pub struct MigrationRunScope {
 pub struct MigrationRunResult {
     pub library: MigrationRunScope,
     pub analysis: MigrationRunScope,
+    pub has_skipped_unknown_server_rows: bool,
     pub switched: bool,
     pub backup_removed: bool,
 }
@@ -103,11 +107,21 @@ fn inspect_internal(
 ) -> Result<MigrationInspectReport, String> {
     let normalized = normalize_mappings(mappings);
     let legacy_ids: Vec<String> = normalized.iter().map(|m| m.legacy_id.clone()).collect();
+    let index_keys: Vec<String> = normalized.iter().map(|m| m.index_key.clone()).collect();
     let paths = migration_paths(app)?;
 
-    let (library_tables, library_total) = inspect_tables(&paths.library_active, LIBRARY_TABLES, &legacy_ids)?;
-    let (analysis_tables, mut analysis_total) =
-        inspect_tables(&paths.analysis_active, ANALYSIS_TABLES, &legacy_ids)?;
+    let (library_tables, library_total, library_skipped_unknown_rows) = inspect_tables(
+        &paths.library_active,
+        LIBRARY_TABLES,
+        &legacy_ids,
+        &index_keys,
+    )?;
+    let (analysis_tables, mut analysis_total, analysis_skipped_unknown_rows) = inspect_tables(
+        &paths.analysis_active,
+        ANALYSIS_TABLES,
+        &legacy_ids,
+        &index_keys,
+    )?;
     let mut analysis_tables = analysis_tables;
     let mut warnings = Vec::new();
     let mut unmapped_empty_bucket = false;
@@ -136,18 +150,26 @@ fn inspect_internal(
     if needs_migration && !can_run {
         warnings.push("no server mappings available".to_string());
     }
+    let has_skipped_unknown_server_rows =
+        library_skipped_unknown_rows > 0 || analysis_skipped_unknown_rows > 0;
+    if has_skipped_unknown_server_rows {
+        warnings.push("rows for removed servers were skipped".to_string());
+    }
 
     Ok(MigrationInspectReport {
         needs_migration,
+        has_skipped_unknown_server_rows,
         can_run,
         warnings,
         unmapped_empty_bucket,
         library: MigrationScopeInspect {
             total_legacy_rows: library_total,
+            skipped_unknown_server_rows: library_skipped_unknown_rows,
             tables: library_tables,
         },
         analysis: MigrationScopeInspect {
             total_legacy_rows: analysis_total,
+            skipped_unknown_server_rows: analysis_skipped_unknown_rows,
             tables: analysis_tables,
         },
         mappings: normalized,
@@ -161,11 +183,14 @@ fn run_internal(app: &AppHandle, mappings: Vec<ServerIndexMapping>) -> Result<Mi
             library: MigrationRunScope {
                 imported_rows: 0,
                 source_rows: 0,
+                skipped_unknown_server_rows: inspect.library.skipped_unknown_server_rows,
             },
             analysis: MigrationRunScope {
                 imported_rows: 0,
                 source_rows: 0,
+                skipped_unknown_server_rows: inspect.analysis.skipped_unknown_server_rows,
             },
+            has_skipped_unknown_server_rows: inspect.has_skipped_unknown_server_rows,
             switched: false,
             backup_removed: false,
         });
@@ -189,8 +214,9 @@ fn run_internal(app: &AppHandle, mappings: Vec<ServerIndexMapping>) -> Result<Mi
         0,
         LIBRARY_TABLES.len() as u64,
     )?;
-    let (library_source_rows, library_imported_rows) = run_library_import(app, &paths, &mappings)?;
-    let (analysis_source_rows, analysis_imported_rows) =
+    let (library_source_rows, library_imported_rows, library_skipped_unknown_rows) =
+        run_library_import(app, &paths, &mappings)?;
+    let (analysis_source_rows, analysis_imported_rows, analysis_skipped_unknown_rows) =
         run_analysis_import(app, &paths, &mappings, single_mapping.as_deref())?;
 
     let mut backup_removed = false;
@@ -248,11 +274,14 @@ fn run_internal(app: &AppHandle, mappings: Vec<ServerIndexMapping>) -> Result<Mi
         library: MigrationRunScope {
             imported_rows: library_imported_rows,
             source_rows: library_source_rows,
+            skipped_unknown_server_rows: library_skipped_unknown_rows,
         },
         analysis: MigrationRunScope {
             imported_rows: analysis_imported_rows,
             source_rows: analysis_source_rows,
+            skipped_unknown_server_rows: analysis_skipped_unknown_rows,
         },
+        has_skipped_unknown_server_rows: library_skipped_unknown_rows > 0 || analysis_skipped_unknown_rows > 0,
         switched,
         backup_removed,
     })
@@ -262,15 +291,17 @@ fn run_library_import(
     app: &AppHandle,
     paths: &MigrationPaths,
     mappings: &[ServerIndexMapping],
-) -> Result<(u64, u64), String> {
+) -> Result<(u64, u64, u64), String> {
     if !paths.library_active.exists() {
-        return Ok((0, 0));
+        return Ok((0, 0, 0));
     }
     remove_db_with_sidecars(&paths.library_v2).ok();
     vacuum_copy(&paths.library_active, &paths.library_v2)?;
 
     let source = open_readonly(&paths.library_active)?;
     let dest = Connection::open(&paths.library_v2).map_err(|e| e.to_string())?;
+    let legacy_ids: Vec<String> = mappings.iter().map(|m| m.legacy_id.clone()).collect();
+    let index_keys: Vec<String> = mappings.iter().map(|m| m.index_key.clone()).collect();
     let total = LIBRARY_TABLES.len() as u64;
     let mut done = 0_u64;
     for table in LIBRARY_TABLES {
@@ -286,7 +317,8 @@ fn run_library_import(
     }
     let source_rows = sum_table_rows(&source, LIBRARY_TABLES)?;
     let imported_rows = sum_table_rows(&dest, LIBRARY_TABLES)?;
-    Ok((source_rows, imported_rows))
+    let skipped_unknown_server_rows = sum_unknown_rows(&source, LIBRARY_TABLES, &legacy_ids, &index_keys)?;
+    Ok((source_rows, imported_rows, skipped_unknown_server_rows))
 }
 
 fn run_analysis_import(
@@ -294,15 +326,17 @@ fn run_analysis_import(
     paths: &MigrationPaths,
     mappings: &[ServerIndexMapping],
     single_mapping: Option<&str>,
-) -> Result<(u64, u64), String> {
+) -> Result<(u64, u64, u64), String> {
     if !paths.analysis_active.exists() {
-        return Ok((0, 0));
+        return Ok((0, 0, 0));
     }
     remove_db_with_sidecars(&paths.analysis_v2).ok();
     vacuum_copy(&paths.analysis_active, &paths.analysis_v2)?;
 
     let source = open_readonly(&paths.analysis_active)?;
     let dest = Connection::open(&paths.analysis_v2).map_err(|e| e.to_string())?;
+    let legacy_ids: Vec<String> = mappings.iter().map(|m| m.legacy_id.clone()).collect();
+    let index_keys: Vec<String> = mappings.iter().map(|m| m.index_key.clone()).collect();
     let total = ANALYSIS_TABLES.len() as u64;
     let mut done = 0_u64;
     for table in ANALYSIS_TABLES {
@@ -325,7 +359,8 @@ fn run_analysis_import(
     }
     let source_rows = sum_table_rows(&source, ANALYSIS_TABLES)?;
     let imported_rows = sum_table_rows(&dest, ANALYSIS_TABLES)?;
-    Ok((source_rows, imported_rows))
+    let skipped_unknown_server_rows = sum_unknown_rows(&source, ANALYSIS_TABLES, &legacy_ids, &index_keys)?;
+    Ok((source_rows, imported_rows, skipped_unknown_server_rows))
 }
 
 fn normalize_mappings(mappings: Vec<ServerIndexMapping>) -> Vec<ServerIndexMapping> {
@@ -352,21 +387,26 @@ fn inspect_tables(
     db_path: &Path,
     tables: &[&str],
     legacy_ids: &[String],
-) -> Result<(HashMap<String, u64>, u64), String> {
+    known_index_keys: &[String],
+) -> Result<(HashMap<String, u64>, u64, u64), String> {
     let mut counts = HashMap::new();
-    if !db_path.exists() || legacy_ids.is_empty() {
-        return Ok((counts, 0));
+    if !db_path.exists() {
+        return Ok((counts, 0, 0));
     }
     let conn = open_readonly(db_path)?;
     let mut total = 0_u64;
+    let mut skipped_unknown_server_rows = 0_u64;
     for table in tables {
         let count = count_rows_in(&conn, table, legacy_ids)? as u64;
         if count > 0 {
             counts.insert((*table).to_string(), count);
             total = total.saturating_add(count);
         }
+        let unknown =
+            count_unknown_rows(&conn, table, legacy_ids, known_index_keys)? as u64;
+        skipped_unknown_server_rows = skipped_unknown_server_rows.saturating_add(unknown);
     }
-    Ok((counts, total))
+    Ok((counts, total, skipped_unknown_server_rows))
 }
 
 fn count_rows_in(conn: &Connection, table: &str, values: &[String]) -> Result<i64, String> {
@@ -388,12 +428,55 @@ fn count_rows_eq(conn: &Connection, table: &str, value: &str) -> Result<i64, Str
     .map_err(|e| e.to_string())
 }
 
+fn count_unknown_rows(
+    conn: &Connection,
+    table: &str,
+    known_legacy_ids: &[String],
+    known_index_keys: &[String],
+) -> Result<i64, String> {
+    let mut known: Vec<String> = Vec::new();
+    known.extend(known_legacy_ids.iter().cloned());
+    known.extend(known_index_keys.iter().cloned());
+    known.sort();
+    known.dedup();
+    if known.is_empty() {
+        return conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE server_id <> ''"),
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string());
+    }
+    let placeholders = std::iter::repeat_n("?", known.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let sql =
+        format!("SELECT COUNT(*) FROM {table} WHERE server_id <> '' AND server_id NOT IN ({placeholders})");
+    conn.query_row(&sql, params_from_iter(known.iter()), |row| row.get(0))
+        .map_err(|e| e.to_string())
+}
+
 fn sum_table_rows(conn: &Connection, tables: &[&str]) -> Result<u64, String> {
     let mut total = 0_u64;
     for table in tables {
         let rows: i64 = conn
             .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0))
             .map_err(|e| e.to_string())?;
+        total = total.saturating_add(rows.max(0) as u64);
+    }
+    Ok(total)
+}
+
+fn sum_unknown_rows(
+    conn: &Connection,
+    tables: &[&str],
+    known_legacy_ids: &[String],
+    known_index_keys: &[String],
+) -> Result<u64, String> {
+    let mut total = 0_u64;
+    for table in tables {
+        let rows = count_unknown_rows(conn, table, known_legacy_ids, known_index_keys)?;
         total = total.saturating_add(rows.max(0) as u64);
     }
     Ok(total)
@@ -503,4 +586,60 @@ fn migration_paths(app: &AppHandle) -> Result<MigrationPaths, String> {
         analysis_active: analysis_dir.join("audio-analysis.sqlite"),
         analysis_v2: analysis_dir.join("analysis-v2.sqlite"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inspect_reports_skipped_unknown_rows() {
+        let conn = Connection::open_in_memory().expect("in-memory sqlite");
+        conn.execute_batch("CREATE TABLE track (server_id TEXT NOT NULL);")
+            .expect("create table");
+        conn.execute("INSERT INTO track(server_id) VALUES (?1)", ["legacy-a"])
+            .expect("insert known legacy");
+        conn.execute("INSERT INTO track(server_id) VALUES (?1)", ["removed-x"])
+            .expect("insert unknown");
+
+        let known_legacy_ids = vec!["legacy-a".to_string()];
+        let known_index_keys = vec!["idx-a".to_string()];
+        let unknown = count_unknown_rows(&conn, "track", &known_legacy_ids, &known_index_keys)
+            .expect("unknown count");
+        assert_eq!(unknown, 1);
+    }
+
+    #[test]
+    fn run_reports_skipped_unknown_rows_without_failure() {
+        let conn = Connection::open_in_memory().expect("in-memory sqlite");
+        conn.execute_batch("CREATE TABLE analysis_track (server_id TEXT NOT NULL);")
+            .expect("create table");
+        conn.execute("INSERT INTO analysis_track(server_id) VALUES (?1)", ["legacy-a"])
+            .expect("insert known legacy");
+        conn.execute("INSERT INTO analysis_track(server_id) VALUES (?1)", ["removed-x"])
+            .expect("insert unknown");
+
+        let known_legacy_ids = vec!["legacy-a".to_string()];
+        let known_index_keys = vec!["idx-a".to_string()];
+        let skipped = sum_unknown_rows(&conn, &["analysis_track"], &known_legacy_ids, &known_index_keys)
+            .expect("sum unknown rows");
+        assert_eq!(skipped, 1);
+    }
+
+    #[test]
+    fn needs_migration_false_when_only_unknown_rows_present() {
+        let conn = Connection::open_in_memory().expect("in-memory sqlite");
+        conn.execute_batch("CREATE TABLE track (server_id TEXT NOT NULL);")
+            .expect("create table");
+        conn.execute("INSERT INTO track(server_id) VALUES (?1)", ["removed-x"])
+            .expect("insert unknown");
+
+        let known_legacy_ids = vec!["legacy-a".to_string()];
+        let known_index_keys = vec!["idx-a".to_string()];
+        let legacy = count_rows_in(&conn, "track", &known_legacy_ids).expect("legacy count");
+        let unknown = count_unknown_rows(&conn, "track", &known_legacy_ids, &known_index_keys)
+            .expect("unknown count");
+        assert_eq!(legacy, 0);
+        assert_eq!(unknown, 1);
+    }
 }

@@ -8,6 +8,7 @@ import { rewriteFrontendStoreKeys } from '../utils/server/rewriteFrontendStoreKe
 
 const MIGRATION_DONE_FLAG = 'psysonic-server-key-migration-v1';
 let migrationInFlight: Promise<void> | null = null;
+const REAL_MIGRATION_TEST_OVERRIDE = '__PSYSONIC_REAL_MIGRATION_TEST__';
 
 function buildMappings(): ServerIndexMapping[] {
   return useAuthStore.getState().servers
@@ -25,7 +26,7 @@ async function runOrchestrator(force = false): Promise<void> {
   }
   migrationInFlight = (async () => {
     const state = useMigrationStore.getState();
-    if (import.meta.env.MODE === 'test') {
+    if (import.meta.env.MODE === 'test' && !(globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE]) {
       state.setNeedsMigration(false);
       state.setPhase('completed');
       return;
@@ -44,6 +45,9 @@ async function runOrchestrator(force = false): Promise<void> {
     const inspect = await migrationInspect(mappings);
     state.setInspect(inspect);
     state.setNeedsMigration(inspect.needsMigration);
+    if (inspect.hasSkippedUnknownServerRows) {
+      console.warn('[migration] rows for removed servers were skipped');
+    }
     if (!force && hasDoneFlag && !inspect.needsMigration) {
       state.setPhase('completed');
       return;
@@ -61,6 +65,9 @@ async function runOrchestrator(force = false): Promise<void> {
     const after = await migrationInspect(mappings);
     state.setInspect(after);
     state.setNeedsMigration(after.needsMigration);
+    if (after.hasSkippedUnknownServerRows) {
+      console.warn('[migration] rows for removed servers were skipped');
+    }
     if (!after.needsMigration) {
       localStorage.setItem(MIGRATION_DONE_FLAG, '1');
       state.setPhase('completed');

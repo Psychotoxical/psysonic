@@ -43,6 +43,11 @@ function MigrationModal() {
             <p style={{ color: 'var(--text-muted)' }}>
               {progress ? `${progress.done} / ${progress.total}` : 'working…'}
             </p>
+            {inspect?.hasSkippedUnknownServerRows ? (
+              <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                Rows for removed servers were skipped and old backup DB will be removed after successful switch.
+              </p>
+            ) : null}
           </>
         )}
         {phase === 'error' && (

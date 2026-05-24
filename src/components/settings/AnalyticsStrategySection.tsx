@@ -209,7 +209,16 @@ export default function AnalyticsStrategySection() {
                     <td style={{ padding: '10px', fontSize: 12, color: 'var(--text-secondary)' }}>
                       {progressLabel(progress) ?? '—'}
                     </td>
-                    <td style={{ padding: '10px', fontSize: 12, color: 'var(--text-muted)' }}>—</td>
+                    <td style={{ padding: '10px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-surface"
+                        onClick={() => setClearTarget({ serverId: server.id, label })}
+                        disabled={clearingServerId === server.id}
+                      >
+                        {t('settings.analyticsStrategyClearAction')}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}

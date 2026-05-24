@@ -7,11 +7,13 @@ export interface ServerIndexMapping {
 
 export interface MigrationInspectScope {
   totalLegacyRows: number;
+  skippedUnknownServerRows: number;
   tables: Record<string, number>;
 }
 
 export interface MigrationInspectReport {
   needsMigration: boolean;
+  hasSkippedUnknownServerRows: boolean;
   canRun: boolean;
   warnings: string[];
   unmappedEmptyBucket: boolean;
@@ -30,11 +32,13 @@ export interface MigrationProgressEvent {
 export interface MigrationRunScope {
   importedRows: number;
   sourceRows: number;
+  skippedUnknownServerRows: number;
 }
 
 export interface MigrationRunResult {
   library: MigrationRunScope;
   analysis: MigrationRunScope;
+  hasSkippedUnknownServerRows: boolean;
   switched: boolean;
   backupRemoved: boolean;
 }
