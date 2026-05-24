@@ -70,6 +70,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Analytics strategy + migration safety for index-key rebuild
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+
+* Added per-server analysis strategy controls (lazy/advanced), per-server parallelism tuning, and progress visibility for analysis queue state.
+* Added first-launch migration orchestration for server scope rebuild (inspect/run flow + blocking gate + progress) with frontend key rewrites to the new `indexKey` scope.
+* Added startup/runtime hardening around migration state checks and DB switching so app bootstrap waits for required migration phases before normal playback/index startup.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
@@ -231,6 +241,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#861](https://github.com/Psychotoxical/psysonic/pull/861)**
 
 * **Settings → Library → Full resync** now soft-deletes local rows that no longer exist on the server after a successful re-sync (mark-and-sweep via `resync_gen`), so **Ready (N tracks)** no longer stays inflated when tracks were removed on Navidrome/Subsonic. Delta tombstone reconcile is unchanged.
+
+
+
+### Server index-key migration — unknown/legacy data handling
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+
+* Legacy destructive migration paths were replaced with a dual-DB import/switch flow that keeps old DBs as source until verification passes.
+* Rows belonging to removed servers are explicitly skipped/purged from the active migrated DB scope instead of being silently carried forward.
+* Legacy sqlite artifacts from old paths are now cleaned up after successful path migration (including WAL/SHM sidecars) to prevent stale old-version leftovers.
 
 
 
