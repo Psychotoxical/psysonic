@@ -80,6 +80,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Backup & Restore — library databases + full archive flow
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+
+* **Settings → System → Backup & Restore:** added two archive-backed modes — **Library databases** (SQLite snapshots) and **Full** (settings + library databases).
+* Import now auto-detects backup type from file contents (`.psybkp` / `.psylib` / `.psyfull`) from one entry point instead of requiring per-mode import buttons.
+* Import replaces active library databases safely via runtime store swap and keeps previous files as `.bak` for recovery.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
@@ -167,6 +177,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#859](https://github.com/Psychotoxical/psysonic/pull/859)**
 
 * Continued groundwork for multi-thousand-track queues: track details are resolved on demand through a shared cache rather than all being held at once. No change to how the queue looks or behaves.
+
+
+
+### Backup UX — blocking progress gate for long operations
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+
+* Backup/export and restore operations now show a global blocking status modal after file selection, so the app no longer looks frozen while archive and SQLite work runs.
 
 
 
