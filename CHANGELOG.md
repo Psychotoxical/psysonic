@@ -74,9 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
 
-* Added per-server analysis strategy controls (lazy/advanced), per-server parallelism tuning, and progress visibility for analysis queue state.
-* Added first-launch migration orchestration for server scope rebuild (inspect/run flow + blocking gate + progress) with frontend key rewrites to the new `indexKey` scope.
-* Added startup/runtime hardening around migration state checks and DB switching so app bootstrap waits for required migration phases before normal playback/index startup.
+* Rebuilt server scoping around stable `indexKey` identifiers across Rust + frontend paths used by playback, analysis, and local index state.
+* Added per-server analysis strategy controls (lazy/aggressive), per-server parallelism tuning, queue progress visibility, and clear-analysis actions in **Settings → Library**.
+* Added first-launch migration orchestration (inspect/run + progress events + blocking gate) with frontend persisted-key rewrites to the new `indexKey` scope.
+* Reworked playback/analysis handoff paths (play, preload, stream/ranged, queue restore) so analysis dispatch and queue-priority hints use the same server scope model.
+* Hardened startup/runtime migration checks so bootstrap waits for required migration phases before normal playback/index startup.
 
 
 
@@ -84,9 +86,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
 
-* **Settings → System → Backup & Restore:** added two archive-backed modes — **Library databases** (SQLite snapshots) and **Full** (settings + library databases).
-* Import now auto-detects backup type from file contents (`.psybkp` / `.psylib` / `.psyfull`) from one entry point instead of requiring per-mode import buttons.
-* Import replaces active library databases safely via runtime store swap and keeps previous files as `.bak` for recovery.
+* **Settings → System → Backup & Restore:** added two archive-backed modes — **Library databases** (library + analysis SQLite snapshots) and **Full** (settings + library databases).
+* Import auto-detects backup type from file contents (`.psybkp` / `.psylib` / `.psyfull`) from one entry point instead of per-mode import actions.
+* Restore switches active databases via runtime store swap/restore flow and keeps previous files as `.bak` for recovery on failed validation.
 
 
 

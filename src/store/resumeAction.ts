@@ -2,7 +2,11 @@ import { getSong } from '../api/subsonicLibrary';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateLivePosition } from '../api/orbit';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
-import { getPlaybackIndexKey, getPlaybackServerId } from '../utils/playback/playbackServer';
+import {
+  getPlaybackCacheServerKey,
+  getPlaybackIndexKey,
+  getPlaybackServerId,
+} from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -118,7 +122,7 @@ export function runResume(set: SetState, get: GetState): void {
     invoke('audio_resume').catch(console.error);
     setIsAudioPaused(false);
     set({ isPlaying: true });
-    touchHotCacheOnPlayback(currentTrack.id, getPlaybackServerId());
+    touchHotCacheOnPlayback(currentTrack.id, getPlaybackCacheServerKey());
   } else {
     // Engine has no loaded paused stream (app relaunch, or track ended and user
     // hits play — `isAudioPaused` is false after `audio:ended`). Flush any
@@ -129,7 +133,7 @@ export function runResume(set: SetState, get: GetState): void {
 
     void (async () => {
       const authHot = useAuthStore.getState();
-      const resumePromoteSid = getPlaybackServerId();
+      const resumePromoteSid = getPlaybackCacheServerKey();
       if (authHot.hotCacheEnabled && resumePromoteSid) {
         await promoteCompletedStreamToHotCache(
           currentTrack,

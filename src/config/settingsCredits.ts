@@ -128,7 +128,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playback speed: global 0.5–2.0× with Speed / Varispeed / Pitch shift strategies, player bar popover, Orbit passthrough (PR #852)',
       'Local library index: full resync orphan sweep (IS-7) — remove server-deleted tracks after successful re-sync (PR #861)',
       'Track enrichment: oximedia BPM/mood analysis, mood-group Advanced Search, queue display, unified playback analysis dispatch (PR #863)',
-      'Backup & Restore: library-databases/full archive export-import, unified backup type detection, and blocking progress modal for long-running backup operations (PR #864)',
+      'Server index-key rebuild follow-up: startup-safe migration orchestration, per-server analysis strategy controls, playback/cache scope hardening, and backup/restore for library databases with blocking progress UX (PR #864)',
     ],
   },
   {

@@ -6,6 +6,7 @@ import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import {
   bindQueueServerForPlayback,
+  getPlaybackCacheServerKey,
   getPlaybackIndexKey,
   getPlaybackServerId,
   shouldBindQueueServerForPlay,
@@ -219,19 +220,20 @@ export function runPlayTrack(
       prevTrack
       && sameQueueTrackId(prevTrack.id, track.id)
       && authState.hotCacheEnabled
-      && getPlaybackServerId(),
+      && getPlaybackCacheServerKey(),
     );
 
   const runPlayTrackBody = () => {
     const authStateNow = useAuthStore.getState();
     const playbackSid = getPlaybackServerId();
-    const url = resolvePlaybackUrl(track.id, playbackSid);
+    const playbackCacheSid = getPlaybackCacheServerKey();
+    const url = resolvePlaybackUrl(track.id, playbackCacheSid);
     recordEnginePlayUrl(track.id, url);
     const preloadedTrackId = get().enginePreloadedTrackId;
     const keepPreloadHint = preloadedTrackId === track.id;
     const playbackSourceHint = playbackSourceHintForResolvedUrl(
       track.id,
-      playbackSid,
+      playbackCacheSid,
       url,
     );
     if (import.meta.env.DEV) {
@@ -271,7 +273,7 @@ export function runPlayTrack(
       && !sameQueueTrackId(prevTrack.id, track.id)
       && authStateNow.hotCacheEnabled
     ) {
-      const prevPromoteSid = getPlaybackServerId();
+      const prevPromoteSid = getPlaybackCacheServerKey();
       if (prevPromoteSid) {
         void promoteCompletedStreamToHotCache(
           prevTrack,
@@ -355,10 +357,10 @@ export function runPlayTrack(
       });
     }
     syncQueueToServer(newQueue, track, initialTime);
-    touchHotCacheOnPlayback(track.id, playbackSid);
+    touchHotCacheOnPlayback(track.id, playbackCacheSid);
   };
 
-  const hotPromoteSid = getPlaybackServerId();
+  const hotPromoteSid = getPlaybackCacheServerKey();
   if (needSameTrackHotPromote && hotPromoteSid) {
     void promoteCompletedStreamToHotCache(
       track,

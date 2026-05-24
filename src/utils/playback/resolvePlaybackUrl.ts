@@ -1,7 +1,7 @@
 import { buildStreamUrlForServer } from '../../api/subsonicStreamUrl';
 import { useOfflineStore } from '../../store/offlineStore';
 import { useHotCacheStore } from '../../store/hotCacheStore';
-import { getPlaybackServerId } from './playbackServer';
+import { getPlaybackCacheServerKey, getPlaybackServerId } from './playbackServer';
 
 /** Same resolution order as {@link resolvePlaybackUrl} — for UI hints only. */
 export type PlaybackSourceKind = 'offline' | 'hot' | 'stream';
@@ -41,8 +41,15 @@ export function getPlaybackSourceKind(
   serverId: string,
   enginePreloadedTrackId: string | null = null,
 ): PlaybackSourceKind {
-  if (useOfflineStore.getState().getLocalUrl(trackId, serverId)) return 'offline';
-  if (useHotCacheStore.getState().getLocalUrl(trackId, serverId)) return 'hot';
+  const legacySid = getPlaybackServerId();
+  const offline =
+    useOfflineStore.getState().getLocalUrl(trackId, serverId)
+    || (legacySid && legacySid !== serverId ? useOfflineStore.getState().getLocalUrl(trackId, legacySid) : null);
+  if (offline) return 'offline';
+  const hot =
+    useHotCacheStore.getState().getLocalUrl(trackId, serverId)
+    || (legacySid && legacySid !== serverId ? useHotCacheStore.getState().getLocalUrl(trackId, legacySid) : null);
+  if (hot) return 'hot';
   const resolved = resolvePlaybackUrl(trackId, serverId);
   if (
     !resolved.startsWith('psysonic-local://')
@@ -56,10 +63,15 @@ export function getPlaybackSourceKind(
 
 /** Offline library → hot playback cache → HTTP stream. */
 export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
-  const sid = serverId && serverId.length > 0 ? serverId : getPlaybackServerId();
-  const offline = useOfflineStore.getState().getLocalUrl(trackId, sid);
+  const sid = serverId && serverId.length > 0 ? serverId : getPlaybackCacheServerKey();
+  const legacySid = getPlaybackServerId();
+  const offline =
+    useOfflineStore.getState().getLocalUrl(trackId, sid)
+    || (legacySid && legacySid !== sid ? useOfflineStore.getState().getLocalUrl(trackId, legacySid) : null);
   if (offline) return offline;
-  const hot = useHotCacheStore.getState().getLocalUrl(trackId, sid);
+  const hot =
+    useHotCacheStore.getState().getLocalUrl(trackId, sid)
+    || (legacySid && legacySid !== sid ? useHotCacheStore.getState().getLocalUrl(trackId, legacySid) : null);
   if (hot) return hot;
   return buildStreamUrlForServer(sid, trackId);
 }

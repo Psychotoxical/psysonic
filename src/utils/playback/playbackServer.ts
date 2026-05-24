@@ -32,6 +32,16 @@ export function getPlaybackIndexKey(): string {
   return server ? serverIndexKeyFromUrl(server.url) || activeId : activeId;
 }
 
+/**
+ * Canonical cache/storage key for playback-owned artifacts (offline/hot-cache).
+ * Falls back to legacy UUID when an indexKey cannot be resolved yet.
+ */
+export function getPlaybackCacheServerKey(): string {
+  const indexKey = getPlaybackIndexKey();
+  if (indexKey) return indexKey;
+  return getPlaybackServerId();
+}
+
 export function bindQueueServerForPlayback(): void {
   const sid = useAuthStore.getState().activeServerId;
   if (!sid) return;
