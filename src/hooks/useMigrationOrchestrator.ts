@@ -10,6 +10,17 @@ const MIGRATION_DONE_FLAG = 'psysonic-server-key-migration-v1';
 let migrationInFlight: Promise<void> | null = null;
 const REAL_MIGRATION_TEST_OVERRIDE = '__PSYSONIC_REAL_MIGRATION_TEST__';
 
+function logSkippedUnknownRowsOnce(
+  report: Awaited<ReturnType<typeof migrationInspect>>,
+  alreadyLogged: boolean,
+): boolean {
+  if (!alreadyLogged && report.hasSkippedUnknownServerRows) {
+    console.warn('[migration] rows for removed servers were skipped');
+    return true;
+  }
+  return alreadyLogged;
+}
+
 function buildMappings(): ServerIndexMapping[] {
   return useAuthStore.getState().servers
     .map(server => ({
@@ -26,6 +37,7 @@ async function runOrchestrator(force = false): Promise<void> {
   }
   migrationInFlight = (async () => {
     const state = useMigrationStore.getState();
+    let skippedLogged = false;
     if (import.meta.env.MODE === 'test' && !(globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE]) {
       state.setNeedsMigration(false);
       state.setPhase('completed');
@@ -46,9 +58,7 @@ async function runOrchestrator(force = false): Promise<void> {
       inspect = await migrationInspect(mappings);
       state.setInspect(inspect);
       state.setNeedsMigration(inspect.needsMigration);
-      if (inspect.hasSkippedUnknownServerRows) {
-        console.warn('[migration] rows for removed servers were skipped');
-      }
+      skippedLogged = logSkippedUnknownRowsOnce(inspect, skippedLogged);
       if (!inspect.needsMigration) {
         state.setPhase('completed');
         return;
@@ -60,9 +70,7 @@ async function runOrchestrator(force = false): Promise<void> {
     }
     state.setInspect(inspect);
     state.setNeedsMigration(inspect.needsMigration);
-    if (inspect.hasSkippedUnknownServerRows) {
-      console.warn('[migration] rows for removed servers were skipped');
-    }
+    skippedLogged = logSkippedUnknownRowsOnce(inspect, skippedLogged);
     if (!inspect.needsMigration) {
       await rewriteFrontendStoreKeys(servers);
       localStorage.setItem(MIGRATION_DONE_FLAG, '1');
@@ -76,9 +84,7 @@ async function runOrchestrator(force = false): Promise<void> {
     const after = await migrationInspect(mappings);
     state.setInspect(after);
     state.setNeedsMigration(after.needsMigration);
-    if (after.hasSkippedUnknownServerRows) {
-      console.warn('[migration] rows for removed servers were skipped');
-    }
+    skippedLogged = logSkippedUnknownRowsOnce(after, skippedLogged);
     if (!after.needsMigration) {
       localStorage.setItem(MIGRATION_DONE_FLAG, '1');
       state.setPhase('completed');

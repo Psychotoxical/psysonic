@@ -305,6 +305,7 @@ fn run_library_import(
     let total = LIBRARY_TABLES.len() as u64;
     let mut done = 0_u64;
     for table in LIBRARY_TABLES {
+        purge_unknown_rows(&dest, table, &legacy_ids, &index_keys)?;
         for mapping in mappings {
             dest.execute(
                 &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
@@ -340,6 +341,7 @@ fn run_analysis_import(
     let total = ANALYSIS_TABLES.len() as u64;
     let mut done = 0_u64;
     for table in ANALYSIS_TABLES {
+        purge_unknown_rows(&dest, table, &legacy_ids, &index_keys)?;
         for mapping in mappings {
             dest.execute(
                 &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
@@ -434,11 +436,7 @@ fn count_unknown_rows(
     known_legacy_ids: &[String],
     known_index_keys: &[String],
 ) -> Result<i64, String> {
-    let mut known: Vec<String> = Vec::new();
-    known.extend(known_legacy_ids.iter().cloned());
-    known.extend(known_index_keys.iter().cloned());
-    known.sort();
-    known.dedup();
+    let known = known_server_ids(known_legacy_ids, known_index_keys);
     if known.is_empty() {
         return conn
             .query_row(
@@ -455,6 +453,37 @@ fn count_unknown_rows(
         format!("SELECT COUNT(*) FROM {table} WHERE server_id <> '' AND server_id NOT IN ({placeholders})");
     conn.query_row(&sql, params_from_iter(known.iter()), |row| row.get(0))
         .map_err(|e| e.to_string())
+}
+
+fn purge_unknown_rows(
+    conn: &Connection,
+    table: &str,
+    known_legacy_ids: &[String],
+    known_index_keys: &[String],
+) -> Result<(), String> {
+    let known = known_server_ids(known_legacy_ids, known_index_keys);
+    if known.is_empty() {
+        conn.execute(&format!("DELETE FROM {table} WHERE server_id <> ''"), [])
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    let placeholders = std::iter::repeat_n("?", known.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let sql =
+        format!("DELETE FROM {table} WHERE server_id <> '' AND server_id NOT IN ({placeholders})");
+    conn.execute(&sql, params_from_iter(known.iter()))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn known_server_ids(known_legacy_ids: &[String], known_index_keys: &[String]) -> Vec<String> {
+    let mut known: Vec<String> = Vec::new();
+    known.extend(known_legacy_ids.iter().cloned());
+    known.extend(known_index_keys.iter().cloned());
+    known.sort();
+    known.dedup();
+    known
 }
 
 fn sum_table_rows(conn: &Connection, tables: &[&str]) -> Result<u64, String> {
@@ -641,5 +670,38 @@ mod tests {
             .expect("unknown count");
         assert_eq!(legacy, 0);
         assert_eq!(unknown, 1);
+    }
+
+    #[test]
+    fn purge_unknown_rows_removes_only_removed_servers() {
+        let conn = Connection::open_in_memory().expect("in-memory sqlite");
+        conn.execute_batch("CREATE TABLE track (server_id TEXT NOT NULL);")
+            .expect("create table");
+        conn.execute("INSERT INTO track(server_id) VALUES (?1)", ["legacy-a"])
+            .expect("insert legacy");
+        conn.execute("INSERT INTO track(server_id) VALUES (?1)", ["idx-a"])
+            .expect("insert index key");
+        conn.execute("INSERT INTO track(server_id) VALUES (?1)", [""])
+            .expect("insert empty bucket");
+        conn.execute("INSERT INTO track(server_id) VALUES (?1)", ["removed-x"])
+            .expect("insert removed server");
+
+        let known_legacy_ids = vec!["legacy-a".to_string()];
+        let known_index_keys = vec!["idx-a".to_string()];
+        purge_unknown_rows(&conn, "track", &known_legacy_ids, &known_index_keys)
+            .expect("purge unknown rows");
+
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM track", [], |row| row.get(0))
+            .expect("count remaining");
+        let removed_left: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM track WHERE server_id = 'removed-x'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count removed server rows");
+        assert_eq!(remaining, 3);
+        assert_eq!(removed_left, 0);
     }
 }
