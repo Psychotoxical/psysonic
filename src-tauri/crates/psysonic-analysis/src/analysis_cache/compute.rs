@@ -11,6 +11,7 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 use tauri::{Manager, Runtime};
+use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 
 use crate::analysis_perf::AnalysisSeedTimings;
 
@@ -78,12 +79,32 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     }
     let bpm_ms = if !server_id.is_empty() {
         let bpm_started = Instant::now();
-        let _ = crate::track_enrichment::run_track_enrichment_if_needed(
+        let enrichment_outcome = crate::track_enrichment::run_track_enrichment_if_needed(
             app,
             server_id,
             track_id,
             bytes,
         );
+        if matches!(enrichment_outcome, TrackEnrichmentOutcome::Failed) {
+            let key = TrackKey {
+                server_id: server_id.to_string(),
+                track_id: track_id.to_string(),
+                md5_16kb: md5_16kb.clone(),
+            };
+            let _ = cache.touch_track_status(&key, "failed");
+        }
+        if matches!(outcome, SeedFromBytesOutcome::Upserted) {
+            if let Ok(coverage) = cache.content_cache_coverage(server_id, track_id, &md5_16kb) {
+                if !coverage.has_loudness {
+                    let key = TrackKey {
+                        server_id: server_id.to_string(),
+                        track_id: track_id.to_string(),
+                        md5_16kb: md5_16kb.clone(),
+                    };
+                    let _ = cache.touch_track_status(&key, "failed");
+                }
+            }
+        }
         bpm_started.elapsed().as_millis() as u64
     } else {
         0
