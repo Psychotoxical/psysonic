@@ -5,7 +5,7 @@ use psysonic_core::track_enrichment::{
     TrackEnrichmentFacts, TrackEnrichmentIntFact, TrackEnrichmentOutcome, TrackEnrichmentPort,
     TrackEnrichmentPlan, TrackEnrichmentRealFact,
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use crate::analysis_cache::{
     analysis_pcm_window, audio_duration_from_bytes, decode_mono_pcm_window, md5_first_16kb,
@@ -20,7 +20,7 @@ pub struct EnrichmentUpdatedPayload {
     pub server_id: String,
 }
 
-fn emit_enrichment_updated(app: &AppHandle, server_id: &str, track_id: &str) {
+fn emit_enrichment_updated<R: Runtime>(app: &AppHandle<R>, server_id: &str, track_id: &str) {
     let _ = app.emit(
         "analysis:enrichment-updated",
         EnrichmentUpdatedPayload {
@@ -30,8 +30,8 @@ fn emit_enrichment_updated(app: &AppHandle, server_id: &str, track_id: &str) {
     );
 }
 
-pub fn run_track_enrichment_if_needed(
-    app: &AppHandle,
+pub fn run_track_enrichment_if_needed<R: Runtime>(
+    app: &AppHandle<R>,
     server_id: &str,
     track_id: &str,
     bytes: &[u8],

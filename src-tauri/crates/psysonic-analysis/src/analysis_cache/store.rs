@@ -118,7 +118,7 @@ pub(super) fn now_unix_ts() -> i64 {
 }
 
 impl AnalysisCache {
-    pub fn init(app: &tauri::AppHandle) -> Result<Self, String> {
+    pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Self, String> {
         let db_path = analysis_db_path(app)?;
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -676,7 +676,7 @@ fn query_latest_loudness_scoped(
     Ok(None)
 }
 
-fn analysis_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn analysis_db_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     let base = app
         .path()
         .app_data_dir()
@@ -891,6 +891,7 @@ pub(crate) fn run_migrations_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     fn key(track_id: &str) -> TrackKey {
         TrackKey {
@@ -1307,6 +1308,32 @@ mod tests {
         dir.join(format!("audio-analysis.sqlite.pre-v{ANALYSIS_DB_SCHEMA_VERSION}.bak"))
     }
 
+    fn sqlite_sidecar(path: &Path, suffix: &str) -> PathBuf {
+        PathBuf::from(format!("{}{}", path.display(), suffix))
+    }
+
+    fn open_file_cache(db_path: &Path) -> AnalysisCache {
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        let mut conn = Connection::open(db_path).unwrap();
+        configure_connection(&conn).unwrap();
+        run_migrations(&mut conn).unwrap();
+        AnalysisCache {
+            conn: Mutex::new(conn),
+        }
+    }
+
+    fn unique_temp_file(tag: &str) -> PathBuf {
+        static CTR: AtomicU64 = AtomicU64::new(0);
+        let n = CTR.fetch_add(1, Ordering::Relaxed);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("psysonic-analysis-{tag}-{nanos}-{n}.sqlite"))
+    }
+
     #[test]
     fn backup_snapshots_pre_v2_db_and_overwrites_stale() {
         let dir = unique_temp_dir("bkp-create");
@@ -1365,5 +1392,285 @@ mod tests {
             "no backup when the DB is already at the target version"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn content_cache_coverage_tracks_partial_and_complete_state() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "queued").unwrap();
+
+        let none = cache.content_cache_coverage("server-a", "abc", "deadbeef").unwrap();
+        assert!(!none.has_waveform);
+        assert!(!none.has_loudness);
+        assert!(!none.complete());
+
+        cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+        let only_waveform = cache
+            .content_cache_coverage("server-a", "stream:abc", "deadbeef")
+            .unwrap();
+        assert!(only_waveform.has_waveform);
+        assert!(!only_waveform.has_loudness);
+        assert!(!only_waveform.complete());
+
+        cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
+        let full = cache.content_cache_coverage("server-a", "abc", "deadbeef").unwrap();
+        assert!(full.complete());
+    }
+
+    #[test]
+    fn get_latest_md5_uses_variant_and_filters_empty_values() {
+        let cache = AnalysisCache::open_in_memory();
+        let ok = key("stream:t1");
+        cache.touch_track_status(&ok, "ready").unwrap();
+        cache.upsert_waveform(&ok, &waveform(4, false)).unwrap();
+
+        assert_eq!(
+            cache
+                .get_latest_md5_16kb_for_track("server-a", "t1")
+                .unwrap()
+                .as_deref(),
+            Some("deadbeef")
+        );
+
+        let empty_md5 = TrackKey {
+            server_id: "server-a".to_string(),
+            track_id: "t2".to_string(),
+            md5_16kb: "".to_string(),
+        };
+        cache.touch_track_status(&empty_md5, "ready").unwrap();
+        cache.upsert_waveform(&empty_md5, &waveform(4, false)).unwrap();
+        assert!(
+            cache
+                .get_latest_md5_16kb_for_track("server-a", "t2")
+                .unwrap()
+                .is_none(),
+            "empty md5 rows must be ignored by latest-md5 lookup"
+        );
+    }
+
+    #[test]
+    fn delete_all_for_server_removes_only_targeted_server_rows() {
+        let cache = AnalysisCache::open_in_memory();
+        let a = key_on("server-a", "t");
+        let b = key_on("server-b", "t");
+        for k in [&a, &b] {
+            cache.touch_track_status(k, "ready").unwrap();
+            cache.upsert_waveform(k, &waveform(4, false)).unwrap();
+            cache.upsert_loudness(k, &loudness(-14.0)).unwrap();
+        }
+
+        let report = cache.delete_all_for_server("server-a").unwrap();
+        assert_eq!(report.analysis_tracks, 1);
+        assert_eq!(report.waveforms, 1);
+        assert_eq!(report.loudness, 1);
+        assert!(cache.get_waveform(&a).unwrap().is_none());
+        assert!(cache.get_waveform(&b).unwrap().is_some());
+        assert!(cache.loudness_row_exists_for_key(&b).unwrap());
+    }
+
+    #[test]
+    fn migrate_server_keys_drops_only_legacy_rows() {
+        let cache = AnalysisCache::open_in_memory();
+        let legacy = key_on("legacy-uuid", "t");
+        let modern = key_on("modern-index-key", "t");
+        for k in [&legacy, &modern] {
+            cache.touch_track_status(k, "ready").unwrap();
+            cache.upsert_waveform(k, &waveform(4, false)).unwrap();
+            cache.upsert_loudness(k, &loudness(-14.0)).unwrap();
+        }
+
+        cache
+            .migrate_server_keys(&[
+                ("legacy-uuid".to_string(), "modern-index-key".to_string()),
+                ("".to_string(), "skip".to_string()),
+                ("same".to_string(), "same".to_string()),
+            ])
+            .unwrap();
+
+        assert!(cache.get_waveform(&legacy).unwrap().is_none());
+        assert!(cache.get_waveform(&modern).unwrap().is_some());
+    }
+
+    #[test]
+    fn swap_database_file_and_restore_backup_roundtrip() {
+        let active_path = unique_temp_file("swap-active");
+        let destination_path = unique_temp_file("swap-dst");
+        let backup_path = active_path.with_file_name(format!(
+            "{}.backup-pre-indexkey",
+            active_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("audio-analysis.sqlite")
+        ));
+
+        let cache = open_file_cache(&active_path);
+        let old_key = key_on("server-a", "old");
+        cache.touch_track_status(&old_key, "ready").unwrap();
+        cache.upsert_waveform(&old_key, &waveform(4, false)).unwrap();
+
+        {
+            let dst = open_file_cache(&destination_path);
+            let new_key = key_on("server-a", "new");
+            dst.touch_track_status(&new_key, "ready").unwrap();
+            dst.upsert_waveform(&new_key, &waveform(4, false)).unwrap();
+            dst.checkpoint_wal("dst").unwrap();
+        }
+
+        let backup = cache
+            .swap_database_file(&active_path, &destination_path)
+            .unwrap()
+            .expect("backup path must be returned");
+        assert_eq!(backup, backup_path);
+        assert!(
+            cache
+                .get_waveform(&key_on("server-a", "new"))
+                .unwrap()
+                .is_some(),
+            "cache must reopen on swapped destination DB"
+        );
+        assert!(!destination_path.exists(), "destination DB must be moved into active path");
+        assert!(backup_path.exists(), "previous active DB must be moved to backup path");
+
+        cache
+            .restore_database_backup(&backup_path, &active_path)
+            .unwrap();
+        assert!(
+            cache
+                .get_waveform(&key_on("server-a", "old"))
+                .unwrap()
+                .is_some(),
+            "restore must bring old DB back"
+        );
+        assert!(
+            cache
+                .get_waveform(&key_on("server-a", "new"))
+                .unwrap()
+                .is_none(),
+            "restored DB must not contain swapped-in rows"
+        );
+
+        let _ = remove_db_with_sidecars(&active_path);
+        let _ = remove_db_with_sidecars(&backup_path);
+    }
+
+    #[test]
+    fn swap_database_file_returns_none_when_destination_missing() {
+        let active_path = unique_temp_file("swap-none-active");
+        let missing_destination = unique_temp_file("swap-none-dst");
+        let cache = open_file_cache(&active_path);
+        let backup = cache
+            .swap_database_file(&active_path, &missing_destination)
+            .unwrap();
+        assert!(backup.is_none());
+        let _ = remove_db_with_sidecars(&active_path);
+    }
+
+    #[test]
+    fn migrate_db_helpers_move_and_cleanup_sidecars() {
+        let from = unique_temp_file("migrate-from");
+        let to = unique_temp_file("migrate-to");
+        std::fs::write(&from, b"sqlite-bytes").unwrap();
+        std::fs::write(sqlite_sidecar(&from, "-wal"), b"wal").unwrap();
+        std::fs::write(sqlite_sidecar(&from, "-shm"), b"shm").unwrap();
+
+        migrate_db_file(&from, &to).unwrap();
+        assert!(to.exists());
+        assert!(!from.exists());
+
+        migrate_db_sidecar(&from, &to, "-wal").unwrap();
+        migrate_db_sidecar(&from, &to, "-shm").unwrap();
+        assert!(sqlite_sidecar(&to, "-wal").exists());
+        assert!(sqlite_sidecar(&to, "-shm").exists());
+
+        let moved_to = unique_temp_file("migrate-moved");
+        std::fs::write(&moved_to, b"sqlite-bytes-2").unwrap();
+        std::fs::write(sqlite_sidecar(&moved_to, "-wal"), b"wal2").unwrap();
+        move_sidecar(&moved_to, &to, "-wal").unwrap();
+        assert!(!sqlite_sidecar(&moved_to, "-wal").exists());
+        assert!(sqlite_sidecar(&to, "-wal").exists());
+
+        cleanup_legacy_db_if_present(&to, &to).unwrap();
+        cleanup_legacy_db_if_present(&to, &moved_to).unwrap();
+        assert!(!to.exists());
+        assert!(!sqlite_sidecar(&to, "-wal").exists());
+        assert!(!sqlite_sidecar(&to, "-shm").exists());
+    }
+
+    #[test]
+    fn run_migrations_with_applies_unsorted_versions_once() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        let migrations = [
+            (
+                3,
+                "CREATE TABLE IF NOT EXISTS m3 (id INTEGER PRIMARY KEY);",
+            ),
+            (
+                1,
+                "CREATE TABLE IF NOT EXISTS m1 (id INTEGER PRIMARY KEY);",
+            ),
+            (
+                2,
+                "CREATE TABLE IF NOT EXISTS m2 (id INTEGER PRIMARY KEY);",
+            ),
+        ];
+        run_migrations_with(&mut conn, &migrations).unwrap();
+        run_migrations_with(&mut conn, &migrations).unwrap();
+
+        let versions: Vec<i64> = conn
+            .prepare("SELECT version FROM schema_migrations ORDER BY version")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(versions, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn checkpoint_wal_smoke_test() {
+        let cache = AnalysisCache::open_in_memory();
+        cache.checkpoint_wal("test").unwrap();
+    }
+
+    #[test]
+    fn sidecar_helpers_are_noop_when_source_is_missing() {
+        let from = unique_temp_file("sidecar-missing-from");
+        let to = unique_temp_file("sidecar-missing-to");
+        std::fs::write(&to, b"db").unwrap();
+
+        migrate_db_sidecar(&from, &to, "-wal").unwrap();
+        migrate_db_sidecar(&from, &to, "-shm").unwrap();
+        move_sidecar(&from, &to, "-wal").unwrap();
+        move_sidecar(&from, &to, "-shm").unwrap();
+        remove_db_with_sidecars(&from).unwrap();
+
+        assert!(to.exists(), "destination DB stays intact");
+        let _ = remove_db_with_sidecars(&to);
+    }
+
+    #[test]
+    fn restore_database_backup_keeps_active_when_backup_missing() {
+        let active_path = unique_temp_file("restore-active");
+        let backup_path = unique_temp_file("restore-missing-backup");
+        let cache = open_file_cache(&active_path);
+        let k = key_on("server-a", "active-track");
+        cache.touch_track_status(&k, "ready").unwrap();
+        cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+
+        cache
+            .restore_database_backup(&backup_path, &active_path)
+            .unwrap();
+        assert!(cache.get_waveform(&k).unwrap().is_none());
+
+        let _ = remove_db_with_sidecars(&active_path);
+    }
+
+    #[test]
+    fn init_opens_app_scoped_database_path() {
+        let app = tauri::test::mock_app();
+        let handle = app.handle().clone();
+        let cache = AnalysisCache::init(&handle).expect("analysis cache init with mock app");
+        cache.checkpoint_wal("init-test").unwrap();
     }
 }

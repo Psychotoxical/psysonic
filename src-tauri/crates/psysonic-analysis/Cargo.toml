@@ -19,3 +19,6 @@ md5 = "0.8"
 rusqlite = { version = "0.39", features = ["bundled"] }
 symphonia = { version = "0.5", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "adpcm"] }
 oximedia-mir = { version = "0.1.7", default-features = false, features = ["tempo", "mood"] }
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
