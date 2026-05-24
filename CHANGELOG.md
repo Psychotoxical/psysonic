@@ -122,6 +122,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Development — parallel `tauri dev` alongside release
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#866](https://github.com/Psychotoxical/psysonic/pull/866)**
+
+* Debug builds skip `tauri-plugin-single-instance` so `./dev.sh` can run next to an installed release while sharing the same app data directory.
+* Debug-only chrome: window title `Psysonic (Dev)`, red sidebar brand, monochrome custom titlebar buttons, mobile `DEV` badge, horizontally flipped tray icon.
+* Debug builds do not register OS global shortcuts, MPRIS/media keys, or Windows taskbar media controls — release keeps system-wide input when both are open.
+
+
+
 ### Interface Scale — covers the whole window
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#781](https://github.com/Psychotoxical/psysonic/pull/781)**
