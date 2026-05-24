@@ -243,6 +243,76 @@ impl AnalysisCache {
         checkpoint_wal_conn(&conn, op).map_err(|e| e.to_string())
     }
 
+    /// Atomically switch analysis sqlite file while replacing the held
+    /// connection so runtime writers cannot continue on the old inode.
+    pub fn swap_database_file(
+        &self,
+        active_path: &Path,
+        destination_path: &Path,
+    ) -> Result<Option<PathBuf>, String> {
+        if !destination_path.exists() {
+            return Ok(None);
+        }
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_conn = std::mem::replace(&mut *conn, tmp);
+        drop(old_conn);
+
+        let backup = active_path.with_file_name(format!(
+            "{}.backup-pre-indexkey",
+            active_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("audio-analysis.sqlite")
+        ));
+        remove_db_with_sidecars(&backup).ok();
+        if active_path.exists() {
+            fs::rename(active_path, &backup).map_err(|e| e.to_string())?;
+            move_sidecar(active_path, &backup, "-wal")?;
+            move_sidecar(active_path, &backup, "-shm")?;
+        }
+        if let Err(err) = fs::rename(destination_path, active_path) {
+            if backup.exists() {
+                let _ = fs::rename(&backup, active_path);
+                let _ = move_sidecar(&backup, active_path, "-wal");
+                let _ = move_sidecar(&backup, active_path, "-shm");
+            }
+            return Err(err.to_string());
+        }
+        let mut reopened = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_connection(&reopened).map_err(|e| e.to_string())?;
+        run_migrations(&mut reopened).map_err(|e| e.to_string())?;
+        *conn = reopened;
+        Ok(Some(backup))
+    }
+
+    pub fn restore_database_backup(&self, backup_path: &Path, active_path: &Path) -> Result<(), String> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_conn = std::mem::replace(&mut *conn, tmp);
+        drop(old_conn);
+
+        if active_path.exists() {
+            remove_db_with_sidecars(active_path)?;
+        }
+        if backup_path.exists() {
+            fs::rename(backup_path, active_path).map_err(|e| e.to_string())?;
+            move_sidecar(backup_path, active_path, "-wal")?;
+            move_sidecar(backup_path, active_path, "-shm")?;
+        }
+        let mut reopened = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_connection(&reopened).map_err(|e| e.to_string())?;
+        run_migrations(&mut reopened).map_err(|e| e.to_string())?;
+        *conn = reopened;
+        Ok(())
+    }
+
     /// Drop analysis rows written under legacy server ids (profile UUIDs).
     pub fn migrate_server_keys(
         &self,
@@ -684,6 +754,31 @@ fn migrate_db_sidecar(from: &Path, to: &Path, suffix: &str) -> io::Result<()> {
             Ok(())
         }
     }
+}
+
+fn move_sidecar(from_base: &Path, to_base: &Path, suffix: &str) -> Result<(), String> {
+    let from = PathBuf::from(format!("{}{}", from_base.display(), suffix));
+    if !from.exists() {
+        return Ok(());
+    }
+    let to = PathBuf::from(format!("{}{}", to_base.display(), suffix));
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+fn remove_db_with_sidecars(path: &Path) -> Result<(), String> {
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{}", path.display(), suffix));
+        if sidecar.exists() {
+            fs::remove_file(sidecar).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {

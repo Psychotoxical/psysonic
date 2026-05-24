@@ -17,7 +17,7 @@ interface MigrationState {
 }
 
 export const useMigrationStore = create<MigrationState>(set => ({
-  phase: 'idle',
+  phase: 'inspecting',
   needsMigration: false,
   inspect: null,
   progress: null,

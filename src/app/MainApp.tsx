@@ -50,7 +50,7 @@ export default function MainApp() {
   const serverIdsKey = useAuthStore(s => s.servers.map(srv => srv.id).join(','));
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
   const migrationPhase = useMigrationStore(s => s.phase);
-  const migrationReady = migrationPhase === 'idle' || migrationPhase === 'completed';
+  const migrationReady = migrationPhase === 'completed';
   useMigrationOrchestrator();
   useEffect(() => {
     if (!migrationReady) return;

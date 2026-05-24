@@ -188,6 +188,101 @@ impl LibraryStore {
             Ok(())
         })
     }
+
+    /// Atomically switch the active sqlite file while replacing long-lived
+    /// write/read connections under the same locks so no command can keep
+    /// writing to the old inode after the swap.
+    pub fn swap_database_file(
+        &self,
+        active_path: &Path,
+        destination_path: &Path,
+    ) -> Result<Option<PathBuf>, String> {
+        if !destination_path.exists() {
+            return Ok(None);
+        }
+        let mut write_conn = self
+            .write_conn
+            .lock()
+            .map_err(|_| "library store write lock poisoned".to_string())?;
+        let mut read_conn = self
+            .read_conn
+            .lock()
+            .map_err(|_| "library store read lock poisoned".to_string())?;
+
+        let write_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let read_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_write = std::mem::replace(&mut *write_conn, write_tmp);
+        let old_read = std::mem::replace(&mut *read_conn, read_tmp);
+        drop(old_write);
+        drop(old_read);
+
+        let backup = active_path.with_file_name(format!(
+            "{}.backup-pre-indexkey",
+            active_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("library.sqlite")
+        ));
+        remove_db_with_sidecars(&backup).ok();
+        if active_path.exists() {
+            fs::rename(active_path, &backup).map_err(|e| e.to_string())?;
+            move_sidecar(active_path, &backup, "-wal")?;
+            move_sidecar(active_path, &backup, "-shm")?;
+        }
+        if let Err(err) = fs::rename(destination_path, active_path) {
+            if backup.exists() {
+                let _ = fs::rename(&backup, active_path);
+                let _ = move_sidecar(&backup, active_path, "-wal");
+                let _ = move_sidecar(&backup, active_path, "-shm");
+            }
+            return Err(err.to_string());
+        }
+
+        let reopened_write = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_write_connection(&reopened_write).map_err(|e| e.to_string())?;
+        let reopened_read = Connection::open_with_flags(active_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+        configure_read_connection(&reopened_read).map_err(|e| e.to_string())?;
+        *write_conn = reopened_write;
+        *read_conn = reopened_read;
+        Ok(Some(backup))
+    }
+
+    pub fn restore_database_backup(&self, backup_path: &Path, active_path: &Path) -> Result<(), String> {
+        let mut write_conn = self
+            .write_conn
+            .lock()
+            .map_err(|_| "library store write lock poisoned".to_string())?;
+        let mut read_conn = self
+            .read_conn
+            .lock()
+            .map_err(|_| "library store read lock poisoned".to_string())?;
+
+        let write_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let read_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_write = std::mem::replace(&mut *write_conn, write_tmp);
+        let old_read = std::mem::replace(&mut *read_conn, read_tmp);
+        drop(old_write);
+        drop(old_read);
+
+        if active_path.exists() {
+            remove_db_with_sidecars(active_path)?;
+        }
+        if backup_path.exists() {
+            fs::rename(backup_path, active_path).map_err(|e| e.to_string())?;
+            move_sidecar(backup_path, active_path, "-wal")?;
+            move_sidecar(backup_path, active_path, "-shm")?;
+        }
+
+        let reopened_write = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_write_connection(&reopened_write).map_err(|e| e.to_string())?;
+        let reopened_read = Connection::open_with_flags(active_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+        configure_read_connection(&reopened_read).map_err(|e| e.to_string())?;
+        *write_conn = reopened_write;
+        *read_conn = reopened_read;
+        Ok(())
+    }
 }
 
 /// Timing split returned to ingest progress (DevTools / terminal).
@@ -266,6 +361,31 @@ fn migrate_db_sidecar(from: &Path, to: &Path, suffix: &str) -> io::Result<()> {
             Ok(())
         }
     }
+}
+
+fn move_sidecar(from_base: &Path, to_base: &Path, suffix: &str) -> Result<(), String> {
+    let from = PathBuf::from(format!("{}{}", from_base.display(), suffix));
+    if !from.exists() {
+        return Ok(());
+    }
+    let to = PathBuf::from(format!("{}{}", to_base.display(), suffix));
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+fn remove_db_with_sidecars(path: &Path) -> Result<(), String> {
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{}", path.display(), suffix));
+        if sidecar.exists() {
+            fs::remove_file(sidecar).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 fn configure_write_connection(conn: &Connection) -> rusqlite::Result<()> {

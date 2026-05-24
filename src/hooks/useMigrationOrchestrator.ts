@@ -36,18 +36,18 @@ async function runOrchestrator(force = false): Promise<void> {
       state.setPhase('completed');
       return;
     }
-    if (!force && localStorage.getItem(MIGRATION_DONE_FLAG) === '1') {
-      state.setNeedsMigration(false);
-      state.setPhase('completed');
-      return;
-    }
     const mappings = buildMappings();
+    const hasDoneFlag = localStorage.getItem(MIGRATION_DONE_FLAG) === '1';
     state.setError(null);
     state.setProgress(null);
     state.setPhase('inspecting');
     const inspect = await migrationInspect(mappings);
     state.setInspect(inspect);
     state.setNeedsMigration(inspect.needsMigration);
+    if (!force && hasDoneFlag && !inspect.needsMigration) {
+      state.setPhase('completed');
+      return;
+    }
     if (!inspect.needsMigration) {
       await rewriteFrontendStoreKeys(servers);
       localStorage.setItem(MIGRATION_DONE_FLAG, '1');
@@ -57,8 +57,17 @@ async function runOrchestrator(force = false): Promise<void> {
     state.setPhase('running');
     await migrationRun(mappings);
     await rewriteFrontendStoreKeys(servers);
-    localStorage.setItem(MIGRATION_DONE_FLAG, '1');
-    state.setPhase('completed');
+    state.setPhase('inspecting');
+    const after = await migrationInspect(mappings);
+    state.setInspect(after);
+    state.setNeedsMigration(after.needsMigration);
+    if (!after.needsMigration) {
+      localStorage.setItem(MIGRATION_DONE_FLAG, '1');
+      state.setPhase('completed');
+      return;
+    }
+    state.setError('Migration incomplete. Retry after adding missing server mapping.');
+    state.setPhase('error');
   })()
     .catch((error: unknown) => {
       useMigrationStore.getState().setError(String(error));

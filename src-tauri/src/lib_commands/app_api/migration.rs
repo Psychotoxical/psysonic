@@ -106,21 +106,26 @@ fn inspect_internal(
     let paths = migration_paths(app)?;
 
     let (library_tables, library_total) = inspect_tables(&paths.library_active, LIBRARY_TABLES, &legacy_ids)?;
-    let (mut analysis_tables, mut analysis_total) =
+    let (analysis_tables, mut analysis_total) =
         inspect_tables(&paths.analysis_active, ANALYSIS_TABLES, &legacy_ids)?;
+    let mut analysis_tables = analysis_tables;
     let mut warnings = Vec::new();
     let mut unmapped_empty_bucket = false;
+    let mut has_empty_bucket_rows = false;
     if paths.analysis_active.exists() {
         let conn = open_readonly(&paths.analysis_active)?;
         for table in ANALYSIS_TABLES {
             let empty_count = count_rows_eq(&conn, table, "")?;
             if empty_count > 0 {
-                let entry = analysis_tables.entry((*table).to_string()).or_insert(0);
-                *entry = entry.saturating_add(empty_count as u64);
-                analysis_total = analysis_total.saturating_add(empty_count as u64);
+                has_empty_bucket_rows = true;
+                if normalized.len() == 1 {
+                    let entry = analysis_tables.entry((*table).to_string()).or_insert(0);
+                    *entry = entry.saturating_add(empty_count as u64);
+                    analysis_total = analysis_total.saturating_add(empty_count as u64);
+                }
             }
         }
-        if normalized.len() > 1 && analysis_tables.values().any(|v| *v > 0) {
+        if normalized.len() > 1 && has_empty_bucket_rows {
             unmapped_empty_bucket = true;
             warnings.push("analysis empty server bucket kept for multi-server install".to_string());
         }
@@ -193,19 +198,39 @@ fn run_internal(app: &AppHandle, mappings: Vec<ServerIndexMapping>) -> Result<Mi
     let mut analysis_backup: Option<PathBuf> = None;
 
     if paths.library_v2.exists() {
-        library_backup = Some(switch_file(&paths.library_active, &paths.library_v2)?);
+        if let Some(runtime) = app.try_state::<psysonic_library::LibraryRuntime>() {
+            library_backup = runtime
+                .store
+                .swap_database_file(&paths.library_active, &paths.library_v2)?;
+        } else {
+            library_backup = Some(switch_file(&paths.library_active, &paths.library_v2)?);
+        }
     }
     if paths.analysis_v2.exists() {
-        analysis_backup = Some(switch_file(&paths.analysis_active, &paths.analysis_v2)?);
+        if let Some(cache) = app.try_state::<psysonic_analysis::analysis_cache::AnalysisCache>() {
+            analysis_backup = cache.swap_database_file(&paths.analysis_active, &paths.analysis_v2)?;
+        } else {
+            analysis_backup = Some(switch_file(&paths.analysis_active, &paths.analysis_v2)?);
+        }
     }
     let switched = library_backup.is_some() || analysis_backup.is_some();
 
     if let Err(err) = health_check(&paths.library_active, &paths.analysis_active) {
         if let Some(ref backup) = library_backup {
-            let _ = restore_backup(backup, &paths.library_active);
+            if let Some(runtime) = app.try_state::<psysonic_library::LibraryRuntime>() {
+                let _ = runtime
+                    .store
+                    .restore_database_backup(backup, &paths.library_active);
+            } else {
+                let _ = restore_backup(backup, &paths.library_active);
+            }
         }
         if let Some(ref backup) = analysis_backup {
-            let _ = restore_backup(backup, &paths.analysis_active);
+            if let Some(cache) = app.try_state::<psysonic_analysis::analysis_cache::AnalysisCache>() {
+                let _ = cache.restore_database_backup(backup, &paths.analysis_active);
+            } else {
+                let _ = restore_backup(backup, &paths.analysis_active);
+            }
         }
         return Err(err);
     }
