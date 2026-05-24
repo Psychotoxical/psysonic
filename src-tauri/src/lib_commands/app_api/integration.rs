@@ -14,7 +14,7 @@ pub(crate) fn register_global_shortcut(
     #[cfg(debug_assertions)]
     {
         let _ = (app, shortcut_map, shortcut, action);
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(debug_assertions))]
@@ -57,7 +57,7 @@ pub(crate) fn unregister_global_shortcut(
     #[cfg(debug_assertions)]
     {
         let _ = (app, shortcut_map, shortcut);
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(debug_assertions))]

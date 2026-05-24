@@ -17,7 +17,7 @@ fn app_tray_icon(app: &tauri::AppHandle) -> Image<'static> {
     let icon = app.default_window_icon().expect("default window icon");
     #[cfg(debug_assertions)]
     {
-        return flip_image_horizontal(icon);
+        flip_image_horizontal(icon)
     }
     #[cfg(not(debug_assertions))]
     {
