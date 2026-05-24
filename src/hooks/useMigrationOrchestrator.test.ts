@@ -114,4 +114,35 @@ describe('useMigrationOrchestrator', () => {
     expect(migrationRunMock).not.toHaveBeenCalled();
     expect(rewriteFrontendStoreKeysMock).not.toHaveBeenCalled();
   });
+
+  it('keeps startup in inspecting while done-flag precheck is pending', async () => {
+    localStorage.setItem(DONE_FLAG, '1');
+    let resolveInspect: ((value: any) => void) | undefined;
+    migrationInspectMock.mockImplementation(
+      () => new Promise(resolve => { resolveInspect = resolve; }),
+    );
+
+    renderHook(() => useMigrationOrchestrator());
+
+    await waitFor(() => {
+      expect(useMigrationStore.getState().phase).toBe('inspecting');
+    });
+    expect(migrationRunMock).not.toHaveBeenCalled();
+
+    if (!resolveInspect) throw new Error('inspect resolver not captured');
+    resolveInspect({
+      needsMigration: false,
+      hasSkippedUnknownServerRows: false,
+      canRun: true,
+      warnings: [],
+      unmappedEmptyBucket: false,
+      library: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
+    });
+
+    await waitFor(() => {
+      expect(useMigrationStore.getState().phase).toBe('completed');
+    });
+  });
 });

@@ -53,6 +53,7 @@ async function runOrchestrator(force = false): Promise<void> {
     const hasDoneFlag = localStorage.getItem(MIGRATION_DONE_FLAG) === '1';
     state.setError(null);
     state.setProgress(null);
+    state.setPhase('inspecting');
     let inspect = null as Awaited<ReturnType<typeof migrationInspect>> | null;
     if (!force && hasDoneFlag) {
       inspect = await migrationInspect(mappings);
@@ -64,7 +65,6 @@ async function runOrchestrator(force = false): Promise<void> {
         return;
       }
     }
-    state.setPhase('inspecting');
     if (!inspect) {
       inspect = await migrationInspect(mappings);
     }
