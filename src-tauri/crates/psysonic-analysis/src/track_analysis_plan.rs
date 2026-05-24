@@ -7,7 +7,7 @@ use psysonic_core::track_analysis::TrackAnalysisPlan;
 use psysonic_core::track_enrichment::TrackEnrichmentPort;
 use tauri::{AppHandle, Manager};
 
-use crate::analysis_cache::AnalysisCache;
+use crate::analysis_cache::{AnalysisCache, TrackKey};
 
 pub fn plan_track_analysis(
     app: &AppHandle,
@@ -53,12 +53,38 @@ pub fn track_analysis_needs_work(
     track_id: &str,
 ) -> Result<bool, String> {
     if let Some(cache) = app.try_state::<AnalysisCache>() {
-        if cache
-            .get_latest_status_for_track(server_id, track_id)?
+        let latest_status = cache.get_latest_status_for_track(server_id, track_id)?;
+        if latest_status
+            .as_ref()
             .is_some_and(|(status, _)| status == "failed")
         {
             return Ok(false);
         }
+        let plan = plan_track_analysis_from_cache(app, server_id, track_id)?;
+        if !plan.any() {
+            return Ok(false);
+        }
+        // Legacy reconciliation: some old rows are persisted as `ready` with
+        // waveform present but no loudness (typically unsupported decode path).
+        // Those tracks spin forever in pending without converging. Promote to
+        // terminal `failed` so scheduler/progress can converge.
+        if latest_status
+            .as_ref()
+            .is_some_and(|(status, _)| status == "ready")
+            && plan.need_loudness
+            && !plan.need_waveform
+        {
+            if let Some(md5) = cache.get_latest_md5_16kb_for_track(server_id, track_id)? {
+                let key = TrackKey {
+                    server_id: server_id.to_string(),
+                    track_id: track_id.to_string(),
+                    md5_16kb: md5,
+                };
+                let _ = cache.touch_track_status(&key, "failed");
+            }
+            return Ok(false);
+        }
+        return Ok(plan.any());
     }
     Ok(plan_track_analysis_from_cache(app, server_id, track_id)?.any())
 }
@@ -167,4 +193,5 @@ mod tests {
         let (wf, ld) = cache_gaps_for_content(Some(&cache), "s1", "t1", "abc");
         assert!(!wf && !ld, "bare id should resolve stream: cached fingerprint");
     }
+
 }
