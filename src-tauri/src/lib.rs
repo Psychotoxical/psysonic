@@ -38,6 +38,27 @@ const MAX_DL_CONCURRENCY: usize = 4;
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
 
+/// Release builds only: focus or CLI-hand off when a second instance is launched.
+fn on_second_instance<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    argv: Vec<String>,
+    _cwd: String,
+) {
+    if !crate::cli::handle_cli_on_primary_instance(app, &argv) {
+        let window = app.get_webview_window("main").expect("no main window");
+        // The window may have been hidden via the close-to-tray path,
+        // which injects PAUSE_RENDERING_JS (sets `__psyHidden=true`,
+        // pauses CSS animations). Tray-icon restore mirrors this with
+        // RESUME_RENDERING_JS — second-launch restore must do the same,
+        // otherwise the webview comes back with rendering still paused
+        // and navigation looks blank (issue #497).
+        let _ = window.eval(RESUME_RENDERING_JS);
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 pub fn run() {
     // Linux: second `psysonic --player …` forwards over D-Bus before heavy startup.
     #[cfg(target_os = "linux")]
@@ -57,7 +78,7 @@ pub fn run() {
 
     let (audio_engine, _audio_thread) = audio::create_engine();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(audio_engine)
         .manage(ShortcutMap::default())
         .manage(discord::DiscordState::new())
@@ -78,24 +99,18 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            if !crate::cli::handle_cli_on_primary_instance(app, &argv) {
-                let window = app.get_webview_window("main").expect("no main window");
-                // The window may have been hidden via the close-to-tray path,
-                // which injects PAUSE_RENDERING_JS (sets `__psyHidden=true`,
-                // pauses CSS animations). Tray-icon restore mirrors this with
-                // RESUME_RENDERING_JS — second-launch restore must do the same,
-                // otherwise the webview comes back with rendering still paused
-                // and navigation looks blank (issue #497).
-                let _ = window.eval(RESUME_RENDERING_JS);
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_fs::init());
 
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(on_second_instance));
+
+    builder
         .setup(|app| {
+            #[cfg(debug_assertions)]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_title("Psysonic (Dev)");
+            }
+
             // ── Analysis cache (SQLite) ───────────────────────────────────
             {
                 let cache = analysis_cache::AnalysisCache::init(app.handle())
