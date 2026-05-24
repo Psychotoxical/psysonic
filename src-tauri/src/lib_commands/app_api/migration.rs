@@ -304,18 +304,21 @@ fn run_library_import(
     let index_keys: Vec<String> = mappings.iter().map(|m| m.index_key.clone()).collect();
     let total = LIBRARY_TABLES.len() as u64;
     let mut done = 0_u64;
-    for table in LIBRARY_TABLES {
-        purge_unknown_rows(&dest, table, &legacy_ids, &index_keys)?;
-        for mapping in mappings {
-            dest.execute(
-                &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
-                [&mapping.legacy_id, &mapping.index_key],
-            )
-            .map_err(|e| e.to_string())?;
+    with_foreign_keys_disabled(&dest, || {
+        for table in LIBRARY_TABLES {
+            purge_unknown_rows(&dest, table, &legacy_ids, &index_keys)?;
+            for mapping in mappings {
+                dest.execute(
+                    &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
+                    [&mapping.legacy_id, &mapping.index_key],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            done = done.saturating_add(1);
+            emit_progress(app, "library", table, done, total)?;
         }
-        done = done.saturating_add(1);
-        emit_progress(app, "library", table, done, total)?;
-    }
+        Ok(())
+    })?;
     let source_rows = sum_table_rows(&source, LIBRARY_TABLES)?;
     let imported_rows = sum_table_rows(&dest, LIBRARY_TABLES)?;
     let skipped_unknown_server_rows = sum_unknown_rows(&source, LIBRARY_TABLES, &legacy_ids, &index_keys)?;
@@ -340,25 +343,28 @@ fn run_analysis_import(
     let index_keys: Vec<String> = mappings.iter().map(|m| m.index_key.clone()).collect();
     let total = ANALYSIS_TABLES.len() as u64;
     let mut done = 0_u64;
-    for table in ANALYSIS_TABLES {
-        purge_unknown_rows(&dest, table, &legacy_ids, &index_keys)?;
-        for mapping in mappings {
-            dest.execute(
-                &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
-                [&mapping.legacy_id, &mapping.index_key],
-            )
-            .map_err(|e| e.to_string())?;
+    with_foreign_keys_disabled(&dest, || {
+        for table in ANALYSIS_TABLES {
+            purge_unknown_rows(&dest, table, &legacy_ids, &index_keys)?;
+            for mapping in mappings {
+                dest.execute(
+                    &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
+                    [&mapping.legacy_id, &mapping.index_key],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            if let Some(index_key) = single_mapping {
+                dest.execute(
+                    &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
+                    ["", index_key],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            done = done.saturating_add(1);
+            emit_progress(app, "analysis", table, done, total)?;
         }
-        if let Some(index_key) = single_mapping {
-            dest.execute(
-                &format!("UPDATE OR REPLACE {table} SET server_id = ?2 WHERE server_id = ?1"),
-                ["", index_key],
-            )
-            .map_err(|e| e.to_string())?;
-        }
-        done = done.saturating_add(1);
-        emit_progress(app, "analysis", table, done, total)?;
-    }
+        Ok(())
+    })?;
     let source_rows = sum_table_rows(&source, ANALYSIS_TABLES)?;
     let imported_rows = sum_table_rows(&dest, ANALYSIS_TABLES)?;
     let skipped_unknown_server_rows = sum_unknown_rows(&source, ANALYSIS_TABLES, &legacy_ids, &index_keys)?;
@@ -509,6 +515,49 @@ fn sum_unknown_rows(
         total = total.saturating_add(rows.max(0) as u64);
     }
     Ok(total)
+}
+
+fn with_foreign_keys_disabled<T>(
+    conn: &Connection,
+    operation: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    conn.execute_batch("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;")
+        .map_err(|e| e.to_string())?;
+    let result = operation();
+    match result {
+        Ok(value) => {
+            if let Err(err) = conn
+                .execute_batch("COMMIT; PRAGMA foreign_keys = ON;")
+                .map_err(|e| e.to_string())
+            {
+                let _ = conn.execute_batch("ROLLBACK; PRAGMA foreign_keys = ON;");
+                return Err(err);
+            }
+            ensure_foreign_keys_clean(conn)?;
+            Ok(value)
+        }
+        Err(err) => {
+            let _ = conn.execute_batch("ROLLBACK; PRAGMA foreign_keys = ON;");
+            Err(err)
+        }
+    }
+}
+
+fn ensure_foreign_keys_clean(conn: &Connection) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare("PRAGMA foreign_key_check")
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+    if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let table: String = row.get(0).map_err(|e| e.to_string())?;
+        let rowid: i64 = row.get(1).map_err(|e| e.to_string())?;
+        let parent: String = row.get(2).map_err(|e| e.to_string())?;
+        let fkid: i64 = row.get(3).map_err(|e| e.to_string())?;
+        return Err(format!(
+            "foreign key check failed table={table} rowid={rowid} parent={parent} fkid={fkid}"
+        ));
+    }
+    Ok(())
 }
 
 fn emit_progress(app: &AppHandle, stage: &str, table: &str, done: u64, total: u64) -> Result<(), String> {
