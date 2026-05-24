@@ -2,9 +2,10 @@ import type { ServerProfile } from '../../store/authStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import { serverProfileBaseUrl } from './serverBaseUrl';
 
-/** Stable index key derived from a server URL (scheme + host + optional path). */
+/** Stable index key derived from a server URL (host + optional path, no scheme). */
 export function serverIndexKeyFromUrl(urlRaw: string): string {
-  return serverProfileBaseUrl({ url: urlRaw });
+  const base = serverProfileBaseUrl({ url: urlRaw });
+  return base.replace(/^https?:\/\//, '');
 }
 
 export function serverIndexKeyForProfile(server: Pick<ServerProfile, 'url'>): string {

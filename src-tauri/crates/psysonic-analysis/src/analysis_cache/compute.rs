@@ -65,8 +65,7 @@ pub fn seed_from_bytes_execute(
     // md5_16kb is known — whether freshly written or already cached — record it
     // as `track.content_hash` via the registered sink. Decoupled from
     // psysonic-library through the psysonic-core port; a no-op when the library
-    // has no row for this (server_id, track_id). Skipped under the legacy ''
-    // scope (no server known).
+    // has no row for this (server_id, track_id). Skipped when no server is known.
     if !server_id.is_empty()
         && matches!(
             outcome,
@@ -109,9 +108,7 @@ pub fn seed_from_bytes_into_cache(
     bytes: &[u8],
 ) -> Result<(SeedFromBytesOutcome, String), String> {
     let started = Instant::now();
-    // Write under the playback server's scope. An empty `server_id` (caller did
-    // not know the server) lands under the legacy '' pool — the read path's
-    // legacy fallback + lazy re-tag keeps it resolvable.
+    // Write under the playback server's scope.
     let key = TrackKey {
         server_id: server_id.to_string(),
         track_id: track_id.to_string(),
@@ -965,14 +962,14 @@ mod tests {
     fn seed_from_bytes_into_cache_upserts_waveform_and_loudness_for_wav() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "", "wav-track", &wav).unwrap();
+        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track", &wav).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
         assert_eq!(md5, md5_first_16kb(&wav), "outcome carries the content fingerprint");
 
         // Both a waveform AND a loudness row must exist after a successful
         // PCM decode + EBU R128 analysis.
         let key = TrackKey {
-            server_id: String::new(),
+            server_id: "server-a".to_string(),
             track_id: "wav-track".to_string(),
             md5_16kb: md5_first_16kb(&wav),
         };
@@ -994,25 +991,22 @@ mod tests {
             track_id: "scoped-track".to_string(),
             md5_16kb: md5.clone(),
         };
-        let legacy = TrackKey {
-            server_id: String::new(),
+        assert!(cache.get_waveform(&scoped).unwrap().is_some(), "row lands under server scope");
+        let other = TrackKey {
+            server_id: "server-y".to_string(),
             track_id: "scoped-track".to_string(),
             md5_16kb: md5,
         };
-        assert!(cache.get_waveform(&scoped).unwrap().is_some(), "row lands under server scope");
-        assert!(
-            cache.get_waveform(&legacy).unwrap().is_none(),
-            "nothing written under the legacy '' scope"
-        );
+        assert!(cache.get_waveform(&other).unwrap().is_none(), "row stays under the exact server");
     }
 
     #[test]
     fn seed_from_bytes_into_cache_returns_skipped_on_second_call() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (first, _) = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
+        let (first, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
-        let (second, _) = seed_from_bytes_into_cache(&cache, "", "wav-track-2", &wav).unwrap();
+        let (second, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav).unwrap();
         assert_eq!(
             second,
             SeedFromBytesOutcome::SkippedWaveformCacheHit,
@@ -1026,11 +1020,11 @@ mod tests {
         // Garbage bytes — Symphonia probe fails, the pipeline falls back to
         // `derive_waveform_bins` (no loudness row gets cached).
         let bytes = vec![0xAAu8; 8 * 1024];
-        let (outcome, _) = seed_from_bytes_into_cache(&cache, "", "garbage", &bytes).unwrap();
+        let (outcome, _) = seed_from_bytes_into_cache(&cache, "server-a", "garbage", &bytes).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         let key = TrackKey {
-            server_id: String::new(),
+            server_id: "server-a".to_string(),
             track_id: "garbage".to_string(),
             md5_16kb: md5_first_16kb(&bytes),
         };

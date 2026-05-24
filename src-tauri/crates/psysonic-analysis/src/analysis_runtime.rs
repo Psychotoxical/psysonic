@@ -756,8 +756,7 @@ type SeedDoneReceiver = tokio::sync::oneshot::Receiver<
 type RunningSeedJob = Arc<Mutex<Vec<SeedDoneSender>>>;
 
 struct AnalysisCpuSeedJob {
-    /// Playback server scope for the write key. Empty = legacy '' (caller did not
-    /// know the server); the read path's fallback + lazy re-tag covers it.
+    /// Playback server scope for the write key.
     server_id: String,
     track_id: String,
     bytes: Vec<u8>,

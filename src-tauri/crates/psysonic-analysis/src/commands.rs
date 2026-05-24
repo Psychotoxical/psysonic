@@ -77,10 +77,9 @@ pub struct AnalysisServerKeyMigrationDto {
 }
 
 /// AppHandle-free helper: looks up a waveform by exact `(server_id, track_id,
-/// md5_16kb)` key, falling back to the legacy `''` scope and re-tagging it onto
-/// `server_id` on a hit (best-effort). Converts the `WaveformEntry` into the
-/// JSON-serialisable `WaveformCachePayload`. Pulled out of [`analysis_get_waveform`]
-/// so it can be tested with `AnalysisCache::open_in_memory()` and direct upserts.
+/// md5_16kb)` key. Converts the `WaveformEntry` into the JSON-serialisable
+/// `WaveformCachePayload`. Pulled out of [`analysis_get_waveform`] so it can be
+/// tested with `AnalysisCache::open_in_memory()` and direct upserts.
 pub fn get_waveform_payload(
     cache: &analysis_cache::AnalysisCache,
     server_id: &str,
@@ -92,26 +91,13 @@ pub fn get_waveform_payload(
         track_id: track_id.to_string(),
         md5_16kb: md5_16kb.to_string(),
     };
-    if let Some(e) = cache.get_waveform(&exact)? {
-        return Ok(Some(WaveformCachePayload::from(e)));
-    }
-    if !server_id.is_empty() {
-        let legacy = analysis_cache::TrackKey {
-            server_id: String::new(),
-            track_id: track_id.to_string(),
-            md5_16kb: md5_16kb.to_string(),
-        };
-        if let Some(e) = cache.get_waveform(&legacy)? {
-            let _ = cache.relabel_legacy_to_server(server_id, track_id);
-            return Ok(Some(WaveformCachePayload::from(e)));
-        }
-    }
-    Ok(None)
+    Ok(cache
+        .get_waveform(&exact)?
+        .map(WaveformCachePayload::from))
 }
 
 /// AppHandle-free helper: looks up the latest waveform for `(server_id, track_id)`
-/// across all id variants (bare ↔ `stream:` prefix) with legacy fallback + lazy
-/// re-tag. See [`get_waveform_payload`].
+/// across all id variants (bare ↔ `stream:` prefix). See [`get_waveform_payload`].
 pub fn get_waveform_payload_for_track(
     cache: &analysis_cache::AnalysisCache,
     server_id: &str,
@@ -123,7 +109,7 @@ pub fn get_waveform_payload_for_track(
 }
 
 /// AppHandle-free helper: looks up the latest loudness row for `(server_id,
-/// track_id)` (legacy fallback + lazy re-tag) and recomputes `recommended_gain_db`
+/// track_id)` and recomputes `recommended_gain_db`
 /// against the optional requested target (clamped to [-30, -8]). When
 /// `target_lufs` is `None`, the cached row's own target is used.
 pub fn get_loudness_payload_for_track(
@@ -265,7 +251,34 @@ pub fn analysis_enqueue_seed_from_url(
     if track_id.trim().is_empty() || url.trim().is_empty() {
         return Ok(());
     }
-    let server_id = server_id.unwrap_or_default();
+    let server_id = if let Ok(parsed) = reqwest::Url::parse(&url) {
+        if parsed.scheme() == "http" || parsed.scheme() == "https" {
+            let host = parsed.host_str().unwrap_or_default();
+            let mut base_path = parsed.path().to_string();
+            if let Some(idx) = base_path.find("/rest") {
+                base_path.truncate(idx);
+            }
+            while base_path.ends_with('/') {
+                base_path.pop();
+            }
+            if host.is_empty() {
+                server_id.unwrap_or_default()
+            } else {
+                let mut base = host.to_string();
+                if let Some(port) = parsed.port() {
+                    base.push_str(&format!(":{port}"));
+                }
+                if !base_path.is_empty() {
+                    base.push_str(&base_path);
+                }
+                base
+            }
+        } else {
+            server_id.unwrap_or_default()
+        }
+    } else {
+        server_id.unwrap_or_default()
+    };
     let force = force.unwrap_or(false);
     if !force {
         if let Some(playback) = app.try_state::<PlaybackQueryHandle>() {
@@ -447,7 +460,7 @@ mod tests {
 
     fn key(track_id: &str, md5: &str) -> TrackKey {
         TrackKey {
-            server_id: String::new(),
+            server_id: "server-a".to_string(),
             track_id: track_id.to_string(),
             md5_16kb: md5.to_string(),
         }
@@ -493,7 +506,7 @@ mod tests {
     #[test]
     fn get_waveform_payload_returns_none_for_unknown_key() {
         let cache = AnalysisCache::open_in_memory();
-        let payload = get_waveform_payload(&cache, "", "missing", "deadbeef").unwrap();
+        let payload = get_waveform_payload(&cache, "server-a", "missing", "deadbeef").unwrap();
         assert!(payload.is_none());
     }
 
@@ -502,7 +515,7 @@ mod tests {
         let cache = AnalysisCache::open_in_memory();
         let bins: Vec<u8> = (0..8u8).collect();
         upsert_waveform(&cache, "abc", "deadbeef", bins.clone());
-        let payload = get_waveform_payload(&cache, "", "abc", "deadbeef")
+        let payload = get_waveform_payload(&cache, "server-a", "abc", "deadbeef")
             .unwrap()
             .expect("payload exists");
         assert_eq!(payload.bins, bins);
@@ -518,8 +531,8 @@ mod tests {
         let cache = AnalysisCache::open_in_memory();
         upsert_waveform(&cache, "abc", "aaaa", vec![0u8; 8]);
         upsert_waveform(&cache, "abc", "bbbb", vec![0xFFu8; 8]);
-        let p1 = get_waveform_payload(&cache, "", "abc", "aaaa").unwrap().unwrap();
-        let p2 = get_waveform_payload(&cache, "", "abc", "bbbb").unwrap().unwrap();
+        let p1 = get_waveform_payload(&cache, "server-a", "abc", "aaaa").unwrap().unwrap();
+        let p2 = get_waveform_payload(&cache, "server-a", "abc", "bbbb").unwrap().unwrap();
         assert_ne!(p1.bins, p2.bins);
     }
 
@@ -531,7 +544,7 @@ mod tests {
         // matching is the whole point of get_latest_waveform_for_track.
         let cache = AnalysisCache::open_in_memory();
         upsert_waveform(&cache, "stream:abc", "deadbeef", vec![1u8; 8]);
-        let payload = get_waveform_payload_for_track(&cache, "", "abc")
+        let payload = get_waveform_payload_for_track(&cache, "server-a", "abc")
             .unwrap()
             .expect("bare-id lookup must hit the stream-prefixed row");
         assert_eq!(payload.bin_count, 4);
@@ -540,28 +553,7 @@ mod tests {
     #[test]
     fn get_waveform_for_track_returns_none_for_unknown_track() {
         let cache = AnalysisCache::open_in_memory();
-        assert!(get_waveform_payload_for_track(&cache, "", "phantom").unwrap().is_none());
-    }
-
-    #[test]
-    fn get_waveform_payload_exact_key_falls_back_to_legacy_and_retags() {
-        // A pre-002 row lives under server_id=''. The exact-key read for a real
-        // server must find it via fallback and re-tag it under the server scope.
-        let cache = AnalysisCache::open_in_memory();
-        upsert_waveform(&cache, "abc", "deadbeef", vec![7u8; 8]); // legacy '' row
-
-        let payload = get_waveform_payload(&cache, "server-a", "abc", "deadbeef")
-            .unwrap()
-            .expect("legacy fallback must return the blob");
-        assert_eq!(payload.bins, vec![7u8; 8]);
-
-        // Re-tag side effect: the server-scoped exact key now resolves on its own.
-        let scoped = TrackKey {
-            server_id: "server-a".to_string(),
-            track_id: "abc".to_string(),
-            md5_16kb: "deadbeef".to_string(),
-        };
-        assert!(cache.get_waveform(&scoped).unwrap().is_some());
+        assert!(get_waveform_payload_for_track(&cache, "server-a", "phantom").unwrap().is_none());
     }
 
     // ── get_loudness_payload_for_track ────────────────────────────────────────
@@ -572,7 +564,7 @@ mod tests {
         upsert_loudness(&cache, "abc", "deadbeef", -14.0);
         // Cached row: integrated -14, target -14 → gain 0. Request target -10 →
         // recommended gain = -10 - (-14) = +4 dB (capped by true-peak guard).
-        let payload = get_loudness_payload_for_track(&cache, "", "abc", Some(-10.0))
+        let payload = get_loudness_payload_for_track(&cache, "server-a", "abc", Some(-10.0))
             .unwrap()
             .expect("loudness row exists");
         assert_eq!(payload.target_lufs, -10.0);
@@ -587,7 +579,7 @@ mod tests {
     fn get_loudness_for_track_uses_cached_target_when_request_is_none() {
         let cache = AnalysisCache::open_in_memory();
         upsert_loudness(&cache, "abc", "deadbeef", -16.0);
-        let payload = get_loudness_payload_for_track(&cache, "", "abc", None)
+        let payload = get_loudness_payload_for_track(&cache, "server-a", "abc", None)
             .unwrap()
             .unwrap();
         assert_eq!(payload.target_lufs, -16.0);
@@ -598,11 +590,11 @@ mod tests {
         let cache = AnalysisCache::open_in_memory();
         upsert_loudness(&cache, "abc", "deadbeef", -14.0);
         // Out-of-range target gets clamped to [-30, -8].
-        let too_high = get_loudness_payload_for_track(&cache, "", "abc", Some(0.0))
+        let too_high = get_loudness_payload_for_track(&cache, "server-a", "abc", Some(0.0))
             .unwrap()
             .unwrap();
         assert_eq!(too_high.target_lufs, -8.0);
-        let too_low = get_loudness_payload_for_track(&cache, "", "abc", Some(-100.0))
+        let too_low = get_loudness_payload_for_track(&cache, "server-a", "abc", Some(-100.0))
             .unwrap()
             .unwrap();
         assert_eq!(too_low.target_lufs, -30.0);
@@ -611,7 +603,7 @@ mod tests {
     #[test]
     fn get_loudness_for_track_returns_none_for_unknown_track() {
         let cache = AnalysisCache::open_in_memory();
-        assert!(get_loudness_payload_for_track(&cache, "", "phantom", None)
+        assert!(get_loudness_payload_for_track(&cache, "server-a", "phantom", None)
             .unwrap()
             .is_none());
     }

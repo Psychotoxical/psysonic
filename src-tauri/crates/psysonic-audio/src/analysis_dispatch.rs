@@ -13,6 +13,7 @@ use psysonic_analysis::analysis_runtime::AnalysisBackfillPriority;
 
 use crate::engine::{analysis_track_id_is_current_playback, AudioEngine};
 use crate::helpers::{analysis_cache_track_id, current_playback_server_id_str};
+use url::Url;
 use crate::state::ChainedInfo;
 use crate::stream::{LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES, TRACK_STREAM_PROMOTE_MAX_BYTES};
 
@@ -40,15 +41,46 @@ pub(crate) fn resolve_analysis_server_id(
     explicit: Option<&str>,
     engine: Option<&AudioEngine>,
 ) -> String {
+    if let Some(engine) = engine {
+        if let Some(url) = engine
+            .current_playback_url
+            .lock()
+            .ok()
+            .and_then(|g| (*g).clone())
+        {
+            if let Some(derived) = server_id_from_playback_url(&url) {
+                return derived;
+            }
+        }
+    }
     explicit
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
-        .unwrap_or_else(|| {
-            engine
-                .map(current_playback_server_id_str)
-                .unwrap_or_default()
-        })
+        .unwrap_or_else(|| engine.map(current_playback_server_id_str).unwrap_or_default())
+}
+
+fn server_id_from_playback_url(url_raw: &str) -> Option<String> {
+    if url_raw.starts_with("psysonic-local://") {
+        return None;
+    }
+    let parsed = Url::parse(url_raw).ok()?;
+    let host = parsed.host_str()?;
+    let mut base_path = parsed.path().to_string();
+    if let Some(idx) = base_path.find("/rest") {
+        base_path.truncate(idx);
+    }
+    while base_path.ends_with('/') {
+        base_path.pop();
+    }
+    let mut base = host.to_string();
+    if let Some(port) = parsed.port() {
+        base.push_str(&format!(":{port}"));
+    }
+    if !base_path.is_empty() {
+        base.push_str(&base_path);
+    }
+    Some(base)
 }
 
 fn resolve_analysis_priority(

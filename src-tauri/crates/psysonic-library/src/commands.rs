@@ -3,7 +3,6 @@
 //! `State<LibraryRuntime>` so the top crate's `setup()` can wire one
 //! shared `Arc<LibraryStore>` across the whole IPC surface.
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -305,8 +304,8 @@ pub async fn library_get_track(
         .lyrics_cached(&server_id, &track_id, now)
         .unwrap_or(false);
     // waveform/loudness readiness is gated on a known content_hash (md5_16kb,
-    // populated by E2) and probed via the analysis-readiness port — exact key
-    // then legacy '' fallback, no re-tag. Absent port or hash ⇒ not ready.
+    // populated by E2) and probed via the analysis-readiness port. Absent
+    // port or hash ⇒ not ready.
     let (waveform_ready, loudness_ready) =
         match row.content_hash.as_deref().filter(|s| !s.is_empty()) {
             Some(md5) => app
@@ -1205,20 +1204,6 @@ pub fn library_migrate_server_index_keys(
     if mappings.is_empty() {
         return Ok(());
     }
-    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
-    for mapping in mappings {
-        if mapping.legacy_id.trim().is_empty() || mapping.index_key.trim().is_empty() {
-            continue;
-        }
-        groups
-            .entry(mapping.index_key.clone())
-            .or_default()
-            .push(mapping.legacy_id.clone());
-    }
-    if groups.is_empty() {
-        return Ok(());
-    }
-
     runtime.store.with_conn_mut("misc", |conn| {
         let tx = conn.transaction()?;
         let tables = [
@@ -1234,82 +1219,16 @@ pub fn library_migrate_server_index_keys(
             "artist",
             "sync_state",
         ];
-
-        let has_data = |conn: &rusqlite::Connection, server_id: &str| -> rusqlite::Result<bool> {
-            let track_exists: i64 = conn.query_row(
-                "SELECT EXISTS(SELECT 1 FROM track WHERE server_id = ?1)",
-                params![server_id],
-                |row| row.get(0),
-            )?;
-            let sync_exists: i64 = conn.query_row(
-                "SELECT EXISTS(SELECT 1 FROM sync_state WHERE server_id = ?1)",
-                params![server_id],
-                |row| row.get(0),
-            )?;
-            Ok(track_exists != 0 || sync_exists != 0)
-        };
-
-        let delete_for_ids = |conn: &rusqlite::Connection, ids: &[String]| -> rusqlite::Result<()> {
-            for id in ids {
-                for table in tables {
-                    conn.execute(
-                        &format!("DELETE FROM {table} WHERE server_id = ?1"),
-                        params![id],
-                    )?;
-                }
-            }
-            Ok(())
-        };
-
-        for (index_key, mut legacy_ids) in groups {
-            legacy_ids.sort();
-            legacy_ids.dedup();
-            if legacy_ids.is_empty() {
-                continue;
-            }
-            let conflict = legacy_ids.len() > 1;
-            let index_has_data = has_data(&tx, &index_key)?;
-            let mut legacy_with_data: Vec<String> = Vec::new();
-            for legacy in &legacy_ids {
-                if legacy != &index_key && has_data(&tx, legacy)? {
-                    legacy_with_data.push(legacy.clone());
-                }
-            }
-            if conflict {
-                if legacy_with_data.is_empty() {
-                    continue;
-                }
-                if legacy_with_data.len() == 1 && !index_has_data {
-                    let legacy = &legacy_with_data[0];
-                    for table in tables {
-                        tx.execute(
-                            &format!("UPDATE {table} SET server_id = ?1 WHERE server_id = ?2"),
-                            params![index_key, legacy],
-                        )?;
-                    }
-                    continue;
-                }
-                let mut ids = legacy_ids.clone();
-                if !ids.contains(&index_key) {
-                    ids.push(index_key.clone());
-                }
-                delete_for_ids(&tx, &ids)?;
-                continue;
-            }
-            let legacy = &legacy_ids[0];
-            if legacy == &index_key {
-                continue;
-            }
-            if index_has_data {
-                if has_data(&tx, legacy)? {
-                    delete_for_ids(&tx, &[legacy.clone(), index_key.clone()])?;
-                }
+        for mapping in mappings {
+            let legacy_id = mapping.legacy_id.trim();
+            let index_key = mapping.index_key.trim();
+            if legacy_id.is_empty() || index_key.is_empty() || legacy_id == index_key {
                 continue;
             }
             for table in tables {
                 tx.execute(
-                    &format!("UPDATE {table} SET server_id = ?1 WHERE server_id = ?2"),
-                    params![index_key, legacy],
+                    &format!("DELETE FROM {table} WHERE server_id = ?1"),
+                    params![legacy_id],
                 )?;
             }
         }
