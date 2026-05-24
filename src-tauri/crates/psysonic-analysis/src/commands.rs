@@ -59,12 +59,30 @@ pub struct AnalysisDeleteServerReportDto {
     pub loudness: u64,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisFailedTrackDto {
+    pub track_id: String,
+    pub md5_16kb: String,
+    pub updated_at: i64,
+}
+
 impl From<analysis_cache::AnalysisDeleteServerReport> for AnalysisDeleteServerReportDto {
     fn from(value: analysis_cache::AnalysisDeleteServerReport) -> Self {
         Self {
             analysis_tracks: value.analysis_tracks,
             waveforms: value.waveforms,
             loudness: value.loudness,
+        }
+    }
+}
+
+impl From<analysis_cache::FailedTrackEntry> for AnalysisFailedTrackDto {
+    fn from(value: analysis_cache::FailedTrackEntry) -> Self {
+        Self {
+            track_id: value.track_id,
+            md5_16kb: value.md5_16kb,
+            updated_at: value.updated_at,
         }
     }
 }
@@ -225,6 +243,54 @@ pub fn analysis_delete_all_for_server(
     }
     let report = cache.delete_all_for_server(&server_id)?;
     Ok(report.into())
+}
+
+#[tauri::command]
+pub fn analysis_get_failed_track_count(
+    server_id: String,
+    cache: tauri::State<'_, analysis_cache::AnalysisCache>,
+) -> Result<i64, String> {
+    let server_id = server_id.trim().to_string();
+    if server_id.is_empty() {
+        return Ok(0);
+    }
+    cache.count_failed_tracks(&server_id)
+}
+
+#[tauri::command]
+pub fn analysis_list_failed_tracks(
+    server_id: String,
+    limit: Option<u32>,
+    cache: tauri::State<'_, analysis_cache::AnalysisCache>,
+) -> Result<Vec<AnalysisFailedTrackDto>, String> {
+    let server_id = server_id.trim().to_string();
+    if server_id.is_empty() {
+        return Ok(Vec::new());
+    }
+    let limit = limit
+        .map(|v| usize::try_from(v).unwrap_or(usize::MAX))
+        .map(|v| v.clamp(1, 5_000));
+    let rows = cache.list_failed_tracks(&server_id, limit)?;
+    Ok(rows.into_iter().map(AnalysisFailedTrackDto::from).collect())
+}
+
+#[tauri::command]
+pub fn analysis_clear_failed_tracks(
+    server_id: String,
+    track_ids: Option<Vec<String>>,
+    cache: tauri::State<'_, analysis_cache::AnalysisCache>,
+) -> Result<u64, String> {
+    let server_id = server_id.trim().to_string();
+    if server_id.is_empty() {
+        return Err("server_id required".to_string());
+    }
+    let track_ids = track_ids
+        .unwrap_or_default()
+        .into_iter()
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty())
+        .collect::<Vec<_>>();
+    cache.clear_failed_tracks(&server_id, &track_ids)
 }
 
 #[tauri::command]

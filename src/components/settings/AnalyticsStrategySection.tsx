@@ -1,15 +1,24 @@
-import { AlertTriangle, BarChart3, X } from 'lucide-react';
+import { AlertTriangle, BarChart3, FileDown, RefreshCcw, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import SettingsSubSection from '../SettingsSubSection';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useAuthStore } from '../../store/authStore';
 import {
+  analysisClearFailedTracks,
   analysisDeleteAllForServer,
+  analysisEnqueueSeedFromUrl,
+  analysisGetFailedTrackCount,
+  analysisListFailedTracks,
+  type AnalysisFailedTrackDto,
   libraryAnalysisProgress,
   type LibraryAnalysisProgressDto,
 } from '../../api/analysis';
+import { libraryGetTracksBatch, type LibraryTrackDto, type TrackRefDto } from '../../api/library';
+import { buildStreamUrlForServer } from '../../api/subsonicStreamUrl';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
 import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
 import { showToast } from '../../utils/ui/toast';
@@ -25,6 +34,17 @@ type ClearTarget = {
   label: string;
 };
 
+type FailedModalTarget = {
+  serverId: string;
+  label: string;
+  indexKey: string;
+};
+
+type FailedTrackView = AnalysisFailedTrackDto & {
+  title?: string | null;
+  serverPath?: string | null;
+};
+
 export default function AnalyticsStrategySection() {
   const { t } = useTranslation();
   const servers = useAuthStore(s => s.servers);
@@ -38,8 +58,13 @@ export default function AnalyticsStrategySection() {
     getAdvancedParallelismForServer,
   } = useAnalysisStrategyStore();
   const [progressByServer, setProgressByServer] = useState<Record<string, LibraryAnalysisProgressDto | null>>({});
+  const [failedCountByServer, setFailedCountByServer] = useState<Record<string, number>>({});
+  const [failedTracksByServer, setFailedTracksByServer] = useState<Record<string, FailedTrackView[]>>({});
   const [clearTarget, setClearTarget] = useState<ClearTarget | null>(null);
   const [clearingServerId, setClearingServerId] = useState<string | null>(null);
+  const [failedModalTarget, setFailedModalTarget] = useState<FailedModalTarget | null>(null);
+  const [failedModalLoading, setFailedModalLoading] = useState(false);
+  const [failedActionBusy, setFailedActionBusy] = useState(false);
 
   const activeServerIds = useMemo(
     () => new Set(servers.map(server => serverIndexKeyForProfile(server))),
@@ -64,9 +89,12 @@ export default function AnalyticsStrategySection() {
       void Promise.all(
         servers.map(server => {
           const key = serverIndexKeyForProfile(server);
-          return libraryAnalysisProgress(server.id)
-            .then(progress => ({ key, progress }))
-            .catch(() => ({ key, progress: null }));
+          return Promise.all([
+            libraryAnalysisProgress(server.id).catch(() => null),
+            analysisGetFailedTrackCount(server.id).catch(() => 0),
+          ])
+            .then(([progress, failedCount]) => ({ key, progress, failedCount }))
+            .catch(() => ({ key, progress: null, failedCount: 0 }));
         }),
       ).then(results => {
         if (cancelled) return;
@@ -74,6 +102,13 @@ export default function AnalyticsStrategySection() {
           const next = { ...prev };
           results.forEach(({ key, progress }) => {
             next[key] = progress;
+          });
+          return next;
+        });
+        setFailedCountByServer(prev => {
+          const next = { ...prev };
+          results.forEach(({ key, failedCount }) => {
+            next[key] = Number.isFinite(failedCount) ? failedCount : 0;
           });
           return next;
         });
@@ -87,10 +122,14 @@ export default function AnalyticsStrategySection() {
     };
   }, [servers]);
 
-  const progressLabel = (progress: LibraryAnalysisProgressDto | null) => {
+  const progressLabel = (progress: LibraryAnalysisProgressDto | null, failedCount: number) => {
     if (!progress || progress.totalTracks <= 0) return null;
-    const done = progress.doneTracks;
-    const total = progress.totalTracks;
+    const blocked = Math.max(0, failedCount);
+    const total = Math.max(0, progress.totalTracks - blocked);
+    if (total <= 0) {
+      return t('settings.analyticsStrategyProgressEmptyAfterFailed');
+    }
+    const done = Math.max(0, total - progress.pendingTracks);
     const percent = Math.max(0, Math.min(100, Math.round((done / total) * 100)));
     return t('settings.analyticsStrategyProgressValue', {
       percent,
@@ -120,6 +159,95 @@ export default function AnalyticsStrategySection() {
     } finally {
       setClearingServerId(null);
       setClearTarget(null);
+    }
+  };
+
+  const openFailedTracksModal = async (target: FailedModalTarget) => {
+    setFailedModalTarget(target);
+    setFailedModalLoading(true);
+    try {
+      const tracks = await analysisListFailedTracks(target.serverId, 2000);
+      const refs: TrackRefDto[] = tracks.map(track => ({
+        serverId: target.serverId,
+        trackId: track.trackId,
+      }));
+      const dtoById = new Map<string, LibraryTrackDto>();
+      if (refs.length > 0) {
+        const batch = await libraryGetTracksBatch(refs).catch(() => []);
+        batch.forEach(track => {
+          if (!dtoById.has(track.id)) dtoById.set(track.id, track);
+        });
+      }
+      const merged: FailedTrackView[] = tracks.map(track => {
+        const dto = dtoById.get(track.trackId);
+        return {
+          ...track,
+          title: dto?.title ?? null,
+          serverPath: dto?.serverPath ?? null,
+        };
+      });
+      setFailedTracksByServer(prev => ({ ...prev, [target.indexKey]: merged }));
+      setFailedCountByServer(prev => ({ ...prev, [target.indexKey]: merged.length }));
+    } catch {
+      showToast(t('settings.analyticsFailedTracksLoadError'), 4500, 'error');
+    } finally {
+      setFailedModalLoading(false);
+    }
+  };
+
+  const handleExportFailedTracks = async () => {
+    if (!failedModalTarget) return;
+    const tracks = failedTracksByServer[failedModalTarget.indexKey] ?? [];
+    if (tracks.length === 0) return;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
+    const suggestedName = `psysonic-failed-tracks-${stamp}.json`;
+    const selected = await saveDialog({
+      defaultPath: suggestedName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      title: t('settings.analyticsFailedTracksExport'),
+    });
+    if (!selected || Array.isArray(selected)) return;
+    try {
+      const payload = {
+        serverId: failedModalTarget.serverId,
+        exportedAt: new Date().toISOString(),
+        count: tracks.length,
+        tracks,
+      };
+      const bytes = new TextEncoder().encode(JSON.stringify(payload, null, 2));
+      await writeFile(selected, bytes);
+      showToast(t('settings.analyticsFailedTracksExportSuccess', { count: tracks.length }), 3500, 'success');
+    } catch {
+      showToast(t('settings.analyticsFailedTracksExportError'), 4500, 'error');
+    }
+  };
+
+  const handleRescanFailedTracks = async () => {
+    if (!failedModalTarget) return;
+    const tracks = failedTracksByServer[failedModalTarget.indexKey] ?? [];
+    if (tracks.length === 0) return;
+    setFailedActionBusy(true);
+    try {
+      const ids = tracks.map(t => t.trackId);
+      await analysisClearFailedTracks(failedModalTarget.serverId, ids);
+      await Promise.allSettled(
+        ids.slice(0, 200).map(trackId =>
+          analysisEnqueueSeedFromUrl(
+            trackId,
+            buildStreamUrlForServer(failedModalTarget.serverId, trackId),
+            failedModalTarget.serverId,
+            'low',
+          ),
+        ),
+      );
+      setFailedTracksByServer(prev => ({ ...prev, [failedModalTarget.indexKey]: [] }));
+      setFailedCountByServer(prev => ({ ...prev, [failedModalTarget.indexKey]: 0 }));
+      showToast(t('settings.analyticsFailedTracksRescanSuccess', { count: ids.length }), 4500, 'success');
+      setFailedModalTarget(null);
+    } catch {
+      showToast(t('settings.analyticsFailedTracksRescanError'), 5000, 'error');
+    } finally {
+      setFailedActionBusy(false);
     }
   };
 
@@ -160,6 +288,7 @@ export default function AnalyticsStrategySection() {
                 const advancedParallelism = getAdvancedParallelismForServer(server.id);
                 const key = serverIndexKeyForProfile(server);
                 const progress = progressByServer[key] ?? null;
+                const failedCount = failedCountByServer[key] ?? 0;
                 const label = serverListDisplayLabel(server, servers);
                 return (
                   <tr key={server.id} style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
@@ -207,7 +336,23 @@ export default function AnalyticsStrategySection() {
                       )}
                     </td>
                     <td style={{ padding: '10px', fontSize: 12, color: 'var(--text-secondary)' }}>
-                      {progressLabel(progress) ?? '—'}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>{progressLabel(progress, failedCount) ?? '—'}</span>
+                        {failedCount > 0 && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-surface"
+                            onClick={() => void openFailedTracksModal({ serverId: server.id, label, indexKey: key })}
+                            title={t('settings.analyticsFailedTracksOpenTitle', { count: failedCount })}
+                            style={{ padding: '2px 8px', minHeight: 24 }}
+                          >
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <TriangleAlert size={13} />
+                              {failedCount}
+                            </span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '10px' }}>
                       <button
@@ -361,6 +506,127 @@ export default function AnalyticsStrategySection() {
                     {t('settings.analyticsStrategyClearConfirm')}
                   </span>
                 </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {failedModalTarget &&
+        createPortal(
+          <div
+            className="modal-overlay"
+            onClick={() => !failedActionBusy && setFailedModalTarget(null)}
+            role="dialog"
+            aria-modal="true"
+            style={{ alignItems: 'center', paddingTop: 0 }}
+          >
+            <div
+              className="modal-content"
+              onClick={e => e.stopPropagation()}
+              style={{ maxWidth: '680px', width: 'min(680px, 92vw)' }}
+            >
+              <button
+                className="modal-close"
+                onClick={() => setFailedModalTarget(null)}
+                aria-label={t('settings.analyticsFailedTracksClose')}
+                disabled={failedActionBusy}
+              >
+                <X size={18} />
+              </button>
+              <h3 style={{ marginBottom: '0.5rem', fontFamily: 'var(--font-display)' }}>
+                {t('settings.analyticsFailedTracksTitle', { server: failedModalTarget.label })}
+              </h3>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
+                {t('settings.analyticsFailedTracksDesc')}
+              </p>
+
+              {failedModalLoading ? (
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {t('settings.analyticsFailedTracksLoading')}
+                </div>
+              ) : (failedTracksByServer[failedModalTarget.indexKey] ?? []).length === 0 ? (
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {t('settings.analyticsFailedTracksEmpty')}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+                    borderRadius: 10,
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                    marginBottom: 12,
+                  }}
+                >
+                  {(failedTracksByServer[failedModalTarget.indexKey] ?? []).map(track => (
+                    <div
+                      key={`${track.trackId}:${track.md5_16kb}:${track.updatedAt}`}
+                      style={{
+                        padding: '8px 10px',
+                        borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.06))',
+                        fontSize: 12,
+                        color: 'var(--text-secondary)',
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            wordBreak: 'break-word',
+                            color: 'var(--text-primary)',
+                            fontFamily: 'var(--font-ui)',
+                            fontSize: 12,
+                          }}
+                        >
+                          {track.title?.trim() || track.trackId}
+                        </div>
+                        <div style={{ wordBreak: 'break-all', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+                          {track.serverPath?.trim() || track.trackId}
+                        </div>
+                      </div>
+                      <span style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                        {new Date(track.updatedAt * 1000).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-surface"
+                  onClick={handleExportFailedTracks}
+                  disabled={failedModalLoading || failedActionBusy || (failedTracksByServer[failedModalTarget.indexKey] ?? []).length === 0}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <FileDown size={14} />
+                    {t('settings.analyticsFailedTracksExport')}
+                  </span>
+                </button>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setFailedModalTarget(null)}
+                    disabled={failedActionBusy}
+                  >
+                    {t('settings.analyticsFailedTracksClose')}
+                  </button>
+                  <button
+                    className="btn btn-surface"
+                    onClick={handleRescanFailedTracks}
+                    disabled={failedModalLoading || failedActionBusy || (failedTracksByServer[failedModalTarget.indexKey] ?? []).length === 0}
+                    style={{ borderColor: 'var(--warning, #f59e0b)', color: 'var(--warning, #f59e0b)' }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <RefreshCcw size={14} />
+                      {t('settings.analyticsFailedTracksRescan')}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>,

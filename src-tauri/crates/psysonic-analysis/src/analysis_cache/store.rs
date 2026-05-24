@@ -92,6 +92,13 @@ pub struct AnalysisDeleteServerReport {
     pub loudness: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct FailedTrackEntry {
+    pub track_id: String,
+    pub md5_16kb: String,
+    pub updated_at: i64,
+}
+
 pub struct AnalysisCache {
     conn: Mutex<Connection>,
 }
@@ -108,6 +115,10 @@ fn track_id_cache_variants(id: &str) -> Vec<String> {
         out.push(format!("stream:{id}"));
     }
     out
+}
+
+fn normalize_track_id(id: &str) -> String {
+    id.strip_prefix("stream:").unwrap_or(id).to_string()
 }
 
 pub(super) fn now_unix_ts() -> i64 {
@@ -538,6 +549,66 @@ impl AnalysisCache {
         query_latest_md5_16kb_scoped(&conn, server_id, track_id)
     }
 
+    /// Latest analysis status row for `(server_id, track_id)` (tries bare and
+    /// `stream:` variants). Used to suppress infinite retries for tracks that
+    /// repeatedly fail decode/enrichment.
+    pub fn get_latest_status_for_track(
+        &self,
+        server_id: &str,
+        track_id: &str,
+    ) -> Result<Option<(String, i64)>, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        query_latest_status_scoped(&conn, server_id, track_id)
+    }
+
+    pub fn count_failed_tracks(&self, server_id: &str) -> Result<i64, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        query_failed_tracks_count_scoped(&conn, server_id)
+    }
+
+    pub fn list_failed_tracks(
+        &self,
+        server_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<FailedTrackEntry>, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        query_failed_tracks_scoped(&conn, server_id, limit)
+    }
+
+    pub fn clear_failed_tracks(
+        &self,
+        server_id: &str,
+        track_ids: &[String],
+    ) -> Result<u64, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        if track_ids.is_empty() {
+            let deleted = conn
+                .execute(
+                    "DELETE FROM analysis_track WHERE server_id = ?1 AND status = 'failed'",
+                    params![server_id],
+                )
+                .map_err(|e| e.to_string())?;
+            return Ok(deleted as u64);
+        }
+        let mut total = 0u64;
+        for id in track_ids {
+            let tid = id.trim();
+            if tid.is_empty() {
+                continue;
+            }
+            for variant in track_id_cache_variants(tid) {
+                let deleted = conn
+                    .execute(
+                        "DELETE FROM analysis_track WHERE server_id = ?1 AND track_id = ?2 AND status = 'failed'",
+                        params![server_id, variant],
+                    )
+                    .map_err(|e| e.to_string())?;
+                total = total.saturating_add(deleted as u64);
+            }
+        }
+        Ok(total)
+    }
+
     /// Both waveform and loudness rows exist for this `(server_id, track_id)` —
     /// a CPU seed from bytes/file would only decode the file to immediately skip
     /// with `SkippedWaveformCacheHit`.
@@ -635,6 +706,104 @@ fn query_latest_md5_16kb_scoped(
         }
     }
     Ok(None)
+}
+
+fn query_latest_status_scoped(
+    conn: &Connection,
+    server_id: &str,
+    track_id: &str,
+) -> Result<Option<(String, i64)>, String> {
+    const SQL: &str = r#"
+        SELECT status, updated_at
+        FROM analysis_track
+        WHERE server_id = ?1
+          AND track_id = ?2
+        ORDER BY updated_at DESC
+        LIMIT 1
+        "#;
+    let mut latest: Option<(String, i64)> = None;
+    for tid in track_id_cache_variants(track_id) {
+        let row = conn
+            .query_row(SQL, params![server_id, tid], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(candidate) = row {
+            let take = latest
+                .as_ref()
+                .is_none_or(|(_, ts)| candidate.1 > *ts);
+            if take {
+                latest = Some(candidate);
+            }
+        }
+    }
+    Ok(latest)
+}
+
+fn query_failed_tracks_count_scoped(conn: &Connection, server_id: &str) -> Result<i64, String> {
+    conn.query_row(
+        r#"
+        SELECT COUNT(DISTINCT normalized_track_id)
+        FROM (
+          SELECT CASE
+                   WHEN track_id LIKE 'stream:%' THEN SUBSTR(track_id, 8)
+                   ELSE track_id
+                 END AS normalized_track_id
+          FROM analysis_track
+          WHERE server_id = ?1
+            AND status = 'failed'
+        )
+        WHERE normalized_track_id IS NOT NULL
+          AND normalized_track_id != ''
+        "#,
+        params![server_id],
+        |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn query_failed_tracks_scoped(
+    conn: &Connection,
+    server_id: &str,
+    limit: Option<usize>,
+) -> Result<Vec<FailedTrackEntry>, String> {
+    const SQL: &str = r#"
+        SELECT track_id, md5_16kb, updated_at
+        FROM analysis_track
+        WHERE server_id = ?1
+          AND status = 'failed'
+        ORDER BY updated_at DESC
+        "#;
+    let mut stmt = conn.prepare(SQL).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![server_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut out: Vec<FailedTrackEntry> = Vec::new();
+    let mut seen = std::collections::HashSet::<String>::new();
+    for row in rows {
+        let (track_id_raw, md5_16kb, updated_at) = row.map_err(|e| e.to_string())?;
+        let normalized = normalize_track_id(track_id_raw.trim());
+        if normalized.is_empty() || !seen.insert(normalized.clone()) {
+            continue;
+        }
+        out.push(FailedTrackEntry {
+            track_id: normalized,
+            md5_16kb,
+            updated_at,
+        });
+        if limit.is_some_and(|n| out.len() >= n) {
+            break;
+        }
+    }
+    Ok(out)
 }
 
 /// Server-scoped variant of the "latest loudness for this track" lookup.
@@ -1672,5 +1841,63 @@ mod tests {
         let handle = app.handle().clone();
         let cache = AnalysisCache::init(&handle).expect("analysis cache init with mock app");
         cache.checkpoint_wal("init-test").unwrap();
+    }
+
+    #[test]
+    fn latest_status_for_track_prefers_newest_variant_timestamp() {
+        let cache = AnalysisCache::open_in_memory();
+        let base = key_on("server-a", "track-1");
+        let prefixed = key_on("server-a", "stream:track-1");
+
+        cache.touch_track_status(&base, "queued").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        cache.touch_track_status(&prefixed, "failed").unwrap();
+
+        let row = cache
+            .get_latest_status_for_track("server-a", "track-1")
+            .unwrap()
+            .expect("latest status row");
+        assert_eq!(row.0, "failed");
+    }
+
+    #[test]
+    fn failed_track_queries_deduplicate_stream_variants() {
+        let cache = AnalysisCache::open_in_memory();
+        let base = key_on("server-a", "track-2");
+        let prefixed = key_on("server-a", "stream:track-2");
+        let other = key_on("server-a", "track-3");
+
+        cache.touch_track_status(&base, "failed").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        cache.touch_track_status(&prefixed, "failed").unwrap();
+        cache.touch_track_status(&other, "failed").unwrap();
+
+        let count = cache.count_failed_tracks("server-a").unwrap();
+        assert_eq!(count, 2);
+
+        let listed = cache.list_failed_tracks("server-a", None).unwrap();
+        assert_eq!(listed.len(), 2);
+        assert!(listed.iter().any(|r| r.track_id == "track-2"));
+        assert!(listed.iter().any(|r| r.track_id == "track-3"));
+    }
+
+    #[test]
+    fn clear_failed_tracks_removes_only_failed_rows() {
+        let cache = AnalysisCache::open_in_memory();
+        let failed = key_on("server-a", "track-failed");
+        let ready = key_on("server-a", "track-ready");
+        cache.touch_track_status(&failed, "failed").unwrap();
+        cache.touch_track_status(&ready, "ready").unwrap();
+
+        let deleted = cache
+            .clear_failed_tracks("server-a", &["track-failed".to_string()])
+            .unwrap();
+        assert_eq!(deleted, 1);
+        assert_eq!(cache.count_failed_tracks("server-a").unwrap(), 0);
+        let ready_latest = cache
+            .get_latest_status_for_track("server-a", "track-ready")
+            .unwrap()
+            .expect("ready row stays");
+        assert_eq!(ready_latest.0, "ready");
     }
 }

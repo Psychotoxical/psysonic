@@ -40,6 +40,12 @@ export interface LibraryAnalysisProgressDto {
   doneTracks: number;
 }
 
+export interface AnalysisFailedTrackDto {
+  trackId: string;
+  md5_16kb: string;
+  updatedAt: number;
+}
+
 export interface AnalysisDeleteServerReportDto {
   analysisTracks: number;
   waveforms: number;
@@ -82,11 +88,43 @@ export function libraryAnalysisProgress(
   return invoke<LibraryAnalysisProgressDto>('library_analysis_progress', { serverId: indexKey });
 }
 
+export function libraryCountLiveTracks(serverId: string): Promise<number> {
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<number>('library_count_live_tracks', { serverId: indexKey });
+}
+
 export function analysisDeleteAllForServer(
   serverId: string,
 ): Promise<AnalysisDeleteServerReportDto> {
   const indexKey = serverIndexKeyForId(serverId);
   return invoke<AnalysisDeleteServerReportDto>('analysis_delete_all_for_server', { serverId: indexKey });
+}
+
+export function analysisGetFailedTrackCount(serverId: string): Promise<number> {
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<number>('analysis_get_failed_track_count', { serverId: indexKey });
+}
+
+export function analysisListFailedTracks(
+  serverId: string,
+  limit?: number,
+): Promise<AnalysisFailedTrackDto[]> {
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<AnalysisFailedTrackDto[]>('analysis_list_failed_tracks', {
+    serverId: indexKey,
+    limit: limit ?? null,
+  });
+}
+
+export function analysisClearFailedTracks(
+  serverId: string,
+  trackIds?: string[],
+): Promise<number> {
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<number>('analysis_clear_failed_tracks', {
+    serverId: indexKey,
+    trackIds: trackIds ?? null,
+  });
 }
 
 export type AnalysisBackfillPriority = 'high' | 'middle' | 'low';

@@ -7,5 +7,6 @@ pub use compute::{
     seed_from_bytes_execute, seed_from_bytes_into_cache, PcmAnalysisWindow, SeedFromBytesOutcome,
 };
 pub use store::{
-    AnalysisCache, AnalysisDeleteServerReport, LoudnessEntry, TrackKey, WaveformEntry,
+    AnalysisCache, AnalysisDeleteServerReport, FailedTrackEntry, LoudnessEntry, TrackKey,
+    WaveformEntry,
 };

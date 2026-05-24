@@ -119,6 +119,19 @@ pub fn library_analysis_progress(
 }
 
 #[tauri::command]
+pub fn library_count_live_tracks(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<i64, String> {
+    let server_id = server_id.trim().to_string();
+    if server_id.is_empty() {
+        return Ok(0);
+    }
+    let repo = TrackRepository::new(&runtime.store);
+    repo.count_live_tracks(&server_id)
+}
+
+#[tauri::command]
 pub async fn library_get_status(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,

@@ -52,6 +52,14 @@ pub fn track_analysis_needs_work(
     server_id: &str,
     track_id: &str,
 ) -> Result<bool, String> {
+    if let Some(cache) = app.try_state::<AnalysisCache>() {
+        if cache
+            .get_latest_status_for_track(server_id, track_id)?
+            .is_some_and(|(status, _)| status == "failed")
+        {
+            return Ok(false);
+        }
+    }
     Ok(plan_track_analysis_from_cache(app, server_id, track_id)?.any())
 }
 

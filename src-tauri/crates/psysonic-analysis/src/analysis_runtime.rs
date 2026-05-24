@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{Emitter, Manager};
 
 use psysonic_core::user_agent::subsonic_wire_user_agent;
+use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 
 use crate::analysis_cache;
 
@@ -435,7 +436,18 @@ async fn enqueue_track_analysis_with_fetch(
             content_hash
         );
         let bpm_started = std::time::Instant::now();
-        run_track_enrichment_from_bytes(app, server_id, track_id, bytes).await;
+        let outcome = run_track_enrichment_from_bytes(app, server_id, track_id, bytes).await;
+        if matches!(outcome, TrackEnrichmentOutcome::Failed) {
+            if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+                let key = analysis_cache::TrackKey {
+                    server_id: server_id.to_string(),
+                    track_id: track_id.to_string(),
+                    md5_16kb: content_hash.clone(),
+                };
+                let _ = cache.touch_track_status(&key, "failed");
+            }
+            return Err("track enrichment failed".to_string());
+        }
         let bpm_ms = bpm_started.elapsed().as_millis() as u64;
         emit_analysis_track_perf(app, track_id, fetch_ms, 0, bpm_ms);
         return Ok(EnqueueTrackAnalysisOutcome::RanEnrichmentOnly);
@@ -452,18 +464,22 @@ pub async fn run_track_enrichment_from_bytes(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
-) {
+) -> TrackEnrichmentOutcome {
     if server_id.is_empty() {
-        return;
+        return TrackEnrichmentOutcome::SkippedNoServer;
     }
     let app = app.clone();
     let sid = server_id.to_string();
     let tid = track_id.to_string();
     let data = bytes.to_vec();
-    let _ = tokio::task::spawn_blocking(move || {
-        crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data);
+    match tokio::task::spawn_blocking(move || {
+        crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data)
     })
-    .await;
+    .await
+    {
+        Ok(outcome) => outcome,
+        Err(_) => TrackEnrichmentOutcome::Failed,
+    }
 }
 
 /// Read a local file and run [`enqueue_track_analysis`] (hot cache, offline, spill promote).

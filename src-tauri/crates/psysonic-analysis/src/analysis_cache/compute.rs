@@ -199,6 +199,7 @@ pub fn seed_from_bytes_into_cache(
             );
         }
         Err(e) => {
+            let _ = cache.touch_track_status(&key, "failed");
             crate::app_deprintln!(
                 "[analysis] full-track analysis failed track_id={} elapsed_ms={} err={}",
                 track_id,

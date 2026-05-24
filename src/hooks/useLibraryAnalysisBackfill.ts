@@ -5,6 +5,8 @@ import {
   analysisGetPipelineQueueStats,
   analysisSetPipelineParallelism,
   libraryAnalysisBackfillBatch,
+  libraryCountLiveTracks,
+  libraryAnalysisProgress,
 } from '../api/analysis';
 import { useAuthStore } from '../store/authStore';
 import { useAnalysisStrategyStore } from '../store/analysisStrategyStore';
@@ -19,6 +21,7 @@ const TOP_UP_POLL_MS = 500;
 const STEADY_POLL_MS = 2000;
 const READY_POLL_MS = 5000;
 const EXHAUSTED_PAUSE_MS = 60_000;
+const COMPLETED_RECHECK_MS = 5 * 60_000;
 
 const EMPTY_PIPELINE_STATS = {
   pipelineWorkers: 1,
@@ -52,6 +55,7 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
     s => s.getAdvancedParallelismForServer(activeServerId),
   );
   const cursorRef = useRef<string | null>(null);
+  const completedTotalRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -65,9 +69,33 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
 
     let cancelled = false;
     const serverId = activeServerId;
+    let initialized = false;
 
     void (async () => {
       while (!cancelled) {
+        if (!initialized) {
+          initialized = true;
+          const progress = await libraryAnalysisProgress(serverId).catch(() => null);
+          if (progress && progress.pendingTracks <= 0) {
+            completedTotalRef.current = progress.totalTracks;
+            cursorRef.current = null;
+          }
+        }
+
+        if (completedTotalRef.current !== null) {
+          const totalTracks = await libraryCountLiveTracks(serverId).catch(() => null);
+          if (!Number.isFinite(totalTracks)) {
+            await new Promise(r => setTimeout(r, COMPLETED_RECHECK_MS));
+            continue;
+          }
+          if (totalTracks === completedTotalRef.current) {
+            await new Promise(r => setTimeout(r, COMPLETED_RECHECK_MS));
+            continue;
+          }
+          completedTotalRef.current = null;
+          cursorRef.current = null;
+        }
+
         if (!(await libraryIsReady(serverId))) {
           await new Promise(r => setTimeout(r, READY_POLL_MS));
           continue;
@@ -119,6 +147,12 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
 
         if (batch.exhausted) {
           cursorRef.current = null;
+          const progress = await libraryAnalysisProgress(serverId).catch(() => null);
+          if (progress && progress.pendingTracks <= 0) {
+            completedTotalRef.current = progress.totalTracks;
+            await new Promise(r => setTimeout(r, COMPLETED_RECHECK_MS));
+            continue;
+          }
           await new Promise(r => setTimeout(r, EXHAUSTED_PAUSE_MS));
         } else if (batch.trackIds.length === 0) {
           await new Promise(r => setTimeout(r, TOP_UP_POLL_MS));
@@ -130,6 +164,7 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
     return () => {
       cancelled = true;
       cursorRef.current = null;
+      completedTotalRef.current = null;
     };
   }, [strategy, activeServerId, advancedParallelism, enabled]);
 }
