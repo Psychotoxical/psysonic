@@ -43,7 +43,7 @@ function renderStars(rating?: number) {
 const Hero = memo(function Hero({ track, genre, playCount, userRatingOverride, lfmTrack, lfmArtist, starred, lfmLoved, lfmLoveEnabled, activeLyricsTab, coverUrl, onNavigate, onToggleStar, onToggleLfmLove, onOpenLyrics }: HeroProps) {
   const { t } = useTranslation();
   const rating = userRatingOverride ?? track.userRating;
-  const hiRes  = track.bitDepth > 16 || track.samplingRate > 48000;
+  const hiRes  = (track.bitDepth ?? 0) > 16 || (track.samplingRate ?? 0) > 48000;
   const releaseAge = track.year ? new Date().getFullYear() - track.year : 0;
 
   return (
@@ -79,9 +79,9 @@ const Hero = memo(function Hero({ track, genre, playCount, userRatingOverride, l
         <div className="np-dash-hero-badges">
           {genre && <span className="np-badge">{genre}</span>}
           {track.suffix && <span className="np-badge">{track.suffix.toUpperCase()}</span>}
-          {track.bitRate > 0 && <span className="np-badge">{track.bitRate} kbps</span>}
-          {track.samplingRate > 0 && <span className="np-badge">{(track.samplingRate / 1000).toFixed(1)} kHz</span>}
-          {track.bitDepth > 0 && <span className="np-badge">{track.bitDepth}-bit</span>}
+          {(track.bitRate ?? 0) > 0 && <span className="np-badge">{track.bitRate} kbps</span>}
+          {(track.samplingRate ?? 0) > 0 && <span className="np-badge">{((track.samplingRate ?? 0) / 1000).toFixed(1)} kHz</span>}
+          {(track.bitDepth ?? 0) > 0 && <span className="np-badge">{track.bitDepth}-bit</span>}
           {hiRes && <span className="np-badge np-badge-hires">Hi-Res</span>}
           {track.duration > 0 && <span className="np-badge">{formatTrackTime(track.duration)}</span>}
         </div>
