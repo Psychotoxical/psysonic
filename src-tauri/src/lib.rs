@@ -402,6 +402,8 @@ pub fn run() {
             }
 
             // ── MPRIS2 / OS media controls via souvlaki ──────────────────
+            // Release only: debug builds share the D-Bus name / SMTC slot with prod.
+            #[cfg(not(debug_assertions))]
             {
                 use souvlaki::{MediaControlEvent, MediaControls, PlatformConfig};
 
@@ -490,9 +492,13 @@ pub fn run() {
 
                 app.manage(MprisControls::new(maybe_controls));
             }
+            #[cfg(debug_assertions)]
+            {
+                app.manage(MprisControls::new(None));
+            }
 
             // ── Windows Taskbar Thumbnail Toolbar ────────────────────────
-            #[cfg(target_os = "windows")]
+            #[cfg(all(target_os = "windows", not(debug_assertions)))]
             {
                 use tauri::Manager;
                 if let Some(w) = app.get_webview_window("main") {

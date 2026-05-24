@@ -4,6 +4,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { MODIFIER_KEY_CODES, formatBinding } from './keybindingsStore';
 import { DEFAULT_GLOBAL_SHORTCUTS, isGlobalShortcutActionId, type GlobalAction } from '../config/shortcutActions';
 
+/** Dev builds run alongside release — OS-level grabs stay on the release instance. */
+const GLOBAL_SHORTCUTS_OS_ENABLED = !import.meta.env.DEV;
+
 /** Build a Tauri-compatible shortcut string from a KeyboardEvent, or null if invalid. */
 export function buildGlobalShortcut(e: KeyboardEvent): string | null {
   if ((MODIFIER_KEY_CODES as readonly string[]).includes(e.code)) return null;
@@ -42,15 +45,19 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
 
       setShortcut: async (action, shortcut) => {
         const prev = get().shortcuts[action];
-        if (prev) {
+        if (GLOBAL_SHORTCUTS_OS_ENABLED && prev) {
           try { await invoke('unregister_global_shortcut', { shortcut: prev }); } catch {}
         }
         if (shortcut) {
-          try {
-            await invoke('register_global_shortcut', { shortcut, action });
+          if (GLOBAL_SHORTCUTS_OS_ENABLED) {
+            try {
+              await invoke('register_global_shortcut', { shortcut, action });
+              set(s => ({ shortcuts: { ...s.shortcuts, [action]: shortcut } }));
+            } catch (e) {
+              console.warn('[GlobalShortcuts] Failed to register:', shortcut, e);
+            }
+          } else {
             set(s => ({ shortcuts: { ...s.shortcuts, [action]: shortcut } }));
-          } catch (e) {
-            console.warn('[GlobalShortcuts] Failed to register:', shortcut, e);
           }
         } else {
           set(s => {
@@ -62,6 +69,7 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
       },
 
       registerAll: async () => {
+        if (!GLOBAL_SHORTCUTS_OS_ENABLED) return;
         if (_registerAllCalled) return;
         _registerAllCalled = true;
         const { shortcuts } = get();
@@ -79,9 +87,11 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
 
       resetAll: async () => {
         const { shortcuts } = get();
-        for (const shortcut of Object.values(shortcuts)) {
-          if (shortcut) {
-            try { await invoke('unregister_global_shortcut', { shortcut }); } catch {}
+        if (GLOBAL_SHORTCUTS_OS_ENABLED) {
+          for (const shortcut of Object.values(shortcuts)) {
+            if (shortcut) {
+              try { await invoke('unregister_global_shortcut', { shortcut }); } catch {}
+            }
           }
         }
         set({ shortcuts: { ...DEFAULT_GLOBAL_SHORTCUTS } });

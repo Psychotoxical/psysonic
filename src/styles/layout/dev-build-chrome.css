@@ -31,3 +31,33 @@ html[data-dev-build] .titlebar-btn-maximize:hover {
 html[data-dev-build] .titlebar-btn:focus-visible {
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
+
+/* Narrow/mobile: sidebar logo is hidden — fixed red DEV square top-left. */
+html[data-dev-build] .dev-build-badge {
+  display: none;
+}
+
+html[data-dev-build] .app-shell[data-mobile] .dev-build-badge {
+  display: flex;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10050;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  background: #b91c1c;
+  color: #fff;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+html[data-dev-build] .app-shell[data-mobile][data-titlebar] .dev-build-badge {
+  top: var(--titlebar-height);
+}
