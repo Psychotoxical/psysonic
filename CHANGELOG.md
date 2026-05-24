@@ -308,6 +308,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Analysis — failed tracks no longer block completion forever
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#867](https://github.com/Psychotoxical/psysonic/pull/867)**
+
+* **Settings → Library:** problematic tracks that cannot complete loudness/enrichment are now persisted as **failed** and excluded from endless retry loops after restart.
+* Added failed-track controls in Analytics strategy (count, inspect list with title/path, export, and rescan) so users can review and requeue only when they want.
+* Aggressive analysis idle checks now run as a cheap startup + 5-minute recheck against live-track count instead of heavy frequent polling.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
