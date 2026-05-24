@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -232,6 +233,130 @@ impl AnalysisCache {
             waveforms: waveforms as u64,
             loudness: loudness as u64,
         })
+    }
+
+    /// Re-key analysis rows from legacy server ids to URL-based index keys.
+    /// If multiple legacy ids collide onto the same key and any data exists,
+    /// the target rows are cleared so a reindex can rebuild safely.
+    pub fn migrate_server_keys(
+        &self,
+        mappings: &[(String, String)],
+    ) -> Result<(), String> {
+        if mappings.is_empty() {
+            return Ok(());
+        }
+        let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+        for (legacy, key) in mappings {
+            if legacy.trim().is_empty() || key.trim().is_empty() {
+                continue;
+            }
+            groups.entry(key.to_string()).or_default().push(legacy.to_string());
+        }
+        if groups.is_empty() {
+            return Ok(());
+        }
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        let has_rows = |conn: &Connection, server_id: &str| -> Result<bool, String> {
+            let exists: i64 = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM analysis_track WHERE server_id = ?1)",
+                    params![server_id],
+                    |row| row.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            Ok(exists != 0)
+        };
+
+        let delete_for_ids = |conn: &Connection, ids: &[String]| -> Result<(), String> {
+            for id in ids {
+                conn.execute("DELETE FROM waveform_cache WHERE server_id = ?1", params![id])
+                    .map_err(|e| e.to_string())?;
+                conn.execute("DELETE FROM loudness_cache WHERE server_id = ?1", params![id])
+                    .map_err(|e| e.to_string())?;
+                conn.execute("DELETE FROM analysis_track WHERE server_id = ?1", params![id])
+                    .map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        };
+
+        for (key, mut legacy_ids) in groups {
+            legacy_ids.sort();
+            legacy_ids.dedup();
+            if legacy_ids.is_empty() {
+                continue;
+            }
+            let conflict = legacy_ids.len() > 1;
+            let index_has_data = has_rows(&tx, &key)?;
+            let mut legacy_with_data: Vec<String> = Vec::new();
+            for legacy in &legacy_ids {
+                if legacy != &key && has_rows(&tx, legacy)? {
+                    legacy_with_data.push(legacy.clone());
+                }
+            }
+            if conflict {
+                if legacy_with_data.is_empty() {
+                    continue;
+                }
+                if legacy_with_data.len() == 1 && !index_has_data {
+                    let legacy = &legacy_with_data[0];
+                    tx.execute(
+                        "UPDATE analysis_track SET server_id = ?1 WHERE server_id = ?2",
+                        params![key, legacy],
+                    )
+                    .map_err(|e| e.to_string())?;
+                    tx.execute(
+                        "UPDATE waveform_cache SET server_id = ?1 WHERE server_id = ?2",
+                        params![key, legacy],
+                    )
+                    .map_err(|e| e.to_string())?;
+                    tx.execute(
+                        "UPDATE loudness_cache SET server_id = ?1 WHERE server_id = ?2",
+                        params![key, legacy],
+                    )
+                    .map_err(|e| e.to_string())?;
+                    continue;
+                }
+                let mut ids = legacy_ids.clone();
+                if !ids.contains(&key) {
+                    ids.push(key.clone());
+                }
+                delete_for_ids(&tx, &ids)?;
+                continue;
+            }
+            let legacy = &legacy_ids[0];
+            if legacy == &key {
+                continue;
+            }
+            if index_has_data {
+                if has_rows(&tx, legacy)? {
+                    delete_for_ids(&tx, &[legacy.clone(), key.clone()])?;
+                }
+                continue;
+            }
+            tx.execute(
+                "UPDATE analysis_track SET server_id = ?1 WHERE server_id = ?2",
+                params![key, legacy],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.execute(
+                "UPDATE waveform_cache SET server_id = ?1 WHERE server_id = ?2",
+                params![key, legacy],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.execute(
+                "UPDATE loudness_cache SET server_id = ?1 WHERE server_id = ?2",
+                params![key, legacy],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub fn touch_track_status(&self, key: &TrackKey, status: &str) -> Result<(), String> {

@@ -69,6 +69,13 @@ impl From<analysis_cache::AnalysisDeleteServerReport> for AnalysisDeleteServerRe
     }
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisServerKeyMigrationDto {
+    pub legacy_id: String,
+    pub index_key: String,
+}
+
 /// AppHandle-free helper: looks up a waveform by exact `(server_id, track_id,
 /// md5_16kb)` key, falling back to the legacy `''` scope and re-tagging it onto
 /// `server_id` on a hit (best-effort). Converts the `WaveformEntry` into the
@@ -232,6 +239,18 @@ pub fn analysis_delete_all_for_server(
     }
     let report = cache.delete_all_for_server(&server_id)?;
     Ok(report.into())
+}
+
+#[tauri::command]
+pub fn analysis_migrate_server_index_keys(
+    mappings: Vec<AnalysisServerKeyMigrationDto>,
+    cache: tauri::State<'_, analysis_cache::AnalysisCache>,
+) -> Result<(), String> {
+    let pairs = mappings
+        .into_iter()
+        .map(|m| (m.legacy_id, m.index_key))
+        .collect::<Vec<_>>();
+    cache.migrate_server_keys(&pairs)
 }
 
 #[tauri::command]

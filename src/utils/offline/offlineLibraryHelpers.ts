@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import type { OfflineAlbumMeta, OfflineTrackMeta } from '../../store/offlineStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import type { Track } from '../../store/playerStoreTypes';
+import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../server/serverLookup';
 
 export function hasAnyOfflineAlbums(albums: Record<string, OfflineAlbumMeta>): boolean {
   return Object.keys(albums).length > 0;
@@ -45,7 +46,7 @@ export function offlineAlbumCoverArt(
   size: number,
 ): { src: string; cacheKey: string } {
   if (!album.coverArt) return { src: '', cacheKey: '' };
-  const server = useAuthStore.getState().servers.find(s => s.id === album.serverId);
+  const server = findServerByIdOrIndexKey(album.serverId);
   if (!server) return { src: '', cacheKey: '' };
   return {
     src: buildCoverArtUrlForServer(server.url, server.username, server.password, album.coverArt, size),
@@ -56,8 +57,10 @@ export function offlineAlbumCoverArt(
 /** Switch active server when it differs from the album's source server (for offline play). */
 export async function ensureServerForOfflineAlbum(album: OfflineAlbumMeta): Promise<boolean> {
   const { activeServerId, servers } = useAuthStore.getState();
-  if (album.serverId === activeServerId) return true;
-  const server = servers.find(s => s.id === album.serverId);
+  const resolved = resolveServerIdForIndexKey(album.serverId);
+  if (resolved === activeServerId) return true;
+  const server = servers.find(s => s.id === resolved)
+    ?? findServerByIdOrIndexKey(album.serverId);
   if (!server) return false;
   return switchActiveServer(server);
 }

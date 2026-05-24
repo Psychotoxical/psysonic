@@ -4,6 +4,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { collectPlaybackMiddlePriorityTrackIds } from '../store/loudnessBackfillWindow';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { analysisSetPlaybackPriorityHints } from '../api/analysis';
+import { serverIndexKeyFromUrl } from '../utils/server/serverIndexKey';
 import { hotCacheFrontendDebug } from './helpers';
 
 let analysisPruneTimer: ReturnType<typeof setTimeout> | null = null;
@@ -20,7 +21,9 @@ type AnalysisPrunePendingResult = {
 export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
   const { queue, currentTrack, queueIndex } = usePlayerStore.getState();
   const { preloadMode } = useAuthStore.getState();
-  const serverId = getPlaybackServerId() ?? '';
+  const rawServerId = getPlaybackServerId() ?? '';
+  const server = useAuthStore.getState().servers.find(s => s.id === rawServerId);
+  const serverId = server ? serverIndexKeyFromUrl(server.url) : rawServerId;
   const keepTrackIds: string[] = [];
   const seen = new Set<string>();
   const pushId = (id: string | undefined | null) => {

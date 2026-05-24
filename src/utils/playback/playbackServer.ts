@@ -9,6 +9,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import { sameQueueTrackId } from './queueIdentity';
 import type { Track } from '../../store/playerStoreTypes';
+import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../server/serverLookup';
 
 /** Server that owns the current queue / stream URLs (may differ from the browsed server). */
 export function getPlaybackServerId(): string {
@@ -31,7 +32,8 @@ export function playbackServerDiffersFromActive(): boolean {
   const { queueServerId, queue } = usePlayerStore.getState();
   if ((queue?.length ?? 0) === 0 || !queueServerId) return false;
   const activeSid = useAuthStore.getState().activeServerId;
-  return !!activeSid && queueServerId !== activeSid;
+  const resolvedQueue = resolveServerIdForIndexKey(queueServerId);
+  return !!activeSid && resolvedQueue !== activeSid;
 }
 
 /**
@@ -44,7 +46,7 @@ export function shouldHandoffQueueToActiveServer(): boolean {
   const { queue, queueServerId } = usePlayerStore.getState();
   if ((queue?.length ?? 0) === 0) return false;
   if (!queueServerId) return true;
-  return queueServerId !== activeSid;
+  return resolveServerIdForIndexKey(queueServerId) !== activeSid;
 }
 
 /**
@@ -61,7 +63,7 @@ export function prepareActiveServerForNewMix(): void {
 export async function ensurePlaybackServerActive(): Promise<boolean> {
   if (!playbackServerDiffersFromActive()) return true;
   const playbackSid = getPlaybackServerId();
-  const server = useAuthStore.getState().servers.find(s => s.id === playbackSid);
+  const server = findServerByIdOrIndexKey(playbackSid);
   if (!server) return false;
   return switchActiveServer(server);
 }
@@ -70,8 +72,9 @@ export async function ensurePlaybackServerActive(): Promise<boolean> {
 export function playbackCoverArtForId(coverId: string, size: number): { src: string; cacheKey: string } {
   const playbackSid = getPlaybackServerId();
   const activeSid = useAuthStore.getState().activeServerId;
-  if (playbackSid && activeSid && playbackSid !== activeSid) {
-    const server = useAuthStore.getState().servers.find(s => s.id === playbackSid);
+  const resolvedPlaybackSid = resolveServerIdForIndexKey(playbackSid);
+  if (resolvedPlaybackSid && activeSid && resolvedPlaybackSid !== activeSid) {
+    const server = findServerByIdOrIndexKey(playbackSid);
     if (server) {
       return {
         src: buildCoverArtUrlForServer(server.url, server.username, server.password, coverId, size),

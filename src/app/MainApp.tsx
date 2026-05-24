@@ -18,6 +18,7 @@ import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigrat
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
 import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
 import { useLibraryAnalysisBackfill } from '../hooks/useLibraryAnalysisBackfill';
+import { migrateServerIndexKeysIfNeeded } from '../utils/server/serverIndexMigration';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
@@ -48,6 +49,7 @@ export default function MainApp() {
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
   useEffect(() => {
     void (async () => {
+      await migrateServerIndexKeysIfNeeded();
       await bootstrapAllIndexedServers();
       void hydrateQueueFromIndex();
     })();

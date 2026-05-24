@@ -11,6 +11,7 @@ import {
   type LibraryAnalysisProgressDto,
 } from '../../api/analysis';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
+import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
 import { showToast } from '../../utils/ui/toast';
 import {
   ANALYTICS_STRATEGIES,
@@ -40,7 +41,10 @@ export default function AnalyticsStrategySection() {
   const [clearTarget, setClearTarget] = useState<ClearTarget | null>(null);
   const [clearingServerId, setClearingServerId] = useState<string | null>(null);
 
-  const activeServerIds = useMemo(() => new Set(servers.map(server => server.id)), [servers]);
+  const activeServerIds = useMemo(
+    () => new Set(servers.map(server => serverIndexKeyForProfile(server))),
+    [servers],
+  );
   const removedServerIds = useMemo(() => {
     const known = new Set([
       ...Object.keys(strategyByServer),
@@ -58,17 +62,18 @@ export default function AnalyticsStrategySection() {
     let cancelled = false;
     const refresh = () => {
       void Promise.all(
-        servers.map(server =>
-          libraryAnalysisProgress(server.id)
-            .then(progress => ({ id: server.id, progress }))
-            .catch(() => ({ id: server.id, progress: null })),
-        ),
+        servers.map(server => {
+          const key = serverIndexKeyForProfile(server);
+          return libraryAnalysisProgress(server.id)
+            .then(progress => ({ key, progress }))
+            .catch(() => ({ key, progress: null }));
+        }),
       ).then(results => {
         if (cancelled) return;
         setProgressByServer(prev => {
           const next = { ...prev };
-          results.forEach(({ id, progress }) => {
-            next[id] = progress;
+          results.forEach(({ key, progress }) => {
+            next[key] = progress;
           });
           return next;
         });
@@ -162,7 +167,8 @@ export default function AnalyticsStrategySection() {
               {servers.map(server => {
                 const strategy = getStrategyForServer(server.id);
                 const advancedParallelism = getAdvancedParallelismForServer(server.id);
-                const progress = progressByServer[server.id] ?? null;
+                const key = serverIndexKeyForProfile(server);
+                const progress = progressByServer[key] ?? null;
                 const label = serverListDisplayLabel(server, servers);
                 return (
                   <tr key={server.id} style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>

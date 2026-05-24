@@ -132,6 +132,7 @@ export function AppShell() {
     usePlaybackRateStore.getState().syncToRust();
   }, []);
 
+
   useEffect(() => {
     getCurrentWebview().setZoom(uiScale).catch(() => {
       /* setZoom may fail on platforms where the capability is unavailable;

@@ -3,6 +3,7 @@
 //! `State<LibraryRuntime>` so the top crate's `setup()` can wire one
 //! shared `Arc<LibraryStore>` across the whole IPC surface.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -43,6 +44,13 @@ use crate::sync::tombstone::should_auto_reconcile;
 /// Cap for `library_get_tracks_batch` per spec §7.1 ("max 100 refs/call").
 const TRACKS_BATCH_LIMIT: usize = 100;
 const ANALYSIS_PROGRESS_CACHE_TTL: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryServerKeyMigrationDto {
+    pub legacy_id: String,
+    pub index_key: String,
+}
 
 #[tauri::command]
 pub fn library_analysis_backfill_batch(
@@ -1184,6 +1192,128 @@ pub fn library_purge_server(
         }
     }
     Ok(report)
+}
+
+#[tauri::command]
+pub fn library_migrate_server_index_keys(
+    runtime: State<'_, LibraryRuntime>,
+    mappings: Vec<LibraryServerKeyMigrationDto>,
+) -> Result<(), String> {
+    if mappings.is_empty() {
+        return Ok(());
+    }
+    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+    for mapping in mappings {
+        if mapping.legacy_id.trim().is_empty() || mapping.index_key.trim().is_empty() {
+            continue;
+        }
+        groups
+            .entry(mapping.index_key.clone())
+            .or_default()
+            .push(mapping.legacy_id.clone());
+    }
+    if groups.is_empty() {
+        return Ok(());
+    }
+
+    runtime.store.with_conn_mut("misc", |conn| {
+        let tx = conn.transaction()?;
+        let tables = [
+            "track_extension",
+            "track_fact",
+            "track_artifact",
+            "track_canonical_link",
+            "track_id_history",
+            "play_session",
+            "track_offline",
+            "track",
+            "album",
+            "artist",
+            "sync_state",
+        ];
+
+        let has_data = |conn: &rusqlite::Connection, server_id: &str| -> rusqlite::Result<bool> {
+            let track_exists: i64 = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM track WHERE server_id = ?1)",
+                params![server_id],
+                |row| row.get(0),
+            )?;
+            let sync_exists: i64 = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM sync_state WHERE server_id = ?1)",
+                params![server_id],
+                |row| row.get(0),
+            )?;
+            Ok(track_exists != 0 || sync_exists != 0)
+        };
+
+        let delete_for_ids = |conn: &rusqlite::Connection, ids: &[String]| -> rusqlite::Result<()> {
+            for id in ids {
+                for table in tables {
+                    conn.execute(
+                        &format!("DELETE FROM {table} WHERE server_id = ?1"),
+                        params![id],
+                    )?;
+                }
+            }
+            Ok(())
+        };
+
+        for (index_key, mut legacy_ids) in groups {
+            legacy_ids.sort();
+            legacy_ids.dedup();
+            if legacy_ids.is_empty() {
+                continue;
+            }
+            let conflict = legacy_ids.len() > 1;
+            let index_has_data = has_data(&tx, &index_key)?;
+            let mut legacy_with_data: Vec<String> = Vec::new();
+            for legacy in &legacy_ids {
+                if legacy != &index_key && has_data(&tx, legacy)? {
+                    legacy_with_data.push(legacy.clone());
+                }
+            }
+            if conflict {
+                if legacy_with_data.is_empty() {
+                    continue;
+                }
+                if legacy_with_data.len() == 1 && !index_has_data {
+                    let legacy = &legacy_with_data[0];
+                    for table in tables {
+                        tx.execute(
+                            &format!("UPDATE {table} SET server_id = ?1 WHERE server_id = ?2"),
+                            params![index_key, legacy],
+                        )?;
+                    }
+                    continue;
+                }
+                let mut ids = legacy_ids.clone();
+                if !ids.contains(&index_key) {
+                    ids.push(index_key.clone());
+                }
+                delete_for_ids(&tx, &ids)?;
+                continue;
+            }
+            let legacy = &legacy_ids[0];
+            if legacy == &index_key {
+                continue;
+            }
+            if index_has_data {
+                if has_data(&tx, legacy)? {
+                    delete_for_ids(&tx, &[legacy.clone(), index_key.clone()])?;
+                }
+                continue;
+            }
+            for table in tables {
+                tx.execute(
+                    &format!("UPDATE {table} SET server_id = ?1 WHERE server_id = ?2"),
+                    params![index_key, legacy],
+                )?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    })?;
+    Ok(())
 }
 
 #[tauri::command]

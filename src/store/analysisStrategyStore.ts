@@ -6,6 +6,15 @@ import {
   DEFAULT_ANALYTICS_STRATEGY,
   type AnalyticsStrategy,
 } from '../utils/library/analysisStrategy';
+import { useAuthStore } from './authStore';
+import { serverIndexKeyFromUrl } from '../utils/server/serverIndexKey';
+import type { ServerProfile } from './authStoreTypes';
+
+const resolveStrategyKey = (serverId: string): string => {
+  const server = useAuthStore.getState().servers.find(s => s.id === serverId);
+  if (!server) return serverId;
+  return serverIndexKeyFromUrl(server.url) || serverId;
+};
 
 interface AnalysisStrategyState {
   strategy: AnalyticsStrategy;
@@ -17,6 +26,7 @@ interface AnalysisStrategyState {
   setServerStrategy: (serverId: string, strategy: AnalyticsStrategy) => void;
   setServerAdvancedParallelism: (serverId: string, workers: number) => void;
   clearServerOverrides: (serverId: string) => void;
+  migrateServerOverrides: (servers: ServerProfile[]) => void;
   getStrategyForServer: (serverId: string | null | undefined) => AnalyticsStrategy;
   getAdvancedParallelismForServer: (serverId: string | null | undefined) => number;
 }
@@ -33,28 +43,68 @@ export const useAnalysisStrategyStore = create<AnalysisStrategyState>()(
         set({ advancedParallelism: clampAdvancedParallelism(workers) }),
       setServerStrategy: (serverId, strategy) =>
         set(s => ({
-          strategyByServer: { ...s.strategyByServer, [serverId]: strategy },
+          strategyByServer: { ...s.strategyByServer, [resolveStrategyKey(serverId)]: strategy },
         })),
       setServerAdvancedParallelism: (serverId, workers) =>
         set(s => ({
           advancedParallelismByServer: {
             ...s.advancedParallelismByServer,
-            [serverId]: clampAdvancedParallelism(workers),
+            [resolveStrategyKey(serverId)]: clampAdvancedParallelism(workers),
           },
         })),
       clearServerOverrides: (serverId) =>
         set(s => {
-          const { [serverId]: _, ...strategyByServer } = s.strategyByServer;
-          const { [serverId]: __, ...advancedParallelismByServer } = s.advancedParallelismByServer;
+          const key = resolveStrategyKey(serverId);
+          const { [serverId]: _, [key]: __, ...strategyByServer } = s.strategyByServer;
+          const { [serverId]: ___, [key]: ____, ...advancedParallelismByServer } = s.advancedParallelismByServer;
           return { strategyByServer, advancedParallelismByServer };
+        }),
+      migrateServerOverrides: (servers) =>
+        set(s => {
+          if (servers.length === 0) return {};
+          let changed = false;
+          const strategyByServer = { ...s.strategyByServer };
+          const advancedParallelismByServer = { ...s.advancedParallelismByServer };
+          for (const server of servers) {
+            const key = serverIndexKeyFromUrl(server.url) || server.id;
+            if (key === server.id) continue;
+            const legacyStrategy = strategyByServer[server.id];
+            const nextStrategy = strategyByServer[key];
+            if (legacyStrategy !== undefined && nextStrategy !== undefined) {
+              delete strategyByServer[server.id];
+              delete strategyByServer[key];
+              changed = true;
+            } else if (legacyStrategy !== undefined && nextStrategy === undefined) {
+              strategyByServer[key] = legacyStrategy;
+              delete strategyByServer[server.id];
+              changed = true;
+            }
+
+            const legacyParallel = advancedParallelismByServer[server.id];
+            const nextParallel = advancedParallelismByServer[key];
+            if (legacyParallel !== undefined && nextParallel !== undefined) {
+              delete advancedParallelismByServer[server.id];
+              delete advancedParallelismByServer[key];
+              changed = true;
+            } else if (legacyParallel !== undefined && nextParallel === undefined) {
+              advancedParallelismByServer[key] = legacyParallel;
+              delete advancedParallelismByServer[server.id];
+              changed = true;
+            }
+          }
+          return changed ? { strategyByServer, advancedParallelismByServer } : {};
         }),
       getStrategyForServer: serverId => {
         if (!serverId) return DEFAULT_ANALYTICS_STRATEGY;
-        return get().strategyByServer[serverId] ?? get().strategy;
+        const key = resolveStrategyKey(serverId);
+        return get().strategyByServer[key] ?? get().strategyByServer[serverId] ?? get().strategy;
       },
       getAdvancedParallelismForServer: serverId => {
         if (!serverId) return DEFAULT_ADVANCED_PARALLELISM;
-        return get().advancedParallelismByServer[serverId] ?? get().advancedParallelism;
+        const key = resolveStrategyKey(serverId);
+        return get().advancedParallelismByServer[key]
+          ?? get().advancedParallelismByServer[serverId]
+          ?? get().advancedParallelism;
       },
     }),
     {

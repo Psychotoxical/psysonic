@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
+import { useAuthStore } from '../store/authStore';
+import { serverIndexKeyFromUrl } from '../utils/server/serverIndexKey';
 
 export interface AnalysisBackfillQueueStatsDto {
   queued: number;
@@ -44,7 +46,18 @@ export interface AnalysisDeleteServerReportDto {
   loudness: number;
 }
 
+export type AnalysisServerKeyMigration = {
+  legacyId: string;
+  indexKey: string;
+};
+
 export const LIBRARY_ANALYSIS_BACKFILL_BATCH_SIZE = 20;
+
+function serverIndexKeyForId(serverId: string): string {
+  const server = useAuthStore.getState().servers.find(s => s.id === serverId);
+  if (!server) return serverId;
+  return serverIndexKeyFromUrl(server.url) || serverId;
+}
 
 export function analysisGetBackfillQueueStats(): Promise<AnalysisBackfillQueueStatsDto> {
   return invoke<AnalysisBackfillQueueStatsDto>('analysis_get_backfill_queue_stats');
@@ -59,8 +72,9 @@ export function libraryAnalysisBackfillBatch(
   cursor?: string | null,
   limit = LIBRARY_ANALYSIS_BACKFILL_BATCH_SIZE,
 ): Promise<LibraryAnalysisBackfillBatchDto> {
+  const indexKey = serverIndexKeyForId(serverId);
   return invoke<LibraryAnalysisBackfillBatchDto>('library_analysis_backfill_batch', {
-    serverId,
+    serverId: indexKey,
     cursor: cursor ?? null,
     limit,
   });
@@ -69,13 +83,21 @@ export function libraryAnalysisBackfillBatch(
 export function libraryAnalysisProgress(
   serverId: string,
 ): Promise<LibraryAnalysisProgressDto> {
-  return invoke<LibraryAnalysisProgressDto>('library_analysis_progress', { serverId });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<LibraryAnalysisProgressDto>('library_analysis_progress', { serverId: indexKey });
 }
 
 export function analysisDeleteAllForServer(
   serverId: string,
 ): Promise<AnalysisDeleteServerReportDto> {
-  return invoke<AnalysisDeleteServerReportDto>('analysis_delete_all_for_server', { serverId });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<AnalysisDeleteServerReportDto>('analysis_delete_all_for_server', { serverId: indexKey });
+}
+
+export function analysisMigrateServerIndexKeys(
+  mappings: AnalysisServerKeyMigration[],
+): Promise<void> {
+  return invoke<void>('analysis_migrate_server_index_keys', { mappings });
 }
 
 export type AnalysisBackfillPriority = 'high' | 'middle' | 'low';
@@ -92,7 +114,11 @@ export type AnalysisPriorityHintDto = {
 export function analysisSetPlaybackPriorityHints(
   middleTrackRefs: AnalysisPriorityHintDto[],
 ): Promise<void> {
-  return invoke('analysis_set_playback_priority_hints', { middleTrackRefs });
+  const remapped = middleTrackRefs.map(ref => ({
+    ...ref,
+    serverId: serverIndexKeyForId(ref.serverId),
+  }));
+  return invoke('analysis_set_playback_priority_hints', { middleTrackRefs: remapped });
 }
 
 export function analysisEnqueueSeedFromUrl(
@@ -101,5 +127,6 @@ export function analysisEnqueueSeedFromUrl(
   serverId: string,
   priority: AnalysisBackfillPriority = 'low',
 ): Promise<void> {
-  return invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId, priority });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId: indexKey, priority });
 }

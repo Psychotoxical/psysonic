@@ -7,6 +7,7 @@ import {
 } from '../../api/library';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { libraryDevEnabled, logLibrarySync } from './libraryDevLog';
+import { migrateServerIndexKeysIfNeeded } from '../server/serverIndexMigration';
 
 export type LibrarySyncQueueKind = 'full' | 'delta' | 'verify';
 
@@ -82,6 +83,7 @@ export function waitForLibrarySyncIdle(serverId: string, timeoutMs = 15_000): Pr
 }
 
 async function invokeSync(serverId: string, kind: LibrarySyncQueueKind): Promise<void> {
+  await migrateServerIndexKeysIfNeeded();
   if (kind === 'verify') {
     await librarySyncVerifyIntegrity({ serverId });
     return;
@@ -129,6 +131,7 @@ export function enqueueLibrarySync(args: {
 /** Skip enqueue when the local index is already complete. */
 export async function queueInitialSyncIfNeeded(serverId: string): Promise<void> {
   try {
+    await migrateServerIndexKeysIfNeeded();
     const status = await libraryGetStatus(serverId);
     if (status.syncPhase === 'ready' || status.lastFullSyncAt) return;
     await enqueueLibrarySync({ serverId, kind: 'full' });
