@@ -46,11 +46,6 @@ export interface AnalysisDeleteServerReportDto {
   loudness: number;
 }
 
-export type AnalysisServerKeyMigration = {
-  legacyId: string;
-  indexKey: string;
-};
-
 export const LIBRARY_ANALYSIS_BACKFILL_BATCH_SIZE = 20;
 
 function serverIndexKeyForId(serverId: string): string {
@@ -92,12 +87,6 @@ export function analysisDeleteAllForServer(
 ): Promise<AnalysisDeleteServerReportDto> {
   const indexKey = serverIndexKeyForId(serverId);
   return invoke<AnalysisDeleteServerReportDto>('analysis_delete_all_for_server', { serverId: indexKey });
-}
-
-export function analysisMigrateServerIndexKeys(
-  mappings: AnalysisServerKeyMigration[],
-): Promise<void> {
-  return invoke<void>('analysis_migrate_server_index_keys', { mappings });
 }
 
 export type AnalysisBackfillPriority = 'high' | 'middle' | 'low';

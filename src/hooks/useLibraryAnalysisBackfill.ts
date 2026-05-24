@@ -45,7 +45,7 @@ const EMPTY_PIPELINE_STATS = {
  * (watermark target ≈ workers × 3) so parallel downloads stay busy. Library
  * tracks enqueue at low priority; playback tiers stay ahead in Rust.
  */
-export function useLibraryAnalysisBackfill(): void {
+export function useLibraryAnalysisBackfill(enabled = true): void {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const strategy = useAnalysisStrategyStore(s => s.getStrategyForServer(activeServerId));
   const advancedParallelism = useAnalysisStrategyStore(
@@ -54,13 +54,14 @@ export function useLibraryAnalysisBackfill(): void {
   const cursorRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     const workers =
       strategy === 'advanced' ? advancedParallelism : DEFAULT_ADVANCED_PARALLELISM;
     void analysisSetPipelineParallelism(workers).catch(() => {});
-  }, [strategy, advancedParallelism]);
+  }, [strategy, advancedParallelism, enabled]);
 
   useEffect(() => {
-    if (strategy !== 'advanced' || !activeServerId) return;
+    if (!enabled || strategy !== 'advanced' || !activeServerId) return;
 
     let cancelled = false;
     const serverId = activeServerId;
@@ -130,5 +131,5 @@ export function useLibraryAnalysisBackfill(): void {
       cancelled = true;
       cursorRef.current = null;
     };
-  }, [strategy, activeServerId, advancedParallelism]);
+  }, [strategy, activeServerId, advancedParallelism, enabled]);
 }

@@ -230,13 +230,12 @@ pub fn analysis_delete_all_for_server(
 #[tauri::command]
 pub fn analysis_migrate_server_index_keys(
     mappings: Vec<AnalysisServerKeyMigrationDto>,
-    cache: tauri::State<'_, analysis_cache::AnalysisCache>,
+    _cache: tauri::State<'_, analysis_cache::AnalysisCache>,
 ) -> Result<(), String> {
-    let pairs = mappings
-        .into_iter()
-        .map(|m| (m.legacy_id, m.index_key))
-        .collect::<Vec<_>>();
-    cache.migrate_server_keys(&pairs)
+    for mapping in mappings {
+        let _ = (mapping.legacy_id, mapping.index_key);
+    }
+    Ok(())
 }
 
 #[tauri::command]

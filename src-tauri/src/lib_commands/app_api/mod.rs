@@ -1,6 +1,7 @@
 mod cli_bridge;
 mod core;
 mod integration;
+mod migration;
 mod perf;
 pub(crate) mod platform;
 
@@ -27,6 +28,7 @@ pub(crate) use integration::{
     check_dir_accessible, mpris_set_metadata, mpris_set_playback, register_global_shortcut,
     unregister_global_shortcut,
 };
+pub(crate) use migration::{migration_inspect, migration_run};
 
 // Discord, Navidrome admin, last.fm + radio-browser + CORS proxy, bandsintown,
 // and analysis admin commands now live in their domain crates. invoke_handler!

@@ -11,11 +11,10 @@ pub(super) const LOUDNESS_ALGO_VERSION: i64 = 1;
 
 /// Current head of the embedded migrations. Bump for each new
 /// `migrations/NNN_*.sql`.
-pub const ANALYSIS_DB_SCHEMA_VERSION: i64 = 3;
+pub const ANALYSIS_DB_SCHEMA_VERSION: i64 = 2;
 
 const MIGRATION_001_BASELINE: &str = include_str!("../../migrations/001_baseline.sql");
 const MIGRATION_002_SERVER_ID: &str = include_str!("../../migrations/002_server_id.sql");
-const MIGRATION_003_DROP_LEGACY: &str = include_str!("../../migrations/003_drop_legacy.sql");
 
 /// Embedded migrations, ascending by version. The runner sorts defensively and
 /// applies each missing one in its own transaction (schema change + version
@@ -23,7 +22,6 @@ const MIGRATION_003_DROP_LEGACY: &str = include_str!("../../migrations/003_drop_
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, MIGRATION_001_BASELINE),
     (2, MIGRATION_002_SERVER_ID),
-    (3, MIGRATION_003_DROP_LEGACY),
 ];
 
 /// Bins in waveform BLOB: `2 * bin_count` bytes (peak u8, then mean-abs u8 per time bin).
@@ -999,7 +997,7 @@ mod tests {
         cache.touch_track_status(&k, "ok").unwrap();
         cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
         // Insert under stream:abc, look up with bare abc.
-        let got = cache.get_latest_waveform_for_track("", "abc").unwrap();
+        let got = cache.get_latest_waveform_for_track("server-a", "abc").unwrap();
         assert!(got.is_some(), "bare-id lookup must find stream-prefixed row");
     }
 
@@ -1009,7 +1007,9 @@ mod tests {
         let k = key("abc");
         cache.touch_track_status(&k, "ok").unwrap();
         cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
-        let got = cache.get_latest_loudness_for_track("", "stream:abc").unwrap();
+        let got = cache
+            .get_latest_loudness_for_track("server-a", "stream:abc")
+            .unwrap();
         assert!(got.is_some(), "stream-prefixed lookup must find bare row");
     }
 
@@ -1021,16 +1021,20 @@ mod tests {
         let k = key("abc");
         cache.touch_track_status(&k, "ok").unwrap();
 
-        assert!(!cache.cpu_seed_redundant_for_track("", "abc").unwrap());
+        assert!(!cache.cpu_seed_redundant_for_track("server-a", "abc").unwrap());
 
         cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
         assert!(
-            !cache.cpu_seed_redundant_for_track("", "abc").unwrap(),
+            !cache
+                .cpu_seed_redundant_for_track("server-a", "abc")
+                .unwrap(),
             "waveform alone is not enough"
         );
 
         cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
-        assert!(cache.cpu_seed_redundant_for_track("", "abc").unwrap());
+        assert!(cache
+            .cpu_seed_redundant_for_track("server-a", "abc")
+            .unwrap());
     }
 
     // ── deletes ───────────────────────────────────────────────────────────────
@@ -1045,7 +1049,9 @@ mod tests {
         cache.upsert_loudness(&bare, &loudness(-14.0)).unwrap();
         cache.upsert_loudness(&prefixed, &loudness(-14.0)).unwrap();
 
-        let deleted = cache.delete_loudness_for_track_id("", "abc").unwrap();
+        let deleted = cache
+            .delete_loudness_for_track_id("server-a", "abc")
+            .unwrap();
         assert_eq!(deleted, 2, "delete must remove both bare and stream:abc rows");
         assert!(!cache.loudness_row_exists_for_key(&bare).unwrap());
         assert!(!cache.loudness_row_exists_for_key(&prefixed).unwrap());
@@ -1150,47 +1156,6 @@ mod tests {
             .map(|r| r.unwrap())
             .collect();
         assert_eq!(versions, (1..=ANALYSIS_DB_SCHEMA_VERSION).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn migration_003_drops_legacy_rows() {
-        // Simulate a pre-002 user DB: old schema + one row per table, no
-        // schema_migrations.
-        let mut conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(MIGRATION_001_BASELINE).unwrap();
-        conn.execute(
-            "INSERT INTO analysis_track (track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at)
-             VALUES ('t1','m1','ready',?1,?2,123)",
-            params![WAVEFORM_ALGO_VERSION, LOUDNESS_ALGO_VERSION],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO waveform_cache (track_id, md5_16kb, bins, bin_count, is_partial, known_until_sec, duration_sec, updated_at)
-             VALUES ('t1','m1',?1,4,0,0.0,60.0,123)",
-            params![vec![0u8; 8]],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO loudness_cache (track_id, md5_16kb, integrated_lufs, true_peak, recommended_gain_db, target_lufs, updated_at)
-             VALUES ('t1','m1',-14.0,-1.0,0.0,-14.0,123)",
-            [],
-        )
-        .unwrap();
-
-        run_migrations_with(&mut conn, MIGRATIONS).unwrap();
-
-        let tracks: i64 = conn
-            .query_row("SELECT COUNT(*) FROM analysis_track", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(tracks, 0);
-        let waveforms: i64 = conn
-            .query_row("SELECT COUNT(*) FROM waveform_cache", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(waveforms, 0);
-        let loudness: i64 = conn
-            .query_row("SELECT COUNT(*) FROM loudness_cache", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(loudness, 0);
     }
 
     #[test]

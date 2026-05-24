@@ -261,11 +261,6 @@ export interface LibraryCrossServerSearchResponse {
   serversSearched: string[];
 }
 
-export type LibraryServerKeyMigration = {
-  legacyId: string;
-  indexKey: string;
-};
-
 function serverIndexKeyForId(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   if (!server) return serverId;
@@ -477,12 +472,6 @@ export function librarySyncBindSession(args: {
 }): Promise<void> {
   const indexKey = serverIndexKeyForId(args.serverId);
   return invoke<void>('library_sync_bind_session', { ...args, serverId: indexKey });
-}
-
-export function libraryMigrateServerIndexKeys(
-  mappings: LibraryServerKeyMigration[],
-): Promise<void> {
-  return invoke<void>('library_migrate_server_index_keys', { mappings });
 }
 
 export function librarySyncClearSession(serverId: string): Promise<void> {

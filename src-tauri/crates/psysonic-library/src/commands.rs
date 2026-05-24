@@ -1198,43 +1198,12 @@ pub fn library_purge_server(
 
 #[tauri::command]
 pub fn library_migrate_server_index_keys(
-    runtime: State<'_, LibraryRuntime>,
+    _runtime: State<'_, LibraryRuntime>,
     mappings: Vec<LibraryServerKeyMigrationDto>,
 ) -> Result<(), String> {
-    if mappings.is_empty() {
-        return Ok(());
+    for mapping in mappings {
+        let _ = (mapping.legacy_id, mapping.index_key);
     }
-    runtime.store.with_conn_mut("misc", |conn| {
-        let tx = conn.transaction()?;
-        let tables = [
-            "track_extension",
-            "track_fact",
-            "track_artifact",
-            "track_canonical_link",
-            "track_id_history",
-            "play_session",
-            "track_offline",
-            "track",
-            "album",
-            "artist",
-            "sync_state",
-        ];
-        for mapping in mappings {
-            let legacy_id = mapping.legacy_id.trim();
-            let index_key = mapping.index_key.trim();
-            if legacy_id.is_empty() || index_key.is_empty() || legacy_id == index_key {
-                continue;
-            }
-            for table in tables {
-                tx.execute(
-                    &format!("DELETE FROM {table} WHERE server_id = ?1"),
-                    params![legacy_id],
-                )?;
-            }
-        }
-        tx.commit()?;
-        Ok(())
-    })?;
     Ok(())
 }
 

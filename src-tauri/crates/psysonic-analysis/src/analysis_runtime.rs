@@ -164,20 +164,18 @@ impl AnalysisBackfillQueueState {
     }
 
     fn locate_queued(&self, tid: &str) -> Option<AnalysisBackfillPriority> {
-        for tier in [
+        [
             AnalysisBackfillPriority::High,
             AnalysisBackfillPriority::Middle,
             AnalysisBackfillPriority::Low,
-        ] {
-            if self
+        ]
+        .into_iter()
+        .find(|&tier| {
+            self
                 .tier_deque(tier)
                 .iter()
                 .any(|(t, _, _)| t.as_str() == tid)
-            {
-                return Some(tier);
-            }
-        }
-        None
+        })
     }
 
     fn remove_queued(&mut self, tid: &str) -> Option<BackfillJob> {

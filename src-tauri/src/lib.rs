@@ -563,6 +563,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            migration_inspect,
+            migration_run,
             psysonic_syncfs::sync::batch::calculate_sync_payload,
             exit_app,
             cli_publish_player_snapshot,

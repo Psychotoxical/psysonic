@@ -72,7 +72,6 @@ export const useAnalysisStrategyStore = create<AnalysisStrategyState>()(
             const nextStrategy = strategyByServer[key];
             if (legacyStrategy !== undefined && nextStrategy !== undefined) {
               delete strategyByServer[server.id];
-              delete strategyByServer[key];
               changed = true;
             } else if (legacyStrategy !== undefined && nextStrategy === undefined) {
               strategyByServer[key] = legacyStrategy;
@@ -84,7 +83,6 @@ export const useAnalysisStrategyStore = create<AnalysisStrategyState>()(
             const nextParallel = advancedParallelismByServer[key];
             if (legacyParallel !== undefined && nextParallel !== undefined) {
               delete advancedParallelismByServer[server.id];
-              delete advancedParallelismByServer[key];
               changed = true;
             } else if (legacyParallel !== undefined && nextParallel === undefined) {
               advancedParallelismByServer[key] = legacyParallel;

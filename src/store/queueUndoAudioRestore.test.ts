@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const hoisted = vi.hoisted(() => {
   const auth = {
     activeServerId: 'srv',
+    servers: [],
     replayGainMode: 'track' as 'track' | 'album',
     replayGainPreGainDb: 0,
     replayGainFallbackDb: -6,

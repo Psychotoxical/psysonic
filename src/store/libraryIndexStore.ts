@@ -23,7 +23,10 @@ export const useLibraryIndexStore = create<LibraryIndexState>()(
       name: 'psysonic-library-index',
       version: 2,
       storage: createJSONStorage(() => localStorage),
-      migrate: (_persisted, _version) => ({ masterEnabled: true }),
+      migrate: (persisted, _version) => {
+        const previous = persisted as { masterEnabled?: boolean } | undefined;
+        return { masterEnabled: previous?.masterEnabled ?? true };
+      },
     },
   ),
 );
