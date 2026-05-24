@@ -73,6 +73,7 @@ symphonia-adapter-libopus = "0.2.9"
 rusqlite = { version = "0.39", features = ["bundled"] }
 ebur128 = "0.1"
 dasp_sample = "0.11.0"
+zip = "0.6.6"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

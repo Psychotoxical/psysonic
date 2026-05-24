@@ -1,40 +1,151 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, HardDrive, Upload } from 'lucide-react';
-import { exportBackup, importBackup } from '../../utils/export/backup';
+import { Clock3, Download, HardDrive, Upload } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  exportBackupToPath,
+  importAnyBackupFromPath,
+  pickBackupExportPath,
+  pickBackupImportPath,
+} from '../../utils/export/backup';
 import { showToast } from '../../utils/ui/toast';
+
+type BackupMode = 'full' | 'library' | 'config';
+type BackupAction = 'export' | 'import';
 
 export function BackupSection() {
   const { t } = useTranslation();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [mode, setMode] = useState<BackupMode>('full');
+  const [busyAction, setBusyAction] = useState<BackupAction | null>(null);
+
+  const waitForPaint = async () => {
+    await new Promise(resolve => window.setTimeout(resolve, 0));
+  };
+
+  const busy = exporting || importing;
 
   const handleExport = async () => {
+    const exportMode = mode;
+    const path = await pickBackupExportPath(exportMode);
+    if (!path) return;
+    setBusyAction('export');
     setExporting(true);
     try {
-      const path = await exportBackup();
-      if (path) showToast(t('settings.backupSuccess'), 3000, 'info');
+      await waitForPaint();
+      await exportBackupToPath(exportMode, path);
+      const successKey = exportMode === 'full'
+        ? 'settings.backupFullExportSuccess'
+        : exportMode === 'library'
+          ? 'settings.backupLibraryExportSuccess'
+          : 'settings.backupSuccess';
+      showToast(t(successKey), 3000, 'info');
     } catch (e) {
       console.error('Export failed', e);
-      showToast(t('settings.backupImportError'), 4000, 'error');
+      const errorKey = mode === 'full'
+        ? 'settings.backupFullImportError'
+        : mode === 'library'
+          ? 'settings.backupLibraryImportError'
+          : 'settings.backupImportError';
+      showToast(t(errorKey), 4000, 'error');
     } finally {
       setExporting(false);
+      setBusyAction(null);
     }
   };
 
   const handleImport = async () => {
-    if (!window.confirm(t('settings.backupImportConfirm'))) return;
+    if (!window.confirm(t('settings.backupImportAnyConfirm'))) return;
+    const path = await pickBackupImportPath();
+    if (!path) return;
+    setBusyAction('import');
     setImporting(true);
     try {
-      await importBackup();
-      // importBackup reloads the page — this toast will briefly show before reload
-      showToast(t('settings.backupImportSuccess'), 3000, 'info');
+      await waitForPaint();
+      const importedKind = await importAnyBackupFromPath(path);
+      if (importedKind === 'full') {
+        showToast(t('settings.backupFullImportSuccess'), 3000, 'info');
+      } else if (importedKind === 'databases') {
+        showToast(t('settings.backupLibraryImportSuccess'), 3000, 'info');
+      } else if (importedKind === 'config') {
+        showToast(t('settings.backupImportSuccess'), 3000, 'info');
+      }
     } catch (e) {
       console.error('Import failed', e);
       showToast(t('settings.backupImportError'), 4000, 'error');
+    } finally {
       setImporting(false);
+      setBusyAction(null);
     }
   };
+
+  const modeTitle = mode === 'full'
+    ? t('settings.backupModeFull')
+    : mode === 'library'
+      ? t('settings.backupModeLibrary')
+      : t('settings.backupModeConfig');
+  const modeDesc = mode === 'full'
+    ? t('settings.backupFullDesc')
+    : mode === 'library'
+      ? t('settings.backupLibraryExportDesc')
+      : t('settings.backupExportDesc');
+  const exportLabel = mode === 'full'
+    ? t('settings.backupFullExport')
+    : mode === 'library'
+      ? t('settings.backupLibraryExport')
+      : t('settings.backupExport');
+  const importLabel = t('settings.backupImportAny');
+  const overlayTitle = busyAction === 'import'
+    ? t('settings.backupOverlayImportTitle')
+    : t('settings.backupOverlayExportTitle');
+  const overlayHint = t('settings.backupOverlayHint');
+  const busyOverlay = busy && typeof document !== 'undefined'
+    ? createPortal(
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.38)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          zIndex: 99999,
+          pointerEvents: 'all',
+          boxSizing: 'border-box',
+        }}
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div
+          className="settings-card"
+          style={{
+            width: 'clamp(280px, 52vw, 560px)',
+            maxWidth: 'calc(100vw - 32px)',
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '999px',
+              background: 'var(--surface-3)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '0.6rem',
+            }}
+          >
+            <Clock3 size={18} />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: '0.5rem' }}>{overlayTitle}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{overlayHint}</div>
+        </div>
+      </div>,
+      document.body,
+    )
+    : null;
 
   return (
     <section className="settings-section">
@@ -43,43 +154,51 @@ export function BackupSection() {
         <h2>{t('settings.backupTitle')}</h2>
       </div>
 
-      {/* Export */}
       <div className="settings-card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
+          {(['full', 'library', 'config'] as BackupMode[]).map(candidate => (
+            <button
+              key={candidate}
+              type="button"
+              className={`btn btn-sm ${mode === candidate ? 'btn-primary' : 'btn-surface'}`}
+              onClick={() => setMode(candidate)}
+            >
+              {candidate === 'full'
+                ? t('settings.backupModeFull')
+                : candidate === 'library'
+                  ? t('settings.backupModeLibrary')
+                  : t('settings.backupModeConfig')}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.9rem' }}>
           <div>
-            <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{t('settings.backupExport')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{t('settings.backupExportDesc')}</div>
+            <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{modeTitle}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{modeDesc}</div>
           </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           <button
             className="btn btn-primary"
             onClick={handleExport}
             disabled={exporting}
-            style={{ flexShrink: 0 }}
           >
             <Upload size={14} />
-            {exporting ? '…' : t('settings.backupExport')}
+            {exporting ? '…' : exportLabel}
           </button>
-        </div>
-      </div>
-
-      {/* Import */}
-      <div className="settings-card">
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
-          <div>
-            <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{t('settings.backupImport')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{t('settings.backupImportDesc')}</div>
-          </div>
           <button
             className="btn btn-surface"
             onClick={handleImport}
             disabled={importing}
-            style={{ flexShrink: 0 }}
           >
             <Download size={14} />
-            {importing ? '…' : t('settings.backupImport')}
+            {importing ? '…' : importLabel}
           </button>
         </div>
       </div>
+      {busyOverlay}
     </section>
   );
 }

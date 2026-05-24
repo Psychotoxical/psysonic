@@ -563,6 +563,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            backup_export_library_db,
+            backup_import_library_db,
+            backup_export_full,
+            backup_import_full,
             migration_inspect,
             migration_run,
             psysonic_syncfs::sync::batch::calculate_sync_payload,
