@@ -616,7 +616,10 @@ mod tests {
         use std::time::Instant;
 
         let path: PathBuf = std::env::var("HOME")
-            .map(|h| PathBuf::from(h).join(".local/share/dev.psysonic.player/library.sqlite"))
+            .map(|h| {
+                PathBuf::from(h)
+                    .join(".local/share/dev.psysonic.player/databases/library/library.sqlite")
+            })
             .expect("HOME");
         if !path.exists() {
             eprintln!("skip: no db at {}", path.display());

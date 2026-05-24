@@ -12,7 +12,7 @@ import {
 } from './playListenSession';
 import { getPerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import { getPlaybackIndexKey, getPlaybackServerId } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { showToast } from '../utils/ui/toast';
@@ -267,6 +267,7 @@ export function handleAudioProgress(
       gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
 
     const serverId = getPlaybackServerId();
+    const analysisServerId = getPlaybackIndexKey();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
     const nextIsLocalFile = nextUrl.startsWith('psysonic-local://');
 
@@ -295,7 +296,7 @@ export function handleAudioProgress(
         url: nextUrl,
         durationHint: nextTrack.duration,
         analysisTrackId: nextTrack.id,
-        serverId: serverId || null,
+        serverId: analysisServerId || null,
       }).catch(() => {});
     }
 
@@ -328,7 +329,7 @@ export function handleAudioProgress(
         fallbackDb: authState.replayGainFallbackDb,
         hiResEnabled: authState.enableHiRes,
         analysisTrackId: nextTrack.id,
-        serverId: serverId || null,
+        serverId: analysisServerId || null,
       }).catch(() => {});
     }
   }

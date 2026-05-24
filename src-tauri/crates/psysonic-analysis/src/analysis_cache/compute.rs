@@ -181,6 +181,7 @@ pub fn seed_from_bytes_into_cache(
         }
 
         cache.touch_track_status(&key, "ready")?;
+        let _ = cache.checkpoint_wal("analysis.seed");
         Ok((used_pcm_decode, bins_len))
     })();
 
