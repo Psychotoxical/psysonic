@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import type { MigrationInspectReport, MigrationProgressEvent } from '../api/migration';
 
 export type MigrationPhase = 'idle' | 'inspecting' | 'running' | 'completed' | 'error';
+const MIGRATION_DONE_FLAG = 'psysonic-server-key-migration-v1';
+
+function initialMigrationPhase(): MigrationPhase {
+  if (typeof window === 'undefined') return 'inspecting';
+  return localStorage.getItem(MIGRATION_DONE_FLAG) === '1' ? 'completed' : 'inspecting';
+}
 
 interface MigrationState {
   phase: MigrationPhase;
@@ -17,7 +23,7 @@ interface MigrationState {
 }
 
 export const useMigrationStore = create<MigrationState>(set => ({
-  phase: 'inspecting',
+  phase: initialMigrationPhase(),
   needsMigration: false,
   inspect: null,
   progress: null,

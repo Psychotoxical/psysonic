@@ -91,4 +91,27 @@ describe('useMigrationOrchestrator', () => {
     });
     expect(localStorage.getItem(DONE_FLAG)).toBe('1');
   });
+
+  it('keeps completed phase on startup when done flag exists and no migration is needed', async () => {
+    localStorage.setItem(DONE_FLAG, '1');
+    useMigrationStore.setState({ phase: 'completed' });
+    migrationInspectMock.mockResolvedValue({
+      needsMigration: false,
+      hasSkippedUnknownServerRows: false,
+      canRun: true,
+      warnings: [],
+      unmappedEmptyBucket: false,
+      library: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
+    });
+
+    renderHook(() => useMigrationOrchestrator());
+
+    await waitFor(() => {
+      expect(useMigrationStore.getState().phase).toBe('completed');
+    });
+    expect(migrationRunMock).not.toHaveBeenCalled();
+    expect(rewriteFrontendStoreKeysMock).not.toHaveBeenCalled();
+  });
 });

@@ -41,16 +41,27 @@ async function runOrchestrator(force = false): Promise<void> {
     const hasDoneFlag = localStorage.getItem(MIGRATION_DONE_FLAG) === '1';
     state.setError(null);
     state.setProgress(null);
+    let inspect = null as Awaited<ReturnType<typeof migrationInspect>> | null;
+    if (!force && hasDoneFlag) {
+      inspect = await migrationInspect(mappings);
+      state.setInspect(inspect);
+      state.setNeedsMigration(inspect.needsMigration);
+      if (inspect.hasSkippedUnknownServerRows) {
+        console.warn('[migration] rows for removed servers were skipped');
+      }
+      if (!inspect.needsMigration) {
+        state.setPhase('completed');
+        return;
+      }
+    }
     state.setPhase('inspecting');
-    const inspect = await migrationInspect(mappings);
+    if (!inspect) {
+      inspect = await migrationInspect(mappings);
+    }
     state.setInspect(inspect);
     state.setNeedsMigration(inspect.needsMigration);
     if (inspect.hasSkippedUnknownServerRows) {
       console.warn('[migration] rows for removed servers were skipped');
-    }
-    if (!force && hasDoneFlag && !inspect.needsMigration) {
-      state.setPhase('completed');
-      return;
     }
     if (!inspect.needsMigration) {
       await rewriteFrontendStoreKeys(servers);
