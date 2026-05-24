@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::{fs, io};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -179,6 +180,16 @@ impl LibraryStore {
         log_write_op(op, lock_wait_ms as u128, exec_ms as u128);
         Ok((out, WriteOpTiming { lock_wait_ms, exec_ms }))
     }
+
+    pub(crate) fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
+        self.with_conn_mut(op, |conn| {
+            let _: (i32, i32, i32) =
+                conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                })?;
+            Ok(())
+        })
+    }
 }
 
 /// Timing split returned to ingest progress (DevTools / terminal).
@@ -206,7 +217,57 @@ fn log_write_op(op: &str, lock_wait_ms: u128, exec_ms: u128) {
 
 fn library_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    Ok(base.join("library.sqlite"))
+    let db_dir = base.join("databases").join("library");
+    let db_path = db_dir.join("library.sqlite");
+    if let Some(parent) = db_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    if db_path.exists() {
+        return Ok(db_path);
+    }
+
+    let legacy = base.join("library.sqlite");
+    if legacy.exists() {
+        migrate_db_file(&legacy, &db_path).map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy, &db_path, "-wal").map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy, &db_path, "-shm").map_err(|e| e.to_string())?;
+    }
+
+    Ok(db_path)
+}
+
+fn migrate_db_file(from: &Path, to: &Path) -> io::Result<()> {
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(from, to)?;
+            fs::remove_file(from)?;
+            Ok(())
+        }
+    }
+}
+
+fn migrate_db_sidecar(from: &Path, to: &Path, suffix: &str) -> io::Result<()> {
+    let from_path = PathBuf::from(format!("{}{}", from.display(), suffix));
+    if !from_path.exists() {
+        return Ok(());
+    }
+    let to_path = PathBuf::from(format!("{}{}", to.display(), suffix));
+    if let Some(parent) = to_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(&from_path, &to_path) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(&from_path, &to_path)?;
+            fs::remove_file(&from_path)?;
+            Ok(())
+        }
+    }
 }
 
 fn configure_write_connection(conn: &Connection) -> rusqlite::Result<()> {

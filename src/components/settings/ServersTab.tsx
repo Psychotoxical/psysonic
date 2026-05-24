@@ -15,6 +15,7 @@ import { useDragDrop } from '../../contexts/DragDropContext';
 import { type ServerMagicPayload } from '../../utils/server/serverMagicString';
 import { showAudiomuseNavidromeServerSetting } from '../../utils/server/subsonicServerIdentity';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
+import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
 import { switchActiveServer } from '../../utils/server/switchActiveServer';
 import { AddServerForm } from './AddServerForm';
 import { ServerGripHandle } from './ServerGripHandle';
@@ -350,14 +351,14 @@ export function ServersTab({
                   </div>
                   </div>
                   <ServerLibraryIndexControls
-                    status={librarySync.statusByServer[srv.id] ?? null}
-                    connection={librarySync.connectionByServer[srv.id] ?? 'unknown'}
-                    progressLabel={librarySync.progressByServer[srv.id] ?? null}
-                    busy={librarySync.busyServerId === srv.id}
-                    actionsDisabled={librarySync.globalBusy && librarySync.busyServerId !== srv.id}
-                    onFullSync={() => void librarySync.runServerAction(srv.id, 'full')}
-                    onDeltaSync={() => void librarySync.runServerAction(srv.id, 'delta')}
-                    onVerify={() => void librarySync.runServerAction(srv.id, 'verify')}
+                    status={librarySync.statusByServer[serverIndexKeyForProfile(srv)] ?? null}
+                    connection={librarySync.connectionByServer[serverIndexKeyForProfile(srv)] ?? 'unknown'}
+                    progressLabel={librarySync.progressByServer[serverIndexKeyForProfile(srv)] ?? null}
+                    busy={librarySync.busyServerId === serverIndexKeyForProfile(srv)}
+                    actionsDisabled={librarySync.globalBusy && librarySync.busyServerId !== serverIndexKeyForProfile(srv)}
+                    onFullSync={() => void librarySync.runServerAction(serverIndexKeyForProfile(srv), 'full')}
+                    onDeltaSync={() => void librarySync.runServerAction(serverIndexKeyForProfile(srv), 'delta')}
+                    onVerify={() => void librarySync.runServerAction(serverIndexKeyForProfile(srv), 'verify')}
                     onCancel={() => void librarySync.handleCancel()}
                   />
                   {showAudiomuseNavidromeServerSetting(

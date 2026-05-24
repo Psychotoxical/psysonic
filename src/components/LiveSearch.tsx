@@ -26,6 +26,7 @@ import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './Cached
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
+import { resolveIndexKey } from '../utils/server/serverIndexKey';
 
 type LiveSearchSource = 'local' | 'network';
 
@@ -98,13 +99,14 @@ export default function LiveSearch() {
     if (!indexEnabled || !serverId) return;
     let unlistenProgress: (() => void) | undefined;
     let unlistenIdle: (() => void) | undefined;
+    const indexKey = resolveIndexKey(serverId);
     void subscribeLibrarySyncIdle(payload => {
-      if (payload.serverId === serverId) void refreshLocalReady();
+      if (payload.serverId === indexKey) void refreshLocalReady();
     }).then(fn => {
       unlistenIdle = fn;
     });
     void subscribeLibrarySyncProgress(p => {
-      if (p.serverId === serverId && p.kind === 'phase_changed') void refreshLocalReady();
+      if (p.serverId === indexKey && p.kind === 'phase_changed') void refreshLocalReady();
     }).then(fn => {
       unlistenProgress = fn;
     });

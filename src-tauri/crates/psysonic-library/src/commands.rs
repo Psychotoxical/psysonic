@@ -835,6 +835,9 @@ async fn library_sync_start_inner(
                 &format!("sync task panicked: {join_err}"),
             ),
         };
+        if let Some(runtime) = app_for_emit.try_state::<LibraryRuntime>() {
+            let _ = runtime.store.checkpoint_wal("sync.checkpoint");
+        }
         let _ = app_for_emit.emit(LibrarySyncProgressPayload::IDLE_EVENT_NAME, &outcome);
 
         // Clear the slot only if it still names us — sync_start may

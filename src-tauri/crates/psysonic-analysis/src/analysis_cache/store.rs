@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fs, io};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use tauri::Manager;
@@ -809,9 +810,68 @@ fn relabel_legacy_to_server(
 fn analysis_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let base = app
         .path()
-        .app_config_dir()
+        .app_data_dir()
         .map_err(|e| e.to_string())?;
-    Ok(base.join("audio-analysis.sqlite"))
+    let db_dir = base.join("databases").join("analysis");
+    let db_path = db_dir.join("audio-analysis.sqlite");
+    if let Some(parent) = db_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    if db_path.exists() {
+        return Ok(db_path);
+    }
+
+    let legacy_data = base.join("audio-analysis.sqlite");
+    let legacy_config = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("audio-analysis.sqlite");
+    if legacy_data.exists() {
+        migrate_db_file(&legacy_data, &db_path).map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_data, &db_path, "-wal").map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_data, &db_path, "-shm").map_err(|e| e.to_string())?;
+    } else if legacy_config.exists() {
+        migrate_db_file(&legacy_config, &db_path).map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_config, &db_path, "-wal").map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_config, &db_path, "-shm").map_err(|e| e.to_string())?;
+    }
+
+    Ok(db_path)
+}
+
+fn migrate_db_file(from: &Path, to: &Path) -> io::Result<()> {
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(from, to)?;
+            fs::remove_file(from)?;
+            Ok(())
+        }
+    }
+}
+
+fn migrate_db_sidecar(from: &Path, to: &Path, suffix: &str) -> io::Result<()> {
+    let from_path = PathBuf::from(format!("{}{}", from.display(), suffix));
+    if !from_path.exists() {
+        return Ok(());
+    }
+    let to_path = PathBuf::from(format!("{}{}", to.display(), suffix));
+    if let Some(parent) = to_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(&from_path, &to_path) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(&from_path, &to_path)?;
+            fs::remove_file(&from_path)?;
+            Ok(())
+        }
+    }
 }
 
 fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {

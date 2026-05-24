@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { showToast } from '../utils/ui/toast';
+import { resolveIndexKey, serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
 import {
   libraryGetStatus,
   librarySyncCancel,
@@ -27,10 +28,32 @@ const OFFLINE_RETRY_MS = 60_000;
 export function useLibraryIndexSync() {
   const { t } = useTranslation();
   const servers = useAuthStore(s => s.servers);
+  const activeServerId = useAuthStore(s => s.activeServerId);
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
 
-  const indexedServers = useMemo(() => servers, [servers]);
-  const indexedIds = useMemo(() => servers.map(s => s.id), [servers]);
+  const serverKeyById = useMemo(
+    () => Object.fromEntries(servers.map(s => [s.id, serverIndexKeyForProfile(s)])),
+    [servers],
+  );
+  const indexedKeys = useMemo(
+    () => Array.from(new Set(Object.values(serverKeyById))),
+    [serverKeyById],
+  );
+  const indexedServers = useMemo(() => {
+    const primary = new Map<string, { key: string; server: typeof servers[number] }>();
+    for (const server of servers) {
+      const key = serverKeyById[server.id];
+      if (!primary.has(key)) primary.set(key, { key, server });
+    }
+    if (activeServerId) {
+      const active = servers.find(s => s.id === activeServerId);
+      if (active) {
+        const key = serverKeyById[active.id];
+        if (primary.has(key)) primary.set(key, { key, server: active });
+      }
+    }
+    return Array.from(primary.values());
+  }, [servers, serverKeyById, activeServerId]);
 
   const [statusByServer, setStatusByServer] = useState<Record<string, SyncStateDto | null>>({});
   const [connectionByServer, setConnectionByServer] = useState<Record<string, LibraryServerConnection>>({});
@@ -55,23 +78,23 @@ export function useLibraryIndexSync() {
   const refreshAllStatuses = useCallback(async () => {
     if (!masterEnabled || indexedServers.length === 0) return;
     const entries = await Promise.all(
-      indexedServers.map(async srv => {
+      indexedServers.map(async ({ key, server }) => {
         try {
-          const fresh = await libraryGetStatus(srv.id);
-          syncPhaseRef.current[srv.id] = fresh.syncPhase;
+          const fresh = await libraryGetStatus(key);
+          syncPhaseRef.current[key] = fresh.syncPhase;
           if (fresh.syncPhase === 'initial_sync') {
-            const next = Math.max(ingestCountRef.current[srv.id] ?? 0, syncIngestDisplayCount(fresh));
-            ingestCountRef.current[srv.id] = next;
+            const next = Math.max(ingestCountRef.current[key] ?? 0, syncIngestDisplayCount(fresh));
+            ingestCountRef.current[key] = next;
             setProgressByServer(p => ({
               ...p,
-              [srv.id]: t('settings.libraryIndexProgressIngest', { count: next }),
+              [key]: t('settings.libraryIndexProgressIngest', { count: next }),
             }));
           } else if (fresh.syncPhase === 'ready' || fresh.syncPhase === 'idle') {
-            ingestCountRef.current[srv.id] = 0;
+            ingestCountRef.current[key] = 0;
           }
-          return [srv.id, fresh] as const;
+          return [key, fresh] as const;
         } catch {
-          return [srv.id, null] as const;
+          return [key, null] as const;
         }
       }),
     );
@@ -92,27 +115,27 @@ export function useLibraryIndexSync() {
 
   const retryOfflineServers = useCallback(async () => {
     if (!masterEnabled) return;
-    const offline = indexedServers.filter(s => connectionByServer[s.id] === 'offline');
+    const offline = indexedServers.filter(s => connectionByServer[s.key] === 'offline');
     if (offline.length === 0) return;
     const results: Record<string, BindServerResult> = {};
     for (const srv of offline) {
-      results[srv.id] = await bootstrapIndexedServer(srv);
+      results[srv.key] = await bootstrapIndexedServer(srv.server);
     }
     applyConnectionResults(results);
     void refreshAllStatuses();
   }, [masterEnabled, indexedServers, connectionByServer, applyConnectionResults, refreshAllStatuses]);
 
   useEffect(() => {
-    if (!masterEnabled || indexedIds.length === 0) return;
+    if (!masterEnabled || indexedKeys.length === 0) return;
     void runBootstrap();
-  }, [masterEnabled, indexedIds.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [masterEnabled, indexedKeys.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!masterEnabled) return;
     const poll = () => {
       void refreshAllStatuses();
-      const anyInitial = indexedServers.some(
-        s => syncPhaseRef.current[s.id] === 'initial_sync',
+      const anyInitial = indexedKeys.some(
+        key => syncPhaseRef.current[key] === 'initial_sync',
       );
       pollTimer.current = setTimeout(poll, anyInitial ? SYNC_POLL_MS : STATUS_POLL_MS);
     };
@@ -135,32 +158,34 @@ export function useLibraryIndexSync() {
     if (!masterEnabled) return;
     const unsubs: Array<Promise<() => void>> = [
       subscribeLibrarySyncProgress(p => {
-        if (!indexedIds.includes(p.serverId)) return;
-        setBusyServerId(p.serverId);
+        const key = resolveIndexKey(p.serverId);
+        if (!indexedKeys.includes(key)) return;
+        setBusyServerId(key);
         if (p.kind === 'ingest_page') {
-          const next = Math.max(ingestCountRef.current[p.serverId] ?? 0, p.ingestedTotal ?? 0);
-          ingestCountRef.current[p.serverId] = next;
+          const next = Math.max(ingestCountRef.current[key] ?? 0, p.ingestedTotal ?? 0);
+          ingestCountRef.current[key] = next;
           setProgressByServer(prev => ({
             ...prev,
-            [p.serverId]: t('settings.libraryIndexProgressIngest', { count: next }),
+            [key]: t('settings.libraryIndexProgressIngest', { count: next }),
           }));
         } else if (p.kind === 'tombstoned') {
           setProgressByServer(prev => ({
             ...prev,
-            [p.serverId]: t('settings.libraryIndexProgressVerify', {
+            [key]: t('settings.libraryIndexProgressVerify', {
               checked: p.tombstonesChecked ?? 0,
               deleted: p.tombstonesDeleted ?? 0,
             }),
           }));
         } else if (p.kind === 'phase_changed' && p.phase) {
-          setProgressByServer(prev => ({ ...prev, [p.serverId]: p.phase ?? null }));
+          setProgressByServer(prev => ({ ...prev, [key]: p.phase ?? null }));
         }
       }),
       subscribeLibrarySyncIdle(p => {
-        if (!indexedIds.includes(p.serverId)) return;
-        setBusyServerId(cur => (cur === p.serverId ? null : cur));
-        ingestCountRef.current[p.serverId] = 0;
-        setProgressByServer(prev => ({ ...prev, [p.serverId]: null }));
+        const key = resolveIndexKey(p.serverId);
+        if (!indexedKeys.includes(key)) return;
+        setBusyServerId(cur => (cur === key ? null : cur));
+        ingestCountRef.current[key] = 0;
+        setProgressByServer(prev => ({ ...prev, [key]: null }));
         void refreshAllStatuses();
         if (!p.ok && p.error) {
           showToast(t('settings.libraryIndexSyncError', { error: p.error }), 5000, 'error');
@@ -170,24 +195,25 @@ export function useLibraryIndexSync() {
     return () => {
       unsubs.forEach(u => void u.then(fn => fn()));
     };
-  }, [masterEnabled, indexedIds, refreshAllStatuses, t]);
+  }, [masterEnabled, indexedKeys, refreshAllStatuses, t]);
 
   const runServerAction = useCallback(async (
     serverId: string,
     action: 'full' | 'delta' | 'verify',
   ) => {
-    setBusyServerId(serverId);
+    const key = resolveIndexKey(serverId);
+    setBusyServerId(key);
     try {
       const kind =
         action === 'verify'
           ? 'verify'
           : action === 'full'
             ? 'full'
-            : statusByServer[serverId]?.lastFullSyncAt
+            : statusByServer[key]?.lastFullSyncAt
               ? 'delta'
               : 'full';
-      ingestCountRef.current[serverId] = 0;
-      await enqueueLibrarySync({ serverId, kind });
+      ingestCountRef.current[key] = 0;
+      await enqueueLibrarySync({ serverId: key, kind });
     } catch (e) {
       setBusyServerId(null);
       showToast(t('settings.libraryIndexSyncError', { error: String(e) }), 5000, 'error');

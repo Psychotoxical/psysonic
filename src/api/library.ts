@@ -715,7 +715,7 @@ export function subscribeLibrarySyncProgress(
   handler: (payload: LibrarySyncProgressPayload) => void,
 ): Promise<UnlistenFn> {
   return listen<LibrarySyncProgressPayload>('library:sync-progress', ({ payload }) =>
-    handler({ ...payload, serverId: mapServerIdFromIndexKey(payload.serverId) }),
+    handler(payload),
   );
 }
 
@@ -723,6 +723,6 @@ export function subscribeLibrarySyncIdle(
   handler: (payload: LibrarySyncIdlePayload) => void,
 ): Promise<UnlistenFn> {
   return listen<LibrarySyncIdlePayload>('library:sync-idle', ({ payload }) =>
-    handler({ ...payload, serverId: mapServerIdFromIndexKey(payload.serverId) }),
+    handler(payload),
   );
 }
