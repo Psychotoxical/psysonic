@@ -39,6 +39,7 @@ const MAX_DL_CONCURRENCY: usize = 4;
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
 
 /// Release builds only: focus or CLI-hand off when a second instance is launched.
+#[cfg(not(debug_assertions))]
 fn on_second_instance<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     argv: Vec<String>,
