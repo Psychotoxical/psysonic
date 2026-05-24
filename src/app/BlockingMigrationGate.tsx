@@ -28,7 +28,7 @@ function MigrationModal() {
         color: 'var(--text)',
       }}
       >
-        {(phase === 'idle' || phase === 'inspecting') && (
+        {phase === 'inspecting' && (
           <>
             <h3>Preparing data update…</h3>
             <p style={{ color: 'var(--text-muted)' }}>Looking at your library and analysis cache…</p>
@@ -75,7 +75,7 @@ function MigrationModal() {
 
 export default function BlockingMigrationGate({ children }: { children: ReactNode }) {
   const phase = useMigrationStore(s => s.phase);
-  const isBlocking = phase === 'idle' || phase === 'inspecting' || phase === 'running' || phase === 'error';
+  const isBlocking = phase === 'inspecting' || phase === 'running' || phase === 'error';
   return (
     <>
       {children}

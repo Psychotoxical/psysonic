@@ -115,7 +115,7 @@ describe('useMigrationOrchestrator', () => {
     expect(rewriteFrontendStoreKeysMock).not.toHaveBeenCalled();
   });
 
-  it('keeps startup in inspecting while done-flag precheck is pending', async () => {
+  it('keeps startup non-blocking while done-flag precheck is pending', async () => {
     localStorage.setItem(DONE_FLAG, '1');
     let resolveInspect: ((value: any) => void) | undefined;
     migrationInspectMock.mockImplementation(
@@ -125,7 +125,7 @@ describe('useMigrationOrchestrator', () => {
     renderHook(() => useMigrationOrchestrator());
 
     await waitFor(() => {
-      expect(useMigrationStore.getState().phase).toBe('inspecting');
+      expect(useMigrationStore.getState().phase).toBe('idle');
     });
     expect(migrationRunMock).not.toHaveBeenCalled();
 
