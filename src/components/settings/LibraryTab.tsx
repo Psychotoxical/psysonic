@@ -5,7 +5,8 @@ import { useAuthStore } from '../../store/authStore';
 import { MIX_MIN_RATING_FILTER_MAX_STARS } from '../../store/authStoreDefaults';
 import SettingsSubSection from '../SettingsSubSection';
 import StarRating from '../StarRating';
-import LibraryIndexSection from './LibraryIndexSection';
+import AnalyticsStrategySection from './AnalyticsStrategySection';
+import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
 
 const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
 
@@ -13,11 +14,21 @@ export function LibraryTab() {
   const { t } = useTranslation();
   const auth = useAuthStore();
   const [newGenre, setNewGenre] = useState('');
+  const servers = auth.servers;
 
   return (
     <>
-      {/* Local library index (spec §7.3) */}
-      <LibraryIndexSection />
+      {servers.length === 0 ? (
+        <AnalyticsStrategySection />
+      ) : (
+        servers.map(server => (
+          <AnalyticsStrategySection
+            key={server.id}
+            serverId={server.id}
+            serverLabel={serverListDisplayLabel(server, servers)}
+          />
+        ))
+      )}
 
       {/* Random Mix Blacklist */}
       <SettingsSubSection

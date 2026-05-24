@@ -12,7 +12,6 @@ import { usePlayerStatsLiveRefresh } from '../../hooks/usePlayerStatsLiveRefresh
 import { usePlayerStatsRecordingEnabled } from '../../hooks/usePlayerStatsRecordingEnabled';
 import PlayerStatsHeatmap from './PlayerStatsHeatmap';
 import PlayerStatsIndexRequiredNotice from './PlayerStatsIndexRequiredNotice';
-import PlayerStatsPartialIndexNotice from './PlayerStatsPartialIndexNotice';
 import PlayerStatsRecentDays from './PlayerStatsRecentDays';
 import { formatPlayerStatsListeningTotal } from '../../utils/format/formatHumanDuration';
 
@@ -99,7 +98,6 @@ export default function PlayerStatisticsPanel() {
 
   return (
     <div className="stats-page">
-      <PlayerStatsPartialIndexNotice />
       <div className="player-stats-year-nav">
         <button
           type="button"

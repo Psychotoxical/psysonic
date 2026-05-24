@@ -10,6 +10,8 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+use psysonic_analysis::analysis_runtime::AnalysisBackfillPriority;
+
 use super::analysis_dispatch::{
     dispatch_track_analysis_bytes, prepare_playback_analysis, spawn_track_analysis_file,
     TrackAnalysisOrigin,
@@ -36,13 +38,12 @@ async fn seed_preload_analysis_bytes(
     let Some(track_id) = analysis_cache_track_id(analysis_track_id, url) else {
         return;
     };
-    let (sid, high) = prepare_playback_analysis(
+    let (sid, priority) = prepare_playback_analysis(
         app,
         state,
         server_id,
         &track_id,
-        // Next-track prefetch — never steal CPU from the audible track.
-        Some(false),
+        Some(AnalysisBackfillPriority::Middle),
     );
     if let Err(e) = dispatch_track_analysis_bytes(
         app,
@@ -50,7 +51,7 @@ async fn seed_preload_analysis_bytes(
         &sid,
         &track_id,
         data.to_vec(),
-        high,
+        priority,
     )
     .await
     {
@@ -69,12 +70,12 @@ fn seed_preload_analysis_file(
     let Some(track_id) = analysis_cache_track_id(analysis_track_id, url) else {
         return;
     };
-    let (sid, high) = prepare_playback_analysis(
+    let (sid, priority) = prepare_playback_analysis(
         app,
         state,
         server_id,
         &track_id,
-        Some(false),
+        Some(AnalysisBackfillPriority::Middle),
     );
     crate::app_deprintln!(
         "[stream] audio_preload: local file analysis track_id={} path={}",
@@ -87,7 +88,7 @@ fn seed_preload_analysis_file(
         sid,
         track_id,
         file_path,
-        high,
+        priority,
         None,
     );
 }

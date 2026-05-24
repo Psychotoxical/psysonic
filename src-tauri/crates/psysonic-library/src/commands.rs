@@ -15,6 +15,7 @@ use psysonic_integration::navidrome::navidrome_token;
 use psysonic_integration::subsonic::SubsonicClient;
 
 use crate::advanced_search;
+use crate::analysis_backfill::{self, LibraryAnalysisBackfillBatchDto};
 use crate::cross_server;
 use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
@@ -41,6 +42,23 @@ use crate::sync::tombstone::should_auto_reconcile;
 
 /// Cap for `library_get_tracks_batch` per spec §7.1 ("max 100 refs/call").
 const TRACKS_BATCH_LIMIT: usize = 100;
+
+#[tauri::command]
+pub fn library_analysis_backfill_batch(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    cursor: Option<String>,
+    limit: Option<u32>,
+) -> Result<LibraryAnalysisBackfillBatchDto, String> {
+    analysis_backfill::collect_analysis_backfill_batch(
+        &app,
+        &runtime,
+        server_id.trim(),
+        cursor.as_deref().filter(|s| !s.is_empty()),
+        limit,
+    )
+}
 
 #[tauri::command]
 pub async fn library_get_status(

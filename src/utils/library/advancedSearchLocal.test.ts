@@ -28,7 +28,7 @@ const ready = () =>
 
 describe('runLocalAdvancedSearch', () => {
   beforeEach(() => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+    useLibraryIndexStore.setState({ masterEnabled: true });
   });
 
   it('returns null (→ network fallback) when the index is not ready', async () => {
@@ -38,7 +38,7 @@ describe('runLocalAdvancedSearch', () => {
   });
 
   it('returns null when the index is disabled for the server', async () => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', false);
+    useLibraryIndexStore.setState({ masterEnabled: false });
     const res = await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(res).toBeNull();
   });
@@ -155,7 +155,7 @@ describe('runLocalAdvancedSearch', () => {
 
 describe('runLocalSongBrowse', () => {
   beforeEach(() => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+    useLibraryIndexStore.setState({ masterEnabled: true });
   });
 
   it('returns null for a missing server id (→ network browse)', async () => {

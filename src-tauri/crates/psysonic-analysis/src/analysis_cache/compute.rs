@@ -12,6 +12,8 @@ use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 use tauri::Manager;
 
+use crate::analysis_perf::AnalysisSeedTimings;
+
 use super::store::{now_unix_ts, AnalysisCache, LoudnessEntry, TrackKey, WaveformEntry};
 
 pub fn recommended_gain_for_target(integrated_lufs: f64, true_peak: f64, target_lufs: f64) -> f64 {
@@ -44,16 +46,21 @@ pub fn seed_from_bytes_execute(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
-) -> Result<SeedFromBytesOutcome, String> {
+) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
+    let seed_started = Instant::now();
     let Some(cache) = app.try_state::<AnalysisCache>() else {
         crate::app_deprintln!(
             "[analysis][waveform] build skip track_id={} reason=no_analysis_cache bytes={}",
             track_id,
             bytes.len()
         );
-        return Ok(SeedFromBytesOutcome::SkippedNoAnalysisCache);
+        return Ok((
+            SeedFromBytesOutcome::SkippedNoAnalysisCache,
+            AnalysisSeedTimings::default(),
+        ));
     };
     let (outcome, md5_16kb) = seed_from_bytes_into_cache(&cache, server_id, track_id, bytes)?;
+    let seed_ms = seed_started.elapsed().as_millis() as u64;
     // E2 bridge (analysis → library content_hash): once the playback-derived
     // md5_16kb is known — whether freshly written or already cached — record it
     // as `track.content_hash` via the registered sink. Decoupled from
@@ -70,15 +77,22 @@ pub fn seed_from_bytes_execute(
             sink.record_content_hash(server_id, track_id, &md5_16kb);
         }
     }
-    if !server_id.is_empty() {
+    let bpm_ms = if !server_id.is_empty() {
+        let bpm_started = Instant::now();
         let _ = crate::track_enrichment::run_track_enrichment_if_needed(
             app,
             server_id,
             track_id,
             bytes,
         );
-    }
-    Ok(outcome)
+        bpm_started.elapsed().as_millis() as u64
+    } else {
+        0
+    };
+    Ok((
+        outcome,
+        AnalysisSeedTimings { seed_ms, bpm_ms },
+    ))
 }
 
 /// AppHandle-free entry point for [`seed_from_bytes_execute`]: takes the cache

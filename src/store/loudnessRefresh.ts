@@ -20,6 +20,7 @@ import {
 import {
   LOUDNESS_BACKFILL_WINDOW_AHEAD,
   isTrackInsideLoudnessBackfillWindow,
+  loudnessBackfillPriorityForTrack,
 } from './loudnessBackfillWindow';
 
 /** Subsonic-server loudness-cache row as Rust hands it back. */
@@ -100,12 +101,19 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
         }
         markBackfillInFlight(trackId, attempts + 1);
         const url = buildStreamUrl(trackId);
+        const priority = loudnessBackfillPriorityForTrack(
+          trackId,
+          live.queue,
+          live.queueIndex,
+          live.currentTrack,
+        );
         emitNormalizationDebug('backfill:enqueue', {
           trackId,
           url: redactSubsonicUrlForLog(url),
           attempt: attempts + 1,
+          priority,
         });
-        void invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId })
+        void invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId, priority })
           .then(() => emitNormalizationDebug('backfill:queued', { trackId, attempt: attempts + 1 }))
           .catch((e) => emitNormalizationDebug('backfill:error', { trackId, error: String(e) }))
           .finally(() => {

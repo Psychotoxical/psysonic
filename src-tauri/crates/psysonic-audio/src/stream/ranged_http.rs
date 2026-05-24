@@ -27,7 +27,7 @@ use super::{
     TRACK_STREAM_PROMOTE_MAX_BYTES,
 };
 use crate::analysis_dispatch::{
-    dispatch_track_analysis_bytes, high_priority_for_app, resolve_server_id_for_app,
+    dispatch_track_analysis_bytes, analysis_priority_for_app, resolve_server_id_for_app,
     spawn_track_analysis_file, TrackAnalysisOrigin,
 };
 use crate::helpers::{install_stream_completed_spill, write_stream_spill_file};
@@ -647,14 +647,14 @@ pub(crate) async fn ranged_download_task(
             }
             if let Some(track_id) = cache_track_id {
                 let sid = resolve_server_id_for_app(&app, server_id.as_deref());
-                let high = high_priority_for_app(&app, &track_id, None);
+                let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
                 if let Err(e) = dispatch_track_analysis_bytes(
                     &app,
                     TrackAnalysisOrigin::StreamDownloadComplete,
                     &sid,
                     &track_id,
                     data.clone(),
-                    high,
+                    priority,
                 )
                 .await
                 {
@@ -691,14 +691,14 @@ pub(crate) async fn ranged_download_task(
                     }
                     install_stream_completed_spill(&spill_cache_slot, url, path.clone());
                     let sid = resolve_server_id_for_app(&app, server_id.as_deref());
-                    let high = high_priority_for_app(&app, &track_id, None);
+                    let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
                     spawn_track_analysis_file(
                         app.clone(),
                         TrackAnalysisOrigin::StreamSpillFile,
                         sid,
                         track_id,
                         path,
-                        high,
+                        priority,
                         Some((gen, gen_arc.clone())),
                     );
                 }

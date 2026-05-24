@@ -7,6 +7,8 @@ import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { libraryDeleteServerData, librarySyncClearSession } from '../../api/library';
 import { bootstrapIndexedServer } from '../../utils/library/librarySession';
+import { useLibraryIndexSync } from '../../hooks/useLibraryIndexSync';
+import ServerLibraryIndexControls from './ServerLibraryIndexControls';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import { useDragDrop } from '../../contexts/DragDropContext';
@@ -30,6 +32,7 @@ export function ServersTab({
   const navigate = useNavigate();
   const auth = useAuthStore();
   const psyDragState = useDragDrop();
+  const librarySync = useLibraryIndexSync();
 
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState<boolean>(initialInvite != null);
@@ -147,7 +150,6 @@ export function ServersTab({
     const purgeLibrary = hadIndex && confirm(t('settings.confirmDeleteServerLibrary'));
 
     auth.removeServer(server.id);
-    useLibraryIndexStore.getState().setIndexEnabled(server.id, false);
     try {
       await librarySyncClearSession(server.id);
       if (purgeLibrary) {
@@ -180,10 +182,8 @@ export function ServersTab({
         auth.setSubsonicServerIdentity(id, identity);
         scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity);
         setConnStatus(s => ({ ...s, [id]: 'ok' }));
-        if (useLibraryIndexStore.getState().masterEnabled) {
-          const added = useAuthStore.getState().servers.find(s => s.id === id);
-          if (added) void bootstrapIndexedServer(added);
-        }
+        const added = useAuthStore.getState().servers.find(s => s.id === id);
+        if (added) void bootstrapIndexedServer(added);
       } else {
         setConnStatus(s => ({ ...s, [tempId]: 'error' }));
       }
@@ -349,6 +349,17 @@ export function ServersTab({
                     </div>
                   </div>
                   </div>
+                  <ServerLibraryIndexControls
+                    status={librarySync.statusByServer[srv.id] ?? null}
+                    connection={librarySync.connectionByServer[srv.id] ?? 'unknown'}
+                    progressLabel={librarySync.progressByServer[srv.id] ?? null}
+                    busy={librarySync.busyServerId === srv.id}
+                    actionsDisabled={librarySync.globalBusy && librarySync.busyServerId !== srv.id}
+                    onFullSync={() => void librarySync.runServerAction(srv.id, 'full')}
+                    onDeltaSync={() => void librarySync.runServerAction(srv.id, 'delta')}
+                    onVerify={() => void librarySync.runServerAction(srv.id, 'verify')}
+                    onCancel={() => void librarySync.handleCancel()}
+                  />
                   {showAudiomuseNavidromeServerSetting(
                     auth.subsonicServerIdentityByServer[srv.id],
                     auth.instantMixProbeByServer[srv.id],

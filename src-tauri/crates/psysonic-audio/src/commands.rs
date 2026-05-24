@@ -548,12 +548,12 @@ pub async fn audio_chain_preload(
     let analysis_server_id = server_id.as_deref().map(str::trim).filter(|s| !s.is_empty());
 
     if let Some(track_id) = analysis_cache_track_id(logical_trim.as_deref(), &url) {
-        let (sid, high) = crate::analysis_dispatch::prepare_playback_analysis(
+        let (sid, priority) = crate::analysis_dispatch::prepare_playback_analysis(
             &app,
             &state,
             analysis_server_id,
             &track_id,
-            Some(false),
+            Some(psysonic_analysis::analysis_runtime::AnalysisBackfillPriority::Middle),
         );
         let bytes = (*raw_bytes).clone();
         crate::analysis_dispatch::spawn_track_analysis_bytes(
@@ -562,7 +562,7 @@ pub async fn audio_chain_preload(
             sid,
             track_id,
             bytes,
-            high,
+            priority,
             None,
         );
     }

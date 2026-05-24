@@ -218,6 +218,8 @@ pub fn run() {
                 app.manage(handle);
             }
 
+            app.manage(psysonic_analysis::analysis_runtime::PlaybackPriorityHints::default());
+
             // ── Content-hash sink (analysis → library E2 back-edge) ───────
             // After a seed the analysis pipeline records the playback-derived
             // md5_16kb as `track.content_hash` so id-remap can rebind a track
@@ -272,6 +274,22 @@ pub fn run() {
                     },
                 );
                 app.manage(query);
+            }
+
+            // ── Analysis needs-work probe (library → analysis batch scan) ──
+            {
+                use psysonic_core::ports::TrackAnalysisNeedsWorkQuery;
+                let app_for_needs_work = app.handle().clone();
+                let needs_work = TrackAnalysisNeedsWorkQuery::new(
+                    move |server_id: &str, track_id: &str| {
+                        psysonic_analysis::analysis_runtime::track_analysis_needs_work(
+                            &app_for_needs_work,
+                            server_id,
+                            track_id,
+                        )
+                    },
+                );
+                app.manage(needs_work);
             }
 
             // ── Track enrichment port (analysis → library facts) ───────────
@@ -637,6 +655,10 @@ pub fn run() {
             psysonic_analysis::commands::analysis_delete_waveform_for_track,
             psysonic_analysis::commands::analysis_delete_all_waveforms,
             psysonic_analysis::commands::analysis_enqueue_seed_from_url,
+            psysonic_analysis::commands::analysis_set_playback_priority_hints,
+            psysonic_analysis::commands::analysis_set_pipeline_parallelism,
+            psysonic_analysis::commands::analysis_get_pipeline_queue_stats,
+            psysonic_analysis::commands::analysis_get_backfill_queue_stats,
             psysonic_analysis::commands::analysis_prune_pending_to_track_ids,
             psysonic_library::commands::library_get_status,
             psysonic_library::commands::library_search,
@@ -667,6 +689,7 @@ pub fn run() {
             psysonic_library::commands::library_get_player_stats_recent_days,
             psysonic_library::commands::library_purge_server,
             psysonic_library::commands::library_delete_server_data,
+            psysonic_library::commands::library_analysis_backfill_batch,
             psysonic_syncfs::cache::offline::download_track_offline,
             psysonic_syncfs::cache::offline::cancel_offline_downloads,
             psysonic_syncfs::cache::offline::clear_offline_cancel,

@@ -17,6 +17,7 @@ import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
 import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
+import { useLibraryAnalysisBackfill } from '../hooks/useLibraryAnalysisBackfill';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
@@ -51,6 +52,8 @@ export default function MainApp() {
       void hydrateQueueFromIndex();
     })();
   }, [activeServerId, serverIdsKey, masterEnabled]);
+
+  useLibraryAnalysisBackfill();
 
   // Push playback state to mini window + handle control events.
   useEffect(() => {

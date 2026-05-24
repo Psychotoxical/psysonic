@@ -1,4 +1,4 @@
-use psysonic_analysis::analysis_runtime::enqueue_track_analysis;
+use psysonic_analysis::analysis_runtime::{enqueue_track_analysis, AnalysisBackfillPriority};
 use psysonic_audio as audio;
 use psysonic_core::user_agent::subsonic_wire_user_agent;
 
@@ -43,7 +43,14 @@ pub async fn download_track_hot_cache(
         let sid = server_id.clone();
         let fp = file_path.clone();
         tokio::spawn(async move {
-            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
+            enqueue_analysis_seed_from_file(
+                &app_seed,
+                &sid,
+                &tid,
+                &fp,
+                Some(AnalysisBackfillPriority::Middle),
+            )
+            .await;
         });
         return Ok(HotCacheDownloadResult {
             path: path_str,
@@ -83,7 +90,14 @@ pub async fn download_track_hot_cache(
     let sid = server_id.clone();
     let fp = file_path.clone();
     tokio::spawn(async move {
-        enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
+        enqueue_analysis_seed_from_file(
+            &app_seed,
+            &sid,
+            &tid,
+            &fp,
+            Some(AnalysisBackfillPriority::Middle),
+        )
+        .await;
     });
 
     let size = tokio::fs::metadata(&file_path)
@@ -139,7 +153,7 @@ pub async fn promote_stream_cache_to_hot_cache(
         let sid = server_id.clone();
         let fp = file_path.clone();
         tokio::spawn(async move {
-            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
+            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp, None).await;
         });
         return Ok(Some(HotCacheDownloadResult { path: path_str, size }));
     }
@@ -154,9 +168,13 @@ pub async fn promote_stream_cache_to_hot_cache(
             .await
             .map_err(|e| e.to_string())?;
 
-        let high =
-            psysonic_analysis::analysis_runtime::analysis_backfill_is_current_track(&app, &track_id);
-        let _ = enqueue_track_analysis(&app, &server_id, &track_id, &bytes, high).await;
+        let priority = psysonic_analysis::analysis_runtime::analysis_backfill_resolve_priority(
+            &app,
+            &server_id,
+            &track_id,
+            None,
+        );
+        let _ = enqueue_track_analysis(&app, &server_id, &track_id, &bytes, priority).await;
 
         let size = tokio::fs::metadata(&file_path)
             .await
@@ -184,7 +202,7 @@ pub async fn promote_stream_cache_to_hot_cache(
         let sid = server_id.clone();
         let fp = file_path.clone();
         tokio::spawn(async move {
-            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp).await;
+            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp, None).await;
         });
         let size = tokio::fs::metadata(&file_path)
             .await

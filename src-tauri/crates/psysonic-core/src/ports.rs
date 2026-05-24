@@ -109,3 +109,28 @@ impl AnalysisReadinessQuery {
         (self.query)(server_id, track_id, md5_16kb)
     }
 }
+
+type NeedsWorkFn = Arc<dyn Fn(&str, &str) -> Result<bool, String> + Send + Sync + 'static>;
+
+/// Library→analysis plan probe: does `(server_id, track_id)` still need waveform,
+/// loudness, or enrichment work? Wired in the shell crate so `psysonic-library`
+/// can batch-scan without depending on `psysonic-analysis`.
+#[derive(Clone)]
+pub struct TrackAnalysisNeedsWorkQuery {
+    query: NeedsWorkFn,
+}
+
+impl TrackAnalysisNeedsWorkQuery {
+    pub fn new<F>(query: F) -> Self
+    where
+        F: Fn(&str, &str) -> Result<bool, String> + Send + Sync + 'static,
+    {
+        Self {
+            query: Arc::new(query),
+        }
+    }
+
+    pub fn needs_work(&self, server_id: &str, track_id: &str) -> Result<bool, String> {
+        (self.query)(server_id, track_id)
+    }
+}

@@ -15,7 +15,7 @@ export default function PlayerStatsIndexRequiredNotice() {
         <button
           type="button"
           className="player-stats-partial-index-link"
-          onClick={() => navigate('/settings', { state: { tab: 'library' } })}
+          onClick={() => navigate('/settings', { state: { tab: 'servers' } })}
         >
           {t('statistics.playerPartialIndexSettings')}
         </button>

@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { setPerfProbeTelemetryActive } from '../utils/perf/perfTelemetry';
+import {
+  getAnalysisTracksPerMinute,
+  useAnalysisPerfLast,
+} from '../utils/perf/analysisPerfStore';
+import { useAnalysisPerfListener } from './useAnalysisPerfListener';
 
 interface PerfCpu {
   app: number;
@@ -14,11 +19,20 @@ interface PerfDiagRates {
   home: number;
 }
 
+interface AnalysisPerfDiag {
+  tracksPerMinute: number;
+  lastTotalMs: number | null;
+  lastFetchMs: number | null;
+  lastSeedMs: number | null;
+  lastBpmMs: number | null;
+}
+
 interface Result {
   perfProbeOpen: boolean;
   setPerfProbeOpen: (open: boolean) => void;
   perfCpu: PerfCpu | null;
   perfDiagRates: PerfDiagRates | null;
+  analysisPerf: AnalysisPerfDiag | null;
 }
 
 /** Wires up Ctrl+Shift+D to open the perf probe; polls CPU + diag-rate counters
@@ -27,6 +41,10 @@ export function useSidebarPerfProbe(): Result {
   const [perfProbeOpen, setPerfProbeOpen] = useState(false);
   const [perfCpu, setPerfCpu] = useState<PerfCpu | null>(null);
   const [perfDiagRates, setPerfDiagRates] = useState<PerfDiagRates | null>(null);
+  const [analysisTpm, setAnalysisTpm] = useState(0);
+  const analysisLast = useAnalysisPerfLast();
+
+  useAnalysisPerfListener(perfProbeOpen);
 
   useEffect(() => {
     setPerfProbeTelemetryActive(perfProbeOpen);
@@ -112,9 +130,18 @@ export function useSidebarPerfProbe(): Result {
   }, [perfProbeOpen]);
 
   useEffect(() => {
+    if (!perfProbeOpen) return;
+    const refresh = () => setAnalysisTpm(getAnalysisTracksPerMinute());
+    refresh();
+    const id = window.setInterval(refresh, 2000);
+    return () => window.clearInterval(id);
+  }, [perfProbeOpen, analysisLast?.at]);
+
+  useEffect(() => {
     if (!perfProbeOpen) {
       setPerfCpu(null);
       setPerfDiagRates(null);
+      setAnalysisTpm(0);
     }
   }, [perfProbeOpen]);
 
@@ -136,5 +163,19 @@ export function useSidebarPerfProbe(): Result {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  return { perfProbeOpen, setPerfProbeOpen, perfCpu, perfDiagRates };
+  return {
+    perfProbeOpen,
+    setPerfProbeOpen,
+    perfCpu,
+    perfDiagRates,
+    analysisPerf: perfProbeOpen
+      ? {
+          tracksPerMinute: analysisTpm,
+          lastTotalMs: analysisLast?.totalMs ?? null,
+          lastFetchMs: analysisLast?.fetchMs ?? null,
+          lastSeedMs: analysisLast?.seedMs ?? null,
+          lastBpmMs: analysisLast?.bpmMs ?? null,
+        }
+      : null,
+  };
 }

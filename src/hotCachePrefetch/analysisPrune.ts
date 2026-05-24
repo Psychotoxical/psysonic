@@ -1,5 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
+import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
+import { collectPlaybackMiddlePriorityTrackIds } from '../store/loudnessBackfillWindow';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import { analysisSetPlaybackPriorityHints } from '../api/analysis';
 import { hotCacheFrontendDebug } from './helpers';
 
 let analysisPruneTimer: ReturnType<typeof setTimeout> | null = null;
@@ -14,7 +18,9 @@ type AnalysisPrunePendingResult = {
 };
 
 export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
-  const { queue, currentTrack } = usePlayerStore.getState();
+  const { queue, currentTrack, queueIndex } = usePlayerStore.getState();
+  const { preloadMode } = useAuthStore.getState();
+  const serverId = getPlaybackServerId() ?? '';
   const keepTrackIds: string[] = [];
   const seen = new Set<string>();
   const pushId = (id: string | undefined | null) => {
@@ -29,7 +35,13 @@ export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
     pushId(track.id);
     if (keepTrackIds.length >= 1000) break;
   }
-  const sig = JSON.stringify(keepTrackIds);
+  const middleTrackIds = collectPlaybackMiddlePriorityTrackIds(
+    queue,
+    queueIndex,
+    currentTrack,
+    preloadMode,
+  );
+  const sig = JSON.stringify({ keepTrackIds, middleTrackIds, serverId });
   if (sig === lastAnalysisPruneSig) return;
   lastAnalysisPruneSig = sig;
   if (analysisPruneTimer) {
@@ -38,7 +50,12 @@ export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
   }
   analysisPruneTimer = setTimeout(() => {
     analysisPruneTimer = null;
-    void invoke<AnalysisPrunePendingResult>('analysis_prune_pending_to_track_ids', { trackIds: keepTrackIds })
+    const middleTrackRefs = middleTrackIds.map(trackId => ({ serverId, trackId }));
+    void analysisSetPlaybackPriorityHints(middleTrackRefs).catch(() => {});
+    void invoke<AnalysisPrunePendingResult>('analysis_prune_pending_to_track_ids', {
+      trackIds: keepTrackIds,
+      serverId,
+    })
       .then(result => {
         if (!result) return;
         hotCacheFrontendDebug({

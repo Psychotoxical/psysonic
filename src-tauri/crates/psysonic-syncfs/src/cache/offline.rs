@@ -4,7 +4,8 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use psysonic_analysis::analysis_runtime::{
-    analysis_backfill_is_current_track, enqueue_track_analysis_from_file,
+    analysis_backfill_resolve_priority, enqueue_track_analysis_from_file,
+    AnalysisBackfillPriority,
 };
 use crate::{offline_cancel_flags, DownloadSemaphore};
 
@@ -17,9 +18,10 @@ pub async fn enqueue_analysis_seed_from_file(
     server_id: &str,
     track_id: &str,
     file_path: &std::path::Path,
+    explicit_priority: Option<AnalysisBackfillPriority>,
 ) {
-    let high = analysis_backfill_is_current_track(app, track_id);
-    let _ = enqueue_track_analysis_from_file(app, server_id, track_id, file_path, high).await;
+    let priority = analysis_backfill_resolve_priority(app, server_id, track_id, explicit_priority);
+    let _ = enqueue_track_analysis_from_file(app, server_id, track_id, file_path, priority).await;
 }
 
 /// AppHandle-free download primitive: ensures `cache_dir` exists, returns
@@ -137,7 +139,7 @@ pub async fn download_track_offline(
     )
     .await?;
 
-    enqueue_analysis_seed_from_file(&app, &server_id, &track_id, &final_path).await;
+    enqueue_analysis_seed_from_file(&app, &server_id, &track_id, &final_path, None).await;
 
     Ok(path_str)
 }

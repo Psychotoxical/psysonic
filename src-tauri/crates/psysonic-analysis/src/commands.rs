@@ -11,8 +11,10 @@ use psysonic_core::ports::PlaybackQueryHandle;
 
 use crate::analysis_cache;
 use crate::analysis_runtime::{
-    analysis_backfill_is_current_track, analysis_backfill_shared, prune_analysis_queues,
-    track_analysis_needs_work, AnalysisBackfillEnqueueKind,
+    analysis_backfill_queue_stats, analysis_backfill_resolve_priority, analysis_backfill_shared,
+    analysis_pipeline_queue_stats, prune_analysis_queues, track_analysis_needs_work,
+    AnalysisBackfillEnqueueKind,
+    AnalysisBackfillPriority, PlaybackPriorityHints,
 };
 
 #[derive(serde::Serialize)]
@@ -208,6 +210,7 @@ pub fn analysis_enqueue_seed_from_url(
     url: String,
     force: Option<bool>,
     server_id: Option<String>,
+    priority: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
     if track_id.trim().is_empty() || url.trim().is_empty() {
@@ -251,34 +254,86 @@ pub fn analysis_enqueue_seed_from_url(
         }
     }
     let tid_log = track_id.clone();
-    let high_priority = analysis_backfill_is_current_track(&app, &track_id);
+    let explicit = AnalysisBackfillPriority::from_optional_str(priority.as_deref());
+    let resolved =
+        analysis_backfill_resolve_priority(&app, &server_id, &track_id, explicit);
     let shared = analysis_backfill_shared(&app);
     let kind = {
         let mut st = shared
             .state
             .lock()
             .map_err(|_| "analysis backfill lock poisoned".to_string())?;
-        st.enqueue(server_id, track_id, url, high_priority)
+        st.enqueue(server_id, track_id, url, resolved)
     };
     match kind {
-        AnalysisBackfillEnqueueKind::NewBack | AnalysisBackfillEnqueueKind::NewFront => {
+        AnalysisBackfillEnqueueKind::NewLow
+        | AnalysisBackfillEnqueueKind::NewMiddle
+        | AnalysisBackfillEnqueueKind::NewHigh => {
             shared.ping_worker();
             crate::app_deprintln!(
-                "[analysis] backfill enqueued: track_id={} position={}",
+                "[analysis] backfill enqueued: track_id={} priority={resolved:?}",
                 tid_log,
-                if high_priority { "front" } else { "back" }
             );
         }
-        AnalysisBackfillEnqueueKind::ReorderedFront => {
+        AnalysisBackfillEnqueueKind::ReorderedHigher => {
             shared.ping_worker();
             crate::app_deprintln!(
-                "[analysis] backfill bumped to front (current track) track_id={}",
-                tid_log
+                "[analysis] backfill bumped tier track_id={} priority={resolved:?}",
+                tid_log,
             );
         }
         AnalysisBackfillEnqueueKind::DuplicateSkipped | AnalysisBackfillEnqueueKind::RunningSkipped => {}
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisPriorityHintDto {
+    pub server_id: String,
+    pub track_id: String,
+}
+
+#[tauri::command]
+pub fn analysis_set_playback_priority_hints(
+    middle_track_refs: Vec<AnalysisPriorityHintDto>,
+    hints: tauri::State<'_, PlaybackPriorityHints>,
+) -> Result<(), String> {
+    let pairs = middle_track_refs
+        .into_iter()
+        .map(|r| (r.server_id, r.track_id));
+    hints.set_middle_track_ids(pairs);
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisBackfillQueueStatsDto {
+    pub queued: usize,
+    pub in_progress_count: usize,
+    pub in_progress_track_id: Option<String>,
+}
+
+#[tauri::command]
+pub fn analysis_set_pipeline_parallelism(workers: u32) -> Result<(), String> {
+    crate::analysis_runtime::analysis_set_pipeline_parallelism(workers as usize);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn analysis_get_pipeline_queue_stats() -> Result<crate::analysis_runtime::AnalysisPipelineQueueStatsDto, String> {
+    Ok(analysis_pipeline_queue_stats())
+}
+
+#[tauri::command]
+pub fn analysis_get_backfill_queue_stats() -> Result<AnalysisBackfillQueueStatsDto, String> {
+    let (queued, in_progress_count, in_progress_track_id) =
+        analysis_backfill_queue_stats();
+    Ok(AnalysisBackfillQueueStatsDto {
+        queued,
+        in_progress_count,
+        in_progress_track_id,
+    })
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -296,6 +351,7 @@ pub struct AnalysisPrunePendingResult {
 #[tauri::command]
 pub fn analysis_prune_pending_to_track_ids(
     track_ids: Vec<String>,
+    server_id: String,
 ) -> Result<AnalysisPrunePendingResult, String> {
     let mut normalized: Vec<String> = Vec::with_capacity(track_ids.len());
     let mut seen = HashSet::new();
@@ -310,8 +366,10 @@ pub fn analysis_prune_pending_to_track_ids(
     }
     let keep_track_ids: HashSet<&str> = normalized.iter().map(|s| s.as_str()).collect();
 
+    let server_id = server_id.trim().to_string();
+    let server_filter = if server_id.is_empty() { None } else { Some(server_id.as_str()) };
     let (http_removed, cpu_removed_jobs, cpu_removed_waiters) =
-        prune_analysis_queues(&keep_track_ids)?;
+        prune_analysis_queues(&keep_track_ids, server_filter)?;
 
     if http_removed > 0 || cpu_removed_jobs > 0 {
         crate::app_deprintln!(

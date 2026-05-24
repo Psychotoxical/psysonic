@@ -171,14 +171,14 @@ pub(crate) async fn track_download_task(
                     &app,
                     server_id.as_deref(),
                 );
-                let high = crate::analysis_dispatch::high_priority_for_app(&app, &track_id, None);
+                    let priority = crate::analysis_dispatch::analysis_priority_for_app(&app, &sid, &track_id, None);
                 if let Err(e) = crate::analysis_dispatch::dispatch_track_analysis_bytes(
                     &app,
                     crate::analysis_dispatch::TrackAnalysisOrigin::StreamDownloadComplete,
                     &sid,
                     &track_id,
                     capture.clone(),
-                    high,
+                    priority,
                 )
                 .await
                 {
