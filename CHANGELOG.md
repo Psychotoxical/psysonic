@@ -290,6 +290,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Now Playing — stray zero metadata badges
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#865](https://github.com/Psychotoxical/psysonic/pull/865)**
+
+* Hero track-info badges no longer render literal `0` when numeric metadata fields (bit depth, bitrate, sample rate, year, rating) are missing and arrive as zero from the server.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
