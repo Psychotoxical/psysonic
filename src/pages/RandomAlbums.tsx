@@ -217,7 +217,14 @@ export default function RandomAlbums() {
     mixMinRatingArtist,
   ]);
 
-  useEffect(() => { load(selectedGenres); }, [selectedGenres, load]);
+  // Keep a ref so the effect closure is always fresh without re-triggering the
+  // effect on every `load` reference change. The effect must NOT list `load` as a
+  // dep — Zustand rehydration changes deps (e.g. mixMinRatingFilterEnabled) and
+  // recreates `load`, which would otherwise double-fire on every page visit and
+  // show a different random batch ~1.5 s after the first one.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  useEffect(() => { loadRef.current(selectedGenres); }, [selectedGenres]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="content-body animate-fade-in">
