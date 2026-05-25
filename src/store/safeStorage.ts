@@ -15,6 +15,11 @@ import { createJSONStorage, type StateStorage } from 'zustand/middleware';
  * shape already used ad-hoc for direct `localStorage.setItem` calls elsewhere
  * (e.g. mini-player geometry); this is its shared home for persist stores.
  */
+// Warn once per key per quota-exceeded streak — a 50k+ queue persists on every
+// mutation, so an unthrottled warning floods the console. Re-armed when a write
+// to that key next succeeds (queue shrank back under the quota).
+const quotaWarned = new Set<string>();
+
 const safeLocalStorage: StateStorage = {
   getItem: (name) => {
     try {
@@ -26,9 +31,14 @@ const safeLocalStorage: StateStorage = {
   setItem: (name, value) => {
     try {
       localStorage.setItem(name, value);
+      quotaWarned.delete(name);
     } catch (e) {
-      if (import.meta.env.DEV) {
-        console.warn(`[psysonic] persist write skipped for "${name}" (storage quota?)`, e);
+      if (import.meta.env.DEV && !quotaWarned.has(name)) {
+        quotaWarned.add(name);
+        console.warn(
+          `[psysonic] persist write skipped for "${name}" (storage quota?) — further skips silenced until it fits`,
+          e,
+        );
       }
     }
   },
