@@ -63,3 +63,4 @@ result-*
 dev.sh
 shell.nix
 prod.sh
+tsconfig.tsbuildinfo

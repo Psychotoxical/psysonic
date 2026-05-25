@@ -37,8 +37,8 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
-    // Default 500 kB warns on every build; desktop bundles are often larger without being a problem.
-    chunkSizeWarningLimit: 1000,
+    // licenses.json + auth persist payload exceed 1 MB; expected for a desktop app.
+    chunkSizeWarningLimit: 1600,
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome109" : "safari16",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
@@ -66,6 +66,9 @@ export default defineConfig({
           }
           if (id.includes("/i18next/") || id.includes("/react-i18next/")) {
             return "i18n";
+          }
+          if (id.includes("/data/licenses.json")) {
+            return "licenses";
           }
           return undefined;
         },
