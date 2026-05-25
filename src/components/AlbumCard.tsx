@@ -1,4 +1,3 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -9,7 +8,9 @@ import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
-import CachedImage from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { useCoverArt } from '../cover/useCoverArt';
+import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { playAlbum } from '../utils/playback/playAlbum';
 import { useDragDrop } from '../contexts/DragDropContext';
@@ -24,6 +25,9 @@ interface AlbumCardProps {
   showRating?: boolean;
   selectedAlbums?: SubsonicAlbum[];
   disableArtwork?: boolean;
+  /** Layout-native cover square width in CSS px (from parent grid). */
+  displayCssPx?: number;
+  /** @deprecated Use displayCssPx — kept for call-site transition only */
   artworkSize?: number;
 }
 
@@ -35,7 +39,8 @@ function AlbumCard({
   showRating = false,
   selectedAlbums = [],
   disableArtwork = false,
-  artworkSize = 300,
+  displayCssPx = COVER_DENSE_GRID_MIN_CELL_CSS_PX,
+  artworkSize: _artworkSize,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -47,15 +52,8 @@ function AlbumCard({
     if (!meta || meta.trackIds.length === 0) return false;
     return meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
   });
-  // buildCoverArtUrl emits a salted URL; memoize to avoid churn on rerenders.
-  const coverUrl = useMemo(
-    () => (album.coverArt ? buildCoverArtUrl(album.coverArt, artworkSize) : ''),
-    [album.coverArt, artworkSize],
-  );
-  const coverCacheKey = useMemo(
-    () => (album.coverArt ? coverArtCacheKey(album.coverArt, artworkSize) : ''),
-    [album.coverArt, artworkSize],
-  );
+  const coverHandle = useCoverArt(album.coverArt, displayCssPx, { surface: 'dense' });
+  const coverUrl = coverHandle.src;
   const psyDrag = useDragDrop();
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
@@ -98,10 +96,11 @@ function AlbumCard({
       }}
     >
       <div className="album-card-cover">
-        {!disableArtwork && coverUrl ? (
-          <CachedImage
-            src={coverUrl}
-            cacheKey={coverCacheKey}
+        {!disableArtwork && album.coverArt ? (
+          <CoverArtImage
+            coverArtId={album.coverArt}
+            displayCssPx={displayCssPx}
+            surface="dense"
             alt={`${album.name} Cover`}
             loading="eager"
             decoding="async"

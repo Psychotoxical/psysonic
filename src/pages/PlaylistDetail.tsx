@@ -164,8 +164,7 @@ export default function PlaylistDetail() {
   useBulkPlPickerOutsideClick(showBulkPlPicker, setShowBulkPlPicker);
 
   // ── 2×2 cover quad (first 4 unique album covers) ─────────────
-  const { coverQuadUrls, customCoverFetchUrl, customCoverCacheKey, resolvedBgUrl } =
-    usePlaylistCovers(songs, customCoverId);
+  const { coverQuadIds, resolvedBgUrl } = usePlaylistCovers(songs, customCoverId);
 
   // Song search
   const [searchOpen, setSearchOpen] = useState(false);
@@ -282,9 +281,7 @@ export default function PlaylistDetail() {
         songs={songs}
         id={id}
         customCoverId={customCoverId}
-        customCoverFetchUrl={customCoverFetchUrl}
-        customCoverCacheKey={customCoverCacheKey}
-        coverQuadUrls={coverQuadUrls}
+        coverQuadIds={coverQuadIds}
         resolvedBgUrl={resolvedBgUrl}
         saving={saving}
         searchOpen={searchOpen}
@@ -399,9 +396,7 @@ export default function PlaylistDetail() {
         <PlaylistEditModal
           playlist={playlist}
           customCoverId={customCoverId}
-          customCoverFetchUrl={customCoverFetchUrl ?? null}
-          customCoverCacheKey={customCoverCacheKey ?? null}
-          coverQuadUrls={coverQuadUrls}
+          coverQuadIds={coverQuadIds}
           onClose={() => setEditingMeta(false)}
           onSave={handleSaveMeta}
         />

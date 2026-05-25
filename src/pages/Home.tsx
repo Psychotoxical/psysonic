@@ -17,6 +17,9 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { dedupeById } from '../utils/dedupeById';
 import { shuffleArray } from '../utils/playback/shuffleArray';
+import { coverArtIdFromArtist } from '../cover/ids';
+import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { coverArtRef } from '../cover/ref';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
 const HOME_RANDOM_FETCH = 100;
@@ -58,6 +61,23 @@ export default function Home() {
   useEffect(() => {
     bumpPerfCounter('homeCommits');
   });
+
+  useEffect(() => {
+    const albumRefs = [
+      ...heroAlbums,
+      ...recent,
+      ...random,
+      ...mostPlayed,
+      ...recentlyPlayed,
+      ...starred,
+    ].flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const artistRefs = randomArtists.map(a => coverArtRef(coverArtIdFromArtist(a)));
+    const songRefs = discoverSongs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : []));
+    return coverPrefetchRegister([...albumRefs, ...artistRefs, ...songRefs], {
+      surface: 'dense',
+      priority: 'middle',
+    });
+  }, [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs]);
 
   useEffect(() => {
     let cancelled = false;

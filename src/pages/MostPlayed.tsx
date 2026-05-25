@@ -1,4 +1,3 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -7,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound, Play, ListPlus } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import CachedImage from '../components/CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
 import { playAlbum } from '../utils/playback/playAlbum';
 import { useTranslation } from 'react-i18next';
 
@@ -53,10 +52,19 @@ function formatPlays(n: number, t: ReturnType<typeof import('react-i18next').use
   return t('mostPlayed.plays', { n: n.toLocaleString() }) as string;
 }
 
+/** Most-played list row cover layout px. */
+const MOST_PLAYED_COVER_CSS_PX = 80;
+
 function MpCover80({ coverArt, alt, className }: { coverArt: string; alt: string; className: string }) {
-  const src = useMemo(() => buildCoverArtUrl(coverArt, 80), [coverArt]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 80), [coverArt]);
-  return <CachedImage src={src} cacheKey={cacheKey} alt={alt} className={className} />;
+  return (
+    <CoverArtImage
+      coverArtId={coverArt}
+      displayCssPx={MOST_PLAYED_COVER_CSS_PX}
+      surface="dense"
+      alt={alt}
+      className={className}
+    />
+  );
 }
 
 export default function MostPlayed() {

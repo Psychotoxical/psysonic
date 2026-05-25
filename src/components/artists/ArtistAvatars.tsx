@@ -1,7 +1,11 @@
-import React, { useMemo } from 'react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
+import React from 'react';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { coverArtIdFromArtist } from '../../cover/ids';
+import {
+  COVER_DENSE_ARTIST_LIST_CSS_PX,
+  COVER_DENSE_GRID_MIN_CELL_CSS_PX,
+} from '../../cover/layoutSizes';
 import { ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import { nameColor, nameInitial } from '../../utils/componentHelpers/artistsHelpers';
 
@@ -17,20 +21,14 @@ interface AvatarProps {
  */
 export function ArtistCardAvatar({ artist, showImages }: AvatarProps) {
   const color = nameColor(artist.name);
-  const coverId = artist.coverArt || artist.id;
-  const { coverSrc, coverKey } = useMemo(
-    () => ({
-      coverSrc: coverId ? buildCoverArtUrl(coverId, 300) : '',
-      coverKey: coverId ? coverArtCacheKey(coverId, 300) : '',
-    }),
-    [coverId],
-  );
-  if (showImages && coverId) {
+  const coverId = coverArtIdFromArtist(artist);
+  if (showImages && (artist.coverArt || artist.id)) {
     return (
       <div className="artist-card-avatar">
-        <CachedImage
-          src={coverSrc}
-          cacheKey={coverKey}
+        <CoverArtImage
+          coverArtId={coverId}
+          displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
+          surface="dense"
           alt={artist.name}
           observeScrollRootId={ARTISTS_INPAGE_SCROLL_VIEWPORT_ID}
         />
@@ -46,25 +44,18 @@ export function ArtistCardAvatar({ artist, showImages }: AvatarProps) {
 
 /**
  * Row-sized artist avatar for the list view. Same fallback rules as the
- * card variant, but smaller cover-art size (64px vs 300px) so list rows
- * don't pull oversized images from the server.
+ * card variant, but smaller layout px so list rows don't pull oversized images.
  */
 export function ArtistRowAvatar({ artist, showImages }: AvatarProps) {
   const color = nameColor(artist.name);
-  const coverId = artist.coverArt || artist.id;
-  const { coverSrc, coverKey } = useMemo(
-    () => ({
-      coverSrc: coverId ? buildCoverArtUrl(coverId, 64) : '',
-      coverKey: coverId ? coverArtCacheKey(coverId, 64) : '',
-    }),
-    [coverId],
-  );
-  if (showImages && coverId) {
+  const coverId = coverArtIdFromArtist(artist);
+  if (showImages && (artist.coverArt || artist.id)) {
     return (
       <div className="artist-avatar">
-        <CachedImage
-          src={coverSrc}
-          cacheKey={coverKey}
+        <CoverArtImage
+          coverArtId={coverId}
+          displayCssPx={COVER_DENSE_ARTIST_LIST_CSS_PX}
+          surface="dense"
           alt={artist.name}
           observeScrollRootId={ARTISTS_INPAGE_SCROLL_VIEWPORT_ID}
           style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}

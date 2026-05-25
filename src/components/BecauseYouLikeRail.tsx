@@ -1,4 +1,3 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getArtist, getArtistInfo } from '../api/subsonicArtists';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
@@ -8,7 +7,8 @@ import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Music } from 'lucide-react';
-import CachedImage, { useCachedUrl } from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { useCoverArt } from '../cover/useCoverArt';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playback/playAlbum';
@@ -39,7 +39,8 @@ const SIMILAR_FETCH = 25;
 const SIMILAR_PICK = 6;
 const SHOW_COUNT = 3;
 const PICKS_HISTORY_SIZE = 30;
-const COVER_SIZE = 300;
+/** `.because-card-cover-wrap` layout square (160×160). */
+const BECAUSE_CARD_COVER_CSS_PX = 160;
 
 interface Anchor {
   id: string;
@@ -253,15 +254,8 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
   const { t } = useTranslation();
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverUrl = useMemo(
-    () => (album.coverArt ? buildCoverArtUrl(album.coverArt, COVER_SIZE) : ''),
-    [album.coverArt],
-  );
-  const coverKey = useMemo(
-    () => (album.coverArt ? coverArtCacheKey(album.coverArt, COVER_SIZE) : ''),
-    [album.coverArt],
-  );
-  const bgResolved = useCachedUrl(coverUrl, coverKey);
+  const coverHandle = useCoverArt(album.coverArt, BECAUSE_CARD_COVER_CSS_PX, { surface: 'dense' });
+  const bgResolved = coverHandle.src;
 
   const handleOpen = () => navigate(`/album/${album.id}`);
   const handlePlay = (e: React.MouseEvent) => {
@@ -295,10 +289,11 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
         />
       )}
       <div className="because-card-cover-wrap">
-        {!disableArtwork && coverUrl ? (
-          <CachedImage
-            src={coverUrl}
-            cacheKey={coverKey}
+        {!disableArtwork && album.coverArt ? (
+          <CoverArtImage
+            coverArtId={album.coverArt}
+            displayCssPx={BECAUSE_CARD_COVER_CSS_PX}
+            surface="dense"
             alt={album.name}
             className="because-card-cover"
             loading="lazy"

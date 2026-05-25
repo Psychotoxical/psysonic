@@ -1,15 +1,18 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { search } from '../api/subsonicSearch';
 import type { SearchResults, SubsonicArtist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
+import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { coverArtIdFromArtist } from '../cover/ids';
+import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { coverArtRef } from '../cover/ref';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
@@ -32,11 +35,12 @@ function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
   return (q: string) => { clearTimeout(timer); timer = setTimeout(() => fn(q), ms); };
 }
 
+/** Mobile search row thumb — larger than desktop live search (32px). */
+const MOBILE_SEARCH_THUMB_CSS_PX = 80;
+
 function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id' | 'coverArt'> }) {
   const [failed, setFailed] = useState(false);
-  const coverId = artist.coverArt || artist.id;
-  const src = useMemo(() => buildCoverArtUrl(coverId, 80), [coverId]);
-  const ck = useMemo(() => coverArtCacheKey(coverId, 80), [coverId]);
+  const coverId = coverArtIdFromArtist(artist);
   useEffect(() => { setFailed(false); }, [coverId]);
   if (failed) {
     return (
@@ -46,10 +50,11 @@ function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id'
     );
   }
   return (
-    <CachedImage
+    <CoverArtImage
+      coverArtId={coverId}
+      displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
+      surface="dense"
       className="mobile-search-thumb mobile-search-thumb--artist-round"
-      src={src}
-      cacheKey={ck}
       alt=""
       loading="eager"
       fetchQueueBias={FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM}
@@ -97,6 +102,16 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     }
     doSearch(query);
   }, [query, doSearch, share.shareMatch]);
+
+  useEffect(() => {
+    if (!results) return () => {};
+    const refs = [
+      ...results.artists.map(a => coverArtRef(coverArtIdFromArtist(a))),
+      ...results.albums.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : [])),
+      ...results.songs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : [])),
+    ];
+    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
+  }, [results]);
 
   const commit = (q: string) => {
     if (q.trim()) setRecentSearches(prev => saveRecent(q, prev));
@@ -272,10 +287,11 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                 {results!.albums.map(a => (
                   <button key={a.id} className="mobile-search-item" onClick={() => goTo(`/album/${a.id}`)}>
                     {a.coverArt ? (
-                      <CachedImage
+                      <CoverArtImage
+                        coverArtId={a.coverArt}
+                        displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
+                        surface="dense"
                         className="mobile-search-thumb"
-                        src={buildCoverArtUrl(a.coverArt, 80)}
-                        cacheKey={coverArtCacheKey(a.coverArt, 80)}
                         alt=""
                       />
                     ) : (
@@ -299,10 +315,11 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                 {results!.songs.map(s => (
                   <button key={s.id} className="mobile-search-item" onClick={() => enqueueSong(s)}>
                     {s.coverArt ? (
-                      <CachedImage
+                      <CoverArtImage
+                        coverArtId={s.coverArt}
+                        displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
+                        surface="dense"
                         className="mobile-search-thumb"
-                        src={buildCoverArtUrl(s.coverArt, 80)}
-                        cacheKey={coverArtCacheKey(s.coverArt, 80)}
                         alt=""
                       />
                     ) : (

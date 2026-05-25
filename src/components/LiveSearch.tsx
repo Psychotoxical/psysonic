@@ -1,4 +1,3 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { subscribeLibrarySyncIdle, subscribeLibrarySyncProgress } from '../api/library';
 import type { SearchResults, SubsonicArtist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -28,7 +27,12 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useTranslation } from 'react-i18next';
-import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
+import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { COVER_DENSE_SEARCH_CSS_PX } from '../cover/layoutSizes';
+import { coverArtIdFromArtist } from '../cover/ids';
+import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { coverArtRef } from '../cover/ref';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
@@ -37,23 +41,28 @@ import { resolveIndexKey } from '../utils/server/serverIndexKey';
 type LiveSearchSource = 'local' | 'network';
 
 function LiveSearchAlbumThumb({ coverArt }: { coverArt: string }) {
-  const src = useMemo(() => buildCoverArtUrl(coverArt, 40), [coverArt]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 40), [coverArt]);
-  return <CachedImage className="search-result-thumb" src={src} cacheKey={cacheKey} alt="" />;
+  return (
+    <CoverArtImage
+      coverArtId={coverArt}
+      displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
+      surface="dense"
+      className="search-result-thumb"
+      alt=""
+    />
+  );
 }
 
 function LiveSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id' | 'coverArt'> }) {
   const [failed, setFailed] = useState(false);
-  const coverId = artist.coverArt || artist.id;
-  const src = useMemo(() => buildCoverArtUrl(coverId, 40), [coverId]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverId, 40), [coverId]);
+  const coverId = coverArtIdFromArtist(artist);
   useEffect(() => { setFailed(false); }, [coverId]);
   if (failed) return <div className="search-result-icon"><Users size={14} /></div>;
   return (
-    <CachedImage
+    <CoverArtImage
+      coverArtId={coverId}
+      displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
+      surface="dense"
       className="search-result-thumb"
-      src={src}
-      cacheKey={cacheKey}
       alt=""
       loading="eager"
       fetchQueueBias={FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM}
@@ -412,6 +421,19 @@ export default function LiveSearch() {
   const hasResults =
     !!share.shareMatch ||
     (results && (results.artists.length || results.albums.length || results.songs.length));
+
+  useEffect(() => {
+    if (!results || share.shareMatch) return () => {};
+    const refs = [
+      ...results.artists.map(a => coverArtRef(coverArtIdFromArtist(a))),
+      ...results.albums.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : [])),
+      ...results.songs.flatMap(s => {
+        const id = s.coverArt ?? s.albumId;
+        return id ? [coverArtRef(id)] : [];
+      }),
+    ];
+    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
+  }, [results, share.shareMatch]);
 
   // Flat list of all navigable items for keyboard nav
   const flatItems = share.shareMatch && share.hasShareKeyboardTarget ? [

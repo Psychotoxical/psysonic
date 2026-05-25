@@ -2,21 +2,21 @@ import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Camera, Loader2, X } from 'lucide-react';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
-import CachedImage from '../CachedImage';
+import type { CoverArtId } from '../../cover/types';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { PLAYLIST_MAIN_COVER_CSS_PX } from '../../hooks/usePlaylistCovers';
+import { PlaylistSmartCoverCell } from '../playlists/PlaylistCoverImages';
 
 interface EditModalProps {
   playlist: SubsonicPlaylist;
   customCoverId: string | null;
-  customCoverFetchUrl: string | null;
-  customCoverCacheKey: string | null;
-  coverQuadUrls: ({ src: string; cacheKey: string } | null)[];
+  coverQuadIds: (CoverArtId | null)[];
   onClose: () => void;
   onSave: (opts: { name: string; comment: string; isPublic: boolean; coverFile: File | null; coverRemoved: boolean }) => Promise<void>;
 }
 
 export default function PlaylistEditModal({
-  playlist, customCoverId, customCoverFetchUrl, customCoverCacheKey,
-  coverQuadUrls, onClose, onSave,
+  playlist, customCoverId, coverQuadIds, onClose, onSave,
 }: EditModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(playlist.name);
@@ -78,18 +78,19 @@ export default function PlaylistEditModal({
           >
             {coverPreview ? (
               <img src={coverPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            ) : !coverRemoved && customCoverFetchUrl && customCoverCacheKey ? (
-              <CachedImage
-                src={customCoverFetchUrl}
-                cacheKey={customCoverCacheKey}
+            ) : !coverRemoved && customCoverId ? (
+              <CoverArtImage
+                coverArtId={customCoverId}
+                displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
+                surface="dense"
                 alt=""
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
             ) : (
               <div className="playlist-cover-grid" style={{ width: '100%', height: '100%' }}>
-                {coverQuadUrls.map((entry, i) =>
-                  entry
-                    ? <CachedImage key={i} className="playlist-cover-cell" src={entry.src} cacheKey={entry.cacheKey} alt="" />
+                {coverQuadIds.map((coverId, i) =>
+                  coverId
+                    ? <PlaylistSmartCoverCell key={i} coverId={coverId} />
                     : <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
                 )}
               </div>

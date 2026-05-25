@@ -1,12 +1,14 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getSong } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { useEffect, useMemo, useState } from 'react';
 import { Radio, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
-import CachedImage from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
 import OrbitQueueHead from './OrbitQueueHead';
+
+const ORBIT_QUEUE_COVER_LG_CSS_PX = 54;
+const ORBIT_QUEUE_COVER_SM_CSS_PX = 48;
 
 /**
  * Orbit — guest-side queue view.
@@ -76,9 +78,10 @@ export default function OrbitGuestQueue() {
           </div>
           <div className="orbit-guest-queue__current-body">
             {currentSong?.coverArt ? (
-              <CachedImage
-                src={buildCoverArtUrl(currentSong.coverArt, 96)}
-                cacheKey={coverArtCacheKey(currentSong.coverArt, 96)}
+              <CoverArtImage
+                coverArtId={currentSong.coverArt}
+                displayCssPx={ORBIT_QUEUE_COVER_LG_CSS_PX}
+                surface="dense"
                 alt=""
                 className="orbit-guest-queue__cover orbit-guest-queue__cover--lg"
               />
@@ -112,9 +115,10 @@ export default function OrbitGuestQueue() {
             return (
               <div key={trackId} className="orbit-guest-queue__item orbit-guest-queue__item--pending">
                 {song?.coverArt ? (
-                  <CachedImage
-                    src={buildCoverArtUrl(song.coverArt, 48)}
-                    cacheKey={coverArtCacheKey(song.coverArt, 48)}
+                  <CoverArtImage
+                    coverArtId={song.coverArt}
+                    displayCssPx={ORBIT_QUEUE_COVER_SM_CSS_PX}
+                    surface="dense"
                     alt=""
                     className="orbit-guest-queue__cover"
                   />
@@ -150,9 +154,10 @@ export default function OrbitGuestQueue() {
               className="orbit-guest-queue__item"
             >
               {song?.coverArt ? (
-                <CachedImage
-                  src={buildCoverArtUrl(song.coverArt, 48)}
-                  cacheKey={coverArtCacheKey(song.coverArt, 48)}
+                <CoverArtImage
+                  coverArtId={song.coverArt}
+                  displayCssPx={ORBIT_QUEUE_COVER_SM_CSS_PX}
+                  surface="dense"
                   alt=""
                   className="orbit-guest-queue__cover"
                 />

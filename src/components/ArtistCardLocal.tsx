@@ -1,10 +1,11 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import type { SubsonicArtist } from '../api/subsonicTypes';
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import CachedImage from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { coverArtIdFromArtist } from '../cover/ids';
+import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 
 interface Props {
   artist: SubsonicArtist;
@@ -13,19 +14,16 @@ interface Props {
 export default function ArtistCardLocal({ artist }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const coverId = artist.coverArt || artist.id;
-  // buildCoverArtUrl generates a new crypto salt on every call — must be
-  // memoized to prevent a new URL on every parent re-render causing refetch loops.
-  const coverSrc = useMemo(() => buildCoverArtUrl(coverId, 300), [coverId]);
-  const coverCacheKey = useMemo(() => coverArtCacheKey(coverId, 300), [coverId]);
+  const coverId = coverArtIdFromArtist(artist);
 
   return (
     <div className="artist-card" onClick={() => navigate(`/artist/${artist.id}`)}>
       <div className="artist-card-avatar">
-        {coverId ? (
-          <CachedImage
-            src={coverSrc}
-            cacheKey={coverCacheKey}
+        {artist.coverArt || artist.id ? (
+          <CoverArtImage
+            coverArtId={coverId}
+            displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
+            surface="dense"
             alt={artist.name}
             loading="lazy"
             onError={(e) => {

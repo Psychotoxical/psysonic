@@ -1,18 +1,24 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, ListPlus, X } from 'lucide-react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { formatTrackTime } from '../../utils/format/formatDuration';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 
 function PlaylistSearchResultThumb({ coverArt }: { coverArt: string }) {
-  const src = useMemo(() => buildCoverArtUrl(coverArt, 40), [coverArt]);
-  const cacheKey = useMemo(() => coverArtCacheKey(coverArt, 40), [coverArt]);
-  return <CachedImage src={src} cacheKey={cacheKey} alt="" className="playlist-search-thumb" />;
+  return (
+    <CoverArtImage
+      coverArtId={coverArt}
+      displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
+      surface="dense"
+      alt=""
+      className="playlist-search-thumb"
+    />
+  );
 }
 
 interface Props {
