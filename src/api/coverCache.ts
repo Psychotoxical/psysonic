@@ -59,11 +59,11 @@ export async function coverCacheEnsure(
 export async function coverCacheEnsureBatch(
   refs: CoverArtRef[],
   tier: CoverArtTier,
-  _priority?: string,
+  priority?: string,
 ): Promise<void> {
-  return invoke('cover_cache_ensure_batch', {
-    items: refs.map(r => ensureArgsFromRef(r, tier)),
-  });
+  for (const ref of refs) {
+    await coverCacheEnsure(ref, tier, priority);
+  }
 }
 
 export async function coverCacheStats(): Promise<CoverCacheStats> {

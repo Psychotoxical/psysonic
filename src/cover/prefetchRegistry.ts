@@ -2,6 +2,7 @@ import { coverCacheMayBackgroundDownload as ipcMayDownload } from '../api/coverC
 import { coverServerReachable } from './reachability';
 import type { CoverArtRef, CoverArtTier, CoverPrefetchPriority, CoverSurfaceKind } from './types';
 
+const MAX_REGISTRY = 120;
 const registry = new Map<string, { ref: CoverArtRef; priority: CoverPrefetchPriority }>();
 
 function registryKey(ref: CoverArtRef): string {
@@ -29,6 +30,10 @@ export function coverPrefetchRegister(
   for (const ref of refs) {
     if (!ref.coverArtId || !coverServerReachable(ref.serverScope)) continue;
     const key = registryKey(ref);
+    if (registry.size >= MAX_REGISTRY && !registry.has(key)) {
+      const drop = [...registry.entries()].find(([, v]) => v.priority === 'low');
+      if (drop) registry.delete(drop[0]);
+    }
     registry.set(key, { ref, priority: opts.priority });
     keys.push(key);
   }

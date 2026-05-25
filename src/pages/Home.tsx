@@ -73,9 +73,10 @@ export default function Home() {
     ].flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
     const artistRefs = randomArtists.map(a => coverArtRef(coverArtIdFromArtist(a)));
     const songRefs = discoverSongs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : []));
-    return coverPrefetchRegister([...albumRefs, ...artistRefs, ...songRefs], {
+    const capped = [...albumRefs, ...artistRefs, ...songRefs].slice(0, 48);
+    return coverPrefetchRegister(capped, {
       surface: 'dense',
-      priority: 'middle',
+      priority: 'low',
     });
   }, [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs]);
 
