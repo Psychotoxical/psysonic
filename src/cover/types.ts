@@ -26,6 +26,8 @@ export type CoverArtRef = {
 export type CoverArtHandle = {
   src: string;
   storageKey: string;
+  /** Alias for {@link storageKey} — migration shim for legacy `cacheKey` consumers */
+  cacheKey: string;
   tier: CoverArtTier;
   provisional: boolean;
 };

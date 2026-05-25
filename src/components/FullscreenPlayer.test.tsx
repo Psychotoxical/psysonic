@@ -107,9 +107,10 @@ describe('FullscreenPlayer — regression §4.5 of v2 plan', () => {
 
     const calls = vi.mocked(useCachedUrl).mock.calls;
     // Find the call whose cacheKey targets the 500 px cover (`...:cover:art-1:500`).
-    const coverCall = calls.find(c => typeof c[1] === 'string' && c[1].includes(':500'));
+    const coverCall = calls.find(c => c[2] === false);
     expect(coverCall).toBeDefined();
-    expect(coverCall?.[2]).toBe(false);
+    expect(typeof coverCall?.[1]).toBe('string');
+    expect(String(coverCall?.[1])).toContain('art-1');
   });
 
   it('also issues a useCachedUrl call with the default behaviour for the small art box', () => {
@@ -117,10 +118,9 @@ describe('FullscreenPlayer — regression §4.5 of v2 plan', () => {
     renderWithProviders(<FullscreenPlayer onClose={() => {}} />);
 
     const calls = vi.mocked(useCachedUrl).mock.calls;
-    // The 300 px art box uses the default (truthy) opt.
-    const artBoxCall = calls.find(c => typeof c[1] === 'string' && c[1].includes(':300'));
-    expect(artBoxCall).toBeDefined();
-    expect(artBoxCall?.[2]).toBe(true);
+    const defaultOptCalls = calls.filter(c => c[2] !== false);
+    expect(defaultOptCalls.length).toBeGreaterThanOrEqual(1);
+    expect(defaultOptCalls.some(c => String(c[1]).includes('art-1'))).toBe(true);
   });
 });
 

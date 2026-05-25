@@ -1,4 +1,5 @@
 import type { ImgHTMLAttributes } from 'react';
+import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '../components/CachedImage';
 import type { CoverArtId, CoverServerScope, CoverSurfaceKind } from './types';
 import { useCoverArt } from './useCoverArt';
 
@@ -10,9 +11,11 @@ export type CoverArtImageProps = {
   fullRes?: boolean;
   className?: string;
   alt?: string;
+  fetchQueueBias?: number;
+  observeRootMargin?: string;
+  observeScrollRootId?: string;
 } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'>;
 
-/** Phase A stub */
 export function CoverArtImage({
   coverArtId,
   displayCssPx,
@@ -21,8 +24,28 @@ export function CoverArtImage({
   fullRes,
   className,
   alt,
+  fetchQueueBias,
+  observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
+  observeScrollRootId,
   ...rest
 }: CoverArtImageProps) {
-  const { src } = useCoverArt(coverArtId, displayCssPx, { serverScope, surface, fullRes, alt });
-  return <img src={src} className={className} alt={alt ?? ''} {...rest} />;
+  const { src, provisional } = useCoverArt(coverArtId, displayCssPx, {
+    serverScope,
+    surface,
+    fullRes,
+    fetchQueueBias,
+    alt,
+  });
+
+  return (
+    <img
+      src={src}
+      className={className}
+      alt={alt ?? ''}
+      data-cover-provisional={provisional ? 'true' : undefined}
+      data-observe-root-margin={observeRootMargin}
+      data-observe-scroll-root={observeScrollRootId}
+      {...rest}
+    />
+  );
 }

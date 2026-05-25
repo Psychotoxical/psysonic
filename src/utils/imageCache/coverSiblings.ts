@@ -1,4 +1,7 @@
-import { COVER_ART_REGISTERED_SIZES } from '../cover/coverArtRegisteredSizes';
+import { COVER_ART_TIERS } from '../../cover/tiers';
+
+/** Tier ladder for sibling probe (exclude on-demand 2000). */
+const COVER_SIBLING_TIERS = COVER_ART_TIERS.filter(t => t !== 2000);
 import { downscaleCoverBlob } from '../cover/coverBlobDownscale';
 import { blobCache, rememberBlob } from './blobCache';
 import { purgeUrlEntry } from './urlPool';
@@ -6,7 +9,7 @@ import { mapBlobsFromIDB, putBlob } from './idbStore';
 import { acquireNetFetchSlot, releaseNetFetchSlot } from './netFetchScheduler';
 
 /** Prefer larger blobs as provisional placeholders — downscaled in `<img>` for sharpness. */
-const COVER_ART_CACHE_SIZES_DESC = [...COVER_ART_REGISTERED_SIZES].sort((a, b) => b - a);
+const COVER_ART_CACHE_SIZES_DESC = [...COVER_SIBLING_TIERS].sort((a, b) => b - a);
 
 export function parseCoverCacheKey(cacheKey: string): { stem: string; size: number } | null {
   const colon = cacheKey.lastIndexOf(':');

@@ -53,16 +53,18 @@ export function buildStreamUrl(id: string): string {
   return streamUrlFromProfile(server.url, server.username, server.password, id);
 }
 
-/** Stable cache key for cover art — does not include ephemeral auth params. */
+/** @deprecated Use `coverStorageKey` from `src/cover/storageKeys` — shim until migration. */
 export function coverArtCacheKey(id: string, size = 256): string {
   const server = useAuthStore.getState().getActiveServer();
   return coverArtCacheKeyForServer(server?.id ?? '_', id, size);
 }
 
+/** @deprecated Use `coverStorageKey` from `src/cover/storageKeys` — shim until migration. */
 export function coverArtCacheKeyForServer(serverId: string, id: string, size = 256): string {
   return `${serverId}:cover:${id}:${size}`;
 }
 
+/** @deprecated Use `buildCoverArtFetchUrl` from `src/cover/fetchUrl` — shim until migration. */
 export function buildCoverArtUrl(id: string, size = 256): string {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();
@@ -71,7 +73,7 @@ export function buildCoverArtUrl(id: string, size = 256): string {
   return `${baseUrl}/rest/getCoverArt.view?${p.toString()}`;
 }
 
-/** Cover art for a specific saved server (e.g. share-search preview on a non-active server). */
+/** @deprecated Use `buildCoverArtFetchUrl` from `src/cover/fetchUrl` — shim until migration. */
 export function buildCoverArtUrlForServer(
   serverUrl: string,
   username: string,

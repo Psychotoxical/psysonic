@@ -1,12 +1,13 @@
 import { useAuthStore } from '../store/authStore';
 import type { CoverServerScope } from './types';
 
-/** Per-server reachability — wired to auth connection state */
+/** Per-server reachability — active/playback use navigator + configured server */
 export function coverServerReachable(scope: CoverServerScope): boolean {
   if (scope.kind === 'server') {
-    const s = useAuthStore.getState().servers.find(x => x.id === scope.serverId);
-    return s?.connected !== false;
+    return !!scope.url && !!scope.username;
   }
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
   const active = useAuthStore.getState().getActiveServer();
-  return active?.connected !== false;
+  const baseUrl = useAuthStore.getState().getBaseUrl();
+  return !!(active && baseUrl);
 }
