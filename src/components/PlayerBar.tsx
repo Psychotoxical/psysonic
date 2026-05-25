@@ -1,6 +1,6 @@
 import { queueSongStar } from '../store/pendingStarSync';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
+import { coverArtIdFromRadio } from '../cover/ids';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -13,7 +13,6 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import CachedImage from './CachedImage';
 import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';
 import StarRating from './StarRating';
@@ -139,13 +138,7 @@ export default function PlayerBar() {
 
   const duration = currentTrack?.duration ?? 0;
 
-  // Cover art: prefer radio station art, fall back to track art.
-  // Note: getCoverArt.view needs ra-{id}, not the raw coverArt filename Navidrome returns.
-  const radioCoverSrc = useMemo(
-    () => currentRadio?.coverArt ? buildCoverArtUrl(`ra-${currentRadio.id}`, 128) : '',
-    [currentRadio?.coverArt, currentRadio?.id]
-  );
-  const radioCoverKey = currentRadio?.coverArt ? coverArtCacheKey(`ra-${currentRadio.id}`, 128) : '';
+  const radioCoverArtId = currentRadio?.coverArt ? coverArtIdFromRadio(currentRadio.id) : undefined;
   // Preview takes visual priority over the queued track in the player-bar info
   // cell, but only when not in radio mode (radio has its own meta layout).
   const showPreviewMeta = isPreviewing && !isRadio && previewingTrack !== null;
@@ -156,14 +149,8 @@ export default function PlayerBar() {
     ? currentTrack.artists
     : undefined;
 
-  const previewCover = useMemo(() => {
-    if (!showPreviewMeta || !previewingTrack?.coverArt) return { src: '', cacheKey: '' };
-    const id = previewingTrack.coverArt;
-    return { src: buildCoverArtUrl(id, 128), cacheKey: coverArtCacheKey(id, 128) };
-  }, [showPreviewMeta, previewingTrack?.coverArt]);
-  const queueCover = usePlaybackCoverArt(showPreviewMeta ? undefined : displayCoverArt, 128);
-  const coverSrc = showPreviewMeta ? previewCover.src : queueCover.src;
-  const coverKey = showPreviewMeta ? previewCover.cacheKey : queueCover.cacheKey;
+  usePlaybackCoverArt(showPreviewMeta ? undefined : displayCoverArt, 128);
+  const coverArtId = showPreviewMeta ? previewingTrack?.coverArt : displayCoverArt;
 
   const handleVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));
@@ -208,10 +195,8 @@ export default function PlayerBar() {
         currentRadio={currentRadio}
         isRadio={isRadio}
         radioMeta={radioMeta}
-        radioCoverSrc={radioCoverSrc}
-        radioCoverKey={radioCoverKey}
-        coverSrc={coverSrc}
-        coverKey={coverKey}
+        radioCoverArtId={radioCoverArtId}
+        coverArtId={coverArtId}
         displayCoverArt={displayCoverArt}
         displayTitle={displayTitle}
         displayArtist={displayArtist}

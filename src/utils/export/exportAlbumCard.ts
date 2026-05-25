@@ -1,8 +1,8 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { getCachedBlob } from '../imageCache';
+import { coverArtRef } from '../../cover/ref';
+import { loadCoverBlobForExport } from '../../cover/integrations/export';
 import PsysonicLogo from '../../components/PsysonicLogo';
 
 export type ExportFormat = 'story' | 'square' | 'twitter';
@@ -61,10 +61,10 @@ function isLight(hex: string): boolean {
   return (r + g + b) / 3 > 160;
 }
 
-async function loadAlbumCover(album: SubsonicAlbum, size: number, signal?: AbortSignal): Promise<ImageBitmap | null> {
+async function loadAlbumCover(album: SubsonicAlbum, displayCssPx: number, signal?: AbortSignal): Promise<ImageBitmap | null> {
   if (!album.coverArt) return null;
   try {
-    const blob = await getCachedBlob(buildCoverArtUrl(album.coverArt, size), coverArtCacheKey(album.coverArt, size), signal);
+    const blob = await loadCoverBlobForExport(coverArtRef(album.coverArt), displayCssPx, signal);
     if (!blob) return null;
     return await createImageBitmap(blob);
   } catch {

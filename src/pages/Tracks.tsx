@@ -1,4 +1,4 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { CoverArtImage } from '../cover/CoverArtImage';
 import { getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -8,7 +8,6 @@ import { Play, ListPlus, RefreshCw, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import CachedImage from '../components/CachedImage';
 import SongRail from '../components/SongRail';
 import VirtualSongList from '../components/VirtualSongList';
 import { playSongNow } from '../utils/playback/playSong';
@@ -89,15 +88,6 @@ export default function Tracks() {
     reloadRated();
   }, [activeServerId, rerollHero, rerollRandom, reloadRated]);
 
-  const heroCoverUrl = useMemo(
-    () => (hero?.coverArt ? buildCoverArtUrl(hero.coverArt, 600) : ''),
-    [hero?.coverArt],
-  );
-  const heroCoverKey = useMemo(
-    () => (hero?.coverArt ? coverArtCacheKey(hero.coverArt, 600) : ''),
-    [hero?.coverArt],
-  );
-
   // Hide the hero song from the random rail if the server happens to return it in
   // both fetches (Navidrome's getRandomSongs sometimes overlaps within a short window).
   const railSongs = useMemo(
@@ -119,10 +109,11 @@ export default function Tracks() {
       {!perfFlags.disableMainstageHero && hero && (
         <section className="tracks-hero">
           <div className="tracks-hero-cover">
-            {heroCoverUrl ? (
-              <CachedImage
-                src={heroCoverUrl}
-                cacheKey={heroCoverKey}
+            {hero.coverArt ? (
+              <CoverArtImage
+                coverArtId={hero.coverArt}
+                displayCssPx={600}
+                surface="sparse"
                 alt=""
               />
             ) : (

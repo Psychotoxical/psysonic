@@ -1,4 +1,4 @@
-import { buildCoverArtUrl } from '../api/subsonicStreamUrl';
+import { CoverArtImage } from '../cover/CoverArtImage';
 import { getNowPlaying } from '../api/subsonicScrobble';
 import type { SubsonicNowPlaying } from '../api/subsonicTypes';
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
@@ -162,7 +162,13 @@ export default function NowPlayingDropdown() {
                 >
                   <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: '6px', overflow: 'hidden', background: 'var(--bg-surface)' }}>
                     {stream.coverArt ? (
-                      <img src={buildCoverArtUrl(stream.coverArt, 100)} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <CoverArtImage
+                        coverArtId={stream.coverArt}
+                        displayCssPx={50}
+                        surface="sparse"
+                        alt="Cover"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
                     ) : (
                       <PlayCircle size={24} style={{ margin: '12px', color: 'var(--text-muted)' }} />
                     )}

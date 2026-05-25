@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -10,8 +10,9 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useAuthStore } from '../../store/authStore';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import CachedImage from '../CachedImage';
-import CoverLightbox from '../CoverLightbox';
+import { ArtistHeroCover } from '../../cover/artistHero';
+import { coverArtRef } from '../../cover/ref';
+import { useCoverLightboxSrc } from '../../cover/lightbox';
 import LastfmIcon from '../LastfmIcon';
 import StarRating from '../StarRating';
 
@@ -35,14 +36,9 @@ interface Props {
   openedLink: string | null;
   openLink: (url: string, key: string) => void;
   coverId: string;
-  artistCover300Src: string;
-  artistCover300Key: string;
-  artistCover2000Src: string;
   coverRevision: number;
   headerCoverFailed: boolean;
   setHeaderCoverFailed: React.Dispatch<React.SetStateAction<boolean>>;
-  lightboxOpen: boolean;
-  setLightboxOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function ArtistDetailHero({
@@ -50,9 +46,7 @@ export default function ArtistDetailHero({
   toggleStar, handlePlayAll, handleShuffle, handleStartRadio, handleShareArtist,
   handleImageUpload, playAllLoading, radioLoading, uploading,
   openedLink, openLink,
-  coverId, artistCover300Src, artistCover300Key, artistCover2000Src,
-  coverRevision, headerCoverFailed, setHeaderCoverFailed,
-  lightboxOpen, setLightboxOpen,
+  coverId, coverRevision, headerCoverFailed, setHeaderCoverFailed,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -63,6 +57,12 @@ export default function ArtistDetailHero({
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
+
+  const coverRef = useMemo(
+    () => (coverId ? coverArtRef(coverId) : null),
+    [coverId],
+  );
+  const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, { alt: artist.name });
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
@@ -76,27 +76,24 @@ export default function ArtistDetailHero({
         <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>
       </button>
 
-      {lightboxOpen && (
-        <CoverLightbox
-          src={artistCover2000Src}
-          alt={artist.name}
-          onClose={() => setLightboxOpen(false)}
-        />
-      )}
+      {lightbox}
 
       <div className="artist-detail-header">
         <div className="artist-detail-avatar" style={{ position: 'relative' }}>
           {coverId ? (
             <button
               className="artist-detail-avatar-btn"
-              onClick={() => setLightboxOpen(true)}
+              onClick={openLightbox}
               aria-label={`${artist.name} Bild vergrößern`}
             >
               {!headerCoverFailed ? (
-                <CachedImage
+                <ArtistHeroCover
                   key={coverRevision}
-                  src={artistCover300Src}
-                  cacheKey={artistCover300Key}
+                  artistId={id ?? artist.id}
+                  artistInfo={info}
+                  coverFallback={coverRef}
+                  displayCssPx={300}
+                  surface="sparse"
                   alt={artist.name}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={() => setHeaderCoverFailed(true)}

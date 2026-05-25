@@ -1,11 +1,11 @@
-import { buildCoverArtUrl } from '../api/subsonicStreamUrl';
 import type { EntityRatingSupportLevel, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
-import CachedImage from './CachedImage';
-import CoverLightbox from './CoverLightbox';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { coverArtRef } from '../cover/ref';
+import { useCoverLightboxSrc } from '../cover/lightbox';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useThemeStore } from '../store/themeStore';
@@ -68,8 +68,7 @@ interface AlbumHeaderProps {
   /** OpenSubsonic album credits (derived from album + songs). */
   headerArtistRefs: SubsonicOpenArtistRef[];
   songs: SubsonicSong[];
-  coverUrl: string;
-  coverKey: string;
+  coverArtId?: string;
   resolvedCoverUrl: string | null;
   isStarred: boolean;
   downloadProgress: number | null;
@@ -96,8 +95,7 @@ export default function AlbumHeader({
   info,
   headerArtistRefs,
   songs,
-  coverUrl,
-  coverKey,
+  coverArtId,
   resolvedCoverUrl,
   isStarred,
   downloadProgress,
@@ -122,18 +120,20 @@ export default function AlbumHeader({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const coverRef = useMemo(
+    () => (coverArtId ? coverArtRef(coverArtId) : null),
+    [coverArtId],
+  );
+  const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, {
+    alt: `${info.name} Cover`,
+  });
 
   const totalDuration = songs.reduce((acc, s) => acc + s.duration, 0);
   const totalSize = songs.reduce((acc, s) => acc + (s.size ?? 0), 0);
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
   const isNewAlbum = isAlbumRecentlyAdded(info.created);
   const showBioButton = !isVariousArtistsLabel(info.artist);
-
-  const lightboxCoverSrc = useMemo(
-    () => (info.coverArt ? buildCoverArtUrl(info.coverArt, 2000) : ''),
-    [info.coverArt],
-  );
 
   const handleShareAlbum = async () => {
     try {
@@ -148,13 +148,7 @@ export default function AlbumHeader({
   return (
     <>
       {bioOpen && bio && <BioModal bio={bio} onClose={onCloseBio} />}
-      {lightboxOpen && info.coverArt && (
-        <CoverLightbox
-          src={lightboxCoverSrc}
-          alt={`${info.name} Cover`}
-          onClose={() => setLightboxOpen(false)}
-        />
-      )}
+      {lightbox}
 
       <div className="album-detail-header">
         {resolvedCoverUrl && enableCoverArtBackground && (
@@ -173,14 +167,20 @@ export default function AlbumHeader({
             <ChevronLeft size={16} /> {t('albumDetail.back')}
           </button>
           <div className="album-detail-hero">
-            {coverUrl ? (
+            {coverArtId ? (
               <button
                 className="album-detail-cover-btn"
-                onClick={() => setLightboxOpen(true)}
+                onClick={openLightbox}
                 data-tooltip={t('albumDetail.enlargeCover')}
                 aria-label={`${info.name} ${t('albumDetail.enlargeCover')}`}
               >
-                <CachedImage className="album-detail-cover" src={coverUrl} cacheKey={coverKey} alt={`${info.name} Cover`} />
+                <CoverArtImage
+                  className="album-detail-cover"
+                  coverArtId={coverArtId}
+                  displayCssPx={400}
+                  surface="sparse"
+                  alt={`${info.name} Cover`}
+                />
               </button>
             ) : (
               <div className="album-detail-cover album-cover-placeholder">♪</div>

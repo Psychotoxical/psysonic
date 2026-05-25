@@ -1,5 +1,6 @@
-import { buildCoverArtUrl } from '../../api/subsonicStreamUrl';
 import { getAlbumList } from '../../api/subsonicLibrary';
+import { coverArtRef } from '../../cover/ref';
+import { loadCoverBlobForExport } from '../../cover/integrations/export';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { downloadDir, join } from '@tauri-apps/api/path';
@@ -38,11 +39,12 @@ function clampText(ctx: CanvasRenderingContext2D, text: string, maxW: number): s
   return t + '…';
 }
 
-async function loadImage(url: string): Promise<ImageBitmap | null> {
+async function loadAlbumCoverBitmap(album: SubsonicAlbum): Promise<ImageBitmap | null> {
+  if (!album.coverArt) return null;
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return await createImageBitmap(await res.blob());
+    const blob = await loadCoverBlobForExport(coverArtRef(album.coverArt), COVER_SIZE);
+    if (!blob) return null;
+    return await createImageBitmap(blob);
   } catch { return null; }
 }
 
@@ -268,7 +270,7 @@ export async function exportNewAlbumsImage(since: number): Promise<{ count: numb
   for (let p = 0; p < pages.length; p++) {
     const page = pages[p];
     const covers = await Promise.all(
-      page.map(a => a.coverArt ? loadImage(buildCoverArtUrl(a.coverArt, 160)) : Promise.resolve(null))
+      page.map(a => loadAlbumCoverBitmap(a)),
     );
 
     const blob = await renderPage(page, covers, logo, now, newAlbums.length, p + 1, pages.length, p * MAX_PER_PAGE);

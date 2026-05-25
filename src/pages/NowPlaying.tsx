@@ -1,5 +1,6 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
+import { useCoverArt } from '../cover/useCoverArt';
+import { coverArtIdFromRadio } from '../cover/ids';
 import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
@@ -11,8 +12,6 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { songToTrack } from '../utils/playback/songToTrack';
-import { useCachedUrl } from '../components/CachedImage';
-import CachedImage from '../components/CachedImage';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
 import { useDragSource, useDragDrop } from '../contexts/DragDropContext';
 import OverlayScrollArea from '../components/OverlayScrollArea';
@@ -96,12 +95,12 @@ export default function NowPlaying() {
     showLyrics();
   }, [isQueueVisible, toggleQueue, showLyrics]);
 
-  const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(currentTrack?.coverArt, 800);
-  const resolvedCover = useCachedUrl(coverFetchUrl, coverKey);
+  const trackCover = usePlaybackCoverArt(currentTrack?.coverArt, 800);
+  const resolvedCover = trackCover.src;
 
-  const radioCoverFetchUrl = currentRadio?.coverArt ? buildCoverArtUrl(`ra-${currentRadio.id}`, 800) : '';
-  const radioCoverKey      = currentRadio?.coverArt ? coverArtCacheKey(`ra-${currentRadio.id}`, 800) : '';
-  const resolvedRadioCover = useCachedUrl(radioCoverFetchUrl, radioCoverKey);
+  const radioCoverArtId = currentRadio?.coverArt ? coverArtIdFromRadio(currentRadio.id) : undefined;
+  const radioCover = useCoverArt(radioCoverArtId, 800, { surface: 'sparse' });
+  const resolvedRadioCover = radioCover.src;
 
   const contributorRows = useMemo(
     () => buildContributorRows(songMeta, artistName),

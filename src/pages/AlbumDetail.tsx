@@ -1,4 +1,4 @@
-import { buildCoverArtUrl, coverArtCacheKey, buildDownloadUrl } from '../api/subsonicStreamUrl';
+import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { queueSongStar, queueSongRating } from '../store/pendingStarSync';
 import { getArtistInfo } from '../api/subsonicArtists';
@@ -22,7 +22,7 @@ import AlbumCard from '../components/AlbumCard';
 import AlbumHeader from '../components/AlbumHeader';
 import AlbumTrackList from '../components/AlbumTrackList';
 import { AlbumDetailToolbar } from '../components/albumDetail/AlbumDetailToolbar';
-import { useCachedUrl } from '../components/CachedImage';
+import { useCoverArt } from '../cover/useCoverArt';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/ui/toast';
 import { useSelectionStore } from '../store/selectionStore';
@@ -251,13 +251,8 @@ const handleShuffleAll = () => {
     userRatingOverrides,
   });
 
-  // Hooks must be called unconditionally — derive from nullable album state.
-  // useMemo is required: buildCoverArtUrl generates a new salt on every call, so without
-  // memoization every re-render (e.g. currentTrack change) produces a new fetchUrl,
-  // which cancels and restarts the useCachedUrl effect → background never resolves.
-  const coverUrl = useMemo(() => album?.album.coverArt ? buildCoverArtUrl(album.album.coverArt, 400) : '', [album?.album.coverArt]);
-  const coverKey = useMemo(() => album?.album.coverArt ? coverArtCacheKey(album.album.coverArt, 400) : '', [album?.album.coverArt]);
-  const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey);
+  const albumCover = useCoverArt(album?.album.coverArt, 400, { surface: 'sparse' });
+  const resolvedCoverUrl = albumCover.src || null;
 
   useEffect(() => {
     if (!showPlPicker) return;
@@ -285,8 +280,7 @@ const handleShuffleAll = () => {
         info={info}
         headerArtistRefs={headerArtistRefs}
         songs={songs}
-        coverUrl={coverUrl}
-        coverKey={coverKey}
+        coverArtId={info.coverArt}
         resolvedCoverUrl={resolvedCoverUrl}
         isStarred={isStarred}
         downloadProgress={null}

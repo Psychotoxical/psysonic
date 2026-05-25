@@ -1,4 +1,3 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { star, unstar } from '../api/subsonicStarRating';
 import { getArtist, getArtistInfo } from '../api/subsonicArtists';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicArtistInfo } from '../api/subsonicTypes';
@@ -6,8 +5,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ndListAlbumsByArtistRole } from '../api/navidromeBrowse';
 import AlbumCard from '../components/AlbumCard';
-import CachedImage from '../components/CachedImage';
-import CoverLightbox from '../components/CoverLightbox';
+import { ArtistHeroCover } from '../cover/artistHero';
+import { coverArtRef } from '../cover/ref';
+import { useCoverLightboxSrc } from '../cover/lightbox';
 import { ArrowLeft, Users, ExternalLink, Heart, Feather, Share2 } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
@@ -30,7 +30,6 @@ export default function ComposerDetail() {
   const [loading, setLoading] = useState(true);
   const [isStarred, setIsStarred] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [headerCoverFailed, setHeaderCoverFailed] = useState(false);
   const [openedLink, setOpenedLink] = useState<string | null>(null);
 
@@ -85,9 +84,13 @@ export default function ComposerDetail() {
   }, [id]);
 
   const coverId = artist?.coverArt || artist?.id || '';
-  const coverSrc = useMemo(() => coverId ? buildCoverArtUrl(coverId, 300) : '', [coverId]);
-  const coverKey = useMemo(() => coverId ? coverArtCacheKey(coverId, 300) : '', [coverId]);
-  const coverLargeSrc = useMemo(() => coverId ? buildCoverArtUrl(coverId, 2000) : '', [coverId]);
+  const coverFallbackRef = useMemo(
+    () => (coverId ? coverArtRef(coverId) : null),
+    [coverId],
+  );
+  const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverFallbackRef, {
+    alt: artist?.name ?? t('composerDetail.unknownComposer'),
+  });
 
   const toggleStar = async () => {
     if (!artist) return;
@@ -146,16 +149,10 @@ export default function ComposerDetail() {
   const wikiUrl = artist?.name
     ? `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`
     : '';
-  // Header image source can be either Last.fm (artist-info path) or the Subsonic
-  // cover-art endpoint. Cache key must mirror the actual URL or we'd alias both
-  // entries under a single Subsonic key, polluting the cache between servers.
-  // The Last.fm key is derived from the route id (same id namespace as the
-  // SubsonicArtist record) so it stays stable even when getArtist failed and
-  // we still render a Last.fm avatar from the bio fetch alone.
-  const headerImageSrc = info?.largeImageUrl || coverSrc;
-  const headerImageCacheKey = info?.largeImageUrl
-    ? `lastfm:artist:${id}:large`
-    : coverKey;
+
+  const hasHeroImage = Boolean(
+    info?.largeImageUrl || info?.mediumImageUrl || coverId,
+  );
 
   return (
     <div className="content-body animate-fade-in">
@@ -167,25 +164,22 @@ export default function ComposerDetail() {
         <ArrowLeft size={16} /> <span>{t('composerDetail.back')}</span>
       </button>
 
-      {lightboxOpen && headerImageSrc && (
-        <CoverLightbox
-          src={info?.largeImageUrl || coverLargeSrc}
-          alt={displayName}
-          onClose={() => setLightboxOpen(false)}
-        />
-      )}
+      {lightbox}
 
       <div className="artist-detail-header">
         <div className="artist-detail-avatar" style={{ position: 'relative' }}>
-          {headerImageSrc && !headerCoverFailed ? (
+          {hasHeroImage && !headerCoverFailed && id ? (
             <button
               className="artist-detail-avatar-btn"
-              onClick={() => setLightboxOpen(true)}
+              onClick={openLightbox}
               aria-label={displayName}
             >
-              <CachedImage
-                src={headerImageSrc}
-                cacheKey={headerImageCacheKey}
+              <ArtistHeroCover
+                artistId={id}
+                artistInfo={info}
+                coverFallback={coverFallbackRef}
+                displayCssPx={300}
+                surface="sparse"
                 alt={displayName}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={() => setHeaderCoverFailed(true)}
