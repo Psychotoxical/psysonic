@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 pub mod cli;
+mod cover_cache;
 mod lib_commands;
 
 pub use psysonic_integration::discord;
@@ -726,6 +727,16 @@ pub fn run() {
             psysonic_library::commands::library_migrate_server_index_keys,
             psysonic_library::commands::library_delete_server_data,
             psysonic_library::commands::library_analysis_backfill_batch,
+            cover_cache::cover_cache_ensure,
+            cover_cache::cover_cache_ensure_batch,
+            cover_cache::cover_cache_stats,
+            cover_cache::cover_cache_evict_tick,
+            cover_cache::cover_cache_clear,
+            cover_cache::library_cover_backfill_batch,
+            cover_cache::library_cover_progress,
+            cover_cache::cover_revalidate_enqueue,
+            cover_cache::cover_revalidate_tick,
+            cover_cache::cover_revalidate_batch,
             psysonic_syncfs::cache::offline::download_track_offline,
             psysonic_syncfs::cache::offline::cancel_offline_downloads,
             psysonic_syncfs::cache::offline::clear_offline_cancel,
