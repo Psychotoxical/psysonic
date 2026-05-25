@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import { createSafeJSONStorage } from './safeStorage';
 import { emitPlaybackProgress } from './playbackProgress';
 import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
@@ -80,7 +81,10 @@ export const usePlayerStore = create<PlayerState>()(
     },
     {
       name: 'psysonic-player',
-      storage: createJSONStorage(() => localStorage),
+      // Quota-safe: a failed persist write (huge queue > localStorage quota)
+      // must never throw, or it aborts the `set()` it fires from — that is what
+      // killed `playTrack` before `audio_play`. See safeStorage.ts.
+      storage: createSafeJSONStorage(),
       partialize: (state) => ({
         volume: state.volume,
         repeatMode: state.repeatMode,
