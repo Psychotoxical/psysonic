@@ -22,6 +22,7 @@ export async function search(
     artistCount?: number;
     songCount?: number;
     signal?: AbortSignal;
+    timeout?: number;
   },
 ): Promise<SearchResults> {
   if (!query.trim()) return { artists: [], albums: [], songs: [] };
@@ -40,7 +41,7 @@ export async function search(
       songCount: options?.songCount ?? 10,
       ...libraryFilterParams(),
     },
-    15000,
+    options?.timeout ?? 15000,
     options?.signal,
   );
   const r = data.searchResult3 ?? {};

@@ -7,11 +7,17 @@ import {
   LIVE_SEARCH_DEBOUNCE_RACE_MS,
   EMPTY_SEARCH_RESULTS,
   liveSearchQueryTooShort,
+  mergeLiveSearchResults,
   runLocalLiveSearch,
   runNetworkLiveSearch,
 } from '../utils/library/liveSearchLocal';
-import { raceSearchSources } from '../utils/library/searchRace';
+import { raceLiveSearch } from '../utils/library/searchRace';
 import { libraryIsReady } from '../utils/library/libraryReady';
+import {
+  emitLiveSearchDebug,
+  searchHitCounts,
+  searchResultSamples,
+} from '../utils/library/liveSearchDebug';
 import {
   logLibrarySearch,
 } from '../utils/library/libraryDevLog';
@@ -172,24 +178,57 @@ export default function LiveSearch() {
           const raceCtx = { epoch: gen, isStale, suppressLog: indexEnabled && !!serverId };
 
             if (indexEnabled && serverId) {
-              const winner = await raceSearchSources(
-                [
-                  {
-                    source: 'local',
-                    run: () => runLocalLiveSearch(serverId, q, raceCtx),
-                  },
-                  {
-                    source: 'network',
-                    run: () => runNetworkLiveSearch(q, abort.signal),
-                  },
-                ],
+              const winner = await raceLiveSearch(
+                () => runLocalLiveSearch(serverId, q, raceCtx),
+                () => runNetworkLiveSearch(q, abort.signal),
                 isStale,
+                meta => {
+                  emitLiveSearchDebug('race_settled', {
+                    query: q,
+                    winner: meta.winner,
+                    localMs: meta.localMs,
+                    networkMs: meta.networkMs,
+                    localHits: meta.localHits,
+                    networkHits: meta.networkHits,
+                  });
+                  if (isStale()) return;
+                  if (meta.localResult && meta.networkResult) {
+                    const primary =
+                      meta.winner === 'local' ? meta.localResult : meta.networkResult;
+                    const supplement =
+                      meta.winner === 'local' ? meta.networkResult : meta.localResult;
+                    const merged = mergeLiveSearchResults(primary, supplement);
+                    const primaryHits = searchHitCounts(primary);
+                    const mergedHits = searchHitCounts(merged);
+                    if (mergedHits !== primaryHits) {
+                      setResults(merged);
+                      setSearchSource(meta.winner);
+                      emitLiveSearchDebug('race_merged', {
+                        query: q,
+                        winner: meta.winner,
+                        before: primaryHits,
+                        after: mergedHits,
+                        samples: searchResultSamples(merged),
+                      });
+                    }
+                  }
+                },
               );
               if (isStale()) return;
               if (winner) {
                 setResults(winner.result);
                 setSearchSource(winner.source);
                 setOpen(true);
+                const samples = searchResultSamples(winner.result);
+                emitLiveSearchDebug('race_winner', {
+                  query: q,
+                  winner: winner.source,
+                  raceMs: winner.durationMs,
+                  hits: searchHitCounts(winner.result),
+                  samples,
+                  path: 'search_race',
+                  localReady: localReadyRef.current,
+                });
                 logLibrarySearch({
                   at: new Date().toISOString(),
                   query: q,

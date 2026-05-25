@@ -58,6 +58,55 @@ fn fts_candidate_pool_size(limit: u32, offset: u32) -> i64 {
     need.saturating_mul(20).clamp(256, 10_000)
 }
 
+/// FTS rowid pick scoped to the active server (and optional library folder).
+fn scoped_fts_rowid_subquery_sql(pool: i64, library_scope: Option<&str>) -> String {
+    let alias = "t_fts";
+    let mut sql = format!(
+        "SELECT f.rowid FROM track_fts f \
+         JOIN track {alias} ON {alias}.rowid = f.rowid \
+         WHERE track_fts MATCH ? \
+           AND {alias}.server_id = ? \
+           AND {alias}.deleted = 0"
+    );
+    if library_scope.is_some() {
+        sql.push_str(" AND ");
+        sql.push_str(&library_scope_equals_sql(alias));
+    }
+    sql.push_str(&format!(" ORDER BY bm25(track_fts) LIMIT {pool}"));
+    sql
+}
+
+fn scoped_fts_pick_join_sql(pool: i64, library_scope: Option<&str>) -> String {
+    let alias = "t_fts";
+    let mut scope_sql = String::new();
+    if library_scope.is_some() {
+        scope_sql = format!(" AND {}", library_scope_equals_sql(alias));
+    }
+    format!(
+        "track t INNER JOIN (\
+           SELECT f.rowid, bm25(track_fts) AS fts_rank \
+           FROM track_fts f \
+           JOIN track {alias} ON {alias}.rowid = f.rowid \
+           WHERE track_fts MATCH ? \
+             AND {alias}.server_id = ? \
+             AND {alias}.deleted = 0{scope_sql} \
+           ORDER BY fts_rank \
+           LIMIT {pool}\
+         ) fts_pick ON t.rowid = fts_pick.rowid"
+    )
+}
+
+fn scoped_fts_subquery_bind(
+    server_id: &str,
+    library_scope: Option<&str>,
+) -> Vec<SqlValue> {
+    let mut params = vec![SqlValue::Text(server_id.to_string())];
+    if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
+        params.push(SqlValue::Text(scope.to_string()));
+    }
+    params
+}
+
 /// `library_advanced_search` (§5.13). Runs only the queries named in
 /// `entityTypes`; absent entities return empty + zero totals.
 pub fn run_advanced_search(
@@ -194,12 +243,8 @@ fn build_track(
     if let Some(q) = text.and_then(fts_track_prefix_match_query) {
         applied.insert("text".to_string());
         let pool = fts_candidate_pool_size(limit, offset);
-        let from = format!(
-            "track t INNER JOIN (\
-               SELECT rowid, bm25(track_fts) AS fts_rank FROM track_fts \
-               WHERE track_fts MATCH ? ORDER BY fts_rank LIMIT {pool}\
-             ) fts_pick ON t.rowid = fts_pick.rowid"
-        );
+        let scope = trimmed_nonempty(req.library_scope.as_deref());
+        let from = scoped_fts_pick_join_sql(pool, scope.as_deref());
         let order = order_clause(&req.sort, EntityKind::Track)
             .unwrap_or_else(|| "ORDER BY fts_pick.fts_rank".to_string());
         return query_rows_fts(
@@ -207,6 +252,7 @@ fn build_track(
             &cols,
             &from,
             &q,
+            &scoped_fts_subquery_bind(&req.server_id, scope.as_deref()),
             &w,
             &order,
             limit,
@@ -497,18 +543,24 @@ fn build_album_from_fts(
     applied.insert("text".to_string());
     let need = limit.saturating_add(offset) as i64;
     let pool = (need.saturating_mul(8)).clamp(64, 2_000);
+    let scope = trimmed_nonempty(req.library_scope.as_deref());
 
     let mut w = WhereBuilder::new();
-    w.push_param(
+    w.push_params(
         &format!(
-            "t.rowid IN (SELECT rowid FROM track_fts WHERE track_fts MATCH ? ORDER BY bm25(track_fts) LIMIT {pool})"
+            "t.rowid IN ({})",
+            scoped_fts_rowid_subquery_sql(pool, scope.as_deref())
         ),
-        SqlValue::Text(fts.to_string()),
+        {
+            let mut p = vec![SqlValue::Text(fts.to_string())];
+            p.extend(scoped_fts_subquery_bind(&req.server_id, scope.as_deref()));
+            p
+        },
     );
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+    if let Some(scope) = scope {
         let clause = library_scope_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
@@ -605,18 +657,24 @@ fn build_artist_from_fts(
     applied.insert("text".to_string());
     let need = limit.saturating_add(offset) as i64;
     let pool = (need.saturating_mul(8)).clamp(64, 2_000);
+    let scope = trimmed_nonempty(req.library_scope.as_deref());
 
     let mut w = WhereBuilder::new();
-    w.push_param(
+    w.push_params(
         &format!(
-            "t.rowid IN (SELECT rowid FROM track_fts WHERE track_fts MATCH ? ORDER BY bm25(track_fts) LIMIT {pool})"
+            "t.rowid IN ({})",
+            scoped_fts_rowid_subquery_sql(pool, scope.as_deref())
         ),
-        SqlValue::Text(fts.to_string()),
+        {
+            let mut p = vec![SqlValue::Text(fts.to_string())];
+            p.extend(scoped_fts_subquery_bind(&req.server_id, scope.as_deref()));
+            p
+        },
     );
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+    if let Some(scope) = scope {
         let clause = library_scope_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
@@ -805,6 +863,10 @@ impl WhereBuilder {
         self.clauses.push(sql.to_string());
         self.params.push(param);
     }
+    fn push_params(&mut self, sql: &str, params: Vec<SqlValue>) {
+        self.clauses.push(sql.to_string());
+        self.params.extend(params);
+    }
     fn where_sql(&self) -> String {
         self.clauses.join(" AND ")
     }
@@ -853,6 +915,7 @@ fn query_rows_fts<T, F>(
     select_cols: &str,
     from: &str,
     fts_match: &str,
+    fts_subquery_params: &[SqlValue],
     w: &WhereBuilder,
     order_sql: &str,
     limit: u32,
@@ -866,6 +929,7 @@ where
     let where_sql = w.where_sql();
     store.with_read_conn(|conn| {
         let mut bind: Vec<SqlValue> = vec![SqlValue::Text(fts_match.to_string())];
+        bind.extend(fts_subquery_params.iter().cloned());
         bind.extend(w.params.iter().cloned());
 
         let total = count_matching_rows(conn, from, &where_sql, &bind, skip_totals)?;

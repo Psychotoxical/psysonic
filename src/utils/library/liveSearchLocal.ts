@@ -20,6 +20,15 @@ export const LIVE_SEARCH_DEBOUNCE_NETWORK_MS = 300;
 /** Debounce when local + network run in parallel. */
 export const LIVE_SEARCH_DEBOUNCE_RACE_MS = 200;
 
+/** search3 timeout for Live Search network arm (race must not hang on slow servers). */
+export const LIVE_SEARCH_NETWORK_TIMEOUT_MS = 8000;
+
+export const LIVE_SEARCH_LIMITS = {
+  artists: 5,
+  albums: 5,
+  songs: 10,
+} as const;
+
 /** Local FTS skipped below this length — see `LOCAL_FTS_MIN_QUERY_CHARS` in Rust. */
 export const LOCAL_FTS_MIN_QUERY_CHARS = 2;
 
@@ -124,10 +133,44 @@ export async function runNetworkLiveSearch(
   const q = query.trim();
   if (liveSearchQueryTooShort(q)) return null;
   try {
-    return await search(q, { signal });
+    return await search(q, {
+      signal,
+      timeout: LIVE_SEARCH_NETWORK_TIMEOUT_MS,
+      artistCount: LIVE_SEARCH_LIMITS.artists,
+      albumCount: LIVE_SEARCH_LIMITS.albums,
+      songCount: LIVE_SEARCH_LIMITS.songs,
+    });
   } catch (err) {
     const name = err instanceof Error ? err.name : '';
     if (name === 'CanceledError' || name === 'AbortError') return null;
     throw err;
   }
+}
+
+/** Keep local ordering; fill remaining slots from network when search3 returns more hits. */
+export function mergeLiveSearchResults(
+  primary: SearchResults,
+  supplement: SearchResults,
+  limits: { artists: number; albums: number; songs: number } = LIVE_SEARCH_LIMITS,
+): SearchResults {
+  const mergeSlice = <T extends { id: string }>(
+    primaryItems: T[],
+    extraItems: T[],
+    limit: number,
+  ): T[] => {
+    const seen = new Set(primaryItems.map(i => i.id));
+    const out = [...primaryItems];
+    for (const item of extraItems) {
+      if (out.length >= limit) break;
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      out.push(item);
+    }
+    return out;
+  };
+  return {
+    artists: mergeSlice(primary.artists, supplement.artists, limits.artists),
+    albums: mergeSlice(primary.albums, supplement.albums, limits.albums),
+    songs: mergeSlice(primary.songs, supplement.songs, limits.songs),
+  };
 }

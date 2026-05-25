@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
+import type { SearchResults } from '../../api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import {
   liveSearchQueryTooShort,
+  mergeLiveSearchResults,
   runLocalLiveSearch,
 } from './liveSearchLocal';
 
@@ -94,5 +96,24 @@ describe('liveSearchQueryTooShort', () => {
   it('treats one grapheme as too short', () => {
     expect(liveSearchQueryTooShort('а')).toBe(true);
     expect(liveSearchQueryTooShort('ab')).toBe(false);
+  });
+});
+
+describe('mergeLiveSearchResults', () => {
+  it('keeps local order and fills gaps from network', () => {
+    const local: SearchResults = {
+      artists: [{ id: 'a1', name: 'Local' }],
+      albums: [],
+      songs: [{ id: 's1', title: 'Song', artist: 'A', album: 'Al', albumId: 'al0', duration: 1 }],
+    };
+    const network: SearchResults = {
+      artists: [{ id: 'a2', name: 'Net' }],
+      albums: [{ id: 'al1', name: 'Album', artist: 'A', artistId: 'a2', songCount: 1, duration: 100 }],
+      songs: [{ id: 's2', title: 'Other', artist: 'B', album: 'Bl', albumId: 'al1', duration: 2 }],
+    };
+    const merged = mergeLiveSearchResults(local, network);
+    expect(merged.artists.map(a => a.id)).toEqual(['a1', 'a2']);
+    expect(merged.albums.map(a => a.id)).toEqual(['al1']);
+    expect(merged.songs.map(s => s.id)).toEqual(['s1', 's2']);
   });
 });

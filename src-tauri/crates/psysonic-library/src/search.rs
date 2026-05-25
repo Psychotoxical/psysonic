@@ -90,6 +90,21 @@ pub(crate) fn fts_prefix_token_expr(raw: &str) -> Option<String> {
     fts_token_expr_with(raw, true)
 }
 
+/// Navidrome-style any-word prefix match (`"a"* OR "b"*`).
+pub(crate) fn fts_prefix_token_or_expr(raw: &str) -> Option<String> {
+    let tokens: Vec<String> = raw
+        .split_whitespace()
+        .map(|t| format!("\"{}\"*", t.replace('"', "\"\"")))
+        .collect();
+    if tokens.is_empty() {
+        None
+    } else if tokens.len() == 1 {
+        Some(tokens.into_iter().next().unwrap())
+    } else {
+        Some(tokens.join(" OR "))
+    }
+}
+
 fn fts_token_expr_with(raw: &str, prefix: bool) -> Option<String> {
     let tokens: Vec<String> = raw
         .split_whitespace()
@@ -128,6 +143,31 @@ pub(crate) fn fts_track_prefix_match_query(raw: &str) -> Option<String> {
 pub(crate) fn fts_album_prefix_match_query(raw: &str) -> Option<String> {
     fts_prefix_token_expr(raw).map(|tokens| {
         format!("(album : {tokens} OR album_artist : {tokens})")
+    })
+}
+
+/// Live Search album match — any query word may hit album or album_artist (Navidrome parity).
+pub(crate) fn fts_album_prefix_any_token_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_or_expr(raw).map(|tokens| {
+        format!("(album : ({tokens}) OR album_artist : ({tokens}))")
+    })
+}
+
+/// Live Search artist match — performer fields only (not album title).
+pub(crate) fn fts_artist_prefix_any_token_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_or_expr(raw).map(|tokens| {
+        format!("(artist : ({tokens}) OR album_artist : ({tokens}))")
+    })
+}
+
+/// Live Search song match — any query word across display columns.
+pub(crate) fn fts_track_prefix_any_token_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_or_expr(raw).map(|tokens| {
+        ["title", "artist", "album", "album_artist"]
+            .iter()
+            .map(|col| format!("{col} : ({tokens})"))
+            .collect::<Vec<_>>()
+            .join(" OR ")
     })
 }
 
@@ -346,6 +386,22 @@ mod tests {
         assert_eq!(
             fts_column_prefix_query("artist", "metal").as_deref(),
             Some("artist : \"metal\"*")
+        );
+    }
+
+    #[test]
+    fn fts_prefix_token_or_expr_matches_any_word() {
+        assert_eq!(
+            fts_prefix_token_or_expr("love supreme").as_deref(),
+            Some("\"love\"* OR \"supreme\"*")
+        );
+    }
+
+    #[test]
+    fn fts_album_prefix_any_token_match_query_or_across_album_fields() {
+        assert_eq!(
+            fts_album_prefix_any_token_match_query("dark side").as_deref(),
+            Some("(album : (\"dark\"* OR \"side\"*) OR album_artist : (\"dark\"* OR \"side\"*))")
         );
     }
 
