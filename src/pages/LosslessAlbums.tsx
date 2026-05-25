@@ -18,6 +18,7 @@ import { showToast } from '../utils/ui/toast';
 import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
 import { CheckSquare2, Download, HardDriveDownload, ListPlus } from 'lucide-react';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
@@ -306,6 +307,7 @@ export default function LosslessAlbums() {
               disableVirtualization={perfFlags.disableMainstageVirtualLists}
               layoutSignal={albums.length}
               scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+              warmGridCovers={albumGridWarmCovers()}
               renderItem={a => (
                 <AlbumCard
                   album={a}

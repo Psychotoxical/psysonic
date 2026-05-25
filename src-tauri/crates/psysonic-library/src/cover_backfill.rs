@@ -169,7 +169,7 @@ pub fn collect_cover_backfill_batch(
         for id in &page {
             after.clone_from(id);
             let dir = cover_root.join(server_index_key).join(id);
-            if cover_ladder_cached_on_disk(cover_root, server_index_key, id)
+            if cover_canonical_cached_on_disk(cover_root, server_index_key, id)
                 || cover_fetch_recently_failed(&dir)
             {
                 continue;
@@ -208,7 +208,7 @@ pub fn count_pending_canonical_covers(
         }
         for id in &page {
             after.clone_from(id);
-            if !cover_ladder_cached_on_disk(cover_root, server_index_key, id) {
+            if !cover_canonical_cached_on_disk(cover_root, server_index_key, id) {
                 pending += 1;
             }
         }
@@ -296,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn backfill_skips_only_when_full_tier_ladder_exists() {
+    fn backfill_skips_when_canonical_800_exists() {
         let store = LibraryStore::open_in_memory();
         seed_track(&store, "srv", "tr1", "al-partial", None);
         let root = std::env::temp_dir().join("psysonic-cover-backfill-test");
@@ -326,21 +326,7 @@ mod tests {
             Some(10),
         )
         .unwrap();
-        assert_eq!(batch2.cover_ids, vec!["al-partial".to_string()]);
-
-        for tier in LIBRARY_COVER_DERIVE_TIERS {
-            std::fs::write(id_dir.join(format!("{tier}.webp")), b"x").unwrap();
-        }
-        let batch3 = collect_cover_backfill_batch(
-            &store,
-            "srv",
-            &root,
-            host,
-            None,
-            Some(10),
-        )
-        .unwrap();
-        assert!(batch3.cover_ids.is_empty());
+        assert!(batch2.cover_ids.is_empty());
 
         let _ = std::fs::remove_dir_all(root.join(host));
     }

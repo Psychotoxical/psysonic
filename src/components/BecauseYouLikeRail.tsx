@@ -3,14 +3,20 @@ import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { shuffleArray } from '../utils/playback/shuffleArray';
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Music } from 'lucide-react';
 import { coverArtRef } from '../cover/ref';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
 import { coverImgSrc } from '../cover/imgSrc';
 import { useCoverArt } from '../cover/useCoverArt';
+import { primeAlbumCoversForDisplay } from '../cover/warmDiskPeek';
+import {
+  readBecauseYouLikeCache,
+  writeBecauseYouLikeCache,
+  type BecauseYouLikeAnchor,
+} from '../store/becauseYouLikeCache';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { playAlbum } from '../utils/playback/playAlbum';
@@ -43,10 +49,78 @@ const SHOW_COUNT = 3;
 const PICKS_HISTORY_SIZE = 30;
 /** `.because-card-cover-wrap` layout square (160×160). */
 const BECAUSE_CARD_COVER_CSS_PX = 160;
+const ROW_STAGGER_MS = 150;
 
-interface Anchor {
-  id: string;
-  name: string;
+/** One classic because-card shell, then extra grid slots fill in. */
+function useBecauseRowSlotCount(active: boolean, max = SHOW_COUNT): number {
+  const [count, setCount] = useState(1);
+
+  useEffect(() => {
+    if (!active) {
+      setCount(1);
+      return;
+    }
+    setCount(1);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (let slot = 2; slot <= max; slot += 1) {
+      timers.push(setTimeout(() => setCount(slot), ROW_STAGGER_MS * (slot - 1)));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [active, max]);
+
+  return count;
+}
+
+/** Lead placeholder — same shell as a loaded because-card (cover + text block). */
+function BecauseCardSkeletonLead() {
+  return (
+    <div className="because-card because-card--skeleton because-card--skeleton-lead" aria-hidden="true">
+      <div className="because-card-cover-wrap">
+        <div className="because-card-cover because-card-cover-placeholder" />
+      </div>
+      <div className="because-card-text">
+        <div className="because-card-top">
+          <div className="because-card-skeleton-line because-card-skeleton-line--similar" />
+          <div className="because-card-skeleton-line because-card-skeleton-line--title" />
+          <div className="because-card-skeleton-line because-card-skeleton-line--artist" />
+          <div className="because-card-skeleton-line because-card-skeleton-line--meta" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Extra grid slots — cover tile only, fills in beside the lead card. */
+function BecauseCardSkeletonSlot({ enter }: { enter?: boolean }) {
+  return (
+    <div
+      className={`because-card because-card--skeleton because-card--skeleton-slot${
+        enter ? ' because-card--slot-enter' : ''
+      }`}
+      aria-hidden="true"
+    >
+      <div className="because-card-cover-wrap">
+        <div className="because-card-cover because-card-cover-placeholder" />
+      </div>
+    </div>
+  );
+}
+
+function BecauseYouLikeSkeleton({ title, slotCount }: { title: string; slotCount: number }) {
+  return (
+    <section className="album-row-section because-you-like-rail">
+      <div className="album-row-header">
+        <h2 className="section-title" style={{ marginBottom: 0 }}>
+          {title}
+        </h2>
+      </div>
+      <div className="because-card-grid because-card-grid--stagger">
+        {slotCount >= 1 ? <BecauseCardSkeletonLead /> : null}
+        {slotCount >= 2 ? <BecauseCardSkeletonSlot enter /> : null}
+        {slotCount >= 3 ? <BecauseCardSkeletonSlot enter /> : null}
+      </div>
+    </section>
+  );
 }
 
 interface Props {
@@ -60,9 +134,9 @@ interface Props {
  *  Cycling sources (most-played, recently-played, starred) means the per-mount
  *  rotation cursor visits a different listening *mode* each visit instead of
  *  walking only down the top-played list. */
-function buildAnchorPool(sources: SubsonicAlbum[][], limit: number): Anchor[] {
+function buildAnchorPool(sources: SubsonicAlbum[][], limit: number): BecauseYouLikeAnchor[] {
   const seen = new Set<string>();
-  const out: Anchor[] = [];
+  const out: BecauseYouLikeAnchor[] = [];
   const maxLen = sources.reduce((m, s) => Math.max(m, s.length), 0);
   for (let i = 0; i < maxLen && out.length < limit; i++) {
     for (const src of sources) {
@@ -110,10 +184,26 @@ export default function BecauseYouLikeRail({
     () => buildAnchorPool([mostPlayed, recentlyPlayed ?? [], starred ?? []], TOP_ARTIST_POOL),
     [mostPlayed, recentlyPlayed, starred],
   );
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const poolKey = useMemo(
+    () => pool.slice(0, 8).map(a => a.id).join('\u0001'),
+    [pool],
+  );
+  const location = useLocation();
+  const [anchor, setAnchor] = useState<BecauseYouLikeAnchor | null>(null);
   const [recs, setRecs] = useState<SubsonicAlbum[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
+  const [refreshing, setRefreshing] = useState(true);
+  const skeletonSlots = useBecauseRowSlotCount(refreshing, SHOW_COUNT);
+  const contentReady = !refreshing && Boolean(anchor) && recs.length > 0;
+  const contentSlots = useBecauseRowSlotCount(contentReady, recs.length);
+
+  /** Drop stale cards/text before the next paint when revisiting Mainstage or refetching seeds. */
+  useLayoutEffect(() => {
+    setRefreshing(true);
+    setAnchor(null);
+    setRecs([]);
+  }, [location.key, activeServerId, poolKey]);
 
   // 696px ≙ exactly 2 BecauseCards side-by-side (2*340 + 16 gap). Below that
   // the hero-style cards stretch full-width and dwarf the rest of the page,
@@ -136,8 +226,15 @@ export default function BecauseYouLikeRail({
     if (pool.length === 0) {
       setAnchor(null);
       setRecs([]);
+      setRefreshing(false);
       return;
     }
+
+    setRefreshing(true);
+    setAnchor(null);
+    setRecs([]);
+
+    const snap = readBecauseYouLikeCache(activeServerId);
 
     const anchorHistKey = anchorHistoryKey(activeServerId);
     const picksHistKey = picksHistoryKey(activeServerId);
@@ -154,64 +251,115 @@ export default function BecauseYouLikeRail({
     const candidates = shuffleArray(eligible);
     const recentPicks = new Set(picksHistory);
 
+    const resolvePicks = async (candidate: BecauseYouLikeAnchor): Promise<SubsonicAlbum[] | null> => {
+      const info = await getArtistInfo(candidate.id, { similarArtistCount: SIMILAR_FETCH });
+      const similar = (info.similarArtist ?? []).filter(s => s.id);
+      if (similar.length === 0) return null;
+
+      const sampled = shuffleArray(similar).slice(0, SIMILAR_PICK);
+      const results = await Promise.all(sampled.map(s => getArtist(s.id).catch(() => null)));
+
+      const picks: SubsonicAlbum[] = [];
+      for (const r of results) {
+        if (!r || r.albums.length === 0) continue;
+        const fresh = r.albums.filter(a => !recentPicks.has(a.id));
+        const choice = fresh.length > 0 ? fresh : r.albums;
+        const album = choice[Math.floor(Math.random() * choice.length)];
+        picks.push(album);
+        if (picks.length >= SHOW_COUNT) break;
+      }
+      return picks.length > 0 ? picks : null;
+    };
+
+    const commitSuccess = async (candidate: BecauseYouLikeAnchor, picks: SubsonicAlbum[]) => {
+      await primeAlbumCoversForDisplay(picks, BECAUSE_CARD_COVER_CSS_PX, {
+        limit: SHOW_COUNT,
+        disabled: disableArtwork,
+      });
+      if (cancelled) return;
+
+      const newAnchorHistory = [...anchorHistory, candidate.id].slice(-ANCHOR_COOLDOWN);
+      const newPicksHistory = [...picksHistory, ...picks.map(p => p.id)].slice(-PICKS_HISTORY_SIZE);
+      try {
+        if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(newAnchorHistory));
+        if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(newPicksHistory));
+      } catch { /* ignore */ }
+      setAnchor(candidate);
+      setRecs(picks);
+      if (activeServerId) {
+        writeBecauseYouLikeCache({ serverId: activeServerId, anchor: candidate, recs: picks });
+      }
+      setRefreshing(false);
+    };
+
+    const applySnapFallback = async () => {
+      if (!snap || cancelled) return false;
+      await primeAlbumCoversForDisplay(snap.recs, BECAUSE_CARD_COVER_CSS_PX, {
+        limit: SHOW_COUNT,
+        disabled: disableArtwork,
+      });
+      if (cancelled) return false;
+      setAnchor(snap.anchor);
+      setRecs(snap.recs);
+      return true;
+    };
+
     (async () => {
+      let success = false;
       const tries = Math.min(ANCHOR_MAX_TRIES, candidates.length);
-      /** Random pick (with cooldown) replaces deterministic round-robin so the
-       *  same anchor doesn't surface every pool.length mounts. The retry loop
-       *  still walks forward through the shuffled `candidates` list when the
-       *  current pick is a dud (no Last.fm similar artists, or no library
-       *  matches). On success: append the chosen anchor + chosen album ids to
-       *  their respective ring buffers so future mounts see different stuff. */
-      for (let i = 0; i < tries; i++) {
+      const tryList = candidates.slice(0, tries);
+
+      /** First two shuffled anchors in parallel — cuts cold-start wait on slow Last.fm. */
+      if (tryList.length >= 2) {
+        const raced = await Promise.all(
+          tryList.slice(0, 2).map(async candidate => {
+            try {
+              const picks = await resolvePicks(candidate);
+              return picks ? { candidate, picks } : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
         if (cancelled) return;
-        const candidate = candidates[i];
-        try {
-          const info = await getArtistInfo(candidate.id, { similarArtistCount: SIMILAR_FETCH });
-          if (cancelled) return;
-          const similar = (info.similarArtist ?? []).filter(s => s.id);
-          if (similar.length === 0) continue;
-
-          const sampled = shuffleArray(similar).slice(0, SIMILAR_PICK);
-          const results = await Promise.all(
-            sampled.map(s => getArtist(s.id).catch(() => null))
-          );
-          if (cancelled) return;
-
-          const picks: SubsonicAlbum[] = [];
-          for (const r of results) {
-            if (!r || r.albums.length === 0) continue;
-            /** Prefer an album not in the recently-shown buffer; fall back to
-             *  *any* album when the artist's whole catalogue is in the buffer
-             *  so the slot isn't lost. */
-            const fresh = r.albums.filter(a => !recentPicks.has(a.id));
-            const choice = fresh.length > 0 ? fresh : r.albums;
-            const album = choice[Math.floor(Math.random() * choice.length)];
-            picks.push(album);
-            if (picks.length >= SHOW_COUNT) break;
-          }
-          if (picks.length === 0) continue;
-
-          const newAnchorHistory = [...anchorHistory, candidate.id].slice(-ANCHOR_COOLDOWN);
-          const newPicksHistory = [...picksHistory, ...picks.map(p => p.id)].slice(-PICKS_HISTORY_SIZE);
-          try {
-            if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(newAnchorHistory));
-            if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(newPicksHistory));
-          } catch { /* ignore */ }
-          setAnchor(candidate);
-          setRecs(picks);
-          return;
-        } catch {
-          /* network / server error — try next anchor */
+        const hit = raced.find(
+          (r): r is { candidate: BecauseYouLikeAnchor; picks: SubsonicAlbum[] } => r != null,
+        );
+        if (hit) {
+          await commitSuccess(hit.candidate, hit.picks);
+          success = true;
         }
       }
+
+      if (!success) {
+        for (const candidate of tryList) {
+          if (cancelled) return;
+          try {
+            const picks = await resolvePicks(candidate);
+            if (!picks) continue;
+            await commitSuccess(candidate, picks);
+            success = true;
+            break;
+          } catch {
+            /* try next anchor */
+          }
+        }
+      }
+
       if (!cancelled) {
-        setAnchor(null);
-        setRecs([]);
+        if (!success) {
+          const restored = await applySnapFallback();
+          if (!restored) {
+            setAnchor(null);
+            setRecs([]);
+          }
+        }
+        setRefreshing(false);
       }
     })();
 
     return () => { cancelled = true; };
-  }, [pool, activeServerId]);
+  }, [pool, activeServerId, disableArtwork, location.key, poolKey]);
 
   useEffect(() => {
     if (disableArtwork || recs.length === 0) return;
@@ -219,8 +367,19 @@ export default function BecauseYouLikeRail({
     return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
   }, [recs, disableArtwork]);
 
-  if (!anchor || recs.length === 0) {
+  if (pool.length === 0) {
     return <div ref={containerRef} />;
+  }
+
+  if (refreshing || !anchor || recs.length === 0) {
+    if (!refreshing && (!anchor || recs.length === 0)) {
+      return <div ref={containerRef} />;
+    }
+    return (
+      <div ref={containerRef}>
+        <BecauseYouLikeSkeleton title={t('home.becauseYouLike')} slotCount={skeletonSlots} />
+      </div>
+    );
   }
 
   const sectionTitle = t('home.becauseYouLikeFor', { artist: anchor.name });
@@ -236,13 +395,14 @@ export default function BecauseYouLikeRail({
               {sectionTitle}
             </h2>
           </div>
-          <div className="because-card-grid">
-            {recs.map(album => (
+          <div className="because-card-grid because-card-grid--stagger">
+            {recs.slice(0, contentSlots).map((album, index) => (
               <BecauseCard
                 key={album.id}
                 album={album}
                 anchor={anchor.name}
                 disableArtwork={disableArtwork}
+                enter={index > 0}
               />
             ))}
           </div>
@@ -256,9 +416,10 @@ interface CardProps {
   album: SubsonicAlbum;
   anchor: string;
   disableArtwork: boolean;
+  enter?: boolean;
 }
 
-const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }: CardProps) {
+const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, enter }: CardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -268,6 +429,8 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
   });
   const imgSrc = coverImgSrc(coverHandle.src);
   const bgResolved = coverHandle.src;
+  const coverReady = disableArtwork || !album.coverArt || Boolean(imgSrc);
+  const textReady = coverReady;
 
   const handleOpen = () => navigate(`/album/${album.id}`);
   const handlePlay = (e: React.MouseEvent) => {
@@ -288,7 +451,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
     <div
       role="button"
       tabIndex={0}
-      className="because-card"
+      className={`because-card${enter ? ' because-card--slot-enter' : ''}`}
       onClick={handleOpen}
       onKeyDown={e => { if (e.key === 'Enter') handleOpen(); }}
       aria-label={`${album.name} – ${album.artist}`}
@@ -302,15 +465,21 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
       )}
       <div className="because-card-cover-wrap">
         {!disableArtwork && album.coverArt ? (
-          <img
-            src={imgSrc}
-            alt={album.name}
-            className="because-card-cover"
-            loading="eager"
-            decoding="async"
-            data-cover-provisional={coverHandle.provisional ? 'true' : undefined}
-            onError={coverHandle.onImgError}
-          />
+          imgSrc ? (
+            <img
+              src={imgSrc}
+              alt={album.name}
+              className="because-card-cover"
+              loading="eager"
+              decoding="sync"
+              onError={coverHandle.onImgError}
+            />
+          ) : (
+            <div
+              className="because-card-cover because-card-cover-placeholder because-card-cover-loading"
+              aria-hidden="true"
+            />
+          )
         ) : (
           <div className="because-card-cover because-card-cover-placeholder" aria-hidden="true">
             <Music size={42} strokeWidth={1.5} />
@@ -339,6 +508,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
           </button>
         </div>
       </div>
+      {textReady ? (
       <div className="because-card-text">
         <div className="because-card-top">
           <div className="because-card-similar">
@@ -358,6 +528,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
           {album.duration ? <span>{formatHumanHoursMinutes(album.duration)}</span> : null}
         </div>
       </div>
+      ) : null}
     </div>
   );
 });

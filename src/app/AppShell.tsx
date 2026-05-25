@@ -46,6 +46,7 @@ import { useQueueResizer } from '../hooks/useQueueResizer';
 import { useGlobalDndAndSelectionBlockers } from '../hooks/useGlobalDndAndSelectionBlockers';
 import { useAppActivityTracking } from '../hooks/useAppActivityTracking';
 import { useMainScrollingIndicator } from '../hooks/useMainScrollingIndicator';
+import { useCoverNavigationPriority } from '../hooks/useCoverNavigationPriority';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
@@ -96,6 +97,7 @@ export function AppShell() {
   const { status: connStatus, isRetrying: connRetrying, retry: connRetry, isLan, serverName } = useConnectionStatus();
   const navigate = useNavigate();
   const location = useLocation();
+  useCoverNavigationPriority();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);

@@ -4,6 +4,7 @@ import { coverStrategyAllowsRoutePrefetch } from '../utils/library/coverStrategy
 import { useCoverStrategyStore } from '../store/coverStrategyStore';
 import { useAuthStore } from '../store/authStore';
 import { coverPrefetchDrainBatch } from './prefetchRegistry';
+import { coverTrafficBackgroundPaused } from './coverTraffic';
 import { coverEnsureQueued } from './ensureQueue';
 import { coverStorageKey } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
@@ -27,6 +28,11 @@ export function useCoverArtPrefetch(enabled = true): void {
 
     void (async () => {
       while (!cancelled) {
+        if (coverTrafficBackgroundPaused()) {
+          await new Promise(r => setTimeout(r, STEADY_POLL_MS));
+          continue;
+        }
+
         const stats = await coverCacheStats().catch(() => null);
         if (stats && !stats.autoDownloadEnabled) {
           await new Promise(r => setTimeout(r, STEADY_POLL_MS * 2));

@@ -29,6 +29,7 @@ import { useSelectionStore } from '../store/selectionStore';
 import { sanitizeFilename } from '../utils/componentHelpers/albumDetailHelpers';
 import { deriveAlbumHeaderArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 export default function AlbumDetail() {
@@ -356,6 +357,7 @@ const handleShuffleAll = () => {
             rowVariant="album"
             disableVirtualization={perfFlags.disableMainstageVirtualLists}
             layoutSignal={relatedAlbums.length}
+            warmGridCovers={albumGridWarmCovers()}
             renderItem={a => <AlbumCard album={a} />}
           />
         </div>

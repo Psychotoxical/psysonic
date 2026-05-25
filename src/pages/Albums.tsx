@@ -6,7 +6,7 @@ import { songToTrack } from '../utils/playback/songToTrack';
 import { dedupeById } from '../utils/dedupeById';
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import AlbumCard from '../components/AlbumCard';
-import { coverDisplayCssPxForAlbumGrid } from '../cover/layoutSizes';
+import { albumGridWarmCovers, coverDisplayCssPxForAlbumGrid } from '../cover/layoutSizes';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
 import { coverArtRef } from '../cover/ref';
 import { useAuthStore } from '../store/authStore';
@@ -425,6 +425,10 @@ export default function Albums() {
                   disableVirtualization={perfFlags.disableMainstageVirtualLists}
                   layoutSignal={visibleAlbums.length}
                   scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                  warmGridCovers={albumGridWarmCovers(
+                    albumCellDisplayCssPx,
+                    Math.min(visibleAlbums.length, Math.max(albumGridCols * 6, 48)),
+                  )}
                   renderItem={a => (
                     <AlbumCard
                       album={a}

@@ -7,6 +7,7 @@ import AlbumCard from '../components/AlbumCard';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 export default function LabelAlbums() {
@@ -62,6 +63,7 @@ export default function LabelAlbums() {
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={albums.length}
+          warmGridCovers={albumGridWarmCovers()}
           renderItem={a => <AlbumCard album={a} />}
         />
       )}

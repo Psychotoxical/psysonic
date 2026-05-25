@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { coverEnsureQueued } from './ensureQueue';
+import { coverPeekQueued } from './peekQueue';
+import { getDiskSrcForGrid } from './diskSrcLookup';
 import { forgetDiskSrc, getDiskSrc, rememberDiskSrc } from './diskSrcCache';
 import { subscribeCoverDiskReady } from './diskHandoff';
 import { coverArtRef } from './ref';
@@ -57,9 +59,29 @@ export function useCoverArt(
   );
 
   const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority
-    ?? (surface === 'dense' ? 'middle' : 'middle');
+    ?? (surface === 'dense' ? 'high' : 'middle');
 
-  const [diskSrc, setDiskSrc] = useState(() => getDiskSrc(storageKey));
+  const readCachedSrc = useCallback(() => {
+    if (!ref) return '';
+    if (surface === 'dense') {
+      return getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier);
+    }
+    return getDiskSrc(storageKey);
+  }, [ref, storageKey, surface, tier]);
+
+  const [diskSrc, setDiskSrc] = useState(() => {
+    if (!ref) return '';
+    if (surface === 'dense') {
+      return getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier);
+    }
+    return getDiskSrc(storageKey);
+  });
+
+  useEffect(() => {
+    if (!ref || diskSrc) return;
+    const cached = readCachedSrc();
+    if (cached) setDiskSrc(cached);
+  }, [ref, diskSrc, readCachedSrc]);
 
   const applyDiskPath = useCallback((path: string) => {
     if (!storageKey) return;
@@ -78,7 +100,7 @@ export function useCoverArt(
       return;
     }
 
-    const cached = getDiskSrc(storageKey);
+    const cached = readCachedSrc();
     if (cached) {
       setDiskSrc(cached);
       return;
@@ -86,7 +108,19 @@ export function useCoverArt(
 
     let cancelled = false;
 
+    const applyCachedAfterPeek = () => {
+      const src = readCachedSrc();
+      if (src) setDiskSrc(src);
+    };
+
     void (async () => {
+      const peekHit = await coverPeekQueued(storageKey, ref, tier);
+      if (cancelled) return;
+      if (peekHit) {
+        applyCachedAfterPeek();
+        return;
+      }
+
       if (reachable) {
         const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
         if (cancelled) return;
@@ -104,7 +138,7 @@ export function useCoverArt(
       cancelled = true;
       unsubDisk();
     };
-  }, [ref, storageKey, tier, reachable, ensurePriority, applyDiskPath]);
+  }, [ref, storageKey, tier, reachable, ensurePriority, applyDiskPath, readCachedSrc]);
 
   const src = diskSrc;
   const provisional = Boolean(ref && storageKey && !src);

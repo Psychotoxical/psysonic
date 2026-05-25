@@ -19,6 +19,7 @@ import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 const ALBUM_COUNT = 30;
@@ -191,6 +192,7 @@ export default function RandomAlbums() {
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={albums.length}
+          warmGridCovers={albumGridWarmCovers()}
           renderItem={a => (
             <AlbumCard
               album={a}

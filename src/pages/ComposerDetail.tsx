@@ -17,6 +17,7 @@ import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
 import { showToast } from '../utils/ui/toast';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 export default function ComposerDetail() {
@@ -269,6 +270,7 @@ export default function ComposerDetail() {
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={albums.length}
+          warmGridCovers={albumGridWarmCovers()}
           renderItem={a => <AlbumCard album={a} />}
         />
       )}

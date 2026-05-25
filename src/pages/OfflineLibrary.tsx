@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import {
   buildOfflineTracksForAlbum,
@@ -158,6 +159,7 @@ export default function OfflineLibrary() {
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={groups[artistName].length}
+          warmGridCovers={albumGridWarmCovers(OFFLINE_CARD_COVER_CSS_PX)}
           renderItem={renderCard}
         />
       </div>
@@ -211,6 +213,7 @@ export default function OfflineLibrary() {
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={filtered.length}
+          warmGridCovers={albumGridWarmCovers(OFFLINE_CARD_COVER_CSS_PX)}
           renderItem={renderCard}
         />
       )}

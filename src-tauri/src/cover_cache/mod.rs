@@ -104,7 +104,7 @@ impl CoverCacheState {
     ) -> Result<CoverCacheEnsureResult, String> {
         let this = state.lock().await;
         let dir = cover_dir(&this.root, &args.server_index_key, &args.cover_art_id);
-        if let Some(path) = tier_exists(&dir, args.tier) {
+        if let Some(path) = peek_tier_path(&dir, args.tier) {
             return Ok(CoverCacheEnsureResult {
                 hit: true,
                 path: path.to_string_lossy().into_owned(),
@@ -519,6 +519,19 @@ pub async fn library_cover_backfill_reset_cursor(app: AppHandle) -> Result<(), S
     Ok(())
 }
 
+/// Pause library backfill while the user navigates / visible covers load (Rust pass yields).
+#[tauri::command]
+pub async fn library_cover_backfill_set_ui_priority(
+    app: AppHandle,
+    hold: bool,
+) -> Result<(), String> {
+    let worker = app
+        .try_state::<Arc<CoverBackfillWorker>>()
+        .ok_or_else(|| "cover backfill worker not initialized".to_string())?;
+    worker.set_ui_priority_hold(hold);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn library_cover_backfill_configure(
     app: AppHandle,
@@ -586,26 +599,25 @@ pub async fn cover_cache_peek_batch(
     Ok(out)
 }
 
+fn peek_fallback_tiers(want: u32) -> &'static [u32] {
+    match want {
+        512 => &[800, 256, 128],
+        256 => &[800, 512, 128],
+        128 => &[256, 512, 800],
+        64 => &[128, 256, 512, 800],
+        w if w > 512 && w < 800 => &[800, 512, 256, 128],
+        w if w > 800 => &[512, 256, 128],
+        _ => &[800, 512, 256, 128],
+    }
+}
+
+/// Disk-only: exact tier, then grid-friendly upscales (512 → 800 before 128).
 fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
     if let Some(p) = tier_exists(dir, want) {
         return Some(p);
     }
-    let fallbacks: &[u32] = if want >= 800 {
-        &[512, 256, 128]
-    } else if want >= 512 {
-        &[256, 128]
-    } else if want >= 256 {
-        &[128]
-    } else {
-        &[]
-    };
-    for &tier in fallbacks {
+    for &tier in peek_fallback_tiers(want) {
         if let Some(p) = tier_exists(dir, tier) {
-            return Some(p);
-        }
-    }
-    if want < 800 {
-        if let Some(p) = tier_exists(dir, 800) {
             return Some(p);
         }
     }

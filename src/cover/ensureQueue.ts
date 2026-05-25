@@ -9,11 +9,13 @@ type EnsureJob = {
   resolve: (r: { hit: boolean; path: string }) => void;
 };
 
-/** Parallel Rust cover ensures (library backfill + visible UI share this pool). */
+import { coverTrafficBackgroundPaused } from './coverTraffic';
+
+/** Parallel Rust cover ensures (visible UI; library backfill is native-only). */
 export const COVER_ENSURE_MAX_INFLIGHT = 10;
 const MAX_INFLIGHT = COVER_ENSURE_MAX_INFLIGHT;
 let inflight = 0;
-const queue: EnsureJob[] = [];
+let queue: EnsureJob[] = [];
 
 function priorityRank(p: CoverPrefetchPriority): number {
   return p === 'high' ? 0 : p === 'middle' ? 1 : 2;
@@ -44,6 +46,10 @@ function ensureForCover(
 
 function pump(): void {
   while (inflight < MAX_INFLIGHT && queue.length > 0) {
+    const next = queue[0]!;
+    if (coverTrafficBackgroundPaused() && next.priority !== 'high') {
+      break;
+    }
     const job = queue.shift()!;
     inflight += 1;
     void ensureForCover(job.ref, job.tier, job.priority)
@@ -57,6 +63,11 @@ function pump(): void {
 }
 
 const ensureInflight = new Map<string, Promise<{ hit: boolean; path: string }>>();
+
+/** Drop non-visible ensure work when the route changes. */
+export function coverEnsureOnNavigation(): void {
+  queue = queue.filter(j => j.priority === 'high');
+}
 
 /** Queued + active ensure jobs (for library backfill watermark). */
 export function coverEnsureQueueBacklog(): number {

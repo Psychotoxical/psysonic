@@ -35,6 +35,8 @@ pub struct CoverBackfillSession {
 
 pub struct CoverBackfillWorker {
     pub enabled: AtomicBool,
+    /// When true, the active pass yields so visible-route cover IPC is not starved.
+    pub ui_priority_hold: AtomicBool,
     session: Mutex<Option<CoverBackfillSession>>,
     cursor: Mutex<String>,
     pass_running: AtomicBool,
@@ -69,11 +71,16 @@ impl CoverBackfillWorker {
     pub fn new() -> Self {
         Self {
             enabled: AtomicBool::new(false),
+            ui_priority_hold: AtomicBool::new(false),
             session: Mutex::new(None),
             cursor: Mutex::new(String::new()),
             pass_running: AtomicBool::new(false),
             backfill_http: Arc::new(Semaphore::new(LIBRARY_BACKFILL_PARALLEL)),
         }
+    }
+
+    pub fn set_ui_priority_hold(&self, hold: bool) {
+        self.ui_priority_hold.store(hold, Ordering::Relaxed);
     }
 
     pub async fn set_session(&self, enabled: bool, session: Option<CoverBackfillSession>) {
@@ -148,12 +155,16 @@ async fn emit_library_progress(
 }
 
 async fn ensure_one(
+    worker: &CoverBackfillWorker,
     st: Arc<tokio::sync::Mutex<CoverCacheState>>,
     http_sem: Arc<Semaphore>,
     app: AppHandle,
     session: CoverBackfillSession,
     cover_art_id: String,
 ) {
+    if worker.ui_priority_hold.load(Ordering::Relaxed) {
+        return;
+    }
     let args = CoverCacheEnsureArgs {
         server_index_key: session.server_index_key,
         cover_art_id,
@@ -206,6 +217,11 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
             break;
         }
 
+        if worker.ui_priority_hold.load(Ordering::Relaxed) {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            continue;
+        }
+
         let cursor = worker.cursor.lock().await.clone();
         let cursor_opt = if cursor.is_empty() {
             None
@@ -245,15 +261,22 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
         let ids = batch.cover_ids.clone();
         let mut set = tokio::task::JoinSet::new();
         for id in ids {
+            if worker.ui_priority_hold.load(Ordering::Relaxed) {
+                break;
+            }
             let st = st_arc.clone();
             let http_sem = http_sem.clone();
             let app = app.clone();
             let session = session.clone();
+            let worker_arc = worker.clone();
             set.spawn(async move {
-                ensure_one(st, http_sem, app, session, id).await;
+                ensure_one(worker_arc.as_ref(), st, http_sem, app, session, id).await;
             });
         }
         while set.join_next().await.is_some() {}
+        if worker.ui_priority_hold.load(Ordering::Relaxed) {
+            continue;
+        }
 
         if batch_count.is_multiple_of(PROGRESS_EVERY_BATCHES) {
             if let Ok((done, total, pending)) = progress_snapshot(

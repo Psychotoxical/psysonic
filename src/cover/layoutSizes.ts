@@ -9,3 +9,17 @@ export function coverDisplayCssPxForAlbumGrid(containerWidthPx: number, maxColum
   const cols = computeCardGridColumnCount(containerWidthPx, maxColumns);
   return Math.round(computeCellWidthPx(containerWidthPx, cols));
 }
+
+export const GRID_COVER_WARM_LIMIT = 120;
+
+/** Props for `VirtualCardGrid` `warmGridCovers` on album-style pages. */
+export function albumGridWarmCovers<T extends { coverArt?: string | null }>(
+  displayCssPx: number = COVER_DENSE_GRID_MIN_CELL_CSS_PX,
+  limit: number = GRID_COVER_WARM_LIMIT,
+) {
+  return {
+    pickCoverArtId: (item: T) => item.coverArt,
+    displayCssPx,
+    limit,
+  };
+}

@@ -38,6 +38,7 @@ import ArtistDetailTopTracks from '../components/artistDetail/ArtistDetailTopTra
 import ArtistDetailSimilarArtists from '../components/artistDetail/ArtistDetailSimilarArtists';
 import ArtistCard from '../components/nowPlaying/ArtistCard';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 
@@ -324,6 +325,7 @@ export default function ArtistDetail() {
                     disableVirtualization={perfFlags.disableMainstageVirtualLists}
                     layoutSignal={albums.length}
                     wrapClassName="album-grid-wrap album-grid-wrap--artist"
+                    warmGridCovers={albumGridWarmCovers()}
                     renderItem={a => <AlbumCard album={a} />}
                   />
                 ) : groupedAlbums.map(([label, group]) => (
@@ -339,6 +341,7 @@ export default function ArtistDetail() {
                       disableVirtualization={perfFlags.disableMainstageVirtualLists}
                       layoutSignal={group.length}
                       wrapClassName="album-grid-wrap album-grid-wrap--artist"
+                      warmGridCovers={albumGridWarmCovers()}
                       renderItem={a => <AlbumCard album={a} />}
                     />
                   </div>
@@ -369,6 +372,7 @@ export default function ArtistDetail() {
                   layoutSignal={featuredAlbums.length}
                   wrapClassName="album-grid-wrap album-grid-wrap--artist"
                   wrapStyle={{ animation: 'fadeIn 0.3s ease' }}
+                  warmGridCovers={albumGridWarmCovers()}
                   renderItem={a => <AlbumCard album={a} />}
                 />
               )}

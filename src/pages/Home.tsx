@@ -8,7 +8,7 @@ import SongRail from '../components/SongRail';
 import BecauseYouLikeRail from '../components/BecauseYouLikeRail';
 import LosslessAlbumsRail from '../components/LosslessAlbumsRail';
 import { useTranslation } from 'react-i18next';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useHomeStore } from '../store/homeStore';
 import { useAuthStore } from '../store/authStore';
@@ -20,7 +20,8 @@ import { shuffleArray } from '../utils/playback/shuffleArray';
 import { coverArtIdFromArtist } from '../cover/ids';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
 import { coverArtRef } from '../cover/ref';
-import { warmHomeMainstageCovers } from '../cover/warmDiskPeek';
+import { primeAlbumCoversForDisplay, warmHomeMainstageCovers } from '../cover/warmDiskPeek';
+import { readBecauseYouLikeCache } from '../store/becauseYouLikeCache';
 import {
   readHomeFeedCache,
   writeHomeFeedCache,
@@ -38,6 +39,7 @@ const HOME_ARTWORK_WINDOWING = true;
 // At least one viewport width of cards on first paint (low values left half the row as placeholders).
 const HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET = 14;
 const HOME_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 16;
+const HOME_BECAUSE_CARD_COVER_CSS_PX = 160;
 // Keep artwork enabled across Home rows in normal mode.
 const HOME_ARTWORK_VISIBLE_ROW_BUDGET_WHEN_ENABLED = 8;
 
@@ -105,10 +107,12 @@ export default function Home() {
     const cached = readHomeFeedCache(activeServerId, musicLibraryFilterVersion);
     if (cached) {
       applyFeedSnapshot(cached);
-      void (async () => {
-        await warmHomeMainstageCovers(cached);
-        if (!cancelled) setLoading(false);
-      })();
+      setLoading(false);
+      void warmHomeMainstageCovers(cached);
+      const becauseSnap = readBecauseYouLikeCache(activeServerId);
+      void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
+        limit: 6,
+      });
       return () => {
         cancelled = true;
       };
@@ -149,7 +153,12 @@ export default function Home() {
         };
         writeHomeFeedCache(snap);
         applyFeedSnapshot(snap);
-        await warmHomeMainstageCovers(snap);
+        if (!cancelled) setLoading(false);
+        void warmHomeMainstageCovers(snap);
+        const becauseSnap = readBecauseYouLikeCache(activeServerId);
+        void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
+          limit: 6,
+        });
       } catch {
         /* ignore */
       } finally {
@@ -186,6 +195,7 @@ export default function Home() {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   let artworkRowsLeft = homeRailArtworkDisabled ? 0 : HOME_ARTWORK_VISIBLE_ROW_BUDGET_WHEN_ENABLED;
   const reserveArtworkRow = () => {
     if (artworkRowsLeft <= 0) return false;
@@ -284,6 +294,7 @@ export default function Home() {
             )}
             {!homeAlbumRowsDisabled && isVisible('becauseYouLike') && becauseYouLikeHasSeed && (
               <BecauseYouLikeRail
+                key={`because-${location.key}`}
                 mostPlayed={mostPlayed}
                 recentlyPlayed={recentlyPlayed}
                 starred={starred}

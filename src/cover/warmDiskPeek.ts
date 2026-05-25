@@ -1,5 +1,7 @@
 import { coverCachePeekBatch } from '../api/coverCache';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
+import { coverEnsureQueued } from './ensureQueue';
+import { getDiskSrcForGrid } from './diskSrcLookup';
 import { rememberDiskSrc } from './diskSrcCache';
 import { coverArtRef } from './ref';
 import { coverIndexKeyFromRef, coverStorageKey } from './storageKeys';
@@ -62,6 +64,51 @@ export async function warmCoverDiskSrcBatch(items: CoverWarmItem[]): Promise<num
   return warmed;
 }
 
+/**
+ * Peek + high-priority ensure so BecauseYouLike cards paint with `src` on first frame.
+ */
+export async function primeAlbumCoversForDisplay(
+  albums: Array<{ coverArt?: string | null }>,
+  displayCssPx: number,
+  opts?: { surface?: CoverSurfaceKind; limit?: number; disabled?: boolean },
+): Promise<void> {
+  if (opts?.disabled) return;
+  const surface = opts?.surface ?? 'dense';
+  const limit = opts?.limit ?? albums.length;
+  const items = collectAlbumCoverWarmItems(albums, displayCssPx, surface, limit);
+  if (items.length === 0) return;
+
+  await warmCoverDiskSrcBatch(items);
+  const tier = resolveCoverDisplayTier(displayCssPx, { surface });
+
+  const needEnsure = albums.filter(album => {
+    if (!album.coverArt) return false;
+    return !getDiskSrcForGrid({ kind: 'active' }, album.coverArt, tier);
+  });
+  if (needEnsure.length === 0) return;
+
+  await Promise.all(
+    needEnsure.map(async album => {
+      const id = album.coverArt!;
+      const ref = coverArtRef(id);
+      const key = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
+      const result = await coverEnsureQueued(key, ref, tier, 'high');
+      if (result.hit && result.path) rememberDiskSrc(key, result.path);
+    }),
+  );
+}
+
+function dedupeWarmItems(items: CoverWarmItem[]): CoverWarmItem[] {
+  const seen = new Set<string>();
+  const out: CoverWarmItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.storageKey)) continue;
+    seen.add(item.storageKey);
+    out.push(item);
+  }
+  return out;
+}
+
 export async function warmHomeMainstageCovers(snapshot: {
   heroAlbums: SubsonicAlbum[];
   recent: SubsonicAlbum[];
@@ -69,14 +116,16 @@ export async function warmHomeMainstageCovers(snapshot: {
   mostPlayed: SubsonicAlbum[];
   recentlyPlayed: SubsonicAlbum[];
   starred: SubsonicAlbum[];
+  discoverSongs?: Array<{ coverArt?: string | null }>;
 }): Promise<void> {
-  const items = [
+  const items = dedupeWarmItems([
     ...collectAlbumCoverWarmItems(snapshot.heroAlbums, 220, 'dense', 12),
-    ...collectAlbumCoverWarmItems(snapshot.recent, 300, 'dense', 20),
-    ...collectAlbumCoverWarmItems(snapshot.random, 300, 'dense', 20),
-    ...collectAlbumCoverWarmItems(snapshot.mostPlayed, 300, 'dense', 16),
-    ...collectAlbumCoverWarmItems(snapshot.recentlyPlayed, 300, 'dense', 16),
-    ...collectAlbumCoverWarmItems(snapshot.starred, 300, 'dense', 16),
-  ];
+    ...collectAlbumCoverWarmItems(snapshot.recent, 300, 'dense', 24),
+    ...collectAlbumCoverWarmItems(snapshot.random, 300, 'dense', 24),
+    ...collectAlbumCoverWarmItems(snapshot.mostPlayed, 300, 'dense', 20),
+    ...collectAlbumCoverWarmItems(snapshot.recentlyPlayed, 300, 'dense', 20),
+    ...collectAlbumCoverWarmItems(snapshot.starred, 300, 'dense', 20),
+    ...collectAlbumCoverWarmItems(snapshot.discoverSongs ?? [], 200, 'dense', 20),
+  ]);
   await warmCoverDiskSrcBatch(items);
 }

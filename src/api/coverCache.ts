@@ -188,6 +188,11 @@ export async function libraryCoverBackfillResetCursor(): Promise<void> {
   return invoke('library_cover_backfill_reset_cursor');
 }
 
+/** Yield native library backfill while the user navigates (visible covers first). */
+export async function libraryCoverBackfillSetUiPriority(hold: boolean): Promise<void> {
+  return invoke('library_cover_backfill_set_ui_priority', { hold });
+}
+
 export async function libraryCoverClearFetchFailures(serverIndexKey: string): Promise<number> {
   return invoke<number>('library_cover_clear_fetch_failures', { serverIndexKey });
 }
