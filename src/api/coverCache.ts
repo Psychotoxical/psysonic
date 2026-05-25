@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { useAuthStore } from '../store/authStore';
 import type { CoverArtRef, CoverArtTier } from '../cover/types';
 
 export type CoverCacheEnsureResult = {
@@ -7,24 +8,64 @@ export type CoverCacheEnsureResult = {
   tier: CoverArtTier;
 };
 
+export type CoverCacheStats = {
+  bytes: number;
+  count: number;
+  pressure: 'ok' | 'pressure' | 'full';
+  autoDownloadEnabled: boolean;
+  entryCount: number;
+};
+
+function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
+  const { getBaseUrl, getActiveServer } = useAuthStore.getState();
+  const scope = ref.serverScope;
+  if (scope.kind === 'server') {
+    const base = scope.url.replace(/\/+$/, '') + '/rest';
+    return {
+      serverId: scope.serverId,
+      coverArtId: ref.coverArtId,
+      tier,
+      restBaseUrl: base,
+      username: scope.username,
+      password: scope.password,
+    };
+  }
+  const server = getActiveServer();
+  const baseUrl = getBaseUrl();
+  return {
+    serverId: server?.id ?? '_',
+    coverArtId: ref.coverArtId,
+    tier,
+    restBaseUrl: baseUrl ? `${baseUrl}/rest` : '',
+    username: server?.username ?? '',
+    password: server?.password ?? '',
+  };
+}
+
 export async function coverCacheEnsure(
-  _ref: CoverArtRef,
-  _tier: CoverArtTier,
+  ref: CoverArtRef,
+  tier: CoverArtTier,
   _priority?: string,
 ): Promise<CoverCacheEnsureResult> {
-  return invoke<CoverCacheEnsureResult>('cover_cache_ensure', {});
+  return invoke<CoverCacheEnsureResult>('cover_cache_ensure', {
+    args: ensureArgsFromRef(ref, tier),
+  });
 }
 
 export async function coverCacheEnsureBatch(
-  _refs: CoverArtRef[],
-  _tier: CoverArtTier,
+  refs: CoverArtRef[],
+  tier: CoverArtTier,
   _priority?: string,
 ): Promise<void> {
-  return invoke('cover_cache_ensure_batch', {});
+  return invoke('cover_cache_ensure_batch', {
+    args: {
+      items: refs.map(r => ensureArgsFromRef(r, tier)),
+    },
+  });
 }
 
-export async function coverCacheStats(): Promise<{ bytes: number; count: number }> {
-  return invoke('cover_cache_stats', {});
+export async function coverCacheStats(): Promise<CoverCacheStats> {
+  return invoke<CoverCacheStats>('cover_cache_stats', {});
 }
 
 export async function coverCacheClear(): Promise<void> {
@@ -32,15 +73,19 @@ export async function coverCacheClear(): Promise<void> {
 }
 
 export async function libraryCoverBackfillBatch(
-  _serverId: string,
-  _cursor?: string | null,
-  _limit?: number,
+  serverId: string,
+  cursor?: string | null,
+  limit?: number,
 ): Promise<{ coverIds: string[]; nextCursor: string | null; exhausted: boolean }> {
-  return invoke('library_cover_backfill_batch', {});
+  return invoke('library_cover_backfill_batch', { serverId, cursor, limit });
 }
 
 export async function libraryCoverProgress(
-  _serverId: string,
+  serverId: string,
 ): Promise<{ totalDistinct: number; pending: number; done: number }> {
-  return invoke('library_cover_progress', {});
+  return invoke('library_cover_progress', { serverId });
+}
+
+export function coverCacheMayBackgroundDownload(): boolean {
+  return true;
 }

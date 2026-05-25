@@ -120,6 +120,9 @@ pub fn run() {
                 app.manage(cache);
             }
 
+            cover_cache::init_cover_cache(app.handle())
+                .map_err(|e| format!("cover cache init failed: {e}"))?;
+
             // ── Library track store (psysonic-library, PR-5a + PR-5b) ─────
             // PR-5a brought up the read-only Tauri surface + LibraryRuntime.
             // PR-5b adds the mutating commands, sync session map, current-job
