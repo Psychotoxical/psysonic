@@ -1,4 +1,5 @@
-import { getDiskSrc } from './diskSrcCache';
+import { getDiskSrc, rememberDiskSrc } from './diskSrcCache';
+import { hasCoverDiskReadyListeners, notifyCoverDiskReady } from './diskHandoff';
 import { coverStorageKey } from './storageKeys';
 import type { CoverArtId, CoverArtTier, CoverServerScope } from './types';
 
@@ -26,4 +27,37 @@ export function getDiskSrcForGrid(
     if (src) return src;
   }
   return '';
+}
+
+/** Seed lookup-order tier keys (512 + 800 fallback path, etc.) — no subscriber wakeups. */
+export function seedGridDiskSrcCache(
+  scope: CoverServerScope,
+  coverArtId: CoverArtId,
+  wantTier: CoverArtTier,
+  fsPath: string,
+): boolean {
+  if (!fsPath) return false;
+  let hit = false;
+  for (const tier of gridDiskSrcLookupOrder(wantTier)) {
+    if (rememberDiskSrc(coverStorageKey(scope, coverArtId, tier), fsPath)) hit = true;
+  }
+  return hit;
+}
+
+/**
+ * After peek/ensure: seed cache and wake mounted cells once (avoids 4× notify / re-render storms).
+ */
+export function rememberGridDiskSrc(
+  scope: CoverServerScope,
+  coverArtId: CoverArtId,
+  wantTier: CoverArtTier,
+  fsPath: string,
+): boolean {
+  const hit = seedGridDiskSrcCache(scope, coverArtId, wantTier, fsPath);
+  if (!hit) return false;
+  const wantKey = coverStorageKey(scope, coverArtId, wantTier);
+  if (hasCoverDiskReadyListeners(wantKey)) {
+    notifyCoverDiskReady(wantKey, fsPath);
+  }
+  return true;
 }

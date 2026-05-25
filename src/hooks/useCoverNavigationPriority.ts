@@ -6,8 +6,8 @@ import {
 } from '../cover/coverTraffic';
 
 /**
- * While the route changes, pause library backfill and background ensure so
- * visible grid covers and page paint stay responsive.
+ * On route change: cancel queued peek/ensure/prefetch from the old page and
+ * briefly pause library backfill so the new page can warm covers first.
  */
 export function useCoverNavigationPriority(): void {
   const { pathname } = useLocation();

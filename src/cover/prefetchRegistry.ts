@@ -42,6 +42,11 @@ export function coverCacheMayBackgroundDownload(): boolean {
   return ipcMayDownload();
 }
 
+/** Drop all page-registered prefetch targets (route change). */
+export function coverPrefetchClearRegistry(): void {
+  registry.clear();
+}
+
 /** Drain registered IDs for background ensure (viewport / page batches). */
 export function coverPrefetchDrainBatch(limit: number): CoverArtRef[] {
   const sorted = [...registry.entries()].sort((a, b) => {

@@ -32,7 +32,10 @@ function SongCard({
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverHandle = useCoverArt(song.coverArt, layoutPx, { surface: 'dense' });
+  const coverHandle = useCoverArt(song.coverArt, layoutPx, {
+    surface: 'dense',
+    ensurePriority: 'middle',
+  });
   const coverUrl = coverHandle.src;
   const psyDrag = useDragDrop();
   const { orbitActive, addTrackToOrbit } = useOrbitSongRowBehavior();

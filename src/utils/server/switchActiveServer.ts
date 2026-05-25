@@ -1,10 +1,15 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
+import {
+  coverTrafficBeginServerSwitch,
+  coverTrafficEndServerSwitch,
+} from '../../cover/coverTraffic';
 import { useAuthStore } from '../../store/authStore';
 import { useOrbitStore } from '../../store/orbitStore';
 import { endOrbitSession, leaveOrbitSession } from '../orbit';
 
 export async function switchActiveServer(server: ServerProfile): Promise<boolean> {
+  coverTrafficBeginServerSwitch();
   try {
     const ping = await pingWithCredentials(server.url, server.username, server.password);
     if (!ping.ok) return false;
@@ -39,5 +44,7 @@ export async function switchActiveServer(server: ServerProfile): Promise<boolean
     return true;
   } catch {
     return false;
+  } finally {
+    coverTrafficEndServerSwitch();
   }
 }

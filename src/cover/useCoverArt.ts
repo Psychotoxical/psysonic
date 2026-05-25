@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { coverEnsureQueued } from './ensureQueue';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { coverEnsureQueued, coverEnsureRelease } from './ensureQueue';
 import { coverPeekQueued } from './peekQueue';
-import { getDiskSrcForGrid } from './diskSrcLookup';
-import { forgetDiskSrc, getDiskSrc, rememberDiskSrc } from './diskSrcCache';
+import { getDiskSrcForGrid, seedGridDiskSrcCache } from './diskSrcLookup';
+import {
+  forgetDiskSrc,
+  getDiskSrc,
+  getDiskSrcCacheGeneration,
+  rememberDiskSrc,
+  subscribeDiskSrcCache,
+} from './diskSrcCache';
 import { subscribeCoverDiskReady } from './diskHandoff';
 import { coverArtRef } from './ref';
 import { coverServerReachable } from './reachability';
@@ -58,8 +64,10 @@ export function useCoverArt(
     [ref, tier],
   );
 
-  const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority
-    ?? (surface === 'dense' ? 'high' : 'middle');
+  const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority ?? 'middle';
+
+  /** Dense grids: peek on mount; HTTP ensure only when IO marks the cell `high`. */
+  const deferEnsureUntilVisible = surface === 'dense' && ensurePriority !== 'high';
 
   const readCachedSrc = useCallback(() => {
     if (!ref) return '';
@@ -69,59 +77,36 @@ export function useCoverArt(
     return getDiskSrc(storageKey);
   }, [ref, storageKey, surface, tier]);
 
-  const [diskSrc, setDiskSrc] = useState(() => {
-    if (!ref) return '';
-    if (surface === 'dense') {
-      return getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier);
-    }
-    return getDiskSrc(storageKey);
-  });
+  useSyncExternalStore(subscribeDiskSrcCache, getDiskSrcCacheGeneration);
 
-  useEffect(() => {
-    if (!ref || diskSrc) return;
-    const cached = readCachedSrc();
-    if (cached) setDiskSrc(cached);
-  }, [ref, diskSrc, readCachedSrc]);
+  const cachedSrc = readCachedSrc();
 
   const applyDiskPath = useCallback((path: string) => {
-    if (!storageKey) return;
+    if (!ref || !storageKey) return;
     if (!path) {
       forgetDiskSrc(storageKey);
-      setDiskSrc('');
       return;
     }
-    const src = rememberDiskSrc(storageKey, path);
-    if (src) setDiskSrc(src);
-  }, [storageKey]);
+    if (surface === 'dense') {
+      seedGridDiskSrcCache(ref.serverScope, ref.coverArtId, tier, path);
+    } else {
+      rememberDiskSrc(storageKey, path);
+    }
+  }, [ref, storageKey, tier, surface, readCachedSrc]);
 
   useEffect(() => {
-    if (!ref || !storageKey) {
-      setDiskSrc('');
-      return;
-    }
+    if (!ref || !storageKey) return;
 
-    const cached = readCachedSrc();
-    if (cached) {
-      setDiskSrc(cached);
-      return;
-    }
+    if (readCachedSrc()) return;
 
     let cancelled = false;
-
-    const applyCachedAfterPeek = () => {
-      const src = readCachedSrc();
-      if (src) setDiskSrc(src);
-    };
 
     void (async () => {
       const peekHit = await coverPeekQueued(storageKey, ref, tier);
       if (cancelled) return;
-      if (peekHit) {
-        applyCachedAfterPeek();
-        return;
-      }
+      if (peekHit || readCachedSrc()) return;
 
-      if (reachable) {
+      if (reachable && !deferEnsureUntilVisible) {
         const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
         if (cancelled) return;
         if (result.hit && result.path) {
@@ -137,15 +122,24 @@ export function useCoverArt(
     return () => {
       cancelled = true;
       unsubDisk();
+      coverEnsureRelease(storageKey);
     };
-  }, [ref, storageKey, tier, reachable, ensurePriority, applyDiskPath, readCachedSrc]);
+  }, [
+    ref,
+    storageKey,
+    tier,
+    reachable,
+    ensurePriority,
+    deferEnsureUntilVisible,
+    applyDiskPath,
+    readCachedSrc,
+  ]);
 
-  const src = diskSrc;
+  const src = cachedSrc;
   const provisional = Boolean(ref && storageKey && !src);
 
   const onImgError = useCallback(() => {
     forgetDiskSrc(storageKey);
-    setDiskSrc('');
     if (ref && reachable) {
       void coverEnsureQueued(storageKey, ref, tier, 'high').then(result => {
         if (result.hit && result.path) applyDiskPath(result.path);

@@ -8,6 +8,18 @@ describe('resolveIntersectionScrollRoot', () => {
     document.body.innerHTML = '';
   });
 
+  it('prefers a horizontal scroll ancestor (mainstage album rails)', () => {
+    const rail = document.createElement('div');
+    const img = document.createElement('img');
+    Object.defineProperty(rail, 'scrollWidth', { value: 4000, configurable: true });
+    Object.defineProperty(rail, 'clientWidth', { value: 800, configurable: true });
+    rail.style.overflowX = 'auto';
+    rail.appendChild(img);
+    document.body.appendChild(rail);
+
+    expect(resolveIntersectionScrollRoot(img)).toBe(rail);
+  });
+
   it('prefers the nearest scrolling ancestor', () => {
     const outer = document.createElement('div');
     const scroller = document.createElement('div');

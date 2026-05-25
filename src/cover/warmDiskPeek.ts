@@ -1,8 +1,7 @@
 import { coverCachePeekBatch } from '../api/coverCache';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { coverEnsureQueued } from './ensureQueue';
-import { getDiskSrcForGrid } from './diskSrcLookup';
-import { rememberDiskSrc } from './diskSrcCache';
+import { getDiskSrcForGrid, rememberGridDiskSrc } from './diskSrcLookup';
 import { coverArtRef } from './ref';
 import { coverIndexKeyFromRef, coverStorageKey } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
@@ -29,7 +28,7 @@ export function coverWarmItem(
 }
 
 export function collectAlbumCoverWarmItems(
-  albums: Array<{ coverArt?: string | null }>,
+  albums: ReadonlyArray<{ coverArt?: string | null }>,
   displayCssPx: number,
   surface: CoverSurfaceKind = 'dense',
   limit = 96,
@@ -59,16 +58,55 @@ export async function warmCoverDiskSrcBatch(items: CoverWarmItem[]): Promise<num
   let warmed = 0;
   for (const item of items) {
     const path = hits[item.storageKey];
-    if (path && rememberDiskSrc(item.storageKey, path)) warmed += 1;
+    if (
+      path
+      && rememberGridDiskSrc(item.ref.serverScope, item.ref.coverArtId, item.tier, path)
+    ) {
+      warmed += 1;
+    }
   }
   return warmed;
 }
 
+/** High-priority ensure for albums still missing disk `src` after peek. */
+export async function ensureAlbumCoverMisses(
+  albums: ReadonlyArray<{ coverArt?: string | null }>,
+  displayCssPx: number,
+  opts?: { surface?: CoverSurfaceKind; limit?: number },
+): Promise<void> {
+  const surface = opts?.surface ?? 'dense';
+  const limit = opts?.limit ?? albums.length;
+  const tier = resolveCoverDisplayTier(displayCssPx, { surface });
+  const slice = albums.slice(0, limit);
+
+  const needEnsure = slice.filter(album => {
+    if (!album.coverArt) return false;
+    return !getDiskSrcForGrid({ kind: 'active' }, album.coverArt, tier);
+  });
+  if (needEnsure.length === 0) return;
+
+  const PRIME_CHUNK = 8;
+  for (let i = 0; i < needEnsure.length; i += PRIME_CHUNK) {
+    const chunk = needEnsure.slice(i, i + PRIME_CHUNK);
+    await Promise.all(
+      chunk.map(async album => {
+        const id = album.coverArt!;
+        const ref = coverArtRef(id);
+        const key = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
+        const result = await coverEnsureQueued(key, ref, tier, 'high');
+        if (result.hit && result.path) {
+          rememberGridDiskSrc(ref.serverScope, ref.coverArtId, tier, result.path);
+        }
+      }),
+    );
+  }
+}
+
 /**
- * Peek + high-priority ensure so BecauseYouLike cards paint with `src` on first frame.
+ * Peek + high-priority ensure so cards paint with `src` on first frame.
  */
 export async function primeAlbumCoversForDisplay(
-  albums: Array<{ coverArt?: string | null }>,
+  albums: ReadonlyArray<{ coverArt?: string | null }>,
   displayCssPx: number,
   opts?: { surface?: CoverSurfaceKind; limit?: number; disabled?: boolean },
 ): Promise<void> {
@@ -79,23 +117,7 @@ export async function primeAlbumCoversForDisplay(
   if (items.length === 0) return;
 
   await warmCoverDiskSrcBatch(items);
-  const tier = resolveCoverDisplayTier(displayCssPx, { surface });
-
-  const needEnsure = albums.filter(album => {
-    if (!album.coverArt) return false;
-    return !getDiskSrcForGrid({ kind: 'active' }, album.coverArt, tier);
-  });
-  if (needEnsure.length === 0) return;
-
-  await Promise.all(
-    needEnsure.map(async album => {
-      const id = album.coverArt!;
-      const ref = coverArtRef(id);
-      const key = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
-      const result = await coverEnsureQueued(key, ref, tier, 'high');
-      if (result.hit && result.path) rememberDiskSrc(key, result.path);
-    }),
-  );
+  await ensureAlbumCoverMisses(albums, displayCssPx, { surface, limit });
 }
 
 function dedupeWarmItems(items: CoverWarmItem[]): CoverWarmItem[] {

@@ -2,8 +2,11 @@ import type { ImgHTMLAttributes } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '../components/CachedImage';
 import { resolveIntersectionScrollRoot } from '../utils/ui/resolveIntersectionScrollRoot';
+import { coverEnsureBump } from './ensureQueue';
 import { coverPrefetchBumpPriority } from './prefetchRegistry';
 import { coverArtRef } from './ref';
+import { coverStorageKey } from './storageKeys';
+import { resolveCoverDisplayTier } from './tiers';
 import { coverImgSrc } from './imgSrc';
 import { useCoverArt } from './useCoverArt';
 import type { CoverArtId, CoverPrefetchPriority, CoverServerScope, CoverSurfaceKind } from './types';
@@ -58,12 +61,15 @@ export function CoverArtImage({
         : null) ?? resolveIntersectionScrollRoot(el);
 
     const ref = coverArtRef(coverArtId, scope);
+    const tier = resolveCoverDisplayTier(displayCssPx, { surface, fullRes });
+    const storageKey = coverStorageKey(scope, coverArtId, tier);
     const observer = new IntersectionObserver(
       entries => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
             setEnsurePriority('high');
             coverPrefetchBumpPriority(ref, 'high');
+            coverEnsureBump(storageKey, 'high');
           }
         }
       },
@@ -75,7 +81,7 @@ export function CoverArtImage({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [coverArtId, scope, observeRootMargin, observeScrollRootId]);
+  }, [coverArtId, scope, displayCssPx, surface, fullRes, observeRootMargin, observeScrollRootId]);
 
   const { src, provisional, onImgError } = useCoverArt(coverArtId, displayCssPx, {
     serverScope: scope,

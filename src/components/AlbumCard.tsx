@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
+import type { CoverPrefetchPriority } from '../cover/types';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 import { coverStorageKey } from '../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../cover/tiers';
@@ -31,6 +32,10 @@ interface AlbumCardProps {
   displayCssPx?: number;
   /** @deprecated Use displayCssPx — kept for call-site transition only */
   artworkSize?: number;
+  /** In-page scroll viewport (`VirtualCardGrid` `scrollRootId`) for cover IO priority. */
+  observeScrollRootId?: string;
+  /** `high` for bounded grids (Random Albums, …) — skip defer-until-visible. */
+  ensurePriority?: CoverPrefetchPriority;
 }
 
 function AlbumCard({
@@ -43,6 +48,8 @@ function AlbumCard({
   disableArtwork = false,
   displayCssPx = COVER_DENSE_GRID_MIN_CELL_CSS_PX,
   artworkSize: _artworkSize,
+  observeScrollRootId,
+  ensurePriority,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -110,6 +117,8 @@ function AlbumCard({
             alt={`${album.name} Cover`}
             loading="eager"
             decoding="async"
+            observeScrollRootId={observeScrollRootId}
+            ensurePriority={ensurePriority}
           />
         ) : (
           <div className="album-card-cover-placeholder">

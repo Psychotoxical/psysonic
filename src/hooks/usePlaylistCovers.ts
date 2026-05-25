@@ -38,7 +38,10 @@ export function usePlaylistCovers(songs: SubsonicSong[], customCoverId: string |
   );
 
   const bgCoverId = customCoverId ?? coverQuad[0] ?? null;
-  const { src: resolvedBgUrl } = useCoverArt(bgCoverId, PLAYLIST_HERO_BG_CSS_PX, { surface: 'dense' });
+  const { src: resolvedBgUrl } = useCoverArt(bgCoverId, PLAYLIST_HERO_BG_CSS_PX, {
+    surface: 'dense',
+    ensurePriority: 'high',
+  });
 
   useEffect(() => {
     const refs = coverQuadIds

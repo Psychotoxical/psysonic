@@ -12,6 +12,9 @@ export function coverDisplayCssPxForAlbumGrid(containerWidthPx: number, maxColum
 
 export const GRID_COVER_WARM_LIMIT = 120;
 
+/** Bounded album grids (Random Albums, paginated slice, …) — prime HTTP ensures after peek. */
+export const GRID_COVER_PRIME_ALL_MAX = 48;
+
 /** Props for `VirtualCardGrid` `warmGridCovers` on album-style pages. */
 export function albumGridWarmCovers<T extends { coverArt?: string | null }>(
   displayCssPx: number = COVER_DENSE_GRID_MIN_CELL_CSS_PX,

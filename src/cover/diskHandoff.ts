@@ -19,6 +19,11 @@ export function subscribeCoverDiskReady(storageKey: string, onReady: DiskReadyLi
   };
 }
 
+export function hasCoverDiskReadyListeners(storageKey: string): boolean {
+  const set = listeners.get(storageKey);
+  return !!set && set.size > 0;
+}
+
 export function notifyCoverDiskReady(storageKey: string, path: string): void {
   const set = listeners.get(storageKey);
   if (!set) return;

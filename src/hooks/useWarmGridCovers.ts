@@ -1,11 +1,16 @@
 import { useLayoutEffect, useMemo } from 'react';
-import { collectAlbumCoverWarmItems, warmCoverDiskSrcBatch } from '../cover/warmDiskPeek';
+import { GRID_COVER_PRIME_ALL_MAX } from '../cover/layoutSizes';
+import {
+  collectAlbumCoverWarmItems,
+  ensureAlbumCoverMisses,
+  warmCoverDiskSrcBatch,
+} from '../cover/warmDiskPeek';
 import type { CoverSurfaceKind } from '../cover/types';
 
 const DEFAULT_LIMIT = 120;
 
 /**
- * One peek-batch before grid paint — seeds `diskSrcCache` for the first viewport of cards.
+ * Peek before paint; for small grids (≤48) queue ensures only for disk misses.
  */
 export function useWarmGridCovers(
   items: ReadonlyArray<{ coverArt?: string | null }>,
@@ -30,10 +35,24 @@ export function useWarmGridCovers(
     return `${displayCssPx}:${slice.map(a => a.coverArt ?? '').join('\u0001')}`;
   }, [items, displayCssPx, limit, opts?.warmKey]);
 
+  const primeAllMisses = items.length > 0 && items.length <= GRID_COVER_PRIME_ALL_MAX;
+
   useLayoutEffect(() => {
     if (!enabled || displayCssPx <= 0) return;
     const batch = collectAlbumCoverWarmItems(items, displayCssPx, surface, limit);
     if (batch.length === 0) return;
-    void warmCoverDiskSrcBatch(batch);
-  }, [enabled, warmKey, items, displayCssPx, limit, surface]);
+
+    let cancelled = false;
+    void (async () => {
+      await warmCoverDiskSrcBatch(batch);
+      if (cancelled) return;
+      if (primeAllMisses) {
+        await ensureAlbumCoverMisses(items, displayCssPx, { surface, limit });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, warmKey, items, displayCssPx, limit, surface, primeAllMisses]);
 }

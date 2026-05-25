@@ -1,7 +1,15 @@
 import { coverCachePeekBatch } from '../api/coverCache';
-import { rememberDiskSrc } from './diskSrcCache';
+import { getDiskSrc } from './diskSrcCache';
+import { getDiskSrcForGrid } from './diskSrcLookup';
+import { coverTrafficServerSwitchPaused } from './coverTraffic';
+import { rememberGridDiskSrc } from './diskSrcLookup';
 import { coverIndexKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
+
+function peekMemoryHit(storageKey: string, ref: CoverArtRef, tier: CoverArtTier): boolean {
+  if (getDiskSrc(storageKey)) return true;
+  return Boolean(getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier));
+}
 
 type PeekJob = {
   storageKey: string;
@@ -24,21 +32,39 @@ function scheduleFlush(): void {
 }
 
 async function flush(): Promise<void> {
+  if (coverTrafficServerSwitchPaused()) {
+    coverPeekCancelPending();
+    return;
+  }
   const jobs = [...pending.values()];
   pending.clear();
   if (jobs.length === 0) return;
 
+  const needDisk: PeekJob[] = [];
+  for (const job of jobs) {
+    if (peekMemoryHit(job.storageKey, job.ref, job.tier)) {
+      job.resolve(true);
+      inflight.delete(job.storageKey);
+    } else {
+      needDisk.push(job);
+    }
+  }
+  if (needDisk.length === 0) return;
+
   const hits = await coverCachePeekBatch(
-    jobs.map(job => ({
+    needDisk.map(job => ({
       serverIndexKey: coverIndexKeyFromRef(job.ref),
       coverArtId: job.ref.coverArtId,
       tier: job.tier,
     })),
   );
 
-  for (const job of jobs) {
+  for (const job of needDisk) {
     const path = hits[job.storageKey];
-    const hit = Boolean(path && rememberDiskSrc(job.storageKey, path));
+    const hit = Boolean(
+      path
+      && rememberGridDiskSrc(job.ref.serverScope, job.ref.coverArtId, job.tier, path),
+    );
     job.resolve(hit);
     inflight.delete(job.storageKey);
   }
@@ -50,6 +76,10 @@ export function coverPeekQueued(
   ref: CoverArtRef,
   tier: CoverArtTier,
 ): Promise<boolean> {
+  if (peekMemoryHit(storageKey, ref, tier)) {
+    return Promise.resolve(true);
+  }
+
   const running = inflight.get(storageKey);
   if (running) return running;
 
@@ -71,4 +101,14 @@ export function coverPeekQueued(
 
   inflight.set(storageKey, p);
   return p;
+}
+
+/** Drop batched peeks (server switch) — callers get `false`. */
+export function coverPeekCancelPending(): void {
+  const jobs = [...pending.values()];
+  pending.clear();
+  for (const job of jobs) {
+    job.resolve(false);
+    inflight.delete(job.storageKey);
+  }
 }
