@@ -7,9 +7,16 @@ mod fetch;
 use disk::{cover_dir, tier_exists, tier_path, DERIVE_TIERS};
 use encode::write_webp_tier;
 use fetch::{build_cover_art_url, fetch_cover_bytes};
-use image::ImageReader;
+use image::{DynamicImage, ImageReader};
+use psysonic_library::cover_backfill::{
+    collect_cover_backfill_batch, collect_cover_progress, LibraryCoverBackfillBatchDto,
+    LibraryCoverProgressDto,
+};
+use psysonic_library::LibraryRuntime;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -131,44 +138,180 @@ impl CoverCacheState {
             });
         }
 
-        let url = build_cover_art_url(
-            &args.rest_base_url,
-            &args.username,
-            &args.password,
-            &args.cover_art_id,
-            800,
-        );
         let client = this.client.clone();
+        let root = this.root.clone();
         drop(this);
-        let bytes = fetch_cover_bytes(&client, &url).await?;
-        let img = ImageReader::new(std::io::Cursor::new(bytes))
-            .with_guessed_format()
-            .map_err(|e| e.to_string())?
-            .decode()
-            .map_err(|e| e.to_string())?;
 
+        let img = load_cover_source(&dir, &client, args).await?;
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        for &tier in &DERIVE_TIERS {
+
+        let requested = args.tier;
+        let tiers_now: Vec<u32> = if requested == 2000 {
+            vec![2000]
+        } else {
+            DERIVE_TIERS
+                .iter()
+                .copied()
+                .filter(|t| *t <= requested)
+                .collect()
+        };
+
+        let mut wrote_requested = false;
+        for tier in tiers_now {
+            if tier_exists(&dir, tier).is_some() {
+                if tier == requested {
+                    wrote_requested = true;
+                }
+                continue;
+            }
             let path = tier_path(&dir, tier);
             write_webp_tier(&img, tier, &path)?;
-            let _ = app.emit(
-                "cover:tier-ready",
-                serde_json::json!({
-                    "serverIndexKey": args.server_index_key,
-                    "coverArtId": args.cover_art_id,
-                    "tier": tier,
-                    "path": path.to_string_lossy(),
-                }),
-            );
+            emit_tier_ready(app, args, tier, &path);
+            if tier == requested {
+                wrote_requested = true;
+            }
         }
 
-        let out_path = tier_path(&dir, args.tier);
+        if !wrote_requested && tier_exists(&dir, requested).is_some() {
+            wrote_requested = true;
+        }
+
+        let out_path = tier_path(&dir, requested);
+        if wrote_requested || out_path.is_file() {
+            spawn_derive_remaining_tiers(
+                app.clone(),
+                state.clone(),
+                root,
+                args.clone(),
+                img,
+                requested,
+            );
+            return Ok(CoverCacheEnsureResult {
+                hit: true,
+                path: out_path.to_string_lossy().into_owned(),
+                tier: requested,
+            });
+        }
+
         Ok(CoverCacheEnsureResult {
-            hit: true,
-            path: out_path.to_string_lossy().into_owned(),
-            tier: args.tier,
+            hit: false,
+            path: String::new(),
+            tier: requested,
         })
     }
+}
+
+fn emit_tier_ready(app: &AppHandle, args: &CoverCacheEnsureArgs, tier: u32, path: &Path) {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return;
+    };
+    if !meta.is_file() || meta.len() == 0 {
+        return;
+    }
+    let _ = app.emit(
+        "cover:tier-ready",
+        serde_json::json!({
+            "serverIndexKey": args.server_index_key,
+            "coverArtId": args.cover_art_id,
+            "tier": tier,
+            "path": path.to_string_lossy(),
+        }),
+    );
+}
+
+fn decode_image_bytes(bytes: &[u8]) -> Result<DynamicImage, String> {
+    ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| e.to_string())?
+        .decode()
+        .map_err(|e| e.to_string())
+}
+
+fn load_image_from_disk(dir: &Path) -> Option<DynamicImage> {
+    for tier in [800u32, 512, 256, 128] {
+        if let Some(path) = tier_exists(dir, tier) {
+            if let Ok(img) = image::open(&path) {
+                return Some(img);
+            }
+        }
+    }
+    None
+}
+
+async fn load_cover_source(
+    dir: &Path,
+    client: &Client,
+    args: &CoverCacheEnsureArgs,
+) -> Result<DynamicImage, String> {
+    if let Some(img) = load_image_from_disk(dir) {
+        return Ok(img);
+    }
+    let fetch_size = if args.tier >= 2000 {
+        2000
+    } else {
+        800
+    };
+    let url = build_cover_art_url(
+        &args.rest_base_url,
+        &args.username,
+        &args.password,
+        &args.cover_art_id,
+        fetch_size,
+    );
+    let bytes = fetch_cover_bytes(client, &url).await?;
+    decode_image_bytes(&bytes)
+}
+
+fn spawn_derive_remaining_tiers(
+    app: AppHandle,
+    state: Arc<Mutex<CoverCacheState>>,
+    _root: PathBuf,
+    args: CoverCacheEnsureArgs,
+    img: DynamicImage,
+    requested: u32,
+) {
+    let tiers_bg: Vec<u32> = if requested == 2000 {
+        vec![]
+    } else {
+        DERIVE_TIERS
+            .iter()
+            .copied()
+            .filter(|t| *t > requested && *t <= 800)
+            .collect()
+    };
+    if tiers_bg.is_empty() {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        let dir = {
+            let guard = state.lock().await;
+            cover_dir(&guard.root, &args.server_index_key, &args.cover_art_id)
+        };
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            for tier in tiers_bg {
+                if tier_exists(&dir, tier).is_some() {
+                    continue;
+                }
+                let path = tier_path(&dir, tier);
+                if write_webp_tier(&img, tier, &path).is_ok() {
+                    emit_tier_ready(&app, &args, tier, &path);
+                }
+            }
+        })
+        .await;
+    });
+}
+
+fn count_cached_cover_ids(root: &Path, server_index_key: &str) -> i64 {
+    let server_dir = root.join(server_index_key);
+    let Ok(entries) = std::fs::read_dir(&server_dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter(|e| tier_exists(&e.path(), 800).is_some())
+        .count() as i64
 }
 
 fn state(app: &AppHandle) -> Result<Arc<Mutex<CoverCacheState>>, String> {
@@ -216,6 +359,65 @@ pub fn init_cover_cache(app: &AppHandle) -> Result<(), String> {
     reset_cover_cache_for_index_key_layout(&root)?;
     app.manage(Arc::new(Mutex::new(CoverCacheState::new(root)?)));
     Ok(())
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverCachePeekItem {
+    pub server_index_key: String,
+    pub cover_art_id: String,
+    pub tier: u32,
+}
+
+/// Best-effort disk hit without network (exact tier, then largest tier on disk ≤ wanted).
+#[tauri::command]
+pub fn cover_cache_peek_batch(
+    app: AppHandle,
+    items: Vec<CoverCachePeekItem>,
+) -> Result<HashMap<String, String>, String> {
+    let st = state(&app)?;
+    let guard = st.blocking_lock();
+    let root = guard.root.clone();
+    drop(guard);
+    let mut out = HashMap::new();
+    for item in items {
+        let dir = cover_dir(&root, &item.server_index_key, &item.cover_art_id);
+        let path = peek_tier_path(&dir, item.tier);
+        if let Some(p) = path {
+            let key = format!(
+                "{}:cover:{}:{}",
+                item.server_index_key, item.cover_art_id, item.tier
+            );
+            out.insert(key, p.to_string_lossy().into_owned());
+        }
+    }
+    Ok(out)
+}
+
+fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
+    if let Some(p) = tier_exists(dir, want) {
+        return Some(p);
+    }
+    let fallbacks: &[u32] = if want >= 800 {
+        &[512, 256, 128]
+    } else if want >= 512 {
+        &[256, 128]
+    } else if want >= 256 {
+        &[128]
+    } else {
+        &[]
+    };
+    for &tier in fallbacks {
+        if let Some(p) = tier_exists(dir, tier) {
+            return Some(p);
+        }
+    }
+    if want < 800 {
+        if let Some(p) = tier_exists(dir, 800) {
+            return Some(p);
+        }
+    }
+    None
 }
 
 #[tauri::command]
@@ -331,33 +533,54 @@ pub async fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
     let guard = st.lock().await;
     if guard.root.exists() {
         for entry in std::fs::read_dir(&guard.root).map_err(|e| e.to_string())?.flatten() {
-            let _ = std::fs::remove_dir_all(entry.path());
+            let name = entry.file_name();
+            if name.to_string_lossy() == ".storage-layout" {
+                continue;
+            }
+            if entry.path().is_dir() {
+                let _ = std::fs::remove_dir_all(entry.path());
+            } else {
+                let _ = std::fs::remove_file(entry.path());
+            }
         }
     }
+    drop(guard);
+    let _ = app.emit("cover:cache-cleared", serde_json::json!({}));
     Ok(())
 }
 
 #[tauri::command]
 pub fn library_cover_backfill_batch(
-    _app: AppHandle,
-    _server_index_key: String,
-    _cursor: Option<String>,
-    _limit: Option<u32>,
-) -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({
-        "coverIds": [],
-        "nextCursor": null,
-        "exhausted": true
-    }))
+    app: AppHandle,
+    server_index_key: String,
+    library_server_id: String,
+    cursor: Option<String>,
+    limit: Option<u32>,
+) -> Result<LibraryCoverBackfillBatchDto, String> {
+    let runtime = app
+        .try_state::<LibraryRuntime>()
+        .ok_or_else(|| "LibraryRuntime not initialized".to_string())?;
+    let _index = server_index_key;
+    collect_cover_backfill_batch(&runtime.store, &library_server_id, cursor.as_deref(), limit)
 }
 
 #[tauri::command]
-pub fn library_cover_progress(_server_index_key: String) -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({
-        "totalDistinct": 0,
-        "pending": 0,
-        "done": 0
-    }))
+pub fn library_cover_progress(
+    app: AppHandle,
+    server_index_key: String,
+    library_server_id: String,
+) -> Result<LibraryCoverProgressDto, String> {
+    let runtime = app
+        .try_state::<LibraryRuntime>()
+        .ok_or_else(|| "LibraryRuntime not initialized".to_string())?;
+    let mut progress = collect_cover_progress(&runtime.store, &library_server_id)?;
+    let st = state(&app)?;
+    let guard = st.blocking_lock();
+    let done = count_cached_cover_ids(&guard.root, &server_index_key);
+    drop(guard);
+    progress.done = done.min(progress.total_distinct);
+    progress.pending = (progress.total_distinct - progress.done).max(0);
+    Ok(progress)
 }
 
 #[tauri::command]

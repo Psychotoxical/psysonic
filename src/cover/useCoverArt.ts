@@ -1,10 +1,6 @@
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { acquireUrl, releaseUrl } from '../utils/imageCache/urlPool';
-import { getBlobFromIDB } from '../utils/imageCache/idbStore';
-import { rememberBlob } from '../utils/imageCache/blobCache';
-import { blobCache } from '../utils/imageCache/blobCache';
 import { coverEnsureQueued } from './ensureQueue';
+import { forgetDiskSrc, getDiskSrc, rememberDiskSrc } from './diskSrcCache';
 import { subscribeCoverDiskReady } from './diskHandoff';
 import { coverArtRef } from './ref';
 import { coverServerReachable } from './reachability';
@@ -18,13 +14,8 @@ import type {
   CoverSurfaceKind,
 } from './types';
 
-function initialDiskSrc(storageKey: string): string {
-  if (!storageKey) return '';
-  return acquireUrl(storageKey) ?? '';
-}
-
 /**
- * Disk + IDB/memory in the webview — no `getCoverArt` URL in `<img src>` (Rust fetch only).
+ * Disk cache in Rust (WebP tiers) — no webview `getCoverArt` fetch when server is reachable.
  */
 export function useCoverArt(
   coverArtId: CoverArtId | null | undefined,
@@ -68,28 +59,28 @@ export function useCoverArt(
   const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority
     ?? (surface === 'dense' ? 'middle' : 'middle');
 
-  const [diskSrc, setDiskSrc] = useState(() => initialDiskSrc(storageKey));
-  const ownedDiskRef = useRef<string | null>(
-    initialDiskSrc(storageKey) ? storageKey : null,
-  );
+  const [diskSrc, setDiskSrc] = useState(() => getDiskSrc(storageKey));
 
   const applyDiskPath = useCallback((path: string) => {
-    if (!path) return;
-    setDiskSrc(convertFileSrc(path));
-    ownedDiskRef.current = storageKey;
+    if (!storageKey) return;
+    if (!path) {
+      forgetDiskSrc(storageKey);
+      setDiskSrc('');
+      return;
+    }
+    const src = rememberDiskSrc(storageKey, path);
+    if (src) setDiskSrc(src);
   }, [storageKey]);
 
   useEffect(() => {
     if (!ref || !storageKey) {
       setDiskSrc('');
-      ownedDiskRef.current = null;
       return;
     }
 
-    const sync = acquireUrl(storageKey);
-    if (sync) {
-      setDiskSrc(sync);
-      ownedDiskRef.current = storageKey;
+    const cached = getDiskSrc(storageKey);
+    if (cached) {
+      setDiskSrc(cached);
       return;
     }
 
@@ -101,40 +92,32 @@ export function useCoverArt(
         if (cancelled) return;
         if (result.hit && result.path) {
           applyDiskPath(result.path);
-          return;
-        }
-      }
-
-      const idb = await getBlobFromIDB(storageKey);
-      if (cancelled) return;
-      if (idb) {
-        rememberBlob(storageKey, idb);
-        const url = acquireUrl(storageKey);
-        if (url) {
-          setDiskSrc(url);
-          ownedDiskRef.current = storageKey;
         }
       }
     })();
 
     const unsubDisk = subscribeCoverDiskReady(storageKey, path => {
-      if (!cancelled) applyDiskPath(path);
+      if (!cancelled && path) applyDiskPath(path);
     });
 
     return () => {
       cancelled = true;
       unsubDisk();
-      if (ownedDiskRef.current === storageKey) {
-        releaseUrl(storageKey);
-      }
     };
   }, [ref, storageKey, tier, reachable, ensurePriority, applyDiskPath]);
 
   const src = diskSrc;
-  const provisional = useMemo(() => {
-    if (!ref || !storageKey || src) return false;
-    return !blobCache.has(storageKey);
-  }, [ref, storageKey, src]);
+  const provisional = Boolean(ref && storageKey && !src);
 
-  return { src, storageKey, cacheKey: storageKey, tier, provisional };
+  const onImgError = useCallback(() => {
+    forgetDiskSrc(storageKey);
+    setDiskSrc('');
+    if (ref && reachable) {
+      void coverEnsureQueued(storageKey, ref, tier, 'high').then(result => {
+        if (result.hit && result.path) applyDiskPath(result.path);
+      });
+    }
+  }, [storageKey, ref, tier, reachable, applyDiskPath]);
+
+  return { src, storageKey, cacheKey: storageKey, tier, provisional, onImgError };
 }

@@ -20,6 +20,12 @@ import { shuffleArray } from '../utils/playback/shuffleArray';
 import { coverArtIdFromArtist } from '../cover/ids';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
 import { coverArtRef } from '../cover/ref';
+import { warmHomeMainstageCovers } from '../cover/warmDiskPeek';
+import {
+  readHomeFeedCache,
+  writeHomeFeedCache,
+  type HomeFeedSnapshot,
+} from '../store/homeFeedCache';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
 const HOME_RANDOM_FETCH = 100;
@@ -58,6 +64,17 @@ export default function Home() {
   const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const applyFeedSnapshot = (snap: HomeFeedSnapshot) => {
+    setStarred(snap.starred);
+    setRecent(snap.recent);
+    setRandom(snap.random);
+    setHeroAlbums(snap.heroAlbums);
+    setMostPlayed(snap.mostPlayed);
+    setRecentlyPlayed(snap.recentlyPlayed);
+    setRandomArtists(snap.randomArtists);
+    setDiscoverSongs(snap.discoverSongs);
+  };
+
   useEffect(() => {
     bumpPerfCounter('homeCommits');
   });
@@ -72,7 +89,7 @@ export default function Home() {
     const songRefs = discoverSongs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : []));
     const unregHero = coverPrefetchRegister(heroRefs, { surface: 'dense', priority: 'high' });
     const unregRecent = coverPrefetchRegister(recentRefs, { surface: 'dense', priority: 'high' });
-    const cappedRest = [...restAlbumRefs, ...artistRefs, ...songRefs].slice(0, 40);
+    const cappedRest = [...restAlbumRefs, ...artistRefs, ...songRefs].slice(0, 24);
     const unregRest = coverPrefetchRegister(cappedRest, { surface: 'dense', priority: 'low' });
     return () => {
       unregHero();
@@ -82,7 +99,21 @@ export default function Home() {
   }, [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs]);
 
   useEffect(() => {
+    if (!activeServerId) return;
     let cancelled = false;
+
+    const cached = readHomeFeedCache(activeServerId, musicLibraryFilterVersion);
+    if (cached) {
+      applyFeedSnapshot(cached);
+      void (async () => {
+        await warmHomeMainstageCovers(cached);
+        if (!cancelled) setLoading(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     setLoading(true);
     (async () => {
       try {
@@ -103,14 +134,22 @@ export default function Home() {
         ]);
         if (cancelled) return;
         const r = dedupeById(await filterAlbumsByMixRatings(rRaw, mixCfg));
-        setStarred(dedupeById(s));
-        setRecent(dedupeById(n));
-        setHeroAlbums(r.slice(0, HOME_HERO_COUNT));
-        setRandom(r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE));
-        setMostPlayed(dedupeById(f));
-        setRecentlyPlayed(dedupeById(rp));
-        setDiscoverSongs(dedupeById(songs));
-        setRandomArtists(dedupeById(shuffleArray(artists)).slice(0, 16));
+        const snap: HomeFeedSnapshot = {
+          serverId: activeServerId,
+          filterVersion: musicLibraryFilterVersion,
+          savedAt: Date.now(),
+          starred: dedupeById(s),
+          recent: dedupeById(n),
+          heroAlbums: r.slice(0, HOME_HERO_COUNT),
+          random: r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE),
+          mostPlayed: dedupeById(f),
+          recentlyPlayed: dedupeById(rp),
+          discoverSongs: dedupeById(songs),
+          randomArtists: dedupeById(shuffleArray(artists)).slice(0, 16),
+        };
+        writeHomeFeedCache(snap);
+        applyFeedSnapshot(snap);
+        await warmHomeMainstageCovers(snap);
       } catch {
         /* ignore */
       } finally {

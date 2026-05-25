@@ -7,7 +7,9 @@ import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Music } from 'lucide-react';
-import { CoverArtImage } from '../cover/CoverArtImage';
+import { coverArtRef } from '../cover/ref';
+import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { coverImgSrc } from '../cover/imgSrc';
 import { useCoverArt } from '../cover/useCoverArt';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -211,6 +213,12 @@ export default function BecauseYouLikeRail({
     return () => { cancelled = true; };
   }, [pool, activeServerId]);
 
+  useEffect(() => {
+    if (disableArtwork || recs.length === 0) return;
+    const refs = recs.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
+  }, [recs, disableArtwork]);
+
   if (!anchor || recs.length === 0) {
     return <div ref={containerRef} />;
   }
@@ -254,7 +262,11 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
   const { t } = useTranslation();
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverHandle = useCoverArt(album.coverArt, BECAUSE_CARD_COVER_CSS_PX, { surface: 'dense' });
+  const coverHandle = useCoverArt(album.coverArt, BECAUSE_CARD_COVER_CSS_PX, {
+    surface: 'dense',
+    ensurePriority: 'high',
+  });
+  const imgSrc = coverImgSrc(coverHandle.src);
   const bgResolved = coverHandle.src;
 
   const handleOpen = () => navigate(`/album/${album.id}`);
@@ -290,13 +302,14 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork }:
       )}
       <div className="because-card-cover-wrap">
         {!disableArtwork && album.coverArt ? (
-          <CoverArtImage
-            coverArtId={album.coverArt}
-            displayCssPx={BECAUSE_CARD_COVER_CSS_PX}
-            surface="dense"
+          <img
+            src={imgSrc}
             alt={album.name}
             className="because-card-cover"
-            loading="lazy"
+            loading="eager"
+            decoding="async"
+            data-cover-provisional={coverHandle.provisional ? 'true' : undefined}
+            onError={coverHandle.onImgError}
           />
         ) : (
           <div className="because-card-cover because-card-cover-placeholder" aria-hidden="true">

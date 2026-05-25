@@ -1,6 +1,5 @@
 use image::imageops::FilterType;
-use image::{DynamicImage, ImageFormat};
-use std::io::Cursor;
+use image::DynamicImage;
 use std::path::Path;
 
 pub fn resize_tier(img: &DynamicImage, tier: u32) -> DynamicImage {
@@ -15,11 +14,18 @@ pub fn resize_tier(img: &DynamicImage, tier: u32) -> DynamicImage {
     img.resize(nw, nh, FilterType::Triangle)
 }
 
-pub fn encode_webp(img: &DynamicImage) -> Result<Vec<u8>, String> {
-    let mut buf = Cursor::new(Vec::new());
-    img.write_to(&mut buf, ImageFormat::WebP)
-        .map_err(|e| e.to_string())?;
-    Ok(buf.into_inner())
+pub fn webp_quality_for_tier(tier: u32) -> f32 {
+    if tier >= 2000 {
+        85.0
+    } else {
+        82.0
+    }
+}
+
+pub fn encode_webp(img: &DynamicImage, tier: u32) -> Result<Vec<u8>, String> {
+    let rgba = img.to_rgba8();
+    let enc = webp::Encoder::from_rgba(rgba.as_raw(), rgba.width(), rgba.height());
+    Ok(enc.encode(webp_quality_for_tier(tier)).to_vec())
 }
 
 pub fn write_webp_tier(img: &DynamicImage, tier: u32, path: &Path) -> Result<(), String> {
@@ -27,7 +33,7 @@ pub fn write_webp_tier(img: &DynamicImage, tier: u32, path: &Path) -> Result<(),
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let resized = resize_tier(img, tier);
-    let bytes = encode_webp(&resized)?;
+    let bytes = encode_webp(&resized, tier)?;
     std::fs::write(path, bytes).map_err(|e| e.to_string())
 }
 
@@ -42,5 +48,12 @@ mod tests {
         let out = resize_tier(&img, 128);
         assert!(out.width() <= 128);
         assert!(out.height() <= 128);
+    }
+
+    #[test]
+    fn webp_encode_smaller_than_lossless_upper_bound() {
+        let img = DynamicImage::ImageRgba8(RgbaImage::new(800, 800));
+        let bytes = encode_webp(&img, 800).expect("webp");
+        assert!(bytes.len() < 400_000, "expected lossy webp << 550KB, got {}", bytes.len());
     }
 }

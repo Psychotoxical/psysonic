@@ -10,6 +10,13 @@ export * from './layoutSizes';
 export * from './ref';
 export { useCoverArt } from './useCoverArt';
 export { CoverArtImage } from './CoverArtImage';
+export {
+  clearAllDiskSrcCache,
+  forgetDiskSrc,
+  forgetDiskSrcPrefix,
+  getDiskSrc,
+  rememberDiskSrc,
+} from './diskSrcCache';
 export { usePlaybackCoverArt } from './usePlaybackCoverArt';
 export { ensureCoverTierJs } from './resolveJs';
 export { buildCoverArtFetchUrl } from './fetchUrl';

@@ -4,11 +4,13 @@ import { useAuthStore } from '../store/authStore';
 import { coverPrefetchDrainBatch } from './prefetchRegistry';
 import { coverEnsureQueued } from './ensureQueue';
 import { coverStorageKey } from './storageKeys';
+import { resolveCoverDisplayTier } from './tiers';
 import type { CoverArtTier } from './types';
 
-const STEADY_POLL_MS = 2000;
-const BATCH_LIMIT = 8;
-const DENSE_PREFETCH_TIER = 128 as CoverArtTier;
+const STEADY_POLL_MS = 1500;
+const BATCH_LIMIT = 12;
+/** Match dense card thumbs (~160 CSS px) — prefetch 128 wasted a full re-ensure for 512. */
+const DENSE_PREFETCH_TIER = resolveCoverDisplayTier(160, { surface: 'dense' }) as CoverArtTier;
 
 /**
  * Background cover warm-up — low rate; Rust HTTP only (never competes with webview grid fetches).

@@ -27,10 +27,10 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' ipc: http://ipc.localhost tauri:; img-src 'self' asset: http://asset.localhost https: http: data: blob:; media-src 'self' asset: http://asset.localhost https: http: data: blob:;",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/**/*"]
+        "scope": ["$APPDATA/**", "$APPDATA/cover-cache/**"]
       }
     }
   },

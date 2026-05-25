@@ -54,6 +54,26 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
   };
 }
 
+export type CoverCachePeekItem = {
+  serverIndexKey: string;
+  coverArtId: string;
+  tier: CoverArtTier;
+};
+
+/** Disk-only — no HTTP. Returns map storageKey → absolute .webp path. */
+export async function coverCachePeekBatch(
+  items: CoverCachePeekItem[],
+): Promise<Record<string, string>> {
+  if (items.length === 0) return {};
+  const raw = await invoke<Record<string, string>>('cover_cache_peek_batch', { items });
+  const out: Record<string, string> = {};
+  for (const item of items) {
+    const key = `${item.serverIndexKey}:cover:${item.coverArtId}:${item.tier}`;
+    if (raw[key]) out[key] = raw[key];
+  }
+  return out;
+}
+
 export async function coverCacheEnsure(
   ref: CoverArtRef,
   tier: CoverArtTier,
@@ -84,16 +104,23 @@ export async function coverCacheClear(): Promise<void> {
 
 export async function libraryCoverBackfillBatch(
   serverIndexKey: string,
+  libraryServerId: string,
   cursor?: string | null,
   limit?: number,
 ): Promise<{ coverIds: string[]; nextCursor: string | null; exhausted: boolean }> {
-  return invoke('library_cover_backfill_batch', { serverIndexKey, cursor, limit });
+  return invoke('library_cover_backfill_batch', {
+    serverIndexKey,
+    libraryServerId,
+    cursor,
+    limit,
+  });
 }
 
 export async function libraryCoverProgress(
   serverIndexKey: string,
+  libraryServerId: string,
 ): Promise<{ totalDistinct: number; pending: number; done: number }> {
-  return invoke('library_cover_progress', { serverIndexKey });
+  return invoke('library_cover_progress', { serverIndexKey, libraryServerId });
 }
 
 export function coverCacheMayBackgroundDownload(): boolean {

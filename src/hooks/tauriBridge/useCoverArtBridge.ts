@@ -1,6 +1,12 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import {
+  clearAllDiskSrcCache,
+  forgetDiskSrcPrefix,
+  rememberDiskSrc,
+} from '../../cover/diskSrcCache';
 import { notifyCoverDiskReady } from '../../cover/diskHandoff';
+import { invalidateCacheKey } from '../../utils/imageCache';
 import { COVER_ART_TIERS } from '../../cover/tiers';
 import type { CoverArtTier } from '../../cover/types';
 
@@ -26,12 +32,20 @@ export function useCoverArtBridge(): void {
           const { serverIndexKey, coverArtId, tier, path } = ev.payload;
           if (!path) return;
           const key = `${serverIndexKey}:cover:${coverArtId}:${tier}`;
+          rememberDiskSrc(key, path);
           notifyCoverDiskReady(key, path);
+          void invalidateCacheKey(key);
+        }),
+      );
+      unsubs.push(
+        await listen('cover:cache-cleared', () => {
+          clearAllDiskSrcCache();
         }),
       );
       unsubs.push(
         await listen<CoverEvictedPayload>('cover:evicted', ev => {
           const { serverIndexKey, coverArtId } = ev.payload;
+          forgetDiskSrcPrefix(serverIndexKey, coverArtId);
           for (const tier of COVER_ART_TIERS) {
             notifyCoverDiskReady(`${serverIndexKey}:cover:${coverArtId}:${tier}`, '');
           }

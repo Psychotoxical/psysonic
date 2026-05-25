@@ -48,7 +48,7 @@ export async function downscaleCoverBlob(
       };
       const onAbort = () => finish(null);
       signal?.addEventListener('abort', onAbort, { once: true });
-      canvas.toBlob(b => finish(b ?? null), 'image/jpeg', 0.88);
+      canvas.toBlob(b => finish(b ?? null), 'image/webp', 0.82);
     });
   } catch {
     return null;

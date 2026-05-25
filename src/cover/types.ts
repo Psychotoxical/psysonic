@@ -30,6 +30,8 @@ export type CoverArtHandle = {
   cacheKey: string;
   tier: CoverArtTier;
   provisional: boolean;
+  /** Retry disk ensure after a broken/stale `src` (e.g. post cache clear). */
+  onImgError?: () => void;
 };
 
 export type CoverFullResIntent = { kind: 'tier2000' };

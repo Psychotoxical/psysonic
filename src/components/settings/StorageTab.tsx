@@ -9,6 +9,7 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { clearImageCache, getImageCacheSize } from '../../utils/imageCache';
 import { coverCacheClear, coverCacheStats } from '../../api/coverCache';
+import { clearAllDiskSrcCache } from '../../cover/diskSrcCache';
 import { formatBytes, snapHotCacheMb } from '../../utils/format/formatBytes';
 import { showToast } from '../../utils/ui/toast';
 import SettingsSubSection from '../SettingsSubSection';
@@ -243,7 +244,10 @@ export function StorageTab() {
             <button
               className="btn btn-ghost"
               style={{ fontSize: 13 }}
-              onClick={() => void coverCacheClear().then(() => coverCacheStats().then(s => setCoverDiskBytes(s.bytes)))}
+              onClick={() => void coverCacheClear().then(() => {
+                clearAllDiskSrcCache();
+                return coverCacheStats().then(s => setCoverDiskBytes(s.bytes));
+              })}
             >
               <Trash2 size={14} /> {t('settings.coverCacheClearBtn')}
             </button>

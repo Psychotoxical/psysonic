@@ -35,6 +35,7 @@ export function CoverArtImage({
   observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
   observeScrollRootId,
   ensurePriority: ensurePriorityProp,
+  onError: restOnError,
   ...rest
 }: CoverArtImageProps) {
   const scope = serverScope ?? { kind: 'active' };
@@ -76,7 +77,7 @@ export function CoverArtImage({
     return () => observer.disconnect();
   }, [coverArtId, scope, observeRootMargin, observeScrollRootId]);
 
-  const { src, provisional } = useCoverArt(coverArtId, displayCssPx, {
+  const { src, provisional, onImgError } = useCoverArt(coverArtId, displayCssPx, {
     serverScope: scope,
     surface,
     fullRes,
@@ -96,6 +97,10 @@ export function CoverArtImage({
       data-observe-root-margin={observeRootMargin}
       data-observe-scroll-root={observeScrollRootId}
       {...rest}
+      onError={e => {
+        onImgError?.();
+        restOnError?.(e);
+      }}
     />
   );
 }
