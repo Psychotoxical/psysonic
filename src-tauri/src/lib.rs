@@ -734,6 +734,7 @@ pub fn run() {
             cover_cache::cover_cache_ensure_batch,
             cover_cache::cover_cache_stats,
             cover_cache::cover_cache_evict_tick,
+            cover_cache::cover_cache_configure,
             cover_cache::cover_cache_clear,
             cover_cache::library_cover_backfill_batch,
             cover_cache::library_cover_progress,

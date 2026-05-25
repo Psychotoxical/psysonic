@@ -8,6 +8,7 @@ import { useHotCacheStore } from '../../store/hotCacheStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { clearImageCache, getImageCacheSize } from '../../utils/imageCache';
+import { coverCacheClear, coverCacheStats } from '../../api/coverCache';
 import { formatBytes, snapHotCacheMb } from '../../utils/format/formatBytes';
 import { showToast } from '../../utils/ui/toast';
 import SettingsSubSection from '../SettingsSubSection';
@@ -24,6 +25,8 @@ export function StorageTab() {
   const [hotCacheBytes, setHotCacheBytes] = useState<number | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [coverDiskBytes, setCoverDiskBytes] = useState<number | null>(null);
+  const [coverPressure, setCoverPressure] = useState<string>('ok');
 
   const hotCacheTrackCount = useMemo(() => {
     const prefix = `${serverId}:`;
@@ -36,6 +39,23 @@ export function StorageTab() {
     invoke<number>('get_offline_cache_size', { customDir: auth.offlineDownloadDir || null }).then(setOfflineCacheBytes).catch(() => setOfflineCacheBytes(0));
     invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null }).then(setHotCacheBytes).catch(() => setHotCacheBytes(0));
   }, [auth.offlineDownloadDir, auth.hotCacheDownloadDir]);
+
+  useEffect(() => {
+    coverCacheStats()
+      .then(s => {
+        setCoverDiskBytes(s.bytes);
+        setCoverPressure(s.pressure);
+      })
+      .catch(() => setCoverDiskBytes(0));
+  }, [auth.coverCacheMaxMb]);
+
+  useEffect(() => {
+    void invoke('cover_cache_configure', {
+      maxMb: auth.coverCacheMaxMb,
+      highWatermarkPct: auth.coverCacheHighWatermarkPct,
+      resumeWatermarkPct: auth.coverCacheResumeWatermarkPct,
+    }).catch(() => {});
+  }, [auth.coverCacheMaxMb, auth.coverCacheHighWatermarkPct, auth.coverCacheResumeWatermarkPct]);
 
   /** Live disk usage for hot cache (interval + refresh when index changes). */
   useEffect(() => {
@@ -190,6 +210,45 @@ export function StorageTab() {
             />
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>MB</span>
           </div>
+
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{t('settings.coverCacheTitle')}</div>
+            {coverDiskBytes !== null && (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                {t('settings.coverCacheUsed', { size: formatBytes(coverDiskBytes) })}
+                {coverPressure !== 'ok' && (
+                  <span style={{ marginLeft: 8, color: 'var(--color-warning, #f59e0b)' }}>
+                    {t('settings.coverCachePressurePaused')}
+                  </span>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.coverCacheMaxLabel')}</span>
+              <input
+                className="input"
+                type="number"
+                min={2048}
+                max={32768}
+                step={512}
+                value={auth.coverCacheMaxMb}
+                onChange={e => {
+                  const v = Number(e.target.value);
+                  if (v >= 2048) auth.setCoverCacheMaxMb(v);
+                }}
+                style={{ width: 88, padding: '4px 8px', fontSize: 13 }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>MB</span>
+            </div>
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: 13 }}
+              onClick={() => void coverCacheClear().then(() => coverCacheStats().then(s => setCoverDiskBytes(s.bytes)))}
+            >
+              <Trash2 size={14} /> {t('settings.coverCacheClearBtn')}
+            </button>
+          </div>
+
           {showClearConfirm ? (
             <div style={{ background: 'color-mix(in srgb, var(--color-danger, #e53935) 10%, transparent)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 13, lineHeight: 1.5 }}>
               <div style={{ marginBottom: 8, color: 'var(--text-primary)' }}>{t('settings.cacheClearWarning')}</div>

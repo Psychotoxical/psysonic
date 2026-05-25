@@ -19,6 +19,7 @@ import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
 import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
 import { useLibraryAnalysisBackfill } from '../hooks/useLibraryAnalysisBackfill';
 import { useCoverArtPrefetch } from '../cover/useCoverArtPrefetch';
+import { useCoverRevalidateScheduler } from '../cover/useCoverRevalidateScheduler';
 import { runCoverIdbUpgradeMigration } from '../utils/migrations/coverIdbUpgradeMigration';
 import { useMigrationOrchestrator } from '../hooks/useMigrationOrchestrator';
 import { IS_WINDOWS } from '../utils/platform';
@@ -64,6 +65,7 @@ export default function MainApp() {
 
   useLibraryAnalysisBackfill(migrationReady);
   useCoverArtPrefetch(migrationReady);
+  useCoverRevalidateScheduler(migrationReady);
 
   useEffect(() => {
     if (!migrationReady) return;

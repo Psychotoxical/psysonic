@@ -12,6 +12,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize)]
@@ -53,6 +54,8 @@ pub struct CoverCacheState {
     pub root: PathBuf,
     pub client: Client,
     pub max_bytes: u64,
+    pub high_watermark_pct: u64,
+    pub resume_watermark_pct: u64,
 }
 
 impl CoverCacheState {
@@ -65,6 +68,8 @@ impl CoverCacheState {
             root,
             client,
             max_bytes: 10 * 1024 * 1024 * 1024,
+            high_watermark_pct: 90,
+            resume_watermark_pct: 85,
         })
     }
 
@@ -95,10 +100,13 @@ impl CoverCacheState {
 
     fn pressure(&self) -> (String, bool) {
         let (bytes, _) = self.dir_usage();
-        let ratio = bytes as f64 / self.max_bytes.max(1) as f64;
-        if ratio >= 0.9 {
+        let max = self.max_bytes.max(1) as f64;
+        let ratio = bytes as f64 / max;
+        let high = self.high_watermark_pct as f64 / 100.0;
+        let resume = self.resume_watermark_pct as f64 / 100.0;
+        if ratio >= high {
             ("full".into(), false)
-        } else if ratio >= 0.85 {
+        } else if ratio >= resume {
             ("pressure".into(), false)
         } else {
             ("ok".into(), true)
@@ -106,11 +114,12 @@ impl CoverCacheState {
     }
 
     async fn ensure_inner(
-        &self,
+        state: &Arc<Mutex<CoverCacheState>>,
         app: &AppHandle,
         args: &CoverCacheEnsureArgs,
     ) -> Result<CoverCacheEnsureResult, String> {
-        let dir = cover_dir(&self.root, &args.server_id, &args.cover_art_id);
+        let this = state.lock().await;
+        let dir = cover_dir(&this.root, &args.server_id, &args.cover_art_id);
         if let Some(path) = tier_exists(&dir, args.tier) {
             return Ok(CoverCacheEnsureResult {
                 hit: true,
@@ -119,7 +128,7 @@ impl CoverCacheState {
             });
         }
 
-        let (_, auto_dl) = self.pressure();
+        let (_, auto_dl) = this.pressure();
         if !auto_dl && args.tier != 2000 {
             return Ok(CoverCacheEnsureResult {
                 hit: false,
@@ -135,7 +144,9 @@ impl CoverCacheState {
             &args.cover_art_id,
             800,
         );
-        let bytes = fetch_cover_bytes(&self.client, &url).await?;
+        let client = this.client.clone();
+        drop(this);
+        let bytes = fetch_cover_bytes(&client, &url).await?;
         let img = ImageReader::new(std::io::Cursor::new(bytes))
             .with_guessed_format()
             .map_err(|e| e.to_string())?
@@ -166,8 +177,8 @@ impl CoverCacheState {
     }
 }
 
-fn state(app: &AppHandle) -> Result<Arc<CoverCacheState>, String> {
-    app.try_state::<Arc<CoverCacheState>>()
+fn state(app: &AppHandle) -> Result<Arc<Mutex<CoverCacheState>>, String> {
+    app.try_state::<Arc<Mutex<CoverCacheState>>>()
         .map(|s| s.inner().clone())
         .ok_or_else(|| "cover cache not initialized".into())
 }
@@ -178,8 +189,7 @@ pub fn init_cover_cache(app: &AppHandle) -> Result<(), String> {
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("cover-cache");
-    let inner = Arc::new(CoverCacheState::new(root)?);
-    app.manage(inner);
+    app.manage(Arc::new(Mutex::new(CoverCacheState::new(root)?)));
     Ok(())
 }
 
@@ -189,7 +199,7 @@ pub async fn cover_cache_ensure(
     args: CoverCacheEnsureArgs,
 ) -> Result<CoverCacheEnsureResult, String> {
     let st = state(&app)?;
-    st.ensure_inner(&app, &args).await
+    CoverCacheState::ensure_inner(&st, &app, &args).await
 }
 
 #[tauri::command]
@@ -199,16 +209,17 @@ pub async fn cover_cache_ensure_batch(
 ) -> Result<(), String> {
     let st = state(&app)?;
     for item in args.items {
-        let _ = st.ensure_inner(&app, &item).await;
+        let _ = CoverCacheState::ensure_inner(&st, &app, &item).await;
     }
     Ok(())
 }
 
 #[tauri::command]
-pub fn cover_cache_stats(app: AppHandle) -> Result<CoverCacheStatsDto, String> {
+pub async fn cover_cache_stats(app: AppHandle) -> Result<CoverCacheStatsDto, String> {
     let st = state(&app)?;
-    let (bytes, entry_count) = st.dir_usage();
-    let (pressure, auto_download_enabled) = st.pressure();
+    let guard = st.lock().await;
+    let (bytes, entry_count) = guard.dir_usage();
+    let (pressure, auto_download_enabled) = guard.pressure();
     Ok(CoverCacheStatsDto {
         bytes,
         count: entry_count,
@@ -219,14 +230,20 @@ pub fn cover_cache_stats(app: AppHandle) -> Result<CoverCacheStatsDto, String> {
 }
 
 #[tauri::command]
-pub fn cover_cache_evict_tick(app: AppHandle) -> Result<u32, String> {
+pub async fn cover_cache_evict_tick(app: AppHandle) -> Result<u32, String> {
     let st = state(&app)?;
-    let (bytes, _) = st.dir_usage();
-    if (bytes as f64) / (st.max_bytes.max(1) as f64) < 0.9 {
+    let guard = st.lock().await;
+    let (bytes, _) = guard.dir_usage();
+    let high = guard.high_watermark_pct as f64 / 100.0;
+    if (bytes as f64) / (guard.max_bytes.max(1) as f64) < high {
         return Ok(0);
     }
     let mut evicted = 0u32;
-    let Ok(entries) = std::fs::read_dir(&st.root) else {
+    let root = guard.root.clone();
+    let max_bytes = guard.max_bytes;
+    let resume = guard.resume_watermark_pct as f64 / 100.0;
+    drop(guard);
+    let Ok(entries) = std::fs::read_dir(&root) else {
         return Ok(0);
     };
     'outer: for server in entries.flatten() {
@@ -245,8 +262,9 @@ pub fn cover_cache_evict_tick(app: AppHandle) -> Result<u32, String> {
                     }),
                 );
             }
-            let (b, _) = st.dir_usage();
-            if (b as f64) / (st.max_bytes.max(1) as f64) < 0.85 {
+            let guard = st.lock().await;
+            let (b, _) = guard.dir_usage();
+            if (b as f64) / (max_bytes.max(1) as f64) < resume {
                 break 'outer;
             }
         }
@@ -255,10 +273,26 @@ pub fn cover_cache_evict_tick(app: AppHandle) -> Result<u32, String> {
 }
 
 #[tauri::command]
-pub fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
+pub async fn cover_cache_configure(
+    app: AppHandle,
+    max_mb: u64,
+    high_watermark_pct: u64,
+    resume_watermark_pct: u64,
+) -> Result<(), String> {
     let st = state(&app)?;
-    if st.root.exists() {
-        for entry in std::fs::read_dir(&st.root).map_err(|e| e.to_string())?.flatten() {
+    let mut guard = st.lock().await;
+    guard.max_bytes = max_mb.saturating_mul(1024 * 1024);
+    guard.high_watermark_pct = high_watermark_pct.clamp(50, 99);
+    guard.resume_watermark_pct = resume_watermark_pct.clamp(40, 95);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
+    let st = state(&app)?;
+    let guard = st.lock().await;
+    if guard.root.exists() {
+        for entry in std::fs::read_dir(&guard.root).map_err(|e| e.to_string())?.flatten() {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }
@@ -294,7 +328,7 @@ pub fn cover_revalidate_enqueue() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn cover_revalidate_tick() -> Result<u32, String> {
+pub fn cover_revalidate_tick(_cycle_days: Option<u32>) -> Result<u32, String> {
     Ok(0)
 }
 

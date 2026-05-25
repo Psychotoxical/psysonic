@@ -57,6 +57,13 @@ export interface AuthState {
   // Settings (global)
   scrobblingEnabled: boolean;
   maxCacheMb: number;
+  /** Rust WebP cover disk cache budget (separate from maxCacheMb). Default 10 GB. */
+  coverCacheMaxMb: number;
+  coverCacheHighWatermarkPct: number;
+  coverCacheResumeWatermarkPct: number;
+  coverRevalidateCycleDays: number;
+  coverRevalidateMaxProbesPerSession: number;
+  coverRevalidateMaxProbesPerMinute: number;
   downloadFolder: string;
   offlineDownloadDir: string;
   excludeAudiobooks: boolean;
@@ -251,6 +258,9 @@ export interface AuthState {
   setLastfmSessionError: (v: boolean) => void;
   setScrobblingEnabled: (v: boolean) => void;
   setMaxCacheMb: (v: number) => void;
+  setCoverCacheMaxMb: (v: number) => void;
+  setCoverCacheHighWatermarkPct: (v: number) => void;
+  setCoverCacheResumeWatermarkPct: (v: number) => void;
   setDownloadFolder: (v: string) => void;
   setOfflineDownloadDir: (v: string) => void;
   setExcludeAudiobooks: (v: boolean) => void;
