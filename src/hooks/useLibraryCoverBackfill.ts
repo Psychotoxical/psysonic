@@ -1,82 +1,78 @@
-import { useEffect, useRef } from 'react';
-import { coverCacheStats, libraryCoverBackfillBatch } from '../api/coverCache';
-import { coverEnsureQueued } from '../cover/ensureQueue';
-import { coverArtRef } from '../cover/ref';
-import { coverStorageKey } from '../cover/storageKeys';
+import { useEffect } from 'react';
+import {
+  coverCacheRestHost,
+  libraryCoverBackfillConfigure,
+  libraryCoverBackfillResetCursor,
+  libraryCoverBackfillRunFullPass,
+  librarySqlServerId,
+} from '../api/coverCache';
+import { coverStrategyAllowsLibraryBackfill } from '../utils/library/coverStrategy';
 import { useAuthStore } from '../store/authStore';
-import { libraryIsReady } from '../utils/library/libraryReady';
+import { useCoverStrategyStore } from '../store/coverStrategyStore';
+import { subscribeLibraryCoverBackfillWake } from '../utils/library/coverBackfillWake';
 import { serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
 
-const STEADY_POLL_MS = 3000;
-const BATCH_LIMIT = 12;
-const CANONICAL_TIER = 800 as const;
-
 /**
- * Background library cover warm-up — Rust disk cache only (no webview JPEG IDB).
+ * Library cover warm-up — configure session in Rust; full pass runs natively.
+ *
+ * - `library_cover_backfill_run_full_pass` on configure / manual wake
+ * - `library:sync-idle` handled in Rust (not throttled with the webview)
  */
 export function useLibraryCoverBackfill(enabled = true): void {
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const strategy = useCoverStrategyStore(s =>
+    s.getStrategyForServer(activeServerId),
+  );
   const server = useAuthStore(s =>
     s.activeServerId ? s.servers.find(srv => srv.id === s.activeServerId) : undefined,
   );
-  const cursorRef = useRef<string | null>(null);
+  const getBaseUrl = useAuthStore(s => s.getBaseUrl);
 
   useEffect(() => {
-    if (!enabled || !activeServerId || !server) return;
-    let cancelled = false;
-    const libraryServerId = activeServerId;
+    const kick = () => {
+      void libraryCoverBackfillRunFullPass();
+    };
+    const unsubWake = subscribeLibraryCoverBackfillWake(kick);
+    return unsubWake;
+  }, []);
+
+  useEffect(() => {
+    const disable = () => {
+      void libraryCoverBackfillConfigure({
+        enabled: false,
+        serverIndexKey: '',
+        libraryServerId: '',
+        restBaseUrl: '',
+        username: '',
+        password: '',
+      });
+    };
+
+    if (
+      !enabled
+      || !coverStrategyAllowsLibraryBackfill(strategy)
+      || !activeServerId
+      || !server
+    ) {
+      disable();
+      return disable;
+    }
+
     const indexKey = serverIndexKeyForProfile(server);
-
+    const baseUrl = getBaseUrl();
     void (async () => {
-      while (!cancelled) {
-        if (!libraryIsReady(libraryServerId)) {
-          await new Promise(r => setTimeout(r, STEADY_POLL_MS));
-          continue;
-        }
-        const stats = await coverCacheStats().catch(() => null);
-        if (!stats?.autoDownloadEnabled) {
-          await new Promise(r => setTimeout(r, STEADY_POLL_MS * 2));
-          continue;
-        }
-
-        const batch = await libraryCoverBackfillBatch(
-          indexKey,
-          libraryServerId,
-          cursorRef.current,
-          BATCH_LIMIT,
-        ).catch(() => null);
-
-        if (!batch || batch.coverIds.length === 0) {
-          if (batch?.exhausted) cursorRef.current = null;
-          await new Promise(r => setTimeout(r, STEADY_POLL_MS * 2));
-          continue;
-        }
-
-        const scope = { kind: 'active' as const };
-        await Promise.all(
-          batch.coverIds.map(coverArtId => {
-            const ref = coverArtRef(coverArtId, scope);
-            const key = coverStorageKey(
-              { kind: 'active' },
-              coverArtId,
-              CANONICAL_TIER,
-            );
-            return coverEnsureQueued(key, ref, CANONICAL_TIER, 'low');
-          }),
-        );
-
-        cursorRef.current = batch.nextCursor;
-        if (batch.exhausted) {
-          cursorRef.current = null;
-          await new Promise(r => setTimeout(r, 60_000));
-        } else {
-          await new Promise(r => setTimeout(r, STEADY_POLL_MS));
-        }
-      }
+      await libraryCoverBackfillConfigure({
+        enabled: true,
+        serverIndexKey: indexKey,
+        libraryServerId: librarySqlServerId(activeServerId),
+        restBaseUrl: baseUrl ? coverCacheRestHost(baseUrl) : '',
+        username: server.username,
+        password: server.password,
+      });
+      await libraryCoverBackfillResetCursor();
+      await libraryCoverBackfillRunFullPass();
     })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, activeServerId, server?.url]);
+    return disable;
+  }, [enabled, strategy, activeServerId, server?.url, server?.username, server?.password, getBaseUrl]);
 }

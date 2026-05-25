@@ -7,9 +7,6 @@ type SetState = (
 export function createCacheStorageActions(set: SetState): Pick<
   AuthState,
   | 'setMaxCacheMb'
-  | 'setCoverCacheMaxMb'
-  | 'setCoverCacheHighWatermarkPct'
-  | 'setCoverCacheResumeWatermarkPct'
   | 'setDownloadFolder'
   | 'setOfflineDownloadDir'
   | 'setHotCacheEnabled'
@@ -19,9 +16,6 @@ export function createCacheStorageActions(set: SetState): Pick<
 > {
   return {
     setMaxCacheMb: (v) => set({ maxCacheMb: v }),
-    setCoverCacheMaxMb: (v) => set({ coverCacheMaxMb: v }),
-    setCoverCacheHighWatermarkPct: (v) => set({ coverCacheHighWatermarkPct: v }),
-    setCoverCacheResumeWatermarkPct: (v) => set({ coverCacheResumeWatermarkPct: v }),
     setDownloadFolder: (v) => set({ downloadFolder: v }),
     setOfflineDownloadDir: (v) => set({ offlineDownloadDir: v }),
     setHotCacheEnabled: (v) => set({ hotCacheEnabled: v }),

@@ -14,11 +14,16 @@ pub fn resize_tier(img: &DynamicImage, tier: u32) -> DynamicImage {
     img.resize(nw, nh, FilterType::Triangle)
 }
 
+/// Lossy WebP quality (0–100). Larger tiers use lower Q — UI rarely shows 800px raw;
+/// dense grids cap at 512px (see `COVER_ART_DENSE_MAX_TIER`).
 pub fn webp_quality_for_tier(tier: u32) -> f32 {
-    if tier >= 2000 {
-        85.0
-    } else {
-        82.0
+    match tier {
+        2000 => 82.0,
+        800 => 70.0,
+        512 => 73.0,
+        256 => 76.0,
+        128 => 78.0,
+        _ => 74.0,
     }
 }
 
@@ -51,9 +56,20 @@ mod tests {
     }
 
     #[test]
-    fn webp_encode_smaller_than_lossless_upper_bound() {
+    fn webp_quality_decreases_with_tier_size() {
+        assert!(webp_quality_for_tier(800) < webp_quality_for_tier(512));
+        assert!(webp_quality_for_tier(512) < webp_quality_for_tier(128));
+        assert!(webp_quality_for_tier(800) < webp_quality_for_tier(2000));
+    }
+
+    #[test]
+    fn webp_encode_800_smaller_than_old_lossless_upper_bound() {
         let img = DynamicImage::ImageRgba8(RgbaImage::new(800, 800));
         let bytes = encode_webp(&img, 800).expect("webp");
-        assert!(bytes.len() < 400_000, "expected lossy webp << 550KB, got {}", bytes.len());
+        assert!(
+            bytes.len() < 250_000,
+            "expected lossy 800 webp well under legacy JPEG cap, got {} bytes",
+            bytes.len()
+        );
     }
 }

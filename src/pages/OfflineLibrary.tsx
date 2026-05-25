@@ -4,15 +4,17 @@ import { useTranslation } from 'react-i18next';
 import { useOfflineStore, type OfflineAlbumMeta } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import CachedImage from '../components/CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import {
   buildOfflineTracksForAlbum,
   ensureServerForOfflineAlbum,
-  offlineAlbumCoverArt,
+  offlineAlbumCoverScope,
   offlineTrackCount,
 } from '../utils/offline/offlineLibraryHelpers';
+
+const OFFLINE_CARD_COVER_CSS_PX = 300;
 import { showToast } from '../utils/ui/toast';
 
 type FilterType = 'all' | 'album' | 'playlist' | 'artist';
@@ -73,14 +75,21 @@ export default function OfflineLibrary() {
   };
 
   const renderCard = (album: OfflineAlbumMeta) => {
-    const { src: coverUrl, cacheKey } = offlineAlbumCoverArt(album, 300);
+    const coverScope = offlineAlbumCoverScope(album);
     const trackCount = offlineTrackCount(album, offlineTracks);
     const serverLabel = serverNames[album.serverId];
     return (
       <div className="album-card card offline-library-card">
         <div className="album-card-cover">
-          {coverUrl ? (
-            <CachedImage src={coverUrl} cacheKey={cacheKey} alt={`${album.name} Cover`} loading="lazy" />
+          {coverScope && album.coverArt ? (
+            <CoverArtImage
+              coverArtId={album.coverArt}
+              displayCssPx={OFFLINE_CARD_COVER_CSS_PX}
+              serverScope={coverScope}
+              surface="dense"
+              alt={`${album.name} Cover`}
+              loading="lazy"
+            />
           ) : (
             <div className="album-card-cover-placeholder">
               <HardDriveDownload size={32} />

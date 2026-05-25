@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { coverCacheStats } from '../api/coverCache';
+import { coverStrategyAllowsRoutePrefetch } from '../utils/library/coverStrategy';
+import { useCoverStrategyStore } from '../store/coverStrategyStore';
 import { useAuthStore } from '../store/authStore';
 import { coverPrefetchDrainBatch } from './prefetchRegistry';
 import { coverEnsureQueued } from './ensureQueue';
@@ -17,9 +19,10 @@ const DENSE_PREFETCH_TIER = resolveCoverDisplayTier(160, { surface: 'dense' }) a
  */
 export function useCoverArtPrefetch(enabled = true): void {
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const strategy = useCoverStrategyStore(s => s.getStrategyForServer(activeServerId));
 
   useEffect(() => {
-    if (!enabled || !activeServerId) return;
+    if (!enabled || !activeServerId || !coverStrategyAllowsRoutePrefetch(strategy)) return;
     let cancelled = false;
 
     void (async () => {
@@ -47,5 +50,5 @@ export function useCoverArtPrefetch(enabled = true): void {
     return () => {
       cancelled = true;
     };
-  }, [enabled, activeServerId]);
+  }, [enabled, activeServerId, strategy]);
 }

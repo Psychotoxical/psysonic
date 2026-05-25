@@ -19,6 +19,7 @@ export {
 } from './diskSrcCache';
 export { usePlaybackCoverArt } from './usePlaybackCoverArt';
 export { ensureCoverTierJs } from './resolveJs';
+export { ensureCoverTierDiskSrc, ensureCoverTierDiskBlob } from './resolveDisk';
 export { buildCoverArtFetchUrl } from './fetchUrl';
 export {
   coverStorageKey,

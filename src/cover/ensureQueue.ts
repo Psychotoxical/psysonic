@@ -9,7 +9,9 @@ type EnsureJob = {
   resolve: (r: { hit: boolean; path: string }) => void;
 };
 
-const MAX_INFLIGHT = 8;
+/** Parallel Rust cover ensures (library backfill + visible UI share this pool). */
+export const COVER_ENSURE_MAX_INFLIGHT = 10;
+const MAX_INFLIGHT = COVER_ENSURE_MAX_INFLIGHT;
 let inflight = 0;
 const queue: EnsureJob[] = [];
 
@@ -55,6 +57,11 @@ function pump(): void {
 }
 
 const ensureInflight = new Map<string, Promise<{ hit: boolean; path: string }>>();
+
+/** Queued + active ensure jobs (for library backfill watermark). */
+export function coverEnsureQueueBacklog(): number {
+  return queue.length + inflight;
+}
 
 /** Rust disk ensure — parallel slots; one download chain per cover art ID. */
 export function coverEnsureQueued(

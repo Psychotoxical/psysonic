@@ -1,4 +1,6 @@
+import { isTauri } from '@tauri-apps/api/core';
 import { getCachedBlob } from '../utils/imageCache';
+import { ensureCoverTierDiskBlob } from './resolveDisk';
 import {
   parseCoverCacheKey,
   probeSiblingCoverBlobFromIDB,
@@ -120,6 +122,9 @@ export async function ensureCoverTierJs(
   }
 
   if (tier === 2000) {
+    if (isTauri()) {
+      return ensureCoverTierDiskBlob(ref, tier, signal);
+    }
     return getCachedBlob(buildCoverArtFetchUrl(ref, 2000), cacheKey, signal, getPriority);
   }
 

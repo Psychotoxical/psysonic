@@ -46,6 +46,13 @@ export function syncIngestDisplayCount(
   );
 }
 
+/** True while library sync holds SQLite — pause cover backfill / heavy cover RPC. */
+export function librarySyncBlocksCoverWork(
+  status: Pick<SyncStateDto, 'syncPhase'>,
+): boolean {
+  return status.syncPhase === 'initial_sync' || status.syncPhase === 'probing';
+}
+
 export async function libraryIsReady(serverId: string | null | undefined): Promise<boolean> {
   if (!serverId) return false;
   if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return false;

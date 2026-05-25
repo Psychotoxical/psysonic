@@ -50,3 +50,10 @@ export function forgetDiskSrcPrefix(serverIndexKey: string, coverArtId: string):
 export function clearAllDiskSrcCache(): void {
   diskSrcByStorageKey.clear();
 }
+
+export function clearDiskSrcCacheForServer(serverIndexKey: string): void {
+  const prefix = `${serverIndexKey}:cover:`;
+  for (const key of [...diskSrcByStorageKey.keys()]) {
+    if (key.startsWith(prefix)) diskSrcByStorageKey.delete(key);
+  }
+}
