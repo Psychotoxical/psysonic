@@ -101,6 +101,19 @@ fn session_matches_server(session: &CoverBackfillSession, server_id: &str) -> bo
     server_id == session.server_index_key || server_id == session.library_server_id
 }
 
+/// Backfill runs only while this session is still the configured focus (active server).
+async fn session_still_focused(worker: &CoverBackfillWorker, expected: &CoverBackfillSession) -> bool {
+    if !worker.enabled.load(Ordering::Relaxed) {
+        return false;
+    }
+    worker
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|s| s.server_index_key == expected.server_index_key)
+}
+
 async fn progress_snapshot(
     store: &psysonic_library::store::LibraryStore,
     root: &std::path::Path,
@@ -189,7 +202,7 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
     let mut batch_count = 0u32;
 
     loop {
-        if !worker.enabled.load(Ordering::Relaxed) {
+        if !session_still_focused(&worker, &session).await {
             break;
         }
 
@@ -226,6 +239,9 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
         };
 
         batch_count += 1;
+        if !session_still_focused(&worker, &session).await {
+            break;
+        }
         let ids = batch.cover_ids.clone();
         let mut set = tokio::task::JoinSet::new();
         for id in ids {

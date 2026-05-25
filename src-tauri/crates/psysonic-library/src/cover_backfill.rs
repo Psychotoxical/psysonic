@@ -109,12 +109,21 @@ pub fn count_distinct_cover_ids(store: &LibraryStore, library_server_id: &str) -
     })
 }
 
-/// Library warm-up target tier — smaller grid tiers alone do not count as "done".
+/// Library warm-up target tier — HTTP fetch size and progress heuristic.
 pub const LIBRARY_COVER_CANONICAL_TIER: u32 = 800;
+
+/// WebP ladder written by aggressive backfill (must match `cover_cache::DERIVE_TIERS`).
+pub const LIBRARY_COVER_DERIVE_TIERS: [u32; 4] = [128, 256, 512, 800];
 
 fn tier_file_ready(dir: &Path, tier: u32) -> bool {
     let path = dir.join(format!("{tier}.webp"));
     path.is_file() && path.metadata().map(|m| m.len() > 0).unwrap_or(false)
+}
+
+fn cover_ladder_complete_on_disk(dir: &Path) -> bool {
+    LIBRARY_COVER_DERIVE_TIERS
+        .iter()
+        .all(|&tier| tier_file_ready(dir, tier))
 }
 
 pub fn cover_canonical_cached_on_disk(
@@ -124,6 +133,15 @@ pub fn cover_canonical_cached_on_disk(
 ) -> bool {
     let dir = cover_root.join(server_index_key).join(cover_art_id);
     tier_file_ready(&dir, LIBRARY_COVER_CANONICAL_TIER)
+}
+
+pub fn cover_ladder_cached_on_disk(
+    cover_root: &Path,
+    server_index_key: &str,
+    cover_art_id: &str,
+) -> bool {
+    let dir = cover_root.join(server_index_key).join(cover_art_id);
+    cover_ladder_complete_on_disk(&dir)
 }
 
 pub fn collect_cover_backfill_batch(
@@ -151,7 +169,7 @@ pub fn collect_cover_backfill_batch(
         for id in &page {
             after.clone_from(id);
             let dir = cover_root.join(server_index_key).join(id);
-            if cover_canonical_cached_on_disk(cover_root, server_index_key, id)
+            if cover_ladder_cached_on_disk(cover_root, server_index_key, id)
                 || cover_fetch_recently_failed(&dir)
             {
                 continue;
@@ -190,7 +208,7 @@ pub fn count_pending_canonical_covers(
         }
         for id in &page {
             after.clone_from(id);
-            if !cover_canonical_cached_on_disk(cover_root, server_index_key, id) {
+            if !cover_ladder_cached_on_disk(cover_root, server_index_key, id) {
                 pending += 1;
             }
         }
@@ -278,12 +296,12 @@ mod tests {
     }
 
     #[test]
-    fn backfill_skips_only_when_canonical_800_exists() {
+    fn backfill_skips_only_when_full_tier_ladder_exists() {
         let store = LibraryStore::open_in_memory();
-        seed_track(&store, "srv", "tr1", "al-only-128", None);
+        seed_track(&store, "srv", "tr1", "al-partial", None);
         let root = std::env::temp_dir().join("psysonic-cover-backfill-test");
         let host = "srv-host";
-        let id_dir = root.join(host).join("al-only-128");
+        let id_dir = root.join(host).join("al-partial");
         std::fs::create_dir_all(&id_dir).unwrap();
         std::fs::write(id_dir.join("128.webp"), b"x").unwrap();
 
@@ -296,7 +314,7 @@ mod tests {
             Some(10),
         )
         .unwrap();
-        assert_eq!(batch.cover_ids, vec!["al-only-128".to_string()]);
+        assert_eq!(batch.cover_ids, vec!["al-partial".to_string()]);
 
         std::fs::write(id_dir.join("800.webp"), b"canonical").unwrap();
         let batch2 = collect_cover_backfill_batch(
@@ -308,7 +326,21 @@ mod tests {
             Some(10),
         )
         .unwrap();
-        assert!(batch2.cover_ids.is_empty());
+        assert_eq!(batch2.cover_ids, vec!["al-partial".to_string()]);
+
+        for tier in LIBRARY_COVER_DERIVE_TIERS {
+            std::fs::write(id_dir.join(format!("{tier}.webp")), b"x").unwrap();
+        }
+        let batch3 = collect_cover_backfill_batch(
+            &store,
+            "srv",
+            &root,
+            host,
+            None,
+            Some(10),
+        )
+        .unwrap();
+        assert!(batch3.cover_ids.is_empty());
 
         let _ = std::fs::remove_dir_all(root.join(host));
     }

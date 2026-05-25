@@ -52,7 +52,7 @@ pub struct CoverCacheEnsureArgs {
     pub rest_base_url: String,
     pub username: String,
     pub password: String,
-    /// Library backfill: one canonical tier, no `cover:tier-ready` floods to the webview.
+    /// Library backfill: all derived tiers, no `cover:tier-ready` floods to the webview.
     #[serde(default)]
     pub library_bulk: bool,
 }
@@ -137,8 +137,10 @@ impl CoverCacheState {
         let img = match load_cover_source(&dir, &client, &http_sem, args).await {
             Ok(img) => img,
             Err(_) => {
-                let _ = std::fs::create_dir_all(&dir);
-                let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
+                if !args.library_bulk {
+                    let _ = std::fs::create_dir_all(&dir);
+                    let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
+                }
                 return Ok(CoverCacheEnsureResult {
                     hit: false,
                     path: String::new(),
@@ -151,7 +153,11 @@ impl CoverCacheState {
         let requested = args.tier;
         let quiet = args.library_bulk;
         let tiers_now: Vec<u32> = if args.library_bulk {
-            vec![requested]
+            DERIVE_TIERS
+                .iter()
+                .copied()
+                .filter(|t| *t <= requested)
+                .collect()
         } else if requested == 2000 {
             vec![2000]
         } else {
@@ -166,13 +172,10 @@ impl CoverCacheState {
         if quiet {
             let dir_bg = dir.clone();
             let img_bg = img.clone();
+            let max_tier = requested;
             let wrote = tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
-                if tier_exists(&dir_bg, requested).is_some() {
-                    return Ok(true);
-                }
-                let path = tier_path(&dir_bg, requested);
-                write_webp_tier(&img_bg, requested, &path)?;
-                Ok(true)
+                disk::write_derived_webp_tiers(&dir_bg, &img_bg, max_tier)?;
+                Ok(tier_exists(&dir_bg, max_tier).is_some())
             })
             .await
             .map_err(|e| e.to_string())??;
