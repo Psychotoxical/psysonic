@@ -5,14 +5,14 @@ import { COVER_ART_TIERS } from '../../cover/tiers';
 import type { CoverArtTier } from '../../cover/types';
 
 type CoverTierReadyPayload = {
-  serverId: string;
+  serverIndexKey: string;
   coverArtId: string;
   tier: CoverArtTier;
   path: string;
 };
 
 type CoverEvictedPayload = {
-  serverId: string;
+  serverIndexKey: string;
   coverArtId: string;
 };
 
@@ -23,17 +23,17 @@ export function useCoverArtBridge(): void {
     void (async () => {
       unsubs.push(
         await listen<CoverTierReadyPayload>('cover:tier-ready', ev => {
-          const { serverId, coverArtId, tier, path } = ev.payload;
+          const { serverIndexKey, coverArtId, tier, path } = ev.payload;
           if (!path) return;
-          const key = `${serverId}:cover:${coverArtId}:${tier}`;
+          const key = `${serverIndexKey}:cover:${coverArtId}:${tier}`;
           notifyCoverDiskReady(key, path);
         }),
       );
       unsubs.push(
         await listen<CoverEvictedPayload>('cover:evicted', ev => {
-          const { serverId, coverArtId } = ev.payload;
+          const { serverIndexKey, coverArtId } = ev.payload;
           for (const tier of COVER_ART_TIERS) {
-            notifyCoverDiskReady(`${serverId}:cover:${coverArtId}:${tier}`, '');
+            notifyCoverDiskReady(`${serverIndexKey}:cover:${coverArtId}:${tier}`, '');
           }
         }),
       );

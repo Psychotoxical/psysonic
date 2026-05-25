@@ -4,9 +4,22 @@ import react from "@vitejs/plugin-react";
 
 const host = process.env.TAURI_DEV_HOST;
 
+/** Vite 8 crawls all `*.html` for dep pre-bundling — exclude vendored research trees and Rust artifacts. */
+const optimizeDepsEntries = [
+  "index.html",
+  "!research/**",
+  "!src-tauri/**",
+  "!**/target/**",
+  "!dist/**",
+  "!coverage/**",
+];
+
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
+  optimizeDeps: {
+    entries: optimizeDepsEntries,
+  },
   server: {
     port: 1420,
     strictPort: true,
@@ -19,7 +32,7 @@ export default defineConfig({
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/src-tauri/**", "**/research/**", "**/target/**"],
     },
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
@@ -30,6 +43,7 @@ export default defineConfig({
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     rollupOptions: {
+      input: "index.html",
       output: {
         // Vendor chunks isolate dependencies that change rarely from app code,
         // so a normal app update doesn't invalidate the cached vendor bundles

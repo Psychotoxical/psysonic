@@ -20,7 +20,12 @@ pub fn build_cover_art_url(
     size: u32,
 ) -> String {
     let base = rest_base.trim_end_matches('/');
-    let mut url = Url::parse(&format!("{base}/rest/getCoverArt.view")).expect("cover url");
+    let api_base = if base.ends_with("/rest") {
+        base.to_string()
+    } else {
+        format!("{base}/rest")
+    };
+    let mut url = Url::parse(&format!("{api_base}/getCoverArt.view")).expect("cover url");
     let salt = random_salt();
     let token = format!("{:x}", md5::compute(format!("{password}{salt}")));
     {
@@ -32,9 +37,40 @@ pub fn build_cover_art_url(
         q.append_pair("s", &salt);
         q.append_pair("v", "1.16.1");
         q.append_pair("c", SUBSONIC_CLIENT);
-        q.append_pair("f", "json");
     }
     url.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_cover_art_url;
+
+    #[test]
+    fn cover_url_from_host_root() {
+        let url = build_cover_art_url(
+            "http://navidrome.local:4533",
+            "u",
+            "p",
+            "al-1",
+            800,
+        );
+        assert!(url.starts_with("http://navidrome.local:4533/rest/getCoverArt.view?"));
+        assert!(url.contains("id=al-1"));
+        assert!(url.contains("size=800"));
+    }
+
+    #[test]
+    fn cover_url_when_rest_suffix_already_present() {
+        let url = build_cover_art_url(
+            "http://navidrome.local:4533/rest",
+            "u",
+            "p",
+            "al-1",
+            128,
+        );
+        assert!(url.starts_with("http://navidrome.local:4533/rest/getCoverArt.view?"));
+        assert!(!url.contains("/rest/rest/"));
+    }
 }
 
 pub async fn fetch_cover_bytes(client: &Client, url: &str) -> Result<Vec<u8>, String> {

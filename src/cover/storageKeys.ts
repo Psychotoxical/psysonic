@@ -1,20 +1,45 @@
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from '../store/authStore';
-import type { CoverArtId, CoverArtTier, CoverServerScope } from './types';
+import {
+  serverIndexKeyForProfile,
+  serverIndexKeyFromUrl,
+} from '../utils/server/serverIndexKey';
+import type { CoverArtId, CoverArtRef, CoverArtTier, CoverServerScope } from './types';
 
-export function serverIdFromScope(scope: CoverServerScope): string {
-  if (scope.kind === 'server') return scope.serverId;
-  if (scope.kind === 'playback') {
-    const sid = getPlaybackServerId();
-    return (sid || useAuthStore.getState().activeServerId) ?? '_';
+/**
+ * Stable server bucket for cover disk + IDB — same host index key as library SQLite (`server_id` column).
+ * Not the auth profile UUID; URL aliases (LAN vs public) will map to one key later.
+ */
+export function coverIndexKeyFromScope(scope: CoverServerScope): string {
+  if (scope.kind === 'server') {
+    return serverIndexKeyFromUrl(scope.url) || scope.serverId;
   }
-  return useAuthStore.getState().activeServerId ?? '_';
+  if (scope.kind === 'playback') {
+    const playbackSid = getPlaybackServerId();
+    const activeSid = useAuthStore.getState().activeServerId;
+    const sid = playbackSid || activeSid;
+    const server = sid
+      ? useAuthStore.getState().servers.find(s => s.id === sid)
+      : undefined;
+    if (server) return serverIndexKeyForProfile(server);
+    return '_';
+  }
+  const server = useAuthStore.getState().getActiveServer();
+  if (server) return serverIndexKeyForProfile(server);
+  return '_';
 }
+
+export function coverIndexKeyFromRef(ref: CoverArtRef): string {
+  return coverIndexKeyFromScope(ref.serverScope);
+}
+
+/** @deprecated Use `coverIndexKeyFromScope` */
+export const serverIdFromScope = coverIndexKeyFromScope;
 
 export function coverStorageKey(
   serverScope: CoverServerScope,
   coverArtId: CoverArtId,
   tier: CoverArtTier,
 ): string {
-  return `${serverIdFromScope(serverScope)}:cover:${coverArtId}:${tier}`;
+  return `${coverIndexKeyFromScope(serverScope)}:cover:${coverArtId}:${tier}`;
 }

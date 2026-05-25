@@ -1,49 +1,30 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useCachedUrl } from '../components/CachedImage';
-import { coverCacheEnsure } from '../api/coverCache';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { acquireUrl, releaseUrl } from '../utils/imageCache/urlPool';
 import { getBlobFromIDB } from '../utils/imageCache/idbStore';
 import { rememberBlob } from '../utils/imageCache/blobCache';
 import { blobCache } from '../utils/imageCache/blobCache';
-import { buildCoverArtFetchUrl } from './fetchUrl';
+import { coverEnsureQueued } from './ensureQueue';
 import { subscribeCoverDiskReady } from './diskHandoff';
 import { coverArtRef } from './ref';
 import { coverServerReachable } from './reachability';
 import { coverStorageKey } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
-import type { CoverArtHandle, CoverArtId, CoverServerScope, CoverSurfaceKind } from './types';
+import type {
+  CoverArtHandle,
+  CoverArtId,
+  CoverPrefetchPriority,
+  CoverServerScope,
+  CoverSurfaceKind,
+} from './types';
 
-const ensureInflight = new Map<string, Promise<{ hit: boolean; path: string }>>();
-let ensureChain: Promise<void> = Promise.resolve();
-
-function ensureDiskOnce(
-  ref: NonNullable<ReturnType<typeof coverArtRef>>,
-  tier: ReturnType<typeof resolveCoverDisplayTier>,
-  priority: 'high' | 'middle' | 'low',
-): Promise<{ hit: boolean; path: string }> {
-  const key = `${coverStorageKey(ref.serverScope, ref.coverArtId, tier)}:${priority}`;
-  const existing = ensureInflight.get(key);
-  if (existing) return existing;
-  const p = new Promise<{ hit: boolean; path: string }>(resolve => {
-    ensureChain = ensureChain
-      .then(async () => {
-        const r = await coverCacheEnsure(ref, tier, priority).catch(() => ({
-          hit: false,
-          path: '',
-          tier,
-        }));
-        resolve({ hit: r.hit, path: r.path });
-      })
-      .catch(() => resolve({ hit: false, path: '' }));
-  }).finally(() => ensureInflight.delete(key));
-  ensureInflight.set(key, p);
-  return p;
+function initialDiskSrc(storageKey: string): string {
+  if (!storageKey) return '';
+  return acquireUrl(storageKey) ?? '';
 }
 
 /**
- * Dense grids: disk + IDB/memory only in the webview — no `getCoverArt` URL in `<img src>`.
- * Sparse: legacy cached URL path with fetch fallback when reachable.
+ * Disk + IDB/memory in the webview — no `getCoverArt` URL in `<img src>` (Rust fetch only).
  */
 export function useCoverArt(
   coverArtId: CoverArtId | null | undefined,
@@ -55,6 +36,8 @@ export function useCoverArt(
     fetchQueueBias?: number;
     observeRootMargin?: string;
     alt?: string;
+    /** Download / ensure ordering — visible cells should pass `high`. */
+    ensurePriority?: CoverPrefetchPriority;
   },
 ): CoverArtHandle {
   const serverScope = opts?.serverScope ?? { kind: 'active' };
@@ -82,49 +65,46 @@ export function useCoverArt(
     [ref, tier],
   );
 
-  const fetchUrl = useMemo(
-    () => (ref && reachable ? buildCoverArtFetchUrl(ref, tier) : ''),
-    [ref, tier, reachable],
+  const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority
+    ?? (surface === 'dense' ? 'middle' : 'middle');
+
+  const [diskSrc, setDiskSrc] = useState(() => initialDiskSrc(storageKey));
+  const ownedDiskRef = useRef<string | null>(
+    initialDiskSrc(storageKey) ? storageKey : null,
   );
 
-  const [diskSrc, setDiskSrc] = useState('');
-  const ownedDiskRef = useRef<string | null>(null);
-
-  const sparseSrc = useCachedUrl(
-    fetchUrl,
-    storageKey,
-    surface === 'sparse' && reachable,
-    () => opts?.fetchQueueBias ?? 0,
-  );
-
-  useEffect(() => {
-    setDiskSrc('');
-    ownedDiskRef.current = null;
+  const applyDiskPath = useCallback((path: string) => {
+    if (!path) return;
+    setDiskSrc(convertFileSrc(path));
+    ownedDiskRef.current = storageKey;
   }, [storageKey]);
 
   useEffect(() => {
-    if (!ref || !storageKey) return;
-
-    const releaseDisk = () => {
+    if (!ref || !storageKey) {
+      setDiskSrc('');
       ownedDiskRef.current = null;
-    };
-
-    const applyDiskPath = (path: string) => {
-      if (!path) return;
-      setDiskSrc(convertFileSrc(path));
-      ownedDiskRef.current = storageKey;
-    };
+      return;
+    }
 
     const sync = acquireUrl(storageKey);
     if (sync) {
       setDiskSrc(sync);
       ownedDiskRef.current = storageKey;
-      return releaseDisk;
+      return;
     }
 
     let cancelled = false;
 
     void (async () => {
+      if (reachable) {
+        const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
+        if (cancelled) return;
+        if (result.hit && result.path) {
+          applyDiskPath(result.path);
+          return;
+        }
+      }
+
       const idb = await getBlobFromIDB(storageKey);
       if (cancelled) return;
       if (idb) {
@@ -134,14 +114,7 @@ export function useCoverArt(
           setDiskSrc(url);
           ownedDiskRef.current = storageKey;
         }
-        return;
       }
-
-      if (surface !== 'dense' || !reachable) return;
-
-      const result = await ensureDiskOnce(ref, tier, 'high');
-      if (cancelled) return;
-      if (result.hit && result.path) applyDiskPath(result.path);
     })();
 
     const unsubDisk = subscribeCoverDiskReady(storageKey, path => {
@@ -154,11 +127,10 @@ export function useCoverArt(
       if (ownedDiskRef.current === storageKey) {
         releaseUrl(storageKey);
       }
-      releaseDisk();
     };
-  }, [ref, storageKey, tier, surface, reachable]);
+  }, [ref, storageKey, tier, reachable, ensurePriority, applyDiskPath]);
 
-  const src = diskSrc || (surface === 'sparse' ? sparseSrc : '');
+  const src = diskSrc;
   const provisional = useMemo(() => {
     if (!ref || !storageKey || src) return false;
     return !blobCache.has(storageKey);

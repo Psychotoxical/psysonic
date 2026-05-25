@@ -63,21 +63,22 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const albumRefs = [
-      ...heroAlbums,
-      ...recent,
-      ...random,
-      ...mostPlayed,
-      ...recentlyPlayed,
-      ...starred,
-    ].flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const heroRefs = heroAlbums.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const recentRefs = recent.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const restAlbumRefs = [...random, ...mostPlayed, ...recentlyPlayed, ...starred].flatMap(a =>
+      a.coverArt ? [coverArtRef(a.coverArt)] : [],
+    );
     const artistRefs = randomArtists.map(a => coverArtRef(coverArtIdFromArtist(a)));
     const songRefs = discoverSongs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : []));
-    const capped = [...albumRefs, ...artistRefs, ...songRefs].slice(0, 48);
-    return coverPrefetchRegister(capped, {
-      surface: 'dense',
-      priority: 'low',
-    });
+    const unregHero = coverPrefetchRegister(heroRefs, { surface: 'dense', priority: 'high' });
+    const unregRecent = coverPrefetchRegister(recentRefs, { surface: 'dense', priority: 'high' });
+    const cappedRest = [...restAlbumRefs, ...artistRefs, ...songRefs].slice(0, 40);
+    const unregRest = coverPrefetchRegister(cappedRest, { surface: 'dense', priority: 'low' });
+    return () => {
+      unregHero();
+      unregRecent();
+      unregRest();
+    };
   }, [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs]);
 
   useEffect(() => {

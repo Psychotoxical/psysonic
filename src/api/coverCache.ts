@@ -1,6 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
+import { coverIndexKeyFromRef } from '../cover/storageKeys';
+import { restBaseFromUrl } from './subsonicClient';
 import type { CoverArtRef, CoverArtTier } from '../cover/types';
+
+/** Host root for Rust `build_cover_art_url` (`{host}/rest/getCoverArt.view`). */
+export function coverCacheRestHost(serverUrl: string): string {
+  return restBaseFromUrl(serverUrl).replace(/\/rest$/i, '');
+}
 
 export type CoverCacheEnsureResult = {
   hit: boolean;
@@ -26,12 +33,11 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const scope = ref.serverScope;
   if (scope.kind === 'server') {
-    const base = scope.url.replace(/\/+$/, '') + '/rest';
     return {
-      serverId: scope.serverId,
+      serverIndexKey: coverIndexKeyFromRef(ref),
       coverArtId: ref.coverArtId,
       tier,
-      restBaseUrl: base,
+      restBaseUrl: coverCacheRestHost(scope.url),
       username: scope.username,
       password: scope.password,
     };
@@ -39,10 +45,10 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
   const server = getActiveServer();
   const baseUrl = getBaseUrl();
   return {
-    serverId: server?.id ?? '_',
+    serverIndexKey: coverIndexKeyFromRef(ref),
     coverArtId: ref.coverArtId,
     tier,
-    restBaseUrl: baseUrl ? `${baseUrl}/rest` : '',
+    restBaseUrl: baseUrl,
     username: server?.username ?? '',
     password: server?.password ?? '',
   };
@@ -77,17 +83,17 @@ export async function coverCacheClear(): Promise<void> {
 }
 
 export async function libraryCoverBackfillBatch(
-  serverId: string,
+  serverIndexKey: string,
   cursor?: string | null,
   limit?: number,
 ): Promise<{ coverIds: string[]; nextCursor: string | null; exhausted: boolean }> {
-  return invoke('library_cover_backfill_batch', { serverId, cursor, limit });
+  return invoke('library_cover_backfill_batch', { serverIndexKey, cursor, limit });
 }
 
 export async function libraryCoverProgress(
-  serverId: string,
+  serverIndexKey: string,
 ): Promise<{ totalDistinct: number; pending: number; done: number }> {
-  return invoke('library_cover_progress', { serverId });
+  return invoke('library_cover_progress', { serverIndexKey });
 }
 
 export function coverCacheMayBackgroundDownload(): boolean {

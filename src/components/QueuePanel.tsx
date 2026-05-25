@@ -8,7 +8,6 @@ import OrbitGuestQueue from './OrbitGuestQueue';
 import OrbitQueueHead from './OrbitQueueHead';
 import HostApprovalQueue from './HostApprovalQueue';
 import { usePlaylistStore } from '../store/playlistStore';
-import { useCachedUrl } from './CachedImage';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useAuthStore } from '../store/authStore';
@@ -77,11 +76,7 @@ function QueuePanelHostOrSolo() {
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
-  const { src: currentCoverFetchUrl, cacheKey: currentCoverCacheKey } = usePlaybackCoverArt(
-    currentTrack?.coverArt,
-    128,
-  );
-  const currentCoverSrc = useCachedUrl(currentCoverFetchUrl, currentCoverCacheKey);
+  const { src: currentCoverSrc } = usePlaybackCoverArt(currentTrack?.coverArt, 128);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
   const playTrack = usePlayerStore(s => s.playTrack);
   const clearQueue = usePlayerStore(s => s.clearQueue);

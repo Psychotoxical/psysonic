@@ -1,8 +1,12 @@
 import type { ImgHTMLAttributes } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '../components/CachedImage';
-import type { CoverArtId, CoverServerScope, CoverSurfaceKind } from './types';
+import { resolveIntersectionScrollRoot } from '../utils/ui/resolveIntersectionScrollRoot';
+import { coverPrefetchBumpPriority } from './prefetchRegistry';
+import { coverArtRef } from './ref';
 import { coverImgSrc } from './imgSrc';
 import { useCoverArt } from './useCoverArt';
+import type { CoverArtId, CoverPrefetchPriority, CoverServerScope, CoverSurfaceKind } from './types';
 
 export type CoverArtImageProps = {
   coverArtId: CoverArtId | null | undefined;
@@ -15,6 +19,8 @@ export type CoverArtImageProps = {
   fetchQueueBias?: number;
   observeRootMargin?: string;
   observeScrollRootId?: string;
+  /** Initial ensure tier — use `high` for hero / above-the-fold cells. */
+  ensurePriority?: CoverPrefetchPriority;
 } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'>;
 
 export function CoverArtImage({
@@ -25,16 +31,56 @@ export function CoverArtImage({
   fullRes,
   className,
   alt,
-  fetchQueueBias,
+  fetchQueueBias: _fetchQueueBias,
   observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
   observeScrollRootId,
+  ensurePriority: ensurePriorityProp,
   ...rest
 }: CoverArtImageProps) {
+  const scope = serverScope ?? { kind: 'active' };
+  const [ensurePriority, setEnsurePriority] = useState<CoverPrefetchPriority>(
+    ensurePriorityProp ?? 'middle',
+  );
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (ensurePriorityProp) setEnsurePriority(ensurePriorityProp);
+  }, [ensurePriorityProp]);
+
+  useEffect(() => {
+    const el = imgRef.current;
+    if (!el || !coverArtId) return;
+
+    const root =
+      (observeScrollRootId
+        ? (document.getElementById(observeScrollRootId) as Element | null)
+        : null) ?? resolveIntersectionScrollRoot(el);
+
+    const ref = coverArtRef(coverArtId, scope);
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setEnsurePriority('high');
+            coverPrefetchBumpPriority(ref, 'high');
+          }
+        }
+      },
+      {
+        root: root ?? undefined,
+        rootMargin: observeRootMargin,
+        threshold: [0, 0.05, 0.15],
+      },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [coverArtId, scope, observeRootMargin, observeScrollRootId]);
+
   const { src, provisional } = useCoverArt(coverArtId, displayCssPx, {
-    serverScope,
+    serverScope: scope,
     surface,
     fullRes,
-    fetchQueueBias,
+    ensurePriority,
     alt,
   });
 
@@ -42,6 +88,7 @@ export function CoverArtImage({
 
   return (
     <img
+      ref={imgRef}
       src={imgSrc}
       className={className}
       alt={alt ?? ''}

@@ -10,7 +10,7 @@ use fetch::{build_cover_art_url, fetch_cover_bytes};
 use image::ImageReader;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -36,18 +36,12 @@ pub struct CoverCacheStatsDto {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverCacheEnsureArgs {
-    pub server_id: String,
+    pub server_index_key: String,
     pub cover_art_id: String,
     pub tier: u32,
     pub rest_base_url: String,
     pub username: String,
     pub password: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CoverCacheBatchArgs {
-    pub items: Vec<CoverCacheEnsureArgs>,
 }
 
 pub struct CoverCacheState {
@@ -119,7 +113,7 @@ impl CoverCacheState {
         args: &CoverCacheEnsureArgs,
     ) -> Result<CoverCacheEnsureResult, String> {
         let this = state.lock().await;
-        let dir = cover_dir(&this.root, &args.server_id, &args.cover_art_id);
+        let dir = cover_dir(&this.root, &args.server_index_key, &args.cover_art_id);
         if let Some(path) = tier_exists(&dir, args.tier) {
             return Ok(CoverCacheEnsureResult {
                 hit: true,
@@ -160,7 +154,7 @@ impl CoverCacheState {
             let _ = app.emit(
                 "cover:tier-ready",
                 serde_json::json!({
-                    "serverId": args.server_id,
+                    "serverIndexKey": args.server_index_key,
                     "coverArtId": args.cover_art_id,
                     "tier": tier,
                     "path": path.to_string_lossy(),
@@ -183,12 +177,43 @@ fn state(app: &AppHandle) -> Result<Arc<Mutex<CoverCacheState>>, String> {
         .ok_or_else(|| "cover cache not initialized".into())
 }
 
+const COVER_CACHE_LAYOUT_STAMP: &str = "index-key-v1";
+
+/// Drop legacy profile-uuid directories when switching to host index keys (no migration).
+fn reset_cover_cache_for_index_key_layout(root: &Path) -> Result<(), String> {
+    let stamp = root.join(".storage-layout");
+    if stamp.is_file() {
+        if let Ok(s) = std::fs::read_to_string(&stamp) {
+            if s.trim() == COVER_CACHE_LAYOUT_STAMP {
+                return Ok(());
+            }
+        }
+    }
+    if root.exists() {
+        for entry in std::fs::read_dir(root).map_err(|e| e.to_string())?.flatten() {
+            let path = entry.path();
+            if path.file_name().and_then(|n| n.to_str()) == Some(".storage-layout") {
+                continue;
+            }
+            if path.is_dir() {
+                let _ = std::fs::remove_dir_all(&path);
+            } else {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+    std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
+    std::fs::write(&stamp, COVER_CACHE_LAYOUT_STAMP).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub fn init_cover_cache(app: &AppHandle) -> Result<(), String> {
     let root = app
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("cover-cache");
+    reset_cover_cache_for_index_key_layout(&root)?;
     app.manage(Arc::new(Mutex::new(CoverCacheState::new(root)?)));
     Ok(())
 }
@@ -196,8 +221,21 @@ pub fn init_cover_cache(app: &AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn cover_cache_ensure(
     app: AppHandle,
-    args: CoverCacheEnsureArgs,
+    server_index_key: String,
+    cover_art_id: String,
+    tier: u32,
+    rest_base_url: String,
+    username: String,
+    password: String,
 ) -> Result<CoverCacheEnsureResult, String> {
+    let args = CoverCacheEnsureArgs {
+        server_index_key,
+        cover_art_id,
+        tier,
+        rest_base_url,
+        username,
+        password,
+    };
     let st = state(&app)?;
     CoverCacheState::ensure_inner(&st, &app, &args).await
 }
@@ -205,10 +243,10 @@ pub async fn cover_cache_ensure(
 #[tauri::command]
 pub async fn cover_cache_ensure_batch(
     app: AppHandle,
-    args: CoverCacheBatchArgs,
+    items: Vec<CoverCacheEnsureArgs>,
 ) -> Result<(), String> {
     let st = state(&app)?;
-    for item in args.items {
+    for item in items {
         let _ = CoverCacheState::ensure_inner(&st, &app, &item).await;
     }
     Ok(())
@@ -257,7 +295,7 @@ pub async fn cover_cache_evict_tick(app: AppHandle) -> Result<u32, String> {
                 let _ = app.emit(
                     "cover:evicted",
                     serde_json::json!({
-                        "serverId": server.file_name().to_string_lossy(),
+                        "serverIndexKey": server.file_name().to_string_lossy(),
                         "coverArtId": id_dir.file_name().to_string_lossy(),
                     }),
                 );
@@ -302,7 +340,7 @@ pub async fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn library_cover_backfill_batch(
     _app: AppHandle,
-    _server_id: String,
+    _server_index_key: String,
     _cursor: Option<String>,
     _limit: Option<u32>,
 ) -> Result<serde_json::Value, String> {
@@ -314,7 +352,7 @@ pub fn library_cover_backfill_batch(
 }
 
 #[tauri::command]
-pub fn library_cover_progress(_server_id: String) -> Result<serde_json::Value, String> {
+pub fn library_cover_progress(_server_index_key: String) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({
         "totalDistinct": 0,
         "pending": 0,

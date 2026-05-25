@@ -62,7 +62,7 @@ describe('offlineLibraryHelpers', () => {
     };
     const { src, cacheKey } = offlineAlbumCoverArt(album, 300);
     expect(src).toContain('ca1');
-    expect(cacheKey).toBe('a:cover:ca1:300');
+    expect(cacheKey).toBe('a.test:cover:ca1:512');
   });
 
   it('ensureServerForOfflineAlbum skips switch when already active', async () => {

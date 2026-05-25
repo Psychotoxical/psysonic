@@ -9,8 +9,10 @@ import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
-import { useCoverArt } from '../cover/useCoverArt';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
+import { coverStorageKey } from '../cover/storageKeys';
+import { resolveCoverDisplayTier } from '../cover/tiers';
+import { acquireUrl } from '../utils/imageCache/urlPool';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { playAlbum } from '../utils/playback/playAlbum';
 import { useDragDrop } from '../contexts/DragDropContext';
@@ -52,9 +54,12 @@ function AlbumCard({
     if (!meta || meta.trackIds.length === 0) return false;
     return meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
   });
-  const coverHandle = useCoverArt(album.coverArt, displayCssPx, { surface: 'dense' });
-  const coverUrl = coverHandle.src;
   const psyDrag = useDragDrop();
+  const dragCoverKey = useMemo(() => {
+    if (!album.coverArt) return '';
+    const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
+    return coverStorageKey({ kind: 'active' }, album.coverArt, tier);
+  }, [album.coverArt, displayCssPx]);
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
 
@@ -87,7 +92,8 @@ function AlbumCard({
           if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
-            psyDrag.startDrag({ data: JSON.stringify({ type: 'album', id: album.id, name: album.name }), label: album.name, coverUrl: coverUrl || undefined }, me.clientX, me.clientY);
+            const coverUrl = dragCoverKey ? acquireUrl(dragCoverKey) ?? undefined : undefined;
+            psyDrag.startDrag({ data: JSON.stringify({ type: 'album', id: album.id, name: album.name }), label: album.name, coverUrl }, me.clientX, me.clientY);
           }
         };
         const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };

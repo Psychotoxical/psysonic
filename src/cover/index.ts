@@ -13,4 +13,8 @@ export { CoverArtImage } from './CoverArtImage';
 export { usePlaybackCoverArt } from './usePlaybackCoverArt';
 export { ensureCoverTierJs } from './resolveJs';
 export { buildCoverArtFetchUrl } from './fetchUrl';
-export { coverStorageKey } from './storageKeys';
+export {
+  coverStorageKey,
+  coverIndexKeyFromScope,
+  coverIndexKeyFromRef,
+} from './storageKeys';

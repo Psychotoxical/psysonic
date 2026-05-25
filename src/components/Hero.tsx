@@ -256,7 +256,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     });
   }, [album?.id]);
 
-  const bgHandle = useCoverArt(album?.coverArt, HERO_BG_CSS_PX, { surface: 'dense' });
+  const bgHandle = useCoverArt(album?.coverArt, HERO_BG_CSS_PX, {
+    surface: 'dense',
+    ensurePriority: 'high',
+  });
 
   // Keep the last known good URL so HeroBg never receives '' during a cache-miss
   // transition (which would cause the background to flash empty before fading in).
@@ -284,6 +287,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
             coverArtId={album.coverArt}
             displayCssPx={HERO_FG_CSS_PX}
             surface="dense"
+            ensurePriority="high"
             className="hero-cover"
             alt={`${album.name} Cover`}
           />
