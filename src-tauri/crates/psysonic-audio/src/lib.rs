@@ -7,6 +7,7 @@
 pub use psysonic_core::{app_deprintln, app_eprintln, logging};
 
 pub mod autoeq_commands;
+mod analysis_dispatch;
 mod codec;
 pub mod commands;
 mod decode;

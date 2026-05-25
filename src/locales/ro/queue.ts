@@ -43,4 +43,15 @@ export const queue = {
   sourceStream: 'Se redă din stream-ul de rețea',
   clearCachedLoudnessWaveform: 'Golește zgomotul si formele de undă din cache, apoi reanalizează piesa',
   recalculatingLoudnessWaveform: 'Se recalculează zgomotul și formele de undă pentru această piesă…',
+  bpm: '{{bpm}} BPM',
+  moods: {
+    happy: 'Fericit',
+    excited: 'Entuziasmat',
+    calm: 'Calm',
+    peaceful: 'Pașnic',
+    angry: 'Furios',
+    tense: 'Tensionat',
+    sad: 'Trist',
+    melancholic: 'Melancolic',
+  },
 };

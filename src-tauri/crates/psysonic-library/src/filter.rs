@@ -132,6 +132,18 @@ pub const FILTER_FIELD_REGISTRY: &[FilterField] = &[
         id: "bpm",
         entities: &[EntityKind::Track],
         ops: &[FilterOp::Gte, FilterOp::Lte, FilterOp::Between],
+        status: FilterStatus::V1,
+    },
+    FilterField {
+        id: "mood_group",
+        entities: &[EntityKind::Track],
+        ops: &[FilterOp::Eq, FilterOp::In],
+        status: FilterStatus::SchemaV1UiLater,
+    },
+    FilterField {
+        id: "mood_tag",
+        entities: &[EntityKind::Track],
+        ops: &[FilterOp::Eq, FilterOp::In],
         status: FilterStatus::SchemaV1UiLater,
     },
 ];
@@ -290,10 +302,16 @@ mod tests {
     }
 
     #[test]
-    fn bpm_is_schema_v1_but_ui_later() {
-        // §5.13.3: bpm has a hot column + index from day one, but is hidden
-        // from the v1 UI until §5.13.4 dual-storage resolution lands.
-        assert_eq!(lookup("bpm").unwrap().status, FilterStatus::SchemaV1UiLater);
+    fn bpm_is_v1_with_dual_storage_resolution() {
+        assert_eq!(lookup("bpm").unwrap().status, FilterStatus::V1);
+    }
+
+    #[test]
+    fn mood_group_is_schema_v1_ui_later_while_oximedia_mood_disabled() {
+        assert_eq!(
+            lookup("mood_group").unwrap().status,
+            FilterStatus::SchemaV1UiLater
+        );
     }
 
     #[test]

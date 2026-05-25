@@ -12,10 +12,12 @@ import { formatTrackTime } from '../utils/format/formatDuration';
 
 interface Props {
   song: SubsonicSong;
+  showBpm?: boolean;
 }
 
-function SongRow({ song }: Props) {
+function SongRow({ song, showBpm }: Props) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const isCurrent = usePlayerStore(s => s.currentTrack?.id === song.id);
@@ -34,9 +36,16 @@ function SongRow({ song }: Props) {
     enqueue([songToTrack(song)]);
   };
 
+  const bpmTooltip =
+    song.localBpmSource === 'analysis'
+      ? t('search.bpmSourceAnalysis')
+      : song.localBpmSource === 'tag'
+        ? t('search.bpmSourceTag')
+        : undefined;
+
   return (
     <div
-      className={`song-list-row${isCurrent ? ' is-current' : ''}`}
+      className={`song-list-row${isCurrent ? ' is-current' : ''}${showBpm ? ' song-list-row--with-bpm' : ''}`}
       onDoubleClick={handlePlay}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -102,21 +111,35 @@ function SongRow({ song }: Props) {
       <div className="song-list-row-cell song-list-row-genre truncate" title={song.genre ?? ''}>
         {song.genre ?? '—'}
       </div>
+      {showBpm && (
+        <div
+          className="song-list-row-cell song-list-row-bpm"
+          data-tooltip={bpmTooltip}
+        >
+          {song.bpm != null && song.bpm > 0 ? song.bpm : '—'}
+        </div>
+      )}
       <div className="song-list-row-cell song-list-row-duration">{formatTrackTime(song.duration, '–')}</div>
     </div>
   );
 }
 
 /** Column header with the same grid as <SongRow>. Optional — pages can render it above the list. */
-export function SongListHeader() {
+export function SongListHeader({ showBpm }: { showBpm?: boolean } = {}) {
   const { t } = useTranslation();
   return (
-    <div className="song-list-row song-list-row--header" role="row">
+    <div
+      className={`song-list-row song-list-row--header${showBpm ? ' song-list-row--with-bpm' : ''}`}
+      role="row"
+    >
       <div className="song-list-row-cell song-list-row-actions" />
       <div className="song-list-row-cell">{t('albumDetail.trackTitle')}</div>
       <div className="song-list-row-cell">{t('albumDetail.trackArtist')}</div>
       <div className="song-list-row-cell">{t('albumDetail.trackAlbum')}</div>
       <div className="song-list-row-cell">{t('randomMix.trackGenre')}</div>
+      {showBpm && (
+        <div className="song-list-row-cell song-list-row-bpm">{t('albumDetail.trackBpm')}</div>
+      )}
       <div className="song-list-row-cell song-list-row-duration">{t('albumDetail.trackDuration')}</div>
     </div>
   );

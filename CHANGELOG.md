@@ -18,6 +18,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Servers — edit existing profiles
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
+
+* Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
+
+
+
+### Local library index + search (preview)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
+
+* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
+* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
+* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
+* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
+
+
+
 ### Player stats — local listening history
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#849](https://github.com/Psychotoxical/psysonic/pull/849)**
@@ -40,22 +59,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Servers — edit existing profiles
+### Track enrichment — oximedia BPM/mood, mood search, queue display
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#863](https://github.com/Psychotoxical/psysonic/pull/863)**
 
-* Pencil button opens an inline edit form prefilled with the existing profile. Card actions collapse to icon-only on narrow viewports so Edit/Delete stay reachable.
+* **Analysis:** client-side oximedia pass (60s center window) writes BPM, valence, arousal, moods JSON, and mood_tag facts to the local library index; unified playback→analysis dispatch covers stream, hot/offline files, preload, and gapless.
+* **Queue:** measured BPM and top mood labels when the playback server's index is enabled; `analysis:enrichment-updated` refreshes the UI without waiting for poll.
+* **Advanced Search:** virtual mood groups (joy, sadness, dance, work, romance, anger) filter via local index + mood_tag rows (migration 008).
+* Mood search requires persisted mood_tag facts; queue display may still show labels from valence/arousal fallback before tags land.
 
 
 
-### Local library index + search (preview)
+### Analytics strategy + migration safety for index-key rebuild
 
-**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#846](https://github.com/Psychotoxical/psysonic/pull/846)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
 
-* **Settings → Library:** local SQLite track index per server — background initial and delta sync, full resync, integrity verify, and auto-reconcile when the server reports fewer tracks than expected.
-* **Live Search** and **Advanced Search** query the local index when it is ready (fast, offline-capable).
-* **Multi-server UI** (by [@cucadmuh](https://github.com/cucadmuh)): per-server exclude/include; indexing runs one server at a time so SQLite stays responsive; offline servers are retried automatically.
-* Local search results respect the sidebar music-library filter; parallel album fetch during initial sync.
+* Rebuilt server scoping around stable `indexKey` identifiers across Rust + frontend paths used by playback, analysis, and local index state.
+* Added per-server analysis strategy controls (lazy/aggressive), per-server parallelism tuning, queue progress visibility, and clear-analysis actions in **Settings → Library**.
+* Added first-launch migration orchestration (inspect/run + progress events + blocking gate) with frontend persisted-key rewrites to the new `indexKey` scope.
+* Reworked playback/analysis handoff paths (play, preload, stream/ranged, queue restore) so analysis dispatch and queue-priority hints use the same server scope model.
+* Hardened startup/runtime migration checks so bootstrap waits for required migration phases before normal playback/index startup.
+
+
+
+### Backup & Restore — library databases + full archive flow
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+
+* **Settings → System → Backup & Restore:** added two archive-backed modes — **Library databases** (library + analysis SQLite snapshots) and **Full** (settings + library databases).
+* Import auto-detects backup type from file contents (`.psybkp` / `.psylib` / `.psyfull`) from one entry point instead of per-mode import actions.
+* Restore switches active databases via runtime store swap/restore flow and keeps previous files as `.bak` for recovery on failed validation.
 
 
 
@@ -80,22 +113,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Library browse — local index race and catalog paths
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#847](https://github.com/Psychotoxical/psysonic/pull/847)**
-
-* **Artists**, **Composers**, **Tracks**, and **Search Results** text search races local FTS against network search3; a ready index still serves hits when remote is down.
-* **All Albums** paginated browse and genre filter, plus **Artists** catalog browse-all, read from the local index when ready (network fallback unchanged).
-* DevTools: `[psysonic][library] browse-race …` lines for race winner, timings, hit counts, and fallback reason.
-
-
-
 ### Settings + Queue polish
 
 **By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**
 
 * Settings toggle rows dim non-toggle content to 0.6 opacity when their switch is off; mutex-disabled rows (Crossfade/Gapless) unchanged.
 * Queue toolbar `Clear` → `Clear queue` across all 9 locales.
+
+
+
+### Development — parallel `tauri dev` alongside release
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#866](https://github.com/Psychotoxical/psysonic/pull/866)**
+
+* Debug builds skip `tauri-plugin-single-instance` so `./dev.sh` can run next to an installed release while sharing the same app data directory.
+* Debug-only chrome: window title `Psysonic (Dev)`, red sidebar brand, monochrome custom titlebar buttons, mobile `DEV` badge, horizontally flipped tray icon.
+* Debug builds do not register OS global shortcuts, MPRIS/media keys, or Windows taskbar media controls — release keeps system-wide input when both are open.
 
 
 
@@ -114,6 +147,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Repeat is disabled while a radio stream plays.
 * Deleting the playing station fades out instead of cutting hard.
 * Play / Stop tooltip on the cover-overlay button; stop uses a Square icon.
+
+
+
+### Library browse — local index race and catalog paths
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#847](https://github.com/Psychotoxical/psysonic/pull/847)**
+
+* **Artists**, **Composers**, **Tracks**, and **Search Results** text search races local FTS against network search3; a ready index still serves hits when remote is down.
+* **All Albums** paginated browse and genre filter, plus **Artists** catalog browse-all, read from the local index when ready (network fallback unchanged).
+* DevTools: `[psysonic][library] browse-race …` lines for race winner, timings, hit counts, and fallback reason.
 
 
 
@@ -154,6 +197,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#860](https://github.com/Psychotoxical/psysonic/pull/860)**
 
 * The queue panel sources its row details through the on-demand track cache, another step toward keeping multi-thousand-track queues light on memory. No visible change.
+
+
+
+### Backup UX — blocking progress gate for long operations
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+
+* Backup/export and restore operations now show a global blocking status modal after file selection, so the app no longer looks frozen while archive and SQLite work runs.
 
 
 
@@ -223,14 +274,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Local library index — full resync removes server-deleted tracks
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#861](https://github.com/Psychotoxical/psysonic/pull/861)**
-
-* **Settings → Library → Full resync** now soft-deletes local rows that no longer exist on the server after a successful re-sync (mark-and-sweep via `resync_gen`), so **Ready (N tracks)** no longer stays inflated when tracks were removed on Navidrome/Subsonic. Delta tombstone reconcile is unchanged.
-
-
-
 ### Playlists & Favorites — column picker on short lists
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#853](https://github.com/Psychotoxical/psysonic/pull/853)**
@@ -244,6 +287,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#854](https://github.com/Psychotoxical/psysonic/pull/854)**
 
 * Scrolling the full tracks list painted rows over the sticky column header. Browse now flows in the page like the search results, so the header stays put; it shares one list view with Search and Advanced Search.
+
+
+
+### Local library index — full resync removes server-deleted tracks
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#861](https://github.com/Psychotoxical/psysonic/pull/861)**
+
+* **Settings → Library → Full resync** now soft-deletes local rows that no longer exist on the server after a successful re-sync (mark-and-sweep via `resync_gen`), so **Ready (N tracks)** no longer stays inflated when tracks were removed on Navidrome/Subsonic. Delta tombstone reconcile is unchanged.
+
+
+
+### Server index-key migration — unknown/legacy data handling
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
+
+* Legacy destructive migration paths were replaced with a dual-DB import/switch flow that keeps old DBs as source until verification passes.
+* Rows belonging to removed servers are explicitly skipped/purged from the active migrated DB scope instead of being silently carried forward.
+* Legacy sqlite artifacts from old paths are now cleaned up after successful path migration (including WAL/SHM sidecars) to prevent stale old-version leftovers.
+
+
+
+### Now Playing — stray zero metadata badges
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#865](https://github.com/Psychotoxical/psysonic/pull/865)**
+
+* Hero track-info badges no longer render literal `0` when numeric metadata fields (bit depth, bitrate, sample rate, year, rating) are missing and arrive as zero from the server.
+
+
+
+### Analysis — failed tracks no longer block completion forever
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#867](https://github.com/Psychotoxical/psysonic/pull/867)**
+
+* **Settings → Library:** problematic tracks that cannot complete loudness/enrichment are now persisted as **failed** and excluded from endless retry loops after restart.
+* Added failed-track controls in Analytics strategy (count, inspect list with title/path, export, and rescan) so users can review and requeue only when they want.
+* Aggressive analysis idle checks now run as a cheap startup + 5-minute recheck against live-track count instead of heavy frequent polling.
+
+
+
+### Live Search — multi-server local index hits
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#868](https://github.com/Psychotoxical/psysonic/pull/868)**
+
+* **Live Search** with a local index no longer returns empty or wrong-server hits on multi-server libraries — FTS is scoped to the active server instead of global bm25 across all indexed tracks.
+* Local artist/album rows dedupe correctly (one performer no longer fills the whole dropdown); Advanced Search text queries use the same server scope fix.
 
 
 

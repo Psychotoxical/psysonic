@@ -2,6 +2,7 @@ use tauri::Manager;
 
 use crate::lib_commands::sync::stop_audio_engine;
 use crate::runtime_subsonic_wire_user_agent;
+use crate::analysis_cache;
 
 #[tauri::command]
 pub(crate) fn greet(name: &str) -> String {
@@ -10,6 +11,9 @@ pub(crate) fn greet(name: &str) -> String {
 
 #[tauri::command]
 pub(crate) fn exit_app(app_handle: tauri::AppHandle) {
+    if let Some(cache) = app_handle.try_state::<analysis_cache::AnalysisCache>() {
+        let _ = cache.checkpoint_wal("exit");
+    }
     stop_audio_engine(&app_handle);
     app_handle.exit(0);
 }

@@ -185,6 +185,7 @@ pub async fn audio_play_radio(
         state.crossfade_secs.clone(),
         done_flag,
         app,
+        None,
         state.samples_played.clone(),
         state.current_sample_rate.clone(),
         state.current_channels.clone(),

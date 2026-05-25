@@ -2,13 +2,16 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
-import { runLocalAdvancedSearch, runLocalSongBrowse } from './advancedSearchLocal';
+import { runLocalAdvancedSearch, runLocalSongBrowse, trackToSong } from './advancedSearchLocal';
 
 const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) => ({
   query: '',
   genre: '',
   yearFrom: '',
   yearTo: '',
+  bpmFrom: '',
+  bpmTo: '',
+  moodGroup: '',
   resultType: 'all' as const,
   ...over,
 });
@@ -25,7 +28,7 @@ const ready = () =>
 
 describe('runLocalAdvancedSearch', () => {
   beforeEach(() => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+    useLibraryIndexStore.setState({ masterEnabled: true });
   });
 
   it('returns null (→ network fallback) when the index is not ready', async () => {
@@ -35,7 +38,7 @@ describe('runLocalAdvancedSearch', () => {
   });
 
   it('returns null when the index is disabled for the server', async () => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', false);
+    useLibraryIndexStore.setState({ masterEnabled: false });
     const res = await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(res).toBeNull();
   });
@@ -56,6 +59,41 @@ describe('runLocalAdvancedSearch', () => {
     });
     await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(captured).toMatchObject({ request: { libraryScope: 'lib7' } });
+  });
+
+  it('passes bpm between filter to library_advanced_search', async () => {
+    ready();
+    let captured: unknown;
+    onInvoke('library_advanced_search', (args) => {
+      captured = args;
+      return {
+        artists: [],
+        albums: [],
+        tracks: [],
+        totals: { artists: 0, albums: 0, tracks: 0 },
+        source: 'local',
+      };
+    });
+    await runLocalAdvancedSearch('s1', opts({ bpmFrom: '120', bpmTo: '130' }), 100);
+    expect(captured).toMatchObject({
+      request: { filters: [{ field: 'bpm', op: 'between', value: 120, valueTo: 130 }] },
+    });
+  });
+
+  it('trackToSong keeps resolved bpm and source over rawJson tag', () => {
+    const song = trackToSong({
+      serverId: 's1',
+      id: 't1',
+      title: 'T',
+      album: 'Alb',
+      durationSec: 100,
+      syncedAt: 0,
+      bpm: 128,
+      bpmSource: 'analysis',
+      rawJson: { id: 't1', title: 'T', artist: 'A', album: 'Alb', albumId: 'al1', duration: 100, bpm: 90 },
+    });
+    expect(song.bpm).toBe(128);
+    expect(song.localBpmSource).toBe('analysis');
   });
 
   it('prefers rawJson, falls back to hot columns, and reports the full total', async () => {
@@ -117,7 +155,7 @@ describe('runLocalAdvancedSearch', () => {
 
 describe('runLocalSongBrowse', () => {
   beforeEach(() => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+    useLibraryIndexStore.setState({ masterEnabled: true });
   });
 
   it('returns null for a missing server id (→ network browse)', async () => {

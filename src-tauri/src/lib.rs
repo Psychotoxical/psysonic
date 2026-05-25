@@ -38,6 +38,28 @@ const MAX_DL_CONCURRENCY: usize = 4;
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
 
+/// Release builds only: focus or CLI-hand off when a second instance is launched.
+#[cfg(not(debug_assertions))]
+fn on_second_instance<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    argv: Vec<String>,
+    _cwd: String,
+) {
+    if !crate::cli::handle_cli_on_primary_instance(app, &argv) {
+        let window = app.get_webview_window("main").expect("no main window");
+        // The window may have been hidden via the close-to-tray path,
+        // which injects PAUSE_RENDERING_JS (sets `__psyHidden=true`,
+        // pauses CSS animations). Tray-icon restore mirrors this with
+        // RESUME_RENDERING_JS — second-launch restore must do the same,
+        // otherwise the webview comes back with rendering still paused
+        // and navigation looks blank (issue #497).
+        let _ = window.eval(RESUME_RENDERING_JS);
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 pub fn run() {
     // Linux: second `psysonic --player …` forwards over D-Bus before heavy startup.
     #[cfg(target_os = "linux")]
@@ -57,7 +79,7 @@ pub fn run() {
 
     let (audio_engine, _audio_thread) = audio::create_engine();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(audio_engine)
         .manage(ShortcutMap::default())
         .manage(discord::DiscordState::new())
@@ -78,24 +100,18 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            if !crate::cli::handle_cli_on_primary_instance(app, &argv) {
-                let window = app.get_webview_window("main").expect("no main window");
-                // The window may have been hidden via the close-to-tray path,
-                // which injects PAUSE_RENDERING_JS (sets `__psyHidden=true`,
-                // pauses CSS animations). Tray-icon restore mirrors this with
-                // RESUME_RENDERING_JS — second-launch restore must do the same,
-                // otherwise the webview comes back with rendering still paused
-                // and navigation looks blank (issue #497).
-                let _ = window.eval(RESUME_RENDERING_JS);
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_fs::init());
 
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(on_second_instance));
+
+    builder
         .setup(|app| {
+            #[cfg(debug_assertions)]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_title("Psysonic (Dev)");
+            }
+
             // ── Analysis cache (SQLite) ───────────────────────────────────
             {
                 let cache = analysis_cache::AnalysisCache::init(app.handle())
@@ -218,6 +234,8 @@ pub fn run() {
                 app.manage(handle);
             }
 
+            app.manage(psysonic_analysis::analysis_runtime::PlaybackPriorityHints::default());
+
             // ── Content-hash sink (analysis → library E2 back-edge) ───────
             // After a seed the analysis pipeline records the playback-derived
             // md5_16kb as `track.content_hash` so id-remap can rebind a track
@@ -274,6 +292,86 @@ pub fn run() {
                 app.manage(query);
             }
 
+            // ── Analysis needs-work probe (library → analysis batch scan) ──
+            {
+                use psysonic_core::ports::TrackAnalysisNeedsWorkQuery;
+                let app_for_needs_work = app.handle().clone();
+                let needs_work = TrackAnalysisNeedsWorkQuery::new(
+                    move |server_id: &str, track_id: &str| {
+                        psysonic_analysis::analysis_runtime::track_analysis_needs_work(
+                            &app_for_needs_work,
+                            server_id,
+                            track_id,
+                        )
+                    },
+                );
+                app.manage(needs_work);
+            }
+
+            // ── Track enrichment port (analysis → library facts) ───────────
+            {
+                use psysonic_core::track_enrichment::{TrackEnrichmentPlan, TrackEnrichmentPort};
+                use std::time::{SystemTime, UNIX_EPOCH};
+
+                fn enrichment_now_unix_ms() -> i64 {
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0)
+                }
+
+                let app_for_enrichment_plan = app.handle().clone();
+                let app_for_enrichment_store = app.handle().clone();
+                let port = TrackEnrichmentPort::new(
+                    move |server_id: &str, track_id: &str, content_hash: &str| {
+                        let Some(runtime) =
+                            app_for_enrichment_plan.try_state::<psysonic_library::LibraryRuntime>()
+                        else {
+                            return TrackEnrichmentPlan::default();
+                        };
+                        match psysonic_library::enrichment::plan_track_enrichment(
+                            &runtime.store,
+                            server_id,
+                            track_id,
+                            content_hash,
+                            enrichment_now_unix_ms(),
+                        ) {
+                            Ok(plan) => plan,
+                            Err(e) => {
+                                eprintln!(
+                                    "[enrichment] plan failed server_id={server_id} track_id={track_id}: {e}"
+                                );
+                                TrackEnrichmentPlan {
+                                    need_bpm: true,
+                                    need_valence: true,
+                                    need_arousal: true,
+                                    need_moods: true,
+                                }
+                            }
+                        }
+                    },
+                    move |server_id: &str,
+                          track_id: &str,
+                          content_hash: &str,
+                          facts: &psysonic_core::track_enrichment::TrackEnrichmentFacts| {
+                        let Some(runtime) =
+                            app_for_enrichment_store.try_state::<psysonic_library::LibraryRuntime>()
+                        else {
+                            return Err("library runtime unavailable".into());
+                        };
+                        psysonic_library::enrichment::store_track_enrichment_facts(
+                            &runtime.store,
+                            server_id,
+                            track_id,
+                            content_hash,
+                            facts,
+                            enrichment_now_unix_ms(),
+                        )
+                    },
+                );
+                app.manage(port);
+            }
+
             // Periodic analysis queue sizes (debug logging mode only).
             tauri::async_runtime::spawn(psysonic_analysis::analysis_runtime::analysis_queue_snapshot_loop());
 
@@ -304,6 +402,8 @@ pub fn run() {
             }
 
             // ── MPRIS2 / OS media controls via souvlaki ──────────────────
+            // Release only: debug builds share the D-Bus name / SMTC slot with prod.
+            #[cfg(not(debug_assertions))]
             {
                 use souvlaki::{MediaControlEvent, MediaControls, PlatformConfig};
 
@@ -392,9 +492,13 @@ pub fn run() {
 
                 app.manage(MprisControls::new(maybe_controls));
             }
+            #[cfg(debug_assertions)]
+            {
+                app.manage(MprisControls::new(None));
+            }
 
             // ── Windows Taskbar Thumbnail Toolbar ────────────────────────
-            #[cfg(target_os = "windows")]
+            #[cfg(all(target_os = "windows", not(debug_assertions)))]
             {
                 use tauri::Manager;
                 if let Some(w) = app.get_webview_window("main") {
@@ -481,6 +585,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            backup_export_library_db,
+            backup_import_library_db,
+            backup_export_full,
+            backup_import_full,
+            migration_inspect,
+            migration_run,
             psysonic_syncfs::sync::batch::calculate_sync_payload,
             exit_app,
             cli_publish_player_snapshot,
@@ -572,7 +682,16 @@ pub fn run() {
             psysonic_analysis::commands::analysis_delete_loudness_for_track,
             psysonic_analysis::commands::analysis_delete_waveform_for_track,
             psysonic_analysis::commands::analysis_delete_all_waveforms,
+            psysonic_analysis::commands::analysis_delete_all_for_server,
+            psysonic_analysis::commands::analysis_get_failed_track_count,
+            psysonic_analysis::commands::analysis_list_failed_tracks,
+            psysonic_analysis::commands::analysis_clear_failed_tracks,
+            psysonic_analysis::commands::analysis_migrate_server_index_keys,
             psysonic_analysis::commands::analysis_enqueue_seed_from_url,
+            psysonic_analysis::commands::analysis_set_playback_priority_hints,
+            psysonic_analysis::commands::analysis_set_pipeline_parallelism,
+            psysonic_analysis::commands::analysis_get_pipeline_queue_stats,
+            psysonic_analysis::commands::analysis_get_backfill_queue_stats,
             psysonic_analysis::commands::analysis_prune_pending_to_track_ids,
             psysonic_library::commands::library_get_status,
             psysonic_library::commands::library_search,
@@ -585,6 +704,8 @@ pub fn run() {
             psysonic_library::commands::library_get_artifact,
             psysonic_library::commands::library_get_facts,
             psysonic_library::commands::library_get_offline_path,
+            psysonic_library::commands::library_analysis_progress,
+            psysonic_library::commands::library_count_live_tracks,
             psysonic_library::commands::library_sync_bind_session,
             psysonic_library::commands::library_sync_clear_session,
             psysonic_library::commands::library_set_playback_hint,
@@ -602,7 +723,9 @@ pub fn run() {
             psysonic_library::commands::library_get_player_stats_year_bounds,
             psysonic_library::commands::library_get_player_stats_recent_days,
             psysonic_library::commands::library_purge_server,
+            psysonic_library::commands::library_migrate_server_index_keys,
             psysonic_library::commands::library_delete_server_data,
+            psysonic_library::commands::library_analysis_backfill_batch,
             psysonic_syncfs::cache::offline::download_track_offline,
             psysonic_syncfs::cache::offline::cancel_offline_downloads,
             psysonic_syncfs::cache::offline::clear_offline_cancel,

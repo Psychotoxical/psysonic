@@ -3,6 +3,7 @@ import md5 from 'md5';
 import { version } from '../../package.json';
 import { useAuthStore } from '../store/authStore';
 import type { ServerProfile } from '../store/authStoreTypes';
+import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../utils/server/serverLookup';
 
 export const SUBSONIC_CLIENT = `psysonic/${version}`;
 
@@ -53,7 +54,7 @@ export function getClient() {
 }
 
 export function getServerById(serverId: string): ServerProfile | undefined {
-  return useAuthStore.getState().servers.find(s => s.id === serverId);
+  return findServerByIdOrIndexKey(serverId);
 }
 
 /** Subsonic REST call against an explicit saved server (not necessarily the active one). */
@@ -95,7 +96,8 @@ export function libraryFilterParams(): Record<string, string | number> {
 
 /** Navidrome/Subsonic music folder id for the local library index, or undefined for all libraries. */
 export function libraryScopeForServer(serverId: string): string | undefined {
-  const f = useAuthStore.getState().musicLibraryFilterByServer[serverId];
+  const resolved = resolveServerIdForIndexKey(serverId);
+  const f = useAuthStore.getState().musicLibraryFilterByServer[resolved];
   if (f === undefined || f === 'all') return undefined;
   return f;
 }

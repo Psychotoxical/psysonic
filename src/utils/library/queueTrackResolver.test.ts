@@ -39,7 +39,7 @@ const ref = (trackId: string, extra: Partial<QueueItemRef> = {}): QueueItemRef =
 describe('queueTrackResolver', () => {
   beforeEach(() => {
     _resetQueueResolverForTest();
-    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+    useLibraryIndexStore.setState({ masterEnabled: true });
     usePlayerStore.setState({ starredOverrides: {}, userRatingOverrides: {} });
     vi.restoreAllMocks();
   });

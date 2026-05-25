@@ -1,11 +1,15 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::{Emitter, Manager};
 
 use psysonic_core::user_agent::subsonic_wire_user_agent;
+use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 
 use crate::analysis_cache;
+
+use crate::analysis_perf::{emit_analysis_track_perf, AnalysisSeedTimings};
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,17 +18,92 @@ pub struct WaveformUpdatedPayload {
     pub is_partial: bool,
 }
 
+pub const ANALYSIS_PIPELINE_PARALLELISM_MIN: usize = 1;
+pub const ANALYSIS_PIPELINE_PARALLELISM_MAX: usize = 20;
+pub const ANALYSIS_PIPELINE_PARALLELISM_DEFAULT: usize = 1;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AnalysisTierCounts {
+    pub high: usize,
+    pub middle: usize,
+    pub low: usize,
+}
+
+impl AnalysisTierCounts {
+    pub fn total(&self) -> usize {
+        self.high + self.middle + self.low
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisPipelineQueueStatsDto {
+    pub pipeline_workers: u32,
+    pub http_queued: usize,
+    pub http_queued_high: usize,
+    pub http_queued_middle: usize,
+    pub http_queued_low: usize,
+    pub http_download_active: usize,
+    pub http_download_active_high: usize,
+    pub http_download_active_middle: usize,
+    pub http_download_active_low: usize,
+    pub cpu_queued: usize,
+    pub cpu_queued_high: usize,
+    pub cpu_queued_middle: usize,
+    pub cpu_queued_low: usize,
+    pub cpu_decode_active: usize,
+    pub cpu_decode_active_high: usize,
+    pub cpu_decode_active_middle: usize,
+    pub cpu_decode_active_low: usize,
+}
+
+pub fn clamp_pipeline_parallelism(workers: usize) -> usize {
+    workers.clamp(
+        ANALYSIS_PIPELINE_PARALLELISM_MIN,
+        ANALYSIS_PIPELINE_PARALLELISM_MAX,
+    )
+}
+
+/// Last requested worker count (applied when lazy-init queues and on live updates).
+static REQUESTED_PIPELINE_PARALLELISM: AtomicUsize =
+    AtomicUsize::new(ANALYSIS_PIPELINE_PARALLELISM_DEFAULT);
+
+fn requested_pipeline_parallelism() -> usize {
+    clamp_pipeline_parallelism(REQUESTED_PIPELINE_PARALLELISM.load(Ordering::Relaxed))
+}
+
 // ─── HTTP backfill queue: download tracks + seed analysis cache ──────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AnalysisBackfillPriority {
+    Low = 0,
+    Middle = 1,
+    High = 2,
+}
+
+impl AnalysisBackfillPriority {
+    pub fn from_optional_str(raw: Option<&str>) -> Option<Self> {
+        let s = raw?.trim();
+        if s.is_empty() {
+            return None;
+        }
+        match s.to_ascii_lowercase().as_str() {
+            "high" => Some(Self::High),
+            "middle" => Some(Self::Middle),
+            "low" => Some(Self::Low),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnalysisBackfillEnqueueKind {
-    /// New job at the tail of the queue.
-    NewBack,
-    /// New job for the currently playing track (head).
-    NewFront,
-    /// Same track was already waiting; moved to head with the latest URL.
-    ReorderedFront,
-    /// Low-priority duplicate while the track is already queued or running.
+    NewLow,
+    NewMiddle,
+    NewHigh,
+    /// Same track was already waiting; moved to a higher tier with the latest URL.
+    ReorderedHigher,
+    /// Same or lower priority while the track is already queued or running.
     DuplicateSkipped,
     /// High-priority request but that track is already being downloaded+seeded.
     RunningSkipped,
@@ -37,27 +116,117 @@ type BackfillJob = (String, String, String);
 
 #[derive(Default)]
 pub struct AnalysisBackfillQueueState {
-    pub deque: VecDeque<BackfillJob>,
-    /// Set while this `track_id` is inside `analysis_backfill_download_and_seed` (not in deque).
-    pub in_progress: Option<String>,
+    high: VecDeque<BackfillJob>,
+    middle: VecDeque<BackfillJob>,
+    low: VecDeque<BackfillJob>,
+    /// Active HTTP downloads keyed by track id (tier kept for pipeline stats).
+    pub in_progress: HashMap<String, AnalysisBackfillPriority>,
 }
 
 impl AnalysisBackfillQueueState {
-    fn is_reserved(&self, tid: &str) -> bool {
-        self.in_progress.as_deref() == Some(tid)
-            || self.deque.iter().any(|(t, _, _)| t.as_str() == tid)
+    fn queued_len(&self) -> usize {
+        self.high.len() + self.middle.len() + self.low.len()
     }
 
-    fn try_pop_next(&mut self) -> Option<BackfillJob> {
-        let job = self.deque.pop_front()?;
-        self.in_progress = Some(job.0.clone());
-        Some(job)
+    fn queued_tier_counts(&self) -> AnalysisTierCounts {
+        AnalysisTierCounts {
+            high: self.high.len(),
+            middle: self.middle.len(),
+            low: self.low.len(),
+        }
+    }
+
+    fn in_progress_tier_counts(&self) -> AnalysisTierCounts {
+        let mut counts = AnalysisTierCounts::default();
+        for tier in self.in_progress.values() {
+            match tier {
+                AnalysisBackfillPriority::High => counts.high += 1,
+                AnalysisBackfillPriority::Middle => counts.middle += 1,
+                AnalysisBackfillPriority::Low => counts.low += 1,
+            }
+        }
+        counts
+    }
+
+    fn tier_deque(&self, tier: AnalysisBackfillPriority) -> &VecDeque<BackfillJob> {
+        match tier {
+            AnalysisBackfillPriority::High => &self.high,
+            AnalysisBackfillPriority::Middle => &self.middle,
+            AnalysisBackfillPriority::Low => &self.low,
+        }
+    }
+
+    fn tier_deque_mut(&mut self, tier: AnalysisBackfillPriority) -> &mut VecDeque<BackfillJob> {
+        match tier {
+            AnalysisBackfillPriority::High => &mut self.high,
+            AnalysisBackfillPriority::Middle => &mut self.middle,
+            AnalysisBackfillPriority::Low => &mut self.low,
+        }
+    }
+
+    fn locate_queued(&self, tid: &str) -> Option<AnalysisBackfillPriority> {
+        [
+            AnalysisBackfillPriority::High,
+            AnalysisBackfillPriority::Middle,
+            AnalysisBackfillPriority::Low,
+        ]
+        .into_iter()
+        .find(|&tier| {
+            self
+                .tier_deque(tier)
+                .iter()
+                .any(|(t, _, _)| t.as_str() == tid)
+        })
+    }
+
+    fn remove_queued(&mut self, tid: &str) -> Option<BackfillJob> {
+        for tier in [
+            AnalysisBackfillPriority::High,
+            AnalysisBackfillPriority::Middle,
+            AnalysisBackfillPriority::Low,
+        ] {
+            if let Some(pos) = self
+                .tier_deque(tier)
+                .iter()
+                .position(|(t, _, _)| t.as_str() == tid)
+            {
+                return self.tier_deque_mut(tier).remove(pos);
+            }
+        }
+        None
+    }
+
+    fn push_new(&mut self, priority: AnalysisBackfillPriority, job: BackfillJob) {
+        match priority {
+            AnalysisBackfillPriority::High => self.high.push_front(job),
+            AnalysisBackfillPriority::Middle => self.middle.push_back(job),
+            AnalysisBackfillPriority::Low => self.low.push_back(job),
+        }
+    }
+
+    fn is_reserved(&self, tid: &str) -> bool {
+        self.in_progress.contains_key(tid) || self.locate_queued(tid).is_some()
+    }
+
+    fn try_pop_next(&mut self, max_concurrent: usize) -> Option<BackfillJob> {
+        if self.in_progress.len() >= max_concurrent {
+            return None;
+        }
+        for tier in [
+            AnalysisBackfillPriority::High,
+            AnalysisBackfillPriority::Middle,
+            AnalysisBackfillPriority::Low,
+        ] {
+            if let Some(job) = self.tier_deque_mut(tier).pop_front() {
+                self.in_progress.insert(job.0.clone(), tier);
+                return Some(job);
+            }
+        }
+        None
     }
 
     fn finish_job(&mut self, tid: &str) {
-        if self.in_progress.as_deref() == Some(tid) {
-            self.in_progress = None;
-        }
+        self.in_progress.remove(tid);
     }
 
     pub fn enqueue(
@@ -65,45 +234,109 @@ impl AnalysisBackfillQueueState {
         server_id: String,
         tid: String,
         url: String,
-        high_priority: bool,
+        priority: AnalysisBackfillPriority,
     ) -> AnalysisBackfillEnqueueKind {
         let tref = tid.as_str();
+        if !self.is_reserved(tref) && analysis_track_in_cpu_pipeline(tref) {
+            return AnalysisBackfillEnqueueKind::DuplicateSkipped;
+        }
         if self.is_reserved(tref) {
-            if !high_priority {
+            if self.in_progress.contains_key(tref) {
+                if priority == AnalysisBackfillPriority::High {
+                    return AnalysisBackfillEnqueueKind::RunningSkipped;
+                }
                 return AnalysisBackfillEnqueueKind::DuplicateSkipped;
             }
-            if self.in_progress.as_deref() == Some(tref) {
-                return AnalysisBackfillEnqueueKind::RunningSkipped;
+            let existing = self.locate_queued(tref).unwrap_or(AnalysisBackfillPriority::Low);
+            if priority <= existing {
+                return AnalysisBackfillEnqueueKind::DuplicateSkipped;
             }
-            self.deque.retain(|(t, _, _)| t != &tid);
-            self.deque.push_front((tid, url, server_id));
-            return AnalysisBackfillEnqueueKind::ReorderedFront;
+            self.remove_queued(tref);
+            self.push_new(priority, (tid, url, server_id));
+            return AnalysisBackfillEnqueueKind::ReorderedHigher;
         }
-        if high_priority {
-            self.deque.push_front((tid, url, server_id));
-            AnalysisBackfillEnqueueKind::NewFront
-        } else {
-            self.deque.push_back((tid, url, server_id));
-            AnalysisBackfillEnqueueKind::NewBack
-        }
+        let kind = match priority {
+            AnalysisBackfillPriority::High => AnalysisBackfillEnqueueKind::NewHigh,
+            AnalysisBackfillPriority::Middle => AnalysisBackfillEnqueueKind::NewMiddle,
+            AnalysisBackfillPriority::Low => AnalysisBackfillEnqueueKind::NewLow,
+        };
+        self.push_new(priority, (tid, url, server_id));
+        kind
     }
 
-    pub fn prune_queued_not_in(&mut self, keep_track_ids: &HashSet<&str>) -> usize {
-        let before = self.deque.len();
-        self.deque
-            .retain(|(track_id, _, _)| keep_track_ids.contains(track_id.as_str()));
-        before.saturating_sub(self.deque.len())
+    pub fn prune_queued_not_in(
+        &mut self,
+        keep_track_ids: &HashSet<&str>,
+        server_id: Option<&str>,
+    ) -> usize {
+        let before = self.queued_len();
+        for tier in [
+            AnalysisBackfillPriority::High,
+            AnalysisBackfillPriority::Middle,
+            AnalysisBackfillPriority::Low,
+        ] {
+            self.tier_deque_mut(tier)
+                .retain(|(track_id, _, job_server_id)| {
+                    let scoped = server_id.is_some_and(|sid| {
+                        job_server_id.is_empty() || job_server_id == sid
+                    });
+                    if server_id.is_some() && !scoped {
+                        return true;
+                    }
+                    keep_track_ids.contains(track_id.as_str())
+                });
+        }
+        before.saturating_sub(self.queued_len())
     }
+}
+
+/// Frontend-maintained set of queue-neighbour track ids (next ~5 + preload next).
+#[derive(Default)]
+pub struct PlaybackPriorityHints {
+    middle_track_ids: Mutex<HashSet<String>>,
+}
+
+impl PlaybackPriorityHints {
+    pub fn set_middle_track_ids(
+        &self,
+        ids: impl IntoIterator<Item = (String, String)>,
+    ) {
+        let mut set = HashSet::new();
+        for (server_id, track_id) in ids {
+            let sid = server_id.trim();
+            let tid = track_id.trim();
+            if !tid.is_empty() {
+                set.insert(priority_hint_key(sid, tid));
+            }
+        }
+        *self.middle_track_ids.lock().unwrap_or_else(|e| e.into_inner()) = set;
+    }
+
+    pub fn is_middle_priority(&self, server_id: &str, track_id: &str) -> bool {
+        self.middle_track_ids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(&priority_hint_key(server_id, track_id))
+    }
+}
+
+fn priority_hint_key(server_id: &str, track_id: &str) -> String {
+    format!("{server_id}::{track_id}")
 }
 
 pub struct AnalysisBackfillShared {
     pub state: Mutex<AnalysisBackfillQueueState>,
     wake_tx: tokio::sync::mpsc::UnboundedSender<()>,
+    max_parallel: AtomicUsize,
 }
 
 impl AnalysisBackfillShared {
     pub fn ping_worker(&self) {
         let _ = self.wake_tx.send(());
+    }
+
+    fn max_parallel(&self) -> usize {
+        clamp_pipeline_parallelism(self.max_parallel.load(Ordering::Relaxed))
     }
 }
 
@@ -117,67 +350,186 @@ pub fn analysis_backfill_shared(app: &tauri::AppHandle) -> Arc<AnalysisBackfillS
             let shared = Arc::new(AnalysisBackfillShared {
                 state: Mutex::new(AnalysisBackfillQueueState::default()),
                 wake_tx,
+                max_parallel: AtomicUsize::new(requested_pipeline_parallelism()),
             });
             let app = app.clone();
-            let sh = shared.clone();
-            tauri::async_runtime::spawn(analysis_backfill_worker_loop(app, sh, wake_rx));
+            tauri::async_runtime::spawn(analysis_backfill_worker_loop(app, shared.clone(), wake_rx));
+            shared.ping_worker();
             shared
         })
         .clone()
 }
 
-/// Decode `bytes` for `track_id` via the cpu-seed queue. Returns `Ok(true)` when
-/// a loudness row exists in the cache after the seed (cache-hit short-circuits as
-/// well as fresh decode hits).
+use crate::track_analysis_plan::plan_track_analysis;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnqueueTrackAnalysisOutcome {
+    /// Waveform, LUFS, and enrichment facts are all current.
+    Complete,
+    /// Symphonia full-file decode queued (enrichment runs after seed when needed).
+    QueuedFullSeed,
+    /// Oximedia pass ran inline (waveform + LUFS already cached).
+    RanEnrichmentOnly,
+}
+
+/// **Single entry point** for byte-backed track analysis.
+///
+/// 1. Plan: waveform / LUFS gaps in analysis cache + enrichment facts in library.
+/// 2. If nothing missing → no-op.
+/// 3. If waveform or LUFS missing → CPU seed queue (Symphonia + EBU R128).
+/// 4. Else if enrichment missing → oximedia 60 s window only.
+pub async fn enqueue_track_analysis(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    priority: AnalysisBackfillPriority,
+) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    enqueue_track_analysis_with_fetch(app, server_id, track_id, bytes, priority, 0).await
+}
+
+async fn enqueue_track_analysis_with_fetch(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    priority: AnalysisBackfillPriority,
+    fetch_ms: u64,
+) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    if bytes.is_empty() {
+        return Ok(EnqueueTrackAnalysisOutcome::Complete);
+    }
+    let content_hash = analysis_cache::md5_first_16kb(bytes);
+    let plan = plan_track_analysis(app, server_id, track_id, &content_hash);
+    if !plan.any() {
+        crate::app_deprintln!(
+            "[analysis] track complete track_id={} hash={}",
+            track_id,
+            content_hash
+        );
+        return Ok(EnqueueTrackAnalysisOutcome::Complete);
+    }
+    if plan.needs_full_cpu_seed() {
+        crate::app_deprintln!(
+            "[analysis] queue full seed track_id={} hash={} need_waveform={} need_loudness={} need_enrichment={}",
+            track_id,
+            content_hash,
+            plan.need_waveform,
+            plan.need_loudness,
+            plan.enrichment.any()
+        );
+        submit_analysis_cpu_seed(
+            app.clone(),
+            server_id.to_string(),
+            track_id.to_string(),
+            bytes.to_vec(),
+            priority,
+            fetch_ms,
+        )
+        .await?;
+        return Ok(EnqueueTrackAnalysisOutcome::QueuedFullSeed);
+    }
+    if plan.needs_enrichment_only() {
+        crate::app_deprintln!(
+            "[analysis] enrichment-only track_id={} hash={}",
+            track_id,
+            content_hash
+        );
+        let bpm_started = std::time::Instant::now();
+        let outcome = run_track_enrichment_from_bytes(app, server_id, track_id, bytes).await;
+        if matches!(outcome, TrackEnrichmentOutcome::Failed) {
+            if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+                let key = analysis_cache::TrackKey {
+                    server_id: server_id.to_string(),
+                    track_id: track_id.to_string(),
+                    md5_16kb: content_hash.clone(),
+                };
+                let _ = cache.touch_track_status(&key, "failed");
+            }
+            return Err("track enrichment failed".to_string());
+        }
+        let bpm_ms = bpm_started.elapsed().as_millis() as u64;
+        emit_analysis_track_perf(app, track_id, fetch_ms, 0, bpm_ms);
+        return Ok(EnqueueTrackAnalysisOutcome::RanEnrichmentOnly);
+    }
+    Ok(EnqueueTrackAnalysisOutcome::Complete)
+}
+
+/// Re-export for HTTP backfill gate (no bytes yet).
+pub use crate::track_analysis_plan::track_analysis_needs_work;
+
+/// Oximedia BPM/mood pass only — prefer [`enqueue_track_analysis`].
+pub async fn run_track_enrichment_from_bytes(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+) -> TrackEnrichmentOutcome {
+    if server_id.is_empty() {
+        return TrackEnrichmentOutcome::SkippedNoServer;
+    }
+    let app = app.clone();
+    let sid = server_id.to_string();
+    let tid = track_id.to_string();
+    let data = bytes.to_vec();
+    match tokio::task::spawn_blocking(move || {
+        crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data)
+    })
+    .await
+    {
+        Ok(outcome) => outcome,
+        Err(_) => TrackEnrichmentOutcome::Failed,
+    }
+}
+
+/// Read a local file and run [`enqueue_track_analysis`] (hot cache, offline, spill promote).
+pub async fn enqueue_track_analysis_from_file(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    file_path: &std::path::Path,
+    priority: AnalysisBackfillPriority,
+) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    let bytes = tokio::fs::read(file_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    if bytes.is_empty() {
+        return Ok(EnqueueTrackAnalysisOutcome::Complete);
+    }
+    enqueue_track_analysis(app, server_id, track_id, &bytes, priority).await
+}
+
+/// Decode `bytes` for `track_id` via the cpu-seed queue. Prefer [`enqueue_track_analysis`].
 pub async fn enqueue_analysis_seed(
     app: &tauri::AppHandle,
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
 ) -> Result<bool, String> {
-    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
-        if cache.cpu_seed_redundant_for_track(server_id, track_id).unwrap_or(false) {
-            return Ok(true);
-        }
-    }
-    let high = analysis_backfill_is_current_track(app, track_id);
-    let outcome = submit_analysis_cpu_seed(
-        app.clone(),
-        server_id.to_string(),
-        track_id.to_string(),
-        bytes.to_vec(),
-        high,
-    )
-    .await
-    .map_err(|e| {
-        crate::app_eprintln!("[analysis] failed to seed {}: {}", track_id, e);
-        e
-    })?;
-    let has_loudness = app
-        .try_state::<analysis_cache::AnalysisCache>()
-        .and_then(|cache| cache.get_latest_loudness_for_track(server_id, track_id).ok().flatten())
-        .is_some();
-    crate::app_deprintln!(
-        "[analysis] seed result track_id={} bytes={} has_loudness={} outcome={outcome:?}",
-        track_id,
-        bytes.len(),
-        has_loudness
-    );
-    Ok(has_loudness)
+    let priority = analysis_backfill_resolve_priority(app, server_id, track_id, None);
+    let outcome = enqueue_track_analysis(app, server_id, track_id, bytes, priority).await?;
+    Ok(!matches!(outcome, EnqueueTrackAnalysisOutcome::Complete))
 }
 
-async fn analysis_backfill_download_and_seed(
-    app: &tauri::AppHandle,
-    server_id: &str,
-    track_id: &str,
-    url: &str,
-) -> Result<bool, String> {
-    let client = reqwest::Client::builder()
-        .user_agent(subsonic_wire_user_agent())
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
+fn analysis_http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent(subsonic_wire_user_agent())
+            .timeout(std::time::Duration::from_secs(120))
+            .pool_max_idle_per_host(ANALYSIS_PIPELINE_PARALLELISM_MAX)
+            .build()
+            .expect("analysis HTTP client")
+    })
+}
+
+async fn analysis_backfill_download_bytes(url: &str) -> Result<(Vec<u8>, u64), String> {
+    let fetch_started = std::time::Instant::now();
+    let response = analysis_http_client()
+        .get(url)
+        .send()
+        .await
         .map_err(|e| e.to_string())?;
-    let response = client.get(url).send().await.map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
@@ -185,7 +537,8 @@ async fn analysis_backfill_download_and_seed(
     if bytes.is_empty() {
         return Err("empty response".to_string());
     }
-    enqueue_analysis_seed(app, server_id, track_id, &bytes).await
+    let fetch_ms = fetch_started.elapsed().as_millis() as u64;
+    Ok((bytes.to_vec(), fetch_ms))
 }
 
 async fn analysis_backfill_worker_loop(
@@ -197,29 +550,176 @@ async fn analysis_backfill_worker_loop(
         if wake_rx.recv().await.is_none() {
             break;
         }
-        while let Some((track_id, url, server_id)) = {
+        spawn_backfill_slots(&app, &shared).await;
+    }
+}
+
+async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackfillShared>) {
+    loop {
+        let max = shared.max_parallel();
+        let job_bundle = {
             let mut st = shared
                 .state
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
-            st.try_pop_next()
-        } {
-            crate::app_deprintln!("[analysis] backfill worker: start track_id={}", track_id);
-            let result = analysis_backfill_download_and_seed(&app, &server_id, &track_id, &url).await;
+            st.try_pop_next(max).map(|job| {
+                let worker_slot = st.in_progress.len();
+                (job, worker_slot)
+            })
+        };
+        let Some(((track_id, url, server_id), worker_slot)) = job_bundle else {
+            break;
+        };
+        crate::app_deprintln!(
+            "[analysis] backfill worker={}/{}: start track_id={}",
+            worker_slot,
+            max,
+            track_id
+        );
+        let app = app.clone();
+        let shared = shared.clone();
+        tauri::async_runtime::spawn(async move {
+            let download_result = analysis_backfill_download_bytes(&url).await;
+            {
+                let mut st = shared
+                    .state
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                st.finish_job(&track_id);
+            }
+            shared.ping_worker();
+
+            let result = match download_result {
+                Ok((bytes, fetch_ms)) => {
+                    crate::app_deprintln!(
+                        "[analysis] backfill worker={}/{}: fetched track_id={} fetch_ms={}",
+                        worker_slot,
+                        max,
+                        track_id,
+                        fetch_ms
+                    );
+                    let priority = analysis_backfill_resolve_priority(&app, &server_id, &track_id, None);
+                    match enqueue_track_analysis_with_fetch(
+                        &app,
+                        &server_id,
+                        &track_id,
+                        &bytes,
+                        priority,
+                        fetch_ms,
+                    )
+                    .await
+                    {
+                        Ok(outcome) => {
+                            Ok(!matches!(outcome, EnqueueTrackAnalysisOutcome::Complete))
+                        }
+                        Err(e) => Err(e),
+                    }
+                }
+                Err(e) => Err(e),
+            };
+
             match &result {
                 Ok(has_loudness) => crate::app_deprintln!(
-                    "[analysis] backfill ready: {} (has_loudness={})",
+                    "[analysis] backfill worker={}/{}: ready track_id={} has_loudness={}",
+                    worker_slot,
+                    max,
                     track_id,
                     has_loudness
                 ),
-                Err(e) => crate::app_eprintln!("[analysis] backfill failed for {}: {}", track_id, e),
+                Err(e) => crate::app_eprintln!(
+                    "[analysis] backfill worker={}/{}: failed track_id={}: {}",
+                    worker_slot,
+                    max,
+                    track_id,
+                    e
+                ),
             }
-            let mut st = shared
-                .state
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
-            st.finish_job(&track_id);
-        }
+        });
+    }
+}
+
+pub fn analysis_set_pipeline_parallelism(workers: usize) {
+    let workers = clamp_pipeline_parallelism(workers);
+    REQUESTED_PIPELINE_PARALLELISM.store(workers, Ordering::Relaxed);
+    if let Some(shared) = ANALYSIS_BACKFILL.get() {
+        shared
+            .max_parallel
+            .store(workers, Ordering::Relaxed);
+        shared.ping_worker();
+    }
+    if let Some(shared) = ANALYSIS_CPU_SEED.get() {
+        shared
+            .max_parallel
+            .store(workers, Ordering::Relaxed);
+        shared.ping_worker();
+    }
+}
+
+pub fn analysis_backfill_queue_stats() -> (usize, usize, Option<String>) {
+    if let Some(shared) = ANALYSIS_BACKFILL.get() {
+        let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+        let in_progress_count = st.in_progress.len();
+        let first_in_progress = st.in_progress.keys().next().cloned();
+        (st.queued_len(), in_progress_count, first_in_progress)
+    } else {
+        (0, 0, None)
+    }
+}
+
+pub fn analysis_track_in_cpu_pipeline(track_id: &str) -> bool {
+    let tid = track_id.trim();
+    if tid.is_empty() {
+        return false;
+    }
+    let Some(shared) = ANALYSIS_CPU_SEED.get() else {
+        return false;
+    };
+    let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+    if st.running.contains_key(tid) {
+        return true;
+    }
+    st.locate_queued(tid).is_some()
+}
+
+pub fn analysis_pipeline_queue_stats() -> AnalysisPipelineQueueStatsDto {
+    let pipeline_workers = ANALYSIS_BACKFILL
+        .get()
+        .map(|shared| shared.max_parallel())
+        .or_else(|| ANALYSIS_CPU_SEED.get().map(|shared| shared.max_parallel()))
+        .unwrap_or(ANALYSIS_PIPELINE_PARALLELISM_DEFAULT) as u32;
+
+    let (http_tiers, http_active_tiers) = if let Some(shared) = ANALYSIS_BACKFILL.get() {
+        let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+        (st.queued_tier_counts(), st.in_progress_tier_counts())
+    } else {
+        (AnalysisTierCounts::default(), AnalysisTierCounts::default())
+    };
+
+    let (cpu_tiers, cpu_active_tiers) = if let Some(shared) = ANALYSIS_CPU_SEED.get() {
+        let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+        (st.queued_tier_counts(), st.running_tier_counts())
+    } else {
+        (AnalysisTierCounts::default(), AnalysisTierCounts::default())
+    };
+
+    AnalysisPipelineQueueStatsDto {
+        pipeline_workers,
+        http_queued: http_tiers.total(),
+        http_queued_high: http_tiers.high,
+        http_queued_middle: http_tiers.middle,
+        http_queued_low: http_tiers.low,
+        http_download_active: http_active_tiers.total(),
+        http_download_active_high: http_active_tiers.high,
+        http_download_active_middle: http_active_tiers.middle,
+        http_download_active_low: http_active_tiers.low,
+        cpu_queued: cpu_tiers.total(),
+        cpu_queued_high: cpu_tiers.high,
+        cpu_queued_middle: cpu_tiers.middle,
+        cpu_queued_low: cpu_tiers.low,
+        cpu_decode_active: cpu_active_tiers.total(),
+        cpu_decode_active_high: cpu_active_tiers.high,
+        cpu_decode_active_middle: cpu_active_tiers.middle,
+        cpu_decode_active_low: cpu_active_tiers.low,
     }
 }
 
@@ -228,78 +728,170 @@ pub fn analysis_backfill_is_current_track(app: &tauri::AppHandle, track_id: &str
         .is_some_and(|p| p.is_track_currently_playing(track_id))
 }
 
-// ─── Full-track waveform + loudness: single CPU worker (mirrors HTTP backfill queue) ─
-// One `spawn_blocking` decode at a time; current playback is high-priority (front + reorder).
-// Same `track_id` queued again merges waiters onto one job; while decode runs, same-id
-// submitters attach to `running` followers so they all get the same outcome.
+pub fn analysis_backfill_resolve_priority(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    explicit: Option<AnalysisBackfillPriority>,
+) -> AnalysisBackfillPriority {
+    if let Some(priority) = explicit {
+        return priority;
+    }
+    if analysis_backfill_is_current_track(app, track_id) {
+        return AnalysisBackfillPriority::High;
+    }
+    if app
+        .try_state::<PlaybackPriorityHints>()
+        .is_some_and(|h| h.is_middle_priority(server_id, track_id))
+    {
+        return AnalysisBackfillPriority::Middle;
+    }
+    AnalysisBackfillPriority::Low
+}
+
+// ─── Full-track waveform + loudness: CPU seed queue (parallel decode workers) ─
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnalysisCpuSeedEnqueueKind {
-    NewBack,
-    NewFront,
-    ReorderedFront,
+    NewLow,
+    NewMiddle,
+    NewHigh,
+    ReorderedHigher,
     RunningFollower,
     MergedQueued,
 }
 
-type SeedDoneSender =
-    tokio::sync::oneshot::Sender<Result<analysis_cache::SeedFromBytesOutcome, String>>;
-type RunningSeedJob = (String, Arc<Mutex<Vec<SeedDoneSender>>>);
+type SeedDoneSender = tokio::sync::oneshot::Sender<
+    Result<(analysis_cache::SeedFromBytesOutcome, AnalysisSeedTimings), String>,
+>;
+type SeedDoneReceiver = tokio::sync::oneshot::Receiver<
+    Result<(analysis_cache::SeedFromBytesOutcome, AnalysisSeedTimings), String>,
+>;
+type RunningSeedJob = Arc<Mutex<Vec<SeedDoneSender>>>;
 
 struct AnalysisCpuSeedJob {
-    /// Playback server scope for the write key. Empty = legacy '' (caller did not
-    /// know the server); the read path's fallback + lazy re-tag covers it.
+    /// Playback server scope for the write key.
     server_id: String,
     track_id: String,
     bytes: Vec<u8>,
     waiters: Vec<SeedDoneSender>,
+    /// HTTP download time when this job came from the backfill worker.
+    fetch_ms: u64,
+    priority: AnalysisBackfillPriority,
 }
 
 #[derive(Default)]
 struct AnalysisCpuSeedQueueState {
-    deque: VecDeque<AnalysisCpuSeedJob>,
-    /// Decode in progress — same-id callers wait here for the same outcome.
-    running: Option<RunningSeedJob>,
+    high: VecDeque<AnalysisCpuSeedJob>,
+    middle: VecDeque<AnalysisCpuSeedJob>,
+    low: VecDeque<AnalysisCpuSeedJob>,
+    /// Decodes in progress — same-id callers wait on the matching entry.
+    running: HashMap<String, RunningSeedJob>,
+    running_tiers: HashMap<String, AnalysisBackfillPriority>,
 }
 
 impl AnalysisCpuSeedQueueState {
+    fn queued_len(&self) -> usize {
+        self.high.len() + self.middle.len() + self.low.len()
+    }
+
+    fn queued_tier_counts(&self) -> AnalysisTierCounts {
+        AnalysisTierCounts {
+            high: self.high.len(),
+            middle: self.middle.len(),
+            low: self.low.len(),
+        }
+    }
+
+    fn running_tier_counts(&self) -> AnalysisTierCounts {
+        let mut counts = AnalysisTierCounts::default();
+        for tier in self.running_tiers.values() {
+            match tier {
+                AnalysisBackfillPriority::High => counts.high += 1,
+                AnalysisBackfillPriority::Middle => counts.middle += 1,
+                AnalysisBackfillPriority::Low => counts.low += 1,
+            }
+        }
+        counts
+    }
+
+    fn tier_deque(&self, tier: AnalysisBackfillPriority) -> &VecDeque<AnalysisCpuSeedJob> {
+        match tier {
+            AnalysisBackfillPriority::High => &self.high,
+            AnalysisBackfillPriority::Middle => &self.middle,
+            AnalysisBackfillPriority::Low => &self.low,
+        }
+    }
+
+    fn tier_deque_mut(&mut self, tier: AnalysisBackfillPriority) -> &mut VecDeque<AnalysisCpuSeedJob> {
+        match tier {
+            AnalysisBackfillPriority::High => &mut self.high,
+            AnalysisBackfillPriority::Middle => &mut self.middle,
+            AnalysisBackfillPriority::Low => &mut self.low,
+        }
+    }
+
+    fn locate_queued(&self, tid: &str) -> Option<(AnalysisBackfillPriority, usize)> {
+        for tier in [
+            AnalysisBackfillPriority::High,
+            AnalysisBackfillPriority::Middle,
+            AnalysisBackfillPriority::Low,
+        ] {
+            if let Some(pos) = self
+                .tier_deque(tier)
+                .iter()
+                .position(|j| j.track_id == tid)
+            {
+                return Some((tier, pos));
+            }
+        }
+        None
+    }
+
+    fn push_new(&mut self, priority: AnalysisBackfillPriority, job: AnalysisCpuSeedJob) {
+        match priority {
+            AnalysisBackfillPriority::High => self.high.push_front(job),
+            AnalysisBackfillPriority::Middle => self.middle.push_back(job),
+            AnalysisBackfillPriority::Low => self.low.push_back(job),
+        }
+    }
+
     fn enqueue(
         &mut self,
         server_id: String,
         track_id: String,
         bytes: Vec<u8>,
-        high_priority: bool,
+        priority: AnalysisBackfillPriority,
+        fetch_ms: u64,
     ) -> (
         AnalysisCpuSeedEnqueueKind,
-        tokio::sync::oneshot::Receiver<Result<analysis_cache::SeedFromBytesOutcome, String>>,
+        SeedDoneReceiver,
     ) {
         let (done_tx, done_rx) = tokio::sync::oneshot::channel();
         let tid = track_id.as_str();
 
-        if let Some((rtid, followers)) = &self.running {
-            if rtid == tid {
-                followers
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .push(done_tx);
-                return (AnalysisCpuSeedEnqueueKind::RunningFollower, done_rx);
-            }
+        if let Some(followers) = self.running.get(tid) {
+            followers
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(done_tx);
+            return (AnalysisCpuSeedEnqueueKind::RunningFollower, done_rx);
         }
 
-        if let Some(pos) = self.deque.iter().position(|j| j.track_id == track_id) {
-            let mut job = self.deque.remove(pos).unwrap();
-            // Latest submission wins for both bytes and server scope.
+        if let Some((existing_tier, pos)) = self.locate_queued(tid) {
+            let mut job = self.tier_deque_mut(existing_tier).remove(pos).unwrap();
             job.server_id = server_id;
             job.bytes = bytes;
+            job.fetch_ms = fetch_ms;
             job.waiters.push(done_tx);
-            let kind = if high_priority {
-                self.deque.push_front(job);
-                AnalysisCpuSeedEnqueueKind::ReorderedFront
-            } else {
-                self.deque.push_back(job);
-                AnalysisCpuSeedEnqueueKind::MergedQueued
-            };
-            return (kind, done_rx);
+            if priority > existing_tier {
+                job.priority = priority;
+                self.push_new(priority, job);
+                return (AnalysisCpuSeedEnqueueKind::ReorderedHigher, done_rx);
+            }
+            job.priority = existing_tier;
+            self.tier_deque_mut(existing_tier).push_back(job);
+            return (AnalysisCpuSeedEnqueueKind::MergedQueued, done_rx);
         }
 
         let job = AnalysisCpuSeedJob {
@@ -307,47 +899,77 @@ impl AnalysisCpuSeedQueueState {
             track_id: track_id.clone(),
             bytes,
             waiters: vec![done_tx],
+            fetch_ms,
+            priority,
         };
-        let kind = if high_priority {
-            self.deque.push_front(job);
-            AnalysisCpuSeedEnqueueKind::NewFront
-        } else {
-            self.deque.push_back(job);
-            AnalysisCpuSeedEnqueueKind::NewBack
+        let kind = match priority {
+            AnalysisBackfillPriority::High => AnalysisCpuSeedEnqueueKind::NewHigh,
+            AnalysisBackfillPriority::Middle => AnalysisCpuSeedEnqueueKind::NewMiddle,
+            AnalysisBackfillPriority::Low => AnalysisCpuSeedEnqueueKind::NewLow,
         };
+        self.push_new(priority, job);
         (kind, done_rx)
     }
 
-    fn prune_queued_not_in(&mut self, keep_track_ids: &HashSet<&str>) -> (usize, usize) {
-        let mut kept = VecDeque::with_capacity(self.deque.len());
+    fn prune_queued_not_in(
+        &mut self,
+        keep_track_ids: &HashSet<&str>,
+        server_id: Option<&str>,
+    ) -> (usize, usize) {
         let mut removed_jobs = 0usize;
         let mut removed_waiters = 0usize;
-        while let Some(job) = self.deque.pop_front() {
-            if keep_track_ids.contains(job.track_id.as_str()) {
-                kept.push_back(job);
-                continue;
+        for tier in [
+            AnalysisBackfillPriority::High,
+            AnalysisBackfillPriority::Middle,
+            AnalysisBackfillPriority::Low,
+        ] {
+            let mut kept = VecDeque::with_capacity(self.tier_deque(tier).len());
+            while let Some(job) = self.tier_deque_mut(tier).pop_front() {
+                let scoped = server_id.is_some_and(|sid| {
+                    job.server_id.is_empty() || job.server_id == sid
+                });
+                if server_id.is_some() && !scoped {
+                    kept.push_back(job);
+                    continue;
+                }
+                if keep_track_ids.contains(job.track_id.as_str()) {
+                    kept.push_back(job);
+                    continue;
+                }
+                removed_jobs += 1;
+                removed_waiters += job.waiters.len();
+                for tx in job.waiters {
+                    let _ = tx.send(Err(
+                        "cpu-seed pruned: track no longer in playback queue".to_string(),
+                    ));
+                }
             }
-            removed_jobs += 1;
-            removed_waiters += job.waiters.len();
-            for tx in job.waiters {
-                let _ = tx.send(Err(
-                    "cpu-seed pruned: track no longer in playback queue".to_string(),
-                ));
-            }
+            *self.tier_deque_mut(tier) = kept;
         }
-        self.deque = kept;
         (removed_jobs, removed_waiters)
+    }
+
+    fn try_pop_next(&mut self) -> Option<AnalysisCpuSeedJob> {
+        self.high
+            .pop_front()
+            .or_else(|| self.middle.pop_front())
+            .or_else(|| self.low.pop_front())
     }
 }
 
 struct AnalysisCpuSeedShared {
     state: Mutex<AnalysisCpuSeedQueueState>,
     wake_tx: tokio::sync::mpsc::UnboundedSender<()>,
+    max_parallel: AtomicUsize,
 }
 
 impl AnalysisCpuSeedShared {
     fn ping_worker(&self) {
         let _ = self.wake_tx.send(());
+    }
+
+    fn max_parallel(&self) -> usize {
+        clamp_pipeline_parallelism(self.max_parallel.load(Ordering::Relaxed))
     }
 }
 
@@ -360,10 +982,11 @@ fn analysis_cpu_seed_shared(app: &tauri::AppHandle) -> Arc<AnalysisCpuSeedShared
             let shared = Arc::new(AnalysisCpuSeedShared {
                 state: Mutex::new(AnalysisCpuSeedQueueState::default()),
                 wake_tx,
+                max_parallel: AtomicUsize::new(requested_pipeline_parallelism()),
             });
             let app = app.clone();
-            let sh = shared.clone();
-            tauri::async_runtime::spawn(analysis_cpu_seed_worker_loop(app, sh, wake_rx));
+            tauri::async_runtime::spawn(analysis_cpu_seed_worker_loop(app, shared.clone(), wake_rx));
+            shared.ping_worker();
             shared
         })
         .clone()
@@ -374,9 +997,12 @@ fn emit_analysis_queue_snapshot_line() {
     let http = if let Some(arc) = ANALYSIS_BACKFILL.get() {
         let st = arc.state.lock().unwrap_or_else(|e| e.into_inner());
         format!(
-            "http_backfill={{queued:{} download_active:{:?}}}",
-            st.deque.len(),
-            st.in_progress.as_deref()
+            "http_backfill={{queued:{} tiers=({},{},{}) download_active:{}}}",
+            st.queued_len(),
+            st.high.len(),
+            st.middle.len(),
+            st.low.len(),
+            st.in_progress.len(),
         )
     } else {
         "http_backfill={{not_started}}".to_string()
@@ -384,21 +1010,16 @@ fn emit_analysis_queue_snapshot_line() {
 
     let cpu = if let Some(arc) = ANALYSIS_CPU_SEED.get() {
         let st = arc.state.lock().unwrap_or_else(|e| e.into_inner());
-        let queued_jobs = st.deque.len();
-        let pending_in_queued_jobs: usize = st.deque.iter().map(|j| j.waiters.len()).sum();
-        let (decoding_tid, decoding_extra_waiters) = match &st.running {
-            Some((tid, fl)) => (
-                Some(tid.as_str()),
-                fl.lock().map(|g| g.len()).unwrap_or(0),
-            ),
-            None => (None, 0usize),
-        };
+        let queued_jobs = st.queued_len();
+        let decoding_count = st.running.len();
+        let tiers = st.queued_tier_counts();
         format!(
-            "cpu_seed={{queued_jobs:{} pending_channels_in_queue:{} decoding_tid:{:?} extra_waiters_same_id:{}}}",
+            "cpu_seed={{queued_jobs:{} tiers=({},{},{}) decoding_active:{}}}",
             queued_jobs,
-            pending_in_queued_jobs,
-            decoding_tid,
-            decoding_extra_waiters
+            tiers.high,
+            tiers.middle,
+            tiers.low,
+            decoding_count,
         )
     } else {
         "cpu_seed={{not_started}}".to_string()
@@ -426,23 +1047,50 @@ async fn analysis_cpu_seed_worker_loop(
         if wake_rx.recv().await.is_none() {
             break;
         }
-        loop {
-            let (job, followers) = {
-                let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-                let Some(j) = st.deque.pop_front() else {
-                    break;
-                };
-                let fl = Arc::new(Mutex::new(Vec::new()));
-                st.running = Some((j.track_id.clone(), fl.clone()));
-                (j, fl)
-            };
-            let tid_log = job.track_id.clone();
-            let app2 = app.clone();
+        spawn_cpu_seed_slots(&app, &shared).await;
+    }
+}
+
+async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSeedShared>) {
+    loop {
+        let max = shared.max_parallel();
+        let job_bundle = {
+            let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+            if st.running.len() >= max {
+                None
+            } else {
+                st.try_pop_next().map(|j| {
+                    let followers = Arc::new(Mutex::new(Vec::new()));
+                    let job_priority = j.priority;
+                    st.running
+                        .insert(j.track_id.clone(), followers.clone());
+                    st.running_tiers
+                        .insert(j.track_id.clone(), job_priority);
+                    let worker_slot = st.running.len();
+                    (j, followers, worker_slot)
+                })
+            }
+        };
+        let Some((job, followers, worker_slot)) = job_bundle else {
+            break;
+        };
+        let tid_log = job.track_id.clone();
+        let fetch_ms = job.fetch_ms;
+        crate::app_deprintln!(
+            "[analysis] cpu-seed worker={}/{}: start track_id={}",
+            worker_slot,
+            max,
+            tid_log
+        );
+        let app_for_decode = app.clone();
+        let app_for_events = app.clone();
+        let shared = shared.clone();
+        tauri::async_runtime::spawn(async move {
             let sid = job.server_id.clone();
             let tid = job.track_id.clone();
             let bytes = job.bytes;
-            let outcome = tokio::task::spawn_blocking(move || {
-                analysis_cache::seed_from_bytes_execute(&app2, &sid, &tid, &bytes)
+            let seed_result = tokio::task::spawn_blocking(move || {
+                analysis_cache::seed_from_bytes_execute(&app_for_decode, &sid, &tid, &bytes)
             })
             .await
             .unwrap_or_else(|e| Err(format!("cpu-seed spawn_blocking: {e}")));
@@ -453,23 +1101,56 @@ async fn analysis_cpu_seed_worker_loop(
                 .drain(..)
                 .collect::<Vec<_>>();
             for tx in job.waiters {
-                let _ = tx.send(outcome.clone());
+                let _ = tx.send(seed_result.clone());
             }
             for tx in extra.drain(..) {
-                let _ = tx.send(outcome.clone());
+                let _ = tx.send(seed_result.clone());
             }
 
             {
                 let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-                st.running = None;
+                st.running.remove(&tid_log);
+                st.running_tiers.remove(&tid_log);
             }
-            let ok = outcome.as_ref().map(|o| *o == analysis_cache::SeedFromBytesOutcome::Upserted).unwrap_or(false);
-            crate::app_deprintln!(
-                "[analysis] cpu-seed worker: done track_id={} upserted={}",
-                tid_log,
-                ok
-            );
-        }
+
+            match &seed_result {
+                Ok((outcome, timings)) => {
+                    let ok = *outcome == analysis_cache::SeedFromBytesOutcome::Upserted;
+                    emit_analysis_track_perf(
+                        &app_for_events,
+                        &tid_log,
+                        fetch_ms,
+                        timings.seed_ms,
+                        timings.bpm_ms,
+                    );
+                    crate::app_deprintln!(
+                        "[analysis] cpu-seed worker={}/{}: done track_id={} upserted={}",
+                        worker_slot,
+                        max,
+                        tid_log,
+                        ok
+                    );
+                    if ok {
+                        let _ = app_for_events.emit(
+                            "analysis:waveform-updated",
+                            WaveformUpdatedPayload {
+                                track_id: tid_log.clone(),
+                                is_partial: false,
+                            },
+                        );
+                    }
+                }
+                Err(e) => {
+                    crate::app_eprintln!(
+                        "[analysis] cpu-seed worker={}/{}: failed track_id={}: {e}",
+                        worker_slot,
+                        max,
+                        tid_log
+                    );
+                }
+            }
+            shared.ping_worker();
+        });
     }
 }
 
@@ -482,13 +1163,14 @@ async fn analysis_cpu_seed_worker_loop(
 /// queue may not have been initialized yet — those slots return 0.
 pub fn prune_analysis_queues(
     keep_track_ids: &HashSet<&str>,
+    server_id: Option<&str>,
 ) -> Result<(usize, usize, usize), String> {
     let http_removed = if let Some(shared) = ANALYSIS_BACKFILL.get() {
         let mut st = shared
             .state
             .lock()
             .map_err(|_| "analysis backfill lock poisoned".to_string())?;
-        st.prune_queued_not_in(keep_track_ids)
+        st.prune_queued_not_in(keep_track_ids, server_id)
     } else {
         0
     };
@@ -498,7 +1180,7 @@ pub fn prune_analysis_queues(
             .state
             .lock()
             .map_err(|_| "analysis cpu-seed lock poisoned".to_string())?;
-        st.prune_queued_not_in(keep_track_ids)
+        st.prune_queued_not_in(keep_track_ids, server_id)
     } else {
         (0, 0)
     };
@@ -506,8 +1188,8 @@ pub fn prune_analysis_queues(
     Ok((http_removed, cpu_removed_jobs, cpu_removed_waiters))
 }
 
-/// Submit full-buffer analysis; serializes with other producers. `high_priority` mirrors
-/// HTTP backfill head insertion for the currently playing track.
+/// Submit full-buffer analysis; serializes with other producers. Priority mirrors
+/// HTTP backfill tier ordering (high → middle → low).
 ///
 /// Emits `analysis:waveform-updated` when analysis **wrote** new waveform data (`Upserted`).
 /// Cache-hit skips (`SkippedWaveformCacheHit`) omit the event so the frontend does not
@@ -517,30 +1199,22 @@ pub async fn submit_analysis_cpu_seed(
     server_id: String,
     track_id: String,
     bytes: Vec<u8>,
-    high_priority: bool,
+    priority: AnalysisBackfillPriority,
+    fetch_ms: u64,
 ) -> Result<analysis_cache::SeedFromBytesOutcome, String> {
     let shared = analysis_cpu_seed_shared(&app);
     let rx = {
         let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-        let (kind, rx) = st.enqueue(server_id, track_id.clone(), bytes, high_priority);
-        crate::app_deprintln!("[analysis] cpu-seed submit: kind={kind:?} high_priority={high_priority}");
+        let (kind, rx) = st.enqueue(server_id, track_id.clone(), bytes, priority, fetch_ms);
+        crate::app_deprintln!("[analysis] cpu-seed submit: kind={kind:?} priority={priority:?}");
         drop(st);
         shared.ping_worker();
         rx
     };
-    let outcome = match rx.await {
+    let (outcome, _timings) = match rx.await {
         Ok(res) => res?,
         Err(_) => return Err("cpu-seed: result channel dropped".to_string()),
     };
-    if matches!(outcome, analysis_cache::SeedFromBytesOutcome::Upserted) {
-        let _ = app.emit(
-            "analysis:waveform-updated",
-            WaveformUpdatedPayload {
-                track_id: track_id.clone(),
-                is_partial: false,
-            },
-        );
-    }
     Ok(outcome)
 }
 
@@ -551,192 +1225,338 @@ mod tests {
     // ── AnalysisBackfillQueueState ────────────────────────────────────────────
 
     #[test]
-    fn backfill_default_state_has_empty_deque_and_no_in_progress() {
+    fn backfill_default_state_has_empty_queues_and_no_in_progress() {
         let s = AnalysisBackfillQueueState::default();
-        assert!(s.deque.is_empty());
-        assert!(s.in_progress.is_none());
+        assert_eq!(s.queued_len(), 0);
+        assert!(s.in_progress.is_empty());
     }
 
     #[test]
-    fn backfill_is_reserved_checks_both_deque_and_in_progress() {
+    fn backfill_is_reserved_checks_all_tiers_and_in_progress() {
         let mut s = AnalysisBackfillQueueState::default();
-        s.deque.push_back(("queued".into(), "u".into(), String::new()));
-        s.in_progress = Some("active".into());
+        s.enqueue(
+            String::new(),
+            "queued".into(),
+            "u".into(),
+            AnalysisBackfillPriority::Middle,
+        );
+        s.in_progress.insert("active".into(), AnalysisBackfillPriority::Low);
         assert!(s.is_reserved("queued"));
         assert!(s.is_reserved("active"));
         assert!(!s.is_reserved("other"));
     }
 
     #[test]
-    fn backfill_try_pop_next_promotes_head_to_in_progress() {
+    fn backfill_try_pop_next_drains_high_then_middle_then_low() {
         let mut s = AnalysisBackfillQueueState::default();
-        s.deque.push_back(("a".into(), "ua".into(), String::new()));
-        s.deque.push_back(("b".into(), "ub".into(), String::new()));
-        let popped = s.try_pop_next().unwrap();
-        assert_eq!(popped.0, "a");
-        assert_eq!(s.in_progress.as_deref(), Some("a"));
-        assert_eq!(s.deque.len(), 1);
+        s.enqueue(String::new(), "low".into(), "u".into(), AnalysisBackfillPriority::Low);
+        s.enqueue(String::new(), "mid".into(), "u".into(), AnalysisBackfillPriority::Middle);
+        s.enqueue(String::new(), "hi".into(), "u".into(), AnalysisBackfillPriority::High);
+        assert_eq!(s.try_pop_next(4).unwrap().0, "hi");
+        assert_eq!(s.try_pop_next(4).unwrap().0, "mid");
+        assert_eq!(s.try_pop_next(4).unwrap().0, "low");
     }
 
     #[test]
-    fn backfill_try_pop_next_returns_none_for_empty_deque() {
+    fn backfill_enqueue_low_priority_appends_to_low_tier() {
         let mut s = AnalysisBackfillQueueState::default();
-        assert!(s.try_pop_next().is_none());
-        assert!(s.in_progress.is_none());
+        s.enqueue(
+            String::new(),
+            "first".into(),
+            "u".into(),
+            AnalysisBackfillPriority::High,
+        );
+        let kind = s.enqueue(
+            String::new(),
+            "second".into(),
+            "u2".into(),
+            AnalysisBackfillPriority::Low,
+        );
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewLow);
+        assert_eq!(s.try_pop_next(4).unwrap().0, "first");
+        assert_eq!(s.try_pop_next(4).unwrap().0, "second");
     }
 
     #[test]
-    fn backfill_finish_job_only_clears_when_id_matches() {
-        let mut s = AnalysisBackfillQueueState {
-            in_progress: Some("active".into()),
-            ..Default::default()
-        };
-        s.finish_job("other");
-        assert_eq!(s.in_progress.as_deref(), Some("active"));
-        s.finish_job("active");
-        assert!(s.in_progress.is_none());
+    fn backfill_enqueue_high_priority_pushes_to_high_tier() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.enqueue(
+            String::new(),
+            "old".into(),
+            "u".into(),
+            AnalysisBackfillPriority::Low,
+        );
+        let kind = s.enqueue(
+            String::new(),
+            "hot".into(),
+            "u2".into(),
+            AnalysisBackfillPriority::High,
+        );
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewHigh);
+        assert_eq!(s.try_pop_next(4).unwrap().0, "hot");
     }
 
     #[test]
-    fn backfill_enqueue_low_priority_appends_to_back() {
+    fn backfill_enqueue_middle_priority_appends_to_middle_tier() {
         let mut s = AnalysisBackfillQueueState::default();
-        s.deque.push_back(("first".into(), "u".into(), String::new()));
-        let kind = s.enqueue(String::new(), "second".into(), "u2".into(), false);
-        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewBack);
-        assert_eq!(s.deque.back().unwrap().0, "second");
+        s.enqueue(
+            String::new(),
+            "old".into(),
+            "u".into(),
+            AnalysisBackfillPriority::Low,
+        );
+        let kind = s.enqueue(
+            String::new(),
+            "next".into(),
+            "u2".into(),
+            AnalysisBackfillPriority::Middle,
+        );
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewMiddle);
+        assert_eq!(s.try_pop_next(4).unwrap().0, "next");
+        assert_eq!(s.try_pop_next(4).unwrap().0, "old");
     }
 
     #[test]
-    fn backfill_enqueue_high_priority_pushes_to_front() {
+    fn backfill_enqueue_returns_duplicate_skipped_for_same_tier_dup() {
         let mut s = AnalysisBackfillQueueState::default();
-        s.deque.push_back(("old".into(), "u".into(), String::new()));
-        let kind = s.enqueue(String::new(), "hot".into(), "u2".into(), true);
-        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewFront);
-        assert_eq!(s.deque.front().unwrap().0, "hot");
-    }
-
-    #[test]
-    fn backfill_enqueue_returns_duplicate_skipped_for_low_prio_dup() {
-        let mut s = AnalysisBackfillQueueState::default();
-        s.deque.push_back(("dup".into(), "u".into(), String::new()));
-        let kind = s.enqueue(String::new(), "dup".into(), "u2".into(), false);
+        s.enqueue(
+            String::new(),
+            "dup".into(),
+            "u".into(),
+            AnalysisBackfillPriority::Low,
+        );
+        let kind = s.enqueue(
+            String::new(),
+            "dup".into(),
+            "u2".into(),
+            AnalysisBackfillPriority::Low,
+        );
         assert_eq!(kind, AnalysisBackfillEnqueueKind::DuplicateSkipped);
-        assert_eq!(s.deque.len(), 1);
+        assert_eq!(s.queued_len(), 1);
+    }
+
+    #[test]
+    fn backfill_enqueue_upgrades_low_to_middle() {
+        let mut s = AnalysisBackfillQueueState::default();
+        s.enqueue(
+            String::new(),
+            "dup".into(),
+            "old_url".into(),
+            AnalysisBackfillPriority::Low,
+        );
+        let kind = s.enqueue(
+            "server-1".into(),
+            "dup".into(),
+            "fresh_url".into(),
+            AnalysisBackfillPriority::Middle,
+        );
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::ReorderedHigher);
+        let job = s.try_pop_next(4).unwrap();
+        assert_eq!(job.0, "dup");
+        assert_eq!(job.1, "fresh_url");
+        assert_eq!(job.2, "server-1");
+        assert_eq!(s.queued_len(), 0);
     }
 
     #[test]
     fn backfill_enqueue_returns_running_skipped_for_high_prio_active_track() {
         let mut s = AnalysisBackfillQueueState {
-            in_progress: Some("active".into()),
+            in_progress: HashMap::from([(
+                String::from("active"),
+                AnalysisBackfillPriority::Low,
+            )]),
             ..Default::default()
         };
-        let kind = s.enqueue(String::new(), "active".into(), "u".into(), true);
+        let kind = s.enqueue(
+            String::new(),
+            "active".into(),
+            "u".into(),
+            AnalysisBackfillPriority::High,
+        );
         assert_eq!(kind, AnalysisBackfillEnqueueKind::RunningSkipped);
     }
 
     #[test]
-    fn backfill_enqueue_high_prio_dup_in_deque_reorders_to_front_with_new_url() {
+    fn backfill_try_pop_next_respects_max_concurrent() {
         let mut s = AnalysisBackfillQueueState::default();
-        s.deque.push_back(("a".into(), "u_a".into(), String::new()));
-        s.deque.push_back(("dup".into(), "old_url".into(), String::new()));
-        s.deque.push_back(("c".into(), "u_c".into(), String::new()));
-        let kind = s.enqueue("server-1".into(), "dup".into(), "fresh_url".into(), true);
-        assert_eq!(kind, AnalysisBackfillEnqueueKind::ReorderedFront);
-        assert_eq!(
-            s.deque.front().unwrap(),
-            &("dup".to_string(), "fresh_url".to_string(), "server-1".to_string())
-        );
-        assert_eq!(s.deque.iter().filter(|(t, _, _)| t == "dup").count(), 1, "no duplicate left behind");
+        s.enqueue(String::new(), "a".into(), "u".into(), AnalysisBackfillPriority::Low);
+        s.enqueue(String::new(), "b".into(), "u".into(), AnalysisBackfillPriority::Low);
+        s.in_progress.insert("active".into(), AnalysisBackfillPriority::Low);
+        assert!(s.try_pop_next(1).is_none());
+        assert_eq!(s.try_pop_next(2).unwrap().0, "a");
     }
 
     #[test]
     fn backfill_prune_queued_not_in_drops_unkept_entries() {
         let mut s = AnalysisBackfillQueueState::default();
         for tid in ["a", "b", "c", "d"] {
-            s.deque.push_back((tid.into(), "u".into(), String::new()));
+            s.enqueue(String::new(), tid.into(), "u".into(), AnalysisBackfillPriority::Low);
         }
         let keep: HashSet<&str> = ["a", "c"].iter().copied().collect();
-        let removed = s.prune_queued_not_in(&keep);
+        let removed = s.prune_queued_not_in(&keep, None);
         assert_eq!(removed, 2);
-        let remaining: Vec<&str> = s.deque.iter().map(|(t, _, _)| t.as_str()).collect();
-        assert_eq!(remaining, vec!["a", "c"]);
+        assert_eq!(s.try_pop_next(4).unwrap().0, "a");
+        assert_eq!(s.try_pop_next(4).unwrap().0, "c");
     }
 
     // ── AnalysisCpuSeedQueueState ─────────────────────────────────────────────
 
     #[test]
-    fn cpu_seed_enqueue_low_prio_appends_to_back() {
+    fn cpu_seed_enqueue_low_prio_appends_to_low_tier() {
         let mut s = AnalysisCpuSeedQueueState::default();
-        let (kind, _rx) = s.enqueue(String::new(), "a".into(), vec![], false);
-        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewBack);
-        assert_eq!(s.deque.len(), 1);
+        let (kind, _rx) = s.enqueue(
+            String::new(),
+            "a".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewLow);
+        assert_eq!(s.queued_len(), 1);
     }
 
     #[test]
-    fn cpu_seed_enqueue_high_prio_pushes_to_front() {
+    fn cpu_seed_enqueue_high_prio_pushes_to_high_tier() {
         let mut s = AnalysisCpuSeedQueueState::default();
-        let (_, _r1) = s.enqueue(String::new(), "first".into(), vec![], false);
-        let (kind, _r2) = s.enqueue(String::new(), "hot".into(), vec![], true);
-        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewFront);
-        assert_eq!(s.deque.front().unwrap().track_id, "hot");
+        let (_, _r1) = s.enqueue(
+            String::new(),
+            "first".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (kind, _r2) = s.enqueue(
+            String::new(),
+            "hot".into(),
+            vec![],
+            AnalysisBackfillPriority::High,
+            0,
+        );
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewHigh);
+        assert_eq!(s.try_pop_next().unwrap().track_id, "hot");
     }
 
     #[test]
     fn cpu_seed_enqueue_existing_low_prio_merges_at_back() {
         let mut s = AnalysisCpuSeedQueueState::default();
-        let (_, _r1) = s.enqueue("server-a".into(), "dup".into(), vec![1, 2, 3], false);
-        let (kind, _r2) = s.enqueue("server-b".into(), "dup".into(), vec![4, 5, 6], false);
+        let (_, _r1) = s.enqueue(
+            "server-a".into(),
+            "dup".into(),
+            vec![1, 2, 3],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (kind, _r2) = s.enqueue(
+            "server-b".into(),
+            "dup".into(),
+            vec![4, 5, 6],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
         assert_eq!(kind, AnalysisCpuSeedEnqueueKind::MergedQueued);
-        assert_eq!(s.deque.len(), 1);
-        assert_eq!(s.deque[0].bytes, vec![4, 5, 6], "fresh bytes overwrite");
-        assert_eq!(s.deque[0].server_id, "server-b", "latest server scope wins on merge");
-        assert_eq!(s.deque[0].waiters.len(), 2, "both waiters attached");
+        assert_eq!(s.queued_len(), 1);
+        let job = s.try_pop_next().unwrap();
+        assert_eq!(job.bytes, vec![4, 5, 6], "fresh bytes overwrite");
+        assert_eq!(job.server_id, "server-b", "latest server scope wins on merge");
+        assert_eq!(job.waiters.len(), 2, "both waiters attached");
     }
 
     #[test]
-    fn cpu_seed_enqueue_existing_high_prio_reorders_to_front() {
+    fn cpu_seed_enqueue_existing_low_prio_upgrades_to_high() {
         let mut s = AnalysisCpuSeedQueueState::default();
-        let (_, _r1) = s.enqueue(String::new(), "first".into(), vec![], false);
-        let (_, _r2) = s.enqueue(String::new(), "dup".into(), vec![], false);
-        let (kind, _r3) = s.enqueue(String::new(), "dup".into(), vec![], true);
-        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::ReorderedFront);
-        assert_eq!(s.deque.front().unwrap().track_id, "dup");
+        let (_, _r1) = s.enqueue(
+            String::new(),
+            "first".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (_, _r2) = s.enqueue(
+            String::new(),
+            "dup".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (kind, _r3) = s.enqueue(
+            String::new(),
+            "dup".into(),
+            vec![],
+            AnalysisBackfillPriority::High,
+            0,
+        );
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::ReorderedHigher);
+        assert_eq!(s.try_pop_next().unwrap().track_id, "dup");
     }
 
     #[test]
     fn cpu_seed_enqueue_running_id_attaches_as_follower() {
         let mut s = AnalysisCpuSeedQueueState::default();
         let followers = Arc::new(Mutex::new(Vec::new()));
-        s.running = Some(("active".into(), followers.clone()));
-        let (kind, _rx) = s.enqueue(String::new(), "active".into(), vec![], false);
+        s.running.insert("active".into(), followers.clone());
+        let (kind, _rx) = s.enqueue(
+            String::new(),
+            "active".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
         assert_eq!(kind, AnalysisCpuSeedEnqueueKind::RunningFollower);
         assert_eq!(followers.lock().unwrap().len(), 1, "follower channel attached");
-        assert_eq!(s.deque.len(), 0, "follower does not occupy a queue slot");
+        assert_eq!(s.queued_len(), 0, "follower does not occupy a queue slot");
     }
 
     #[test]
     fn cpu_seed_prune_returns_removed_jobs_and_waiter_count() {
         let mut s = AnalysisCpuSeedQueueState::default();
-        let (_, _r1) = s.enqueue(String::new(), "a".into(), vec![], false);
-        let (_, _r2) = s.enqueue(String::new(), "b".into(), vec![], false);
-        let (_, _r3) = s.enqueue(String::new(), "a".into(), vec![], false); // merged: 2 waiters on a
-        let (_, _r4) = s.enqueue(String::new(), "c".into(), vec![], false);
+        let (_, _r1) = s.enqueue(
+            String::new(),
+            "a".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (_, _r2) = s.enqueue(
+            String::new(),
+            "b".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (_, _r3) = s.enqueue(
+            String::new(),
+            "a".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (_, _r4) = s.enqueue(
+            String::new(),
+            "c".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
 
         let keep: HashSet<&str> = ["a"].iter().copied().collect();
-        let (removed_jobs, removed_waiters) = s.prune_queued_not_in(&keep);
+        let (removed_jobs, removed_waiters) = s.prune_queued_not_in(&keep, None);
         assert_eq!(removed_jobs, 2, "b and c removed");
         assert_eq!(removed_waiters, 2, "one waiter on b + one on c");
-        let remaining: Vec<&str> = s.deque.iter().map(|j| j.track_id.as_str()).collect();
-        assert_eq!(remaining, vec!["a"]);
+        assert_eq!(s.try_pop_next().unwrap().track_id, "a");
     }
 
     #[test]
     fn cpu_seed_prune_sends_err_to_dropped_waiters() {
         let mut s = AnalysisCpuSeedQueueState::default();
-        let (_, rx) = s.enqueue(String::new(), "doomed".into(), vec![], false);
+        let (_, rx) = s.enqueue(
+            String::new(),
+            "doomed".into(),
+            vec![],
+            AnalysisBackfillPriority::Low,
+            0,
+        );
         let keep: HashSet<&str> = HashSet::new();
-        let _ = s.prune_queued_not_in(&keep);
-        // After pruning, the waiter receives the cancellation Err.
+        let _ = s.prune_queued_not_in(&keep, None);
         let result = rx.blocking_recv().expect("sender side should have closed cleanly");
         assert!(result.is_err(), "pruned job must yield Err, got {result:?}");
     }

@@ -25,15 +25,19 @@ import { search } from '../../api/subsonicSearch';
 import { libraryScopeForServer } from '../../api/subsonicClient';
 import { libraryIsReady } from './libraryReady';
 import { logLibrarySearch, timed } from './libraryDevLog';
+import { OXIMEDIA_MOOD_SEARCH_ENABLED } from './trackEnrichment';
 
 export type AdvancedResultType = 'all' | 'artists' | 'albums' | 'songs';
 
-/** UI opts for Advanced Search — BPM filter hidden until enrichment ships. */
+/** UI opts for Advanced Search — BPM/mood filters require local index. */
 export interface LocalSearchOpts {
   query: string;
   genre: string;
   yearFrom: string;
   yearTo: string;
+  bpmFrom: string;
+  bpmTo: string;
+  moodGroup: string;
   resultType: AdvancedResultType;
 }
 
@@ -73,7 +77,37 @@ function buildFilters(opts: LocalSearchOpts): LibraryFilterClause[] {
   } else if (to !== null) {
     filters.push({ field: 'year', op: 'lte', value: to });
   }
+  const bpmFrom = opts.bpmFrom ? parseInt(opts.bpmFrom, 10) : null;
+  const bpmTo = opts.bpmTo ? parseInt(opts.bpmTo, 10) : null;
+  if (bpmFrom !== null && bpmTo !== null) {
+    filters.push({ field: 'bpm', op: 'between', value: bpmFrom, valueTo: bpmTo });
+  } else if (bpmFrom !== null) {
+    filters.push({ field: 'bpm', op: 'gte', value: bpmFrom });
+  } else if (bpmTo !== null) {
+    filters.push({ field: 'bpm', op: 'lte', value: bpmTo });
+  }
+  if (OXIMEDIA_MOOD_SEARCH_ENABLED && opts.moodGroup) {
+    filters.push({ field: 'mood_group', op: 'eq', value: opts.moodGroup });
+  }
   return filters;
+}
+
+function applyClientSongFilters(
+  list: SubsonicSong[],
+  opts: LocalSearchOpts,
+): SubsonicSong[] {
+  let r = list;
+  const g = opts.genre;
+  const from = opts.yearFrom ? parseInt(opts.yearFrom, 10) : null;
+  const to = opts.yearTo ? parseInt(opts.yearTo, 10) : null;
+  const bpmFrom = opts.bpmFrom ? parseInt(opts.bpmFrom, 10) : null;
+  const bpmTo = opts.bpmTo ? parseInt(opts.bpmTo, 10) : null;
+  if (g) r = r.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
+  if (from !== null) r = r.filter(s => !s.year || s.year >= from);
+  if (to !== null) r = r.filter(s => !s.year || s.year <= to);
+  if (bpmFrom !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm >= bpmFrom);
+  if (bpmTo !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm <= bpmTo);
+  return r;
 }
 
 function buildRequest(
@@ -100,6 +134,7 @@ function buildRequest(
 
 export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   const raw = isObject(t.rawJson) ? t.rawJson : {};
+  const resolvedBpm = t.bpm != null && t.bpm > 0 ? t.bpm : undefined;
   const base: SubsonicSong = {
     id: t.id,
     title: t.title,
@@ -119,13 +154,18 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
     starred: t.starredAt != null ? new Date(t.starredAt).toISOString() : undefined,
     userRating: t.userRating ?? undefined,
     playCount: t.playCount ?? undefined,
-    bpm: t.bpm ?? undefined,
+    bpm: resolvedBpm,
     isrc: t.isrc ?? undefined,
     albumArtist: t.albumArtist ?? undefined,
   };
   // `rawJson` is the authoritative original song — let it override the
   // hot-column fallbacks (it carries OpenSubsonic extras too).
-  return { ...base, ...(raw as Partial<SubsonicSong>) };
+  const merged: SubsonicSong = { ...base, ...(raw as Partial<SubsonicSong>) };
+  if (resolvedBpm != null) merged.bpm = resolvedBpm;
+  if (t.bpmSource === 'analysis' || t.bpmSource === 'tag') {
+    merged.localBpmSource = t.bpmSource;
+  }
+  return merged;
 }
 
 export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
@@ -165,9 +205,6 @@ export async function runNetworkAdvancedTextSearch(
 ): Promise<LocalAdvancedSearchPage | null> {
   const q = opts.query.trim();
   if (!q) return null;
-  const g = opts.genre;
-  const from = opts.yearFrom ? parseInt(opts.yearFrom, 10) : null;
-  const to = opts.yearTo ? parseInt(opts.yearTo, 10) : null;
   const rt = opts.resultType;
 
   const r = await search(q, {
@@ -178,12 +215,11 @@ export async function runNetworkAdvancedTextSearch(
 
   let artists = r.artists;
   let albums = r.albums;
-  let songs = r.songs;
+  let songs = applyClientSongFilters(r.songs, opts);
 
-  if (g) songs = songs.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
-  if (from !== null) songs = songs.filter(s => !s.year || s.year >= from);
-  if (to !== null) songs = songs.filter(s => !s.year || s.year <= to);
-
+  const g = opts.genre;
+  const from = opts.yearFrom ? parseInt(opts.yearFrom, 10) : null;
+  const to = opts.yearTo ? parseInt(opts.yearTo, 10) : null;
   if (g) albums = albums.filter(a => a.genre?.toLowerCase() === g.toLowerCase());
   if (from !== null) albums = albums.filter(a => !a.year || a.year >= from);
   if (to !== null) albums = albums.filter(a => !a.year || a.year <= to);

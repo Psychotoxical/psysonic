@@ -4,7 +4,7 @@ import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicGenre, SubsonicArtist, SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SlidersVertical } from 'lucide-react';
+import { SlidersVertical, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
@@ -14,9 +14,13 @@ import StarFilterButton from '../components/StarFilterButton';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearch } from '../utils/library/advancedSearchLocal';
+import { OXIMEDIA_MOOD_SEARCH_ENABLED } from '../utils/library/trackEnrichment';
 import { raceSearchSources } from '../utils/library/searchRace';
 import { logLibrarySearch } from '../utils/library/libraryDevLog';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { MOOD_GROUP_IDS } from '../config/moodGroups';
+
+const MOOD_UI_ENABLED = OXIMEDIA_MOOD_SEARCH_ENABLED;
 
 type ResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -25,6 +29,9 @@ interface SearchOpts {
   genre: string;
   yearFrom: string;
   yearTo: string;
+  bpmFrom: string;
+  bpmTo: string;
+  moodGroup: string;
   resultType: ResultType;
 }
 
@@ -32,6 +39,13 @@ interface Results {
   artists: SubsonicArtist[];
   albums: SubsonicAlbum[];
   songs: SubsonicSong[];
+}
+
+function parseBpmInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = parseInt(trimmed, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 export default function AdvancedSearch() {
@@ -42,6 +56,9 @@ export default function AdvancedSearch() {
   const [genre, setGenre] = useState('');
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
+  const [bpmFrom, setBpmFrom] = useState('');
+  const [bpmTo, setBpmTo] = useState('');
+  const [moodGroup, setMoodGroup] = useState('');
   const [resultType, setResultType] = useState<ResultType>('all');
   const [starredOnly, setStarredOnly] = useState(false);
   const [genres, setGenres] = useState<SubsonicGenre[]>([]);
@@ -85,11 +102,15 @@ export default function AdvancedSearch() {
     g: string,
     from: number | null,
     to: number | null,
+    bpmLo: number | null,
+    bpmHi: number | null,
   ): SubsonicSong[] => {
     let r = list;
     if (g) r = r.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
     if (from !== null) r = r.filter(s => !s.year || s.year >= from);
     if (to !== null) r = r.filter(s => !s.year || s.year <= to);
+    if (bpmLo !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm >= bpmLo);
+    if (bpmHi !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm <= bpmHi);
     return r;
   };
 
@@ -106,8 +127,12 @@ export default function AdvancedSearch() {
 
     const q = opts.query.trim();
     const searchT0 = performance.now();
+    const moodFilterActive = MOOD_UI_ENABLED && !!opts.moodGroup;
+    const bpmFilterActive = !!(opts.bpmFrom || opts.bpmTo);
+    const trackOnlyFilterActive = moodFilterActive || bpmFilterActive;
 
-    if (q && serverId && indexEnabled) {
+    // Track-only filters (BPM dual-storage, mood) need the local index for full coverage.
+    if (q && serverId && indexEnabled && !trackOnlyFilterActive) {
       try {
         const winner = await raceSearchSources(
           [
@@ -155,7 +180,7 @@ export default function AdvancedSearch() {
         if (isStale()) return;
       }
       setLocalMode(false);
-    } else {
+    } else if (serverId && indexEnabled) {
       const localPage = await runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
       if (isStale()) return;
       if (localPage) {
@@ -170,12 +195,27 @@ export default function AdvancedSearch() {
         setLoading(false);
         return;
       }
+      if (trackOnlyFilterActive) {
+        setResults({ artists: [], albums: [], songs: [] });
+        setLoading(false);
+        return;
+      }
+      setLocalMode(false);
+    } else {
       setLocalMode(false);
     }
 
-    const { genre: g, yearFrom: yf, yearTo: yt, resultType: rt } = opts;
+    if (trackOnlyFilterActive && !indexEnabled) {
+      setResults({ artists: [], albums: [], songs: [] });
+      setLoading(false);
+      return;
+    }
+
+    const { genre: g, yearFrom: yf, yearTo: yt, bpmFrom: bf, bpmTo: bt, resultType: rt } = opts;
     const from = yf ? parseInt(yf) : null;
     const to = yt ? parseInt(yt) : null;
+    const bpmLo = bf ? parseInt(bf) : null;
+    const bpmHi = bt ? parseInt(bt) : null;
 
     let artists: SubsonicArtist[] = [];
     let albums: SubsonicAlbum[] = [];
@@ -186,7 +226,7 @@ export default function AdvancedSearch() {
         const r = await search(q.trim(), { artistCount: 30, albumCount: 50, songCount: SONGS_INITIAL });
         artists = r.artists;
         albums = r.albums;
-        songs = applySongFilters(r.songs, g, from, to);
+        songs = applySongFilters(r.songs, g, from, to, bpmLo, bpmHi);
 
         if (g) {
           albums = albums.filter(a => a.genre?.toLowerCase() === g.toLowerCase());
@@ -209,6 +249,7 @@ export default function AdvancedSearch() {
         ]);
         albums = albumRes as SubsonicAlbum[];
         songs = songRes as SubsonicSong[];
+        songs = applySongFilters(songs, g, from, to, bpmLo, bpmHi);
         if (from !== null) albums = albums.filter(a => !a.year || a.year >= from);
         if (to !== null) albums = albums.filter(a => !a.year || a.year <= to);
         if (songs.length > 0) setGenreNote(true);
@@ -250,7 +291,18 @@ export default function AdvancedSearch() {
     getGenres().then(data =>
       setGenres(data.sort((a, b) => a.value.localeCompare(b.value)))
     ).catch(() => {});
-    if (qFromUrl) runSearch({ query: qFromUrl, genre: '', yearFrom: '', yearTo: '', resultType: 'all' });
+    if (qFromUrl) {
+      runSearch({
+        query: qFromUrl,
+        genre: '',
+        yearFrom: '',
+        yearTo: '',
+        bpmFrom: '',
+        bpmTo: '',
+        moodGroup: '',
+        resultType: 'all',
+      });
+    }
   }, [musicLibraryFilterVersion, qFromUrl]);
 
   const loadMoreSongs = useCallback(async () => {
@@ -280,8 +332,10 @@ export default function AdvancedSearch() {
       const g = activeSearch.genre;
       const from = activeSearch.yearFrom ? parseInt(activeSearch.yearFrom) : null;
       const to = activeSearch.yearTo ? parseInt(activeSearch.yearTo) : null;
+      const bpmLo = activeSearch.bpmFrom ? parseInt(activeSearch.bpmFrom) : null;
+      const bpmHi = activeSearch.bpmTo ? parseInt(activeSearch.bpmTo) : null;
       const page = await searchSongsPaged(q, SONGS_PAGE_SIZE, songsServerOffset);
-      const filtered = applySongFilters(page, g, from, to);
+      const filtered = applySongFilters(page, g, from, to, bpmLo, bpmHi);
       setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...filtered] } : prev);
       setSongsServerOffset(o => o + page.length);
       // No more pages when the server returned a non-full page (regardless of how many survived filtering).
@@ -293,9 +347,29 @@ export default function AdvancedSearch() {
     }
   }, [loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset, localMode, serverId]);
 
+  const trackFilterActive =
+    (MOOD_UI_ENABLED && !!moodGroup) || !!(bpmFrom || bpmTo);
+
+  const bpmFilterDraftActive = !!(bpmFrom || bpmTo);
+
+  const clearBpmFilter = () => {
+    setBpmFrom('');
+    setBpmTo('');
+  };
+
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    runSearch({ query, genre, yearFrom, yearTo, resultType });
+    const effectiveType = trackFilterActive ? 'songs' : resultType;
+    runSearch({
+      query,
+      genre,
+      yearFrom,
+      yearTo,
+      bpmFrom,
+      bpmTo,
+      moodGroup,
+      resultType: effectiveType,
+    });
   };
 
   const typeOptions: { id: ResultType; label: string }[] = [
@@ -309,6 +383,17 @@ export default function AdvancedSearch() {
     { value: '', label: t('search.advancedAllGenres') },
     ...genres.map(g => ({ value: g.value, label: g.value })),
   ];
+
+  const moodSelectOptions = useMemo(
+    () => [
+      { value: '', label: t('search.advancedAllMoods') },
+      ...MOOD_GROUP_IDS.map(id => ({
+        value: id,
+        label: t(`search.moodGroups.${id}`),
+      })),
+    ],
+    [t],
+  );
 
   return (
     <div className="content-body animate-fade-in">
@@ -379,10 +464,90 @@ export default function AdvancedSearch() {
               />
             </div>
 
-            {/* Row 3: Result type + Search button */}
+            {/* Row 3: BPM (tag + measured enrichment via local index) */}
+            {indexEnabled && (
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
+                  {t('search.advancedBpm')}
+                </span>
+                <input
+                  className="input"
+                  type="number"
+                  min={20}
+                  max={999}
+                  value={bpmFrom}
+                  onChange={e => setBpmFrom(e.target.value)}
+                  onBlur={e => {
+                    const from = parseBpmInput(e.target.value);
+                    const to = parseBpmInput(bpmTo);
+                    if (from != null && to != null && from > to) setBpmTo('');
+                  }}
+                  placeholder={t('search.advancedYearFrom')}
+                  style={{ width: 96 }}
+                />
+                <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>–</span>
+                <input
+                  className="input"
+                  type="number"
+                  min={20}
+                  max={999}
+                  value={bpmTo}
+                  onChange={e => setBpmTo(e.target.value)}
+                  onBlur={e => {
+                    const to = parseBpmInput(e.target.value);
+                    const from = parseBpmInput(bpmFrom);
+                    if (from != null && to != null && to < from) setBpmFrom('');
+                  }}
+                  placeholder={t('search.advancedYearTo')}
+                  style={{ width: 96 }}
+                />
+                {bpmFilterDraftActive && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={clearBpmFilter}
+                    style={{
+                      padding: '0.3rem 0.55rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      fontSize: '0.8rem',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <X size={13} />
+                    {t('search.advancedBpmClear')}
+                  </button>
+                )}
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('search.advancedBpmLocalNote')}
+                </span>
+              </div>
+            )}
+
+            {/* Mood — hidden while oximedia mood analysis is disabled */}
+            {indexEnabled && MOOD_UI_ENABLED && (
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
+                  {t('search.advancedMoodGroup')}
+                </span>
+                <div style={{ minWidth: 240, flex: '1 1 240px', maxWidth: 360 }}>
+                  <CustomSelect
+                    value={moodGroup}
+                    options={moodSelectOptions}
+                    onChange={setMoodGroup}
+                  />
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('search.advancedMoodLocalNote')}
+                </span>
+              </div>
+            )}
+
+            {/* Row 4: Result type + Search button */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {typeOptions.map(opt => (
+                {!trackFilterActive && typeOptions.map(opt => (
                   <button
                     key={opt.id}
                     type="button"
@@ -454,6 +619,7 @@ export default function AdvancedSearch() {
                 hasMore={songsHasMore}
                 loadingMore={loadingMoreSongs}
                 onLoadMore={loadMoreSongs}
+                showBpm={!!(activeSearch?.bpmFrom || activeSearch?.bpmTo)}
               />
             </section>
           )}

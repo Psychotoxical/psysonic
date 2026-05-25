@@ -17,10 +17,14 @@ import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
 import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
+import { useLibraryAnalysisBackfill } from '../hooks/useLibraryAnalysisBackfill';
+import { useMigrationOrchestrator } from '../hooks/useMigrationOrchestrator';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
+import BlockingMigrationGate from './BlockingMigrationGate';
 import RequireAuth from './RequireAuth';
+import { useMigrationStore } from '../store/migrationStore';
 
 const Login = lazy(() => import('../pages/Login'));
 
@@ -45,12 +49,18 @@ export default function MainApp() {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serverIdsKey = useAuthStore(s => s.servers.map(srv => srv.id).join(','));
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
+  const migrationPhase = useMigrationStore(s => s.phase);
+  const migrationReady = migrationPhase === 'completed';
+  useMigrationOrchestrator();
   useEffect(() => {
+    if (!migrationReady) return;
     void (async () => {
       await bootstrapAllIndexedServers();
       void hydrateQueueFromIndex();
     })();
-  }, [activeServerId, serverIdsKey, masterEnabled]);
+  }, [activeServerId, serverIdsKey, masterEnabled, migrationReady]);
+
+  useLibraryAnalysisBackfill(migrationReady);
 
   // Push playback state to mini window + handle control events.
   useEffect(() => {
@@ -62,21 +72,24 @@ export default function MainApp() {
   // a hang workaround — skip here to avoid double-building.
   const preloadMiniPlayer = useAuthStore(s => s.preloadMiniPlayer);
   useEffect(() => {
-    if (IS_WINDOWS || !preloadMiniPlayer) return;
+    if (!migrationReady || IS_WINDOWS || !preloadMiniPlayer) return;
     invoke('preload_mini_player').catch(() => {});
-  }, [preloadMiniPlayer]);
+  }, [preloadMiniPlayer, migrationReady]);
 
   useEffect(() => {
+    if (!migrationReady) return undefined;
     return initAudioListeners();
-  }, []);
+  }, [migrationReady]);
 
   useEffect(() => {
+    if (!migrationReady) return undefined;
     return initHotCachePrefetch();
-  }, []);
+  }, [migrationReady]);
 
   useEffect(() => {
+    if (!migrationReady) return;
     useGlobalShortcutsStore.getState().registerAll();
-  }, []);
+  }, [migrationReady]);
 
   // ── Easter egg: Ctrl+Shift+Alt+N → export new albums image ──
   useEffect(() => {
@@ -128,26 +141,28 @@ export default function MainApp() {
   return (
     <WindowVisibilityProvider>
       <BrowserRouter>
-        <PasteClipboardHandler />
-        <TauriEventBridge />
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/*"
-              element={
-                <RequireAuth>
-                  <DragDropProvider>
-                    <AppShell />
-                  </DragDropProvider>
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </Suspense>
-        {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
-        <ZipDownloadOverlay />
-        <FpsOverlay />
+        <BlockingMigrationGate>
+          <PasteClipboardHandler />
+          <TauriEventBridge />
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/*"
+                element={
+                  <RequireAuth>
+                    <DragDropProvider>
+                      <AppShell />
+                    </DragDropProvider>
+                  </RequireAuth>
+                }
+              />
+            </Routes>
+          </Suspense>
+          {exportPickerOpen && <ExportPickerModal onConfirm={handleExport} onClose={() => setExportPickerOpen(false)} />}
+          <ZipDownloadOverlay />
+          <FpsOverlay />
+        </BlockingMigrationGate>
       </BrowserRouter>
     </WindowVisibilityProvider>
   );

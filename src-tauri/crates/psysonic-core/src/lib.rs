@@ -6,4 +6,6 @@
 
 pub mod logging;
 pub mod ports;
+pub mod track_analysis;
+pub mod track_enrichment;
 pub mod user_agent;

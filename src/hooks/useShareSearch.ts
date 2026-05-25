@@ -10,6 +10,7 @@ import type { ServerProfile } from '../store/authStoreTypes';
 import { findServerIdForShareUrl } from '../utils/share/shareLink';
 import { shareServerOriginLabel } from '../utils/share/shareServerOriginLabel';
 import { parseShareSearchText } from '../utils/share/shareSearch';
+import { serverIndexKeyFromUrl } from '../utils/server/serverIndexKey';
 import { useShareSearchPreview } from './useShareSearchPreview';
 
 export function useShareSearch(query: string, onSuccess?: () => void) {
@@ -26,7 +27,9 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
     if (!shareMatch || shareMatch.type === 'unsupported') return null;
     const serverId = findServerIdForShareUrl(servers, shareMatch.payload.srv);
     if (!serverId || serverId === activeServerId) return null;
-    return servers.find(s => s.id === serverId) ?? null;
+    return servers.find(s => s.id === serverId)
+      ?? servers.find(s => serverIndexKeyFromUrl(s.url) === serverId)
+      ?? null;
   }, [shareMatch, servers, activeServerId]);
   const preview = useShareSearchPreview(shareMatch);
   const [shareQueueBusy, setShareQueueBusy] = useState(false);

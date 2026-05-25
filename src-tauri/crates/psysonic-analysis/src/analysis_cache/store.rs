@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fs, io};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use tauri::Manager;
@@ -18,7 +19,10 @@ const MIGRATION_002_SERVER_ID: &str = include_str!("../../migrations/002_server_
 /// Embedded migrations, ascending by version. The runner sorts defensively and
 /// applies each missing one in its own transaction (schema change + version
 /// marker commit together — see [`run_migrations_with`]).
-const MIGRATIONS: &[(i64, &str)] = &[(1, MIGRATION_001_BASELINE), (2, MIGRATION_002_SERVER_ID)];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, MIGRATION_001_BASELINE),
+    (2, MIGRATION_002_SERVER_ID),
+];
 
 /// Bins in waveform BLOB: `2 * bin_count` bytes (peak u8, then mean-abs u8 per time bin).
 fn waveform_cache_blob_len_ok(bins: &[u8], bin_count: i64) -> bool {
@@ -31,12 +35,24 @@ fn waveform_cache_blob_len_ok(bins: &[u8], bin_count: i64) -> bool {
 
 #[derive(Debug, Clone)]
 pub struct TrackKey {
-    /// App server id this analysis belongs to. Empty string is the legacy
-    /// (pre-002) value: rows migrated from the unscoped schema and any caller
-    /// that does not yet know the server (filled in by 6c-2).
+    /// App server id this analysis belongs to (scheme-less host/path key).
     pub server_id: String,
     pub track_id: String,
     pub md5_16kb: String,
+}
+
+/// Waveform / loudness rows present for a specific content fingerprint
+/// (`md5_16kb`), after track-id variant checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContentCacheCoverage {
+    pub has_waveform: bool,
+    pub has_loudness: bool,
+}
+
+impl ContentCacheCoverage {
+    pub fn complete(self) -> bool {
+        self.has_waveform && self.has_loudness
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +85,20 @@ pub struct LoudnessSnapshot {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct AnalysisDeleteServerReport {
+    pub analysis_tracks: u64,
+    pub waveforms: u64,
+    pub loudness: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct FailedTrackEntry {
+    pub track_id: String,
+    pub md5_16kb: String,
+    pub updated_at: i64,
+}
+
 pub struct AnalysisCache {
     conn: Mutex<Connection>,
 }
@@ -87,6 +117,10 @@ fn track_id_cache_variants(id: &str) -> Vec<String> {
     out
 }
 
+fn normalize_track_id(id: &str) -> String {
+    id.strip_prefix("stream:").unwrap_or(id).to_string()
+}
+
 pub(super) fn now_unix_ts() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -95,7 +129,7 @@ pub(super) fn now_unix_ts() -> i64 {
 }
 
 impl AnalysisCache {
-    pub fn init(app: &tauri::AppHandle) -> Result<Self, String> {
+    pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Self, String> {
         let db_path = analysis_db_path(app)?;
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -104,6 +138,7 @@ impl AnalysisCache {
         let mut conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
         configure_connection(&conn).map_err(|e| e.to_string())?;
         run_migrations(&mut conn).map_err(|e| e.to_string())?;
+        checkpoint_wal_conn(&conn, "open").map_err(|e| e.to_string())?;
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -120,15 +155,13 @@ impl AnalysisCache {
         let mut conn = Connection::open_in_memory().expect("in-memory connection");
         conn.pragma_update(None, "foreign_keys", "ON").expect("pragma foreign_keys");
         run_migrations(&mut conn).expect("schema migration");
+        let _ = checkpoint_wal_conn(&conn, "open");
         Self { conn: Mutex::new(conn) }
     }
 
     /// Remove `loudness_cache` rows for this logical track (bare id and `stream:`
-    /// variant) **scoped to one server plus the legacy `''` pool**. A reseed on
-    /// server A must not delete server B's analysis for the same bare `track_id`;
-    /// the legacy `''` rows are cleared too so a stale pre-002 blob can't shadow
-    /// the fresh re-analysis via the read fallback (and so it isn't seen as
-    /// redundant). Pass `server_id = ""` to target only the legacy pool.
+    /// variant) scoped to one server. A reseed on server A must not delete
+    /// server B's analysis for the same bare `track_id`.
     pub fn delete_loudness_for_track_id(&self, server_id: &str, track_id: &str) -> Result<u64, String> {
         if track_id.trim().is_empty() {
             return Ok(0);
@@ -141,7 +174,7 @@ impl AnalysisCache {
         for tid in track_id_cache_variants(track_id) {
             let n = conn
                 .execute(
-                    "DELETE FROM loudness_cache WHERE track_id = ?1 AND server_id IN (?2, '')",
+                    "DELETE FROM loudness_cache WHERE track_id = ?1 AND server_id = ?2",
                     params![tid, server_id],
                 )
                 .map_err(|e| e.to_string())?;
@@ -151,8 +184,8 @@ impl AnalysisCache {
     }
 
     /// Remove `waveform_cache` rows for this logical track (bare id and `stream:`
-    /// variant) scoped to one server plus the legacy `''` pool. See
-    /// [`Self::delete_loudness_for_track_id`] for the scoping rationale.
+    /// variant) scoped to one server. See [`Self::delete_loudness_for_track_id`]
+    /// for the scoping rationale.
     pub fn delete_waveform_for_track_id(&self, server_id: &str, track_id: &str) -> Result<u64, String> {
         if track_id.trim().is_empty() {
             return Ok(0);
@@ -165,7 +198,7 @@ impl AnalysisCache {
         for tid in track_id_cache_variants(track_id) {
             let n = conn
                 .execute(
-                    "DELETE FROM waveform_cache WHERE track_id = ?1 AND server_id IN (?2, '')",
+                    "DELETE FROM waveform_cache WHERE track_id = ?1 AND server_id = ?2",
                     params![tid, server_id],
                 )
                 .map_err(|e| e.to_string())?;
@@ -184,6 +217,138 @@ impl AnalysisCache {
             .execute("DELETE FROM waveform_cache", [])
             .map_err(|e| e.to_string())?;
         Ok(n as u64)
+    }
+
+    /// Remove all analysis cache entries for a specific server id.
+    pub fn delete_all_for_server(
+        &self,
+        server_id: &str,
+    ) -> Result<AnalysisDeleteServerReport, String> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        let waveforms = tx
+            .execute("DELETE FROM waveform_cache WHERE server_id = ?1", params![server_id])
+            .map_err(|e| e.to_string())?;
+        let loudness = tx
+            .execute("DELETE FROM loudness_cache WHERE server_id = ?1", params![server_id])
+            .map_err(|e| e.to_string())?;
+        let analysis_tracks = tx
+            .execute("DELETE FROM analysis_track WHERE server_id = ?1", params![server_id])
+            .map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(AnalysisDeleteServerReport {
+            analysis_tracks: analysis_tracks as u64,
+            waveforms: waveforms as u64,
+            loudness: loudness as u64,
+        })
+    }
+
+    pub fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        checkpoint_wal_conn(&conn, op).map_err(|e| e.to_string())
+    }
+
+    /// Atomically switch analysis sqlite file while replacing the held
+    /// connection so runtime writers cannot continue on the old inode.
+    pub fn swap_database_file(
+        &self,
+        active_path: &Path,
+        destination_path: &Path,
+    ) -> Result<Option<PathBuf>, String> {
+        if !destination_path.exists() {
+            return Ok(None);
+        }
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_conn = std::mem::replace(&mut *conn, tmp);
+        drop(old_conn);
+
+        let backup = active_path.with_file_name(format!(
+            "{}.backup-pre-indexkey",
+            active_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("audio-analysis.sqlite")
+        ));
+        remove_db_with_sidecars(&backup).ok();
+        if active_path.exists() {
+            fs::rename(active_path, &backup).map_err(|e| e.to_string())?;
+            move_sidecar(active_path, &backup, "-wal")?;
+            move_sidecar(active_path, &backup, "-shm")?;
+        }
+        if let Err(err) = fs::rename(destination_path, active_path) {
+            if backup.exists() {
+                let _ = fs::rename(&backup, active_path);
+                let _ = move_sidecar(&backup, active_path, "-wal");
+                let _ = move_sidecar(&backup, active_path, "-shm");
+            }
+            return Err(err.to_string());
+        }
+        let mut reopened = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_connection(&reopened).map_err(|e| e.to_string())?;
+        run_migrations(&mut reopened).map_err(|e| e.to_string())?;
+        *conn = reopened;
+        Ok(Some(backup))
+    }
+
+    pub fn restore_database_backup(&self, backup_path: &Path, active_path: &Path) -> Result<(), String> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_conn = std::mem::replace(&mut *conn, tmp);
+        drop(old_conn);
+
+        if active_path.exists() {
+            remove_db_with_sidecars(active_path)?;
+        }
+        if backup_path.exists() {
+            fs::rename(backup_path, active_path).map_err(|e| e.to_string())?;
+            move_sidecar(backup_path, active_path, "-wal")?;
+            move_sidecar(backup_path, active_path, "-shm")?;
+        }
+        let mut reopened = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_connection(&reopened).map_err(|e| e.to_string())?;
+        run_migrations(&mut reopened).map_err(|e| e.to_string())?;
+        *conn = reopened;
+        Ok(())
+    }
+
+    /// Drop analysis rows written under legacy server ids (profile UUIDs).
+    pub fn migrate_server_keys(
+        &self,
+        mappings: &[(String, String)],
+    ) -> Result<(), String> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        for (legacy, key) in mappings {
+            let legacy = legacy.trim();
+            let key = key.trim();
+            if legacy.is_empty() || key.is_empty() || legacy == key {
+                continue;
+            }
+            tx.execute("DELETE FROM waveform_cache WHERE server_id = ?1", params![legacy])
+                .map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM loudness_cache WHERE server_id = ?1", params![legacy])
+                .map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM analysis_track WHERE server_id = ?1", params![legacy])
+                .map_err(|e| e.to_string())?;
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     pub fn touch_track_status(&self, key: &TrackKey, status: &str) -> Result<(), String> {
@@ -306,6 +471,37 @@ impl AnalysisCache {
         Ok(row.filter(|e| waveform_cache_blob_len_ok(&e.bins, e.bin_count)))
     }
 
+    /// Lookup waveform + loudness for an exact content fingerprint, trying bare /
+    /// `stream:` track-id variants.
+    pub fn content_cache_coverage(
+        &self,
+        server_id: &str,
+        track_id: &str,
+        md5_16kb: &str,
+    ) -> Result<ContentCacheCoverage, String> {
+        let mut has_waveform = false;
+        let mut has_loudness = false;
+        for tid in track_id_cache_variants(track_id) {
+            if !server_id.is_empty() {
+                let key = TrackKey {
+                    server_id: server_id.to_string(),
+                    track_id: tid.clone(),
+                    md5_16kb: md5_16kb.to_string(),
+                };
+                if self.get_waveform(&key)?.is_some() {
+                    has_waveform = true;
+                }
+                if self.loudness_row_exists_for_key(&key)? {
+                    has_loudness = true;
+                }
+            }
+        }
+        Ok(ContentCacheCoverage {
+            has_waveform,
+            has_loudness,
+        })
+    }
+
     /// True when this exact `(track_id, md5_16kb)` has a loudness row for the current algo version.
     /// Used after `delete_loudness_for_track_id`: waveform may still be cached, but EBU data was removed.
     pub fn loudness_row_exists_for_key(&self, key: &TrackKey) -> Result<bool, String> {
@@ -333,35 +529,89 @@ impl AnalysisCache {
         Ok(exists != 0)
     }
 
-    /// Latest waveform for `(server_id, track_id)` with legacy fallback. Tries the
-    /// server-scoped rows first (both id variants), then the legacy `server_id=''`
-    /// pool. On a legacy hit while a real `server_id` is known, the matching rows
-    /// are re-tagged under the server-scoped key (best-effort) so subsequent reads
-    /// hit the exact key and other servers can't shadow each other via `''`.
+    /// Latest waveform for `(server_id, track_id)` (tries both id variants).
     pub fn get_latest_waveform_for_track(
         &self,
         server_id: &str,
         track_id: &str,
     ) -> Result<Option<WaveformEntry>, String> {
         let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
-        if let Some(e) = query_latest_waveform_scoped(&conn, server_id, track_id)? {
-            return Ok(Some(e));
-        }
-        if !server_id.is_empty() {
-            if let Some(e) = query_latest_waveform_scoped(&conn, "", track_id)? {
-                let _ = relabel_legacy_to_server(&conn, server_id, track_id);
-                return Ok(Some(e));
-            }
-        }
-        Ok(None)
+        query_latest_waveform_scoped(&conn, server_id, track_id)
     }
 
-    /// Both waveform and loudness rows exist for this `(server_id, track_id)`
-    /// (including the legacy `''` fallback) — a CPU seed from bytes/file would
-    /// only decode the file to immediately skip with `SkippedWaveformCacheHit`.
-    /// A legacy hit is re-tagged onto the server scope as a side effect (see
-    /// [`Self::get_latest_waveform_for_track`]), so skipping the seed still leaves
-    /// the track resolvable under its real `server_id`.
+    /// Latest `md5_16kb` fingerprint for `(server_id, track_id)`.
+    pub fn get_latest_md5_16kb_for_track(
+        &self,
+        server_id: &str,
+        track_id: &str,
+    ) -> Result<Option<String>, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        query_latest_md5_16kb_scoped(&conn, server_id, track_id)
+    }
+
+    /// Latest analysis status row for `(server_id, track_id)` (tries bare and
+    /// `stream:` variants). Used to suppress infinite retries for tracks that
+    /// repeatedly fail decode/enrichment.
+    pub fn get_latest_status_for_track(
+        &self,
+        server_id: &str,
+        track_id: &str,
+    ) -> Result<Option<(String, i64)>, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        query_latest_status_scoped(&conn, server_id, track_id)
+    }
+
+    pub fn count_failed_tracks(&self, server_id: &str) -> Result<i64, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        query_failed_tracks_count_scoped(&conn, server_id)
+    }
+
+    pub fn list_failed_tracks(
+        &self,
+        server_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<FailedTrackEntry>, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        query_failed_tracks_scoped(&conn, server_id, limit)
+    }
+
+    pub fn clear_failed_tracks(
+        &self,
+        server_id: &str,
+        track_ids: &[String],
+    ) -> Result<u64, String> {
+        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        if track_ids.is_empty() {
+            let deleted = conn
+                .execute(
+                    "DELETE FROM analysis_track WHERE server_id = ?1 AND status = 'failed'",
+                    params![server_id],
+                )
+                .map_err(|e| e.to_string())?;
+            return Ok(deleted as u64);
+        }
+        let mut total = 0u64;
+        for id in track_ids {
+            let tid = id.trim();
+            if tid.is_empty() {
+                continue;
+            }
+            for variant in track_id_cache_variants(tid) {
+                let deleted = conn
+                    .execute(
+                        "DELETE FROM analysis_track WHERE server_id = ?1 AND track_id = ?2 AND status = 'failed'",
+                        params![server_id, variant],
+                    )
+                    .map_err(|e| e.to_string())?;
+                total = total.saturating_add(deleted as u64);
+            }
+        }
+        Ok(total)
+    }
+
+    /// Both waveform and loudness rows exist for this `(server_id, track_id)` —
+    /// a CPU seed from bytes/file would only decode the file to immediately skip
+    /// with `SkippedWaveformCacheHit`.
     pub fn cpu_seed_redundant_for_track(&self, server_id: &str, track_id: &str) -> Result<bool, String> {
         Ok(
             self.get_latest_waveform_for_track(server_id, track_id)?.is_some()
@@ -369,37 +619,16 @@ impl AnalysisCache {
         )
     }
 
-    /// Latest loudness for `(server_id, track_id)` with the same legacy fallback +
-    /// lazy re-tag behaviour as [`Self::get_latest_waveform_for_track`].
+    /// Latest loudness for `(server_id, track_id)`.
     pub fn get_latest_loudness_for_track(
         &self,
         server_id: &str,
         track_id: &str,
     ) -> Result<Option<LoudnessSnapshot>, String> {
         let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
-        if let Some(s) = query_latest_loudness_scoped(&conn, server_id, track_id)? {
-            return Ok(Some(s));
-        }
-        if !server_id.is_empty() {
-            if let Some(s) = query_latest_loudness_scoped(&conn, "", track_id)? {
-                let _ = relabel_legacy_to_server(&conn, server_id, track_id);
-                return Ok(Some(s));
-            }
-        }
-        Ok(None)
+        query_latest_loudness_scoped(&conn, server_id, track_id)
     }
 
-    /// Copy any legacy (`server_id=''`) analysis rows for `track_id` (both id
-    /// variants) onto `server_id` via `INSERT OR IGNORE` — best-effort, never
-    /// clobbers an existing server-scoped row. Exposed for the exact-key read
-    /// command, which re-tags after a legacy hit. No-op when `server_id` is empty.
-    pub fn relabel_legacy_to_server(&self, server_id: &str, track_id: &str) -> Result<(), String> {
-        if server_id.is_empty() {
-            return Ok(());
-        }
-        let conn = self.conn.lock().map_err(|_| "analysis_cache lock poisoned".to_string())?;
-        relabel_legacy_to_server(&conn, server_id, track_id).map_err(|e| e.to_string())
-    }
 }
 
 /// Server-scoped variant of the "latest waveform for this track" lookup: filters
@@ -445,6 +674,138 @@ fn query_latest_waveform_scoped(
     Ok(None)
 }
 
+fn query_latest_md5_16kb_scoped(
+    conn: &Connection,
+    server_id: &str,
+    track_id: &str,
+) -> Result<Option<String>, String> {
+    const SQL: &str = r#"
+        SELECT w.md5_16kb
+        FROM waveform_cache w
+        JOIN analysis_track a
+          ON a.server_id = w.server_id
+         AND a.track_id = w.track_id
+         AND a.md5_16kb = w.md5_16kb
+        WHERE w.server_id = ?1
+          AND w.track_id = ?2
+          AND a.waveform_algo_version = ?3
+        ORDER BY w.updated_at DESC
+        LIMIT 1
+        "#;
+    for tid in track_id_cache_variants(track_id) {
+        let row: Option<String> = conn
+            .query_row(SQL, params![server_id, tid, WAVEFORM_ALGO_VERSION], |row| {
+                row.get(0)
+            })
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(md5) = row {
+            if !md5.is_empty() {
+                return Ok(Some(md5));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn query_latest_status_scoped(
+    conn: &Connection,
+    server_id: &str,
+    track_id: &str,
+) -> Result<Option<(String, i64)>, String> {
+    const SQL: &str = r#"
+        SELECT status, updated_at
+        FROM analysis_track
+        WHERE server_id = ?1
+          AND track_id = ?2
+        ORDER BY updated_at DESC
+        LIMIT 1
+        "#;
+    let mut latest: Option<(String, i64)> = None;
+    for tid in track_id_cache_variants(track_id) {
+        let row = conn
+            .query_row(SQL, params![server_id, tid], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(candidate) = row {
+            let take = latest
+                .as_ref()
+                .is_none_or(|(_, ts)| candidate.1 > *ts);
+            if take {
+                latest = Some(candidate);
+            }
+        }
+    }
+    Ok(latest)
+}
+
+fn query_failed_tracks_count_scoped(conn: &Connection, server_id: &str) -> Result<i64, String> {
+    conn.query_row(
+        r#"
+        SELECT COUNT(DISTINCT normalized_track_id)
+        FROM (
+          SELECT CASE
+                   WHEN track_id LIKE 'stream:%' THEN SUBSTR(track_id, 8)
+                   ELSE track_id
+                 END AS normalized_track_id
+          FROM analysis_track
+          WHERE server_id = ?1
+            AND status = 'failed'
+        )
+        WHERE normalized_track_id IS NOT NULL
+          AND normalized_track_id != ''
+        "#,
+        params![server_id],
+        |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn query_failed_tracks_scoped(
+    conn: &Connection,
+    server_id: &str,
+    limit: Option<usize>,
+) -> Result<Vec<FailedTrackEntry>, String> {
+    const SQL: &str = r#"
+        SELECT track_id, md5_16kb, updated_at
+        FROM analysis_track
+        WHERE server_id = ?1
+          AND status = 'failed'
+        ORDER BY updated_at DESC
+        "#;
+    let mut stmt = conn.prepare(SQL).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![server_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut out: Vec<FailedTrackEntry> = Vec::new();
+    let mut seen = std::collections::HashSet::<String>::new();
+    for row in rows {
+        let (track_id_raw, md5_16kb, updated_at) = row.map_err(|e| e.to_string())?;
+        let normalized = normalize_track_id(track_id_raw.trim());
+        if normalized.is_empty() || !seen.insert(normalized.clone()) {
+            continue;
+        }
+        out.push(FailedTrackEntry {
+            track_id: normalized,
+            md5_16kb,
+            updated_at,
+        });
+        if limit.is_some_and(|n| out.len() >= n) {
+            break;
+        }
+    }
+    Ok(out)
+}
+
 /// Server-scoped variant of the "latest loudness for this track" lookup.
 fn query_latest_loudness_scoped(
     conn: &Connection,
@@ -484,55 +845,120 @@ fn query_latest_loudness_scoped(
     Ok(None)
 }
 
-/// Lazy re-tag: copy legacy (`server_id=''`) `analysis_track` + `waveform_cache` +
-/// `loudness_cache` rows for every id variant of `track_id` onto `server_id`.
-/// `INSERT OR IGNORE` so an already-present server-scoped row (e.g. a precise
-/// playback-derived analysis) is never overwritten. Best-effort, no transaction:
-/// the rows are individually consistent and a partial copy still leaves the
-/// legacy rows readable via fallback.
-fn relabel_legacy_to_server(
-    conn: &Connection,
-    server_id: &str,
-    track_id: &str,
-) -> rusqlite::Result<()> {
-    for tid in track_id_cache_variants(track_id) {
-        conn.execute(
-            r#"
-            INSERT OR IGNORE INTO analysis_track
-                (server_id, track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at)
-            SELECT ?1, track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at
-            FROM analysis_track WHERE server_id = '' AND track_id = ?2
-            "#,
-            params![server_id, tid],
-        )?;
-        conn.execute(
-            r#"
-            INSERT OR IGNORE INTO waveform_cache
-                (server_id, track_id, md5_16kb, bins, bin_count, is_partial, known_until_sec, duration_sec, updated_at)
-            SELECT ?1, track_id, md5_16kb, bins, bin_count, is_partial, known_until_sec, duration_sec, updated_at
-            FROM waveform_cache WHERE server_id = '' AND track_id = ?2
-            "#,
-            params![server_id, tid],
-        )?;
-        conn.execute(
-            r#"
-            INSERT OR IGNORE INTO loudness_cache
-                (server_id, track_id, md5_16kb, integrated_lufs, true_peak, recommended_gain_db, target_lufs, updated_at)
-            SELECT ?1, track_id, md5_16kb, integrated_lufs, true_peak, recommended_gain_db, target_lufs, updated_at
-            FROM loudness_cache WHERE server_id = '' AND track_id = ?2
-            "#,
-            params![server_id, tid],
-        )?;
+fn analysis_db_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let db_dir = base.join("databases").join("analysis");
+    let db_path = db_dir.join("audio-analysis.sqlite");
+    let legacy_data = base.join("audio-analysis.sqlite");
+    let legacy_config = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("audio-analysis.sqlite");
+    if let Some(parent) = db_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    if db_path.exists() {
+        cleanup_legacy_db_if_present(&legacy_data, &db_path)?;
+        cleanup_legacy_db_if_present(&legacy_config, &db_path)?;
+        return Ok(db_path);
+    }
+
+    if legacy_data.exists() {
+        migrate_db_file(&legacy_data, &db_path).map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_data, &db_path, "-wal").map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_data, &db_path, "-shm").map_err(|e| e.to_string())?;
+    } else if legacy_config.exists() {
+        migrate_db_file(&legacy_config, &db_path).map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_config, &db_path, "-wal").map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy_config, &db_path, "-shm").map_err(|e| e.to_string())?;
+    }
+    cleanup_legacy_db_if_present(&legacy_data, &db_path)?;
+    cleanup_legacy_db_if_present(&legacy_config, &db_path)?;
+
+    Ok(db_path)
+}
+
+fn cleanup_legacy_db_if_present(legacy_path: &Path, active_path: &Path) -> Result<(), String> {
+    if legacy_path == active_path {
+        return Ok(());
+    }
+    remove_db_with_sidecars(legacy_path)
+}
+
+fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
+    let (busy, log, checkpointed): (i32, i32, i32) =
+        conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+    if busy != 0 {
+        crate::app_eprintln!(
+            "[analysis-db] wal checkpoint busy op={op} busy={busy} log={log} checkpointed={checkpointed}"
+        );
     }
     Ok(())
 }
 
-fn analysis_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?;
-    Ok(base.join("audio-analysis.sqlite"))
+fn migrate_db_file(from: &Path, to: &Path) -> io::Result<()> {
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(from, to)?;
+            fs::remove_file(from)?;
+            Ok(())
+        }
+    }
+}
+
+fn migrate_db_sidecar(from: &Path, to: &Path, suffix: &str) -> io::Result<()> {
+    let from_path = PathBuf::from(format!("{}{}", from.display(), suffix));
+    if !from_path.exists() {
+        return Ok(());
+    }
+    let to_path = PathBuf::from(format!("{}{}", to.display(), suffix));
+    if let Some(parent) = to_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(&from_path, &to_path) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(&from_path, &to_path)?;
+            fs::remove_file(&from_path)?;
+            Ok(())
+        }
+    }
+}
+
+fn move_sidecar(from_base: &Path, to_base: &Path, suffix: &str) -> Result<(), String> {
+    let from = PathBuf::from(format!("{}{}", from_base.display(), suffix));
+    if !from.exists() {
+        return Ok(());
+    }
+    let to = PathBuf::from(format!("{}{}", to_base.display(), suffix));
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+fn remove_db_with_sidecars(path: &Path) -> Result<(), String> {
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{}", path.display(), suffix));
+        if sidecar.exists() {
+            fs::remove_file(sidecar).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 fn configure_connection(conn: &Connection) -> rusqlite::Result<()> {
@@ -634,10 +1060,11 @@ pub(crate) fn run_migrations_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     fn key(track_id: &str) -> TrackKey {
         TrackKey {
-            server_id: String::new(),
+            server_id: "server-a".to_string(),
             track_id: track_id.to_string(),
             md5_16kb: "deadbeef".to_string(),
         }
@@ -846,7 +1273,7 @@ mod tests {
         cache.touch_track_status(&k, "ok").unwrap();
         cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
         // Insert under stream:abc, look up with bare abc.
-        let got = cache.get_latest_waveform_for_track("", "abc").unwrap();
+        let got = cache.get_latest_waveform_for_track("server-a", "abc").unwrap();
         assert!(got.is_some(), "bare-id lookup must find stream-prefixed row");
     }
 
@@ -856,7 +1283,9 @@ mod tests {
         let k = key("abc");
         cache.touch_track_status(&k, "ok").unwrap();
         cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
-        let got = cache.get_latest_loudness_for_track("", "stream:abc").unwrap();
+        let got = cache
+            .get_latest_loudness_for_track("server-a", "stream:abc")
+            .unwrap();
         assert!(got.is_some(), "stream-prefixed lookup must find bare row");
     }
 
@@ -868,16 +1297,20 @@ mod tests {
         let k = key("abc");
         cache.touch_track_status(&k, "ok").unwrap();
 
-        assert!(!cache.cpu_seed_redundant_for_track("", "abc").unwrap());
+        assert!(!cache.cpu_seed_redundant_for_track("server-a", "abc").unwrap());
 
         cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
         assert!(
-            !cache.cpu_seed_redundant_for_track("", "abc").unwrap(),
+            !cache
+                .cpu_seed_redundant_for_track("server-a", "abc")
+                .unwrap(),
             "waveform alone is not enough"
         );
 
         cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
-        assert!(cache.cpu_seed_redundant_for_track("", "abc").unwrap());
+        assert!(cache
+            .cpu_seed_redundant_for_track("server-a", "abc")
+            .unwrap());
     }
 
     // ── deletes ───────────────────────────────────────────────────────────────
@@ -892,7 +1325,9 @@ mod tests {
         cache.upsert_loudness(&bare, &loudness(-14.0)).unwrap();
         cache.upsert_loudness(&prefixed, &loudness(-14.0)).unwrap();
 
-        let deleted = cache.delete_loudness_for_track_id("", "abc").unwrap();
+        let deleted = cache
+            .delete_loudness_for_track_id("server-a", "abc")
+            .unwrap();
         assert_eq!(deleted, 2, "delete must remove both bare and stream:abc rows");
         assert!(!cache.loudness_row_exists_for_key(&bare).unwrap());
         assert!(!cache.loudness_row_exists_for_key(&prefixed).unwrap());
@@ -908,7 +1343,7 @@ mod tests {
         cache.upsert_waveform(&bare, &waveform(4, false)).unwrap();
         cache.upsert_waveform(&prefixed, &waveform(4, false)).unwrap();
 
-        let deleted = cache.delete_waveform_for_track_id("", "abc").unwrap();
+        let deleted = cache.delete_waveform_for_track_id("server-a", "abc").unwrap();
         assert_eq!(deleted, 2);
         assert!(cache.get_waveform(&bare).unwrap().is_none());
         assert!(cache.get_waveform(&prefixed).unwrap().is_none());
@@ -926,93 +1361,27 @@ mod tests {
     #[test]
     fn delete_scoped_to_server_keeps_other_servers_rows() {
         // A reseed on server-a must not wipe server-b's analysis for the same
-        // bare track_id; the legacy '' pool is cleared alongside server-a.
+        // bare track_id.
         let cache = AnalysisCache::open_in_memory();
         let on_a = key_on("server-a", "t");
         let on_b = key_on("server-b", "t");
-        let legacy = key_on("", "t");
-        for k in [&on_a, &on_b, &legacy] {
+        for k in [&on_a, &on_b] {
             cache.touch_track_status(k, "ok").unwrap();
             cache.upsert_waveform(k, &waveform(4, false)).unwrap();
             cache.upsert_loudness(k, &loudness(-14.0)).unwrap();
         }
 
         let deleted = cache.delete_waveform_for_track_id("server-a", "t").unwrap();
-        assert_eq!(deleted, 2, "server-a + legacy '' waveform rows removed");
+        assert_eq!(deleted, 1, "server-a waveform rows removed");
         assert!(cache.get_waveform(&on_a).unwrap().is_none());
-        assert!(cache.get_waveform(&legacy).unwrap().is_none());
         assert!(
             cache.get_waveform(&on_b).unwrap().is_some(),
             "another server's waveform must survive a scoped reseed"
         );
 
         let deleted_l = cache.delete_loudness_for_track_id("server-a", "t").unwrap();
-        assert_eq!(deleted_l, 2);
+        assert_eq!(deleted_l, 1);
         assert!(cache.loudness_row_exists_for_key(&on_b).unwrap());
-    }
-
-    // ── server scope: read fallback + lazy re-tag ─────────────────────────────
-
-    #[test]
-    fn get_latest_waveform_falls_back_to_legacy_and_retags() {
-        // A pre-002 blob lives under server_id=''. A read for a real server must
-        // find it via fallback and re-tag it under the server-scoped key.
-        let cache = AnalysisCache::open_in_memory();
-        let legacy = key_on("", "t");
-        cache.touch_track_status(&legacy, "ready").unwrap();
-        cache.upsert_waveform(&legacy, &waveform(4, false)).unwrap();
-        cache.upsert_loudness(&legacy, &loudness(-14.0)).unwrap();
-
-        // server-a has no scoped row yet → fallback returns the legacy blob.
-        assert!(cache.get_waveform(&key_on("server-a", "t")).unwrap().is_none());
-        assert!(cache.get_latest_waveform_for_track("server-a", "t").unwrap().is_some());
-
-        // Re-tag side effect: the exact server-scoped key now resolves directly.
-        assert!(
-            cache.get_waveform(&key_on("server-a", "t")).unwrap().is_some(),
-            "legacy hit must be re-tagged under the server scope"
-        );
-        // Legacy row is preserved (copy, not move).
-        assert!(cache.get_waveform(&legacy).unwrap().is_some());
-    }
-
-    #[test]
-    fn retag_does_not_clobber_existing_server_scoped_row() {
-        // server-a already has a precise (playback-derived) row; a legacy hit must
-        // not overwrite it via INSERT OR IGNORE.
-        let cache = AnalysisCache::open_in_memory();
-        let legacy = key_on("", "t");
-        cache.touch_track_status(&legacy, "ready").unwrap();
-        cache.upsert_waveform(&legacy, &waveform(4, true)).unwrap();
-        cache.upsert_loudness(&legacy, &loudness(-14.0)).unwrap();
-
-        let on_a = key_on("server-a", "t");
-        cache.touch_track_status(&on_a, "ready").unwrap();
-        let precise = WaveformEntry { is_partial: false, ..waveform(4, false) };
-        cache.upsert_waveform(&on_a, &precise).unwrap();
-        cache.upsert_loudness(&on_a, &loudness(-14.0)).unwrap();
-
-        cache.relabel_legacy_to_server("server-a", "t").unwrap();
-        let got = cache.get_waveform(&on_a).unwrap().expect("server row present");
-        assert!(!got.is_partial, "precise server-scoped row must be preserved");
-    }
-
-    #[test]
-    fn get_latest_loudness_legacy_fallback_scopes_to_requested_server() {
-        let cache = AnalysisCache::open_in_memory();
-        let legacy = key_on("", "t");
-        cache.touch_track_status(&legacy, "ready").unwrap();
-        cache.upsert_loudness(&legacy, &loudness(-12.0)).unwrap();
-
-        // server-b has its own distinct loudness → exact hit, no fallback.
-        let on_b = key_on("server-b", "t");
-        cache.touch_track_status(&on_b, "ready").unwrap();
-        cache.upsert_loudness(&on_b, &loudness(-20.0)).unwrap();
-
-        let a = cache.get_latest_loudness_for_track("server-a", "t").unwrap().unwrap();
-        assert_eq!(a.target_lufs, -12.0, "server-a falls back to legacy blob");
-        let b = cache.get_latest_loudness_for_track("server-b", "t").unwrap().unwrap();
-        assert_eq!(b.target_lufs, -20.0, "server-b uses its own scoped blob, not legacy");
     }
 
     #[test]
@@ -1066,57 +1435,6 @@ mod tests {
     }
 
     #[test]
-    fn migration_002_preserves_legacy_rows_under_empty_server_id() {
-        // Simulate a real pre-002 user DB: old schema + one row per table, no
-        // schema_migrations.
-        let mut conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(MIGRATION_001_BASELINE).unwrap();
-        conn.execute(
-            "INSERT INTO analysis_track (track_id, md5_16kb, status, waveform_algo_version, loudness_algo_version, updated_at)
-             VALUES ('t1','m1','ready',?1,?2,123)",
-            params![WAVEFORM_ALGO_VERSION, LOUDNESS_ALGO_VERSION],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO waveform_cache (track_id, md5_16kb, bins, bin_count, is_partial, known_until_sec, duration_sec, updated_at)
-             VALUES ('t1','m1',?1,4,0,0.0,60.0,123)",
-            params![vec![0u8; 8]],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO loudness_cache (track_id, md5_16kb, integrated_lufs, true_peak, recommended_gain_db, target_lufs, updated_at)
-             VALUES ('t1','m1',-14.0,-1.0,0.0,-14.0,123)",
-            [],
-        )
-        .unwrap();
-
-        run_migrations_with(&mut conn, MIGRATIONS).unwrap();
-
-        // No data lost; legacy rows now carry server_id = ''.
-        let track_sid: String = conn
-            .query_row("SELECT server_id FROM analysis_track WHERE track_id='t1'", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(track_sid, "");
-        let waveforms: i64 = conn
-            .query_row("SELECT COUNT(*) FROM waveform_cache WHERE server_id=''", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(waveforms, 1);
-        let loudness: i64 = conn
-            .query_row("SELECT COUNT(*) FROM loudness_cache WHERE server_id=''", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(loudness, 1);
-
-        // The legacy blob is readable through the cache API under the '' key.
-        let cache = AnalysisCache { conn: Mutex::new(conn) };
-        let legacy_key = TrackKey {
-            server_id: String::new(),
-            track_id: "t1".to_string(),
-            md5_16kb: "m1".to_string(),
-        };
-        assert!(cache.get_waveform(&legacy_key).unwrap().is_some());
-    }
-
-    #[test]
     fn server_id_scopes_exact_key_lookups() {
         let cache = AnalysisCache::open_in_memory();
         let on_a = key_on("server-a", "t");
@@ -1157,6 +1475,32 @@ mod tests {
 
     fn backup_file(dir: &Path) -> PathBuf {
         dir.join(format!("audio-analysis.sqlite.pre-v{ANALYSIS_DB_SCHEMA_VERSION}.bak"))
+    }
+
+    fn sqlite_sidecar(path: &Path, suffix: &str) -> PathBuf {
+        PathBuf::from(format!("{}{}", path.display(), suffix))
+    }
+
+    fn open_file_cache(db_path: &Path) -> AnalysisCache {
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        let mut conn = Connection::open(db_path).unwrap();
+        configure_connection(&conn).unwrap();
+        run_migrations(&mut conn).unwrap();
+        AnalysisCache {
+            conn: Mutex::new(conn),
+        }
+    }
+
+    fn unique_temp_file(tag: &str) -> PathBuf {
+        static CTR: AtomicU64 = AtomicU64::new(0);
+        let n = CTR.fetch_add(1, Ordering::Relaxed);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("psysonic-analysis-{tag}-{nanos}-{n}.sqlite"))
     }
 
     #[test]
@@ -1217,5 +1561,343 @@ mod tests {
             "no backup when the DB is already at the target version"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn content_cache_coverage_tracks_partial_and_complete_state() {
+        let cache = AnalysisCache::open_in_memory();
+        let k = key("abc");
+        cache.touch_track_status(&k, "queued").unwrap();
+
+        let none = cache.content_cache_coverage("server-a", "abc", "deadbeef").unwrap();
+        assert!(!none.has_waveform);
+        assert!(!none.has_loudness);
+        assert!(!none.complete());
+
+        cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+        let only_waveform = cache
+            .content_cache_coverage("server-a", "stream:abc", "deadbeef")
+            .unwrap();
+        assert!(only_waveform.has_waveform);
+        assert!(!only_waveform.has_loudness);
+        assert!(!only_waveform.complete());
+
+        cache.upsert_loudness(&k, &loudness(-14.0)).unwrap();
+        let full = cache.content_cache_coverage("server-a", "abc", "deadbeef").unwrap();
+        assert!(full.complete());
+    }
+
+    #[test]
+    fn get_latest_md5_uses_variant_and_filters_empty_values() {
+        let cache = AnalysisCache::open_in_memory();
+        let ok = key("stream:t1");
+        cache.touch_track_status(&ok, "ready").unwrap();
+        cache.upsert_waveform(&ok, &waveform(4, false)).unwrap();
+
+        assert_eq!(
+            cache
+                .get_latest_md5_16kb_for_track("server-a", "t1")
+                .unwrap()
+                .as_deref(),
+            Some("deadbeef")
+        );
+
+        let empty_md5 = TrackKey {
+            server_id: "server-a".to_string(),
+            track_id: "t2".to_string(),
+            md5_16kb: "".to_string(),
+        };
+        cache.touch_track_status(&empty_md5, "ready").unwrap();
+        cache.upsert_waveform(&empty_md5, &waveform(4, false)).unwrap();
+        assert!(
+            cache
+                .get_latest_md5_16kb_for_track("server-a", "t2")
+                .unwrap()
+                .is_none(),
+            "empty md5 rows must be ignored by latest-md5 lookup"
+        );
+    }
+
+    #[test]
+    fn delete_all_for_server_removes_only_targeted_server_rows() {
+        let cache = AnalysisCache::open_in_memory();
+        let a = key_on("server-a", "t");
+        let b = key_on("server-b", "t");
+        for k in [&a, &b] {
+            cache.touch_track_status(k, "ready").unwrap();
+            cache.upsert_waveform(k, &waveform(4, false)).unwrap();
+            cache.upsert_loudness(k, &loudness(-14.0)).unwrap();
+        }
+
+        let report = cache.delete_all_for_server("server-a").unwrap();
+        assert_eq!(report.analysis_tracks, 1);
+        assert_eq!(report.waveforms, 1);
+        assert_eq!(report.loudness, 1);
+        assert!(cache.get_waveform(&a).unwrap().is_none());
+        assert!(cache.get_waveform(&b).unwrap().is_some());
+        assert!(cache.loudness_row_exists_for_key(&b).unwrap());
+    }
+
+    #[test]
+    fn migrate_server_keys_drops_only_legacy_rows() {
+        let cache = AnalysisCache::open_in_memory();
+        let legacy = key_on("legacy-uuid", "t");
+        let modern = key_on("modern-index-key", "t");
+        for k in [&legacy, &modern] {
+            cache.touch_track_status(k, "ready").unwrap();
+            cache.upsert_waveform(k, &waveform(4, false)).unwrap();
+            cache.upsert_loudness(k, &loudness(-14.0)).unwrap();
+        }
+
+        cache
+            .migrate_server_keys(&[
+                ("legacy-uuid".to_string(), "modern-index-key".to_string()),
+                ("".to_string(), "skip".to_string()),
+                ("same".to_string(), "same".to_string()),
+            ])
+            .unwrap();
+
+        assert!(cache.get_waveform(&legacy).unwrap().is_none());
+        assert!(cache.get_waveform(&modern).unwrap().is_some());
+    }
+
+    #[test]
+    fn swap_database_file_and_restore_backup_roundtrip() {
+        let active_path = unique_temp_file("swap-active");
+        let destination_path = unique_temp_file("swap-dst");
+        let backup_path = active_path.with_file_name(format!(
+            "{}.backup-pre-indexkey",
+            active_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("audio-analysis.sqlite")
+        ));
+
+        let cache = open_file_cache(&active_path);
+        let old_key = key_on("server-a", "old");
+        cache.touch_track_status(&old_key, "ready").unwrap();
+        cache.upsert_waveform(&old_key, &waveform(4, false)).unwrap();
+
+        {
+            let dst = open_file_cache(&destination_path);
+            let new_key = key_on("server-a", "new");
+            dst.touch_track_status(&new_key, "ready").unwrap();
+            dst.upsert_waveform(&new_key, &waveform(4, false)).unwrap();
+            dst.checkpoint_wal("dst").unwrap();
+        }
+
+        let backup = cache
+            .swap_database_file(&active_path, &destination_path)
+            .unwrap()
+            .expect("backup path must be returned");
+        assert_eq!(backup, backup_path);
+        assert!(
+            cache
+                .get_waveform(&key_on("server-a", "new"))
+                .unwrap()
+                .is_some(),
+            "cache must reopen on swapped destination DB"
+        );
+        assert!(!destination_path.exists(), "destination DB must be moved into active path");
+        assert!(backup_path.exists(), "previous active DB must be moved to backup path");
+
+        cache
+            .restore_database_backup(&backup_path, &active_path)
+            .unwrap();
+        assert!(
+            cache
+                .get_waveform(&key_on("server-a", "old"))
+                .unwrap()
+                .is_some(),
+            "restore must bring old DB back"
+        );
+        assert!(
+            cache
+                .get_waveform(&key_on("server-a", "new"))
+                .unwrap()
+                .is_none(),
+            "restored DB must not contain swapped-in rows"
+        );
+
+        let _ = remove_db_with_sidecars(&active_path);
+        let _ = remove_db_with_sidecars(&backup_path);
+    }
+
+    #[test]
+    fn swap_database_file_returns_none_when_destination_missing() {
+        let active_path = unique_temp_file("swap-none-active");
+        let missing_destination = unique_temp_file("swap-none-dst");
+        let cache = open_file_cache(&active_path);
+        let backup = cache
+            .swap_database_file(&active_path, &missing_destination)
+            .unwrap();
+        assert!(backup.is_none());
+        let _ = remove_db_with_sidecars(&active_path);
+    }
+
+    #[test]
+    fn migrate_db_helpers_move_and_cleanup_sidecars() {
+        let from = unique_temp_file("migrate-from");
+        let to = unique_temp_file("migrate-to");
+        std::fs::write(&from, b"sqlite-bytes").unwrap();
+        std::fs::write(sqlite_sidecar(&from, "-wal"), b"wal").unwrap();
+        std::fs::write(sqlite_sidecar(&from, "-shm"), b"shm").unwrap();
+
+        migrate_db_file(&from, &to).unwrap();
+        assert!(to.exists());
+        assert!(!from.exists());
+
+        migrate_db_sidecar(&from, &to, "-wal").unwrap();
+        migrate_db_sidecar(&from, &to, "-shm").unwrap();
+        assert!(sqlite_sidecar(&to, "-wal").exists());
+        assert!(sqlite_sidecar(&to, "-shm").exists());
+
+        let moved_to = unique_temp_file("migrate-moved");
+        std::fs::write(&moved_to, b"sqlite-bytes-2").unwrap();
+        std::fs::write(sqlite_sidecar(&moved_to, "-wal"), b"wal2").unwrap();
+        move_sidecar(&moved_to, &to, "-wal").unwrap();
+        assert!(!sqlite_sidecar(&moved_to, "-wal").exists());
+        assert!(sqlite_sidecar(&to, "-wal").exists());
+
+        cleanup_legacy_db_if_present(&to, &to).unwrap();
+        cleanup_legacy_db_if_present(&to, &moved_to).unwrap();
+        assert!(!to.exists());
+        assert!(!sqlite_sidecar(&to, "-wal").exists());
+        assert!(!sqlite_sidecar(&to, "-shm").exists());
+    }
+
+    #[test]
+    fn run_migrations_with_applies_unsorted_versions_once() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        let migrations = [
+            (
+                3,
+                "CREATE TABLE IF NOT EXISTS m3 (id INTEGER PRIMARY KEY);",
+            ),
+            (
+                1,
+                "CREATE TABLE IF NOT EXISTS m1 (id INTEGER PRIMARY KEY);",
+            ),
+            (
+                2,
+                "CREATE TABLE IF NOT EXISTS m2 (id INTEGER PRIMARY KEY);",
+            ),
+        ];
+        run_migrations_with(&mut conn, &migrations).unwrap();
+        run_migrations_with(&mut conn, &migrations).unwrap();
+
+        let versions: Vec<i64> = conn
+            .prepare("SELECT version FROM schema_migrations ORDER BY version")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(versions, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn checkpoint_wal_smoke_test() {
+        let cache = AnalysisCache::open_in_memory();
+        cache.checkpoint_wal("test").unwrap();
+    }
+
+    #[test]
+    fn sidecar_helpers_are_noop_when_source_is_missing() {
+        let from = unique_temp_file("sidecar-missing-from");
+        let to = unique_temp_file("sidecar-missing-to");
+        std::fs::write(&to, b"db").unwrap();
+
+        migrate_db_sidecar(&from, &to, "-wal").unwrap();
+        migrate_db_sidecar(&from, &to, "-shm").unwrap();
+        move_sidecar(&from, &to, "-wal").unwrap();
+        move_sidecar(&from, &to, "-shm").unwrap();
+        remove_db_with_sidecars(&from).unwrap();
+
+        assert!(to.exists(), "destination DB stays intact");
+        let _ = remove_db_with_sidecars(&to);
+    }
+
+    #[test]
+    fn restore_database_backup_keeps_active_when_backup_missing() {
+        let active_path = unique_temp_file("restore-active");
+        let backup_path = unique_temp_file("restore-missing-backup");
+        let cache = open_file_cache(&active_path);
+        let k = key_on("server-a", "active-track");
+        cache.touch_track_status(&k, "ready").unwrap();
+        cache.upsert_waveform(&k, &waveform(4, false)).unwrap();
+
+        cache
+            .restore_database_backup(&backup_path, &active_path)
+            .unwrap();
+        assert!(cache.get_waveform(&k).unwrap().is_none());
+
+        let _ = remove_db_with_sidecars(&active_path);
+    }
+
+    #[test]
+    fn init_opens_app_scoped_database_path() {
+        let app = tauri::test::mock_app();
+        let handle = app.handle().clone();
+        let cache = AnalysisCache::init(&handle).expect("analysis cache init with mock app");
+        cache.checkpoint_wal("init-test").unwrap();
+    }
+
+    #[test]
+    fn latest_status_for_track_prefers_newest_variant_timestamp() {
+        let cache = AnalysisCache::open_in_memory();
+        let base = key_on("server-a", "track-1");
+        let prefixed = key_on("server-a", "stream:track-1");
+
+        cache.touch_track_status(&base, "queued").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        cache.touch_track_status(&prefixed, "failed").unwrap();
+
+        let row = cache
+            .get_latest_status_for_track("server-a", "track-1")
+            .unwrap()
+            .expect("latest status row");
+        assert_eq!(row.0, "failed");
+    }
+
+    #[test]
+    fn failed_track_queries_deduplicate_stream_variants() {
+        let cache = AnalysisCache::open_in_memory();
+        let base = key_on("server-a", "track-2");
+        let prefixed = key_on("server-a", "stream:track-2");
+        let other = key_on("server-a", "track-3");
+
+        cache.touch_track_status(&base, "failed").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        cache.touch_track_status(&prefixed, "failed").unwrap();
+        cache.touch_track_status(&other, "failed").unwrap();
+
+        let count = cache.count_failed_tracks("server-a").unwrap();
+        assert_eq!(count, 2);
+
+        let listed = cache.list_failed_tracks("server-a", None).unwrap();
+        assert_eq!(listed.len(), 2);
+        assert!(listed.iter().any(|r| r.track_id == "track-2"));
+        assert!(listed.iter().any(|r| r.track_id == "track-3"));
+    }
+
+    #[test]
+    fn clear_failed_tracks_removes_only_failed_rows() {
+        let cache = AnalysisCache::open_in_memory();
+        let failed = key_on("server-a", "track-failed");
+        let ready = key_on("server-a", "track-ready");
+        cache.touch_track_status(&failed, "failed").unwrap();
+        cache.touch_track_status(&ready, "ready").unwrap();
+
+        let deleted = cache
+            .clear_failed_tracks("server-a", &["track-failed".to_string()])
+            .unwrap();
+        assert_eq!(deleted, 1);
+        assert_eq!(cache.count_failed_tracks("server-a").unwrap(), 0);
+        let ready_latest = cache
+            .get_latest_status_for_track("server-a", "track-ready")
+            .unwrap()
+            .expect("ready row stays");
+        assert_eq!(ready_latest.0, "ready");
     }
 }

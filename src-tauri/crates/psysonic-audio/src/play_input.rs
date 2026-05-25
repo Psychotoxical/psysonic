@@ -9,19 +9,23 @@ use std::time::Duration;
 use ringbuf::traits::Split;
 use ringbuf::{HeapCons, HeapRb};
 use symphonia::core::io::MediaSource;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
+use super::analysis_dispatch::{
+    prepare_playback_analysis, spawn_track_analysis_bytes, spawn_track_analysis_file,
+    TrackAnalysisOrigin,
+};
 use super::decode::{build_source, build_streaming_source, BuiltSource, SizedDecoder};
 use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::{
     content_type_to_hint, fetch_data, format_hint_from_content_disposition,
     normalize_stream_suffix_for_hint, resolve_playback_format_hint, sniff_stream_format_extension,
-    spawn_analysis_seed_from_in_memory_bytes, same_playback_target,
+    same_playback_target,
     STREAM_FORMAT_SNIFF_PROBE_BYTES,
 };
 use super::stream::{
     ranged_download_task, track_download_task, AudioStreamReader,
-    LocalFileSource, RangedHttpSource, LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES,
+    LocalFileSource, RangedHttpSource,
     TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_BUF_CAPACITY, TRACK_STREAM_MIN_BUF_CAPACITY,
 };
 
@@ -62,6 +66,33 @@ pub(super) struct PlayInputContext<'a> {
     pub reuse_chained_bytes: Option<Vec<u8>>,
 }
 
+fn spawn_playback_analysis_bytes(
+    app: &AppHandle,
+    state: &State<'_, AudioEngine>,
+    ctx: &PlayInputContext<'_>,
+    origin: TrackAnalysisOrigin,
+    bytes: Vec<u8>,
+) {
+    let Some(track_id) = ctx
+        .cache_id_for_tasks
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return;
+    };
+    let (sid, high) =
+        prepare_playback_analysis(app, state, ctx.server_id, track_id, None);
+    spawn_track_analysis_bytes(
+        app.clone(),
+        origin,
+        sid,
+        track_id.to_string(),
+        bytes,
+        high,
+        Some((ctx.gen, state.generation.clone())),
+    );
+}
+
 /// Resolves the play input for `audio_play` honouring (in priority order):
 /// 1. Reused chained bytes — manual skip onto pre-chained track.
 /// 2. `psysonic-local://` files — open as seekable LocalFileSource.
@@ -77,14 +108,23 @@ pub(super) async fn select_play_input(
     app: &AppHandle,
 ) -> Result<Option<PlayInput>, String> {
     if let Some(d) = ctx.reuse_chained_bytes {
-        spawn_analysis_seed_from_in_memory_bytes(
-            app,
-            ctx.server_id,
-            ctx.cache_id_for_tasks,
-            ctx.gen,
-            &state.generation,
-            &d,
-        );
+        if let Some(track_id) = ctx
+            .cache_id_for_tasks
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let (sid, high) =
+                prepare_playback_analysis(app, state, ctx.server_id, track_id, None);
+            spawn_track_analysis_bytes(
+                app.clone(),
+                TrackAnalysisOrigin::InMemoryReplay,
+                sid,
+                track_id.to_string(),
+                d.clone(),
+                high,
+                Some((ctx.gen, state.generation.clone())),
+            );
+        }
         return Ok(Some(PlayInput::Bytes(d)));
     }
 
@@ -114,13 +154,12 @@ pub(super) async fn select_play_input(
         Some(d) => d,
         None => return Ok(None), // superseded while downloading
     };
-    spawn_analysis_seed_from_in_memory_bytes(
+    spawn_playback_analysis_bytes(
         app,
-        ctx.server_id,
-        ctx.cache_id_for_tasks,
-        ctx.gen,
-        &state.generation,
-        &data,
+        state,
+        &ctx,
+        TrackAnalysisOrigin::InMemoryReplay,
+        data.clone(),
     );
     Ok(Some(PlayInput::Bytes(data)))
 }
@@ -146,57 +185,17 @@ fn open_local_file_input(
         local_hint
     );
     if let Some(seed_id) = ctx.cache_id_for_tasks {
-        let skip_cpu_seed = app
-            .try_state::<psysonic_analysis::analysis_cache::AnalysisCache>()
-            .map(|c| {
-                c.cpu_seed_redundant_for_track(ctx.server_id.unwrap_or(""), seed_id)
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false);
-        if !skip_cpu_seed {
-            let path_owned = std::path::PathBuf::from(path);
-            let app_seed = app.clone();
-            let gen_seed = ctx.gen;
-            let gen_arc_seed = state.generation.clone();
-            let seed_id = seed_id.to_string();
-            let seed_server = ctx.server_id.unwrap_or("").to_string();
-            tokio::spawn(async move {
-                if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
-                    return;
-                }
-                let data = match tokio::fs::read(&path_owned).await {
-                    Ok(d) => d,
-                    Err(_) => return,
-                };
-                if gen_arc_seed.load(Ordering::SeqCst) != gen_seed {
-                    return;
-                }
-                if data.is_empty() || data.len() > LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES {
-                    crate::app_deprintln!(
-                        "[stream] psysonic-local: skip analysis seed track_id={} bytes={} (over {} MiB cap)",
-                        seed_id,
-                        data.len(),
-                        LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES / (1024 * 1024)
-                    );
-                    return;
-                }
-                crate::app_deprintln!(
-                    "[stream] psysonic-local: file read complete track_id={} size_mib={:.2} — full-track analysis (cpu-seed queue)",
-                    seed_id,
-                    data.len() as f64 / (1024.0 * 1024.0)
-                );
-                let high = crate::engine::analysis_seed_high_priority_for_track(&app_seed, &seed_id);
-                if let Err(e) =
-                    psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app_seed.clone(), seed_server.clone(), seed_id.clone(), data, high).await
-                {
-                    crate::app_eprintln!(
-                        "[analysis] local-file seed failed for {}: {}",
-                        seed_id,
-                        e
-                    );
-                }
-            });
-        }
+        let (sid, high) =
+            prepare_playback_analysis(app, state, ctx.server_id, seed_id, None);
+        spawn_track_analysis_file(
+            app.clone(),
+            TrackAnalysisOrigin::LocalFilePlayback,
+            sid,
+            seed_id.to_string(),
+            std::path::PathBuf::from(path),
+            high,
+            Some((ctx.gen, state.generation.clone())),
+        );
     }
     let reader = LocalFileSource { file, len };
     Ok(PlayInput::SeekableMedia {
@@ -762,14 +761,22 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                     effective_hint
                 );
             }
-            spawn_analysis_seed_from_in_memory_bytes(
-                app,
-                server_id,
-                cache_id_for_tasks,
-                gen,
-                &state.generation,
-                &data,
-            );
+            if let Some(track_id) = cache_id_for_tasks
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                let (sid, high) =
+                    prepare_playback_analysis(app, state, server_id, track_id, None);
+                spawn_track_analysis_bytes(
+                    app.clone(),
+                    TrackAnalysisOrigin::StreamDownloadComplete,
+                    sid,
+                    track_id.to_string(),
+                    data.clone(),
+                    high,
+                    Some((gen, state.generation.clone())),
+                );
+            }
             match build_source_from_play_input(
                 PlayInput::Bytes(data.clone()),
                 state,

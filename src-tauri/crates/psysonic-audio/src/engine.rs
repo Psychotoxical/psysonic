@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use rodio::Player;
-use tauri::{AppHandle, Manager};
 
 use super::state::{ChainedInfo, PreloadedTrack, StreamCompletedSpill};
 
@@ -458,8 +457,4 @@ pub fn refresh_http_user_agent(state: &AudioEngine, ua: &str) {
     if let Ok(mut slot) = state.http_client.write() {
         *slot = client;
     }
-}
-pub(crate) fn analysis_seed_high_priority_for_track(app: &AppHandle, track_id: &str) -> bool {
-    app.try_state::<AudioEngine>()
-        .is_some_and(|e| analysis_track_id_is_current_playback(&e, track_id))
 }

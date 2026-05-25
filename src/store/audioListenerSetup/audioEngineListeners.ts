@@ -25,6 +25,12 @@ import {
 import { usePlayerStore } from '../playerStore';
 import { refreshWaveformForTrack } from '../waveformRefresh';
 import { bumpWaveformRefreshGen } from '../waveformRefreshGen';
+import { setBytePreloadingId } from '../gaplessPreloadState';
+
+type PreloadEventPayload = {
+  url: string;
+  trackId?: string | null;
+};
 
 /**
  * Tauri event listeners for the Rust audio engine + analysis pipeline. Returns
@@ -95,6 +101,13 @@ export function setupAudioEngineListeners(): () => void {
       void refreshLoudnessForTrack(payloadTrackId, { syncPlayingEngine: false });
       emitNormalizationDebug('backfill:applied', { trackId: payloadTrackId });
     }),
+    listen<{ trackId: string; serverId: string }>('analysis:enrichment-updated', ({ payload }) => {
+      if (!payload?.trackId) return;
+      emitNormalizationDebug('enrichment:applied', {
+        trackId: normalizeAnalysisTrackId(payload.trackId) ?? payload.trackId,
+        serverId: payload.serverId,
+      });
+    }),
     listen<NormalizationStatePayload>('audio:normalization-state', ({ payload }) => {
       if (!payload) return;
       const engine =
@@ -140,8 +153,8 @@ export function setupAudioEngineListeners(): () => void {
         normalizationDbgLastEventAt: Date.now(),
       });
     }),
-    listen<string>('audio:preload-ready', ({ payload }) => {
-      const tid = streamUrlTrackId(payload);
+    listen<PreloadEventPayload>('audio:preload-ready', ({ payload }) => {
+      const tid = payload.trackId ?? streamUrlTrackId(payload.url);
       if (import.meta.env.DEV) {
         console.info('[psysonic][preload-ready]', {
           payload,
@@ -153,6 +166,12 @@ export function setupAudioEngineListeners(): () => void {
       else if (import.meta.env.DEV) {
         console.warn('[psysonic][preload-ready] could not parse track id from payload URL');
       }
+    }),
+    listen<PreloadEventPayload>('audio:preload-cancelled', ({ payload }) => {
+      if (import.meta.env.DEV) {
+        console.info('[psysonic][preload-cancelled]', payload);
+      }
+      setBytePreloadingId(null);
     }),
   ];
 

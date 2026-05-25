@@ -58,7 +58,7 @@ function seedStore(over: Partial<ReturnType<typeof usePlayerStore.getState>> = {
  */
 describe('hydrateQueueFromIndex', () => {
   beforeEach(() => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+    useLibraryIndexStore.setState({ masterEnabled: true });
     _resetQueueResolverForTest();
     seedStore();
   });

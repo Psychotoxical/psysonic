@@ -5,7 +5,7 @@ import { patchLibraryTrackOnUse } from './patchOnUse';
 
 describe('patchLibraryTrackOnUse', () => {
   beforeEach(() => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', true);
+    useLibraryIndexStore.setState({ masterEnabled: true });
     onInvoke('library_patch_track', () => undefined);
   });
 
@@ -30,7 +30,7 @@ describe('patchLibraryTrackOnUse', () => {
   });
 
   it('is a no-op when the index is disabled for the server', async () => {
-    useLibraryIndexStore.getState().setIndexEnabled('s1', false);
+    useLibraryIndexStore.setState({ masterEnabled: false });
     patchLibraryTrackOnUse('s1', 't1', { userRating: 4 });
     await Promise.resolve();
     expect(invokeMock).not.toHaveBeenCalled();

@@ -1,7 +1,7 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
 /** Host (+ port) from a server base URL, e.g. `https://music.one.com/foo` → `music.one.com`. */
-export function shortHostFromServerUrl(urlRaw: string): string {
-  const t = urlRaw.trim();
+export function shortHostFromServerUrl(urlRaw?: string | null): string {
+  const t = typeof urlRaw === 'string' ? urlRaw.trim() : '';
   if (!t) return '';
   try {
     const u = new URL(t.includes('://') ? t : `https://${t}`);
@@ -21,7 +21,8 @@ export function shortHostFromServerUrl(urlRaw: string): string {
  */
 export function serverListDisplayLabel(server: ServerProfile, all: ServerProfile[]): string {
   const nameTrim = (server.name || '').trim();
-  const shortHost = shortHostFromServerUrl(server.url);
+  const safeUrl = typeof server.url === 'string' ? server.url : '';
+  const shortHost = shortHostFromServerUrl(safeUrl);
   const key = nameTrim || shortHost;
   const collisions = all.filter(s => {
     const nt = (s.name || '').trim();
@@ -29,7 +30,7 @@ export function serverListDisplayLabel(server: ServerProfile, all: ServerProfile
     return (nt || sh) === key;
   });
   if (collisions.length < 2) {
-    return nameTrim || shortHost || server.url.trim();
+    return nameTrim || shortHost || safeUrl.trim();
   }
   return `${server.username}@${shortHost}`;
 }

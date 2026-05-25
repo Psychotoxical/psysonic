@@ -1,5 +1,6 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { serverListDisplayLabel } from '../server/serverDisplayName';
+import { serverIndexKeyFromUrl } from '../server/serverIndexKey';
 import { findServerIdForShareUrl } from './shareLink';
 import type { ShareSearchMatch } from './shareSearch';
 
@@ -18,7 +19,8 @@ export function shareServerOriginLabel(
   const shareServerId = findServerIdForShareUrl(servers, shareMatch.payload.srv);
   if (!shareServerId || shareServerId === activeServerId) return null;
 
-  const server = servers.find(s => s.id === shareServerId);
+  const server = servers.find(s => s.id === shareServerId)
+    ?? servers.find(s => serverIndexKeyFromUrl(s.url) === shareServerId);
   if (!server) return null;
 
   return serverListDisplayLabel(server, servers);
@@ -37,6 +39,10 @@ export function shareQueueServerContext(
   const label = shareServerOriginLabel(match, servers, activeServerId);
   const serverId = findServerIdForShareUrl(servers, shareSrv);
   const coverServer =
-    serverId && serverId !== activeServerId ? servers.find(s => s.id === serverId) ?? null : null;
+    serverId && serverId !== activeServerId
+      ? servers.find(s => s.id === serverId)
+        ?? servers.find(s => serverIndexKeyFromUrl(s.url) === serverId)
+        ?? null
+      : null;
   return { label, coverServer };
 }

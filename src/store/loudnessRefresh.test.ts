@@ -63,6 +63,7 @@ vi.mock('./loudnessBackfillState', () => ({
 vi.mock('./loudnessBackfillWindow', () => ({
   LOUDNESS_BACKFILL_WINDOW_AHEAD: 5,
   isTrackInsideLoudnessBackfillWindow: hoisted.isTrackInsideWindowMock,
+  loudnessBackfillPriorityForTrack: vi.fn(() => 'middle'),
 }));
 
 import {

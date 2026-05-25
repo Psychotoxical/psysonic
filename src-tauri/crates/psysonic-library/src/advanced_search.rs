@@ -20,20 +20,17 @@ use crate::dto::{
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
 use crate::search::{
-    aliased_track_columns, fts_album_prefix_match_query, fts_column_prefix_query,
-    fts_query_meets_min_len, fts_track_prefix_match_query, library_scope_equals_sql,
-    like_contains, PAGE_LIMIT_MAX,
+    aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
+    fts_album_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
+    fts_track_prefix_match_query, library_scope_equals_sql, like_contains, PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
 
-/// `bpm` dual-storage resolution (§5.13.4): prefer the hot `track.bpm`
-/// column, fall back to the highest-priority `track_fact(bpm)` value. The
-/// spec's `not_found = 0` guard is dropped — the live `track_fact` schema
-/// has no such column (that lives on `track_artifact`).
-const BPM_RESOLVED_EXPR: &str = "COALESCE(t.bpm, (SELECT f.value_int FROM track_fact f \
-  WHERE f.server_id = t.server_id AND f.track_id = t.id AND f.fact_kind = 'bpm' \
-  ORDER BY CASE f.source_kind WHEN 'user' THEN 0 WHEN 'server_tag' THEN 1 \
-  WHEN 'analysis' THEN 2 ELSE 3 END LIMIT 1))";
+/// `bpm` dual-storage resolution (§5.13.4): prefer analysis `track_fact(bpm)`,
+/// then hot `track.bpm` tag, then other fact sources.
+fn bpm_resolved_sql() -> String {
+    bpm_resolved_expr("t")
+}
 
 const ALBUM_COLUMNS: &str = "a.server_id, a.id, a.name, a.artist, a.artist_id, \
   a.song_count, a.duration_sec, a.year, a.genre, a.cover_art_id, a.starred_at, \
@@ -59,6 +56,55 @@ type AlbumBrowseTrackRow = (
 fn fts_candidate_pool_size(limit: u32, offset: u32) -> i64 {
     let need = limit.saturating_add(offset) as i64;
     need.saturating_mul(20).clamp(256, 10_000)
+}
+
+/// FTS rowid pick scoped to the active server (and optional library folder).
+fn scoped_fts_rowid_subquery_sql(pool: i64, library_scope: Option<&str>) -> String {
+    let alias = "t_fts";
+    let mut sql = format!(
+        "SELECT f.rowid FROM track_fts f \
+         JOIN track {alias} ON {alias}.rowid = f.rowid \
+         WHERE track_fts MATCH ? \
+           AND {alias}.server_id = ? \
+           AND {alias}.deleted = 0"
+    );
+    if library_scope.is_some() {
+        sql.push_str(" AND ");
+        sql.push_str(&library_scope_equals_sql(alias));
+    }
+    sql.push_str(&format!(" ORDER BY bm25(track_fts) LIMIT {pool}"));
+    sql
+}
+
+fn scoped_fts_pick_join_sql(pool: i64, library_scope: Option<&str>) -> String {
+    let alias = "t_fts";
+    let mut scope_sql = String::new();
+    if library_scope.is_some() {
+        scope_sql = format!(" AND {}", library_scope_equals_sql(alias));
+    }
+    format!(
+        "track t INNER JOIN (\
+           SELECT f.rowid, bm25(track_fts) AS fts_rank \
+           FROM track_fts f \
+           JOIN track {alias} ON {alias}.rowid = f.rowid \
+           WHERE track_fts MATCH ? \
+             AND {alias}.server_id = ? \
+             AND {alias}.deleted = 0{scope_sql} \
+           ORDER BY fts_rank \
+           LIMIT {pool}\
+         ) fts_pick ON t.rowid = fts_pick.rowid"
+    )
+}
+
+fn scoped_fts_subquery_bind(
+    server_id: &str,
+    library_scope: Option<&str>,
+) -> Vec<SqlValue> {
+    let mut params = vec![SqlValue::Text(server_id.to_string())];
+    if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
+        params.push(SqlValue::Text(scope.to_string()));
+    }
+    params
 }
 
 /// `library_advanced_search` (§5.13). Runs only the queries named in
@@ -183,16 +229,22 @@ fn build_track(
         applied.insert("starred".to_string());
     }
 
-    let cols = aliased_track_columns("t");
+    let bpm_resolved = scalar.iter().any(|c| c.field == "bpm");
+    let cols = if bpm_resolved {
+        aliased_track_columns_resolved_bpm("t")
+    } else {
+        aliased_track_columns("t")
+    };
+    let map_track = if bpm_resolved {
+        map_track_row_resolved_bpm
+    } else {
+        map_track_row_default
+    };
     if let Some(q) = text.and_then(fts_track_prefix_match_query) {
         applied.insert("text".to_string());
         let pool = fts_candidate_pool_size(limit, offset);
-        let from = format!(
-            "track t INNER JOIN (\
-               SELECT rowid, bm25(track_fts) AS fts_rank FROM track_fts \
-               WHERE track_fts MATCH ? ORDER BY fts_rank LIMIT {pool}\
-             ) fts_pick ON t.rowid = fts_pick.rowid"
-        );
+        let scope = trimmed_nonempty(req.library_scope.as_deref());
+        let from = scoped_fts_pick_join_sql(pool, scope.as_deref());
         let order = order_clause(&req.sort, EntityKind::Track)
             .unwrap_or_else(|| "ORDER BY fts_pick.fts_rank".to_string());
         return query_rows_fts(
@@ -200,12 +252,13 @@ fn build_track(
             &cols,
             &from,
             &q,
+            &scoped_fts_subquery_bind(&req.server_id, scope.as_deref()),
             &w,
             &order,
             limit,
             offset,
             skip_totals,
-            |r| repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row)),
+            map_track,
         );
     }
 
@@ -220,8 +273,16 @@ fn build_track(
         limit,
         offset,
         skip_totals,
-        |r| repos::row_to_track_row(r).map(|row| LibraryTrackDto::from_row(&row)),
+        map_track,
     )
+}
+
+fn map_track_row_default(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryTrackDto> {
+    repos::row_to_track_row(row).map(|r| LibraryTrackDto::from_row(&r))
+}
+
+fn map_track_row_resolved_bpm(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryTrackDto> {
+    crate::search::row_to_track_dto_resolved_bpm(row)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -235,9 +296,11 @@ fn build_album(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
-    let table = build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
-    if !table.0.is_empty() || table.1 > 0 {
-        return Ok(table);
+    if !scalar_requires_track_derived_entities(scalar) {
+        let table = build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
+        if !table.0.is_empty() || table.1 > 0 {
+            return Ok(table);
+        }
     }
     if let Some(q) = text.and_then(fts_album_prefix_match_query) {
         return build_album_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
@@ -360,9 +423,11 @@ fn build_artist(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
-    let table = build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
-    if !table.0.is_empty() || table.1 > 0 {
-        return Ok(table);
+    if !scalar_requires_track_derived_entities(scalar) {
+        let table = build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
+        if !table.0.is_empty() || table.1 > 0 {
+            return Ok(table);
+        }
     }
     if let Some(q) = text.and_then(|t| fts_column_prefix_query("artist", t)) {
         return build_artist_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
@@ -478,18 +543,24 @@ fn build_album_from_fts(
     applied.insert("text".to_string());
     let need = limit.saturating_add(offset) as i64;
     let pool = (need.saturating_mul(8)).clamp(64, 2_000);
+    let scope = trimmed_nonempty(req.library_scope.as_deref());
 
     let mut w = WhereBuilder::new();
-    w.push_param(
+    w.push_params(
         &format!(
-            "t.rowid IN (SELECT rowid FROM track_fts WHERE track_fts MATCH ? ORDER BY bm25(track_fts) LIMIT {pool})"
+            "t.rowid IN ({})",
+            scoped_fts_rowid_subquery_sql(pool, scope.as_deref())
         ),
-        SqlValue::Text(fts.to_string()),
+        {
+            let mut p = vec![SqlValue::Text(fts.to_string())];
+            p.extend(scoped_fts_subquery_bind(&req.server_id, scope.as_deref()));
+            p
+        },
     );
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+    if let Some(scope) = scope {
         let clause = library_scope_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
@@ -586,18 +657,24 @@ fn build_artist_from_fts(
     applied.insert("text".to_string());
     let need = limit.saturating_add(offset) as i64;
     let pool = (need.saturating_mul(8)).clamp(64, 2_000);
+    let scope = trimmed_nonempty(req.library_scope.as_deref());
 
     let mut w = WhereBuilder::new();
-    w.push_param(
+    w.push_params(
         &format!(
-            "t.rowid IN (SELECT rowid FROM track_fts WHERE track_fts MATCH ? ORDER BY bm25(track_fts) LIMIT {pool})"
+            "t.rowid IN ({})",
+            scoped_fts_rowid_subquery_sql(pool, scope.as_deref())
         ),
-        SqlValue::Text(fts.to_string()),
+        {
+            let mut p = vec![SqlValue::Text(fts.to_string())];
+            p.extend(scoped_fts_subquery_bind(&req.server_id, scope.as_deref()));
+            p
+        },
     );
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+    if let Some(scope) = scope {
         let clause = library_scope_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
@@ -658,6 +735,14 @@ fn build_artist_from_fts(
 
 // ── clause resolution ──────────────────────────────────────────────────
 
+/// Track-only filters that require joining through `track` (mood enrichment facts).
+/// Other track-only fields (e.g. `bpm`) are skipped silently on album/artist queries.
+fn scalar_requires_track_derived_entities(scalar: &[&LibraryFilterClause]) -> bool {
+    scalar
+        .iter()
+        .any(|c| matches!(c.field.as_str(), "mood_group" | "mood_tag"))
+}
+
 /// Resolve one scalar clause to a WHERE fragment for `entity`. `Ok(None)`
 /// means the field is known but doesn't route to this entity (§5.13.3 skip).
 fn resolve_clause(
@@ -667,6 +752,14 @@ fn resolve_clause(
     let applies = filter::validate_for_entity(&c.field, c.op, entity).map_err(|e| e.to_string())?;
     if !applies {
         return Ok(None);
+    }
+    if c.field == "bpm" && entity == EntityKind::Track {
+        let col = bpm_resolved_sql();
+        let value = json_to_opt_i64(&c.field, c.value.as_ref())?;
+        let value_to = json_to_opt_i64(&c.field, c.value_to.as_ref())?;
+        return filter::compare_fragment(&c.field, &col, c.op, value, value_to)
+            .map(Some)
+            .map_err(|e| e.to_string());
     }
     let col = match (c.field.as_str(), entity) {
         ("genre", EntityKind::Track) => "t.genre",
@@ -678,7 +771,9 @@ fn resolve_clause(
         // `starred` routes to artist in the registry, but the `artist`
         // table has no `starred_at` column — skip rather than error.
         ("starred", EntityKind::Artist) => return Ok(None),
-        ("bpm", EntityKind::Track) => BPM_RESOLVED_EXPR,
+        ("mood_group" | "mood_tag", EntityKind::Track) => {
+            return crate::advanced_search_mood::resolve_mood_clause(c);
+        }
         // `text` is handled by the entity builder (FTS / LIKE), never here.
         ("text", _) => return Ok(None),
         // Registered but no v1 SQL builder (user_rating / suffix / bit_rate).
@@ -768,6 +863,10 @@ impl WhereBuilder {
         self.clauses.push(sql.to_string());
         self.params.push(param);
     }
+    fn push_params(&mut self, sql: &str, params: Vec<SqlValue>) {
+        self.clauses.push(sql.to_string());
+        self.params.extend(params);
+    }
     fn where_sql(&self) -> String {
         self.clauses.join(" AND ")
     }
@@ -816,6 +915,7 @@ fn query_rows_fts<T, F>(
     select_cols: &str,
     from: &str,
     fts_match: &str,
+    fts_subquery_params: &[SqlValue],
     w: &WhereBuilder,
     order_sql: &str,
     limit: u32,
@@ -829,6 +929,7 @@ where
     let where_sql = w.where_sql();
     store.with_read_conn(|conn| {
         let mut bind: Vec<SqlValue> = vec![SqlValue::Text(fts_match.to_string())];
+        bind.extend(fts_subquery_params.iter().cloned());
         bind.extend(w.params.iter().cloned());
 
         let total = count_matching_rows(conn, from, &where_sql, &bind, skip_totals)?;
@@ -1330,6 +1431,132 @@ mod tests {
         r.filters = vec![clause("bpm", FilterOp::Between, Some(json!(125)), Some(json!(130)))];
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.tracks.len(), 1, "bpm should resolve via track_fact fallback");
+        assert_eq!(resp.tracks[0].bpm, Some(128));
+        assert_eq!(resp.tracks[0].bpm_source.as_deref(), Some("analysis"));
+    }
+
+    #[test]
+    fn bpm_filter_prefers_analysis_fact_over_hot_tag() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = track("s1", "t1", "A", "X", "Alb");
+        a.bpm = Some(90);
+        TrackRepository::new(&store).upsert_batch(&[a]).unwrap();
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO track_fact \
+                     (server_id, track_id, fact_kind, value_int, source_kind, source_id, confidence, fetched_at) \
+                     VALUES ('s1', 't1', 'bpm', 128, 'analysis', 'oximedia-60s-center', 1.0, 1)",
+                    [],
+                )
+            })
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("bpm", FilterOp::Between, Some(json!(125)), Some(json!(130)))];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].bpm, Some(128));
+        assert_eq!(resp.tracks[0].bpm_source.as_deref(), Some("analysis"));
+    }
+
+    #[test]
+    fn bpm_source_is_tag_when_only_hot_column_set() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = track("s1", "t1", "A", "X", "Alb");
+        a.bpm = Some(125);
+        TrackRepository::new(&store).upsert_batch(&[a]).unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("bpm", FilterOp::Between, Some(json!(120)), Some(json!(130)))];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].bpm_source.as_deref(), Some("tag"));
+    }
+
+    // ── mood tag / group filters ─────────────────────────────────────
+
+    fn insert_mood_tag(store: &LibraryStore, server: &str, track: &str, tag: &str) {
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO track_fact \
+                     (server_id, track_id, fact_kind, value_text, source_kind, source_id, confidence, fetched_at) \
+                     VALUES (?1, ?2, 'mood_tag', ?3, 'analysis', ?4, 1.0, 1)",
+                    rusqlite::params![server, track, tag, format!("oximedia-60s-center:{tag}")],
+                )
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn mood_group_joy_matches_happy_mood_tag() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "A", "X", "Alb"),
+                track("s1", "t2", "B", "X", "Alb"),
+            ])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t1", "happy");
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("mood_group", FilterOp::Eq, Some(json!("joy")), None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn mood_groups_overlap_work_and_romance_on_calm_peaceful_track() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[track("s1", "t1", "Calm", "X", "Alb")])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t1", "calm");
+        insert_mood_tag(&store, "s1", "t1", "peaceful");
+        for group in ["work", "romance"] {
+            let mut r = req("s1", &[EntityKind::Track]);
+            r.filters = vec![clause("mood_group", FilterOp::Eq, Some(json!(group)), None)];
+            let resp = run_advanced_search(&store, &r).unwrap();
+            assert_eq!(resp.tracks.len(), 1, "group `{group}` should match calm/peaceful");
+        }
+    }
+
+    #[test]
+    fn mood_group_in_joy_matches_happy_tag() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "A", "X", "Alb"),
+                track("s1", "t2", "B", "X", "Alb"),
+            ])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t1", "happy");
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause(
+            "mood_group",
+            FilterOp::In,
+            Some(json!(["joy"])),
+            None,
+        )];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn mood_tag_eq_calm_matches_calm_fact() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "A", "X", "Alb"),
+                track("s1", "t2", "B", "X", "Alb"),
+            ])
+            .unwrap();
+        insert_mood_tag(&store, "s1", "t2", "calm");
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("mood_tag", FilterOp::Eq, Some(json!("calm")), None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t2");
     }
 
     // ── entity routing / errors ────────────────────────────────────────

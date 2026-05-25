@@ -5,6 +5,6 @@ import { useLibraryIndexStore } from '../store/libraryIndexStore';
 export function usePlayerStatsRecordingEnabled(): boolean {
   const servers = useAuthStore(s => s.servers);
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
-  const syncExcludedByServer = useLibraryIndexStore(s => s.syncExcludedByServer);
-  return masterEnabled && servers.some(s => syncExcludedByServer[s.id] !== true);
+  const indexedServerIds = useLibraryIndexStore(s => s.indexedServerIds);
+  return masterEnabled && indexedServerIds(servers.map(s => s.id)).length > 0;
 }

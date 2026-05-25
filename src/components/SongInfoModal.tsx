@@ -1,4 +1,5 @@
 import { getSong } from '../api/subsonicLibrary';
+import { libraryGetFacts } from '../api/library';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -7,11 +8,19 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ndGetSongPath } from '../api/navidromeAdmin';
 import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useTranslation } from 'react-i18next';
 import { copyTextToClipboard } from '../utils/server/serverMagicString';
 import { showToast } from '../utils/ui/toast';
 import { formatTrackTime } from '../utils/format/formatDuration';
 import { formatLastSeen } from '../utils/componentHelpers/userMgmtHelpers';
+import { libraryIsReady } from '../utils/library/libraryReady';
+import {
+  formatQueueMoodLabels,
+  parseTrackEnrichmentFacts,
+  resolveQueueBpm,
+  type ParsedTrackEnrichment,
+} from '../utils/library/trackEnrichment';
 import i18n from '../i18n';
 
 function formatSize(bytes?: number): string | null {
@@ -61,6 +70,7 @@ export default function SongInfoModal() {
     useShallow(s => ({ songInfoModal: s.songInfoModal, closeSongInfo: s.closeSongInfo }))
   );
   const [song, setSong] = useState<SubsonicSong | null>(null);
+  const [enrichment, setEnrichment] = useState<ParsedTrackEnrichment | null>(null);
   const [loading, setLoading] = useState(false);
   // Absolute filesystem path resolved via Navidrome's native API in parallel
   // with the Subsonic getSong call. Subsonic only ever returns a relative
@@ -71,16 +81,40 @@ export default function SongInfoModal() {
   useEffect(() => {
     if (!songInfoModal.isOpen || !songInfoModal.songId) {
       setSong(null);
+      setEnrichment(null);
       setAbsolutePath(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    setEnrichment(null);
     setAbsolutePath(null);
     const songId = songInfoModal.songId;
-    getSong(songId).then(s => {
-      if (!cancelled) { setSong(s); setLoading(false); }
-    });
+    void (async () => {
+      const s = await getSong(songId);
+      if (cancelled) return;
+      setSong(s);
+      setLoading(false);
+      if (!s) {
+        setEnrichment(null);
+        return;
+      }
+      const auth = useAuthStore.getState();
+      const sid = auth.activeServerId;
+      const indexEnabled = sid ? useLibraryIndexStore.getState().isIndexEnabled(sid) : false;
+      if (sid && indexEnabled && await libraryIsReady(sid)) {
+        try {
+          const facts = await libraryGetFacts(sid, songId);
+          if (!cancelled) {
+            setEnrichment(parseTrackEnrichmentFacts(facts, s.bpm ?? null));
+          }
+        } catch {
+          if (!cancelled) setEnrichment(null);
+        }
+      } else if (!cancelled) {
+        setEnrichment(null);
+      }
+    })();
     // Try the native API in parallel; only when the active server is Navidrome
     // and we have credentials. Failures are silent — modal falls back to
     // whatever the Subsonic `path` field carried (typically nothing).
@@ -124,6 +158,17 @@ export default function SongInfoModal() {
   const hasReplayGain = song?.replayGain &&
     (song.replayGain.trackGain !== undefined || song.replayGain.albumGain !== undefined);
 
+  const displayBpm = song
+    ? resolveQueueBpm(
+      enrichment ?? {
+        serverBpm: song.bpm != null && song.bpm > 0 ? song.bpm : null,
+        measuredBpm: null,
+        moodLabels: [],
+      },
+    )
+    : null;
+  const displayMood = enrichment ? formatQueueMoodLabels(enrichment.moodLabels, t) : null;
+
   return createPortal(
     <>
       <div className="song-info-backdrop" onClick={closeSongInfo} />
@@ -151,7 +196,8 @@ export default function SongInfoModal() {
                 <Row label={t('songInfo.genre')} value={song.genre} />
                 <Row label={t('songInfo.duration')} value={formatTrackTime(song.duration)} />
                 <Row label={t('songInfo.track')} value={trackLabel} />
-                <Row label={t('songInfo.bpm')} value={song.bpm} />
+                <Row label={t('songInfo.bpm')} value={displayBpm} />
+                <Row label={t('songInfo.mood')} value={displayMood} />
                 <Row label={t('songInfo.playCount')} value={song.playCount} />
                 <Row label={t('songInfo.lastPlayed')} value={song.played ? formatLastSeen(song.played, i18n.language, '—') : null} />
 

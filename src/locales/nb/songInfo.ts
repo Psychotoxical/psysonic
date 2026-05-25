@@ -9,6 +9,7 @@ export const songInfo = {
   duration: 'Varighet',
   track: 'Spor',
   bpm: 'BPM',
+  mood: 'Stemning',
   playCount: 'Avspillinger',
   lastPlayed: 'Sist spilt',
   format: 'Format',

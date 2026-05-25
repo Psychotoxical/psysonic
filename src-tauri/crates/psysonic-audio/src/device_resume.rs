@@ -245,6 +245,7 @@ pub(crate) async fn try_resume_after_device_change(
     // Inform the frontend of the new duration (keeps seekbar range correct).
     app.emit("audio:playing", ps.built.duration_secs).ok();
 
+    let analysis_app = app.clone();
     spawn_progress_task(
         gen,
         engine.generation.clone(),
@@ -254,6 +255,7 @@ pub(crate) async fn try_resume_after_device_change(
         engine.crossfade_secs.clone(),
         done_flag,
         app.clone(),
+        Some(analysis_app),
         engine.samples_played.clone(),
         engine.current_sample_rate.clone(),
         engine.current_channels.clone(),

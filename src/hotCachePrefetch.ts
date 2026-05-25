@@ -1,5 +1,5 @@
 import { buildStreamUrlForServer } from './api/subsonicStreamUrl';
-import { getPlaybackServerId } from './utils/playback/playbackServer';
+import { getPlaybackCacheServerKey } from './utils/playback/playbackServer';
 import type { QueueItemRef } from './store/playerStoreTypes';
 import { resolveQueueTrack } from './utils/library/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
@@ -75,7 +75,7 @@ async function runWorker() {
   try {
     while (pendingQueue.length > 0) {
       const auth = useAuthStore.getState();
-      const playbackSid = getPlaybackServerId();
+      const playbackSid = getPlaybackCacheServerKey();
       if (!auth.isLoggedIn || !auth.hotCacheEnabled || !playbackSid) {
         hotCacheFrontendDebug({
           event: 'prefetch-worker-stop',
@@ -177,7 +177,7 @@ async function runWorker() {
           fresh.queueItems,
           fresh.queueIndex,
           maxAfter,
-          getPlaybackServerId(),
+          getPlaybackCacheServerKey(),
           authAfter.hotCacheDownloadDir || null,
         );
       } catch (e: unknown) {
@@ -192,7 +192,7 @@ async function runWorker() {
 
 function scheduleReplan() {
   const auth = useAuthStore.getState();
-  const playbackSid = getPlaybackServerId();
+  const playbackSid = getPlaybackCacheServerKey();
   if (!auth.isLoggedIn || !auth.hotCacheEnabled || !playbackSid) {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
@@ -211,7 +211,7 @@ function scheduleReplan() {
 
 async function replanNow() {
   const auth = useAuthStore.getState();
-  const playbackSid = getPlaybackServerId();
+  const playbackSid = getPlaybackCacheServerKey();
   if (!auth.isLoggedIn || !auth.hotCacheEnabled || !playbackSid) return;
 
   const serverId = playbackSid;
@@ -295,7 +295,7 @@ export function initHotCachePrefetch(): () => void {
     if (onlyIndexMoved && i > prevIdx && prevIdx >= 0 && Array.isArray(prevQ)) {
       const left = (prevQ as QueueItemRef[])[prevIdx];
       const a = useAuthStore.getState();
-      const graceSid = getPlaybackServerId();
+      const graceSid = getPlaybackCacheServerKey();
       if (left && graceSid) {
         bumpHotCachePreviousTrackGrace(left.trackId, graceSid, a.hotCacheDebounceSec);
         scheduleEvictAfterPreviousGrace();

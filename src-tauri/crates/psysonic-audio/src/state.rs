@@ -18,6 +18,10 @@ pub(crate) struct StreamCompletedSpill {
 pub(crate) struct ChainedInfo {
     /// The URL that was chained — used by audio_play to detect a pre-chain hit.
     pub(crate) url: String,
+    /// Subsonic track id for analysis dispatch (from `audio_chain_preload`).
+    pub(crate) analysis_track_id: Option<String>,
+    /// Playback server scope for analysis writes.
+    pub(crate) server_id: Option<String>,
     /// Raw file bytes (shared with the chained decoder). Lets manual skip reuse
     /// them instead of re-downloading after dropping the Sink queue.
     pub(crate) raw_bytes: Arc<Vec<u8>>,

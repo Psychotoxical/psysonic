@@ -10,6 +10,8 @@ import {
 } from '../../utils/componentHelpers/queuePanelHelpers';
 import { loudnessGainPlaceholderUntilCacheDb } from '../../utils/audio/loudnessPlaceholder';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/loudnessPreAnalysisSlider';
+import { formatQueueBpmTech, formatQueueMoodLabels } from '../../utils/library/trackEnrichment';
+import { useQueueTrackEnrichment } from '../../hooks/useQueueTrackEnrichment';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { usePlayerStore } from '../../store/playerStore';
@@ -48,6 +50,9 @@ export function QueueCurrentTrack({
   lufsTgtBtnRef, lufsTgtMenuRef, lufsTgtPopStyle, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
+  const enrichment = useQueueTrackEnrichment(currentTrack.id);
+  const bpmTech = formatQueueBpmTech(enrichment, t);
+  const moodLine = formatQueueMoodLabels(enrichment.moodLabels, t);
   return (
     <div className="queue-current-track">
       {(() => {
@@ -62,6 +67,7 @@ export function QueueCurrentTrack({
             if (sr) return sr;
             return undefined;
           })(),
+          bpmTech ?? undefined,
         ].filter(Boolean) as string[];
         const rgParts = formatQueueReplayGainParts(currentTrack, t);
         const baseLine = baseParts.join(' · ');
@@ -86,7 +92,7 @@ export function QueueCurrentTrack({
         })();
         const tgtNum = normalizationTargetLufs ?? authLoudnessTargetLufs;
         const targetLabel = `${tgtNum} LUFS`;
-        if (!baseLine && !rgLine && !playbackSource) return null;
+        if (!baseLine && !rgLine && !playbackSource && !bpmTech) return null;
         const showRgLine = !isLoudnessActive && expandReplayGain && !!rgLine;
         const showLufsLine = isLoudnessActive && expandReplayGain;
         return (
@@ -214,6 +220,9 @@ export function QueueCurrentTrack({
           >{currentTrack.album}</div>
           {currentTrack.year && (
             <div className="queue-current-sub">{currentTrack.year}</div>
+          )}
+          {moodLine && (
+            <div className="queue-current-sub queue-current-enrichment">{moodLine}</div>
           )}
           {(() => {
             const label = orbitAttributionLabel(currentTrack.id);

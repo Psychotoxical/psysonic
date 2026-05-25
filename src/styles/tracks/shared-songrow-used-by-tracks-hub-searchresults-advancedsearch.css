@@ -74,6 +74,17 @@
   font-size: 12px;
 }
 
+.song-list-row--with-bpm {
+  grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 110px 48px 56px;
+}
+
+.song-list-row-bpm {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .song-list-row-btn {
   background: transparent;
   border: none;

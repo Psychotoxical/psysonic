@@ -8,6 +8,9 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useAuthStore } from '../store/authStore';
+import { serverIndexKeyFromUrl } from '../utils/server/serverIndexKey';
+import { resolveServerIdForIndexKey } from '../utils/server/serverLookup';
 
 // ── DTO mirrors (camelCase, matching the Rust `#[serde(rename_all = "camelCase")]`) ─
 
@@ -53,6 +56,8 @@ export interface LibraryTrackDto {
   isrc?: string | null;
   mbidRecording?: string | null;
   bpm?: number | null;
+  /** `'analysis'` | `'tag'` — Advanced Search BPM dual-storage projection only. */
+  bpmSource?: string | null;
   replayGainTrackDb?: number | null;
   replayGainAlbumDb?: number | null;
   serverUpdatedAt?: number | null;
@@ -256,13 +261,37 @@ export interface LibraryCrossServerSearchResponse {
   serversSearched: string[];
 }
 
+function serverIndexKeyForId(serverId: string): string {
+  const server = useAuthStore.getState().servers.find(s => s.id === serverId);
+  if (!server) return serverId;
+  return serverIndexKeyFromUrl(server.url) || serverId;
+}
+
+function mapServerIdFromIndexKey(serverId: string, fallback?: string): string {
+  if (fallback) return fallback;
+  return resolveServerIdForIndexKey(serverId);
+}
+
+function mapTracksServerId(
+  tracks: LibraryTrackDto[],
+  fallbackServerId?: string,
+): LibraryTrackDto[] {
+  if (tracks.length === 0) return tracks;
+  return tracks.map(track => ({
+    ...track,
+    serverId: mapServerIdFromIndexKey(track.serverId, fallbackServerId),
+  }));
+}
+
 // ── Read commands (PR-5a) ─────────────────────────────────────────────
 
 export function libraryGetStatus(
   serverId: string,
   libraryScope?: string,
 ): Promise<SyncStateDto> {
-  return invoke<SyncStateDto>('library_get_status', { serverId, libraryScope });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<SyncStateDto>('library_get_status', { serverId: indexKey, libraryScope })
+    .then(status => ({ ...status, serverId }));
 }
 
 export function librarySearch(
@@ -270,13 +299,17 @@ export function librarySearch(
   query: string,
   options?: { limit?: number; offset?: number; libraryScope?: string },
 ): Promise<LibraryTracksEnvelope> {
+  const indexKey = serverIndexKeyForId(serverId);
   return invoke<LibraryTracksEnvelope>('library_search', {
-    serverId,
+    serverId: indexKey,
     query,
     limit: options?.limit,
     offset: options?.offset,
     libraryScope: options?.libraryScope,
-  });
+  }).then(envelope => ({
+    ...envelope,
+    tracks: mapTracksServerId(envelope.tracks, serverId),
+  }));
 }
 
 /**
@@ -287,7 +320,21 @@ export function librarySearch(
 export function libraryAdvancedSearch(
   request: LibraryAdvancedSearchRequest,
 ): Promise<LibraryAdvancedSearchResponse> {
-  return invoke<LibraryAdvancedSearchResponse>('library_advanced_search', { request });
+  const indexKey = serverIndexKeyForId(request.serverId);
+  return invoke<LibraryAdvancedSearchResponse>('library_advanced_search', {
+    request: { ...request, serverId: indexKey },
+  }).then(response => ({
+    ...response,
+    artists: response.artists.map(artist => ({
+      ...artist,
+      serverId: mapServerIdFromIndexKey(artist.serverId, request.serverId),
+    })),
+    albums: response.albums.map(album => ({
+      ...album,
+      serverId: mapServerIdFromIndexKey(album.serverId, request.serverId),
+    })),
+    tracks: mapTracksServerId(response.tracks, request.serverId),
+  }));
 }
 
 export interface LibraryLiveSearchResponse {
@@ -311,7 +358,21 @@ export interface LibraryLiveSearchRequest {
 }
 
 export function libraryLiveSearch(request: LibraryLiveSearchRequest): Promise<LibraryLiveSearchResponse> {
-  return invoke<LibraryLiveSearchResponse>('library_live_search', { request });
+  const indexKey = serverIndexKeyForId(request.serverId);
+  return invoke<LibraryLiveSearchResponse>('library_live_search', {
+    request: { ...request, serverId: indexKey },
+  }).then(response => ({
+    ...response,
+    artists: response.artists.map(artist => ({
+      ...artist,
+      serverId: mapServerIdFromIndexKey(artist.serverId, request.serverId),
+    })),
+    albums: response.albums.map(album => ({
+      ...album,
+      serverId: mapServerIdFromIndexKey(album.serverId, request.serverId),
+    })),
+    tracks: mapTracksServerId(response.tracks, request.serverId),
+  }));
 }
 
 /** Cross-server FTS union over the given servers, or all `ready` ones (§5.5B). */
@@ -320,25 +381,48 @@ export function librarySearchCrossServer(args: {
   limit?: number;
   servers?: string[];
 }): Promise<LibraryCrossServerSearchResponse> {
-  return invoke<LibraryCrossServerSearchResponse>('library_search_cross_server', args);
+  const indexServers = args.servers?.map(serverIndexKeyForId);
+  return invoke<LibraryCrossServerSearchResponse>('library_search_cross_server', {
+    ...args,
+    servers: indexServers,
+  }).then(response => ({
+    ...response,
+    hits: mapTracksServerId(response.hits),
+    fuzzy: mapTracksServerId(response.fuzzy),
+    serversSearched: response.serversSearched.map(id => mapServerIdFromIndexKey(id)),
+  }));
 }
 
 export function libraryGetTrack(
   serverId: string,
   trackId: string,
 ): Promise<LibraryTrackDto | null> {
-  return invoke<LibraryTrackDto | null>('library_get_track', { serverId, trackId });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<LibraryTrackDto | null>('library_get_track', { serverId: indexKey, trackId })
+    .then(track => (track ? { ...track, serverId } : track));
 }
 
 export function libraryGetTracksBatch(refs: TrackRefDto[]): Promise<LibraryTrackDto[]> {
-  return invoke<LibraryTrackDto[]>('library_get_tracks_batch', { refs });
+  const indexKeyMap = new Map<string, string>();
+  const remapped = refs.map(ref => {
+    const indexKey = serverIndexKeyForId(ref.serverId);
+    if (!indexKeyMap.has(indexKey)) indexKeyMap.set(indexKey, ref.serverId);
+    return { ...ref, serverId: indexKey };
+  });
+  return invoke<LibraryTrackDto[]>('library_get_tracks_batch', { refs: remapped })
+    .then(tracks => tracks.map(track => ({
+      ...track,
+      serverId: mapServerIdFromIndexKey(track.serverId, indexKeyMap.get(track.serverId)),
+    })));
 }
 
 export function libraryGetTracksByAlbum(
   serverId: string,
   albumId: string,
 ): Promise<LibraryTrackDto[]> {
-  return invoke<LibraryTrackDto[]>('library_get_tracks_by_album', { serverId, albumId });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<LibraryTrackDto[]>('library_get_tracks_by_album', { serverId: indexKey, albumId })
+    .then(tracks => mapTracksServerId(tracks, serverId));
 }
 
 export function libraryGetArtifact(
@@ -347,14 +431,15 @@ export function libraryGetArtifact(
   artifactKind: string,
   options?: { sourceKind?: string; sourceId?: string; format?: string },
 ): Promise<TrackArtifactDto | null> {
+  const indexKey = serverIndexKeyForId(serverId);
   return invoke<TrackArtifactDto | null>('library_get_artifact', {
-    serverId,
+    serverId: indexKey,
     trackId,
     artifactKind,
     sourceKind: options?.sourceKind,
     sourceId: options?.sourceId,
     format: options?.format,
-  });
+  }).then(artifact => (artifact ? { ...artifact, serverId } : artifact));
 }
 
 export function libraryGetFacts(
@@ -362,14 +447,18 @@ export function libraryGetFacts(
   trackId: string,
   factKinds?: string[],
 ): Promise<TrackFactDto[]> {
-  return invoke<TrackFactDto[]>('library_get_facts', { serverId, trackId, factKinds });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<TrackFactDto[]>('library_get_facts', { serverId: indexKey, trackId, factKinds })
+    .then(facts => facts.map(fact => ({ ...fact, serverId })));
 }
 
 export function libraryGetOfflinePath(
   serverId: string,
   trackId: string,
 ): Promise<OfflinePathDto> {
-  return invoke<OfflinePathDto>('library_get_offline_path', { serverId, trackId });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<OfflinePathDto>('library_get_offline_path', { serverId: indexKey, trackId })
+    .then(path => ({ ...path, serverId }));
 }
 
 // ── Session + lifecycle (PR-5b) ───────────────────────────────────────
@@ -381,11 +470,13 @@ export function librarySyncBindSession(args: {
   password: string;
   libraryScope?: string;
 }): Promise<void> {
-  return invoke<void>('library_sync_bind_session', args);
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<void>('library_sync_bind_session', { ...args, serverId: indexKey });
 }
 
 export function librarySyncClearSession(serverId: string): Promise<void> {
-  return invoke<void>('library_sync_clear_session', { serverId });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<void>('library_sync_clear_session', { serverId: indexKey });
 }
 
 export type PlaybackHint = 'idle' | 'playing' | 'prefetch_active';
@@ -405,7 +496,9 @@ export function librarySyncStart(args: {
   mode: SyncMode;
   libraryScope?: string;
 }): Promise<SyncJobDto> {
-  return invoke<SyncJobDto>('library_sync_start', args);
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<SyncJobDto>('library_sync_start', { ...args, serverId: indexKey })
+    .then(job => ({ ...job, serverId: args.serverId }));
 }
 
 /** Forced full-budget tombstone delta — Settings → «Verify integrity». */
@@ -413,7 +506,9 @@ export function librarySyncVerifyIntegrity(args: {
   serverId: string;
   libraryScope?: string;
 }): Promise<SyncJobDto> {
-  return invoke<SyncJobDto>('library_sync_verify_integrity', args);
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<SyncJobDto>('library_sync_verify_integrity', { ...args, serverId: indexKey })
+    .then(job => ({ ...job, serverId: args.serverId }));
 }
 
 export function librarySyncCancel(jobId?: string): Promise<void> {
@@ -433,7 +528,8 @@ export function libraryPatchTrack(args: {
     contentHash?: string | null;
   };
 }): Promise<void> {
-  return invoke<void>('library_patch_track', args);
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<void>('library_patch_track', { ...args, serverId: indexKey });
 }
 
 export function libraryPutArtifact(args: {
@@ -441,7 +537,8 @@ export function libraryPutArtifact(args: {
   trackId: string;
   artifact: ArtifactInputDto;
 }): Promise<void> {
-  return invoke<void>('library_put_artifact', args);
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<void>('library_put_artifact', { ...args, serverId: indexKey });
 }
 
 export function libraryPutFact(args: {
@@ -449,7 +546,8 @@ export function libraryPutFact(args: {
   trackId: string;
   fact: FactInputDto;
 }): Promise<void> {
-  return invoke<void>('library_put_fact', args);
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<void>('library_put_fact', { ...args, serverId: indexKey });
 }
 
 export function libraryPurgeServer(args: {
@@ -457,11 +555,13 @@ export function libraryPurgeServer(args: {
   includeAnalysis?: boolean;
   includeOffline?: boolean;
 }): Promise<PurgeReportDto> {
-  return invoke<PurgeReportDto>('library_purge_server', args);
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<PurgeReportDto>('library_purge_server', { ...args, serverId: indexKey });
 }
 
 export function libraryDeleteServerData(serverId: string): Promise<void> {
-  return invoke<void>('library_delete_server_data', { serverId });
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<void>('library_delete_server_data', { serverId: indexKey });
 }
 
 // ── Player stats (local listening history) ────────────────────────────
@@ -530,7 +630,8 @@ export type PlaySessionRecentDay = {
 };
 
 export function libraryRecordPlaySession(input: PlaySessionInput): Promise<void> {
-  return invoke<void>('library_record_play_session', { input });
+  const indexKey = serverIndexKeyForId(input.serverId);
+  return invoke<void>('library_record_play_session', { input: { ...input, serverId: indexKey } });
 }
 
 export function libraryGetPlayerStatsYearSummary(year: number): Promise<PlaySessionYearSummary> {
@@ -542,7 +643,14 @@ export function libraryGetPlayerStatsHeatmap(year: number): Promise<PlaySessionH
 }
 
 export function libraryGetPlayerStatsDayDetail(dateIso: string): Promise<PlaySessionDayDetail> {
-  return invoke<PlaySessionDayDetail>('library_get_player_stats_day_detail', { dateIso });
+  return invoke<PlaySessionDayDetail>('library_get_player_stats_day_detail', { dateIso })
+    .then(detail => ({
+      ...detail,
+      tracks: detail.tracks.map(track => ({
+        ...track,
+        serverId: mapServerIdFromIndexKey(track.serverId),
+      })),
+    }));
 }
 
 export function libraryGetPlayerStatsYearBounds(): Promise<PlaySessionYearBounds> {

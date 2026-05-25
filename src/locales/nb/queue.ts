@@ -43,4 +43,15 @@ export const queue = {
   sourceStream: 'Spiller fra nettverksstrøm',
   clearCachedLoudnessWaveform: 'Clear cached loudness and waveform, then re-analyze this track',
   recalculatingLoudnessWaveform: 'Recalculating loudness and waveform for this track…',
+  bpm: '{{bpm}} BPM',
+  moods: {
+    happy: 'Happy',
+    excited: 'Excited',
+    calm: 'Calm',
+    peaceful: 'Peaceful',
+    angry: 'Angry',
+    tense: 'Tense',
+    sad: 'Sad',
+    melancholic: 'Melancholic',
+  },
 };

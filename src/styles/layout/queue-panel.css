@@ -209,6 +209,12 @@
   color: var(--accent);
 }
 
+.queue-current-enrichment {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
 .queue-current-tech {
   width: 100%;
   font-size: 9px;

@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::{fs, io};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -8,7 +9,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 7;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 9;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -31,6 +32,9 @@ const MIGRATION_005_TRACK_GENRE_YEAR_INDEXES: &str =
     include_str!("../migrations/005_track_genre_year_indexes.sql");
 const MIGRATION_006_PLAY_SESSION: &str = include_str!("../migrations/006_play_session.sql");
 const MIGRATION_007_RESYNC_GEN: &str = include_str!("../migrations/007_resync_gen.sql");
+const MIGRATION_008_MOOD_TAG_INDEX: &str = include_str!("../migrations/008_mood_tag_index.sql");
+const MIGRATION_009_PURGE_MOOD_FACTS: &str =
+    include_str!("../migrations/009_purge_mood_facts.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -42,6 +46,8 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (5, MIGRATION_005_TRACK_GENRE_YEAR_INDEXES),
     (6, MIGRATION_006_PLAY_SESSION),
     (7, MIGRATION_007_RESYNC_GEN),
+    (8, MIGRATION_008_MOOD_TAG_INDEX),
+    (9, MIGRATION_009_PURGE_MOOD_FACTS),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +90,7 @@ impl LibraryStore {
         let write_conn = Connection::open(db_path).map_err(|e| e.to_string())?;
         configure_write_connection(&write_conn).map_err(|e| e.to_string())?;
         run_migrations(&write_conn).map_err(|e| e.to_string())?;
+        checkpoint_wal_conn(&write_conn, "open").map_err(|e| e.to_string())?;
         let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|e| e.to_string())?;
         configure_read_connection(&read_conn).map_err(|e| e.to_string())?;
@@ -174,6 +181,108 @@ impl LibraryStore {
         log_write_op(op, lock_wait_ms as u128, exec_ms as u128);
         Ok((out, WriteOpTiming { lock_wait_ms, exec_ms }))
     }
+
+    pub(crate) fn checkpoint_wal(&self, op: &'static str) -> Result<(), String> {
+        self.with_conn_mut(op, |conn| {
+            checkpoint_wal_conn(conn, op)?;
+            Ok(())
+        })
+    }
+
+    /// Atomically switch the active sqlite file while replacing long-lived
+    /// write/read connections under the same locks so no command can keep
+    /// writing to the old inode after the swap.
+    pub fn swap_database_file(
+        &self,
+        active_path: &Path,
+        destination_path: &Path,
+    ) -> Result<Option<PathBuf>, String> {
+        if !destination_path.exists() {
+            return Ok(None);
+        }
+        let mut write_conn = self
+            .write_conn
+            .lock()
+            .map_err(|_| "library store write lock poisoned".to_string())?;
+        let mut read_conn = self
+            .read_conn
+            .lock()
+            .map_err(|_| "library store read lock poisoned".to_string())?;
+
+        let write_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let read_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_write = std::mem::replace(&mut *write_conn, write_tmp);
+        let old_read = std::mem::replace(&mut *read_conn, read_tmp);
+        drop(old_write);
+        drop(old_read);
+
+        let backup = active_path.with_file_name(format!(
+            "{}.backup-pre-indexkey",
+            active_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("library.sqlite")
+        ));
+        remove_db_with_sidecars(&backup).ok();
+        if active_path.exists() {
+            fs::rename(active_path, &backup).map_err(|e| e.to_string())?;
+            move_sidecar(active_path, &backup, "-wal")?;
+            move_sidecar(active_path, &backup, "-shm")?;
+        }
+        if let Err(err) = fs::rename(destination_path, active_path) {
+            if backup.exists() {
+                let _ = fs::rename(&backup, active_path);
+                let _ = move_sidecar(&backup, active_path, "-wal");
+                let _ = move_sidecar(&backup, active_path, "-shm");
+            }
+            return Err(err.to_string());
+        }
+
+        let reopened_write = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_write_connection(&reopened_write).map_err(|e| e.to_string())?;
+        let reopened_read = Connection::open_with_flags(active_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+        configure_read_connection(&reopened_read).map_err(|e| e.to_string())?;
+        *write_conn = reopened_write;
+        *read_conn = reopened_read;
+        Ok(Some(backup))
+    }
+
+    pub fn restore_database_backup(&self, backup_path: &Path, active_path: &Path) -> Result<(), String> {
+        let mut write_conn = self
+            .write_conn
+            .lock()
+            .map_err(|_| "library store write lock poisoned".to_string())?;
+        let mut read_conn = self
+            .read_conn
+            .lock()
+            .map_err(|_| "library store read lock poisoned".to_string())?;
+
+        let write_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let read_tmp = Connection::open_in_memory().map_err(|e| e.to_string())?;
+        let old_write = std::mem::replace(&mut *write_conn, write_tmp);
+        let old_read = std::mem::replace(&mut *read_conn, read_tmp);
+        drop(old_write);
+        drop(old_read);
+
+        if active_path.exists() {
+            remove_db_with_sidecars(active_path)?;
+        }
+        if backup_path.exists() {
+            fs::rename(backup_path, active_path).map_err(|e| e.to_string())?;
+            move_sidecar(backup_path, active_path, "-wal")?;
+            move_sidecar(backup_path, active_path, "-shm")?;
+        }
+
+        let reopened_write = Connection::open(active_path).map_err(|e| e.to_string())?;
+        configure_write_connection(&reopened_write).map_err(|e| e.to_string())?;
+        let reopened_read = Connection::open_with_flags(active_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+        configure_read_connection(&reopened_read).map_err(|e| e.to_string())?;
+        *write_conn = reopened_write;
+        *read_conn = reopened_read;
+        Ok(())
+    }
 }
 
 /// Timing split returned to ingest progress (DevTools / terminal).
@@ -201,7 +310,91 @@ fn log_write_op(op: &str, lock_wait_ms: u128, exec_ms: u128) {
 
 fn library_db_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    Ok(base.join("library.sqlite"))
+    let db_dir = base.join("databases").join("library");
+    let db_path = db_dir.join("library.sqlite");
+    let legacy = base.join("library.sqlite");
+    if let Some(parent) = db_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    if db_path.exists() {
+        cleanup_legacy_db_if_present(&legacy, &db_path)?;
+        return Ok(db_path);
+    }
+
+    if legacy.exists() {
+        migrate_db_file(&legacy, &db_path).map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy, &db_path, "-wal").map_err(|e| e.to_string())?;
+        migrate_db_sidecar(&legacy, &db_path, "-shm").map_err(|e| e.to_string())?;
+    }
+    cleanup_legacy_db_if_present(&legacy, &db_path)?;
+
+    Ok(db_path)
+}
+
+fn cleanup_legacy_db_if_present(legacy_path: &Path, active_path: &Path) -> Result<(), String> {
+    if legacy_path == active_path {
+        return Ok(());
+    }
+    remove_db_with_sidecars(legacy_path)
+}
+
+fn migrate_db_file(from: &Path, to: &Path) -> io::Result<()> {
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(from, to)?;
+            fs::remove_file(from)?;
+            Ok(())
+        }
+    }
+}
+
+fn migrate_db_sidecar(from: &Path, to: &Path, suffix: &str) -> io::Result<()> {
+    let from_path = PathBuf::from(format!("{}{}", from.display(), suffix));
+    if !from_path.exists() {
+        return Ok(());
+    }
+    let to_path = PathBuf::from(format!("{}{}", to.display(), suffix));
+    if let Some(parent) = to_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(&from_path, &to_path) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(&from_path, &to_path)?;
+            fs::remove_file(&from_path)?;
+            Ok(())
+        }
+    }
+}
+
+fn move_sidecar(from_base: &Path, to_base: &Path, suffix: &str) -> Result<(), String> {
+    let from = PathBuf::from(format!("{}{}", from_base.display(), suffix));
+    if !from.exists() {
+        return Ok(());
+    }
+    let to = PathBuf::from(format!("{}{}", to_base.display(), suffix));
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+fn remove_db_with_sidecars(path: &Path) -> Result<(), String> {
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{}", path.display(), suffix));
+        if sidecar.exists() {
+            fs::remove_file(sidecar).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 fn configure_write_connection(conn: &Connection) -> rusqlite::Result<()> {
@@ -218,6 +411,19 @@ fn configure_read_connection(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     // Search / browse hot path on large libraries (read-only handle).
     conn.pragma_update(None, "cache_size", -64_000)?;
+    Ok(())
+}
+
+fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
+    let (busy, log, checkpointed): (i32, i32, i32) =
+        conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+    if busy != 0 {
+        crate::app_eprintln!(
+            "[library-db] wal checkpoint busy op={op} busy={busy} log={log} checkpointed={checkpointed}"
+        );
+    }
     Ok(())
 }
 

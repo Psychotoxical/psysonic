@@ -8,6 +8,7 @@ import type { ServerProfile } from '../../store/authStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { serverProfileBaseUrl } from '../server/serverBaseUrl';
+import { serverIndexKeyForProfile } from '../server/serverIndexKey';
 import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 
 export type BindServerResult = 'bound' | 'offline' | 'error';
@@ -60,7 +61,8 @@ export async function bindIndexedServer(server: ServerProfile): Promise<BindServ
 export async function bootstrapIndexedServer(server: ServerProfile): Promise<BindServerResult> {
   const bound = await bindIndexedServer(server);
   if (bound !== 'bound') return bound;
-  await queueInitialSyncIfNeeded(server.id);
+  const indexKey = serverIndexKeyForProfile(server);
+  await queueInitialSyncIfNeeded(indexKey);
   return 'bound';
 }
 
@@ -68,14 +70,29 @@ export async function bootstrapIndexedServer(server: ServerProfile): Promise<Bin
 export async function bootstrapAllIndexedServers(): Promise<Record<string, BindServerResult>> {
   const lib = useLibraryIndexStore.getState();
   if (!lib.masterEnabled) return {};
-  const indexed = useAuthStore.getState().servers.filter(s => lib.isIndexEnabled(s.id));
-  const results: Record<string, BindServerResult> = {};
+  const auth = useAuthStore.getState();
+  const active = auth.activeServerId
+    ? auth.servers.find(s => s.id === auth.activeServerId) ?? null
+    : null;
+  const indexed = auth.servers.filter(s => lib.isIndexEnabled(s.id));
+  const primaryByKey = new Map<string, ServerProfile>();
   for (const server of indexed) {
-    results[server.id] = await bindIndexedServer(server);
+    const key = serverIndexKeyForProfile(server);
+    if (!primaryByKey.has(key)) primaryByKey.set(key, server);
   }
-  for (const server of indexed) {
-    if (results[server.id] === 'bound') {
-      await queueInitialSyncIfNeeded(server.id);
+  if (active) {
+    const key = serverIndexKeyForProfile(active);
+    if (primaryByKey.has(key)) primaryByKey.set(key, active);
+  }
+  const results: Record<string, BindServerResult> = {};
+  for (const server of primaryByKey.values()) {
+    const key = serverIndexKeyForProfile(server);
+    results[key] = await bindIndexedServer(server);
+  }
+  for (const server of primaryByKey.values()) {
+    const key = serverIndexKeyForProfile(server);
+    if (results[key] === 'bound') {
+      await queueInitialSyncIfNeeded(key);
     }
   }
   return results;

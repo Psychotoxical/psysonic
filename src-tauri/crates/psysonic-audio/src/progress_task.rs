@@ -63,6 +63,7 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
     crossfade_secs_arc: Arc<AtomicU32>,
     initial_done: Arc<AtomicBool>,
     emitter: E,
+    analysis_app: Option<AppHandle>,
     samples_played: Arc<AtomicU64>,
     sample_rate_arc: Arc<AtomicU32>,
     channels_arc: Arc<AtomicU32>,
@@ -134,6 +135,10 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
 
                 let chained = chained_arc.lock().unwrap().take();
                 if let Some(info) = chained {
+                    if let Some(app) = analysis_app.clone() {
+                        crate::analysis_dispatch::spawn_gapless_transition_analysis(&app, &info);
+                    }
+
                     // Swap to the chained source's done flag.
                     current_done = info.source_done;
 
@@ -381,6 +386,7 @@ mod tests {
                 self.crossfade_secs.clone(),
                 self.done.clone(),
                 emitter,
+                None,
                 self.samples_played.clone(),
                 self.sample_rate.clone(),
                 self.channels.clone(),
@@ -518,6 +524,8 @@ mod tests {
         let chained_samples = Arc::new(AtomicU64::new(0));
         *h.chained.lock().unwrap() = Some(ChainedInfo {
             url: chain_url.clone(),
+            analysis_track_id: None,
+            server_id: None,
             raw_bytes: Arc::new(Vec::new()),
             duration_secs: 200.0,
             replay_gain_linear: 1.0,

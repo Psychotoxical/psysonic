@@ -13,7 +13,11 @@ import {
 } from './playListenSession';
 import { getPerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import {
+  getPlaybackCacheServerKey,
+  getPlaybackIndexKey,
+  getPlaybackServerId,
+} from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { showToast } from '../utils/ui/toast';
@@ -233,8 +237,16 @@ export function handleAudioProgress(
     shouldBytePreloadFromMode ||
     shouldBytePreloadForCrossfade
   );
+  // Hot/offline cache: seed enrichment from disk (playback also uses psysonic-local://).
+  const shouldPreloadLocalFileAnalysis = preloadMode !== 'off' && (
+    preloadMode === 'early'
+      ? current_time >= 5
+      : preloadMode === 'custom'
+        ? remaining < preloadCustomSeconds && remaining > 0
+        : remaining < 30 && remaining > 0
+  );
 
-  if (shouldChainGapless || shouldBytePreload || gaplessEnabled) {
+  if (shouldChainGapless || shouldBytePreload || shouldPreloadLocalFileAnalysis || gaplessEnabled) {
     const { queueItems, queueIndex, repeatMode } = store;
     const nextIdx = queueIndex + 1;
     // Next track for preload/chain. The resolver bridge keeps the window around
@@ -266,11 +278,16 @@ export function handleAudioProgress(
     const shouldBytePreloadForGaplessBackup =
       gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
 
-    const serverId = getPlaybackServerId();
+    const serverId = getPlaybackCacheServerKey();
+    const analysisServerId = getPlaybackIndexKey();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
+    const nextIsLocalFile = nextUrl.startsWith('psysonic-local://');
 
     // Byte pre-download — runs early so bytes are cached by chain time.
-    if ((shouldBytePreload || shouldBytePreloadForGaplessBackup) && nextTrack.id !== getBytePreloadingId()) {
+    if (
+      (shouldBytePreload || shouldBytePreloadForGaplessBackup || (shouldPreloadLocalFileAnalysis && nextIsLocalFile))
+      && nextTrack.id !== getBytePreloadingId()
+    ) {
       setBytePreloadingId(nextTrack.id);
       // Loudness cache only — do not call refreshWaveformForTrack(next): it writes global
       // waveformBins and would replace the current track's seekbar while still playing it.
@@ -281,6 +298,8 @@ export function handleAudioProgress(
           nextUrl,
           shouldBytePreload,
           shouldBytePreloadForGaplessBackup,
+          shouldPreloadLocalFileAnalysis,
+          nextIsLocalFile,
           remaining,
           gaplessEnabled,
         });
@@ -289,7 +308,7 @@ export function handleAudioProgress(
         url: nextUrl,
         durationHint: nextTrack.duration,
         analysisTrackId: nextTrack.id,
-        serverId: serverId || null,
+        serverId: analysisServerId || null,
       }).catch(() => {});
     }
 
@@ -324,6 +343,7 @@ export function handleAudioProgress(
         fallbackDb: authState.replayGainFallbackDb,
         hiResEnabled: authState.enableHiRes,
         analysisTrackId: nextTrack.id,
+        serverId: analysisServerId || null,
       }).catch(() => {});
     }
   }
@@ -358,7 +378,7 @@ export function handleAudioEnded(): void {
     void (async () => {
       if (repeatMode === 'one' && currentTrack) {
         const authState = useAuthStore.getState();
-        const repeatPromoteSid = getPlaybackServerId();
+        const repeatPromoteSid = getPlaybackCacheServerKey();
         if (authState.hotCacheEnabled && repeatPromoteSid) {
           // Same-track repeat never hit `playTrack`'s prev→promote path; flush
           // Rust `stream_completed_cache` to disk so `resolvePlaybackUrl` uses local.
@@ -415,7 +435,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   void playListenSessionOnTrackSwitched(nextTrack);
 
-  const switchServerId = getPlaybackServerId();
+  const switchServerId = getPlaybackCacheServerKey();
   const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(nextTrack.id, switchServerId, switchResolvedUrl);
 
@@ -468,7 +488,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
     });
   }
   syncQueueToServer(queueItems, nextTrack, 0);
-  touchHotCacheOnPlayback(nextTrack.id, getPlaybackServerId());
+  touchHotCacheOnPlayback(nextTrack.id, getPlaybackCacheServerKey());
 }
 
 export function handleAudioError(message: string): void {

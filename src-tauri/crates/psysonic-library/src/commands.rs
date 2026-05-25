@@ -15,6 +15,7 @@ use psysonic_integration::navidrome::navidrome_token;
 use psysonic_integration::subsonic::SubsonicClient;
 
 use crate::advanced_search;
+use crate::analysis_backfill::{self, LibraryAnalysisBackfillBatchDto, LibraryAnalysisProgressDto};
 use crate::cross_server;
 use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
@@ -41,6 +42,94 @@ use crate::sync::tombstone::should_auto_reconcile;
 
 /// Cap for `library_get_tracks_batch` per spec §7.1 ("max 100 refs/call").
 const TRACKS_BATCH_LIMIT: usize = 100;
+const ANALYSIS_PROGRESS_CACHE_TTL: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryServerKeyMigrationDto {
+    pub legacy_id: String,
+    pub index_key: String,
+}
+
+#[tauri::command]
+pub fn library_analysis_backfill_batch(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    cursor: Option<String>,
+    limit: Option<u32>,
+) -> Result<LibraryAnalysisBackfillBatchDto, String> {
+    analysis_backfill::collect_analysis_backfill_batch(
+        &app,
+        &runtime,
+        server_id.trim(),
+        cursor.as_deref().filter(|s| !s.is_empty()),
+        limit,
+    )
+}
+
+#[tauri::command]
+pub fn library_analysis_progress(
+    app: AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<LibraryAnalysisProgressDto, String> {
+    let server_id = server_id.trim().to_string();
+    if server_id.is_empty() {
+        return Ok(LibraryAnalysisProgressDto {
+            total_tracks: 0,
+            pending_tracks: 0,
+            done_tracks: 0,
+        });
+    }
+
+    let cached = runtime.analysis_progress_snapshot(&server_id);
+    if let Some(entry) = cached.as_ref() {
+        if entry.updated_at.elapsed() <= ANALYSIS_PROGRESS_CACHE_TTL {
+            return Ok(entry.value.clone());
+        }
+    }
+
+    if runtime.mark_analysis_progress_in_flight(&server_id) {
+        let app_handle = app.clone();
+        let server_id_clone = server_id.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let Some(runtime) = app_handle.try_state::<LibraryRuntime>() else {
+                return;
+            };
+            let progress = analysis_backfill::collect_analysis_progress(
+                &app_handle,
+                &runtime,
+                server_id_clone.trim(),
+            );
+            match progress {
+                Ok(value) => runtime.set_analysis_progress(&server_id_clone, value),
+                Err(_) => runtime.clear_analysis_progress_in_flight(&server_id_clone),
+            }
+        });
+    }
+
+    Ok(cached
+        .map(|entry| entry.value)
+        .unwrap_or(LibraryAnalysisProgressDto {
+            total_tracks: 0,
+            pending_tracks: 0,
+            done_tracks: 0,
+        }))
+}
+
+#[tauri::command]
+pub fn library_count_live_tracks(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<i64, String> {
+    let server_id = server_id.trim().to_string();
+    if server_id.is_empty() {
+        return Ok(0);
+    }
+    let repo = TrackRepository::new(&runtime.store);
+    repo.count_live_tracks(&server_id)
+}
 
 #[tauri::command]
 pub async fn library_get_status(
@@ -228,8 +317,8 @@ pub async fn library_get_track(
         .lyrics_cached(&server_id, &track_id, now)
         .unwrap_or(false);
     // waveform/loudness readiness is gated on a known content_hash (md5_16kb,
-    // populated by E2) and probed via the analysis-readiness port — exact key
-    // then legacy '' fallback, no re-tag. Absent port or hash ⇒ not ready.
+    // populated by E2) and probed via the analysis-readiness port. Absent
+    // port or hash ⇒ not ready.
     let (waveform_ready, loudness_ready) =
         match row.content_hash.as_deref().filter(|s| !s.is_empty()) {
             Some(md5) => app
@@ -758,6 +847,9 @@ async fn library_sync_start_inner(
                 &format!("sync task panicked: {join_err}"),
             ),
         };
+        if let Some(runtime) = app_for_emit.try_state::<LibraryRuntime>() {
+            let _ = runtime.store.checkpoint_wal("sync.checkpoint");
+        }
         let _ = app_for_emit.emit(LibrarySyncProgressPayload::IDLE_EVENT_NAME, &outcome);
 
         // Clear the slot only if it still names us — sync_start may
@@ -1115,6 +1207,17 @@ pub fn library_purge_server(
         }
     }
     Ok(report)
+}
+
+#[tauri::command]
+pub fn library_migrate_server_index_keys(
+    _runtime: State<'_, LibraryRuntime>,
+    mappings: Vec<LibraryServerKeyMigrationDto>,
+) -> Result<(), String> {
+    for mapping in mappings {
+        let _ = (mapping.legacy_id, mapping.index_key);
+    }
+    Ok(())
 }
 
 #[tauri::command]

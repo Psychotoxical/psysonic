@@ -120,6 +120,9 @@ export function enqueueLibrarySync(args: {
   kind: LibrarySyncQueueKind;
 }): Promise<void> {
   logQueue(`enqueue ${args.serverId}`, args.serverId, args.kind);
+  if (queue.some(item => item.serverId === args.serverId && item.kind === args.kind)) {
+    return Promise.resolve();
+  }
   return new Promise((resolve, reject) => {
     queue.push({ ...args, resolve, reject });
     void drainQueue();
@@ -130,6 +133,7 @@ export function enqueueLibrarySync(args: {
 export async function queueInitialSyncIfNeeded(serverId: string): Promise<void> {
   try {
     const status = await libraryGetStatus(serverId);
+    if (status.syncPhase === 'initial_sync') return;
     if (status.syncPhase === 'ready' || status.lastFullSyncAt) return;
     await enqueueLibrarySync({ serverId, kind: 'full' });
   } catch {

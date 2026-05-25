@@ -132,6 +132,7 @@ export function AppShell() {
     usePlaybackRateStore.getState().syncToRust();
   }, []);
 
+
   useEffect(() => {
     getCurrentWebview().setZoom(uiScale).catch(() => {
       /* setZoom may fail on platforms where the capability is unavailable;
@@ -188,6 +189,9 @@ export function AppShell() {
       onContextMenu={e => e.preventDefault()}
     >
       {IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm && <TitleBar />}
+      {import.meta.env.DEV && isMobile && (
+        <span className="dev-build-badge" aria-hidden>DEV</span>
+      )}
       {!isMobile && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}

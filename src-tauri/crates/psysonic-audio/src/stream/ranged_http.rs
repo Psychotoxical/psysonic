@@ -26,9 +26,11 @@ use super::{
     RADIO_YIELD_MS, TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_RECONNECTS,
     TRACK_STREAM_PROMOTE_MAX_BYTES,
 };
-use crate::helpers::{
-    install_stream_completed_spill, spawn_analysis_seed_from_spill_file, write_stream_spill_file,
+use crate::analysis_dispatch::{
+    dispatch_track_analysis_bytes, analysis_priority_for_app, resolve_server_id_for_app,
+    spawn_track_analysis_file, TrackAnalysisOrigin,
 };
+use crate::helpers::{install_stream_completed_spill, write_stream_spill_file};
 use crate::state::StreamCompletedSpill;
 
 /// Clears `AudioEngine::ranged_loudness_seed_hold` only if it still matches this play.
@@ -644,10 +646,19 @@ pub(crate) async fn ranged_download_task(
                 );
             }
             if let Some(track_id) = cache_track_id {
-                let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
-                let sid = server_id.clone().unwrap_or_default();
-                if let Err(e) = psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), sid, track_id.clone(), data.clone(), high).await {
-                    crate::app_eprintln!("[analysis] ranged seed failed for {}: {}", track_id, e);
+                let sid = resolve_server_id_for_app(&app, server_id.as_deref());
+                let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
+                if let Err(e) = dispatch_track_analysis_bytes(
+                    &app,
+                    TrackAnalysisOrigin::StreamDownloadComplete,
+                    &sid,
+                    &track_id,
+                    data.clone(),
+                    priority,
+                )
+                .await
+                {
+                    crate::app_eprintln!("[analysis] ranged seed failed for {track_id}: {e}");
                 }
             }
             if gen_arc.load(Ordering::SeqCst) != gen {
@@ -679,13 +690,16 @@ pub(crate) async fn ranged_download_task(
                         return;
                     }
                     install_stream_completed_spill(&spill_cache_slot, url, path.clone());
-                    spawn_analysis_seed_from_spill_file(
-                        &app,
-                        server_id.as_deref(),
-                        &track_id,
+                    let sid = resolve_server_id_for_app(&app, server_id.as_deref());
+                    let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
+                    spawn_track_analysis_file(
+                        app.clone(),
+                        TrackAnalysisOrigin::StreamSpillFile,
+                        sid,
+                        track_id,
                         path,
-                        gen,
-                        &gen_arc,
+                        priority,
+                        Some((gen, gen_arc.clone())),
                     );
                 }
                 Err(e) => {

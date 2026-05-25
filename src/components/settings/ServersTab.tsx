@@ -7,12 +7,15 @@ import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { libraryDeleteServerData, librarySyncClearSession } from '../../api/library';
 import { bootstrapIndexedServer } from '../../utils/library/librarySession';
+import { useLibraryIndexSync } from '../../hooks/useLibraryIndexSync';
+import ServerLibraryIndexControls from './ServerLibraryIndexControls';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { type ServerMagicPayload } from '../../utils/server/serverMagicString';
 import { showAudiomuseNavidromeServerSetting } from '../../utils/server/subsonicServerIdentity';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
+import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
 import { switchActiveServer } from '../../utils/server/switchActiveServer';
 import { AddServerForm } from './AddServerForm';
 import { ServerGripHandle } from './ServerGripHandle';
@@ -30,6 +33,7 @@ export function ServersTab({
   const navigate = useNavigate();
   const auth = useAuthStore();
   const psyDragState = useDragDrop();
+  const librarySync = useLibraryIndexSync();
 
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState<boolean>(initialInvite != null);
@@ -147,7 +151,6 @@ export function ServersTab({
     const purgeLibrary = hadIndex && confirm(t('settings.confirmDeleteServerLibrary'));
 
     auth.removeServer(server.id);
-    useLibraryIndexStore.getState().setIndexEnabled(server.id, false);
     try {
       await librarySyncClearSession(server.id);
       if (purgeLibrary) {
@@ -180,10 +183,8 @@ export function ServersTab({
         auth.setSubsonicServerIdentity(id, identity);
         scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity);
         setConnStatus(s => ({ ...s, [id]: 'ok' }));
-        if (useLibraryIndexStore.getState().masterEnabled) {
-          const added = useAuthStore.getState().servers.find(s => s.id === id);
-          if (added) void bootstrapIndexedServer(added);
-        }
+        const added = useAuthStore.getState().servers.find(s => s.id === id);
+        if (added) void bootstrapIndexedServer(added);
       } else {
         setConnStatus(s => ({ ...s, [tempId]: 'error' }));
       }
@@ -349,6 +350,17 @@ export function ServersTab({
                     </div>
                   </div>
                   </div>
+                  <ServerLibraryIndexControls
+                    status={librarySync.statusByServer[serverIndexKeyForProfile(srv)] ?? null}
+                    connection={librarySync.connectionByServer[serverIndexKeyForProfile(srv)] ?? 'unknown'}
+                    progressLabel={librarySync.progressByServer[serverIndexKeyForProfile(srv)] ?? null}
+                    busy={librarySync.busyServerId === serverIndexKeyForProfile(srv)}
+                    actionsDisabled={librarySync.globalBusy && librarySync.busyServerId !== serverIndexKeyForProfile(srv)}
+                    onFullSync={() => void librarySync.runServerAction(serverIndexKeyForProfile(srv), 'full')}
+                    onDeltaSync={() => void librarySync.runServerAction(serverIndexKeyForProfile(srv), 'delta')}
+                    onVerify={() => void librarySync.runServerAction(serverIndexKeyForProfile(srv), 'verify')}
+                    onCancel={() => void librarySync.handleCancel()}
+                  />
                   {showAudiomuseNavidromeServerSetting(
                     auth.subsonicServerIdentityByServer[srv.id],
                     auth.instantMixProbeByServer[srv.id],

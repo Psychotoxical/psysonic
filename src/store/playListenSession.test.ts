@@ -37,7 +37,6 @@ describe('playListenSession', () => {
     _resetPlayListenSessionForTest();
     useLibraryIndexStore.setState({
       masterEnabled: true,
-      syncExcludedByServer: {},
     });
     usePlayerStore.setState({
       currentRadio: null,

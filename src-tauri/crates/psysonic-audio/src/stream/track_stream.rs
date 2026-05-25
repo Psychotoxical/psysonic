@@ -167,12 +167,22 @@ pub(crate) async fn track_download_task(
                     track_id,
                     capture.len() as f64 / (1024.0 * 1024.0)
                 );
-                let high = crate::engine::analysis_seed_high_priority_for_track(&app, &track_id);
-                let sid = server_id.clone().unwrap_or_default();
-                if let Err(e) =
-                    psysonic_analysis::analysis_runtime::submit_analysis_cpu_seed(app.clone(), sid, track_id.clone(), capture.clone(), high).await
+                let sid = crate::analysis_dispatch::resolve_server_id_for_app(
+                    &app,
+                    server_id.as_deref(),
+                );
+                    let priority = crate::analysis_dispatch::analysis_priority_for_app(&app, &sid, &track_id, None);
+                if let Err(e) = crate::analysis_dispatch::dispatch_track_analysis_bytes(
+                    &app,
+                    crate::analysis_dispatch::TrackAnalysisOrigin::StreamDownloadComplete,
+                    &sid,
+                    &track_id,
+                    capture.clone(),
+                    priority,
+                )
+                .await
                 {
-                    crate::app_eprintln!("[analysis] track seed failed for {}: {}", track_id, e);
+                    crate::app_eprintln!("[analysis] track seed failed for {track_id}: {e}");
                 }
             }
             if gen_arc.load(Ordering::SeqCst) != gen {

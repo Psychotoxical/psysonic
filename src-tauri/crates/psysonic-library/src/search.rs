@@ -90,6 +90,21 @@ pub(crate) fn fts_prefix_token_expr(raw: &str) -> Option<String> {
     fts_token_expr_with(raw, true)
 }
 
+/// Navidrome-style any-word prefix match (`"a"* OR "b"*`).
+pub(crate) fn fts_prefix_token_or_expr(raw: &str) -> Option<String> {
+    let tokens: Vec<String> = raw
+        .split_whitespace()
+        .map(|t| format!("\"{}\"*", t.replace('"', "\"\"")))
+        .collect();
+    if tokens.is_empty() {
+        None
+    } else if tokens.len() == 1 {
+        Some(tokens.into_iter().next().unwrap())
+    } else {
+        Some(tokens.join(" OR "))
+    }
+}
+
 fn fts_token_expr_with(raw: &str, prefix: bool) -> Option<String> {
     let tokens: Vec<String> = raw
         .split_whitespace()
@@ -131,6 +146,31 @@ pub(crate) fn fts_album_prefix_match_query(raw: &str) -> Option<String> {
     })
 }
 
+/// Live Search album match — any query word may hit album or album_artist (Navidrome parity).
+pub(crate) fn fts_album_prefix_any_token_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_or_expr(raw).map(|tokens| {
+        format!("(album : ({tokens}) OR album_artist : ({tokens}))")
+    })
+}
+
+/// Live Search artist match — performer fields only (not album title).
+pub(crate) fn fts_artist_prefix_any_token_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_or_expr(raw).map(|tokens| {
+        format!("(artist : ({tokens}) OR album_artist : ({tokens}))")
+    })
+}
+
+/// Live Search song match — any query word across display columns.
+pub(crate) fn fts_track_prefix_any_token_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_or_expr(raw).map(|tokens| {
+        ["title", "artist", "album", "album_artist"]
+            .iter()
+            .map(|col| format!("{col} : ({tokens})"))
+            .collect::<Vec<_>>()
+            .join(" OR ")
+    })
+}
+
 /// Song / track entity: match primary display fields (excludes `genre` to cut
 /// noise and FTS fan-out on large libraries).
 pub(crate) fn fts_track_match_query(raw: &str) -> Option<String> {
@@ -167,6 +207,80 @@ pub(crate) fn aliased_track_columns(alias: &str) -> String {
         .map(|c| format!("{alias}.{}", c.trim()))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// Same projection as [`aliased_track_columns`], but `bpm` uses analysis fact +
+/// tag dual-storage resolution (§5.13.4) and appends `bpm_source` for UI tooltips.
+pub(crate) fn aliased_track_columns_resolved_bpm(alias: &str) -> String {
+    let base = aliased_track_columns_with_resolved_bpm_expr(alias);
+    format!("{base}, ({}) AS bpm_source", bpm_source_expr(alias))
+}
+
+fn aliased_track_columns_with_resolved_bpm_expr(alias: &str) -> String {
+    let bpm_expr = bpm_resolved_expr(alias);
+    crate::repos::track_columns()
+        .split(',')
+        .map(|c| {
+            let col = c.trim();
+            if col == "bpm" {
+                format!("({bpm_expr}) AS bpm")
+            } else {
+                format!("{alias}.{col}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Oximedia / analysis `track_fact(bpm)` — preferred over hot `track.bpm` tag.
+fn bpm_analysis_fact_subquery(table_alias: &str) -> String {
+    format!(
+        "(SELECT f.value_int FROM track_fact f \
+         WHERE f.server_id = {table_alias}.server_id AND f.track_id = {table_alias}.id \
+         AND f.fact_kind = 'bpm' AND f.source_kind = 'analysis' \
+         AND f.value_int IS NOT NULL AND f.value_int > 0 \
+         ORDER BY f.confidence DESC LIMIT 1)"
+    )
+}
+
+pub(crate) fn bpm_resolved_expr(table_alias: &str) -> String {
+    let analysis = bpm_analysis_fact_subquery(table_alias);
+    let tag = format!(
+        "CASE WHEN {table_alias}.bpm IS NOT NULL AND {table_alias}.bpm > 0 \
+         THEN {table_alias}.bpm END"
+    );
+    let other_fact = format!(
+        "(SELECT f.value_int FROM track_fact f \
+         WHERE f.server_id = {table_alias}.server_id AND f.track_id = {table_alias}.id \
+         AND f.fact_kind = 'bpm' AND f.source_kind NOT IN ('analysis') \
+         AND f.value_int IS NOT NULL AND f.value_int > 0 \
+         ORDER BY CASE f.source_kind WHEN 'user' THEN 0 WHEN 'server_tag' THEN 1 ELSE 2 END LIMIT 1)"
+    );
+    format!("COALESCE({analysis}, {tag}, {other_fact})")
+}
+
+/// `'analysis'` when measured fact wins; `'tag'` when hot `track.bpm` is shown.
+pub(crate) fn bpm_source_expr(table_alias: &str) -> String {
+    let analysis = bpm_analysis_fact_subquery(table_alias);
+    format!(
+        "CASE \
+         WHEN {analysis} IS NOT NULL THEN 'analysis' \
+         WHEN {table_alias}.bpm IS NOT NULL AND {table_alias}.bpm > 0 THEN 'tag' \
+         ELSE NULL END"
+    )
+}
+
+pub(crate) fn track_projection_column_count() -> usize {
+    crate::repos::track_columns().split(',').count()
+}
+
+/// Map a BPM-resolved Advanced Search row (extra trailing `bpm_source` column).
+pub(crate) fn row_to_track_dto_resolved_bpm(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<crate::dto::LibraryTrackDto> {
+    let mut dto = crate::dto::LibraryTrackDto::from_row(&crate::repos::row_to_track_row(row)?);
+    dto.bpm_source = row.get(track_projection_column_count()).ok();
+    Ok(dto)
 }
 
 /// Build a `%…%` LIKE pattern with the LIKE wildcards (`%`, `_`) and the
@@ -272,6 +386,22 @@ mod tests {
         assert_eq!(
             fts_column_prefix_query("artist", "metal").as_deref(),
             Some("artist : \"metal\"*")
+        );
+    }
+
+    #[test]
+    fn fts_prefix_token_or_expr_matches_any_word() {
+        assert_eq!(
+            fts_prefix_token_or_expr("love supreme").as_deref(),
+            Some("\"love\"* OR \"supreme\"*")
+        );
+    }
+
+    #[test]
+    fn fts_album_prefix_any_token_match_query_or_across_album_fields() {
+        assert_eq!(
+            fts_album_prefix_any_token_match_query("dark side").as_deref(),
+            Some("(album : (\"dark\"* OR \"side\"*) OR album_artist : (\"dark\"* OR \"side\"*))")
         );
     }
 

@@ -9,12 +9,37 @@ import { usePlayerStore } from '../../store/playerStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import { sameQueueTrackId } from './queueIdentity';
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
+import { resolveServerIdForIndexKey } from '../server/serverLookup';
+import { resolveIndexKey, serverIndexKeyFromUrl } from '../server/serverIndexKey';
 
 /** Server that owns the current queue / stream URLs (may differ from the browsed server). */
 export function getPlaybackServerId(): string {
   const { queueServerId, queueItems } = usePlayerStore.getState();
-  if ((queueItems?.length ?? 0) > 0 && queueServerId) return queueServerId;
+  if ((queueItems?.length ?? 0) > 0 && queueServerId) {
+    return resolveServerIdForIndexKey(queueServerId);
+  }
   return useAuthStore.getState().activeServerId ?? '';
+}
+
+export function getPlaybackIndexKey(): string {
+  const { queueServerId, queueItems } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) > 0 && queueServerId) {
+    return resolveIndexKey(queueServerId);
+  }
+  const activeId = useAuthStore.getState().activeServerId ?? '';
+  if (!activeId) return '';
+  const server = useAuthStore.getState().servers.find(s => s.id === activeId);
+  return server ? serverIndexKeyFromUrl(server.url) || activeId : activeId;
+}
+
+/**
+ * Canonical cache/storage key for playback-owned artifacts (offline/hot-cache).
+ * Falls back to legacy UUID when an indexKey cannot be resolved yet.
+ */
+export function getPlaybackCacheServerKey(): string {
+  const indexKey = getPlaybackIndexKey();
+  if (indexKey) return indexKey;
+  return getPlaybackServerId();
 }
 
 export function bindQueueServerForPlayback(): void {
@@ -31,7 +56,8 @@ export function playbackServerDiffersFromActive(): boolean {
   const { queueServerId, queueItems } = usePlayerStore.getState();
   if ((queueItems?.length ?? 0) === 0 || !queueServerId) return false;
   const activeSid = useAuthStore.getState().activeServerId;
-  return !!activeSid && queueServerId !== activeSid;
+  const resolvedQueue = resolveServerIdForIndexKey(queueServerId);
+  return !!activeSid && resolvedQueue !== activeSid;
 }
 
 /**
@@ -44,7 +70,7 @@ export function shouldHandoffQueueToActiveServer(): boolean {
   const { queueItems, queueServerId } = usePlayerStore.getState();
   if ((queueItems?.length ?? 0) === 0) return false;
   if (!queueServerId) return true;
-  return queueServerId !== activeSid;
+  return resolveServerIdForIndexKey(queueServerId) !== activeSid;
 }
 
 /**

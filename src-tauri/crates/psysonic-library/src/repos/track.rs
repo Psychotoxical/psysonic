@@ -270,6 +270,74 @@ impl<'a> TrackRepository<'a> {
         })
     }
 
+    /// Keyset page of track ids for cursor-based library scans (`id ASC`).
+    pub fn list_track_ids_after(
+        &self,
+        server_id: &str,
+        after_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, String> {
+        if limit == 0 {
+            return Ok(vec![]);
+        }
+        let limit = i64::try_from(limit).map_err(|e| e.to_string())?;
+        self.store.with_read_conn(|conn| {
+            let sql = "SELECT id FROM track \
+                       WHERE server_id = ?1 AND deleted = 0 \
+                         AND (?2 IS NULL OR id > ?2) \
+                       ORDER BY id ASC LIMIT ?3";
+            let mut stmt = conn.prepare(sql)?;
+            let rows = stmt.query_map(params![server_id, after_id, limit], |row| row.get(0))?;
+            rows.collect::<rusqlite::Result<Vec<String>>>()
+        })
+    }
+
+    /// Cheap SQL prefilter: tracks that never received a playback hash and/or
+    /// lack an oximedia BPM fact. Full analysis gaps are confirmed per id via
+    /// [`TrackAnalysisNeedsWorkQuery`] in the shell crate.
+    pub fn list_analysis_candidate_ids_after(
+        &self,
+        server_id: &str,
+        after_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, String> {
+        if limit == 0 {
+            return Ok(vec![]);
+        }
+        let limit = i64::try_from(limit).map_err(|e| e.to_string())?;
+        self.store.with_read_conn(|conn| {
+            let sql = "SELECT t.id FROM track t \
+                       WHERE t.server_id = ?1 AND t.deleted = 0 \
+                         AND (?2 IS NULL OR t.id > ?2) \
+                         AND ( \
+                           t.content_hash IS NULL \
+                           OR NOT EXISTS ( \
+                             SELECT 1 FROM track_fact f \
+                             WHERE f.server_id = t.server_id \
+                               AND f.track_id = t.id \
+                               AND f.fact_kind = 'bpm' \
+                               AND f.source_kind = 'analysis' \
+                           ) \
+                         ) \
+                       ORDER BY t.id ASC LIMIT ?3";
+            let mut stmt = conn.prepare(sql)?;
+            let rows = stmt.query_map(params![server_id, after_id, limit], |row| row.get(0))?;
+            rows.collect::<rusqlite::Result<Vec<String>>>()
+        })
+    }
+
+    /// Count non-deleted tracks for a server (analysis progress baseline).
+    pub fn count_live_tracks(&self, server_id: &str) -> Result<i64, String> {
+        self.store.with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
+                params![server_id],
+                |row| row.get(0),
+            )
+        })
+        .map_err(|e| e.to_string())
+    }
+
     /// Batch upsert with optional §6.9 id-remap detection. When
     /// `unstable_track_ids` is `true`, each incoming row is checked
     /// against the existing `track` table for a collision via
@@ -1150,5 +1218,42 @@ mod tests {
             })
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn list_track_ids_after_pages_in_id_order() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        for id in ["a1", "b2", "c3"] {
+            let mut r = row("s1", id, id);
+            r.content_hash = None;
+            repo.upsert_batch(&[r]).unwrap();
+        }
+        let first = repo.list_track_ids_after("s1", None, 2).unwrap();
+        assert_eq!(first, vec!["a1", "b2"]);
+        let second = repo.list_track_ids_after("s1", Some("b2"), 2).unwrap();
+        assert_eq!(second, vec!["c3"]);
+    }
+
+    #[test]
+    fn list_analysis_candidate_ids_skips_tracks_with_bpm_fact() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut needs = row("s1", "needs", "Needs");
+        needs.content_hash = None;
+        repo.upsert_batch(&[needs, row("s1", "done", "Done")]).unwrap();
+        store
+            .with_conn_mut("misc", |c| {
+                c.execute(
+                    "INSERT INTO track_fact (server_id, track_id, fact_kind, source_kind, source_id, confidence, fetched_at) \
+                     VALUES ('s1', 'done', 'bpm', 'analysis', 'oximedia-60s-center', 1.0, 1)",
+                    [],
+                )
+            })
+            .unwrap();
+        let ids = repo
+            .list_analysis_candidate_ids_after("s1", None, 10)
+            .unwrap();
+        assert_eq!(ids, vec!["needs"]);
     }
 }

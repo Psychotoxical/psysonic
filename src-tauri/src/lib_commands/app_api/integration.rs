@@ -1,3 +1,4 @@
+#[cfg(not(debug_assertions))]
 use tauri::Emitter;
 
 use crate::{MprisControls, ShortcutMap};
@@ -9,32 +10,42 @@ pub(crate) fn register_global_shortcut(
     shortcut: String,
     action: String,
 ) -> Result<(), String> {
-    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
-
-    let mut map = shortcut_map.lock().unwrap();
-
-    // Idempotent: if this exact shortcut+action is already registered, skip.
-    // This prevents on_shortcut() from accumulating duplicate handlers when
-    // registerAll() is called again after a JS HMR reload or StrictMode double-effect.
-    if map.get(&shortcut).map(|a| a == &action).unwrap_or(false) {
-        return Ok(());
+    // Debug builds run alongside release with shared settings — do not grab OS shortcuts.
+    #[cfg(debug_assertions)]
+    {
+        let _ = (app, shortcut_map, shortcut, action);
+        Ok(())
     }
 
-    // Unregister any existing OS grab for this shortcut before re-registering.
-    if let Ok(s) = shortcut.parse::<Shortcut>() {
-        let _ = app.global_shortcut().unregister(s);
-    }
-    map.insert(shortcut.clone(), action.clone());
-    drop(map); // release lock before the blocking OS call
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-    let parsed: Shortcut = shortcut.parse().map_err(|_| format!("Invalid shortcut: {shortcut}"))?;
-    app.global_shortcut()
-        .on_shortcut(parsed, move |app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                let _ = app.emit("shortcut:global-action", action.clone());
-            }
-        })
-        .map_err(|e| e.to_string())
+        let mut map = shortcut_map.lock().unwrap();
+
+        // Idempotent: if this exact shortcut+action is already registered, skip.
+        // This prevents on_shortcut() from accumulating duplicate handlers when
+        // registerAll() is called again after a JS HMR reload or StrictMode double-effect.
+        if map.get(&shortcut).map(|a| a == &action).unwrap_or(false) {
+            return Ok(());
+        }
+
+        // Unregister any existing OS grab for this shortcut before re-registering.
+        if let Ok(s) = shortcut.parse::<Shortcut>() {
+            let _ = app.global_shortcut().unregister(s);
+        }
+        map.insert(shortcut.clone(), action.clone());
+        drop(map); // release lock before the blocking OS call
+
+        let parsed: Shortcut = shortcut.parse().map_err(|_| format!("Invalid shortcut: {shortcut}"))?;
+        app.global_shortcut()
+            .on_shortcut(parsed, move |app, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    let _ = app.emit("shortcut:global-action", action.clone());
+                }
+            })
+            .map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -43,10 +54,19 @@ pub(crate) fn unregister_global_shortcut(
     shortcut_map: tauri::State<ShortcutMap>,
     shortcut: String,
 ) -> Result<(), String> {
-    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
-    shortcut_map.lock().unwrap().remove(&shortcut);
-    let parsed: Shortcut = shortcut.parse().map_err(|_| format!("Invalid shortcut: {shortcut}"))?;
-    app.global_shortcut().unregister(parsed).map_err(|e| e.to_string())
+    #[cfg(debug_assertions)]
+    {
+        let _ = (app, shortcut_map, shortcut);
+        Ok(())
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+        shortcut_map.lock().unwrap().remove(&shortcut);
+        let parsed: Shortcut = shortcut.parse().map_err(|_| format!("Invalid shortcut: {shortcut}"))?;
+        app.global_shortcut().unregister(parsed).map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]

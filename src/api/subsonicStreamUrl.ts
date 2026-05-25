@@ -1,5 +1,6 @@
 import md5 from 'md5';
 import { useAuthStore } from '../store/authStore';
+import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
 import { restBaseFromUrl, SUBSONIC_CLIENT, secureRandomSalt } from './subsonicClient';
 
 function coverArtQueryParams(username: string, password: string, id: string, size: number): URLSearchParams {
@@ -39,7 +40,7 @@ function streamUrlFromProfile(
 }
 
 export function buildStreamUrlForServer(serverId: string, id: string): string {
-  const server = useAuthStore.getState().servers.find(s => s.id === serverId);
+  const server = findServerByIdOrIndexKey(serverId);
   if (!server) return buildStreamUrl(id);
   return streamUrlFromProfile(server.url, server.username, server.password, id);
 }

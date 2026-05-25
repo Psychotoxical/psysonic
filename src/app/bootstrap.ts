@@ -35,10 +35,18 @@ export function pushLoggingModeToBackend(): void {
   }
 }
 
+/** Mark the document in Vite dev so CSS can show dev-only chrome. */
+export function markDevBuildDocument(): void {
+  if (import.meta.env.DEV) {
+    document.documentElement.dataset.devBuild = 'true';
+  }
+}
+
 /** Orchestrates everything that must run before React mounts. */
 export function runPreReactBootstrap(): void {
   // Pre-warm the window-kind cache so subsequent reads are sync + safe.
   getWindowKind();
+  markDevBuildDocument();
   pushUserAgentToBackend();
   pushLoggingModeToBackend();
   installQueueUndoHotkey();

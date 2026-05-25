@@ -14,6 +14,7 @@ import { songToTrack } from '../playback/songToTrack';
 import type { Track } from '../../store/playerStoreTypes';
 import { orbitBulkGuard } from '../orbitBulkGuard';
 import { findServerIdForShareUrl } from './shareLink';
+import { serverIndexKeyFromUrl } from '../server/serverIndexKey';
 import type {
   AlbumShareSearchPayload,
   ArtistShareSearchPayload,
@@ -61,7 +62,10 @@ function lookupShareServer(shareSrv: string): ShareServerLookupResult {
   }
 
   const serverId = findServerIdForShareUrl(servers, shareSrv);
-  const server = serverId ? servers.find(s => s.id === serverId) : undefined;
+  const server = serverId
+    ? servers.find(s => s.id === serverId)
+      ?? servers.find(s => serverIndexKeyFromUrl(s.url) === serverId)
+    : undefined;
   if (!serverId || !server) {
     return { type: 'no-matching-server', url: shareSrv };
   }

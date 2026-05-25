@@ -15,12 +15,21 @@ interface PerfDiagRates {
   home: number;
 }
 
+interface AnalysisPerfDiag {
+  tracksPerMinute: number;
+  lastTotalMs: number | null;
+  lastFetchMs: number | null;
+  lastSeedMs: number | null;
+  lastBpmMs: number | null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   perfFlags: PerfProbeFlags;
   perfCpu: PerfCpu | null;
   perfDiagRates: PerfDiagRates | null;
+  analysisPerf: AnalysisPerfDiag | null;
   hotCacheEnabled: boolean;
   setHotCacheEnabled: (v: boolean) => void;
   normalizationEngine: string;
@@ -30,7 +39,7 @@ interface Props {
 }
 
 export default function SidebarPerfProbeModal({
-  open, onClose, perfFlags, perfCpu, perfDiagRates,
+  open, onClose, perfFlags, perfCpu, perfDiagRates, analysisPerf,
   hotCacheEnabled, setHotCacheEnabled,
   normalizationEngine, setNormalizationEngine,
   loggingMode, setLoggingMode,
@@ -56,6 +65,14 @@ export default function SidebarPerfProbeModal({
               />
               <span>Show FPS overlay (requestAnimationFrame rate)</span>
             </label>
+            <label className="sidebar-perf-modal__item">
+              <input
+                type="checkbox"
+                checked={perfFlags.showAnalysisPerfOverlay}
+                onChange={e => setPerfProbeFlag('showAnalysisPerfOverlay', e.target.checked)}
+              />
+              <span>Show analysis throughput overlay (tpm + last track timings)</span>
+            </label>
             <div className="sidebar-perf-modal__cpu">
               <div className="sidebar-perf-modal__cpu-title">Live CPU (approx)</div>
               {perfCpu == null ? (
@@ -69,6 +86,18 @@ export default function SidebarPerfProbeModal({
                       <div className="sidebar-perf-modal__cpu-row">audio:progress rate: {perfDiagRates.progress.toFixed(1)}/s</div>
                       <div className="sidebar-perf-modal__cpu-row">waveform draws rate: {perfDiagRates.waveform.toFixed(1)}/s</div>
                       <div className="sidebar-perf-modal__cpu-row">Home commits rate: {perfDiagRates.home.toFixed(1)}/s</div>
+                    </>
+                  )}
+                  {analysisPerf && (
+                    <>
+                      <div className="sidebar-perf-modal__cpu-row">analysis tpm (1m avg): {analysisPerf.tracksPerMinute.toFixed(1)}</div>
+                      {analysisPerf.lastTotalMs != null && (
+                        <div className="sidebar-perf-modal__cpu-row">
+                          last track: {(analysisPerf.lastTotalMs / 1000).toFixed(1)}s
+                          {' '}
+                          (fetch {(analysisPerf.lastFetchMs ?? 0) / 1000}s · seed {(analysisPerf.lastSeedMs ?? 0) / 1000}s · bpm {(analysisPerf.lastBpmMs ?? 0) / 1000}s)
+                        </div>
+                      )}
                     </>
                   )}
                 </>
