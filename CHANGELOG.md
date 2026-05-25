@@ -318,6 +318,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Live Search — multi-server local index hits
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#868](https://github.com/Psychotoxical/psysonic/pull/868)**
+
+* **Live Search** with a local index no longer returns empty or wrong-server hits on multi-server libraries — FTS is scoped to the active server instead of global bm25 across all indexed tracks.
+* Local artist/album rows dedupe correctly (one performer no longer fills the whole dropdown); Advanced Search text queries use the same server scope fix.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.

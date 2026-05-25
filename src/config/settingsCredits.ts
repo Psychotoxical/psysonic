@@ -129,6 +129,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Local library index: full resync orphan sweep (IS-7) — remove server-deleted tracks after successful re-sync (PR #861)',
       'Track enrichment: oximedia BPM/mood analysis, mood-group Advanced Search, queue display, unified playback analysis dispatch (PR #863)',
       'Server index-key rebuild follow-up: startup-safe migration orchestration, per-server analysis strategy controls, playback/cache scope hardening, and backup/restore for library databases with blocking progress UX (PR #864)',
+      'Live Search: server-scoped local FTS, multi-server hit fix, and local vs search3 race merge (PR #868)',
     ],
   },
   {
