@@ -16,6 +16,12 @@ export type CoverCacheStats = {
   entryCount: number;
 };
 
+let coverAutoDownloadEnabled = true;
+
+export function setCoverCacheAutoDownloadEnabled(enabled: boolean): void {
+  coverAutoDownloadEnabled = enabled;
+}
+
 function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const scope = ref.serverScope;
@@ -47,9 +53,7 @@ export async function coverCacheEnsure(
   tier: CoverArtTier,
   _priority?: string,
 ): Promise<CoverCacheEnsureResult> {
-  return invoke<CoverCacheEnsureResult>('cover_cache_ensure', {
-    args: ensureArgsFromRef(ref, tier),
-  });
+  return invoke<CoverCacheEnsureResult>('cover_cache_ensure', ensureArgsFromRef(ref, tier));
 }
 
 export async function coverCacheEnsureBatch(
@@ -58,14 +62,14 @@ export async function coverCacheEnsureBatch(
   _priority?: string,
 ): Promise<void> {
   return invoke('cover_cache_ensure_batch', {
-    args: {
-      items: refs.map(r => ensureArgsFromRef(r, tier)),
-    },
+    items: refs.map(r => ensureArgsFromRef(r, tier)),
   });
 }
 
 export async function coverCacheStats(): Promise<CoverCacheStats> {
-  return invoke<CoverCacheStats>('cover_cache_stats', {});
+  const stats = await invoke<CoverCacheStats>('cover_cache_stats', {});
+  setCoverCacheAutoDownloadEnabled(stats.autoDownloadEnabled);
+  return stats;
 }
 
 export async function coverCacheClear(): Promise<void> {
@@ -87,5 +91,5 @@ export async function libraryCoverProgress(
 }
 
 export function coverCacheMayBackgroundDownload(): boolean {
-  return true;
+  return coverAutoDownloadEnabled;
 }
