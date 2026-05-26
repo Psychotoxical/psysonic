@@ -347,10 +347,15 @@ export default function BecauseYouLikeRail({
   const contentReady = !refreshing && Boolean(anchor) && recs.length > 0;
   const contentSlots = useBecauseRowSlotCount(contentReady, recs.length);
 
-  /** On subsequent navigations (same mount, new location.key / server / pool):
-   *  clear to skeleton unless a fresh reserve is waiting for this context. */
+  /** On every navigation / server / pool change: apply reserve immediately
+   *  (synchronous, before browser paint) or reset to skeleton for a fresh fetch. */
   useLayoutEffect(() => {
-    if (!hasValidReserve(activeServerId, poolKey)) {
+    if (hasValidReserve(activeServerId, poolKey)) {
+      // Show reserve content right away — covers already in diskSrcCache.
+      setAnchor(_becauseReserve!.anchor);
+      setRecs(_becauseReserve!.recs);
+      setRefreshing(false);
+    } else {
       setRefreshing(true);
       setAnchor(null);
       setRecs([]);
