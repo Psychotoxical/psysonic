@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from 'react';
+import { useDeferredValue, useMemo, useSyncExternalStore } from 'react';
 import { ChevronDown, ListMusic } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -37,17 +37,26 @@ export function QueueHeader({
   // Thin-state: durations come from the resolver cache. The totals re-derive as
   // the cache fills (version) and on queue change; tracks past the cache window
   // contribute 0 until they resolve. Pure read (no cache mutation) in the memo.
+  // H1 mitigation: a mass-resolve burst (queue restore, prefetch window slide)
+  // bumps `version` dozens of times in one frame; useDeferredValue coalesces
+  // the burst into a single low-priority commit so long queues do not block
+  // the main thread on every cache tick. The aggregation itself is a single
+  // pass — one loop produces both totals so a 50k-track queue costs one walk,
+  // not two.
   const version = useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
-  const totalSecs = useMemo(() =>
-    queue.reduce((acc: number, ref) => acc + (resolveQueueTrack(ref).duration || 0), 0),
+  const deferredVersion = useDeferredValue(version);
+  const { totalSecs, futureTracksDuration } = useMemo(() => {
+    if (queue.length === 0) return { totalSecs: 0, futureTracksDuration: 0 };
+    let total = 0;
+    let future = 0;
+    for (let i = 0; i < queue.length; i += 1) {
+      const dur = resolveQueueTrack(queue[i]).duration || 0;
+      total += dur;
+      if (i > queueIndex) future += dur;
+    }
+    return { totalSecs: total, futureTracksDuration: future };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queue, version]
-  );
-  const futureTracksDuration = useMemo(() =>
-    queue.slice(queueIndex + 1).reduce((acc: number, ref) => acc + (resolveQueueTrack(ref).duration || 0), 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queue, queueIndex, version]
-  );
+  }, [queue, queueIndex, deferredVersion]);
 
   const currentDuration = queue[queueIndex] ? resolveQueueTrack(queue[queueIndex]).duration : 0;
   const remainingSecs = Math.max(0, (currentDuration ?? 0) - currentTime + futureTracksDuration);
