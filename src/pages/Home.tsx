@@ -1,6 +1,7 @@
 import { getArtists } from '../api/subsonicArtists';
 import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../api/subsonicTypes';
+import { runLocalRandomSongs } from '../utils/library/browseTextSearch';
 import React, { useEffect, useState } from 'react';
 import Hero from '../components/Hero';
 import AlbumRow from '../components/AlbumRow';
@@ -136,7 +137,9 @@ export default function Home() {
           getAlbumList('recent', 12).catch(() => []),
           isVisible('discoverArtists') ? getArtists().catch(() => []) : Promise.resolve<SubsonicArtist[]>([]),
           isVisible('discoverSongs')
-            ? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[])
+            ? (runLocalRandomSongs(activeServerId, HOME_DISCOVER_SONGS_SIZE)
+                .then(local => local ?? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[]))
+                .catch(() => [] as SubsonicSong[]))
             : Promise.resolve<SubsonicSong[]>([]),
         ]);
         if (cancelled) return;

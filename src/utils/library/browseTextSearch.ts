@@ -339,6 +339,32 @@ function albumSortClauses(sort: AlbumBrowseSort): LibrarySortClause[] {
 }
 
 /**
+ * Random track sample from the local `track` table — SQLite `ORDER BY RANDOM() LIMIT N`.
+ * Returns null when the index is unavailable (caller falls back to the network).
+ */
+export async function runLocalRandomSongs(
+  serverId: string | null | undefined,
+  limit: number,
+): Promise<SubsonicSong[] | null> {
+  if (!serverId || !(await libraryIsReady(serverId))) return null;
+  try {
+    const resp = await libraryAdvancedSearch({
+      serverId,
+      libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      entityTypes: ['track'],
+      sort: [{ field: 'random', dir: 'asc' }],
+      limit,
+      offset: 0,
+      skipTotals: true,
+    });
+    if (resp.source !== 'local') return null;
+    return resp.tracks.map(trackToSong);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Random album sample from the local `album` table — SQLite `ORDER BY RANDOM() LIMIT N`.
  * Returns null when the index is unavailable (caller falls back to the network).
  */
