@@ -13,6 +13,7 @@ import { deriveNormalizationSnapshot } from './normalizationSnapshot';
 import type { PlayerState, QueueItemRef } from './playerStoreTypes';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { seedQueueResolver } from '../utils/library/queueTrackResolver';
+import { canonicalQueueServerKey } from '../utils/server/serverIndexKey';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import {
@@ -70,9 +71,21 @@ export function applyQueueHistorySnapshot(
     const playing = prior.currentTrack;
     const pos = nextQueue.findIndex(t => sameQueueTrackId(t.id, playing.id));
     if (pos === -1) {
+      // Prepend ref must bind to the *snapshot's* playback server (H3): a live
+      // server switch racing the undo would otherwise stamp the prepended ref
+      // with the new server, mis-resolving the still-playing track. Snapshot
+      // fields take precedence; existing refs in the snapshot are the next
+      // fallback (they share the snapshot's server); live `queueServerId` is
+      // last resort. Canonical key everywhere (B1).
+      const snapshotSid =
+        snap.queueServerId
+        ?? snap.queueItems[0]?.serverId
+        ?? get().queueServerId
+        ?? '';
+      const prependServerId = canonicalQueueServerKey(snapshotSid);
       nextQueue = [{ ...playing }, ...nextQueue];
       nextItems = [
-        { serverId: get().queueServerId ?? '', trackId: playing.id },
+        { serverId: prependServerId, trackId: playing.id },
         ...nextItems,
       ];
       nextIndex = 0;
@@ -170,8 +183,15 @@ export function applyQueueHistorySnapshot(
   }
 
   // Seed the resolver with the playing track so its ref always resolves (it may
-  // have been prepended and not yet in the cache window).
-  const seedSid = get().queueServerId ?? '';
+  // have been prepended and not yet in the cache window). Same canonical key
+  // source as the prepend above — keeps cache bucket and ref serverId in lockstep
+  // even when a server switch races the undo.
+  const seedSid = canonicalQueueServerKey(
+    snap.queueServerId
+      ?? snap.queueItems[0]?.serverId
+      ?? get().queueServerId
+      ?? '',
+  );
   if (seedSid && nextTrack) seedQueueResolver(seedSid, [nextTrack]);
   set({
     queueItems: nextItems,

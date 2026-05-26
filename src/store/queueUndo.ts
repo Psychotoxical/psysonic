@@ -16,6 +16,12 @@ export type QueueUndoSnapshot = {
   isPlaying?: boolean;
   /** Main queue panel list `scrollTop` when the snapshot was taken. */
   queueListScrollTop?: number;
+  /** Canonical playback-server identity at snapshot time. Restore uses this
+   *  for any ref it has to prepend (e.g. a still-playing track absent from the
+   *  snapshot's queue) so a mid-restore server switch can't bind the prepended
+   *  ref to the wrong server (B1/H3). Older in-memory entries may omit it;
+   *  callers fall back to the live `queueServerId` in that case. */
+  queueServerId?: string | null;
 };
 
 const queueUndoStack: QueueUndoSnapshot[] = [];
@@ -62,6 +68,7 @@ export function queueUndoSnapshotFromState(s: PlayerState): QueueUndoSnapshot {
     currentTime: s.currentTime,
     progress: s.progress,
     isPlaying: s.isPlaying,
+    queueServerId: s.queueServerId,
     ...(scrollTop !== undefined ? { queueListScrollTop: scrollTop } : {}),
   };
 }
