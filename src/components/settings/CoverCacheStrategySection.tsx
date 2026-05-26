@@ -185,10 +185,6 @@ export default function CoverCacheStrategySection() {
   return (
     <SettingsSubSection title={t('settings.coverCacheStrategyTitle')} icon={<Image size={16} />}>
       <div className="settings-card">
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
-          {t('settings.coverCacheStrategyDesc')}
-        </p>
-
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
             <thead>
@@ -275,6 +271,10 @@ export default function CoverCacheStrategySection() {
             </tbody>
           </table>
         </div>
+
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: '0.9rem', lineHeight: 1.5 }}>
+          {t('settings.coverCacheStrategyDesc')}
+        </p>
 
         {clearTarget && (
           <div

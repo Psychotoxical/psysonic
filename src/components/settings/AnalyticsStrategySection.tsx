@@ -78,10 +78,6 @@ export default function AnalyticsStrategySection() {
     return Array.from(known).filter(id => !activeServerIds.has(id));
   }, [strategyByServer, advancedParallelismByServer, activeServerIds]);
 
-  const anyAggressive = useMemo(() => {
-    return servers.some(server => getStrategyForServer(server.id) === 'advanced');
-  }, [servers, getStrategyForServer]);
-
   useEffect(() => {
     if (servers.length === 0) return;
     let cancelled = false;
@@ -257,10 +253,6 @@ export default function AnalyticsStrategySection() {
       icon={<BarChart3 size={16} />}
     >
       <div className="settings-card">
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
-          {t('settings.analyticsStrategyDesc')}
-        </p>
-
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
             <thead>
@@ -398,24 +390,9 @@ export default function AnalyticsStrategySection() {
           </table>
         </div>
 
-        <div
-          style={{
-            marginTop: '0.85rem',
-            padding: '0.65rem 0.75rem',
-            borderRadius: 8,
-            background: 'var(--surface-elevated, rgba(255,255,255,0.03))',
-            border: '1px solid var(--border-subtle, rgba(255,255,255,0.06))',
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: '0.45rem', color: 'var(--text-secondary)' }}>
-            {t('settings.analyticsStrategyPriorityTitle')}
-          </div>
-          <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-            <li>{t('settings.analyticsStrategyPriorityHigh')}</li>
-            <li>{t('settings.analyticsStrategyPriorityMiddle')}</li>
-            <li>{t('settings.analyticsStrategyPriorityLow')}</li>
-          </ul>
-        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: '0.9rem', lineHeight: 1.5 }}>
+          {t('settings.analyticsStrategyDesc')}
+        </p>
 
         <div
           style={{
@@ -445,18 +422,16 @@ export default function AnalyticsStrategySection() {
           </div>
         </div>
 
-        {anyAggressive && (
-          <div
-            className="settings-hint settings-hint-info"
-            role="note"
-            style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}
-          >
-            <AlertTriangle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2, color: 'var(--color-warning, #f59e0b)' }} />
-            <span style={{ fontSize: 12, lineHeight: 1.5 }}>
-              {t('settings.analyticsStrategyAdvancedWarning')}
-            </span>
-          </div>
-        )}
+        <div
+          className="settings-hint settings-hint-info"
+          role="note"
+          style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}
+        >
+          <AlertTriangle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2, color: 'var(--color-warning, #f59e0b)' }} />
+          <span style={{ fontSize: 12, lineHeight: 1.5 }}>
+            {t('settings.analyticsStrategyAdvancedWarning')}
+          </span>
+        </div>
       </div>
 
       {clearTarget &&
