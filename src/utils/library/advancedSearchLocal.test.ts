@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
-import { runLocalAdvancedSearch, runLocalSongBrowse, trackToSong } from './advancedSearchLocal';
+import {
+  resolveTrackCoverArtId,
+  runLocalAdvancedSearch,
+  runLocalSongBrowse,
+  trackToSong,
+} from './advancedSearchLocal';
 
 const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) => ({
   query: '',
@@ -78,6 +83,30 @@ describe('runLocalAdvancedSearch', () => {
     expect(captured).toMatchObject({
       request: { filters: [{ field: 'bpm', op: 'between', value: 120, valueTo: 130 }] },
     });
+  });
+
+  it('resolveTrackCoverArtId falls back to albumId when coverArtId is empty', () => {
+    expect(
+      resolveTrackCoverArtId(
+        { coverArtId: undefined, albumId: 'al-42' },
+        { coverArt: '', albumId: 'al-42' },
+      ),
+    ).toBe('al-42');
+    expect(resolveTrackCoverArtId({ coverArtId: 'cv1', albumId: 'al-42' })).toBe('cv1');
+  });
+
+  it('trackToSong sets coverArt from albumId when the index row has no cover_art_id', () => {
+    const song = trackToSong({
+      serverId: 's1',
+      id: 't1',
+      title: 'T',
+      album: 'Alb',
+      albumId: 'al-42',
+      durationSec: 100,
+      syncedAt: 0,
+      rawJson: { id: 't1', title: 'T', artist: 'A', album: 'Alb', albumId: 'al-42', duration: 100 },
+    });
+    expect(song.coverArt).toBe('al-42');
   });
 
   it('trackToSong keeps resolved bpm and source over rawJson tag', () => {

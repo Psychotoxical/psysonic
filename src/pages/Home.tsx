@@ -110,7 +110,10 @@ export default function Home() {
       a.coverArt ? [coverArtRef(a.coverArt)] : [],
     );
     const artistRefs = randomArtists.map(a => coverArtRef(coverArtIdFromArtist(a)));
-    const songRefs = discoverSongs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : []));
+    const songRefs = discoverSongs.flatMap(s => {
+      const id = s.coverArt ?? s.albumId;
+      return id ? [coverArtRef(id)] : [];
+    });
     const unregHero = coverPrefetchRegister(heroRefs, { surface: 'dense', priority: 'high' });
     const unregRecent = coverPrefetchRegister(recentRefs, { surface: 'dense', priority: 'high' });
     // The album-and-artist `cappedRest` bucket is sized for the visible album

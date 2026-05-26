@@ -132,6 +132,21 @@ function buildRequest(
   };
 }
 
+/**
+ * Cover art id for a library track — mirrors Rust cover backfill
+ * (`COALESCE(cover_art_id, album_id)`). Many servers only expose album art.
+ */
+export function resolveTrackCoverArtId(
+  hot: Pick<LibraryTrackDto, 'coverArtId' | 'albumId'>,
+  song: Partial<SubsonicSong> = {},
+): string | undefined {
+  for (const c of [hot.coverArtId, song.coverArt, hot.albumId, song.albumId]) {
+    const id = typeof c === 'string' ? c.trim() : '';
+    if (id) return id;
+  }
+  return undefined;
+}
+
 export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   const raw = isObject(t.rawJson) ? t.rawJson : {};
   const resolvedBpm = t.bpm != null && t.bpm > 0 ? t.bpm : undefined;
@@ -145,7 +160,7 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
     duration: t.durationSec,
     track: t.trackNumber ?? undefined,
     discNumber: t.discNumber ?? undefined,
-    coverArt: t.coverArtId ?? undefined,
+    coverArt: resolveTrackCoverArtId(t),
     year: t.year ?? undefined,
     genre: t.genre ?? undefined,
     suffix: t.suffix ?? undefined,
@@ -161,6 +176,8 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   // `rawJson` is the authoritative original song — let it override the
   // hot-column fallbacks (it carries OpenSubsonic extras too).
   const merged: SubsonicSong = { ...base, ...(raw as Partial<SubsonicSong>) };
+  const coverArt = resolveTrackCoverArtId(t, merged);
+  if (coverArt) merged.coverArt = coverArt;
   if (resolvedBpm != null) merged.bpm = resolvedBpm;
   if (t.bpmSource === 'analysis' || t.bpmSource === 'tag') {
     merged.localBpmSource = t.bpmSource;

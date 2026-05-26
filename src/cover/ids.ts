@@ -4,8 +4,9 @@ export function coverArtIdFromAlbum(album: { coverArt?: string }): CoverArtId | 
   return album.coverArt ?? null;
 }
 
-export function coverArtIdFromSong(song: { coverArt?: string; id?: string }): CoverArtId | null {
-  return song.coverArt ?? null;
+export function coverArtIdFromSong(song: { coverArt?: string; albumId?: string }): CoverArtId | null {
+  const id = song.coverArt ?? song.albumId;
+  return id?.trim() || null;
 }
 
 export function coverArtIdFromArtist(artist: { coverArt?: string; id: string }): CoverArtId {

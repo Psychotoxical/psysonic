@@ -32,7 +32,8 @@ function SongCard({
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverHandle = useCoverArt(song.coverArt, layoutPx, {
+  const coverArtId = song.coverArt ?? song.albumId;
+  const coverHandle = useCoverArt(coverArtId, layoutPx, {
     surface: 'dense',
     ensurePriority: 'middle',
   });
@@ -92,9 +93,9 @@ function SongCard({
       }}
     >
       <div className="song-card-cover">
-        {!disableArtwork && song.coverArt ? (
+        {!disableArtwork && coverArtId ? (
           <CoverArtImage
-            coverArtId={song.coverArt}
+            coverArtId={coverArtId}
             displayCssPx={layoutPx}
             surface="dense"
             alt={`${song.album} Cover`}
