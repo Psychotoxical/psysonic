@@ -46,6 +46,18 @@ pub fn build_cover_art_url(
     }
 }
 
+pub async fn fetch_cover_bytes(client: &Client, url: &str) -> Result<Vec<u8>, String> {
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("cover HTTP {}", resp.status()));
+    }
+    resp.bytes().await.map(|b| b.to_vec()).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::build_cover_art_url;
@@ -83,16 +95,4 @@ mod tests {
         assert!(url.contains("/rest/getCoverArt.view?"));
         assert!(url.contains("id=al-1"));
     }
-}
-
-pub async fn fetch_cover_bytes(client: &Client, url: &str) -> Result<Vec<u8>, String> {
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(format!("cover HTTP {}", resp.status()));
-    }
-    resp.bytes().await.map(|b| b.to_vec()).map_err(|e| e.to_string())
 }
