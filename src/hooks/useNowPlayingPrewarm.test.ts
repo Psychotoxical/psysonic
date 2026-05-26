@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { makeTrack } from '../test/helpers/factories';
 import { resetAllStores } from '../test/helpers/storeReset';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 
 vi.mock('../api/coverCache', () => ({
   coverCachePeekBatch: vi.fn(async () => ({})),
@@ -51,7 +52,7 @@ describe('useNowPlayingPrewarm', () => {
       coverArt: 'cover-1',
     });
     usePlayerStore.setState({
-      queue: [track],
+      queueItems: toQueueItemRefs(playback, [track]),
       queueIndex: 0,
       queueServerId: playback,
       currentTrack: track,
@@ -76,7 +77,7 @@ describe('useNowPlayingPrewarm', () => {
     const { active, playback } = seedServers();
     const track = makeTrack({ id: 'song-2', coverArt: 'cover-2' });
     usePlayerStore.setState({
-      queue: [track],
+      queueItems: toQueueItemRefs(playback, [track]),
       queueIndex: 0,
       queueServerId: playback,
       currentTrack: null,
