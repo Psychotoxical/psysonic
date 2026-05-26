@@ -150,4 +150,55 @@ export async function warmHomeMainstageCovers(snapshot: {
     ...collectAlbumCoverWarmItems(snapshot.discoverSongs ?? [], 200, 'dense', 20),
   ]);
   await warmCoverDiskSrcBatch(items);
+
+  // Prepare above-the-fold mainstage covers ahead of return navigation:
+  // if a refreshed snapshot introduces new albums not yet on disk, ensure them
+  // now in background so Hero / first rows don't wait on per-cell ensure.
+  await Promise.allSettled([
+    ensureAlbumCoverMisses(snapshot.heroAlbums, 220, { surface: 'dense', limit: 8 }),
+    ensureAlbumCoverMisses(snapshot.recent, 300, { surface: 'dense', limit: 14 }),
+    ensureAlbumCoverMisses(snapshot.random, 300, { surface: 'dense', limit: 10 }),
+  ]);
+
+  // Fire-and-forget decode warmup to reduce first-paint "from cache" delay.
+  void predecodeWarmAlbums(snapshot.heroAlbums, 220, 8);
+  void predecodeWarmAlbums(snapshot.recent, 300, 10);
+  void predecodeWarmAlbums(snapshot.random, 300, 8);
+}
+
+async function predecodeWarmAlbums(
+  albums: ReadonlyArray<{ coverArt?: string | null }>,
+  displayCssPx: number,
+  limit: number,
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
+  const urls: string[] = [];
+  for (const album of albums) {
+    if (!album.coverArt || urls.length >= limit) continue;
+    const src = getDiskSrcForGrid({ kind: 'active' }, album.coverArt, tier);
+    if (!src) continue;
+    urls.push(src);
+  }
+  if (urls.length === 0) return;
+
+  await Promise.allSettled(
+    urls.map(
+      src =>
+        new Promise<void>(resolve => {
+          const img = new Image();
+          img.decoding = 'async';
+          img.src = src;
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          if ('decode' in img) {
+            void (img as HTMLImageElement).decode().then(resolve).catch(resolve);
+          }
+        }),
+    ),
+  );
 }

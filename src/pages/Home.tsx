@@ -9,7 +9,7 @@ import SongRail from '../components/SongRail';
 import BecauseYouLikeRail from '../components/BecauseYouLikeRail';
 import LosslessAlbumsRail from '../components/LosslessAlbumsRail';
 import { useTranslation } from 'react-i18next';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useHomeStore } from '../store/homeStore';
 import { useAuthStore } from '../store/authStore';
@@ -126,6 +126,40 @@ export default function Home() {
     if (!activeServerId) return;
     let cancelled = false;
 
+    const fetchFreshHomeFeed = async (): Promise<HomeFeedSnapshot | null> => {
+      const mixCfg = getMixMinRatingsConfigFromAuth();
+      const albumMix =
+        mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
+      const randomSize = albumMix ? HOME_RANDOM_FETCH : HOME_DISCOVER_SLICE;
+      const [s, n, rRaw, f, rp, artists, songs] = await Promise.all([
+        getAlbumList('starred', 12).catch(() => []),
+        getAlbumList('newest', 12).catch(() => []),
+        getAlbumList('random', randomSize).catch(() => []),
+        getAlbumList('frequent', 12).catch(() => []),
+        getAlbumList('recent', 12).catch(() => []),
+        isVisible('discoverArtists') ? getArtists().catch(() => []) : Promise.resolve<SubsonicArtist[]>([]),
+        isVisible('discoverSongs')
+          ? (runLocalRandomSongs(activeServerId, HOME_DISCOVER_SONGS_SIZE)
+              .then(local => local ?? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[]))
+              .catch(() => [] as SubsonicSong[]))
+          : Promise.resolve<SubsonicSong[]>([]),
+      ]);
+      const r = dedupeById(await filterAlbumsByMixRatings(rRaw, mixCfg));
+      return {
+        serverId: activeServerId,
+        filterVersion: musicLibraryFilterVersion,
+        savedAt: Date.now(),
+        starred: dedupeById(s),
+        recent: dedupeById(n),
+        heroAlbums: r.slice(0, HOME_HERO_COUNT),
+        random: r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE),
+        mostPlayed: dedupeById(f),
+        recentlyPlayed: dedupeById(rp),
+        discoverSongs: dedupeById(songs),
+        randomArtists: dedupeById(shuffleArray(artists)).slice(0, 16),
+      };
+    };
+
     const cached = readHomeFeedCache(activeServerId, musicLibraryFilterVersion);
     if (cached) {
       // When lazy initializers already pre-populated state from this same
@@ -138,6 +172,18 @@ export default function Home() {
       void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
         limit: 6,
       });
+      // Keep the current visit visually stable, but prepare fresh data so the
+      // next re-enter opens with a newer snapshot immediately.
+      void (async () => {
+        try {
+          const fresh = await fetchFreshHomeFeed();
+          if (!fresh || cancelled) return;
+          writeHomeFeedCache(fresh);
+          void warmHomeMainstageCovers(fresh);
+        } catch {
+          /* ignore */
+        }
+      })();
       return () => {
         cancelled = true;
       };
@@ -146,38 +192,9 @@ export default function Home() {
     setLoading(true);
     (async () => {
       try {
-        const mixCfg = getMixMinRatingsConfigFromAuth();
-        const albumMix =
-          mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
-        const randomSize = albumMix ? HOME_RANDOM_FETCH : HOME_DISCOVER_SLICE;
-        const [s, n, rRaw, f, rp, artists, songs] = await Promise.all([
-          getAlbumList('starred', 12).catch(() => []),
-          getAlbumList('newest', 12).catch(() => []),
-          getAlbumList('random', randomSize).catch(() => []),
-          getAlbumList('frequent', 12).catch(() => []),
-          getAlbumList('recent', 12).catch(() => []),
-          isVisible('discoverArtists') ? getArtists().catch(() => []) : Promise.resolve<SubsonicArtist[]>([]),
-          isVisible('discoverSongs')
-            ? (runLocalRandomSongs(activeServerId, HOME_DISCOVER_SONGS_SIZE)
-                .then(local => local ?? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[]))
-                .catch(() => [] as SubsonicSong[]))
-            : Promise.resolve<SubsonicSong[]>([]),
-        ]);
+        const snap = await fetchFreshHomeFeed();
+        if (!snap) return;
         if (cancelled) return;
-        const r = dedupeById(await filterAlbumsByMixRatings(rRaw, mixCfg));
-        const snap: HomeFeedSnapshot = {
-          serverId: activeServerId,
-          filterVersion: musicLibraryFilterVersion,
-          savedAt: Date.now(),
-          starred: dedupeById(s),
-          recent: dedupeById(n),
-          heroAlbums: r.slice(0, HOME_HERO_COUNT),
-          random: r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE),
-          mostPlayed: dedupeById(f),
-          recentlyPlayed: dedupeById(rp),
-          discoverSongs: dedupeById(songs),
-          randomArtists: dedupeById(shuffleArray(artists)).slice(0, 16),
-        };
         writeHomeFeedCache(snap);
         applyFeedSnapshot(snap);
         if (!cancelled) setLoading(false);
@@ -219,7 +236,6 @@ export default function Home() {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
   let artworkRowsLeft = homeRailArtworkDisabled ? 0 : HOME_ARTWORK_VISIBLE_ROW_BUDGET_WHEN_ENABLED;
   const reserveArtworkRow = () => {
     if (artworkRowsLeft <= 0) return false;
@@ -290,7 +306,7 @@ export default function Home() {
     starred.length === 0;
   return (
     <div className={`animate-fade-in${homeLiteArtworkFx ? ' home-lite-artwork' : ''}${homeFlatArtworkClip ? ' home-flat-artwork-clip' : ''}`}>
-      {!perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
+      {!loading && !perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
 
       <div className="content-body" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
         {loading ? (
@@ -318,7 +334,6 @@ export default function Home() {
             )}
             {!homeAlbumRowsDisabled && isVisible('becauseYouLike') && becauseYouLikeHasSeed && (
               <BecauseYouLikeRail
-                key={`because-${location.key}`}
                 mostPlayed={mostPlayed}
                 recentlyPlayed={recentlyPlayed}
                 starred={starred}

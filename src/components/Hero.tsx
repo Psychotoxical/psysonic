@@ -162,6 +162,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     };
   }, []);
 
+
   useEffect(() => {
     if (heroInView || windowHidden) return;
     // Recovery guard: if a scroll/RAF event was missed while hero was outside
@@ -281,7 +282,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <div className="hero-overlay" aria-hidden="true" />}
 
       {/* key causes re-mount → animate-fade-in triggers on each album change */}
-      <div className="hero-content animate-fade-in" key={album.id}>
+      <div className="hero-content" key={album.id}>
         {album.coverArt && !isMobile && (
           <CoverArtImage
             coverArtId={album.coverArt}

@@ -4,7 +4,7 @@ import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Music } from 'lucide-react';
 import { coverArtRef } from '../cover/ref';
@@ -189,6 +189,9 @@ async function fillBecauseReserve(
     const result = await fetchBecauseYouLike(pool, anchorHistKey, picksHistKey);
     if (result) {
       _becauseReserve = { serverId, ...result };
+      // Also refresh the session snapshot so a quick leave→return can pick up
+      // newer cards even before the reserve is explicitly consumed.
+      writeBecauseYouLikeCache({ serverId, anchor: result.anchor, recs: result.recs });
     }
   } catch {
     /* Network failure — next visit falls back to a fresh fetch. */
@@ -327,7 +330,6 @@ export default function BecauseYouLikeRail({
     () => pool.slice(0, 8).map(a => a.id).join('\u0001'),
     [pool],
   );
-  const location = useLocation();
   // Initialise state in priority order: reserve (new batch) > session cache (stale-while-
   // revalidate) > skeleton. Both checks work without poolKey so they fire correctly on the
   // first render when pool is still [] (Home.tsx loads mostPlayed asynchronously).
@@ -348,7 +350,7 @@ export default function BecauseYouLikeRail({
   });
   const skeletonSlots = useBecauseRowSlotCount(refreshing, SHOW_COUNT);
   const contentReady = !refreshing && Boolean(anchor) && recs.length > 0;
-  const contentSlots = useBecauseRowSlotCount(contentReady, recs.length);
+  const contentSlots = contentReady ? recs.length : 1;
 
   /** On every navigation / server / pool change: apply reserve immediately
    *  (synchronous, before browser paint) or fall back to session cache (stale-
@@ -370,7 +372,7 @@ export default function BecauseYouLikeRail({
         setRecs([]);
       }
     }
-  }, [location.key, activeServerId, poolKey]);
+  }, [activeServerId, poolKey]);
 
   // 696px ≙ exactly 2 BecauseCards side-by-side (2*340 + 16 gap). Below that
   // the hero-style cards stretch full-width and dwarf the rest of the page,
@@ -436,6 +438,15 @@ export default function BecauseYouLikeRail({
         return;
       }
 
+      // Keep visible cards stable on return visits: if we already have a valid
+      // session snapshot, leave it on screen and only prefetch the next batch
+      // for the next mount instead of swapping cards mid-visit.
+      if (snap && snap.recs.length > 0) {
+        setRefreshing(false);
+        void fillBecauseReserve(pool, activeServerId, anchorHistKey, picksHistKey);
+        return;
+      }
+
       // ── Full-fetch path (first visit or reserve miss) ──────────────────
       // Only clear to skeleton if nothing is currently displayed. When cached
       // content is visible, leave it in place and swap silently (stale-while-
@@ -486,7 +497,7 @@ export default function BecauseYouLikeRail({
     })();
 
     return () => { cancelled = true; };
-  }, [pool, activeServerId, disableArtwork, location.key, poolKey]);
+  }, [pool, activeServerId, disableArtwork, poolKey]);
 
   useEffect(() => {
     if (disableArtwork || recs.length === 0) return;
@@ -557,7 +568,6 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   const imgSrc = coverImgSrc(coverHandle.src);
   const bgResolved = coverHandle.src;
   const coverReady = disableArtwork || !album.coverArt || Boolean(imgSrc);
-  const textReady = coverReady;
 
   const handleOpen = () => navigate(`/album/${album.id}`);
   const handlePlay = (e: React.MouseEvent) => {
@@ -635,7 +645,6 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
           </button>
         </div>
       </div>
-      {textReady ? (
       <div className="because-card-text">
         <div className="because-card-top">
           <div className="because-card-similar">
@@ -655,7 +664,6 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
           {album.duration ? <span>{formatHumanHoursMinutes(album.duration)}</span> : null}
         </div>
       </div>
-      ) : null}
     </div>
   );
 });
