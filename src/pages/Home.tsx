@@ -51,9 +51,12 @@ export default function Home() {
   const homeSections = useHomeStore(s => s.sections);
   const activeServerId = useAuthStore(s => s.activeServerId);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const mixMinRatingFilterEnabled = useAuthStore(s => s.mixMinRatingFilterEnabled);
-  const mixMinRatingAlbum = useAuthStore(s => s.mixMinRatingAlbum);
-  const mixMinRatingArtist = useAuthStore(s => s.mixMinRatingArtist);
+  // Mix-rating deps intentionally NOT subscribed here — they change during Zustand
+  // rehydration and would trigger a second useEffect fire right after the first,
+  // showing the cached home feed briefly and then replacing it (~500 ms later)
+  // when the re-fetch with the rehydrated values completes. getMixMinRatingsConfigFromAuth
+  // reads the current store state directly inside the effect so the correct
+  // values are always used without re-triggering the effect on rehydration.
   const isVisible = (id: string) => homeSections.find(s => s.id === id)?.visible ?? true;
 
   const [starred, setStarred] = useState<SubsonicAlbum[]>([]);
@@ -170,10 +173,7 @@ export default function Home() {
     activeServerId,
     musicLibraryFilterVersion,
     homeSections,
-    mixMinRatingFilterEnabled,
-    mixMinRatingAlbum,
-    mixMinRatingArtist,
-  ]);
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = async (
     type: 'starred' | 'newest' | 'random' | 'frequent' | 'recent',
