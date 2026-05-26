@@ -44,14 +44,16 @@ function HeroBg({ url }: { url: string }) {
   return (
     <>
       {layers.map(layer => (
-        <div
+        <img
           key={layer.id}
-          className="hero-bg"
-          style={{
-            backgroundImage: `url(${layer.url})`,
-            opacity: layer.visible ? 1 : 0,
-          }}
+          className="hero-bg-image"
+          src={layer.url}
+          style={{ opacity: layer.visible ? 1 : 0 }}
           aria-hidden="true"
+          alt=""
+          loading="eager"
+          decoding="sync"
+          draggable={false}
         />
       ))}
     </>

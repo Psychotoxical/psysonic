@@ -378,9 +378,10 @@ export default function BecauseYouLikeRail({
   // the hero-style cards stretch full-width and dwarf the rest of the page,
   // so we swap in a standard AlbumRow which is already perf-tuned for narrow
   // rails (artwork budget, viewport windowing, scroll-paging).
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    setNarrow(el.getBoundingClientRect().width < 696);
     const ro = new ResizeObserver(entries => {
       for (const entry of entries) {
         setNarrow(entry.contentRect.width < 696);
@@ -567,8 +568,6 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   });
   const imgSrc = coverImgSrc(coverHandle.src);
   const bgResolved = coverHandle.src;
-  const coverReady = disableArtwork || !album.coverArt || Boolean(imgSrc);
-
   const handleOpen = () => navigate(`/album/${album.id}`);
   const handlePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
