@@ -365,6 +365,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Analytics — aggressive scan no longer eats memory on big libraries
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#873](https://github.com/Psychotoxical/psysonic/pull/873)**
+
+* **Settings → Library → Analytics → Aggressive** on multi-server or 100k+ track libraries no longer climbs in memory until the system swaps (Linux) or runs out (Windows OOM mid-scan): the HTTP download stage now waits for Symphonia decode + loudness to catch up instead of buffering tracks faster than they can be processed.
+* Now-playing prefetch still bypasses the cap, so starting a track during a background scan stays instant.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
