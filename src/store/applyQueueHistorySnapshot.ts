@@ -10,8 +10,11 @@ import {
 } from './engineState';
 import { clearPreloadingIds } from './gaplessPreloadState';
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
-import type { PlayerState } from './playerStoreTypes';
-import { sameQueueTrackId, shallowCloneQueueTracks } from '../utils/playback/queueIdentity';
+import type { PlayerState, QueueItemRef } from './playerStoreTypes';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
+import { seedQueueResolver } from '../utils/library/queueTrackResolver';
+import { canonicalQueueServerKey } from '../utils/server/serverIndexKey';
+import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import { queueUndoRestoreAudioEngine } from './queueUndoAudioRestore';
 import {
   setPendingQueueListScrollTop,
@@ -54,7 +57,13 @@ export function applyQueueHistorySnapshot(
   if (prior.currentRadio) {
     stopRadio();
   }
-  let nextQueue = shallowCloneQueueTracks(snap.queue);
+  // Rebuild the display queue from the snapshot's thin refs (thin-state):
+  // resolver cache → placeholder. The canonical queue is the snapshot's refs;
+  // this resolved `nextQueue` is only for the engine restore / normalization /
+  // prepend logic below. The playing track is restored separately from the full
+  // `snap.currentTrack`.
+  let nextQueue = snap.queueItems.map(ref => resolveQueueTrack(ref));
+  let nextItems: QueueItemRef[] = [...snap.queueItems];
   let nextIndex = snap.queueIndex;
   let nextTrack = snap.currentTrack ? { ...snap.currentTrack } : null;
 
@@ -62,7 +71,23 @@ export function applyQueueHistorySnapshot(
     const playing = prior.currentTrack;
     const pos = nextQueue.findIndex(t => sameQueueTrackId(t.id, playing.id));
     if (pos === -1) {
+      // Prepend ref must bind to the *snapshot's* playback server (H3): a live
+      // server switch racing the undo would otherwise stamp the prepended ref
+      // with the new server, mis-resolving the still-playing track. Snapshot
+      // fields take precedence; existing refs in the snapshot are the next
+      // fallback (they share the snapshot's server); live `queueServerId` is
+      // last resort. Canonical key everywhere (B1).
+      const snapshotSid =
+        snap.queueServerId
+        ?? snap.queueItems[0]?.serverId
+        ?? get().queueServerId
+        ?? '';
+      const prependServerId = canonicalQueueServerKey(snapshotSid);
       nextQueue = [{ ...playing }, ...nextQueue];
+      nextItems = [
+        { serverId: prependServerId, trackId: playing.id },
+        ...nextItems,
+      ];
       nextIndex = 0;
       nextTrack = { ...playing };
     } else {
@@ -157,8 +182,19 @@ export function applyQueueHistorySnapshot(
     }
   }
 
+  // Seed the resolver with the playing track so its ref always resolves (it may
+  // have been prepended and not yet in the cache window). Same canonical key
+  // source as the prepend above — keeps cache bucket and ref serverId in lockstep
+  // even when a server switch races the undo.
+  const seedSid = canonicalQueueServerKey(
+    snap.queueServerId
+      ?? snap.queueItems[0]?.serverId
+      ?? get().queueServerId
+      ?? '',
+  );
+  if (seedSid && nextTrack) seedQueueResolver(seedSid, [nextTrack]);
   set({
-    queue: nextQueue,
+    queueItems: nextItems,
     queueIndex: nextIndex,
     currentTrack: nextTrack,
     currentRadio: null,
@@ -174,7 +210,7 @@ export function applyQueueHistorySnapshot(
   if (!nextTrack) {
     invoke('audio_stop').catch(console.error);
     setIsAudioPaused(false);
-    syncQueueToServer(nextQueue, null, 0);
+    syncQueueToServer(nextItems, null, 0);
     if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
       setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
     }
@@ -201,6 +237,6 @@ export function applyQueueHistorySnapshot(
   if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
     setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
   }
-  syncQueueToServer(nextQueue, nextTrack, tRestore);
+  syncQueueToServer(nextItems, nextTrack, tRestore);
   return true;
 }

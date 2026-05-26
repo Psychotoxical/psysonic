@@ -24,7 +24,7 @@ describe('subsonicScrobble', () => {
       isLoggedIn: true,
     });
     usePlayerStore.setState({
-      queue: [{ id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al1', duration: 100 }],
+      queueItems: [{ serverId: 'a', trackId: 't1' }],
       queueServerId: 'a',
       queueIndex: 0,
     });

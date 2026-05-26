@@ -1,8 +1,10 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import { createSafeJSONStorage } from './safeStorage';
 import { emitPlaybackProgress } from './playbackProgress';
-import type { PlayerState } from './playerStoreTypes';
+import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import { canonicalQueueServerKey } from '../utils/server/serverIndexKey';
 import { readInitialQueueVisibility } from './queueVisibilityStorage';
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
@@ -16,9 +18,6 @@ import { createScheduleActions } from './scheduleActions';
 import { createTransportLightActions } from './transportLightActions';
 import { createUiStateActions } from './uiStateActions';
 import { createUndoRedoActions } from './undoRedoActions';
-
-// Half-width of the localStorage queue window (see partialize below).
-const PERSIST_QUEUE_HALF = 250;
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -39,7 +38,9 @@ export const usePlayerStore = create<PlayerState>()(
       currentRadio: null,
       currentPlaybackSource: null,
       enginePreloadedTrackId: null,
-      queue: [],
+      // Thin-state: the queue is a list of refs; full Tracks resolve on demand
+      // through the resolver. `currentTrack` stays a full resolved singleton.
+      queueItems: [],
       queueServerId: null,
       queueIndex: 0,
       isPlaying: false,
@@ -81,37 +82,81 @@ export const usePlayerStore = create<PlayerState>()(
     },
     {
       name: 'psysonic-player',
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => {
-        // Persist only a window around the current track: the full queue
-        // (10k+ on big playlists) overflows the localStorage quota.
-        const qi = state.queueIndex;
-        const start = Math.max(0, qi - PERSIST_QUEUE_HALF);
-        const windowedQueue = state.queue.slice(start, qi + PERSIST_QUEUE_HALF + 1);
+      // Quota-safe: a failed persist write (huge queue > localStorage quota)
+      // must never throw, or it aborts the `set()` it fires from — that is what
+      // killed `playTrack` before `audio_play`. See safeStorage.ts.
+      storage: createSafeJSONStorage(),
+      partialize: (state) => ({
+        volume: state.volume,
+        repeatMode: state.repeatMode,
+        currentTrack: state.currentTrack,
+        queueServerId: state.queueServerId,
+        // Thin-state: persist the whole ordered ref list (tiny) — no windowed
+        // fat `queue: Track[]` anymore. `queueItemsIndex` doubles as the
+        // restore-pending sentinel a fresh rehydrate carries back, telling
+        // `hydrateQueueFromIndex` the refs still need a full resolve.
+        queueItems: state.queueItems,
+        queueItemsIndex: state.queueIndex,
+        isQueueVisible: state.isQueueVisible,
+        // currentTime is intentionally NOT persisted here.
+        // handleAudioProgress fires every 100ms and each setState with a
+        // persisted field triggers a full JSON serialisation to localStorage.
+        // Resume position is recovered from Subsonic savePlayQueue (5s debounce).
+        lastfmLovedCache: state.lastfmLovedCache,
+      }),
+      // Rebuild `queueItems` from ANY older persisted blob shape so an upgrade
+      // restores the queue. Order of preference: an existing `queueItems` ref
+      // list → the legacy `queueRefs` string list → a windowed `queue: Track[]`
+      // (the pre-thin-state shape). Sets the restore-pending sentinel and drops
+      // the obsolete fat `queue` key from the persisted object.
+      merge: (persisted, current) => {
+        const blob = (persisted ?? {}) as Record<string, unknown>;
+        const rawServerId = (blob.queueServerId as string | null | undefined) ?? null;
+        // B1: queue server identity is canonical (index key) on every write path.
+        // Migrate persisted blobs forward here once on rehydrate so the live
+        // store never has to handle a mix of UUID and index-key refs.
+        const canonicalSid = rawServerId ? canonicalQueueServerKey(rawServerId) : null;
+
+        let queueItems: QueueItemRef[] | undefined;
+        if (Array.isArray(blob.queueItems) && blob.queueItems.length > 0) {
+          queueItems = (blob.queueItems as QueueItemRef[]).map(ref => ({
+            ...ref,
+            serverId: canonicalQueueServerKey(ref.serverId),
+          }));
+        } else if (Array.isArray(blob.queueRefs) && blob.queueRefs.length > 0) {
+          queueItems = (blob.queueRefs as string[]).map(trackId => ({
+            serverId: canonicalSid ?? '',
+            trackId,
+          }));
+        } else if (Array.isArray(blob.queue) && blob.queue.length > 0) {
+          queueItems = toQueueItemRefs(canonicalSid ?? '', blob.queue as Track[]);
+        }
+
+        // Restore-pending sentinel: prefer the persisted one; else the legacy
+        // index; else 0 when we recovered a non-empty queue from an old blob.
+        let queueItemsIndex: number | undefined;
+        if (typeof blob.queueItemsIndex === 'number') {
+          queueItemsIndex = blob.queueItemsIndex;
+        } else if (typeof blob.queueRefsIndex === 'number') {
+          queueItemsIndex = blob.queueRefsIndex;
+        } else if (queueItems && queueItems.length > 0) {
+          queueItemsIndex = typeof blob.queueIndex === 'number' ? blob.queueIndex : 0;
+        }
+
+        // Drop the obsolete windowed fat-array key — `queueItems` is canonical.
+        delete blob.queue;
+        // Persist the canonical form back onto the merged blob so subsequent
+        // reads of state.queueServerId always see the index key.
+        if (canonicalSid !== null) {
+          blob.queueServerId = canonicalSid;
+        }
+
         return {
-          volume: state.volume,
-          repeatMode: state.repeatMode,
-          currentTrack: state.currentTrack,
-          queue: windowedQueue,
-          queueServerId: state.queueServerId,
-          queueIndex: qi - start, // remap into the windowed slice
-          // Phase 1: full ordered thin-ref list (tiny) so the *whole* queue can
-          // be rehydrated from the local index on startup. Dual-write — the
-          // windowed `queue` above stays as the no-index fallback (queue never
-          // empty when the index is off, the P6 default). Per-item serverId is
-          // the playback server (single-server v1); supersedes `queueRefs`.
-          queueItems: toQueueItemRefs(state.queueServerId ?? '', state.queue),
-          queueItemsIndex: qi,
-          isQueueVisible: state.isQueueVisible,
-          // currentTime is intentionally NOT persisted here.
-          // handleAudioProgress fires every 100ms and each setState with a
-          // persisted field triggers a full JSON serialisation of the queue to
-          // localStorage.  After ~10 minutes of Artist Radio the queue grows to
-          // 50+ tracks; 6 000+ synchronous SQLite writes cause WKWebView's
-          // storage process to crash on macOS → black screen + audio stop.
-          // Resume position is recovered from Subsonic savePlayQueue (5s debounce).
-          lastfmLovedCache: state.lastfmLovedCache,
-        };
+          ...current,
+          ...blob,
+          queueItems: queueItems ?? current.queueItems,
+          ...(queueItemsIndex !== undefined ? { queueItemsIndex } : {}),
+        } as PlayerState;
       },
     }
   )

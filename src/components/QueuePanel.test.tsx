@@ -41,7 +41,7 @@ import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
-import { makeTrack, makeTracks } from '@/test/helpers/factories';
+import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -86,11 +86,7 @@ describe('QueuePanel — render surface', () => {
 
   it('renders one row per queue track with the matching data-queue-idx', () => {
     const tracks = makeTracks(3);
-    usePlayerStore.setState({
-      queue: tracks,
-      queueIndex: 0,
-      currentTrack: tracks[0],
-    });
+    seedQueue(tracks, { index: 0, currentTrack: tracks[0] });
     const { container } = renderWithProviders(<QueuePanel />);
     const rows = container.querySelectorAll<HTMLElement>('[data-queue-idx]');
     expect(rows.length).toBe(3);
@@ -101,11 +97,7 @@ describe('QueuePanel — render surface', () => {
   it('renders each queue row with the track title text', () => {
     const t1 = makeTrack({ id: 'q1', title: 'Test Song A' });
     const t2 = makeTrack({ id: 'q2', title: 'Test Song B' });
-    usePlayerStore.setState({
-      queue: [t1, t2],
-      queueIndex: 0,
-      currentTrack: t1,
-    });
+    seedQueue([t1, t2], { index: 0, currentTrack: t1 });
     const { getAllByText, getByText } = renderWithProviders(<QueuePanel />);
     // Title A appears both in the now-playing section and in the row;
     // assert at least one match. Title B only lives in its row.
@@ -117,11 +109,7 @@ describe('QueuePanel — render surface', () => {
 describe('QueuePanel — toolbar', () => {
   it('exposes Shuffle / Save Playlist / Load Playlist / Share Queue / Clear via aria-label', () => {
     const tracks = makeTracks(3);
-    usePlayerStore.setState({
-      queue: tracks,
-      queueIndex: 0,
-      currentTrack: tracks[0],
-    });
+    seedQueue(tracks, { index: 0, currentTrack: tracks[0] });
     const { getByLabelText } = renderWithProviders(<QueuePanel />);
     expect(getByLabelText('Shuffle queue')).toBeInTheDocument();
     expect(getByLabelText('Save Playlist')).toBeInTheDocument();
@@ -131,11 +119,7 @@ describe('QueuePanel — toolbar', () => {
   });
 
   it('Shuffle button is disabled when the queue has fewer than 2 tracks', () => {
-    usePlayerStore.setState({
-      queue: [makeTrack()],
-      queueIndex: 0,
-      currentTrack: makeTrack(),
-    });
+    seedQueue([makeTrack()], { index: 0, currentTrack: makeTrack() });
     const { getByLabelText } = renderWithProviders(<QueuePanel />);
     const shuffle = getByLabelText('Shuffle queue') as HTMLButtonElement;
     expect(shuffle.disabled).toBe(true);
@@ -149,11 +133,7 @@ describe('QueuePanel — DnD architecture pin (§4.4 of v2 plan)', () => {
   // queue back to native HTML5 DnD breaks loudly.
 
   it('queue rows do not declare draggable=true (no HTML5 native drag)', () => {
-    usePlayerStore.setState({
-      queue: makeTracks(3),
-      queueIndex: 0,
-      currentTrack: makeTrack(),
-    });
+    seedQueue(makeTracks(3), { index: 0, currentTrack: makeTrack() });
     const { container } = renderWithProviders(<QueuePanel />);
     const rows = container.querySelectorAll<HTMLElement>('[data-queue-idx]');
     for (const row of rows) {

@@ -36,6 +36,9 @@ import {
   recordEnginePlayUrl,
 } from './playbackUrlRouting';
 import type { PlayerState, Track } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import { getQueueTracksView, resolveQueueTrack } from '../utils/library/queueTrackView';
+import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { syncQueueToServer } from './queueSync';
 import { playListenSessionFinalize } from './playListenSession';
@@ -100,9 +103,9 @@ export function runPlayTrack(
   // to move the index; they are not bulk operations and must not
   // trigger the confirm dialog (#234 regression).
   if (!_orbitConfirmed && queue && queue.length > 1) {
-    const current = get().queue;
+    const current = get().queueItems;
     const sameAsCurrent = queue.length === current.length
-      && queue.every((t, i) => sameQueueTrackId(current[i]?.id, t.id));
+      && queue.every((t, i) => sameQueueTrackId(current[i]?.trackId, t.id));
     if (!sameAsCurrent) {
       void orbitBulkGuard(queue.length).then(ok => {
         if (!ok) return;
@@ -134,14 +137,17 @@ export function runPlayTrack(
   if (!_orbitConfirmed && queue && queue.length === 1) {
     const orbitRole = useOrbitStore.getState().role;
     if (orbitRole === 'host') {
-      const current = get().queue;
-      const currentTrackId = current[get().queueIndex]?.id;
+      const currentItems = get().queueItems;
+      const currentTrackId = currentItems[get().queueIndex]?.trackId;
       if (track.id !== currentTrackId) {
-        const existsAt = current.findIndex(t => sameQueueTrackId(t.id, track.id));
+        const existsAt = currentItems.findIndex(r => sameQueueTrackId(r.trackId, track.id));
         if (existsAt >= 0) {
-          get().playTrack(track, current, manual, true, existsAt);
+          // Re-jump within the existing queue: pass undefined so playTrack keeps
+          // the canonical queueItems and just moves the index.
+          get().playTrack(track, undefined, manual, true, existsAt);
         } else {
-          const newQueue = [...current, track];
+          // Append the single track to the resolved current queue and jump to it.
+          const newQueue = [...getQueueTracksView(currentItems), track];
           get().playTrack(track, newQueue, manual, true, newQueue.length - 1);
         }
         return;
@@ -182,22 +188,52 @@ export function runPlayTrack(
   if (visualOnEntry?.trackId !== track.id) {
     setSeekFallbackVisualTarget(null);
   }
-  const newQueue = queue ?? state.queue;
-  if (shouldBindQueueServerForPlay(state.queue, newQueue, queue)) {
+  // Thin-state: only a real queue *replacement* (explicit `queue` arg) rebuilds
+  // queueItems. A no-arg navigation (next/previous/queue-row jump) keeps the
+  // canonical refs and just moves the index — so we never resolve the whole
+  // queue here (O(visible), not O(queue length)), which would hitch + churn
+  // every subscriber on each track change at scale.
+  const replacing = queue !== undefined;
+  const srcLen = replacing ? queue.length : state.queueItems.length;
+  if (replacing && shouldBindQueueServerForPlay(state.queueItems, queue, queue)) {
     bindQueueServerForPlayback();
   }
   // Prefer an explicit target index from the caller (next/previous/queue-row
   // click already know the exact slot). `findIndex` returns the *first*
   // matching id, which jumps backwards when the queue contains the same
   // track twice — breaking radio playback (issue #500).
+  const matchesAt = (i: number): boolean =>
+    replacing
+      ? sameQueueTrackId(queue[i]?.id, track.id)
+      : sameQueueTrackId(state.queueItems[i]?.trackId, track.id);
   const explicitIdxValid =
     typeof targetQueueIndex === 'number'
     && targetQueueIndex >= 0
-    && targetQueueIndex < newQueue.length
-    && sameQueueTrackId(newQueue[targetQueueIndex]?.id, track.id);
+    && targetQueueIndex < srcLen
+    && matchesAt(targetQueueIndex);
   const idx = explicitIdxValid
     ? (targetQueueIndex as number)
-    : newQueue.findIndex(t => sameQueueTrackId(t.id, track.id));
+    : replacing
+      ? queue.findIndex(t => sameQueueTrackId(t.id, track.id))
+      : state.queueItems.findIndex(r => sameQueueTrackId(r.trackId, track.id));
+  const playIdx = idx >= 0 ? idx : 0;
+  // ±1 neighbours for replaygain normalization — resolve only these (not the
+  // whole queue). On replace they come from the provided Track[]; on navigation
+  // from the resolver cache (the bridge keeps that window warm).
+  const neighbourAt = (i: number): Track | null => {
+    if (i < 0 || i >= srcLen) return null;
+    if (replacing) return queue[i] ?? null;
+    if (i === playIdx) return track;
+    const ref = state.queueItems[i];
+    return ref ? resolveQueueTrack(ref) : null;
+  };
+  const prevNeighbour = neighbourAt(playIdx - 1);
+  const nextNeighbour = neighbourAt(playIdx + 1);
+  // Minimal window so deriveNormalizationSnapshot reads ±1 without a full array.
+  const normWindow: Track[] = prevNeighbour ? [prevNeighbour] : [];
+  const normIdx = normWindow.length;
+  normWindow.push(track);
+  if (nextNeighbour) normWindow.push(nextNeighbour);
   if (manual) {
     pushQueueUndoFromGetter(get);
   }
@@ -248,12 +284,18 @@ export function runPlayTrack(
 
     // Set state immediately so the UI updates before the download completes.
     // currentRadio: null ensures the PlayerBar switches out of radio mode right away.
+    const queueSid = get().queueServerId ?? '';
+    // When the caller replaced the queue (explicit `queue` arg), seed the
+    // resolver with those tracks so the UI / hot paths resolve them without a
+    // network round-trip. No-arg jumps reuse already-cached refs.
+    if (queue && queueSid) seedQueueResolver(queueSid, queue);
     set({
       currentTrack: track,
       currentRadio: null,
       waveformBins: null,
-      ...deriveNormalizationSnapshot(track, newQueue, idx >= 0 ? idx : 0),
-      queue: newQueue,
+      ...deriveNormalizationSnapshot(track, normWindow, normIdx),
+      // Only a replace rewrites the queue; navigation keeps the canonical refs.
+      ...(replacing ? { queueItems: toQueueItemRefs(queueSid, queue) } : {}),
       queueIndex: idx >= 0 ? idx : 0,
       progress: initialProgress,
       buffered: 0,
@@ -285,8 +327,6 @@ export function runPlayTrack(
     void refreshWaveformForTrack(track.id);
     void refreshLoudnessForTrack(track.id);
     setDeferHotCachePrefetch(true);
-    const playIdx = idx >= 0 ? idx : 0;
-    const nextNeighbour = playIdx + 1 < newQueue.length ? newQueue[playIdx + 1] : null;
     const replayGainDb = resolveReplayGainDb(
       track, prevTrack, nextNeighbour,
       isReplayGainActive(), authStateNow.replayGainMode,
@@ -356,7 +396,7 @@ export function runPlayTrack(
         }));
       });
     }
-    syncQueueToServer(newQueue, track, initialTime);
+    syncQueueToServer(get().queueItems, track, initialTime);
     touchHotCacheOnPlayback(track.id, playbackCacheSid);
   };
 

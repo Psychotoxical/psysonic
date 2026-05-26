@@ -213,6 +213,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — panel now reads through the shared track cache
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#860](https://github.com/Psychotoxical/psysonic/pull/860)**
+
+* The queue panel sources its row details through the on-demand track cache, another step toward keeping multi-thousand-track queues light on memory. No visible change.
+
+
+
 ### Backup UX — blocking progress gate for long operations
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#864](https://github.com/Psychotoxical/psysonic/pull/864)**
@@ -345,6 +353,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Live Search** with a local index no longer returns empty or wrong-server hits on multi-server libraries — FTS is scoped to the active server instead of global bm25 across all indexed tracks.
 * Local artist/album rows dedupe correctly (one performer no longer fills the whole dropdown); Advanced Search text queries use the same server scope fix.
+
+
+
+### Queue — mixed-server routing and quota-safe persist
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#872](https://github.com/Psychotoxical/psysonic/pull/872)**
+
+* Mixed-server queues with the same track ID on different servers now stay on their original server through track switches, undo, and radio top-ups.
+* Persisted queue is quota-safe — a full local storage no longer blocks playback on very large queues.
 
 
 

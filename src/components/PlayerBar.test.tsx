@@ -37,7 +37,7 @@ import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
-import { makeTrack } from '@/test/helpers/factories';
+import { makeTrack, seedQueue } from '@/test/helpers/factories';
 import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
 import { fireEvent } from '@testing-library/react';
 
@@ -96,12 +96,11 @@ describe('PlayerBar — control wiring', () => {
   });
 
   it('clicking Previous Track calls previous()', () => {
-    usePlayerStore.setState({
-      queue: [makeTrack({ id: 'a' }), makeTrack({ id: 'b' })],
-      queueIndex: 1,
+    seedQueue([makeTrack({ id: 'a' }), makeTrack({ id: 'b' })], {
+      index: 1,
       currentTrack: makeTrack({ id: 'b' }),
-      currentTime: 10, // > 3 s → restart current
     });
+    usePlayerStore.setState({ currentTime: 10 }); // > 3 s → restart current
     const prevSpy = vi.spyOn(usePlayerStore.getState(), 'previous');
 
     const { getByLabelText } = renderWithProviders(<PlayerBar />);
@@ -113,7 +112,7 @@ describe('PlayerBar — control wiring', () => {
   it('clicking Next Track calls next()', () => {
     const t1 = makeTrack({ id: 'a' });
     const t2 = makeTrack({ id: 'b' });
-    usePlayerStore.setState({ queue: [t1, t2], queueIndex: 0, currentTrack: t1 });
+    seedQueue([t1, t2], { index: 0, currentTrack: t1 });
     const nextSpy = vi.spyOn(usePlayerStore.getState(), 'next');
 
     const { getByLabelText } = renderWithProviders(<PlayerBar />);

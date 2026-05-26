@@ -108,23 +108,24 @@ export function useOrbitHost(): void {
         && (Date.now() - afterSweep.lastShuffle >= effectiveShuffleIntervalMs(afterSweep));
       const afterShuffle = maybeShuffleQueue(afterSweep);
       if (shouldShuffleNow) {
-        const before = usePlayerStore.getState().queue.length;
+        const before = usePlayerStore.getState().queueItems.length;
         usePlayerStore.getState().shuffleUpcomingQueue();
         if (before > 0) showToast(i18n.t('orbit.toastShuffled'), 2500, 'info');
       }
 
-      // 4) Overlay the host's live playback snapshot.
+      // 4) Overlay the host's live playback snapshot. Host tick reads ids only,
+      // so the thin `queueItems` refs are all we need (no full Track resolve).
       const playerLive = usePlayerStore.getState();
-      const upcoming   = playerLive.queue.slice(playerLive.queueIndex + 1);
+      const upcoming   = playerLive.queueItems.slice(playerLive.queueIndex + 1);
       // Map track id → original suggester (if any). State's `queue` carries
       // every suggestion we've ever seen this session, so it's the right
       // attribution source even after the track has been merged into the
       // host's player queue.
       const suggesterByTrack = new Map<string, string>();
       for (const q of afterShuffle.queue) suggesterByTrack.set(q.trackId, q.addedBy);
-      const playQueue = upcoming.slice(0, ORBIT_PLAY_QUEUE_LIMIT).map(t => ({
-        trackId: t.id,
-        addedBy: suggesterByTrack.get(t.id) ?? base.host,
+      const playQueue = upcoming.slice(0, ORBIT_PLAY_QUEUE_LIMIT).map(r => ({
+        trackId: r.trackId,
+        addedBy: suggesterByTrack.get(r.trackId) ?? base.host,
       }));
       const next: OrbitState = {
         ...afterShuffle,
@@ -204,7 +205,7 @@ export function useOrbitHost(): void {
       for (const { track } of toEnqueue) {
         const live = usePlayerStore.getState();
         const from = Math.max(0, live.queueIndex + 1);
-        const to   = live.queue.length;
+        const to   = live.queueItems.length;
         const span = Math.max(1, to - from + 1);
         const pos  = from + Math.floor(Math.random() * span);
         player.enqueueAt([track], pos);

@@ -6,6 +6,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExtern
 import { useNavigate } from 'react-router-dom';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useTranslation } from 'react-i18next';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1, Heart, Music, MicVocal, ListMusic, X,
@@ -15,6 +16,11 @@ import { usePlayerStore } from '../store/playerStore';
 import { useCachedUrl } from './CachedImage';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { formatTrackTime } from '../utils/format/formatDuration';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
+import {
+  getQueueResolverVersion,
+  subscribeQueueResolver,
+} from '../utils/library/queueTrackResolver';
 import LyricsPane from './LyricsPane';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
@@ -71,17 +77,42 @@ function useAlbumAccentColor(imageUrl: string): string {
 
 // ── Queue Drawer ──────────────────────────────────────────────────────────────
 
+// Stable initial rect so the virtualizer never re-initializes on re-render (an
+// inline literal would be a new ref each render → render loop). Replaced by the
+// real height on first ResizeObserver measure.
+const QUEUE_INITIAL_RECT = { width: 0, height: 600 };
+
 function QueueDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const queue = usePlayerStore(s => s.queue);
+  const queue = usePlayerStore(s => s.queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const playTrack = usePlayerStore(s => s.playTrack);
   const listRef = useRef<HTMLDivElement>(null);
+  // Thin-state: the queue is the canonical `QueueItemRef[]`; each row's Track
+  // comes from the resolver (cache → placeholder), matching the desktop
+  // QueueList. Subscribe once so rows re-render as the resolver cache fills.
+  useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
 
-  // Scroll active track into view on open
+  // Virtualize so a multi-thousand-track queue keeps DOM at O(visible rows) on
+  // mobile too (matches the desktop QueuePanel).
+  const rowVirtualizer = useVirtualizer({
+    count: queue.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 56,
+    overscan: 10,
+    getItemKey: i => `${queue[i].trackId}:${i}`,
+    initialRect: QUEUE_INITIAL_RECT,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  // Scroll the active track into view on open. Rows are uniform height, so the
+  // virtualizer's estimate lands the centred index accurately.
   useEffect(() => {
-    const el = listRef.current?.querySelector('.mq-item.active');
-    el?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    if (queueIndex >= 0 && queue.length > 0) {
+      rowVirtualizer.scrollToIndex(queueIndex, { align: 'center' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -100,13 +131,19 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
           {queue.length === 0 ? (
             <div className="mq-drawer-empty">{t('queue.emptyQueue')}</div>
           ) : (
-            queue.map((track, idx) => {
+            <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
+            {virtualItems.map(vi => {
+              const idx = vi.index;
+              const track = resolveQueueTrack(queue[idx]);
               const isActive = idx === queueIndex;
               return (
                 <div
-                  key={`${track.id}-${idx}`}
+                  key={vi.key}
+                  data-index={idx}
+                  ref={rowVirtualizer.measureElement}
                   className={`mq-item${isActive ? ' active' : ''}`}
-                  onClick={() => { playTrack(track, queue); onClose(); }}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
+                  onClick={() => { playTrack(track, undefined, undefined, undefined, idx); onClose(); }}
                 >
                   <div className="mq-item-info">
                     <div className="mq-item-title">
@@ -118,7 +155,8 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
                   <span className="mq-item-dur">{formatTrackTime(track.duration)}</span>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
         </div>
       </div>

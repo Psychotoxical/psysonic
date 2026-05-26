@@ -1,7 +1,7 @@
 import { getSimilarSongs } from '../../api/subsonicArtists';
 import { filterSongsToActiveLibrary, getRandomSongs } from '../../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
-import type { Track } from '../../store/playerStoreTypes';
+import type { QueueItemRef } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../../i18n';
@@ -93,14 +93,15 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
 
   // Snapshot the current queue *before* we prune — so if the build fails
   // before we ever play a track, we can put it back the way it was instead
-  // of leaving the user with an empty player.
+  // of leaving the user with an empty player. Thin-state: snapshot the refs and
+  // the resolved tracks (to re-seed the resolver on restore).
   const playerStateBefore = usePlayerStore.getState();
   const queueSnapshot: {
-    queue: Track[];
+    queueItems: QueueItemRef[];
     queueIndex: number;
     queueServerId: string | null;
   } = {
-    queue: [...playerStateBefore.queue],
+    queueItems: [...playerStateBefore.queueItems],
     queueIndex: playerStateBefore.queueIndex,
     queueServerId: playerStateBefore.queueServerId,
   };
@@ -125,8 +126,8 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     try {
       let allSeedSongs: SubsonicSong[] = [];
 
-    const mixQueueSize = () => usePlayerStore.getState().queue.length;
-    const mixQueueTrackIds = () => new Set(usePlayerStore.getState().queue.map(t => t.id));
+    const mixQueueSize = () => usePlayerStore.getState().queueItems.length;
+    const mixQueueTrackIds = () => new Set(usePlayerStore.getState().queueItems.map(r => r.trackId));
 
     const bailIfCancelled = () => {
       if (useLuckyMixStore.getState().cancelRequested) throw new LuckyMixCancelled();
@@ -156,7 +157,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
           const nextId = state.currentTrack?.id ?? null;
           if (nextId === prevId) return;
           if (!nextId) return;
-          if (state.queue.some(t => t.id === nextId)) return;
+          if (state.queueItems.some(r => r.trackId === nextId)) return;
           useLuckyMixStore.getState().cancel();
         });
       }
@@ -389,12 +390,12 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     // whatever we managed to enqueue is more useful than the old queue.
     if (!startedPlayback) {
       usePlayerStore.setState({
-        queue: queueSnapshot.queue,
+        queueItems: queueSnapshot.queueItems,
         queueIndex: queueSnapshot.queueIndex,
         queueServerId: queueSnapshot.queueServerId,
       });
       logStep('queue_restored_after_failure', {
-        restoredCount: queueSnapshot.queue.length,
+        restoredCount: queueSnapshot.queueItems.length,
       });
     }
     showToast(i18n.t('luckyMix.failed'), 5000, 'error');

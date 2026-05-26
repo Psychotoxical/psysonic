@@ -1,18 +1,30 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import type { QueueItemRef, Track } from '../store/playerStoreTypes';
-import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
+import {
+  getQueueResolverVersion,
+  subscribeQueueResolver,
+} from '../utils/library/queueTrackResolver';
 
 /**
- * Stable queue selectors (queue thin-state). Consumers migrate onto these in
- * phase 3. Today they read the canonical `queue: Track[]`; once it's dropped
- * (phase 4) the implementations move to the resolver (`queueTrackResolver`)
- * without changing these signatures.
+ * Stable queue selectors (queue thin-state). The store is refs-canonical now:
+ * full `Track`s come from the resolver cache (placeholder until a fetch lands),
+ * with session star/rating overrides (F4) merged on read via resolveQueueTrack.
  */
 
 /** The track at a queue index, or null. */
 export function useQueueTrackAt(idx: number): Track | null {
-  return usePlayerStore(s => s.queue[idx] ?? null);
+  const ref = usePlayerStore(s => s.queueItems[idx] ?? null);
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
+  const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
+  const version = useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
+  return useMemo(() => {
+    if (!ref) return null;
+    return resolveQueueTrack(ref);
+  // version drives re-resolution as the cache fills; overrides drive the merge.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref, starredOverrides, userRatingOverrides, version]);
 }
 
 /** The currently playing track, or null. */
@@ -20,9 +32,7 @@ export function useCurrentTrack(): Track | null {
   return usePlayerStore(s => s.currentTrack);
 }
 
-/** The whole queue as thin refs (derived; memoized on queue/server identity). */
+/** The whole queue as thin refs (the canonical list). */
 export function useQueueItems(): QueueItemRef[] {
-  const queue = usePlayerStore(s => s.queue);
-  const serverId = usePlayerStore(s => s.queueServerId);
-  return useMemo(() => toQueueItemRefs(serverId ?? '', queue), [serverId, queue]);
+  return usePlayerStore(s => s.queueItems);
 }

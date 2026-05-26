@@ -1,7 +1,13 @@
 import React from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { TFunction } from 'i18next';
 import OverlayScrollArea from '../OverlayScrollArea';
 import type { MiniSyncPayload, MiniTrackInfo } from '../../utils/miniPlayerBridge';
+
+// Stable initial rect so the virtualizer never re-initializes on re-render (an
+// inline literal would be a new ref each render → render loop). Replaced by the
+// real height on first ResizeObserver measure.
+const MINI_QUEUE_INITIAL_RECT = { width: 0, height: 400 };
 
 type StartDrag = (
   payload: { data: string; label: string },
@@ -30,13 +36,26 @@ export function MiniQueue({
   dropTarget, setDropTarget, dropTargetRef, startDrag, ctxIndex, setCtxMenu,
   jumpTo, t,
 }: Props) {
+  // Virtualize so a multi-thousand-track queue keeps the mini window's DOM at
+  // O(visible rows). Scroll element is the OverlayScrollArea viewport.
+  const rowVirtualizer = useVirtualizer({
+    count: state.queue.length,
+    getScrollElement: () => queueScrollRef.current,
+    estimateSize: () => 40,
+    overscan: 10,
+    getItemKey: i => `${state.queue[i].id}:${i}`,
+    initialRect: MINI_QUEUE_INITIAL_RECT,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
   return (
     <OverlayScrollArea
       wrapRef={miniQueueWrapRef}
       viewportRef={queueScrollRef}
       className="mini-queue-wrap"
       viewportClassName="mini-queue"
-      measureDeps={[state.queue.length]}
+      measureDeps={[state.queue.length, totalSize]}
       railInset="mini"
       viewportScrollBehaviorAuto={isReorderDrag}
       onMouseMove={(e) => {
@@ -60,7 +79,10 @@ export function MiniQueue({
       {state.queue.length === 0 ? (
         <div className="mini-queue__empty">{t('miniPlayer.emptyQueue')}</div>
       ) : (
-        state.queue.map((track, i) => {
+        <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
+        {virtualItems.map(vi => {
+          const i = vi.index;
+          const track = state.queue[i];
           let dragStyle: React.CSSProperties = {};
           if (isReorderDrag && psyDragFromIdxRef.current === i) {
             dragStyle = { opacity: 0.4 };
@@ -71,7 +93,9 @@ export function MiniQueue({
           }
           return (
             <button
-              key={`${track.id}-${i}`}
+              key={vi.key}
+              data-index={i}
+              ref={rowVirtualizer.measureElement}
               data-mq-idx={i}
               className={`mini-queue__item${i === state.queueIndex ? ' mini-queue__item--current' : ''}${ctxIndex === i ? ' mini-queue__item--ctx' : ''}`}
               onClick={() => jumpTo(i)}
@@ -105,7 +129,7 @@ export function MiniQueue({
                 document.addEventListener('mousemove', onMove);
                 document.addEventListener('mouseup', onUp);
               }}
-              style={dragStyle}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)`, ...dragStyle }}
             >
               <span className="mini-queue__num">{i + 1}</span>
               <div className="mini-queue__meta">
@@ -114,7 +138,8 @@ export function MiniQueue({
               </div>
             </button>
           );
-        })
+        })}
+        </div>
       )}
     </OverlayScrollArea>
   );

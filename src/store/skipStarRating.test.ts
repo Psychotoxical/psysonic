@@ -8,7 +8,7 @@ import type { Track } from './playerStoreTypes';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { queueSongRatingMock, recordSkipStarMock, playerStateGet } = vi.hoisted(() => {
   const playerState = {
-    queue: [] as Track[],
+    queueServerId: 's1' as string | null,
     currentTrack: null as Track | null,
     userRatingOverrides: {} as Record<string, number>,
   };
@@ -28,6 +28,7 @@ vi.mock('./playerStore', () => ({
 }));
 
 import { applySkipStarOnManualNext } from './skipStarRating';
+import { seedQueueResolver, _resetQueueResolverForTest } from '../utils/library/queueTrackResolver';
 
 function track(id: string, overrides: Partial<Track> = {}): Track {
   return {
@@ -38,8 +39,9 @@ function track(id: string, overrides: Partial<Track> = {}): Track {
 beforeEach(() => {
   queueSongRatingMock.mockClear();
   recordSkipStarMock.mockReset();
+  _resetQueueResolverForTest();
   const s = playerStateGet();
-  s.queue = [];
+  s.queueServerId = 's1';
   s.currentTrack = null;
   s.userRatingOverrides = {};
 });
@@ -76,9 +78,10 @@ describe('applySkipStarOnManualNext', () => {
     expect(queueSongRatingMock).not.toHaveBeenCalled();
   });
 
-  it('skips rating when the queue entry is already rated', () => {
+  it('skips rating when the resolver-cached queue entry is already rated', () => {
     recordSkipStarMock.mockReturnValueOnce({ crossedThreshold: true });
-    playerStateGet().queue = [track('t1', { userRating: 4 })];
+    // Thin-state: the queue's track copy lives in the resolver cache.
+    seedQueueResolver('s1', [track('t1', { userRating: 4 })]);
     applySkipStarOnManualNext(track('t1'), true);
     expect(queueSongRatingMock).not.toHaveBeenCalled();
   });

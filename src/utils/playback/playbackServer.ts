@@ -6,22 +6,26 @@ import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import { sameQueueTrackId } from './queueIdentity';
-import type { Track } from '../../store/playerStoreTypes';
+import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import { resolveServerIdForIndexKey } from '../server/serverLookup';
-import { resolveIndexKey, serverIndexKeyFromUrl } from '../server/serverIndexKey';
+import {
+  resolveIndexKey,
+  serverIndexKeyForProfile,
+  serverIndexKeyFromUrl,
+} from '../server/serverIndexKey';
 
 /** Server that owns the current queue / stream URLs (may differ from the browsed server). */
 export function getPlaybackServerId(): string {
-  const { queueServerId, queue } = usePlayerStore.getState();
-  if ((queue?.length ?? 0) > 0 && queueServerId) {
+  const { queueServerId, queueItems } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) > 0 && queueServerId) {
     return resolveServerIdForIndexKey(queueServerId);
   }
   return useAuthStore.getState().activeServerId ?? '';
 }
 
 export function getPlaybackIndexKey(): string {
-  const { queueServerId, queue } = usePlayerStore.getState();
-  if ((queue?.length ?? 0) > 0 && queueServerId) {
+  const { queueServerId, queueItems } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) > 0 && queueServerId) {
     return resolveIndexKey(queueServerId);
   }
   const activeId = useAuthStore.getState().activeServerId ?? '';
@@ -43,7 +47,13 @@ export function getPlaybackCacheServerKey(): string {
 export function bindQueueServerForPlayback(): void {
   const sid = useAuthStore.getState().activeServerId;
   if (!sid) return;
-  usePlayerStore.setState({ queueServerId: sid });
+  const server = useAuthStore.getState().servers.find(s => s.id === sid);
+  // Canonical index key on writes so mixed-server queues stay unambiguous —
+  // every ref/queue-level server identifier follows the same shape that the
+  // library index already uses. Falls back to the raw id when the server
+  // profile cannot be resolved (e.g. tests with a stubbed auth store).
+  const canonical = server ? serverIndexKeyForProfile(server) || sid : sid;
+  usePlayerStore.setState({ queueServerId: canonical });
 }
 
 export function clearQueueServerForPlayback(): void {
@@ -51,8 +61,8 @@ export function clearQueueServerForPlayback(): void {
 }
 
 export function playbackServerDiffersFromActive(): boolean {
-  const { queueServerId, queue } = usePlayerStore.getState();
-  if ((queue?.length ?? 0) === 0 || !queueServerId) return false;
+  const { queueServerId, queueItems } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) === 0 || !queueServerId) return false;
   const activeSid = useAuthStore.getState().activeServerId;
   const resolvedQueue = resolveServerIdForIndexKey(queueServerId);
   return !!activeSid && resolvedQueue !== activeSid;
@@ -65,8 +75,8 @@ export function playbackServerDiffersFromActive(): boolean {
 export function shouldHandoffQueueToActiveServer(): boolean {
   const activeSid = useAuthStore.getState().activeServerId;
   if (!activeSid) return false;
-  const { queue, queueServerId } = usePlayerStore.getState();
-  if ((queue?.length ?? 0) === 0) return false;
+  const { queueItems, queueServerId } = usePlayerStore.getState();
+  if ((queueItems?.length ?? 0) === 0) return false;
   if (!queueServerId) return true;
   return resolveServerIdForIndexKey(queueServerId) !== activeSid;
 }
@@ -101,7 +111,7 @@ export function playbackCoverArtForId(coverId: string, displayCssPx: number): { 
 }
 
 export function shouldBindQueueServerForPlay(
-  prevQueue: Track[],
+  prevQueue: QueueItemRef[],
   newQueue: Track[],
   explicitQueueArg: Track[] | undefined,
 ): boolean {
@@ -109,5 +119,5 @@ export function shouldBindQueueServerForPlay(
   if (prevQueue.length === 0) return true;
   if (explicitQueueArg === undefined) return false;
   if (explicitQueueArg.length !== prevQueue.length) return true;
-  return !explicitQueueArg.every((t, i) => sameQueueTrackId(prevQueue[i]?.id, t.id));
+  return !explicitQueueArg.every((t, i) => sameQueueTrackId(prevQueue[i]?.trackId, t.id));
 }

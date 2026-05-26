@@ -13,6 +13,9 @@ import { reseedLoudnessForTrackId } from './loudnessReseed';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
 import { shouldRebindPlaybackToHotCache } from './playbackUrlRouting';
 import type { PlayerState, Track } from './playerStoreTypes';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
+import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import { pushQueueUndoFromGetter } from './queueUndo';
 import { syncQueueToServer } from './queueSync';
 import {
@@ -95,7 +98,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
         normalizationTargetLufs: null,
         normalizationEngineLive: 'off',
         currentPlaybackSource: null,
-        queue: [],
+        queueItems: [],
         queueIndex: 0,
         isPlaying: true,
         progress: 0,
@@ -106,7 +109,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
     },
 
     previous: () => {
-      const { queue, queueIndex, currentTrack } = get();
+      const { queueItems, queueIndex, currentTrack } = get();
       const currentTime = getPlaybackProgressSnapshot().currentTime;
       if (currentTime > 3) {
         // Restart current track from the beginning.
@@ -114,7 +117,8 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
         const sid = authState.activeServerId ?? '';
         if (currentTrack && shouldRebindPlaybackToHotCache(currentTrack.id, sid)) {
           setSeekFallbackVisualTarget({ trackId: currentTrack.id, seconds: 0, setAtMs: Date.now() });
-          get().playTrack(currentTrack, queue, true);
+          // No-arg queue: keep the canonical refs, restart in place.
+          get().playTrack(currentTrack, undefined, true);
           return;
         }
         invoke('audio_seek', { seconds: 0 }).catch(console.error);
@@ -122,7 +126,11 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
         return;
       }
       const prevIdx = queueIndex - 1;
-      if (prevIdx >= 0) get().playTrack(queue[prevIdx], queue, true, false, prevIdx);
+      if (prevIdx >= 0 && queueItems[prevIdx]) {
+        // Resolve the previous ref (resolver cache → placeholder); pass undefined
+        // for the queue arg so playTrack just moves the index.
+        get().playTrack(resolveQueueTrack(queueItems[prevIdx]), undefined, true, false, prevIdx);
+      }
     },
 
     setVolume: (v) => {
@@ -155,8 +163,12 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
           // queue position, which may not flush before app close).
           const serverTime = q.position ? q.position / 1000 : 0;
           const localTime = get().currentTime;
+          const sid = get().queueServerId ?? useAuthStore.getState().activeServerId ?? '';
+          // Seed the resolver with the restored tracks so the queue UI / hot
+          // paths resolve them without a network round-trip.
+          if (sid) seedQueueResolver(sid, mappedTracks);
           set({
-            queue: mappedTracks,
+            queueItems: toQueueItemRefs(sid, mappedTracks),
             queueIndex,
             currentTrack,
             currentTime: serverTime > 0 ? serverTime : localTime,
@@ -185,12 +197,15 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
       }
       pushQueueUndoFromGetter(get);
       const wasPlaying = s.isPlaying;
+      const sid = s.queueServerId ?? '';
+      if (sid) seedQueueResolver(sid, [track]);
+      const newItems = toQueueItemRefs(sid, [track]);
       set({
-        queue: [track],
+        queueItems: newItems,
         queueIndex: 0,
         currentTrack: track,
       });
-      syncQueueToServer([track], track, s.currentTime);
+      syncQueueToServer(newItems, track, s.currentTime);
       if (!wasPlaying) get().resume();
     },
   };

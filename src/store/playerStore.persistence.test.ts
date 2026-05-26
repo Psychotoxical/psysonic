@@ -74,7 +74,7 @@ vi.mock('@/api/lastfm', () => ({
 import { usePlayerStore } from './playerStore';
 import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
-import { makeTrack, makeTracks } from '@/test/helpers/factories';
+import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 
 function stubInvokes(): void {
   onInvoke('audio_play', () => undefined);
@@ -110,12 +110,8 @@ afterEach(() => {
 describe('flushPlayQueuePosition', () => {
   it('forwards the queue, current track, and millisecond position to savePlayQueue', async () => {
     const [t1, t2, t3] = makeTracks(3);
-    usePlayerStore.setState({
-      queue: [t1, t2, t3],
-      queueIndex: 1,
-      currentTrack: t2,
-      isPlaying: true,
-    });
+    seedQueue([t1, t2, t3], { index: 1, currentTrack: t2 });
+    usePlayerStore.setState({ isPlaying: true });
     // Drive a live-progress snapshot so flushPlayQueuePosition has a non-zero
     // position to flush — readonly snapshot is what the API call samples.
     emitTauriEvent('audio:progress', { current_time: 12.345, duration: t2.duration });
@@ -137,11 +133,7 @@ describe('flushPlayQueuePosition', () => {
 
   it('caps the song-id list at 1000 entries', async () => {
     const tracks = makeTracks(1100);
-    usePlayerStore.setState({
-      queue: tracks,
-      queueIndex: 0,
-      currentTrack: tracks[0],
-    });
+    seedQueue(tracks, { index: 0, currentTrack: tracks[0] });
     emitTauriEvent('audio:progress', { current_time: 1, duration: tracks[0].duration });
     vi.mocked(savePlayQueue).mockClear(); // discard heartbeat call from emit
 
@@ -155,10 +147,8 @@ describe('flushPlayQueuePosition', () => {
 
   it('is a no-op when a radio stream is active', async () => {
     const track = makeTrack();
+    seedQueue([track], { index: 0, currentTrack: track });
     usePlayerStore.setState({
-      queue: [track],
-      queueIndex: 0,
-      currentTrack: track,
       currentRadio: { id: 'r1', name: 'Test FM', streamUrl: 'https://radio.test/stream' },
     });
 
@@ -168,11 +158,7 @@ describe('flushPlayQueuePosition', () => {
   });
 
   it('is a no-op when there is no current track', async () => {
-    usePlayerStore.setState({
-      queue: makeTracks(2),
-      queueIndex: 0,
-      currentTrack: null,
-    });
+    seedQueue(makeTracks(2), { index: 0, currentTrack: null });
 
     await flushPlayQueuePosition();
 
@@ -181,7 +167,7 @@ describe('flushPlayQueuePosition', () => {
 
   it('is a no-op when the queue is empty', async () => {
     usePlayerStore.setState({
-      queue: [],
+      queueItems: [],
       queueIndex: 0,
       currentTrack: null,
     });
@@ -193,7 +179,7 @@ describe('flushPlayQueuePosition', () => {
 
   it('swallows backend errors without propagating to the caller', async () => {
     const track = makeTrack();
-    usePlayerStore.setState({ queue: [track], queueIndex: 0, currentTrack: track });
+    seedQueue([track], { index: 0, currentTrack: track });
     vi.mocked(savePlayQueue).mockRejectedValueOnce(new Error('offline'));
 
     await expect(flushPlayQueuePosition()).resolves.toBeUndefined();
@@ -201,12 +187,8 @@ describe('flushPlayQueuePosition', () => {
 
   it('floors the position to whole milliseconds', async () => {
     const track = makeTrack({ duration: 200 });
-    usePlayerStore.setState({
-      queue: [track],
-      queueIndex: 0,
-      currentTrack: track,
-      isPlaying: true,
-    });
+    seedQueue([track], { index: 0, currentTrack: track });
+    usePlayerStore.setState({ isPlaying: true });
     emitTauriEvent('audio:progress', { current_time: 12.9999, duration: 200 });
     vi.mocked(savePlayQueue).mockClear(); // discard heartbeat call from emit
 
@@ -218,7 +200,7 @@ describe('flushPlayQueuePosition', () => {
 });
 
 // ---------------------------------------------------------------------------
-// partialize: localStorage queue window (PR #756)
+// partialize + merge: thin-state refs-only persistence
 // ---------------------------------------------------------------------------
 
 function getPartialize() {
@@ -228,82 +210,98 @@ function getPartialize() {
     .persist.getOptions().partialize;
 }
 
-describe('partialize: localStorage queue window', () => {
-  it('caps a large queue to at most 501 tracks and puts the current track at index 250', () => {
-    const tracks = makeTracks(10509);
-    usePlayerStore.setState({ queue: tracks, queueIndex: 5000 });
+function getMerge() {
+  type MergeFn = (persisted: unknown, current: ReturnType<typeof usePlayerStore.getState>) => ReturnType<typeof usePlayerStore.getState>;
+  return (usePlayerStore as unknown as { persist: { getOptions(): { merge: MergeFn } } })
+    .persist.getOptions().merge;
+}
 
-    const partial = getPartialize()(usePlayerStore.getState());
-
-    expect((partial.queue as unknown[]).length).toBe(501);
-    expect(partial.queueIndex).toBe(250);
-    // the track at the remapped index must be the original track[5000]
-    expect((partial.queue as { id: string }[])[250].id).toBe(tracks[5000].id);
-  });
-
-  it('does not shift the index when the current track is near the start (qi < 250)', () => {
-    const tracks = makeTracks(1000);
-    usePlayerStore.setState({ queue: tracks, queueIndex: 50 });
-
-    const partial = getPartialize()(usePlayerStore.getState());
-
-    // window starts at 0, index is unchanged
-    expect(partial.queueIndex).toBe(50);
-    expect((partial.queue as { id: string }[])[50].id).toBe(tracks[50].id);
-    // window extends 250 ahead: 0..300 = 301 tracks
-    expect((partial.queue as unknown[]).length).toBe(301);
-  });
-
-  it('handles a current track near the end of the queue correctly', () => {
-    const tracks = makeTracks(10509);
-    const lastIdx = 10508;
-    usePlayerStore.setState({ queue: tracks, queueIndex: lastIdx });
-
-    const partial = getPartialize()(usePlayerStore.getState());
-
-    // window: [10258, 10509) = 251 tracks; remapped index = 10508 - 10258 = 250
-    expect((partial.queue as unknown[]).length).toBe(251);
-    expect(partial.queueIndex).toBe(250);
-    expect((partial.queue as { id: string }[])[250].id).toBe(tracks[lastIdx].id);
-  });
-
-  it('persists the entire queue unchanged when it is smaller than the window', () => {
-    const tracks = makeTracks(10);
-    usePlayerStore.setState({ queue: tracks, queueIndex: 5 });
-
-    const partial = getPartialize()(usePlayerStore.getState());
-
-    expect((partial.queue as unknown[]).length).toBe(10);
-    expect(partial.queueIndex).toBe(5);
-  });
-
-  it('handles an empty queue without throwing', () => {
-    usePlayerStore.setState({ queue: [], queueIndex: 0 });
-
-    const partial = getPartialize()(usePlayerStore.getState());
-
-    expect((partial.queue as unknown[]).length).toBe(0);
-    expect(partial.queueIndex).toBe(0);
-  });
-
-  it('persists the whole queue as thin queueItems (refs + serverId + flags), not just the window', () => {
+describe('partialize: thin queueItems (refs only)', () => {
+  it('persists the WHOLE queue as thin refs (no windowed fat `queue`)', () => {
     const tracks = makeTracks(600);
     tracks[3].radioAdded = true;
     tracks[4].autoAdded = true;
-    usePlayerStore.setState({ queue: tracks, queueIndex: 300, queueServerId: 's1' });
+    seedQueue(tracks, { index: 300, serverId: 's1', currentTrack: tracks[300] });
 
     const partial = getPartialize()(usePlayerStore.getState());
     const items = partial.queueItems as {
       serverId: string; trackId: string; radioAdded?: boolean; autoAdded?: boolean;
     }[];
 
-    // windowed `queue` is capped, but queueItems carries the WHOLE queue
-    expect((partial.queue as unknown[]).length).toBe(501);
+    // No fat `queue` key anymore.
+    expect(partial.queue).toBeUndefined();
+    // queueItems carries the WHOLE queue.
     expect(items.length).toBe(600);
+    // queueItemsIndex is the restore-pending sentinel (= the live queueIndex).
     expect(partial.queueItemsIndex).toBe(300);
     expect(items[0].serverId).toBe('s1');
     expect(items[3].radioAdded).toBe(true);
     expect(items[4].autoAdded).toBe(true);
     expect(items[0].radioAdded).toBeUndefined();
+  });
+
+  it('handles an empty queue without throwing', () => {
+    usePlayerStore.setState({ queueItems: [], queueIndex: 0 });
+
+    const partial = getPartialize()(usePlayerStore.getState());
+
+    expect((partial.queueItems as unknown[]).length).toBe(0);
+    expect(partial.queue).toBeUndefined();
+  });
+});
+
+describe('merge: restores the queue from any old persisted blob', () => {
+  const current = () => usePlayerStore.getState();
+
+  it('prefers an existing queueItems ref list + sets the sentinel', () => {
+    const merged = getMerge()(
+      {
+        queueServerId: 's1',
+        queueIndex: 2,
+        queueItems: [
+          { serverId: 's1', trackId: 'a' },
+          { serverId: 's1', trackId: 'b' },
+        ],
+        queueItemsIndex: 1,
+      },
+      current(),
+    );
+    expect(merged.queueItems.map(r => r.trackId)).toEqual(['a', 'b']);
+    expect(merged.queueItemsIndex).toBe(1);
+  });
+
+  it('rebuilds queueItems from a legacy queueRefs string list', () => {
+    const merged = getMerge()(
+      { queueServerId: 's2', queueRefs: ['x', 'y'], queueRefsIndex: 1 },
+      current(),
+    );
+    expect(merged.queueItems).toEqual([
+      { serverId: 's2', trackId: 'x' },
+      { serverId: 's2', trackId: 'y' },
+    ]);
+    expect(merged.queueItemsIndex).toBe(1);
+  });
+
+  it('rebuilds queueItems from an old windowed fat `queue: Track[]` blob and drops the `queue` key', () => {
+    const blob: Record<string, unknown> = {
+      queueServerId: 's3',
+      queueIndex: 1,
+      queue: [makeTrack({ id: 'q0' }), makeTrack({ id: 'q1', radioAdded: true })],
+    };
+    const merged = getMerge()(blob, current());
+    expect(merged.queueItems).toEqual([
+      { serverId: 's3', trackId: 'q0' },
+      { serverId: 's3', trackId: 'q1', radioAdded: true },
+    ]);
+    // The windowed fat-array key is deleted from the persisted blob.
+    expect('queue' in blob).toBe(false);
+    // Sentinel falls back to the persisted queueIndex when no explicit index.
+    expect(merged.queueItemsIndex).toBe(1);
+  });
+
+  it('leaves an empty queue alone (no sentinel) when the blob has nothing to restore', () => {
+    const merged = getMerge()({ queueServerId: null }, current());
+    expect(merged.queueItems).toEqual([]);
+    expect(merged.queueItemsIndex).toBeUndefined();
   });
 });

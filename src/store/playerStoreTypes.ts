@@ -69,7 +69,6 @@ export interface PlayerState {
    * Cleared after a successful `audio_play` consumed that preload, or when starting another track.
    */
   enginePreloadedTrackId: string | null;
-  queue: Track[];
   /** Saved server for stream/hot-cache/offline resolution while this queue plays. */
   queueServerId: string | null;
   queueIndex: number;
@@ -79,11 +78,16 @@ export interface PlayerState {
    *  are then cleared. Absent / index-off → the windowed `queue` is used as-is. */
   queueRefs?: string[];
   queueRefsIndex?: number;
-  /** Phase 1 (transient): thin canonical ref list persisted alongside the
-   *  windowed `queue`, superseding `queueRefs`. Carries per-item `serverId` +
-   *  queue-only flags. Rehydrated like `queueRefs` and cleared after a full
-   *  hydrate from the index. The in-memory queue stays `Track[]` until Phase 2. */
-  queueItems?: QueueItemRef[];
+  /** Canonical thin queue list (thin-state). Single playback server per item in
+   *  v1; carries the queue-only flags. Persisted by `partialize`; the source the
+   *  resolver/consumers read from — full `Track`s resolve on demand. */
+  queueItems: QueueItemRef[];
+  /** Restore-pending sentinel (transient). `partialize` writes it alongside the
+   *  full `queueItems` on every persist; a fresh rehydrate brings it back, which
+   *  is what tells `hydrateQueueFromIndex` the windowed `queue` still needs a
+   *  full hydrate. Normal mutations keep `queueItems` canonical but never set
+   *  this, so its presence — not `queueItems` — gates the restore. Cleared once
+   *  a full hydrate succeeds. */
   queueItemsIndex?: number;
   isPlaying: boolean;
   /** HTTP stream still buffering (network / demux probe) — show loading on cover art. */

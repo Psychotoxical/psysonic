@@ -1,12 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Play } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import OverlayScrollArea from '../OverlayScrollArea';
 import { usePlayerStore } from '../../store/playerStore';
 import { useLuckyMixStore } from '../../store/luckyMixStore';
-import type { Track, PlayerState } from '../../store/playerStoreTypes';
+import type { QueueItemRef, PlayerState } from '../../store/playerStoreTypes';
 import { formatTrackTime } from '../../utils/format/formatDuration';
+import { resolveQueueTrack } from '../../utils/library/queueTrackView';
+import {
+  getQueueResolverVersion,
+  subscribeQueueResolver,
+} from '../../utils/library/queueTrackResolver';
 
 type StartDrag = (
   payload: { data: string; label: string },
@@ -15,7 +20,7 @@ type StartDrag = (
 ) => void;
 
 interface Props {
-  queue: Track[];
+  queue: QueueItemRef[];
   queueIndex: number;
   contextMenu: PlayerState['contextMenu'];
   playTrack: PlayerState['playTrack'];
@@ -31,11 +36,22 @@ interface Props {
   t: TFunction;
 }
 
+// Stable reference so the virtualizer never sees a "changed" option on re-render
+// (an inline object literal would be a new ref every render). Only used until the
+// ResizeObserver reports the real viewport height.
+const INITIAL_RECT = { width: 0, height: 600 };
+
 export function QueueList({
   queue, queueIndex, contextMenu, playTrack, activeTab, queueListRef,
   suppressNextAutoScrollRef, isQueueDrag, psyDragFromIdxRef, externalDropTarget,
   startDrag, orbitAttributionLabel, luckyRolling, t,
 }: Props) {
+  // Thin-state: the queue prop is the canonical `QueueItemRef[]`. Each row's
+  // full Track comes from the resolver (cache → placeholder; F4 overrides merged
+  // in resolveQueueTrack). Subscribe once so the list re-renders as the cache
+  // fills. Pure read in render — no cache mutation (the freeze landmine).
+  useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
+
   // Virtualize so a 10k+ Artist-Radio queue keeps DOM at O(visible rows).
   // Scroll element is the OverlayScrollArea viewport (`queueListRef`); rows have
   // variable height (radio/auto dividers, lucky-mix loader) so we measure them.
@@ -44,11 +60,11 @@ export function QueueList({
     getScrollElement: () => queueListRef.current,
     estimateSize: () => 52,
     overscan: 10,
-    getItemKey: i => `${queue[i].id}:${i}`,
+    getItemKey: i => `${queue[i].trackId}:${i}`,
     // Start with a sensible viewport height so rows render before the
     // ResizeObserver reports the real size (SSR / jsdom, where the observer
     // never fires). The real height overrides this on first measure.
-    initialRect: { width: 0, height: 600 },
+    initialRect: INITIAL_RECT,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
@@ -93,10 +109,11 @@ export function QueueList({
         <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
         {virtualItems.map(vi => {
           const idx = vi.index;
-          const track = queue[idx];
+          const base = queue[idx];
+          const track = resolveQueueTrack(base);
           const isPlaying = idx === queueIndex;
-          const isFirstAutoAdded = track.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
-          const isFirstRadioAdded = track.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
+          const isFirstAutoAdded = base.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
+          const isFirstRadioAdded = base.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
 
           let dragStyle: React.CSSProperties = {};
           if (isQueueDrag && psyDragFromIdxRef.current === idx) {
@@ -131,9 +148,10 @@ export function QueueList({
               className={`queue-item ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === 'queue-item' && contextMenu.queueIndex === idx ? 'context-active' : ''}`}
               onClick={() => {
                 suppressNextAutoScrollRef.current = true;
-                // Pass the row index so a click on a duplicate track lands on
-                // *this* slot, not the first occurrence (issue #500).
-                playTrack(track, queue, undefined, undefined, idx);
+                // Same-queue jump: undefined keeps the canonical refs; the row
+                // index lands a click on a duplicate track on *this* slot, not
+                // the first occurrence (issue #500).
+                playTrack(track, undefined, undefined, undefined, idx);
               }}
               onContextMenu={(e) => {
                 e.preventDefault();

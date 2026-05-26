@@ -21,6 +21,7 @@ import { FsPlayBtn } from './fullscreenPlayer/FsPlayBtn';
 import { useFsDynamicAccent } from '../hooks/useFsDynamicAccent';
 import { useFsArtistPortrait } from '../hooks/useFsArtistPortrait';
 import { useFsIdleFade } from '../hooks/useFsIdleFade';
+import { useQueueTrackAt } from '../hooks/useQueueTracks';
 
 interface FullscreenPlayerProps {
   onClose: () => void;
@@ -73,13 +74,12 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const fsPortraitDim          = useAuthStore(s => s.fsPortraitDim);
   const isAppleMode = showFullscreenLyrics && fsLyricsStyle === 'apple';
 
-  // Pre-fetch next track's 300px cover into the IndexedDB cache.
-  // Selector returns only the coverArt id, so it only re-runs on actual changes.
-  const nextCoverArt = usePlayerStore(s => {
-    const q = s.queue;
-    const idx = s.queueIndex;
-    return (idx >= 0 && idx + 1 < q.length) ? (q[idx + 1]?.coverArt ?? null) : null;
-  });
+  // Pre-fetch next track's 300px cover into the IndexedDB cache. Resolver-first
+  // (thin-state): the next ref resolves from the cache (the prefetch window
+  // around the current index keeps it warm).
+  const queueIndex = usePlayerStore(s => s.queueIndex);
+  const nextTrack = useQueueTrackAt(queueIndex + 1);
+  const nextCoverArt = queueIndex >= 0 ? (nextTrack?.coverArt ?? null) : null;
   const queueServerId = usePlayerStore(s => s.queueServerId);
   const activeServerId = useAuthStore(s => s.activeServerId);
   useEffect(() => {

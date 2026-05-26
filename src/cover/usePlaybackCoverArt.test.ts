@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { makeTrack } from '../test/helpers/factories';
 import { resetAllStores } from '../test/helpers/storeReset';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 
 const hoisted = vi.hoisted(() => ({
   useCoverArtMock: vi.fn(
@@ -39,7 +40,7 @@ function seedPlaybackState(): { active: string; playback: string } {
   useAuthStore.getState().setActiveServer(active);
   const track = makeTrack({ id: 'song-1', coverArt: 'cover-1' });
   usePlayerStore.setState({
-    queue: [track],
+    queueItems: toQueueItemRefs(playback, [track]),
     queueIndex: 0,
     queueServerId: playback,
     currentTrack: track,

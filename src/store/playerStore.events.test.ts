@@ -48,7 +48,7 @@ import {
   tauriMockListenerCount,
 } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
-import { makeTrack, makeTracks } from '@/test/helpers/factories';
+import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 
 function stubPlaybackInvokes(): void {
   onInvoke('audio_play', () => undefined);
@@ -117,12 +117,8 @@ describe('audio:progress', () => {
 describe('audio:track_switched', () => {
   it('advances to queue[queueIndex + 1] under repeatMode=off', () => {
     const queue = makeTracks(3);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 0,
-      currentTrack: queue[0],
-      repeatMode: 'off',
-    });
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
+    usePlayerStore.setState({ repeatMode: 'off' });
     emitTauriEvent('audio:track_switched', queue[1].duration);
     const s = usePlayerStore.getState();
     expect(s.currentTrack?.id).toBe(queue[1].id);
@@ -135,12 +131,8 @@ describe('audio:track_switched', () => {
 
   it('replays the same track under repeatMode=one (queueIndex stays put)', () => {
     const queue = makeTracks(3);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 1,
-      currentTrack: queue[1],
-      repeatMode: 'one',
-    });
+    seedQueue(queue, { index: 1, currentTrack: queue[1] });
+    usePlayerStore.setState({ repeatMode: 'one' });
     emitTauriEvent('audio:track_switched', queue[1].duration);
     const s = usePlayerStore.getState();
     expect(s.currentTrack?.id).toBe(queue[1].id);
@@ -149,12 +141,8 @@ describe('audio:track_switched', () => {
 
   it('wraps to queue[0] when at the end with repeatMode=all', () => {
     const queue = makeTracks(3);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 2,
-      currentTrack: queue[2],
-      repeatMode: 'all',
-    });
+    seedQueue(queue, { index: 2, currentTrack: queue[2] });
+    usePlayerStore.setState({ repeatMode: 'all' });
     emitTauriEvent('audio:track_switched', queue[0].duration);
     const s = usePlayerStore.getState();
     expect(s.currentTrack?.id).toBe(queue[0].id);
@@ -163,12 +151,8 @@ describe('audio:track_switched', () => {
 
   it('is a no-op when at the end with repeatMode=off', () => {
     const queue = makeTracks(2);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 1,
-      currentTrack: queue[1],
-      repeatMode: 'off',
-    });
+    seedQueue(queue, { index: 1, currentTrack: queue[1] });
+    usePlayerStore.setState({ repeatMode: 'off' });
     emitTauriEvent('audio:track_switched', queue[1].duration);
     // No next candidate → handler returns early before state changes.
     const s = usePlayerStore.getState();
@@ -178,13 +162,8 @@ describe('audio:track_switched', () => {
 
   it('resets scrobbled + lastfmLoved flags so the new track can be rescored', () => {
     const queue = makeTracks(2);
-    usePlayerStore.setState({
-      queue,
-      queueIndex: 0,
-      currentTrack: queue[0],
-      scrobbled: true,
-      lastfmLoved: true,
-    });
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
+    usePlayerStore.setState({ scrobbled: true, lastfmLoved: true });
     emitTauriEvent('audio:track_switched', queue[1].duration);
     expect(usePlayerStore.getState().scrobbled).toBe(false);
     expect(usePlayerStore.getState().lastfmLoved).toBe(false);
@@ -201,10 +180,8 @@ describe('audio:ended', () => {
 
   it('immediately resets playback bookkeeping (before the 150 ms next() timer)', () => {
     const queue = makeTracks(2);
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
     usePlayerStore.setState({
-      queue,
-      queueIndex: 0,
-      currentTrack: queue[0],
       isPlaying: true,
       progress: 0.99,
       currentTime: 178,
@@ -222,10 +199,8 @@ describe('audio:ended', () => {
 
   it('clears state and currentRadio for a radio stream without advancing the queue', () => {
     const queue = makeTracks(2);
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
     usePlayerStore.setState({
-      queue,
-      queueIndex: 0,
-      currentTrack: queue[0],
       currentRadio: { id: 'r1', name: 'Test FM', streamUrl: 'https://radio.test/stream' },
       isPlaying: true,
     });
