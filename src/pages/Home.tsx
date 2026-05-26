@@ -44,6 +44,19 @@ const HOME_BECAUSE_CARD_COVER_CSS_PX = 160;
 // Keep artwork enabled across Home rows in normal mode.
 const HOME_ARTWORK_VISIBLE_ROW_BUDGET_WHEN_ENABLED = 8;
 
+/**
+ * Read the in-memory homeFeedCache synchronously at component mount time.
+ * Uses Zustand getState() (not a hook) so it can be called from useState lazy
+ * initializers — by the time the user navigates back to Home the store is
+ * fully rehydrated and activeServerId is set, so on every return visit the
+ * first render already has data, eliminating the empty-state flash.
+ */
+function getInitialHomeFeed(): HomeFeedSnapshot | null {
+  const { activeServerId, musicLibraryFilterVersion } = useAuthStore.getState();
+  if (!activeServerId) return null;
+  return readHomeFeedCache(activeServerId, musicLibraryFilterVersion);
+}
+
 export default function Home() {
   const perfFlags = usePerfProbeFlags();
   const homeAlbumRowsDisabled = perfFlags.disableMainstageRails || perfFlags.disableHomeAlbumRows;
@@ -60,15 +73,20 @@ export default function Home() {
   // values are always used without re-triggering the effect on rehydration.
   const isVisible = (id: string) => homeSections.find(s => s.id === id)?.visible ?? true;
 
-  const [starred, setStarred] = useState<SubsonicAlbum[]>([]);
-  const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
-  const [random, setRandom] = useState<SubsonicAlbum[]>([]);
-  const [heroAlbums, setHeroAlbums] = useState<SubsonicAlbum[]>([]);
-  const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>([]);
-  const [recentlyPlayed, setRecentlyPlayed] = useState<SubsonicAlbum[]>([]);
-  const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>([]);
-  const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [starred, setStarred] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.starred ?? []);
+  const [recent, setRecent] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.recent ?? []);
+  const [random, setRandom] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.random ?? []);
+  const [heroAlbums, setHeroAlbums] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.heroAlbums ?? []);
+  const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.mostPlayed ?? []);
+  const [recentlyPlayed, setRecentlyPlayed] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.recentlyPlayed ?? []);
+  const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>(() => getInitialHomeFeed()?.randomArtists ?? []);
+  const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>(() => getInitialHomeFeed()?.discoverSongs ?? []);
+  // Pre-populated from cache → no loading spinner on return visits.
+  const [loading, setLoading] = useState(() => getInitialHomeFeed() == null);
+  // Track whether state was pre-populated from cache at mount so useEffect can
+  // skip re-applying the same snapshot (avoids creating new array references
+  // that would cause child components to re-render with unchanged data).
+  const [wasPrePopulated] = useState(() => getInitialHomeFeed() != null);
 
   const applyFeedSnapshot = (snap: HomeFeedSnapshot) => {
     setStarred(snap.starred);
@@ -110,7 +128,10 @@ export default function Home() {
 
     const cached = readHomeFeedCache(activeServerId, musicLibraryFilterVersion);
     if (cached) {
-      applyFeedSnapshot(cached);
+      // When lazy initializers already pre-populated state from this same
+      // snapshot, re-applying it would only create new array references and
+      // trigger unnecessary child re-renders with identical data.
+      if (!wasPrePopulated) applyFeedSnapshot(cached);
       setLoading(false);
       void warmHomeMainstageCovers(cached);
       const becauseSnap = readBecauseYouLikeCache(activeServerId);
