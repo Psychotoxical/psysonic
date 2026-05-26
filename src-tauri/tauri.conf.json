@@ -27,7 +27,11 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' ipc: http://ipc.localhost tauri:; connect-src 'self' ipc: http://ipc.localhost tauri: https: http: ws: wss:; img-src 'self' asset: http://asset.localhost https: http: data: blob:; media-src 'self' asset: http://asset.localhost https: http: data: blob:;",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/**", "$APPDATA/cover-cache/**"]
+      }
     }
   },
   "plugins": {

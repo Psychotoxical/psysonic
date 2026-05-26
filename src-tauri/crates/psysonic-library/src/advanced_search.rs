@@ -1094,6 +1094,9 @@ fn sort_column(field: &str, entity: EntityKind) -> Option<&'static str> {
         ("year", EntityKind::Album) => Some("a.year"),
         ("artist", EntityKind::Album) => Some("a.artist COLLATE NOCASE"),
         ("name", EntityKind::Artist) => Some("ar.name COLLATE NOCASE"),
+        // SQLite built-in: ORDER BY RANDOM() LIMIT N — fast pseudo-random sample,
+        // no index scan needed beyond the row-id range. Direction is ignored.
+        ("random", _) => Some("RANDOM()"),
         _ => None,
     }
 }

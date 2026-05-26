@@ -1,6 +1,7 @@
 import { getArtists } from '../api/subsonicArtists';
 import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../api/subsonicTypes';
+import { runLocalRandomSongs } from '../utils/library/browseTextSearch';
 import React, { useEffect, useState } from 'react';
 import Hero from '../components/Hero';
 import AlbumRow from '../components/AlbumRow';
@@ -17,6 +18,16 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { dedupeById } from '../utils/dedupeById';
 import { shuffleArray } from '../utils/playback/shuffleArray';
+import { coverArtIdFromArtist } from '../cover/ids';
+import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { coverArtRef } from '../cover/ref';
+import { primeAlbumCoversForDisplay, warmHomeMainstageCovers } from '../cover/warmDiskPeek';
+import { readBecauseYouLikeCache } from '../store/becauseYouLikeCache';
+import {
+  readHomeFeedCache,
+  writeHomeFeedCache,
+  type HomeFeedSnapshot,
+} from '../store/homeFeedCache';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
 const HOME_RANDOM_FETCH = 100;
@@ -29,8 +40,22 @@ const HOME_ARTWORK_WINDOWING = true;
 // At least one viewport width of cards on first paint (low values left half the row as placeholders).
 const HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET = 14;
 const HOME_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 16;
+const HOME_BECAUSE_CARD_COVER_CSS_PX = 160;
 // Keep artwork enabled across Home rows in normal mode.
 const HOME_ARTWORK_VISIBLE_ROW_BUDGET_WHEN_ENABLED = 8;
+
+/**
+ * Read the in-memory homeFeedCache synchronously at component mount time.
+ * Uses Zustand getState() (not a hook) so it can be called from useState lazy
+ * initializers — by the time the user navigates back to Home the store is
+ * fully rehydrated and activeServerId is set, so on every return visit the
+ * first render already has data, eliminating the empty-state flash.
+ */
+function getInitialHomeFeed(): HomeFeedSnapshot | null {
+  const { activeServerId, musicLibraryFilterVersion } = useAuthStore.getState();
+  if (!activeServerId) return null;
+  return readHomeFeedCache(activeServerId, musicLibraryFilterVersion);
+}
 
 export default function Home() {
   const perfFlags = usePerfProbeFlags();
@@ -40,55 +65,144 @@ export default function Home() {
   const homeSections = useHomeStore(s => s.sections);
   const activeServerId = useAuthStore(s => s.activeServerId);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const mixMinRatingFilterEnabled = useAuthStore(s => s.mixMinRatingFilterEnabled);
-  const mixMinRatingAlbum = useAuthStore(s => s.mixMinRatingAlbum);
-  const mixMinRatingArtist = useAuthStore(s => s.mixMinRatingArtist);
+  // Mix-rating deps intentionally NOT subscribed here — they change during Zustand
+  // rehydration and would trigger a second useEffect fire right after the first,
+  // showing the cached home feed briefly and then replacing it (~500 ms later)
+  // when the re-fetch with the rehydrated values completes. getMixMinRatingsConfigFromAuth
+  // reads the current store state directly inside the effect so the correct
+  // values are always used without re-triggering the effect on rehydration.
   const isVisible = (id: string) => homeSections.find(s => s.id === id)?.visible ?? true;
 
-  const [starred, setStarred] = useState<SubsonicAlbum[]>([]);
-  const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
-  const [random, setRandom] = useState<SubsonicAlbum[]>([]);
-  const [heroAlbums, setHeroAlbums] = useState<SubsonicAlbum[]>([]);
-  const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>([]);
-  const [recentlyPlayed, setRecentlyPlayed] = useState<SubsonicAlbum[]>([]);
-  const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>([]);
-  const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [starred, setStarred] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.starred ?? []);
+  const [recent, setRecent] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.recent ?? []);
+  const [random, setRandom] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.random ?? []);
+  const [heroAlbums, setHeroAlbums] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.heroAlbums ?? []);
+  const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.mostPlayed ?? []);
+  const [recentlyPlayed, setRecentlyPlayed] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.recentlyPlayed ?? []);
+  const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>(() => getInitialHomeFeed()?.randomArtists ?? []);
+  const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>(() => getInitialHomeFeed()?.discoverSongs ?? []);
+  // Pre-populated from cache → no loading spinner on return visits.
+  const [loading, setLoading] = useState(() => getInitialHomeFeed() == null);
+  // Track whether state was pre-populated from cache at mount so useEffect can
+  // skip re-applying the same snapshot (avoids creating new array references
+  // that would cause child components to re-render with unchanged data).
+  const [wasPrePopulated] = useState(() => getInitialHomeFeed() != null);
+
+  const applyFeedSnapshot = (snap: HomeFeedSnapshot) => {
+    setStarred(snap.starred);
+    setRecent(snap.recent);
+    setRandom(snap.random);
+    setHeroAlbums(snap.heroAlbums);
+    setMostPlayed(snap.mostPlayed);
+    setRecentlyPlayed(snap.recentlyPlayed);
+    setRandomArtists(snap.randomArtists);
+    setDiscoverSongs(snap.discoverSongs);
+  };
 
   useEffect(() => {
     bumpPerfCounter('homeCommits');
   });
 
   useEffect(() => {
+    const heroRefs = heroAlbums.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const recentRefs = recent.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const restAlbumRefs = [...random, ...mostPlayed, ...recentlyPlayed, ...starred].flatMap(a =>
+      a.coverArt ? [coverArtRef(a.coverArt)] : [],
+    );
+    const artistRefs = randomArtists.map(a => coverArtRef(coverArtIdFromArtist(a)));
+    const songRefs = discoverSongs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : []));
+    const unregHero = coverPrefetchRegister(heroRefs, { surface: 'dense', priority: 'high' });
+    const unregRecent = coverPrefetchRegister(recentRefs, { surface: 'dense', priority: 'high' });
+    const cappedRest = [...restAlbumRefs, ...artistRefs, ...songRefs].slice(0, 24);
+    const unregRest = coverPrefetchRegister(cappedRest, { surface: 'dense', priority: 'low' });
+    return () => {
+      unregHero();
+      unregRecent();
+      unregRest();
+    };
+  }, [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs]);
+
+  useEffect(() => {
+    if (!activeServerId) return;
     let cancelled = false;
+
+    const fetchFreshHomeFeed = async (): Promise<HomeFeedSnapshot | null> => {
+      const mixCfg = getMixMinRatingsConfigFromAuth();
+      const albumMix =
+        mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
+      const randomSize = albumMix ? HOME_RANDOM_FETCH : HOME_DISCOVER_SLICE;
+      const [s, n, rRaw, f, rp, artists, songs] = await Promise.all([
+        getAlbumList('starred', 12).catch(() => []),
+        getAlbumList('newest', 12).catch(() => []),
+        getAlbumList('random', randomSize).catch(() => []),
+        getAlbumList('frequent', 12).catch(() => []),
+        getAlbumList('recent', 12).catch(() => []),
+        isVisible('discoverArtists') ? getArtists().catch(() => []) : Promise.resolve<SubsonicArtist[]>([]),
+        isVisible('discoverSongs')
+          ? (runLocalRandomSongs(activeServerId, HOME_DISCOVER_SONGS_SIZE)
+              .then(local => local ?? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[]))
+              .catch(() => [] as SubsonicSong[]))
+          : Promise.resolve<SubsonicSong[]>([]),
+      ]);
+      const r = dedupeById(await filterAlbumsByMixRatings(rRaw, mixCfg));
+      return {
+        serverId: activeServerId,
+        filterVersion: musicLibraryFilterVersion,
+        savedAt: Date.now(),
+        starred: dedupeById(s),
+        recent: dedupeById(n),
+        heroAlbums: r.slice(0, HOME_HERO_COUNT),
+        random: r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE),
+        mostPlayed: dedupeById(f),
+        recentlyPlayed: dedupeById(rp),
+        discoverSongs: dedupeById(songs),
+        randomArtists: dedupeById(shuffleArray(artists)).slice(0, 16),
+      };
+    };
+
+    const cached = readHomeFeedCache(activeServerId, musicLibraryFilterVersion);
+    if (cached) {
+      // When lazy initializers already pre-populated state from this same
+      // snapshot, re-applying it would only create new array references and
+      // trigger unnecessary child re-renders with identical data.
+      if (!wasPrePopulated) applyFeedSnapshot(cached);
+      setLoading(false);
+      void warmHomeMainstageCovers(cached);
+      const becauseSnap = readBecauseYouLikeCache(activeServerId);
+      void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
+        limit: 6,
+      });
+      // Keep the current visit visually stable, but prepare fresh data so the
+      // next re-enter opens with a newer snapshot immediately.
+      void (async () => {
+        try {
+          const fresh = await fetchFreshHomeFeed();
+          if (!fresh || cancelled) return;
+          writeHomeFeedCache(fresh);
+          void warmHomeMainstageCovers(fresh);
+        } catch {
+          /* ignore */
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     setLoading(true);
     (async () => {
       try {
-        const mixCfg = getMixMinRatingsConfigFromAuth();
-        const albumMix =
-          mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
-        const randomSize = albumMix ? HOME_RANDOM_FETCH : HOME_DISCOVER_SLICE;
-        const [s, n, rRaw, f, rp, artists, songs] = await Promise.all([
-          getAlbumList('starred', 12).catch(() => []),
-          getAlbumList('newest', 12).catch(() => []),
-          getAlbumList('random', randomSize).catch(() => []),
-          getAlbumList('frequent', 12).catch(() => []),
-          getAlbumList('recent', 12).catch(() => []),
-          isVisible('discoverArtists') ? getArtists().catch(() => []) : Promise.resolve<SubsonicArtist[]>([]),
-          isVisible('discoverSongs')
-            ? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[])
-            : Promise.resolve<SubsonicSong[]>([]),
-        ]);
+        const snap = await fetchFreshHomeFeed();
+        if (!snap) return;
         if (cancelled) return;
-        const r = dedupeById(await filterAlbumsByMixRatings(rRaw, mixCfg));
-        setStarred(dedupeById(s));
-        setRecent(dedupeById(n));
-        setHeroAlbums(r.slice(0, HOME_HERO_COUNT));
-        setRandom(r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE));
-        setMostPlayed(dedupeById(f));
-        setRecentlyPlayed(dedupeById(rp));
-        setDiscoverSongs(dedupeById(songs));
-        setRandomArtists(dedupeById(shuffleArray(artists)).slice(0, 16));
+        writeHomeFeedCache(snap);
+        applyFeedSnapshot(snap);
+        if (!cancelled) setLoading(false);
+        void warmHomeMainstageCovers(snap);
+        const becauseSnap = readBecauseYouLikeCache(activeServerId);
+        void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
+          limit: 6,
+        });
       } catch {
         /* ignore */
       } finally {
@@ -100,10 +214,7 @@ export default function Home() {
     activeServerId,
     musicLibraryFilterVersion,
     homeSections,
-    mixMinRatingFilterEnabled,
-    mixMinRatingAlbum,
-    mixMinRatingArtist,
-  ]);
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = async (
     type: 'starred' | 'newest' | 'random' | 'frequent' | 'recent',
@@ -195,7 +306,7 @@ export default function Home() {
     starred.length === 0;
   return (
     <div className={`animate-fade-in${homeLiteArtworkFx ? ' home-lite-artwork' : ''}${homeFlatArtworkClip ? ' home-flat-artwork-clip' : ''}`}>
-      {!perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
+      {!loading && !perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
 
       <div className="content-body" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
         {loading ? (

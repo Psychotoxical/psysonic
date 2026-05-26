@@ -1,20 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Disc3, Eye, Link2, ListPlus, Music, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import {
-  buildCoverArtUrl,
-  buildCoverArtUrlForServer,
-  coverArtCacheKey,
-  coverArtCacheKeyForServer,
-} from '../../api/subsonicStreamUrl';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { activateShareSearchServer } from '../../utils/share/enqueueShareSearchPayload';
 import { sharePayloadTotal, type ShareSearchMatch } from '../../utils/share/shareSearch';
 import type { ShareSearchPreviewState } from '../../hooks/useShareSearchPreview';
-import CachedImage, { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from '../CachedImage';
+import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
+import { coverArtIdFromArtist } from '../../cover/ids';
+import type { CoverServerScope } from '../../cover/types';
 import { useShareQueuePreview } from '../../hooks/useShareQueuePreview';
 import ShareQueuePreviewModal from './ShareQueuePreviewModal';
 
@@ -34,51 +32,56 @@ type ShareSearchResultsProps = {
   onContextMenu?: (e: React.MouseEvent, item: unknown, type: 'song' | 'album' | 'artist') => void;
 } & ShareSearchPreviewState;
 
-function useShareCoverArt(coverId: string, size: number, coverServer: ServerProfile | null | undefined) {
-  return useMemo(() => {
-    if (coverServer) {
-      return {
-        src: buildCoverArtUrlForServer(coverServer.url, coverServer.username, coverServer.password, coverId, size),
-        cacheKey: coverArtCacheKeyForServer(coverServer.id, coverId, size),
-      };
-    }
+function shareCoverServerScope(coverServer?: ServerProfile | null): CoverServerScope {
+  if (coverServer) {
     return {
-      src: buildCoverArtUrl(coverId, size),
-      cacheKey: coverArtCacheKey(coverId, size),
+      kind: 'server',
+      serverId: coverServer.id,
+      url: coverServer.url,
+      username: coverServer.username,
+      password: coverServer.password,
     };
-  }, [coverServer, coverId, size]);
+  }
+  return { kind: 'active' };
 }
 
 function ShareAlbumThumb({
   coverArt,
-  size,
+  displayCssPx,
   coverServer,
 }: {
   coverArt: string;
-  size: number;
+  displayCssPx: number;
   coverServer?: ServerProfile | null;
 }) {
-  const { src, cacheKey } = useShareCoverArt(coverArt, size, coverServer);
-  const cls = size >= 64 ? 'mobile-search-thumb' : 'search-result-thumb';
-  return <CachedImage className={cls} src={src} cacheKey={cacheKey} alt="" />;
+  const cls = displayCssPx >= 64 ? 'mobile-search-thumb' : 'search-result-thumb';
+  return (
+    <CoverArtImage
+      coverArtId={coverArt}
+      displayCssPx={displayCssPx}
+      surface="dense"
+      serverScope={shareCoverServerScope(coverServer)}
+      className={cls}
+      alt=""
+    />
+  );
 }
 
 function ShareArtistThumb({
   artist,
-  size,
+  displayCssPx,
   coverServer,
 }: {
   artist: Pick<SubsonicArtist, 'id' | 'coverArt'>;
-  size: number;
+  displayCssPx: number;
   coverServer?: ServerProfile | null;
 }) {
   const [failed, setFailed] = useState(false);
-  const coverId = artist.coverArt || artist.id;
-  const { src, cacheKey } = useShareCoverArt(coverId, size, coverServer);
+  const coverId = coverArtIdFromArtist(artist);
   useEffect(() => { setFailed(false); }, [coverId]);
 
   if (failed) {
-    if (size >= 64) {
+    if (displayCssPx >= 64) {
       return (
         <div className="mobile-search-avatar mobile-search-avatar--circle">
           <Users size={20} />
@@ -93,14 +96,16 @@ function ShareArtistThumb({
   }
 
   const cls =
-    size >= 64
+    displayCssPx >= 64
       ? 'mobile-search-thumb mobile-search-thumb--artist-round'
       : 'search-result-thumb';
   return (
-    <CachedImage
+    <CoverArtImage
+      coverArtId={coverId}
+      displayCssPx={displayCssPx}
+      surface="dense"
+      serverScope={shareCoverServerScope(coverServer)}
       className={cls}
-      src={src}
-      cacheKey={cacheKey}
       alt=""
       loading="eager"
       fetchQueueBias={FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM}
@@ -158,7 +163,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
 
   const { t } = useTranslation();
   const desktop = variant === 'desktop';
-  const thumbSize = desktop ? 40 : 80;
+  const thumbDisplayCssPx = desktop ? COVER_DENSE_SEARCH_CSS_PX : 80;
   const sectionCls = desktop ? 'search-section' : 'mobile-search-section';
   const labelCls = desktop ? 'search-section-label' : 'mobile-search-section-label';
   const mutedCls = desktop ? 'search-result-item search-result-item--muted' : 'mobile-search-item mobile-search-item--muted';
@@ -225,7 +230,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
           role={desktop ? 'option' : undefined}
           aria-selected={desktop ? activeIndex === 0 : undefined}
         >
-          <ShareArtistThumb artist={shareArtist} size={thumbSize} coverServer={shareCoverServer} />
+          <ShareArtistThumb artist={shareArtist} displayCssPx={thumbDisplayCssPx} coverServer={shareCoverServer} />
           <div className={infoWrap}>
             <div className={nameCls}>{shareArtist.name}</div>
             {showEntityKindSub && <div className={subCls}>{sub(!desktop ? t('search.artists') : '')}</div>}
@@ -267,7 +272,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
           role={desktop ? 'option' : undefined}
           aria-selected={desktop ? activeIndex === 0 : undefined}
         >
-          <ShareArtistThumb artist={shareComposer} size={thumbSize} coverServer={shareCoverServer} />
+          <ShareArtistThumb artist={shareComposer} displayCssPx={thumbDisplayCssPx} coverServer={shareCoverServer} />
           <div className={infoWrap}>
             <div className={nameCls}>{shareComposer.name}</div>
             {showEntityKindSub && <div className={subCls}>{sub(!desktop ? t('sidebar.composers') : '')}</div>}
@@ -314,7 +319,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
           aria-selected={desktop ? activeIndex === 0 : undefined}
         >
           {shareAlbum.coverArt ? (
-            <ShareAlbumThumb coverArt={shareAlbum.coverArt} size={thumbSize} coverServer={shareCoverServer} />
+            <ShareAlbumThumb coverArt={shareAlbum.coverArt} displayCssPx={thumbDisplayCssPx} coverServer={shareCoverServer} />
           ) : (
             <StaticIcon className={iconCls}><Disc3 size={desktop ? 14 : 20} /></StaticIcon>
           )}
@@ -365,7 +370,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
           aria-selected={desktop ? activeIndex === 0 : undefined}
         >
           {shareTrackSong.coverArt ? (
-            <ShareAlbumThumb coverArt={shareTrackSong.coverArt} size={thumbSize} coverServer={shareCoverServer} />
+            <ShareAlbumThumb coverArt={shareTrackSong.coverArt} displayCssPx={thumbDisplayCssPx} coverServer={shareCoverServer} />
           ) : (
             <StaticIcon className={iconCls}><Music size={desktop ? 14 : 20} /></StaticIcon>
           )}

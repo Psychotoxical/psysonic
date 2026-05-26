@@ -1,0 +1,318 @@
+import { Image, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { listen } from '@tauri-apps/api/event';
+import SettingsSubSection from '../SettingsSubSection';
+import { useCoverStrategyStore } from '../../store/coverStrategyStore';
+import { useAuthStore } from '../../store/authStore';
+import {
+  coverCacheClearServer,
+  coverCacheStatsServer,
+  libraryCoverCatalogSize,
+  libraryCoverProgress,
+} from '../../api/coverCache';
+import { clearDiskSrcCacheForServer } from '../../cover/diskSrcCache';
+import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
+import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
+import { showToast } from '../../utils/ui/toast';
+import { formatBytes } from '../../utils/format/formatBytes';
+import { wakeLibraryCoverBackfill } from '../../utils/library/coverBackfillWake';
+import {
+  COVER_CACHE_STRATEGIES,
+  type CoverCacheStrategy,
+} from '../../utils/library/coverStrategy';
+
+type ClearTarget = {
+  serverId: string;
+  indexKey: string;
+  label: string;
+};
+
+type ServerRowState = {
+  bytes: number;
+  entryCount: number;
+  done: number;
+  total: number;
+  pending: number;
+};
+
+export default function CoverCacheStrategySection() {
+  const { t } = useTranslation();
+  const servers = useAuthStore(s => s.servers);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const { strategyByServer, setServerStrategy, getStrategyForServer } = useCoverStrategyStore();
+  const [rowState, setRowState] = useState<Record<string, ServerRowState>>({});
+  const [clearTarget, setClearTarget] = useState<ClearTarget | null>(null);
+  const [clearingKey, setClearingKey] = useState<string | null>(null);
+
+  const activeIndexKeys = useMemo(
+    () => new Set(servers.map(server => serverIndexKeyForProfile(server))),
+    [servers],
+  );
+  const removedServerKeys = useMemo(() => {
+    const known = new Set(Object.keys(strategyByServer));
+    return Array.from(known).filter(key => !activeIndexKeys.has(key));
+  }, [strategyByServer, activeIndexKeys]);
+
+  const refreshRow = useCallback(async (serverId: string, indexKey: string) => {
+    const [stats, progress, catalog] = await Promise.all([
+      coverCacheStatsServer(indexKey).catch(() => ({ bytes: 0, entryCount: 0 })),
+      libraryCoverProgress(indexKey, serverId).catch(() => ({ done: 0, totalDistinct: 0, pending: 0 })),
+      libraryCoverCatalogSize(serverId).catch(() => 0),
+    ]);
+    const total = Math.max(progress.totalDistinct, catalog);
+    setRowState(prev => ({
+      ...prev,
+      [indexKey]: {
+        bytes: stats.bytes,
+        entryCount: stats.entryCount,
+        done: progress.done,
+        total,
+        pending: Math.max(progress.pending, total > 0 ? total - progress.done : 0),
+      },
+    }));
+  }, []);
+
+  const refreshAll = useCallback(() => {
+    void Promise.all(
+      servers.map(server => refreshRow(server.id, serverIndexKeyForProfile(server))),
+    );
+  }, [servers, refreshRow]);
+
+  useEffect(() => {
+    refreshAll();
+    const id = window.setInterval(refreshAll, 15_000);
+    return () => window.clearInterval(id);
+  }, [refreshAll]);
+
+  useEffect(() => {
+    const unsubs: Array<() => void> = [];
+    void (async () => {
+      unsubs.push(await listen<{
+        serverIndexKey?: string;
+        done?: number;
+        total?: number;
+        pending?: number;
+        bytes?: number;
+        entryCount?: number;
+      }>('cover:library-progress', e => {
+        const key = e.payload.serverIndexKey;
+        if (!key) return;
+        setRowState(prev => {
+          const cur = prev[key];
+          if (!cur) return prev;
+          const done = typeof e.payload.done === 'number' ? e.payload.done : cur.done;
+          const total = typeof e.payload.total === 'number' ? e.payload.total : cur.total;
+          return {
+            ...prev,
+            [key]: {
+              ...cur,
+              done,
+              total,
+              pending: e.payload.pending ?? Math.max(0, total - done),
+              bytes: typeof e.payload.bytes === 'number' ? e.payload.bytes : cur.bytes,
+              entryCount:
+                typeof e.payload.entryCount === 'number' ? e.payload.entryCount : cur.entryCount,
+            },
+          };
+        });
+      }));
+      unsubs.push(await listen<{ serverIndexKey?: string }>('cover:cache-cleared', e => {
+        const key = e.payload.serverIndexKey;
+        if (key) {
+          setRowState(prev => ({
+            ...prev,
+            [key]: { bytes: 0, entryCount: 0, done: 0, total: prev[key]?.total ?? 0, pending: prev[key]?.total ?? 0 },
+          }));
+        } else {
+          refreshAll();
+        }
+      }));
+      unsubs.push(await listen('cover:tier-ready', () => {
+        refreshAll();
+      }));
+    })();
+    return () => {
+      for (const u of unsubs) u();
+    };
+  }, [refreshAll]);
+
+  const strategyLabel = (s: CoverCacheStrategy) => {
+    switch (s) {
+      case 'lazy':
+        return t('settings.coverCacheStrategyLazy');
+      case 'aggressive':
+        return t('settings.coverCacheStrategyAggressive');
+    }
+  };
+
+  const progressLabel = (row: ServerRowState | undefined, strategy: CoverCacheStrategy) => {
+    if (!row || strategy !== 'aggressive' || row.total <= 0) {
+      return row ? t('settings.coverCacheStrategyDiskUsage', { size: formatBytes(row.bytes) }) : '—';
+    }
+    const percent = Math.max(0, Math.min(100, Math.round((row.done / row.total) * 100)));
+    return t('settings.coverCacheStrategyProgressValue', {
+      percent,
+      done: row.done.toLocaleString(),
+      total: row.total.toLocaleString(),
+      size: formatBytes(row.bytes),
+    });
+  };
+
+  const handleStrategyChange = (serverId: string, strategy: CoverCacheStrategy) => {
+    setServerStrategy(serverId, strategy);
+    if (serverId === activeServerId) {
+      wakeLibraryCoverBackfill();
+    }
+  };
+
+  const handleClearCoverCache = async () => {
+    if (!clearTarget) return;
+    setClearingKey(clearTarget.indexKey);
+    try {
+      await coverCacheClearServer(clearTarget.indexKey);
+      clearDiskSrcCacheForServer(clearTarget.indexKey);
+      await refreshRow(clearTarget.serverId, clearTarget.indexKey);
+      showToast(t('settings.coverCacheStrategyClearSuccess'), 4000, 'success');
+    } catch {
+      showToast(t('settings.coverCacheStrategyClearError'), 5000, 'error');
+    } finally {
+      setClearingKey(null);
+      setClearTarget(null);
+    }
+  };
+
+  return (
+    <SettingsSubSection title={t('settings.coverCacheStrategyTitle')} icon={<Image size={16} />}>
+      <div className="settings-card">
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('settings.coverCacheStrategyServerLabel')}
+                </th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('settings.coverCacheStrategyLabel')}
+                </th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('settings.coverCacheStrategyProgressLabel')}
+                </th>
+                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('settings.coverCacheStrategyActionsLabel')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {servers.map(server => {
+                const strategy = getStrategyForServer(server.id);
+                const key = serverIndexKeyForProfile(server);
+                const row = rowState[key];
+                const label = serverListDisplayLabel(server, servers);
+                return (
+                  <tr key={server.id} style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
+                    <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-primary)' }}>{label}</td>
+                    <td style={{ padding: '10px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {COVER_CACHE_STRATEGIES.map(s => (
+                          <button
+                            key={s}
+                            type="button"
+                            className={`btn btn-sm ${strategy === s ? 'btn-primary' : 'btn-surface'}`}
+                            onClick={() => handleStrategyChange(server.id, s)}
+                          >
+                            {strategyLabel(s)}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                        {strategy === 'aggressive'
+                          ? t('settings.coverCacheStrategyAggressiveDesc')
+                          : t('settings.coverCacheStrategyLazyDesc')}
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px', fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {progressLabel(row, strategy)}
+                    </td>
+                    <td style={{ padding: '10px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: 12 }}
+                        onClick={() =>
+                          setClearTarget({ serverId: server.id, indexKey: key, label })}
+                      >
+                        <Trash2 size={14} /> {t('settings.coverCacheStrategyClearAction')}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {removedServerKeys.map(key => (
+                <tr key={`removed-${key}`} style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
+                  <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-muted)' }}>
+                    {key}
+                    <span style={{ marginLeft: 6, fontSize: 11 }}>({t('settings.coverCacheStrategyServerRemoved')})</span>
+                  </td>
+                  <td colSpan={2} />
+                  <td style={{ padding: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: 12 }}
+                      onClick={() =>
+                        setClearTarget({ serverId: key, indexKey: key, label: key })}
+                    >
+                      <Trash2 size={14} /> {t('settings.coverCacheStrategyClearAction')}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: '0.9rem', lineHeight: 1.5 }}>
+          {t('settings.coverCacheStrategyDesc')}
+        </p>
+
+        {clearTarget && (
+          <div
+            style={{
+              marginTop: 16,
+              background: 'color-mix(in srgb, var(--color-danger, #e53935) 10%, transparent)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '10px 14px',
+              fontSize: 13,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('settings.coverCacheStrategyClearTitle')}</div>
+            <div style={{ marginBottom: 10, lineHeight: 1.5 }}>
+              {t('settings.coverCacheStrategyClearDesc', { server: clearTarget.label })}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ background: 'var(--color-danger, #e53935)', fontSize: 13 }}
+                disabled={clearingKey !== null}
+                onClick={() => void handleClearCoverCache()}
+              >
+                {t('settings.coverCacheStrategyClearConfirm')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: 13 }}
+                disabled={clearingKey !== null}
+                onClick={() => setClearTarget(null)}
+              >
+                {t('settings.coverCacheStrategyClearCancel')}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </SettingsSubSection>
+  );
+}

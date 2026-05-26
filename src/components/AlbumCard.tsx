@@ -1,4 +1,3 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -9,7 +8,12 @@ import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
-import CachedImage from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import type { CoverPrefetchPriority } from '../cover/types';
+import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
+import { coverStorageKey } from '../cover/storageKeys';
+import { resolveCoverDisplayTier } from '../cover/tiers';
+import { acquireUrl } from '../utils/imageCache/urlPool';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { playAlbum } from '../utils/playback/playAlbum';
 import { useDragDrop } from '../contexts/DragDropContext';
@@ -24,7 +28,14 @@ interface AlbumCardProps {
   showRating?: boolean;
   selectedAlbums?: SubsonicAlbum[];
   disableArtwork?: boolean;
+  /** Layout-native cover square width in CSS px (from parent grid). */
+  displayCssPx?: number;
+  /** @deprecated Use displayCssPx — kept for call-site transition only */
   artworkSize?: number;
+  /** In-page scroll viewport (`VirtualCardGrid` `scrollRootId`) for cover IO priority. */
+  observeScrollRootId?: string;
+  /** `high` for bounded grids (Random Albums, …) — skip defer-until-visible. */
+  ensurePriority?: CoverPrefetchPriority;
 }
 
 function AlbumCard({
@@ -35,7 +46,10 @@ function AlbumCard({
   showRating = false,
   selectedAlbums = [],
   disableArtwork = false,
-  artworkSize = 300,
+  displayCssPx = COVER_DENSE_GRID_MIN_CELL_CSS_PX,
+  artworkSize: _artworkSize,
+  observeScrollRootId,
+  ensurePriority,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -47,16 +61,12 @@ function AlbumCard({
     if (!meta || meta.trackIds.length === 0) return false;
     return meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
   });
-  // buildCoverArtUrl emits a salted URL; memoize to avoid churn on rerenders.
-  const coverUrl = useMemo(
-    () => (album.coverArt ? buildCoverArtUrl(album.coverArt, artworkSize) : ''),
-    [album.coverArt, artworkSize],
-  );
-  const coverCacheKey = useMemo(
-    () => (album.coverArt ? coverArtCacheKey(album.coverArt, artworkSize) : ''),
-    [album.coverArt, artworkSize],
-  );
   const psyDrag = useDragDrop();
+  const dragCoverKey = useMemo(() => {
+    if (!album.coverArt) return '';
+    const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
+    return coverStorageKey({ kind: 'active' }, album.coverArt, tier);
+  }, [album.coverArt, displayCssPx]);
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
 
@@ -89,7 +99,8 @@ function AlbumCard({
           if (Math.abs(me.clientX - sx) > 5 || Math.abs(me.clientY - sy) > 5) {
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
-            psyDrag.startDrag({ data: JSON.stringify({ type: 'album', id: album.id, name: album.name }), label: album.name, coverUrl: coverUrl || undefined }, me.clientX, me.clientY);
+            const coverUrl = dragCoverKey ? acquireUrl(dragCoverKey) ?? undefined : undefined;
+            psyDrag.startDrag({ data: JSON.stringify({ type: 'album', id: album.id, name: album.name }), label: album.name, coverUrl }, me.clientX, me.clientY);
           }
         };
         const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
@@ -98,13 +109,16 @@ function AlbumCard({
       }}
     >
       <div className="album-card-cover">
-        {!disableArtwork && coverUrl ? (
-          <CachedImage
-            src={coverUrl}
-            cacheKey={coverCacheKey}
+        {!disableArtwork && album.coverArt ? (
+          <CoverArtImage
+            coverArtId={album.coverArt}
+            displayCssPx={displayCssPx}
+            surface="dense"
             alt={`${album.name} Cover`}
             loading="eager"
             decoding="async"
+            observeScrollRootId={observeScrollRootId}
+            ensurePriority={ensurePriority}
           />
         ) : (
           <div className="album-card-cover-placeholder">

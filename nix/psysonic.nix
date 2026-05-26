@@ -138,7 +138,7 @@ stdenv.mkDerivation (finalAttrs: {
   buildPhase = ''
     runHook preBuild
     export HOME=$(mktemp -d)
-    (cd src-tauri && cargo tauri build --no-bundle -v)
+    (cd src-tauri && cargo tauri build --no-bundle)
     runHook postBuild
   '';
 

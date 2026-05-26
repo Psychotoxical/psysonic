@@ -8,11 +8,14 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 export function resolveIntersectionScrollRoot(node: HTMLElement): Element | null {
   let parent = node.parentElement;
   while (parent) {
-    const { overflowY } = window.getComputedStyle(parent);
-    if (
+    const { overflowX, overflowY } = window.getComputedStyle(parent);
+    const scrollableY =
       (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
-      && parent.scrollHeight > parent.clientHeight + 2
-    ) {
+      && parent.scrollHeight > parent.clientHeight + 2;
+    const scrollableX =
+      (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay')
+      && parent.scrollWidth > parent.clientWidth + 2;
+    if (scrollableY || scrollableX) {
       return parent;
     }
     parent = parent.parentElement;

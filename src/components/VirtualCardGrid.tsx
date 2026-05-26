@@ -1,4 +1,6 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
+import { GRID_COVER_WARM_LIMIT } from '../cover/layoutSizes';
+import { useWarmGridCovers } from '../hooks/useWarmGridCovers';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById } from '../hooks/useResizeClientHeight';
@@ -22,6 +24,12 @@ export type VirtualCardGridProps<T> = {
   gridGap?: string;
   /** When set, row virtualization uses this scroll container instead of the main route viewport. */
   scrollRootId?: string;
+  /** Pre-peek disk WebP for the first viewport of cards (one IPC batch before cells ensure). */
+  warmGridCovers?: {
+    pickCoverArtId: (item: T) => string | null | undefined;
+    displayCssPx: number;
+    limit?: number;
+  };
 };
 
 /**
@@ -40,7 +48,25 @@ export function VirtualCardGrid<T>({
   wrapStyle,
   gridGap = 'var(--space-4)',
   scrollRootId,
+  warmGridCovers,
 }: VirtualCardGridProps<T>): React.JSX.Element {
+  const warmLimit = warmGridCovers?.limit ?? GRID_COVER_WARM_LIMIT;
+  const warmItems = useMemo(() => {
+    if (!warmGridCovers) return [];
+    return items
+      .slice(0, warmLimit)
+      .map(item => ({ coverArt: warmGridCovers.pickCoverArtId(item) ?? null }));
+  }, [items, warmGridCovers, warmLimit]);
+  const warmPeekKey = useMemo(
+    () => warmItems.map(i => i.coverArt ?? '').join('\u0001'),
+    [warmItems],
+  );
+  useWarmGridCovers(warmItems, warmGridCovers?.displayCssPx ?? 0, {
+    enabled: Boolean(warmGridCovers && warmGridCovers.displayCssPx > 0),
+    limit: warmLimit,
+    warmKey: warmPeekKey,
+  });
+
   const wrapRef = useRef<HTMLDivElement>(null);
   const { gridCols, rowHeightEst } = useCardGridMetrics(wrapRef, true, rowVariant, layoutSignal);
   const cols = Math.max(1, gridCols);

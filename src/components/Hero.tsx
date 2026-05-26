@@ -1,11 +1,11 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getRandomAlbums, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, ChevronLeft, ChevronRight } from 'lucide-react';
-import CachedImage, { useCachedUrl } from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { useCoverArt } from '../cover/useCoverArt';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { playAlbum } from '../utils/playback/playAlbum';
@@ -20,6 +20,10 @@ const INTERVAL_MS = 10000;
 const HERO_ALBUM_COUNT = 8;
 /** Larger pool when mix rating filter is on so we can still fill the hero strip. */
 const HERO_RANDOM_POOL = 32;
+/** Hero foreground cover (`.hero-cover` 220×220). */
+const HERO_FG_CSS_PX = 220;
+/** Hero blurred backdrop (full banner height). */
+const HERO_BG_CSS_PX = 360;
 
 // Crossfading background — same layer pattern as FullscreenPlayer
 function HeroBg({ url }: { url: string }) {
@@ -40,14 +44,16 @@ function HeroBg({ url }: { url: string }) {
   return (
     <>
       {layers.map(layer => (
-        <div
+        <img
           key={layer.id}
-          className="hero-bg"
-          style={{
-            backgroundImage: `url(${layer.url})`,
-            opacity: layer.visible ? 1 : 0,
-          }}
+          className="hero-bg-image"
+          src={layer.url}
+          style={{ opacity: layer.visible ? 1 : 0 }}
           aria-hidden="true"
+          alt=""
+          loading="eager"
+          decoding="sync"
+          draggable={false}
         />
       ))}
     </>
@@ -158,6 +164,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     };
   }, []);
 
+
   useEffect(() => {
     if (heroInView || windowHidden) return;
     // Recovery guard: if a scroll/RAF event was missed while hero was outside
@@ -252,18 +259,15 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     });
   }, [album?.id]);
 
-  // buildCoverArtUrl generates a new salt on every call — must be memoized.
-  const bgRawUrl    = useMemo(() => album?.coverArt ? buildCoverArtUrl(album.coverArt, 800) : '', [album?.coverArt]);
-  const bgCacheKey  = useMemo(() => album?.coverArt ? coverArtCacheKey(album.coverArt, 800) : '', [album?.coverArt]);
-  const resolvedBgUrl = useCachedUrl(bgRawUrl, bgCacheKey);
+  const bgHandle = useCoverArt(album?.coverArt, HERO_BG_CSS_PX, {
+    surface: 'dense',
+    ensurePriority: 'high',
+  });
 
   // Keep the last known good URL so HeroBg never receives '' during a cache-miss
   // transition (which would cause the background to flash empty before fading in).
   const stableBgUrl = useRef('');
-  if (resolvedBgUrl) stableBgUrl.current = resolvedBgUrl;
-
-  const coverRawUrl  = useMemo(() => album?.coverArt ? buildCoverArtUrl(album.coverArt, 300) : '', [album?.coverArt]);
-  const coverCacheKey = useMemo(() => album?.coverArt ? coverArtCacheKey(album.coverArt, 300) : '', [album?.coverArt]);
+  if (bgHandle.src) stableBgUrl.current = bgHandle.src;
 
   if (!album) return <div className="hero-placeholder" />;
 
@@ -280,12 +284,14 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <div className="hero-overlay" aria-hidden="true" />}
 
       {/* key causes re-mount → animate-fade-in triggers on each album change */}
-      <div className="hero-content animate-fade-in" key={album.id}>
-        {coverRawUrl && !isMobile && (
-          <CachedImage
+      <div className="hero-content" key={album.id}>
+        {album.coverArt && !isMobile && (
+          <CoverArtImage
+            coverArtId={album.coverArt}
+            displayCssPx={HERO_FG_CSS_PX}
+            surface="dense"
+            ensurePriority="high"
             className="hero-cover"
-            src={coverRawUrl}
-            cacheKey={coverCacheKey}
             alt={`${album.name} Cover`}
           />
         )}

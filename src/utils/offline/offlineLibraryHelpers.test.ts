@@ -5,9 +5,11 @@ import {
   buildOfflineTracksForAlbum,
   ensureServerForOfflineAlbum,
   hasAnyOfflineAlbums,
-  offlineAlbumCoverArt,
+  offlineAlbumCoverScope,
   offlineTrackCount,
 } from './offlineLibraryHelpers';
+import { coverStorageKey } from '../../cover/storageKeys';
+import { resolveCoverDisplayTier } from '../../cover/tiers';
 import type { OfflineAlbumMeta, OfflineTrackMeta } from '../../store/offlineStore';
 
 vi.mock('../server/switchActiveServer', () => ({
@@ -49,20 +51,21 @@ describe('offlineLibraryHelpers', () => {
     expect(offlineTrackCount(album, tracks)).toBe(1);
   });
 
-  it('offlineAlbumCoverArt returns empty when server profile is missing', () => {
+  it('offlineAlbumCoverScope is null when server profile is missing', () => {
     const album: OfflineAlbumMeta = {
       id: 'al1', serverId: 'gone', name: 'Al', artist: 'Ar', coverArt: 'ca1', trackIds: [],
     };
-    expect(offlineAlbumCoverArt(album, 300)).toEqual({ src: '', cacheKey: '' });
+    expect(offlineAlbumCoverScope(album)).toBeNull();
   });
 
-  it('offlineAlbumCoverArt builds url when server exists', () => {
+  it('offlineAlbumCoverScope uses host index key compatible with disk cache', () => {
     const album: OfflineAlbumMeta = {
       id: 'al1', serverId: 'a', name: 'Al', artist: 'Ar', coverArt: 'ca1', trackIds: [],
     };
-    const { src, cacheKey } = offlineAlbumCoverArt(album, 300);
-    expect(src).toContain('ca1');
-    expect(cacheKey).toBe('a:cover:ca1:300');
+    const scope = offlineAlbumCoverScope(album);
+    expect(scope).toMatchObject({ kind: 'server', serverId: 'a' });
+    const tier = resolveCoverDisplayTier(300, { surface: 'dense' });
+    expect(coverStorageKey(scope!, 'ca1', tier)).toBe('a.test:cover:ca1:512');
   });
 
   it('ensureServerForOfflineAlbum skips switch when already active', async () => {

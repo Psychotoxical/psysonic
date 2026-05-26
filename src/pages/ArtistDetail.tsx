@@ -1,5 +1,5 @@
 import { uploadArtistImage } from '../api/subsonicPlaylists';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { useCoverArt } from '../cover/useCoverArt';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
@@ -7,8 +7,6 @@ import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AlbumCard from '../components/AlbumCard';
-import CachedImage from '../components/CachedImage';
-import CoverLightbox from '../components/CoverLightbox';
 import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2, AudioLines } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
@@ -40,6 +38,7 @@ import ArtistDetailTopTracks from '../components/artistDetail/ArtistDetailTopTra
 import ArtistDetailSimilarArtists from '../components/artistDetail/ArtistDetailSimilarArtists';
 import ArtistCard from '../components/nowPlaying/ArtistCard';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 
@@ -57,12 +56,11 @@ export default function ArtistDetail() {
   const [playAllLoading, setPlayAllLoading] = useState(false);
   const [openedLink, setOpenedLink] = useState<string | null>(null);
   const { similarArtists, similarLoading } = useArtistSimilarArtists(artist, info, artistInfoLoading);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
   const isMobile = useIsMobile();
   const [coverRevision, setCoverRevision] = useState(0);
-  /** True after header CachedImage onError — avoid `display:none` on the img (breaks recovery). */
+  /** True after header cover onError — avoid `display:none` on the img (breaks recovery). */
   const [headerCoverFailed, setHeaderCoverFailed] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -156,22 +154,7 @@ export default function ArtistDetail() {
 
   // Cover URLs — must run every render (before early returns) or hook order breaks.
   const coverId = artist ? (artist.coverArt || artist.id) : '';
-  const artistCover300Src = useMemo(
-    () => (coverId ? buildCoverArtUrl(coverId, 300) : ''),
-    [coverId],
-  );
-  const artistCover300Key = useMemo(
-    () => (coverId ? coverArtCacheKey(coverId, 300) : ''),
-    [coverId],
-  );
-  const artistCover2000Src = useMemo(
-    () => (coverId ? buildCoverArtUrl(coverId, 2000) : ''),
-    [coverId],
-  );
-  const artistCover80FallbackSrc = useMemo(
-    () => (coverId ? buildCoverArtUrl(coverId, 80) : ''),
-    [coverId],
-  );
+  const artistCoverFallback = useCoverArt(coverId || undefined, 80, { surface: 'sparse' });
 
   const groupedAlbums = useMemo(() => {
     if (albums.length === 0) return [];
@@ -282,14 +265,9 @@ export default function ArtistDetail() {
         openedLink={openedLink}
         openLink={openLink}
         coverId={coverId}
-        artistCover300Src={artistCover300Src}
-        artistCover300Key={artistCover300Key}
-        artistCover2000Src={artistCover2000Src}
         coverRevision={coverRevision}
         headerCoverFailed={headerCoverFailed}
         setHeaderCoverFailed={setHeaderCoverFailed}
-        lightboxOpen={lightboxOpen}
-        setLightboxOpen={setLightboxOpen}
       />
 
       {/* User-reorderable sections — order + visibility configured in Settings.
@@ -305,7 +283,7 @@ export default function ArtistDetail() {
                 artistInfo={info}
                 hideArtistName
                 hideSimilar
-                coverFallback={coverId ? { src: artistCover80FallbackSrc, cacheKey: coverArtCacheKey(coverId, 80) } : undefined}
+                coverFallback={coverId ? { src: artistCoverFallback.src, cacheKey: artistCoverFallback.cacheKey } : undefined}
               />
             </div>
           );
@@ -347,6 +325,7 @@ export default function ArtistDetail() {
                     disableVirtualization={perfFlags.disableMainstageVirtualLists}
                     layoutSignal={albums.length}
                     wrapClassName="album-grid-wrap album-grid-wrap--artist"
+                    warmGridCovers={albumGridWarmCovers()}
                     renderItem={a => <AlbumCard album={a} />}
                   />
                 ) : groupedAlbums.map(([label, group]) => (
@@ -362,6 +341,7 @@ export default function ArtistDetail() {
                       disableVirtualization={perfFlags.disableMainstageVirtualLists}
                       layoutSignal={group.length}
                       wrapClassName="album-grid-wrap album-grid-wrap--artist"
+                      warmGridCovers={albumGridWarmCovers()}
                       renderItem={a => <AlbumCard album={a} />}
                     />
                   </div>
@@ -392,6 +372,7 @@ export default function ArtistDetail() {
                   layoutSignal={featuredAlbums.length}
                   wrapClassName="album-grid-wrap album-grid-wrap--artist"
                   wrapStyle={{ animation: 'fadeIn 0.3s ease' }}
+                  warmGridCovers={albumGridWarmCovers()}
                   renderItem={a => <AlbumCard album={a} />}
                 />
               )}

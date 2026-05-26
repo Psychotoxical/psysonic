@@ -1,13 +1,17 @@
-import { useMemo } from 'react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
+import { useEffect, useMemo } from 'react';
 import type { SubsonicSong } from '../api/subsonicTypes';
-import { useCachedUrl } from '../components/CachedImage';
+import type { CoverArtId } from '../cover/types';
+import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { coverArtRef } from '../cover/ref';
+import { useCoverArt } from '../cover/useCoverArt';
+
+const PLAYLIST_HERO_BG_CSS_PX = 200;
+const PLAYLIST_MAIN_COVER_CSS_PX = 200;
 
 export interface PlaylistCovers {
-  coverQuadUrls: ({ src: string; cacheKey: string } | null)[];
-  customCoverFetchUrl: string | null;
-  customCoverCacheKey: string | null;
-  resolvedBgUrl: string | null;
+  coverQuadIds: (CoverArtId | null)[];
+  bgCoverId: CoverArtId | null;
+  resolvedBgUrl: string;
 }
 
 export function usePlaylistCovers(songs: SubsonicSong[], customCoverId: string | null): PlaylistCovers {
@@ -24,31 +28,30 @@ export function usePlaylistCovers(songs: SubsonicSong[], customCoverId: string |
     return result;
   }, [songs]);
 
-  // Stable fetch URLs + cache keys for the 2×2 grid and blurred background.
-  // buildCoverArtUrl generates a new crypto salt on every call, so these MUST
-  // be memoized — otherwise every render produces new URLs, useCachedUrl
-  // re-triggers, state updates, another render → infinite flicker loop.
-  const coverQuadUrls = useMemo(() =>
-    Array.from({ length: 4 }, (_, i) => {
-      const coverId = coverQuad[i % Math.max(1, coverQuad.length)];
-      if (!coverId) return null;
-      return { src: buildCoverArtUrl(coverId, 200), cacheKey: coverArtCacheKey(coverId, 200) };
-    }),
-  [coverQuad]);
-
-  const effectiveBgId = customCoverId ?? coverQuad[0] ?? '';
-  const bgFetchUrl = useMemo(() => buildCoverArtUrl(effectiveBgId, 300), [effectiveBgId]);
-  const bgCacheKey = useMemo(() => coverArtCacheKey(effectiveBgId, 300), [effectiveBgId]);
-  const resolvedBgUrl = useCachedUrl(bgFetchUrl, bgCacheKey);
-
-  const customCoverFetchUrl = useMemo(
-    () => customCoverId ? buildCoverArtUrl(customCoverId, 300) : null,
-    [customCoverId],
-  );
-  const customCoverCacheKey = useMemo(
-    () => customCoverId ? coverArtCacheKey(customCoverId, 300) : null,
-    [customCoverId],
+  const coverQuadIds = useMemo(
+    () =>
+      Array.from({ length: 4 }, (_, i) => {
+        const coverId = coverQuad[i % Math.max(1, coverQuad.length)];
+        return coverId ?? null;
+      }),
+    [coverQuad],
   );
 
-  return { coverQuadUrls, customCoverFetchUrl, customCoverCacheKey, resolvedBgUrl };
+  const bgCoverId = customCoverId ?? coverQuad[0] ?? null;
+  const { src: resolvedBgUrl } = useCoverArt(bgCoverId, PLAYLIST_HERO_BG_CSS_PX, {
+    surface: 'dense',
+    ensurePriority: 'high',
+  });
+
+  useEffect(() => {
+    const refs = coverQuadIds
+      .filter((id): id is CoverArtId => !!id)
+      .map(id => coverArtRef(id));
+    if (bgCoverId) refs.push(coverArtRef(bgCoverId));
+    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'middle' });
+  }, [coverQuadIds, bgCoverId]);
+
+  return { coverQuadIds, bgCoverId, resolvedBgUrl };
 }
+
+export { PLAYLIST_MAIN_COVER_CSS_PX };

@@ -1,12 +1,13 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
-import React, { memo, useMemo } from 'react';
+import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
-import CachedImage from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
+import { useCoverArt } from '../cover/useCoverArt';
+import { COVER_DENSE_RAIL_CELL_CSS_PX } from '../cover/layoutSizes';
 import { enqueueAndPlay } from '../utils/playback/playSong';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
@@ -14,23 +15,28 @@ import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 interface SongCardProps {
   song: SubsonicSong;
   disableArtwork?: boolean;
+  /** Layout-native cover square width in CSS px (rail cell). */
+  displayCssPx?: number;
+  /** @deprecated Use displayCssPx */
   artworkSize?: number;
 }
 
-function SongCard({ song, disableArtwork = false, artworkSize = 200 }: SongCardProps) {
+function SongCard({
+  song,
+  disableArtwork = false,
+  displayCssPx = COVER_DENSE_RAIL_CELL_CSS_PX,
+  artworkSize,
+}: SongCardProps) {
+  const layoutPx = artworkSize ?? displayCssPx;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
-  // buildCoverArtUrl emits a salted URL; memoize to avoid churn on rerenders.
-  const coverUrl = useMemo(
-    () => (song.coverArt ? buildCoverArtUrl(song.coverArt, artworkSize) : ''),
-    [song.coverArt, artworkSize],
-  );
-  const coverCacheKey = useMemo(
-    () => (song.coverArt ? coverArtCacheKey(song.coverArt, artworkSize) : ''),
-    [song.coverArt, artworkSize],
-  );
+  const coverHandle = useCoverArt(song.coverArt, layoutPx, {
+    surface: 'dense',
+    ensurePriority: 'middle',
+  });
+  const coverUrl = coverHandle.src;
   const psyDrag = useDragDrop();
   const { orbitActive, addTrackToOrbit } = useOrbitSongRowBehavior();
 
@@ -86,10 +92,11 @@ function SongCard({ song, disableArtwork = false, artworkSize = 200 }: SongCardP
       }}
     >
       <div className="song-card-cover">
-        {!disableArtwork && coverUrl ? (
-          <CachedImage
-            src={coverUrl}
-            cacheKey={coverCacheKey}
+        {!disableArtwork && song.coverArt ? (
+          <CoverArtImage
+            coverArtId={song.coverArt}
+            displayCssPx={layoutPx}
+            surface="dense"
             alt={`${song.album} Cover`}
             loading="eager"
             decoding="async"

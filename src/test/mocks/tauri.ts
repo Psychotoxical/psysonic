@@ -27,6 +27,14 @@ export type EventCallback = (payload: unknown) => void;
 const invokeHandlers = new Map<string, InvokeHandler>();
 const eventListeners = new Map<string, EventCallback[]>();
 
+export function registerDefaultCoverInvokeHandlers(): void {
+  // Cover pipeline is globally imported by several UI components. Keep tests
+  // deterministic by providing harmless defaults when a suite mounts
+  // cover-aware UI but doesn't care about native cache behaviour.
+  onInvoke('cover_cache_peek_batch', () => ({}));
+  onInvoke('cover_cache_ensure', () => ({ hit: false, path: '', tier: 128 }));
+}
+
 // Tauri's typed signatures are strict (InvokeArgs / Event<T>). Tests don't
 // need that level of precision — cast the mocks to `any` so the helpers
 // accept simple `{ payload }` envelopes and plain object args.

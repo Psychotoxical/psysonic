@@ -4,14 +4,19 @@ import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { dedupeById } from '../utils/dedupeById';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import AlbumCard from '../components/AlbumCard';
+import { albumGridWarmCovers, coverDisplayCssPxForAlbumGrid } from '../cover/layoutSizes';
+import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { coverArtRef } from '../cover/ref';
+import { useAuthStore } from '../store/authStore';
+import { clampLibraryGridMaxColumns } from '../store/authStoreHelpers';
+import { computeCardGridColumnCount } from '../utils/cardGridLayout';
 import GenreFilterBar from '../components/GenreFilterBar';
 import YearFilterButton from '../components/YearFilterButton';
 import StarFilterButton from '../components/StarFilterButton';
 import SortDropdown from '../components/SortDropdown';
 import { useTranslation } from 'react-i18next';
-import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -68,6 +73,10 @@ export default function Albums() {
   const [compFilter, setCompFilter] = useState<CompFilter>('all');
   const [starredOnly, setStarredOnly] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const gridMeasureRef = useRef<HTMLDivElement>(null);
+  const maxGridCols = useAuthStore(s => clampLibraryGridMaxColumns(s.libraryGridMaxColumns));
+  const [albumCellDisplayCssPx, setAlbumCellDisplayCssPx] = useState(140);
+  const [albumGridCols, setAlbumGridCols] = useState(4);
   const scrollBodyRef = useRef<HTMLDivElement | null>(null);
   const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
   const bindAlbumsScrollBody = useCallback((el: HTMLDivElement | null) => {
@@ -169,6 +178,29 @@ export default function Albums() {
   const fromNum = parseInt(yearFrom, 10);
   const toNum = parseInt(yearTo, 10);
   const yearActive = !isNaN(fromNum) && !isNaN(toNum) && fromNum >= 1 && toNum >= 1;
+
+  useLayoutEffect(() => {
+    const el = gridMeasureRef.current;
+    if (!el) return;
+    const update = () => {
+      const w = el.clientWidth;
+      const cols = computeCardGridColumnCount(w, maxGridCols);
+      setAlbumGridCols(cols);
+      setAlbumCellDisplayCssPx(coverDisplayCssPxForAlbumGrid(w, maxGridCols));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [maxGridCols, visibleAlbums.length]);
+
+  useEffect(() => {
+    const viewportBudget = Math.max(albumGridCols * 3, albumGridCols);
+    const refs = visibleAlbums
+      .slice(0, viewportBudget)
+      .flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
+  }, [visibleAlbums, albumGridCols]);
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
     sort,
@@ -385,23 +417,30 @@ export default function Albums() {
         ) : (
           <>
             {!perfFlags.disableMainstageGridCards && (
-              <VirtualCardGrid
-                items={visibleAlbums}
-                itemKey={(a, _i) => a.id}
-                rowVariant="album"
-                disableVirtualization={perfFlags.disableMainstageVirtualLists}
-                layoutSignal={visibleAlbums.length}
-                scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
-                renderItem={a => (
-                  <AlbumCard
-                    album={a}
-                    selectionMode={selectionMode}
-                    selected={selectedIds.has(a.id)}
-                    onToggleSelect={toggleSelect}
-                    selectedAlbums={selectedAlbums}
-                  />
-                )}
-              />
+              <div ref={gridMeasureRef}>
+                <VirtualCardGrid
+                  items={visibleAlbums}
+                  itemKey={(a, _i) => a.id}
+                  rowVariant="album"
+                  disableVirtualization={perfFlags.disableMainstageVirtualLists}
+                  layoutSignal={visibleAlbums.length}
+                  scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                  warmGridCovers={albumGridWarmCovers(
+                    albumCellDisplayCssPx,
+                    Math.min(visibleAlbums.length, Math.max(albumGridCols * 6, 48)),
+                  )}
+                  renderItem={a => (
+                    <AlbumCard
+                      album={a}
+                      displayCssPx={albumCellDisplayCssPx}
+                      selectionMode={selectionMode}
+                      selected={selectedIds.has(a.id)}
+                      onToggleSelect={toggleSelect}
+                      selectedAlbums={selectedAlbums}
+                    />
+                  )}
+                />
+              </div>
             )}
             {!genreFiltered && (
               <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>

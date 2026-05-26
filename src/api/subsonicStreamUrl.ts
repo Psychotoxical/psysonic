@@ -1,4 +1,6 @@
 import md5 from 'md5';
+import { coverStorageKey } from '../cover/storageKeys';
+import type { CoverArtTier } from '../cover/types';
 import { useAuthStore } from '../store/authStore';
 import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
 import { restBaseFromUrl, SUBSONIC_CLIENT, secureRandomSalt } from './subsonicClient';
@@ -53,16 +55,29 @@ export function buildStreamUrl(id: string): string {
   return streamUrlFromProfile(server.url, server.username, server.password, id);
 }
 
-/** Stable cache key for cover art — does not include ephemeral auth params. */
+/** @deprecated Use `coverStorageKey` from `src/cover/storageKeys` — shim until migration. */
 export function coverArtCacheKey(id: string, size = 256): string {
-  const server = useAuthStore.getState().getActiveServer();
-  return coverArtCacheKeyForServer(server?.id ?? '_', id, size);
+  return coverStorageKey({ kind: 'active' }, id, size as CoverArtTier);
 }
 
-export function coverArtCacheKeyForServer(serverId: string, id: string, size = 256): string {
-  return `${serverId}:cover:${id}:${size}`;
+/** @deprecated Use `coverStorageKey` from `src/cover/storageKeys` — shim until migration. */
+export function coverArtCacheKeyForServer(serverIdOrKey: string, id: string, size = 256): string {
+  const server = findServerByIdOrIndexKey(serverIdOrKey);
+  if (!server) return `${serverIdOrKey}:cover:${id}:${size}`;
+  return coverStorageKey(
+    {
+      kind: 'server',
+      serverId: server.id,
+      url: server.url,
+      username: server.username,
+      password: server.password,
+    },
+    id,
+    size as CoverArtTier,
+  );
 }
 
+/** @deprecated Use `buildCoverArtFetchUrl` from `src/cover/fetchUrl` — shim until migration. */
 export function buildCoverArtUrl(id: string, size = 256): string {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();
@@ -71,7 +86,7 @@ export function buildCoverArtUrl(id: string, size = 256): string {
   return `${baseUrl}/rest/getCoverArt.view?${p.toString()}`;
 }
 
-/** Cover art for a specific saved server (e.g. share-search preview on a non-active server). */
+/** @deprecated Use `buildCoverArtFetchUrl` from `src/cover/fetchUrl` — shim until migration. */
 export function buildCoverArtUrlForServer(
   serverUrl: string,
   username: string,

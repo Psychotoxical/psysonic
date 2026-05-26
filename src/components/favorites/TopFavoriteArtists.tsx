@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
 
 export interface TopFavoriteArtist {
   id: string;
@@ -83,8 +83,6 @@ interface TopFavoriteArtistCardProps {
 
 function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: TopFavoriteArtistCardProps) {
   const coverId = artist.coverArtId;
-  const coverSrc = useMemo(() => coverId ? buildCoverArtUrl(coverId, 300) : '', [coverId]);
-  const coverCacheKey = useMemo(() => coverId ? coverArtCacheKey(coverId, 300) : '', [coverId]);
 
   return (
     <div
@@ -94,9 +92,10 @@ function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: 
     >
       <div className="artist-card-avatar">
         {coverId ? (
-          <CachedImage
-            src={coverSrc}
-            cacheKey={coverCacheKey}
+          <CoverArtImage
+            coverArtId={coverId}
+            displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
+            surface="dense"
             alt={artist.name}
             loading="lazy"
             onError={(e) => {

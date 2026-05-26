@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { playbackCoverArtForId } from '../../utils/playback/playbackServer';
+import { coverArtRef, resolvePlaybackCoverScope } from '../../cover/ref';
+import { coverArtUrlForMpris } from '../../cover/integrations/mpris';
 import { usePlayerStore } from '../playerStore';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../playbackProgress';
 
@@ -21,16 +22,30 @@ export function setupMprisSync(): () => void {
     if (currentTrack && currentTrack.id !== prevTrackId) {
       prevTrackId = currentTrack.id;
       prevRadioId = null;
-      const coverUrl = currentTrack.coverArt
-        ? playbackCoverArtForId(currentTrack.coverArt, 512).src
-        : undefined;
-      invoke('mpris_set_metadata', {
-        title: currentTrack.title,
-        artist: currentTrack.artist,
-        album: currentTrack.album,
-        coverUrl,
-        durationSecs: currentTrack.duration,
-      }).catch(() => {});
+      const title = currentTrack.title;
+      const artist = currentTrack.artist;
+      const album = currentTrack.album;
+      const durationSecs = currentTrack.duration;
+      if (currentTrack.coverArt) {
+        const ref = coverArtRef(currentTrack.coverArt, resolvePlaybackCoverScope());
+        coverArtUrlForMpris(ref)
+          .then(coverUrl => invoke('mpris_set_metadata', {
+            title,
+            artist,
+            album,
+            coverUrl: coverUrl || undefined,
+            durationSecs,
+          }))
+          .catch(() => {});
+      } else {
+        invoke('mpris_set_metadata', {
+          title,
+          artist,
+          album,
+          coverUrl: undefined,
+          durationSecs,
+        }).catch(() => {});
+      }
     }
 
     // Update metadata when a radio station starts (initial push — station name as title).

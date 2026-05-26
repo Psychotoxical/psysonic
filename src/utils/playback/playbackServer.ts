@@ -1,9 +1,7 @@
-import {
-  buildCoverArtUrl,
-  buildCoverArtUrlForServer,
-  coverArtCacheKey,
-  coverArtCacheKeyForServer,
-} from '../../api/subsonicStreamUrl';
+import { buildCoverArtFetchUrl } from '../../cover/fetchUrl';
+import { coverArtRef, resolvePlaybackCoverScope } from '../../cover/ref';
+import { coverStorageKey } from '../../cover/storageKeys';
+import { resolveCoverDisplayTier } from '../../cover/tiers';
 import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { switchActiveServer } from '../server/switchActiveServer';
@@ -92,22 +90,13 @@ export async function ensurePlaybackServerActive(): Promise<boolean> {
   return switchActiveServer(server);
 }
 
-/** Cover URLs for queue / player UI when playback uses a non-active saved server. */
-export function playbackCoverArtForId(coverId: string, size: number): { src: string; cacheKey: string } {
-  const playbackSid = getPlaybackServerId();
-  const activeSid = useAuthStore.getState().activeServerId;
-  if (playbackSid && activeSid && playbackSid !== activeSid) {
-    const server = useAuthStore.getState().servers.find(s => s.id === playbackSid);
-    if (server) {
-      return {
-        src: buildCoverArtUrlForServer(server.url, server.username, server.password, coverId, size),
-        cacheKey: coverArtCacheKeyForServer(server.id, coverId, size),
-      };
-    }
-  }
+/** Cover fetch URL + storage key for queue prefetch (displayCssPx = layout CSS px). */
+export function playbackCoverArtForId(coverId: string, displayCssPx: number): { src: string; cacheKey: string } {
+  const ref = coverArtRef(coverId, resolvePlaybackCoverScope());
+  const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'sparse' });
   return {
-    src: buildCoverArtUrl(coverId, size),
-    cacheKey: coverArtCacheKey(coverId, size),
+    src: buildCoverArtFetchUrl(ref, tier),
+    cacheKey: coverStorageKey(ref.serverScope, coverId, tier),
   };
 }
 

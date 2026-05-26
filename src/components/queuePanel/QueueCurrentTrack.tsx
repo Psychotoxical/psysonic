@@ -201,7 +201,7 @@ export function QueueCurrentTrack({
       })()}
       <div className="queue-current-track-body">
         <div className={`queue-current-cover${showBufferingOverlay ? ' playback-buffering' : ''}`}>
-          {currentTrack.coverArt ? (
+          {currentTrack.coverArt && currentCoverSrc ? (
             <img src={currentCoverSrc} alt="" loading="eager" />
           ) : (
             <div className="fallback"><Music size={32} /></div>

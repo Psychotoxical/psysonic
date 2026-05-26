@@ -6,11 +6,10 @@ import { Download, FolderOpen, Trash2, X } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useHotCacheStore } from '../../store/hotCacheStore';
 import { useOfflineStore } from '../../store/offlineStore';
-import { usePlayerStore } from '../../store/playerStore';
 import { clearImageCache, getImageCacheSize } from '../../utils/imageCache';
 import { formatBytes, snapHotCacheMb } from '../../utils/format/formatBytes';
-import { showToast } from '../../utils/ui/toast';
 import SettingsSubSection from '../SettingsSubSection';
+import CoverCacheStrategySection from './CoverCacheStrategySection';
 
 export function StorageTab() {
   const { t } = useTranslation();
@@ -74,26 +73,6 @@ export function StorageTab() {
     setShowClearConfirm(false);
     setClearing(false);
   }, [clearAllOffline, serverId, auth.offlineDownloadDir]);
-
-  const handleClearWaveformCache = useCallback(async () => {
-    setClearing(true);
-    try {
-      const deleted = await invoke<number>('analysis_delete_all_waveforms');
-      usePlayerStore.setState({
-        waveformBins: null,
-      });
-      showToast(
-        t('settings.waveformCacheCleared', { count: deleted }),
-        3500,
-        'success',
-      );
-    } catch (e) {
-      console.error(e);
-      showToast(t('settings.waveformCacheClearFailed'), 4500, 'error');
-    } finally {
-      setClearing(false);
-    }
-  }, [t]);
 
   const pickOfflineDir = async () => {
     const selected = await openDialog({ directory: true, multiple: false, title: t('settings.offlineDirChange') });
@@ -190,6 +169,7 @@ export function StorageTab() {
             />
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>MB</span>
           </div>
+
           {showClearConfirm ? (
             <div style={{ background: 'color-mix(in srgb, var(--color-danger, #e53935) 10%, transparent)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 13, lineHeight: 1.5 }}>
               <div style={{ marginBottom: 8, color: 'var(--text-primary)' }}>{t('settings.cacheClearWarning')}</div>
@@ -212,18 +192,10 @@ export function StorageTab() {
               <Trash2 size={14} /> {t('settings.cacheClearBtn')}
             </button>
           )}
-          <div style={{ marginTop: 8 }}>
-            <button
-              className="btn btn-ghost"
-              style={{ fontSize: 13 }}
-              onClick={handleClearWaveformCache}
-              disabled={clearing}
-            >
-              <Trash2 size={14} /> {t('settings.waveformCacheClearBtn')}
-            </button>
-          </div>
         </div>
       </SettingsSubSection>
+
+      <CoverCacheStrategySection />
 
       {/* Buffering */}
       <SettingsSubSection

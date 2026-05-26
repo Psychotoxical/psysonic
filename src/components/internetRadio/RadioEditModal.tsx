@@ -2,9 +2,9 @@ import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Camera, Cast, Loader2, X } from 'lucide-react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { InternetRadioStation } from '../../api/subsonicTypes';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { coverArtIdFromRadio } from '../../cover/ids';
 
 interface RadioEditModalProps {
   station: InternetRadioStation | null; // null = create new
@@ -91,9 +91,10 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
             {coverPreview ? (
               <img src={coverPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             ) : !coverRemoved && station?.coverArt ? (
-              <CachedImage
-                src={buildCoverArtUrl(`ra-${station.id}`, 256)}
-                cacheKey={coverArtCacheKey(`ra-${station.id}`, 256)}
+              <CoverArtImage
+                coverArtId={coverArtIdFromRadio(station.id)}
+                displayCssPx={140}
+                surface="sparse"
                 alt=""
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />

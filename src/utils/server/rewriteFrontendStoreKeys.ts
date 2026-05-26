@@ -1,5 +1,6 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
+import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import { useHotCacheStore } from '../../store/hotCacheStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { useOfflineStore } from '../../store/offlineStore';
@@ -107,5 +108,6 @@ export async function rewriteFrontendStoreKeys(servers: ServerProfile[]): Promis
   rewriteAnalysisStrategyStoreKeys(mappings);
   // Keep migration explicit: Zustand persist writes the current state snapshot.
   useAnalysisStrategyStore.getState().migrateServerOverrides(servers);
+  useCoverStrategyStore.getState().migrateServerOverrides(servers);
   useLibraryIndexStore.setState(state => ({ masterEnabled: state.masterEnabled }));
 }

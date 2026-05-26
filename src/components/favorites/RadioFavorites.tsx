@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Cast, ChevronLeft, ChevronRight, Heart, X } from 'lucide-react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { InternetRadioStation } from '../../api/subsonicTypes';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { coverArtIdFromRadio } from '../../cover/ids';
+import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
 
 interface RadioStationRowProps {
   title: string;
@@ -76,9 +77,10 @@ function RadioFavCard({ station: s, isActive, isPlaying, onPlay, onUnfavorite }:
     <div className={`album-card${isActive ? ' radio-card-active' : ''}`}>
       <div className="album-card-cover">
         {s.coverArt ? (
-          <CachedImage
-            src={buildCoverArtUrl(`ra-${s.id}`, 256)}
-            cacheKey={coverArtCacheKey(`ra-${s.id}`, 256)}
+          <CoverArtImage
+            coverArtId={coverArtIdFromRadio(s.id)}
+            displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
+            surface="dense"
             alt={s.name}
             className="album-card-cover-img"
           />

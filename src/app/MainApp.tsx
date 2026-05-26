@@ -18,6 +18,10 @@ import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigrat
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
 import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
 import { useLibraryAnalysisBackfill } from '../hooks/useLibraryAnalysisBackfill';
+import { useCoverArtPrefetch } from '../cover/useCoverArtPrefetch';
+import { useLibraryCoverBackfill } from '../hooks/useLibraryCoverBackfill';
+import { useCoverRevalidateScheduler } from '../cover/useCoverRevalidateScheduler';
+import { runCoverIdbUpgradeMigration } from '../utils/migrations/coverIdbUpgradeMigration';
 import { useMigrationOrchestrator } from '../hooks/useMigrationOrchestrator';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
@@ -61,6 +65,14 @@ export default function MainApp() {
   }, [activeServerId, serverIdsKey, masterEnabled, migrationReady]);
 
   useLibraryAnalysisBackfill(migrationReady);
+  useCoverArtPrefetch(migrationReady);
+  useLibraryCoverBackfill(migrationReady);
+  useCoverRevalidateScheduler(migrationReady);
+
+  useEffect(() => {
+    if (!migrationReady) return;
+    void runCoverIdbUpgradeMigration();
+  }, [migrationReady]);
 
   // Push playback state to mini window + handle control events.
   useEffect(() => {

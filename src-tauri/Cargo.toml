@@ -42,7 +42,7 @@ psysonic-audio = { path = "crates/psysonic-audio" }
 psysonic-library = { path = "crates/psysonic-library" }
 psysonic-syncfs = { path = "crates/psysonic-syncfs" }
 psysonic-integration = { path = "crates/psysonic-integration" }
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-global-shortcut = "2"
@@ -74,6 +74,8 @@ rusqlite = { version = "0.39", features = ["bundled"] }
 ebur128 = "0.1"
 dasp_sample = "0.11.0"
 zip = "0.6.6"
+image = { version = "0.25", default-features = false, features = ["jpeg", "webp"] }
+webp = "0.3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

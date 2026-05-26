@@ -1,9 +1,9 @@
 import React, { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Disc3, ExternalLink, Music } from 'lucide-react';
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { COVER_DENSE_RAIL_CELL_CSS_PX } from '../../cover/layoutSizes';
 
 interface DiscographyCardProps {
   artistId?: string;
@@ -44,16 +44,22 @@ const DiscographyCard = memo(function DiscographyCard({ artistId, albums, curren
       <div className="np-dash-disc-grid">
         {visible.map(a => {
           const isActive = a.id === currentAlbumId;
-          const fetchUrl = a.coverArt ? buildCoverArtUrl(a.coverArt, 200) : '';
-          const key      = a.coverArt ? coverArtCacheKey(a.coverArt, 200) : '';
           return (
             <div key={a.id}
               className={`np-dash-disc-tile${isActive ? ' active' : ''}`}
               onClick={() => onNavigate(`/album/${a.id}`)}
               data-tooltip={`${a.name}${a.year ? ` · ${a.year}` : ''}`}>
               <div className="np-dash-disc-cover">
-                {fetchUrl && key
-                  ? <CachedImage src={fetchUrl} cacheKey={key} alt={a.name} className="np-dash-disc-img" />
+                {a.coverArt
+                  ? (
+                    <CoverArtImage
+                      coverArtId={a.coverArt}
+                      displayCssPx={COVER_DENSE_RAIL_CELL_CSS_PX}
+                      surface="dense"
+                      alt={a.name}
+                      className="np-dash-disc-img"
+                    />
+                  )
                   : <div className="np-dash-disc-fallback"><Music size={18} /></div>}
               </div>
             </div>

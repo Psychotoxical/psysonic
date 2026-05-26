@@ -6,7 +6,6 @@ import { MIX_MIN_RATING_FILTER_MAX_STARS } from '../../store/authStoreDefaults';
 import SettingsSubSection from '../SettingsSubSection';
 import StarRating from '../StarRating';
 import AnalyticsStrategySection from './AnalyticsStrategySection';
-
 const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
 
 export function LibraryTab() {

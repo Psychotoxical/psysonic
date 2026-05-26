@@ -1,7 +1,4 @@
-import {
-  buildCoverArtUrlForServer,
-  coverArtCacheKeyForServer,
-} from '../../api/subsonicStreamUrl';
+import type { CoverServerScope } from '../../cover/types';
 import { useAuthStore } from '../../store/authStore';
 import type { OfflineAlbumMeta, OfflineTrackMeta } from '../../store/offlineStore';
 import { switchActiveServer } from '../server/switchActiveServer';
@@ -41,16 +38,17 @@ export function buildOfflineTracksForAlbum(
   });
 }
 
-export function offlineAlbumCoverArt(
-  album: OfflineAlbumMeta,
-  size: number,
-): { src: string; cacheKey: string } {
-  if (!album.coverArt) return { src: '', cacheKey: '' };
+/** Server scope for offline album covers — same host index key as main library disk cache. */
+export function offlineAlbumCoverScope(album: OfflineAlbumMeta): CoverServerScope | null {
+  if (!album.coverArt) return null;
   const server = findServerByIdOrIndexKey(album.serverId);
-  if (!server) return { src: '', cacheKey: '' };
+  if (!server) return null;
   return {
-    src: buildCoverArtUrlForServer(server.url, server.username, server.password, album.coverArt, size),
-    cacheKey: coverArtCacheKeyForServer(server.id, album.coverArt, size),
+    kind: 'server',
+    serverId: server.id,
+    url: server.url,
+    username: server.username,
+    password: server.password,
   };
 }
 

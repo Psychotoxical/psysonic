@@ -10,7 +10,9 @@ import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mix/mixRatingFilter';
+import { runLocalRandomAlbums, runLocalAlbumsByGenres } from '../utils/library/browseTextSearch';
 import { useOfflineStore } from '../store/offlineStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { invoke } from '@tauri-apps/api/core';
@@ -19,6 +21,10 @@ import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers, COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
+import {
+  primeAlbumCoversForDisplay,
+} from '../cover/warmDiskPeek';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 const ALBUM_COUNT = 30;
@@ -36,6 +42,85 @@ async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
   const pool = shuffleArray(dedupeById(results.flat())).slice(0, GENRE_UNION_PREFILTER_CAP);
   const filtered = await filterAlbumsByMixRatings(pool, getMixMinRatingsConfigFromAuth());
   return filtered.slice(0, ALBUM_COUNT);
+}
+
+/** Shared fetch logic — used by both `load` and the background reserve fill. */
+async function doFetchRandomAlbums(genres: string[]): Promise<SubsonicAlbum[]> {
+  const mixCfg = getMixMinRatingsConfigFromAuth();
+  const albumMixActive = mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
+  const randomSize = albumMixActive ? Math.max(ALBUM_COUNT * 3, ALBUM_FETCH_OVERSHOOT) : ALBUM_COUNT;
+
+  const serverId = useAuthStore.getState().activeServerId ?? '';
+  const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
+
+  if (genres.length === 0 && indexEnabled && serverId) {
+    // Local path: SQLite ORDER BY RANDOM() LIMIT N — no network, effectively instant.
+    const local = await runLocalRandomAlbums(serverId, randomSize);
+    if (local && local.length > 0) {
+      return (await filterAlbumsByMixRatings(local, mixCfg)).slice(0, ALBUM_COUNT);
+    }
+  }
+
+  if (genres.length > 0 && indexEnabled && serverId) {
+    // Genre path: local index union + JS shuffle (avoids per-genre network requests).
+    const allLocal = await runLocalAlbumsByGenres(serverId, genres, 'alphabeticalByName', GENRE_UNION_PREFILTER_CAP);
+    if (allLocal && allLocal.length > 0) {
+      const pool = shuffleArray(dedupeById(allLocal)).slice(0, GENRE_UNION_PREFILTER_CAP);
+      return (await filterAlbumsByMixRatings(pool, mixCfg)).slice(0, ALBUM_COUNT);
+    }
+  }
+
+  // Network fallback when local index is unavailable or returned nothing.
+  return genres.length > 0
+    ? fetchByGenres(genres)
+    : (await filterAlbumsByMixRatings(await getAlbumList('random', randomSize), mixCfg)).slice(0, ALBUM_COUNT);
+}
+
+// ── Module-level reserve: next batch pre-fetched after each Refresh ──────────
+type AlbumReserve = { filterId: string; albums: SubsonicAlbum[] };
+let _nextReserve: AlbumReserve | null = null;
+let _reserveFilling = false;
+
+function makeFilterId(
+  libraryVersion: number,
+  mixEnabled: boolean,
+  minAlbum: number,
+  minArtist: number,
+  genres: string[],
+): string {
+  return `${libraryVersion}:${mixEnabled}:${minAlbum}:${minArtist}:${genres.join('\x01')}`;
+}
+
+/** Consume the pre-fetched reserve if the filter matches, otherwise discard it. */
+function takeReserve(filterId: string): SubsonicAlbum[] | null {
+  if (_nextReserve?.filterId === filterId) {
+    const albums = _nextReserve.albums;
+    _nextReserve = null;
+    return albums;
+  }
+  _nextReserve = null;
+  return null;
+}
+
+/**
+ * Fire-and-forget: fetch the next batch in the background so it's ready for
+ * the next Refresh. Covers are NOT pre-warmed here — doing so would call
+ * bumpDiskSrcCache() for every reserve cover, which re-renders all useCoverArt
+ * subscribers on the current page and causes a visible flash ~1.5 s after load.
+ * Covers are warmed lazily via primeAlbumCoversForDisplay when the reserve is
+ * actually consumed.
+ */
+async function fillReserve(filterId: string, genres: string[]): Promise<void> {
+  if (_reserveFilling) return;
+  _reserveFilling = true;
+  try {
+    const albums = await doFetchRandomAlbums(genres);
+    _nextReserve = { filterId, albums };
+  } catch {
+    // Network or cache failure — next Refresh falls back to a fresh fetch.
+  } finally {
+    _reserveFilling = false;
+  }
 }
 
 export default function RandomAlbums() {
@@ -106,14 +191,21 @@ export default function RandomAlbums() {
     loadingRef.current = true;
     setLoading(true);
     try {
-      const mixCfg = getMixMinRatingsConfigFromAuth();
-      const albumMixActive =
-        mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
-      const randomSize = albumMixActive ? Math.max(ALBUM_COUNT * 3, ALBUM_FETCH_OVERSHOOT) : ALBUM_COUNT;
-      const data = genres.length > 0
-        ? await fetchByGenres(genres)
-        : (await filterAlbumsByMixRatings(await getAlbumList('random', randomSize), mixCfg)).slice(0, ALBUM_COUNT);
-      setAlbums(data);
+      const filterId = makeFilterId(
+        musicLibraryFilterVersion, mixMinRatingFilterEnabled,
+        mixMinRatingAlbum, mixMinRatingArtist, genres,
+      );
+      const reserved = takeReserve(filterId);
+      if (reserved) {
+        await primeAlbumCoversForDisplay(reserved, COVER_DENSE_GRID_MIN_CELL_CSS_PX);
+        setAlbums(reserved);
+      } else {
+        const data = await doFetchRandomAlbums(genres);
+        await primeAlbumCoversForDisplay(data, COVER_DENSE_GRID_MIN_CELL_CSS_PX);
+        setAlbums(data);
+      }
+      // Pre-fetch + disk-warm the next batch so the next Refresh is instant.
+      void fillReserve(filterId, genres);
     } catch (e) {
       console.error(e);
     } finally {
@@ -127,7 +219,14 @@ export default function RandomAlbums() {
     mixMinRatingArtist,
   ]);
 
-  useEffect(() => { load(selectedGenres); }, [selectedGenres, load]);
+  // Keep a ref so the effect closure is always fresh without re-triggering the
+  // effect on every `load` reference change. The effect must NOT list `load` as a
+  // dep — Zustand rehydration changes deps (e.g. mixMinRatingFilterEnabled) and
+  // recreates `load`, which would otherwise double-fire on every page visit and
+  // show a different random batch ~1.5 s after the first one.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  useEffect(() => { loadRef.current(selectedGenres); }, [selectedGenres]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="content-body animate-fade-in">
@@ -191,6 +290,7 @@ export default function RandomAlbums() {
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={albums.length}
+          warmGridCovers={albumGridWarmCovers()}
           renderItem={a => (
             <AlbumCard
               album={a}
@@ -198,6 +298,7 @@ export default function RandomAlbums() {
               selected={selectedIds.has(a.id)}
               onToggleSelect={toggleSelect}
               selectedAlbums={selectedAlbums}
+              ensurePriority="high"
             />
           )}
         />

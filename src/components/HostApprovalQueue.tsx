@@ -1,4 +1,3 @@
-import { buildCoverArtUrl, coverArtCacheKey } from '../api/subsonicStreamUrl';
 import { getSong } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { useEffect, useMemo, useState } from 'react';
@@ -10,8 +9,10 @@ import {
   declineOrbitSuggestion,
   suggestionKey,
 } from '../utils/orbit';
-import CachedImage from './CachedImage';
+import { CoverArtImage } from '../cover/CoverArtImage';
 import { ORBIT_DEFAULT_SETTINGS } from '../api/orbit';
+
+const HOST_APPROVAL_COVER_CSS_PX = 36;
 
 /**
  * Host-only approval strip. Renders directly below the OrbitQueueHead
@@ -85,9 +86,10 @@ export default function HostApprovalQueue() {
           return (
             <div key={key} className="host-approval__item">
               {song?.coverArt ? (
-                <CachedImage
-                  src={buildCoverArtUrl(song.coverArt, 48)}
-                  cacheKey={coverArtCacheKey(song.coverArt, 48)}
+                <CoverArtImage
+                  coverArtId={song.coverArt}
+                  displayCssPx={HOST_APPROVAL_COVER_CSS_PX}
+                  surface="dense"
                   alt=""
                   className="host-approval__cover"
                 />

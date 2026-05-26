@@ -160,7 +160,7 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
             </div>
             {servers.map(srv => {
               const active = srv.id === activeServerId;
-              const busy = switchingId !== null;
+              const busy = switchingId === srv.id;
               const labelText = serverListDisplayLabel(srv, servers);
               return (
                 <button

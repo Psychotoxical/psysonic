@@ -18,6 +18,7 @@ import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
@@ -227,6 +228,7 @@ export default function NewReleases() {
               disableVirtualization={perfFlags.disableMainstageVirtualLists}
               layoutSignal={albums.length}
               scrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
+              warmGridCovers={albumGridWarmCovers()}
               renderItem={a => (
                 <AlbumCard
                   album={a}

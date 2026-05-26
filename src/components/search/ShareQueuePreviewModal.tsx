@@ -7,15 +7,11 @@ import type { ServerProfile } from '../../store/authStoreTypes';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import type { ShareQueuePreviewState } from '../../hooks/useShareQueuePreview';
 import { sharePayloadTotal, type QueueableShareSearchPayload } from '../../utils/share/shareSearch';
-import CachedImage from '../CachedImage';
 import OverlayScrollArea from '../OverlayScrollArea';
 import { usePlayerStore } from '../../store/playerStore';
-import {
-  buildCoverArtUrl,
-  buildCoverArtUrlForServer,
-  coverArtCacheKey,
-  coverArtCacheKeyForServer,
-} from '../../api/subsonicStreamUrl';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
+import type { CoverServerScope } from '../../cover/types';
 
 type ShareQueuePreviewModalProps = {
   open: boolean;
@@ -30,6 +26,19 @@ type ShareQueuePreviewModalProps = {
   confirmBusyLabel?: string;
 };
 
+function shareCoverServerScope(coverServer?: ServerProfile | null): CoverServerScope {
+  if (coverServer) {
+    return {
+      kind: 'server',
+      serverId: coverServer.id,
+      url: coverServer.url,
+      username: coverServer.username,
+      password: coverServer.password,
+    };
+  }
+  return { kind: 'active' };
+}
+
 function QueuePreviewTrackRow({
   song,
   coverServer,
@@ -37,18 +46,19 @@ function QueuePreviewTrackRow({
   song: SubsonicSong;
   coverServer?: ServerProfile | null;
 }) {
-  const coverId = song.coverArt ?? '';
-  const src = coverServer
-    ? buildCoverArtUrlForServer(coverServer.url, coverServer.username, coverServer.password, coverId || song.id, 48)
-    : buildCoverArtUrl(coverId || song.id, 48);
-  const cacheKey = coverServer
-    ? coverArtCacheKeyForServer(coverServer.id, coverId || song.id, 48)
-    : coverArtCacheKey(coverId || song.id, 48);
+  const coverId = song.coverArt || song.id;
 
   return (
     <li className="share-queue-preview-track">
-      {coverId ? (
-        <CachedImage className="share-queue-preview-track__thumb" src={src} cacheKey={cacheKey} alt="" />
+      {song.coverArt ? (
+        <CoverArtImage
+          coverArtId={coverId}
+          displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
+          surface="dense"
+          serverScope={shareCoverServerScope(coverServer)}
+          className="share-queue-preview-track__thumb"
+          alt=""
+        />
       ) : (
         <div className="share-queue-preview-track__icon">
           <Music size={16} />

@@ -2,10 +2,11 @@ import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Cast, Globe, Heart, Square, Trash2, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
-import { buildCoverArtUrl, coverArtCacheKey } from '../../api/subsonicStreamUrl';
 import type { InternetRadioStation } from '../../api/subsonicTypes';
 import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
+import { coverArtIdFromRadio } from '../../cover/ids';
+import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
 
 interface RadioCardProps {
   s: InternetRadioStation;
@@ -85,9 +86,10 @@ export default function RadioCard({
       {/* Cover */}
       <div className="album-card-cover">
         {s.coverArt ? (
-          <CachedImage
-            src={buildCoverArtUrl(`ra-${s.id}`, 256)}
-            cacheKey={coverArtCacheKey(`ra-${s.id}`, 256)}
+          <CoverArtImage
+            coverArtId={coverArtIdFromRadio(s.id)}
+            displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
+            surface="dense"
             alt={s.name}
             className="album-card-cover-img"
           />

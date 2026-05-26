@@ -63,9 +63,14 @@ only filesystem-relative imports (`./…`, `../…`). Package imports such as
 `mocks/tauri.ts`:
 
 ```ts
-import { onInvoke, emitTauriEvent, invokeMock, tauriMockListenerCount } from '@/test/mocks/tauri';
+import {
+  onInvoke, emitTauriEvent, invokeMock, tauriMockListenerCount,
+  registerDefaultCoverInvokeHandlers,
+} from '@/test/mocks/tauri';
 
 beforeEach(() => {
+  // Optional for cover-aware UI suites that don't assert native cache internals.
+  registerDefaultCoverInvokeHandlers();
   onInvoke('audio_play', () => undefined);
 });
 

@@ -92,6 +92,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Cover art — tier ladder, disk cache, and grid prefetch
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#869](https://github.com/Psychotoxical/psysonic/pull/869)**
+
+* Album and artist grids load sharper repeat visits from a dedicated WebP disk cache (separate from the general image cache budget in **Settings → Storage**).
+* Dense lists prefetch smaller tiers first, then steady-state grid quality capped at 512px for scroll performance; detail and player chrome still resolve up to 800px on demand.
+* One-time upgrade clears legacy multi-size IndexedDB cover keys; offline-first when the server is unreachable.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text

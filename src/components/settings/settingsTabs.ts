@@ -54,6 +54,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'library',        titleKey: 'settings.analyticsStrategyTitle',   keywords: 'analytics strategy analysis bpm enrichment waveform lazy advanced library backfill' },
   { tab: 'library',        titleKey: 'settings.randomMixTitle',           keywords: 'random mix blacklist genre keywords filter audiobook' },
   { tab: 'library',        titleKey: 'settings.ratingsSectionTitle',      keywords: 'ratings stars skip threshold manual' },
+  { tab: 'storage',        titleKey: 'settings.coverCacheStrategyTitle', keywords: 'cover art cache webp aggressive lazy disk per server' },
   { tab: 'storage',        titleKey: 'settings.offlineDirTitle',          keywords: 'offline library download directory folder cache' },
   { tab: 'storage',        titleKey: 'settings.nextTrackBufferingTitle',  keywords: 'next track buffering preload hot cache streaming' },
   { tab: 'storage',        titleKey: 'settings.downloadsTitle',           keywords: 'downloads zip export archive folder' },

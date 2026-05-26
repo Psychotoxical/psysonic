@@ -5,7 +5,7 @@ import type { InternetRadioStation, SubsonicAlbum, SubsonicOpenArtistRef } from 
 import type { PlayerState, Track } from '../../store/playerStoreTypes';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import type { PreviewingTrack } from '../../store/previewStore';
-import CachedImage from '../CachedImage';
+import { CoverArtImage } from '../../cover/CoverArtImage';
 import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
@@ -22,10 +22,8 @@ interface Props {
   currentRadio: InternetRadioStation | null;
   isRadio: boolean;
   radioMeta: RadioMetadata;
-  radioCoverSrc: string;
-  radioCoverKey: string;
-  coverSrc: string;
-  coverKey: string;
+  radioCoverArtId?: string;
+  coverArtId?: string;
   displayCoverArt: string | undefined;
   displayTitle: string;
   displayArtist: string;
@@ -46,8 +44,8 @@ interface Props {
 }
 
 export function PlayerTrackInfo({
-  currentTrack, currentRadio, isRadio, radioMeta, radioCoverSrc, radioCoverKey,
-  coverSrc, coverKey, displayCoverArt, displayTitle, displayArtist, displayArtistRefs,
+  currentTrack, currentRadio, isRadio, radioMeta, radioCoverArtId,
+  coverArtId, displayCoverArt, displayTitle, displayArtist, displayArtistRefs,
   showPreviewMeta, previewingTrack, isStarred, toggleStar,
   lastfmSessionKey, lastfmLoved, toggleLastfmLove,
   userRatingOverrides, toggleFullscreen,
@@ -66,26 +64,29 @@ export function PlayerTrackInfo({
         data-tooltip={!isRadio && !showPreviewMeta && currentTrack ? t('player.openFullscreen') : undefined}
       >
         {isRadio ? (
-          currentRadio?.coverArt ? (
-            <CachedImage
+          radioCoverArtId ? (
+            <CoverArtImage
               className="player-album-art"
-              src={radioCoverSrc}
-              cacheKey={radioCoverKey}
-              alt={currentRadio.name}
+              coverArtId={radioCoverArtId}
+              displayCssPx={128}
+              surface="sparse"
+              alt={currentRadio?.name ?? ''}
             />
           ) : (
             <div className="player-album-art-placeholder">
               <Cast size={20} />
             </div>
           )
-        ) : displayCoverArt ? (
-          <CachedImage
+        ) : coverArtId ? (
+          <CoverArtImage
             className="player-album-art"
-            src={coverSrc}
-            cacheKey={coverKey}
+            coverArtId={coverArtId}
+            displayCssPx={128}
+            surface="sparse"
+            serverScope={showPreviewMeta ? { kind: 'active' } : { kind: 'playback' }}
             alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
           />
-        ) : (
+          ) : (
           <div className="player-album-art-placeholder">
             <Music size={22} />
           </div>

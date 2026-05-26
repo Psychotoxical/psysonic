@@ -7,6 +7,7 @@ import { ArrowLeft, Disc3 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import AlbumCard from '../components/AlbumCard';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 const PAGE_SIZE = 50;
@@ -81,6 +82,7 @@ export default function GenreDetail() {
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={albums.length}
+          warmGridCovers={albumGridWarmCovers()}
           renderItem={album => <AlbumCard album={album} />}
         />
       )}
