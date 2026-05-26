@@ -51,6 +51,150 @@ const PICKS_HISTORY_SIZE = 30;
 const BECAUSE_CARD_COVER_CSS_PX = 160;
 const ROW_STAGGER_MS = 150;
 
+// ── Module-level reserve: next batch pre-fetched in background after each display ──
+type BecauseReserve = {
+  serverId: string;
+  poolKey: string;
+  anchor: BecauseYouLikeAnchor;
+  recs: SubsonicAlbum[];
+  /** Rotation state to commit to localStorage when this reserve is consumed. */
+  nextAnchorHistory: string[];
+  nextPicksHistory: string[];
+};
+let _becauseReserve: BecauseReserve | null = null;
+let _becauseReserveFilling = false;
+
+/** Helper: read a JSON string[] from localStorage, returning [] on any failure. */
+function readJsonArray(key: string | null): string[] {
+  if (!key) return [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Resolve a set of album picks for one anchor candidate. */
+async function resolvePicks(
+  candidate: BecauseYouLikeAnchor,
+  recentPicks: Set<string>,
+): Promise<SubsonicAlbum[] | null> {
+  const info = await getArtistInfo(candidate.id, { similarArtistCount: SIMILAR_FETCH });
+  const similar = (info.similarArtist ?? []).filter(s => s.id);
+  if (similar.length === 0) return null;
+
+  const sampled = shuffleArray(similar).slice(0, SIMILAR_PICK);
+  const results = await Promise.all(sampled.map(s => getArtist(s.id).catch(() => null)));
+
+  const picks: SubsonicAlbum[] = [];
+  for (const r of results) {
+    if (!r || r.albums.length === 0) continue;
+    const fresh = r.albums.filter(a => !recentPicks.has(a.id));
+    const choice = fresh.length > 0 ? fresh : r.albums;
+    const album = choice[Math.floor(Math.random() * choice.length)];
+    picks.push(album);
+    if (picks.length >= SHOW_COUNT) break;
+  }
+  return picks.length > 0 ? picks : null;
+}
+
+type FetchBecauseResult = {
+  anchor: BecauseYouLikeAnchor;
+  recs: SubsonicAlbum[];
+  nextAnchorHistory: string[];
+  nextPicksHistory: string[];
+};
+
+/**
+ * Core fetch: rotate anchor, call Last.fm / Subsonic, return result + updated
+ * rotation snapshots. Does NOT touch React state or localStorage — callers do that.
+ * Reads the CURRENT localStorage values so it always reflects the latest rotation.
+ */
+async function fetchBecauseYouLike(
+  pool: BecauseYouLikeAnchor[],
+  anchorHistKey: string | null,
+  picksHistKey: string | null,
+): Promise<FetchBecauseResult | null> {
+  const anchorHistory = readJsonArray(anchorHistKey);
+  const picksHistory = readJsonArray(picksHistKey);
+
+  const cooldown = Math.min(ANCHOR_COOLDOWN, Math.max(0, Math.floor(pool.length / 2)));
+  const recentAnchors = new Set(anchorHistory.slice(-cooldown));
+  const eligibleRaw = pool.filter(a => !recentAnchors.has(a.id));
+  const eligible = eligibleRaw.length > 0 ? eligibleRaw : pool.slice();
+  const candidates = shuffleArray(eligible);
+  const recentPicks = new Set(picksHistory);
+
+  const tries = Math.min(ANCHOR_MAX_TRIES, candidates.length);
+  const tryList = candidates.slice(0, tries);
+
+  const buildResult = (candidate: BecauseYouLikeAnchor, picks: SubsonicAlbum[]): FetchBecauseResult => ({
+    anchor: candidate,
+    recs: picks,
+    nextAnchorHistory: [...anchorHistory, candidate.id].slice(-ANCHOR_COOLDOWN),
+    nextPicksHistory: [...picksHistory, ...picks.map(p => p.id)].slice(-PICKS_HISTORY_SIZE),
+  });
+
+  /** First two shuffled anchors in parallel — cuts cold-start wait on slow Last.fm. */
+  if (tryList.length >= 2) {
+    const raced = await Promise.all(
+      tryList.slice(0, 2).map(async candidate => {
+        try {
+          const picks = await resolvePicks(candidate, recentPicks);
+          return picks ? { candidate, picks } : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const hit = raced.find((r): r is { candidate: BecauseYouLikeAnchor; picks: SubsonicAlbum[] } => r != null);
+    if (hit) return buildResult(hit.candidate, hit.picks);
+  }
+
+  for (const candidate of tryList) {
+    try {
+      const picks = await resolvePicks(candidate, recentPicks);
+      if (!picks) continue;
+      return buildResult(candidate, picks);
+    } catch {
+      /* try next anchor */
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Fire-and-forget: fetch the next batch in the background so the next visit is
+ * instant. localStorage rotation is NOT updated here — the snapshots are stored
+ * in the reserve and applied only when the reserve is consumed.
+ * Covers are NOT pre-warmed here (avoids bumpDiskSrcCache side-effects on the
+ * currently-visible page); they are warmed via primeAlbumCoversForDisplay on consume.
+ */
+async function fillBecauseReserve(
+  pool: BecauseYouLikeAnchor[],
+  serverId: string,
+  poolKey: string,
+  anchorHistKey: string | null,
+  picksHistKey: string | null,
+): Promise<void> {
+  if (_becauseReserveFilling) return;
+  _becauseReserveFilling = true;
+  try {
+    const result = await fetchBecauseYouLike(pool, anchorHistKey, picksHistKey);
+    if (result) {
+      _becauseReserve = { serverId, poolKey, ...result };
+    }
+  } catch {
+    /* Network failure — next visit falls back to a fresh fetch. */
+  } finally {
+    _becauseReserveFilling = false;
+  }
+}
+
 /** One classic because-card shell, then extra grid slots fill in. */
 function useBecauseRowSlotCount(active: boolean, max = SHOW_COUNT): number {
   const [count, setCount] = useState(1);
@@ -160,17 +304,6 @@ function anchorHistoryKey(serverId: string | null): string | null {
 function picksHistoryKey(serverId: string | null): string | null {
   return serverId ? `${PICKS_HISTORY_KEY_PREFIX}${serverId}` : null;
 }
-function readJsonArray(key: string | null): string[] {
-  if (!key) return [];
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
-  } catch {
-    return [];
-  }
-}
 
 export default function BecauseYouLikeRail({
   mostPlayed,
@@ -198,11 +331,19 @@ export default function BecauseYouLikeRail({
   const contentReady = !refreshing && Boolean(anchor) && recs.length > 0;
   const contentSlots = useBecauseRowSlotCount(contentReady, recs.length);
 
-  /** Drop stale cards/text before the next paint when revisiting Mainstage or refetching seeds. */
+  /** Drop stale cards/text before the next paint when revisiting Mainstage or refetching seeds.
+   *  If a matching reserve is ready, skip the clear — content will appear within one effect tick. */
   useLayoutEffect(() => {
-    setRefreshing(true);
-    setAnchor(null);
-    setRecs([]);
+    const hasReserve = (
+      _becauseReserve != null &&
+      _becauseReserve.serverId === (activeServerId ?? '') &&
+      _becauseReserve.poolKey === poolKey
+    );
+    if (!hasReserve) {
+      setRefreshing(true);
+      setAnchor(null);
+      setRecs([]);
+    }
   }, [location.key, activeServerId, poolKey]);
 
   // 696px ≙ exactly 2 BecauseCards side-by-side (2*340 + 16 gap). Below that
@@ -230,131 +371,83 @@ export default function BecauseYouLikeRail({
       return;
     }
 
-    setRefreshing(true);
-    setAnchor(null);
-    setRecs([]);
-
-    const snap = readBecauseYouLikeCache(activeServerId);
-
     const anchorHistKey = anchorHistoryKey(activeServerId);
     const picksHistKey = picksHistoryKey(activeServerId);
-    const anchorHistory = readJsonArray(anchorHistKey);
-    const picksHistory = readJsonArray(picksHistKey);
+    const snap = readBecauseYouLikeCache(activeServerId);
 
-    /** Cooldown caps at half the pool size so a small library doesn't soft-lock
-     *  itself out (a server with 4 anchor-eligible artists shouldn't be told
-     *  "the last 5 are forbidden"). */
-    const cooldown = Math.min(ANCHOR_COOLDOWN, Math.max(0, Math.floor(pool.length / 2)));
-    const recentAnchors = new Set(anchorHistory.slice(-cooldown));
-    const eligibleRaw = pool.filter(a => !recentAnchors.has(a.id));
-    const eligible = eligibleRaw.length > 0 ? eligibleRaw : pool.slice();
-    const candidates = shuffleArray(eligible);
-    const recentPicks = new Set(picksHistory);
-
-    const resolvePicks = async (candidate: BecauseYouLikeAnchor): Promise<SubsonicAlbum[] | null> => {
-      const info = await getArtistInfo(candidate.id, { similarArtistCount: SIMILAR_FETCH });
-      const similar = (info.similarArtist ?? []).filter(s => s.id);
-      if (similar.length === 0) return null;
-
-      const sampled = shuffleArray(similar).slice(0, SIMILAR_PICK);
-      const results = await Promise.all(sampled.map(s => getArtist(s.id).catch(() => null)));
-
-      const picks: SubsonicAlbum[] = [];
-      for (const r of results) {
-        if (!r || r.albums.length === 0) continue;
-        const fresh = r.albums.filter(a => !recentPicks.has(a.id));
-        const choice = fresh.length > 0 ? fresh : r.albums;
-        const album = choice[Math.floor(Math.random() * choice.length)];
-        picks.push(album);
-        if (picks.length >= SHOW_COUNT) break;
-      }
-      return picks.length > 0 ? picks : null;
-    };
-
-    const commitSuccess = async (candidate: BecauseYouLikeAnchor, picks: SubsonicAlbum[]) => {
-      await primeAlbumCoversForDisplay(picks, BECAUSE_CARD_COVER_CSS_PX, {
-        limit: SHOW_COUNT,
-        disabled: disableArtwork,
-      });
-      if (cancelled) return;
-
-      const newAnchorHistory = [...anchorHistory, candidate.id].slice(-ANCHOR_COOLDOWN);
-      const newPicksHistory = [...picksHistory, ...picks.map(p => p.id)].slice(-PICKS_HISTORY_SIZE);
-      try {
-        if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(newAnchorHistory));
-        if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(newPicksHistory));
-      } catch { /* ignore */ }
-      setAnchor(candidate);
-      setRecs(picks);
-      if (activeServerId) {
-        writeBecauseYouLikeCache({ serverId: activeServerId, anchor: candidate, recs: picks });
-      }
-      setRefreshing(false);
-    };
-
-    const applySnapFallback = async () => {
-      if (!snap || cancelled) return false;
-      await primeAlbumCoversForDisplay(snap.recs, BECAUSE_CARD_COVER_CSS_PX, {
-        limit: SHOW_COUNT,
-        disabled: disableArtwork,
-      });
-      if (cancelled) return false;
-      setAnchor(snap.anchor);
-      setRecs(snap.recs);
-      return true;
-    };
+    // Consume module-level reserve if it matches the current context.
+    const reserved = (
+      _becauseReserve != null &&
+      _becauseReserve.serverId === (activeServerId ?? '') &&
+      _becauseReserve.poolKey === poolKey
+    ) ? _becauseReserve : null;
+    _becauseReserve = null;
 
     (async () => {
-      let success = false;
-      const tries = Math.min(ANCHOR_MAX_TRIES, candidates.length);
-      const tryList = candidates.slice(0, tries);
-
-      /** First two shuffled anchors in parallel — cuts cold-start wait on slow Last.fm. */
-      if (tryList.length >= 2) {
-        const raced = await Promise.all(
-          tryList.slice(0, 2).map(async candidate => {
-            try {
-              const picks = await resolvePicks(candidate);
-              return picks ? { candidate, picks } : null;
-            } catch {
-              return null;
-            }
-          }),
-        );
+      if (reserved) {
+        // ── Reserve path: instant display, no network ──────────────────────
+        await primeAlbumCoversForDisplay(reserved.recs, BECAUSE_CARD_COVER_CSS_PX, {
+          limit: SHOW_COUNT,
+          disabled: disableArtwork,
+        });
         if (cancelled) return;
-        const hit = raced.find(
-          (r): r is { candidate: BecauseYouLikeAnchor; picks: SubsonicAlbum[] } => r != null,
-        );
-        if (hit) {
-          await commitSuccess(hit.candidate, hit.picks);
-          success = true;
-        }
-      }
-
-      if (!success) {
-        for (const candidate of tryList) {
-          if (cancelled) return;
-          try {
-            const picks = await resolvePicks(candidate);
-            if (!picks) continue;
-            await commitSuccess(candidate, picks);
-            success = true;
-            break;
-          } catch {
-            /* try next anchor */
-          }
-        }
-      }
-
-      if (!cancelled) {
-        if (!success) {
-          const restored = await applySnapFallback();
-          if (!restored) {
-            setAnchor(null);
-            setRecs([]);
-          }
+        // Advance rotation in localStorage now that these picks are being shown.
+        try {
+          if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(reserved.nextAnchorHistory));
+          if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(reserved.nextPicksHistory));
+        } catch { /* ignore */ }
+        setAnchor(reserved.anchor);
+        setRecs(reserved.recs);
+        if (activeServerId) {
+          writeBecauseYouLikeCache({ serverId: activeServerId, anchor: reserved.anchor, recs: reserved.recs });
         }
         setRefreshing(false);
+        // Pre-fetch the next batch so the next visit is also instant.
+        void fillBecauseReserve(pool, activeServerId ?? '', poolKey, anchorHistKey, picksHistKey);
+        return;
+      }
+
+      // ── Full-fetch path (first visit or reserve miss) ──────────────────
+      setRefreshing(true);
+      setAnchor(null);
+      setRecs([]);
+
+      const result = await fetchBecauseYouLike(pool, anchorHistKey, picksHistKey);
+      if (cancelled) return;
+
+      if (result) {
+        await primeAlbumCoversForDisplay(result.recs, BECAUSE_CARD_COVER_CSS_PX, {
+          limit: SHOW_COUNT,
+          disabled: disableArtwork,
+        });
+        if (cancelled) return;
+        try {
+          if (anchorHistKey) localStorage.setItem(anchorHistKey, JSON.stringify(result.nextAnchorHistory));
+          if (picksHistKey) localStorage.setItem(picksHistKey, JSON.stringify(result.nextPicksHistory));
+        } catch { /* ignore */ }
+        setAnchor(result.anchor);
+        setRecs(result.recs);
+        if (activeServerId) {
+          writeBecauseYouLikeCache({ serverId: activeServerId, anchor: result.anchor, recs: result.recs });
+        }
+        setRefreshing(false);
+        // Pre-fetch next batch so the next visit is instant.
+        void fillBecauseReserve(pool, activeServerId ?? '', poolKey, anchorHistKey, picksHistKey);
+      } else {
+        // Network failed — restore session cache if available.
+        if (snap) {
+          await primeAlbumCoversForDisplay(snap.recs, BECAUSE_CARD_COVER_CSS_PX, {
+            limit: SHOW_COUNT,
+            disabled: disableArtwork,
+          });
+          if (cancelled) return;
+          setAnchor(snap.anchor);
+          setRecs(snap.recs);
+        } else if (!cancelled) {
+          setAnchor(null);
+          setRecs([]);
+        }
+        if (!cancelled) setRefreshing(false);
       }
     })();
 
