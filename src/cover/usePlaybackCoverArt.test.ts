@@ -7,18 +7,20 @@ import { usePlayerStore } from '../store/playerStore';
 import { makeTrack } from '../test/helpers/factories';
 import { resetAllStores } from '../test/helpers/storeReset';
 
-const mockUseCoverArt = vi.fn(
-  (): CoverArtHandle => ({
-    src: '',
-    storageKey: '',
-    cacheKey: '',
-    tier: 128,
-    provisional: false,
-  }),
-);
+const hoisted = vi.hoisted(() => ({
+  useCoverArtMock: vi.fn(
+    (_coverArtId?: unknown, _displayCssPx?: unknown, _opts?: unknown): CoverArtHandle => ({
+      src: '',
+      storageKey: '',
+      cacheKey: '',
+      tier: 128,
+      provisional: false,
+    }),
+  ),
+}));
 
 vi.mock('./useCoverArt', () => ({
-  useCoverArt: (...args: unknown[]) => mockUseCoverArt(...args),
+  useCoverArt: hoisted.useCoverArtMock,
 }));
 
 function seedPlaybackState(): { active: string; playback: string } {
@@ -48,14 +50,17 @@ function seedPlaybackState(): { active: string; playback: string } {
 describe('usePlaybackCoverArt', () => {
   beforeEach(() => {
     resetAllStores();
-    mockUseCoverArt.mockClear();
+    hoisted.useCoverArtMock.mockClear();
   });
 
   it('recomputes server scope when playback server credentials change', async () => {
     const { playback } = seedPlaybackState();
     const { rerender } = renderHook(() => usePlaybackCoverArt('cover-1', 300));
 
-    const firstScope = mockUseCoverArt.mock.calls[0]?.[2]?.serverScope;
+    const calls = hoisted.useCoverArtMock.mock.calls as Array<
+      [unknown, unknown, { serverScope?: Record<string, unknown> }]
+    >;
+    const firstScope = calls[0]?.[2]?.serverScope;
     expect(firstScope).toMatchObject({
       kind: 'server',
       serverId: playback,
@@ -73,7 +78,7 @@ describe('usePlaybackCoverArt', () => {
     rerender();
 
     await waitFor(() => {
-      const latestScope = mockUseCoverArt.mock.calls.at(-1)?.[2]?.serverScope;
+      const latestScope = calls[calls.length - 1]?.[2]?.serverScope;
       expect(latestScope).toMatchObject({
         kind: 'server',
         serverId: playback,

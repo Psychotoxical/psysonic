@@ -94,4 +94,3 @@ export function useNowPlayingPrewarm(): void {
     void prewarmCoverForScope(radioCoverArtId, { kind: 'active' });
   }, [currentRadio?.id, currentRadio?.coverArt, activeServerId]);
 }
-
