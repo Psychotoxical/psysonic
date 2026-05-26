@@ -12,6 +12,7 @@ const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) 
   bpmFrom: '',
   bpmTo: '',
   moodGroup: '',
+  losslessOnly: false,
   resultType: 'all' as const,
   ...over,
 });
@@ -59,6 +60,25 @@ describe('runLocalAdvancedSearch', () => {
     });
     await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(captured).toMatchObject({ request: { libraryScope: 'lib7' } });
+  });
+
+  it('passes lossless is_true filter to library_advanced_search', async () => {
+    ready();
+    let captured: unknown;
+    onInvoke('library_advanced_search', (args) => {
+      captured = args;
+      return {
+        artists: [],
+        albums: [],
+        tracks: [],
+        totals: { artists: 0, albums: 0, tracks: 0 },
+        source: 'local',
+      };
+    });
+    await runLocalAdvancedSearch('s1', opts({ losslessOnly: true }), 100);
+    expect(captured).toMatchObject({
+      request: { filters: [{ field: 'lossless', op: 'is_true' }] },
+    });
   });
 
   it('passes bpm between filter to library_advanced_search', async () => {

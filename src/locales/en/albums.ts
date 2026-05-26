@@ -14,6 +14,9 @@ export const albums = {
   compilationTooltipAll: 'All albums · click: only compilations',
   compilationTooltipOnly: 'Only compilations · click: hide compilations',
   compilationTooltipHide: 'Compilations hidden · click: show all',
+  losslessLabel: 'Lossless',
+  losslessTooltipOn: 'Lossless albums only · click to show all',
+  losslessTooltipOff: 'Show lossless albums only',
   select: 'Multi-select',
   startSelect: 'Enable multi-select',
   cancelSelect: 'Cancel',
@@ -29,4 +32,7 @@ export const albums = {
   downloadZipFailed: 'Failed to download {{name}}',
   offlineQueuing: 'Queuing {{count}} album(s) for offline…',
   offlineFailed: 'Failed to add {{name}} offline',
+  noFavorites: 'No favorite albums match the current filters.',
+  noCompilations: 'No compilations match the current filters.',
+  noMatchingFilters: 'No albums match the current filters.',
 };

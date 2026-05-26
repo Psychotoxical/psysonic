@@ -375,6 +375,73 @@ export function libraryLiveSearch(request: LibraryLiveSearchRequest): Promise<Li
   }));
 }
 
+export interface LibraryLosslessAlbumsRequest {
+  serverId: string;
+  libraryScope?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
+export interface LibraryLosslessAlbumsResponse {
+  albums: LibraryAlbumDto[];
+  hasMore: boolean;
+  source: 'local';
+}
+
+/** Paginated lossless albums from the local track index. */
+export function libraryListLosslessAlbums(
+  request: LibraryLosslessAlbumsRequest,
+): Promise<LibraryLosslessAlbumsResponse> {
+  const indexKey = serverIndexKeyForId(request.serverId);
+  return invoke<LibraryLosslessAlbumsResponse>('library_list_lossless_albums', {
+    request: {
+      serverId: indexKey,
+      libraryScope: request.libraryScope ?? undefined,
+      limit: request.limit,
+      offset: request.offset,
+    },
+  }).then(response => ({
+    ...response,
+    albums: response.albums.map(album => ({
+      ...album,
+      serverId: mapServerIdFromIndexKey(album.serverId, request.serverId),
+    })),
+  }));
+}
+
+export interface LibraryArtistLosslessBrowseRequest {
+  serverId: string;
+  artistId: string;
+  libraryScope?: string | null;
+}
+
+export interface LibraryArtistLosslessBrowseResponse {
+  albums: LibraryAlbumDto[];
+  tracks: LibraryTrackDto[];
+  source: 'local';
+}
+
+/** Lossless albums + tracks for one artist from the local index. */
+export function libraryGetArtistLosslessBrowse(
+  request: LibraryArtistLosslessBrowseRequest,
+): Promise<LibraryArtistLosslessBrowseResponse> {
+  const indexKey = serverIndexKeyForId(request.serverId);
+  return invoke<LibraryArtistLosslessBrowseResponse>('library_get_artist_lossless_browse', {
+    request: {
+      serverId: indexKey,
+      artistId: request.artistId,
+      libraryScope: request.libraryScope ?? undefined,
+    },
+  }).then(response => ({
+    ...response,
+    albums: response.albums.map(album => ({
+      ...album,
+      serverId: mapServerIdFromIndexKey(album.serverId, request.serverId),
+    })),
+    tracks: mapTracksServerId(response.tracks, request.serverId),
+  }));
+}
+
 /** Cross-server FTS union over the given servers, or all `ready` ones (§5.5B). */
 export function librarySearchCrossServer(args: {
   query: string;

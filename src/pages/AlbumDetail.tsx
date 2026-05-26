@@ -6,7 +6,7 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -31,12 +31,17 @@ import { deriveAlbumHeaderArtistRefs } from '../utils/album/deriveAlbumHeaderArt
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import LosslessModeBanner from '../components/LosslessModeBanner';
+import { isLosslessSuffix } from '../utils/library/losslessFormats';
+import { isLosslessMode } from '../utils/library/losslessMode';
 
 export default function AlbumDetail() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const losslessOnly = isLosslessMode(searchParams);
   const auth = useAuthStore();
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const playTrack = usePlayerStore(s => s.playTrack);
@@ -79,10 +84,16 @@ export default function AlbumDetail() {
     if (album && album.album.id === id) setAlbumEntityRating(album.album.userRating ?? 0);
   }, [id, album?.album.id, album?.album.userRating]);
 
+  const effectiveSongs = useMemo(() => {
+    if (!album?.songs) return undefined;
+    if (!losslessOnly) return album.songs;
+    return album.songs.filter(s => isLosslessSuffix(s.suffix));
+  }, [album?.songs, losslessOnly]);
+
 const handlePlayAll = () => {
-     if (!album) return;
+     if (!album || !effectiveSongs) return;
      const albumGenre = album.album.genre;
-     const tracks = album.songs.map(s => {
+     const tracks = effectiveSongs.map(s => {
        const t = songToTrack(s);
        if (!t.genre && albumGenre) t.genre = albumGenre;
        return t;
@@ -91,9 +102,9 @@ const handlePlayAll = () => {
    };
 
 const handleEnqueueAll = () => {
-     if (!album) return;
+     if (!album || !effectiveSongs) return;
      const albumGenre = album.album.genre;
-     const tracks = album.songs.map(s => {
+     const tracks = effectiveSongs.map(s => {
        const t = songToTrack(s);
        if (!t.genre && albumGenre) t.genre = albumGenre;
        return t;
@@ -102,9 +113,9 @@ const handleEnqueueAll = () => {
    };
 
 const handleShuffleAll = () => {
-     if (!album) return;
+     if (!album || !effectiveSongs) return;
      const albumGenre = album.album.genre;
-     const tracks = album.songs.map(s => {
+     const tracks = effectiveSongs.map(s => {
        const t = songToTrack(s);
        if (!t.genre && albumGenre) t.genre = albumGenre;
        return t;
@@ -117,9 +128,9 @@ const handleShuffleAll = () => {
 
    const handlePlaySong = (song: SubsonicSong) => {
      if (orbitActive) { queueHint(); return; }
-     if (!album) return;
+     if (!album || !effectiveSongs) return;
      const albumGenre = album.album.genre;
-     const tracks = album.songs.map(s => {
+     const tracks = effectiveSongs.map(s => {
        const t = songToTrack(s);
        if (!t.genre && albumGenre) t.genre = albumGenre;
        return t;
@@ -230,8 +241,8 @@ const handleShuffleAll = () => {
       // If we can't check, proceed anyway
     }
     setOfflineStorageFull(false);
-    downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, album.songs, serverId);
-  }, [album, auth.maxCacheMb, downloadAlbum, serverId]);
+    downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, effectiveSongs ?? album.songs, serverId);
+  }, [album, auth.maxCacheMb, downloadAlbum, serverId, effectiveSongs]);
 
   const handleRemoveOffline = () => {
     if (!album) return;
@@ -245,7 +256,7 @@ const handleShuffleAll = () => {
   ]), [starredSongs, starredOverrides]);
 
   const { sortKey, sortDir, handleSort, displayedSongs } = useAlbumDetailSort({
-    songs: album?.songs,
+    songs: effectiveSongs,
     filterText,
     starredSongs: mergedStarredSongs,
     ratings,
@@ -271,7 +282,8 @@ const handleShuffleAll = () => {
   if (loading) return <div className="loading-center"><div className="spinner" /></div>;
   if (!album) return <div className="empty-state">{t('albumDetail.notFound')}</div>;
 
-  const { album: info, songs } = album;
+  const { album: info } = album;
+  const songs = effectiveSongs ?? [];
   const headerArtistRefs = deriveAlbumHeaderArtistRefs(info, songs);
   const hasVariousArtists = songs.some(s => s.artist !== info.artist);
 
@@ -302,6 +314,7 @@ const handleShuffleAll = () => {
         onEntityRatingChange={handleAlbumEntityRating}
         entityRatingSupport={albumEntityRatingSupport}
       />
+      {losslessOnly && <LosslessModeBanner />}
       {offlineStorageFull && (
         <div className="offline-storage-full-banner" role="alert">
           <span>{t('albumDetail.offlineStorageFull', { mb: auth.maxCacheMb })}</span>

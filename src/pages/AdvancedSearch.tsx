@@ -14,6 +14,8 @@ import StarFilterButton from '../components/StarFilterButton';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearch } from '../utils/library/advancedSearchLocal';
+import { isLosslessSuffix } from '../utils/library/losslessFormats';
+import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 import { OXIMEDIA_MOOD_SEARCH_ENABLED } from '../utils/library/trackEnrichment';
 import { raceSearchSources } from '../utils/library/searchRace';
 import { logLibrarySearch } from '../utils/library/libraryDevLog';
@@ -32,6 +34,7 @@ interface SearchOpts {
   bpmFrom: string;
   bpmTo: string;
   moodGroup: string;
+  losslessOnly: boolean;
   resultType: ResultType;
 }
 
@@ -59,6 +62,7 @@ export default function AdvancedSearch() {
   const [bpmFrom, setBpmFrom] = useState('');
   const [bpmTo, setBpmTo] = useState('');
   const [moodGroup, setMoodGroup] = useState('');
+  const [losslessOnly, setLosslessOnly] = useState(false);
   const [resultType, setResultType] = useState<ResultType>('all');
   const [starredOnly, setStarredOnly] = useState(false);
   const [genres, setGenres] = useState<SubsonicGenre[]>([]);
@@ -104,6 +108,7 @@ export default function AdvancedSearch() {
     to: number | null,
     bpmLo: number | null,
     bpmHi: number | null,
+    lossless = false,
   ): SubsonicSong[] => {
     let r = list;
     if (g) r = r.filter(s => s.genre?.toLowerCase() === g.toLowerCase());
@@ -111,6 +116,7 @@ export default function AdvancedSearch() {
     if (to !== null) r = r.filter(s => !s.year || s.year <= to);
     if (bpmLo !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm >= bpmLo);
     if (bpmHi !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm <= bpmHi);
+    if (lossless) r = r.filter(s => isLosslessSuffix(s.suffix));
     return r;
   };
 
@@ -129,10 +135,12 @@ export default function AdvancedSearch() {
     const searchT0 = performance.now();
     const moodFilterActive = MOOD_UI_ENABLED && !!opts.moodGroup;
     const bpmFilterActive = !!(opts.bpmFrom || opts.bpmTo);
+    const losslessFilterActive = opts.losslessOnly;
     const trackOnlyFilterActive = moodFilterActive || bpmFilterActive;
 
     // Track-only filters (BPM dual-storage, mood) need the local index for full coverage.
-    if (q && serverId && indexEnabled && !trackOnlyFilterActive) {
+    // Lossless skips the race — network search3 cannot filter albums by format reliably.
+    if (q && serverId && indexEnabled && !trackOnlyFilterActive && !losslessFilterActive) {
       try {
         const winner = await raceSearchSources(
           [
@@ -205,13 +213,13 @@ export default function AdvancedSearch() {
       setLocalMode(false);
     }
 
-    if (trackOnlyFilterActive && !indexEnabled) {
+    if ((trackOnlyFilterActive || losslessFilterActive) && !indexEnabled) {
       setResults({ artists: [], albums: [], songs: [] });
       setLoading(false);
       return;
     }
 
-    const { genre: g, yearFrom: yf, yearTo: yt, bpmFrom: bf, bpmTo: bt, resultType: rt } = opts;
+    const { genre: g, yearFrom: yf, yearTo: yt, bpmFrom: bf, bpmTo: bt, losslessOnly: lossless, resultType: rt } = opts;
     const from = yf ? parseInt(yf) : null;
     const to = yt ? parseInt(yt) : null;
     const bpmLo = bf ? parseInt(bf) : null;
@@ -226,7 +234,7 @@ export default function AdvancedSearch() {
         const r = await search(q.trim(), { artistCount: 30, albumCount: 50, songCount: SONGS_INITIAL });
         artists = r.artists;
         albums = r.albums;
-        songs = applySongFilters(r.songs, g, from, to, bpmLo, bpmHi);
+        songs = applySongFilters(r.songs, g, from, to, bpmLo, bpmHi, lossless);
 
         if (g) {
           albums = albums.filter(a => a.genre?.toLowerCase() === g.toLowerCase());
@@ -236,6 +244,12 @@ export default function AdvancedSearch() {
         }
         if (to !== null) {
           albums = albums.filter(a => !a.year || a.year <= to);
+        }
+        if (lossless) {
+          const albumIds = new Set(songs.map(s => s.albumId).filter(Boolean));
+          albums = albums.filter(a => albumIds.has(a.id));
+          const artistIds = new Set(songs.map(s => s.artistId).filter(Boolean));
+          artists = artists.filter(a => artistIds.has(a.id));
         }
 
         // Only the free-text branch supports server-side pagination via search3 offset.
@@ -249,7 +263,7 @@ export default function AdvancedSearch() {
         ]);
         albums = albumRes as SubsonicAlbum[];
         songs = songRes as SubsonicSong[];
-        songs = applySongFilters(songs, g, from, to, bpmLo, bpmHi);
+        songs = applySongFilters(songs, g, from, to, bpmLo, bpmHi, lossless);
         if (from !== null) albums = albums.filter(a => !a.year || a.year >= from);
         if (to !== null) albums = albums.filter(a => !a.year || a.year <= to);
         if (songs.length > 0) setGenreNote(true);
@@ -300,6 +314,7 @@ export default function AdvancedSearch() {
         bpmFrom: '',
         bpmTo: '',
         moodGroup: '',
+        losslessOnly: false,
         resultType: 'all',
       });
     }
@@ -335,7 +350,15 @@ export default function AdvancedSearch() {
       const bpmLo = activeSearch.bpmFrom ? parseInt(activeSearch.bpmFrom) : null;
       const bpmHi = activeSearch.bpmTo ? parseInt(activeSearch.bpmTo) : null;
       const page = await searchSongsPaged(q, SONGS_PAGE_SIZE, songsServerOffset);
-      const filtered = applySongFilters(page, g, from, to, bpmLo, bpmHi);
+      const filtered = applySongFilters(
+        page,
+        g,
+        from,
+        to,
+        bpmLo,
+        bpmHi,
+        activeSearch.losslessOnly,
+      );
       setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...filtered] } : prev);
       setSongsServerOffset(o => o + page.length);
       // No more pages when the server returned a non-full page (regardless of how many survived filtering).
@@ -368,6 +391,7 @@ export default function AdvancedSearch() {
       bpmFrom,
       bpmTo,
       moodGroup,
+      losslessOnly,
       resultType: effectiveType,
     });
   };
@@ -464,7 +488,7 @@ export default function AdvancedSearch() {
               />
             </div>
 
-            {/* Row 3: BPM (tag + measured enrichment via local index) */}
+            {/* Row 3: BPM (tag + measured enrichment) */}
             {indexEnabled && (
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
@@ -519,9 +543,32 @@ export default function AdvancedSearch() {
                     {t('search.advancedBpmClear')}
                   </button>
                 )}
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  {t('search.advancedBpmLocalNote')}
+              </div>
+            )}
+
+            {/* Lossless — suffix allowlist (FLAC, WAV, …) */}
+            {indexEnabled && (
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', minWidth: 90, flexShrink: 0 }}>
+                  {t('search.advancedLossless')}
                 </span>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={losslessOnly}
+                    onChange={e => setLosslessOnly(e.target.checked)}
+                  />
+                  {t('search.advancedLosslessOnly')}
+                </label>
               </div>
             )}
 
@@ -594,6 +641,7 @@ export default function AdvancedSearch() {
             <ArtistRow
               title={`${t('search.artists')} (${filteredResults.artists.length})`}
               artists={filteredResults.artists}
+              artistLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
             />
           )}
 
@@ -601,6 +649,7 @@ export default function AdvancedSearch() {
             <AlbumRow
               title={`${t('search.albums')} (${filteredResults.albums.length})`}
               albums={filteredResults.albums}
+              albumLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
             />
           )}
 

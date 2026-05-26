@@ -5,7 +5,7 @@ import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AlbumCard from '../components/AlbumCard';
 import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2, AudioLines } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -37,21 +37,25 @@ import ArtistDetailHero from '../components/artistDetail/ArtistDetailHero';
 import ArtistDetailTopTracks from '../components/artistDetail/ArtistDetailTopTracks';
 import ArtistDetailSimilarArtists from '../components/artistDetail/ArtistDetailSimilarArtists';
 import ArtistCard from '../components/nowPlaying/ArtistCard';
+import LosslessModeBanner from '../components/LosslessModeBanner';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 
 
 export default function ArtistDetail() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const losslessOnly = searchParams.get('lossless') === '1';
   const navigate = useNavigate();
   const {
     artist, setArtist, albums, topSongs, info, featuredAlbums,
     loading, artistInfoLoading, featuredLoading,
     isStarred, setIsStarred,
-  } = useArtistDetailData(id);
+  } = useArtistDetailData(id, { losslessOnly });
   const [radioLoading, setRadioLoading] = useState(false);
   const [playAllLoading, setPlayAllLoading] = useState(false);
   const [openedLink, setOpenedLink] = useState<string | null>(null);
@@ -270,6 +274,8 @@ export default function ArtistDetail() {
         setHeaderCoverFailed={setHeaderCoverFailed}
       />
 
+      {losslessOnly && <LosslessModeBanner />}
+
       {/* User-reorderable sections — order + visibility configured in Settings.
        * Each case renders the same JSX it did pre-refactor; only `marginTop`
        * (now derived from the actual render order) and the outer wrapper changed. */}
@@ -294,6 +300,7 @@ export default function ArtistDetail() {
               topSongs={topSongs}
               marginTop={sectionMt('topTracks')}
               playTopSongWithContinuation={playTopSongWithContinuation}
+              losslessOnly={losslessOnly}
             />
           );
 
@@ -314,7 +321,9 @@ export default function ArtistDetail() {
           case 'albums': return (
             <Fragment key="albums">
               <h2 className="section-title" style={{ marginTop: sectionMt('albums'), marginBottom: '1rem' }}>
-                {t('artistDetail.albumsBy', { name: artist.name })}
+                {losslessOnly
+                  ? t('artistDetail.albumsByLossless', { name: artist.name })
+                  : t('artistDetail.albumsBy', { name: artist.name })}
               </h2>
               {albums.length > 0 ? (
                 groupedAlbums.length === 1 ? (
@@ -326,7 +335,9 @@ export default function ArtistDetail() {
                     layoutSignal={albums.length}
                     wrapClassName="album-grid-wrap album-grid-wrap--artist"
                     warmGridCovers={albumGridWarmCovers()}
-                    renderItem={a => <AlbumCard album={a} />}
+                    renderItem={a => (
+                      <AlbumCard album={a} linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined} />
+                    )}
                   />
                 ) : groupedAlbums.map(([label, group]) => (
                   <div key={label} className="artist-release-group">
@@ -342,7 +353,9 @@ export default function ArtistDetail() {
                       layoutSignal={group.length}
                       wrapClassName="album-grid-wrap album-grid-wrap--artist"
                       warmGridCovers={albumGridWarmCovers()}
-                      renderItem={a => <AlbumCard album={a} />}
+                      renderItem={a => (
+                      <AlbumCard album={a} linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined} />
+                    )}
                     />
                   </div>
                 ))

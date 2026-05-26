@@ -1,0 +1,29 @@
+/* ─── Lossless browse mode banner (artist / album drill-down) ─── */
+.lossless-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 10px 16px;
+  margin: 0 0 1rem 0;
+  background: color-mix(in srgb, var(--accent, #7c4dff) 10%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--accent, #7c4dff) 35%, transparent);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.lossless-mode-banner span {
+  flex: 1;
+}
+
+.lossless-mode-banner__icon {
+  flex-shrink: 0;
+  color: var(--accent, #7c4dff);
+}
+
+.lossless-mode-banner__exit {
+  flex-shrink: 0;
+  font-size: 13px;
+  padding: 4px 10px;
+}

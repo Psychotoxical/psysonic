@@ -123,6 +123,12 @@ pub const FILTER_FIELD_REGISTRY: &[FilterField] = &[
         status: FilterStatus::Planned,
     },
     FilterField {
+        id: "lossless",
+        entities: &[EntityKind::Track, EntityKind::Album, EntityKind::Artist],
+        ops: &[FilterOp::IsTrue],
+        status: FilterStatus::V1,
+    },
+    FilterField {
         id: "bit_rate",
         entities: &[EntityKind::Track],
         ops: &[FilterOp::Gte, FilterOp::Lte, FilterOp::Between],

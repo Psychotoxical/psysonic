@@ -701,6 +701,8 @@ pub fn run() {
             psysonic_library::commands::library_search,
             psysonic_library::commands::library_live_search,
             psysonic_library::commands::library_advanced_search,
+            psysonic_library::commands::library_list_lossless_albums,
+            psysonic_library::commands::library_get_artist_lossless_browse,
             psysonic_library::commands::library_search_cross_server,
             psysonic_library::commands::library_get_track,
             psysonic_library::commands::library_get_tracks_batch,

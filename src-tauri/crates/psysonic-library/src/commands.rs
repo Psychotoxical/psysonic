@@ -437,6 +437,22 @@ pub async fn library_advanced_search(
 }
 
 #[tauri::command]
+pub async fn library_list_lossless_albums(
+    runtime: State<'_, LibraryRuntime>,
+    request: crate::dto::LibraryLosslessAlbumsRequest,
+) -> Result<crate::dto::LibraryLosslessAlbumsResponse, String> {
+    crate::lossless_albums::list_lossless_albums(&runtime.store, &request)
+}
+
+#[tauri::command]
+pub async fn library_get_artist_lossless_browse(
+    runtime: State<'_, LibraryRuntime>,
+    request: crate::dto::LibraryArtistLosslessBrowseRequest,
+) -> Result<crate::dto::LibraryArtistLosslessBrowseResponse, String> {
+    crate::artist_lossless_browse::get_artist_lossless_browse(&runtime.store, &request)
+}
+
+#[tauri::command]
 pub async fn library_live_search(
     runtime: State<'_, LibraryRuntime>,
     request: LibraryLiveSearchRequest,

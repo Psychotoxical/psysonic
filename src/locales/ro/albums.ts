@@ -14,6 +14,9 @@ export const albums = {
   compilationTooltipAll: 'Toate albumele · clic: doar compilații',
   compilationTooltipOnly: 'Doar compilații · clic: ascunde compilațiile',
   compilationTooltipHide: 'Compilații ascunse · clic: arată toate',
+  losslessLabel: 'Lossless',
+  losslessTooltipOn: 'Doar albume lossless · clic: arată toate',
+  losslessTooltipOff: 'Arată doar albume lossless',
   select: 'Multi-selecție',
   startSelect: 'Activează multi-selecția',
   cancelSelect: 'Anulează',
@@ -29,4 +32,7 @@ export const albums = {
   downloadZipFailed: 'Nu s-a reușit descărcarea {{name}}',
   offlineQueuing: 'Se adaugă în coadă {{count}} album(e) pentru offline…',
   offlineFailed: 'Nu s-a reușit adăugarea {{name}} offline',
+  noFavorites: 'Niciun album favorit nu corespunde filtrelor curente.',
+  noCompilations: 'Nicio compilație nu corespunde filtrelor curente.',
+  noMatchingFilters: 'Niciun album nu corespunde filtrelor curente.',
 };

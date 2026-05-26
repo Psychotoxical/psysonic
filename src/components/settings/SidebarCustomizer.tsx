@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { GripVertical } from 'lucide-react';
 import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
 import { useAuthStore } from '../../store/authStore';
-import { useSidebarStore, SidebarItemConfig } from '../../store/sidebarStore';
+import { useSidebarStore, SidebarItemConfig, CONSERVED_SIDEBAR_NAV_IDS } from '../../store/sidebarStore';
 import { useLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import { applySidebarDropReorder } from '../../utils/componentHelpers/sidebarNavReorder';
@@ -43,6 +43,7 @@ export function SidebarCustomizer() {
   const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
 
   const libraryItems = items.filter(cfg => {
+    if (CONSERVED_SIDEBAR_NAV_IDS.has(cfg.id)) return false;
     if (!ALL_NAV_ITEMS[cfg.id] || ALL_NAV_ITEMS[cfg.id].section !== 'library') return false;
     if (randomNavMode === 'hub' && (cfg.id === 'randomMix' || cfg.id === 'randomAlbums' || cfg.id === 'luckyMix')) return false;
     if (randomNavMode === 'separate' && cfg.id === 'randomPicker') return false;

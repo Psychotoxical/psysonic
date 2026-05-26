@@ -32,6 +32,8 @@ interface AlbumCardProps {
   displayCssPx?: number;
   /** @deprecated Use displayCssPx — kept for call-site transition only */
   artworkSize?: number;
+  /** Appended to `/album/:id`, e.g. `lossless=1`. */
+  linkQuery?: string;
   /** In-page scroll viewport (`VirtualCardGrid` `scrollRootId`) for cover IO priority. */
   observeScrollRootId?: string;
   /** `high` for bounded grids (Random Albums, …) — skip defer-until-visible. */
@@ -50,6 +52,7 @@ function AlbumCard({
   artworkSize: _artworkSize,
   observeScrollRootId,
   ensurePriority,
+  linkQuery,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -72,7 +75,7 @@ function AlbumCard({
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
-    navigate(`/album/${album.id}`);
+    navigate(linkQuery ? `/album/${album.id}?${linkQuery}` : `/album/${album.id}`);
   };
 
   return (
