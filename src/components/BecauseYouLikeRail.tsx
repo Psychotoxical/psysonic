@@ -330,35 +330,47 @@ export default function BecauseYouLikeRail({
     [pool],
   );
   const location = useLocation();
-  // Lazy-initialise from reserve so the component renders content immediately
-  // on remount (no skeleton flash) when a pre-fetched batch is already available.
-  // The lazy initializer runs only once (on mount), which is exactly when we need
-  // it — subsequent navigations are handled by useLayoutEffect below.
-  const [anchor, setAnchor] = useState<BecauseYouLikeAnchor | null>(() =>
-    hasValidReserve(activeServerId, poolKey) ? _becauseReserve!.anchor : null,
-  );
-  const [recs, setRecs] = useState<SubsonicAlbum[]>(() =>
-    hasValidReserve(activeServerId, poolKey) ? _becauseReserve!.recs : [],
-  );
+  // Initialise state in priority order: reserve (new batch) > session cache (stale-while-
+  // revalidate) > skeleton. The cache lookup does NOT need poolKey so it fires correctly
+  // even on the first render when pool is still [].
+  const [anchor, setAnchor] = useState<BecauseYouLikeAnchor | null>(() => {
+    if (hasValidReserve(activeServerId, poolKey)) return _becauseReserve!.anchor;
+    return readBecauseYouLikeCache(activeServerId)?.anchor ?? null;
+  });
+  const [recs, setRecs] = useState<SubsonicAlbum[]>(() => {
+    if (hasValidReserve(activeServerId, poolKey)) return _becauseReserve!.recs;
+    return readBecauseYouLikeCache(activeServerId)?.recs ?? [];
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
-  const [refreshing, setRefreshing] = useState(() => !hasValidReserve(activeServerId, poolKey));
+  const [refreshing, setRefreshing] = useState(() => {
+    if (hasValidReserve(activeServerId, poolKey)) return false;
+    const snap = readBecauseYouLikeCache(activeServerId);
+    return !snap || snap.recs.length === 0;
+  });
   const skeletonSlots = useBecauseRowSlotCount(refreshing, SHOW_COUNT);
   const contentReady = !refreshing && Boolean(anchor) && recs.length > 0;
   const contentSlots = useBecauseRowSlotCount(contentReady, recs.length);
 
   /** On every navigation / server / pool change: apply reserve immediately
-   *  (synchronous, before browser paint) or reset to skeleton for a fresh fetch. */
+   *  (synchronous, before browser paint) or fall back to session cache (stale-
+   *  while-revalidate), only clearing to skeleton when nothing is available. */
   useLayoutEffect(() => {
     if (hasValidReserve(activeServerId, poolKey)) {
-      // Show reserve content right away — covers already in diskSrcCache.
       setAnchor(_becauseReserve!.anchor);
       setRecs(_becauseReserve!.recs);
       setRefreshing(false);
     } else {
-      setRefreshing(true);
-      setAnchor(null);
-      setRecs([]);
+      const snap = readBecauseYouLikeCache(activeServerId);
+      if (snap && snap.recs.length > 0) {
+        setAnchor(snap.anchor);
+        setRecs(snap.recs);
+        setRefreshing(false);
+      } else {
+        setRefreshing(true);
+        setAnchor(null);
+        setRecs([]);
+      }
     }
   }, [location.key, activeServerId, poolKey]);
 
@@ -424,9 +436,14 @@ export default function BecauseYouLikeRail({
       }
 
       // ── Full-fetch path (first visit or reserve miss) ──────────────────
-      setRefreshing(true);
-      setAnchor(null);
-      setRecs([]);
+      // Only clear to skeleton if nothing is currently displayed. When cached
+      // content is visible, leave it in place and swap silently (stale-while-
+      // revalidate) — better UX than flashing a skeleton for a network round-trip.
+      if (!snap || snap.recs.length === 0) {
+        setRefreshing(true);
+        setAnchor(null);
+        setRecs([]);
+      }
 
       const result = await fetchBecauseYouLike(pool, anchorHistKey, picksHistKey);
       if (cancelled) return;
