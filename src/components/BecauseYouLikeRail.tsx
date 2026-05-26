@@ -54,7 +54,10 @@ const ROW_STAGGER_MS = 150;
 // ── Module-level reserve: next batch pre-fetched in background after each display ──
 type BecauseReserve = {
   serverId: string;
-  poolKey: string;
+  // poolKey intentionally omitted — reserve is valid for any pool state on the
+  // same server. Pool (top-played artists) changes slowly; showing a slightly-off
+  // anchor once before the next fill corrects it is far better than showing a
+  // skeleton because the pool hadn't loaded yet.
   anchor: BecauseYouLikeAnchor;
   recs: SubsonicAlbum[];
   /** Rotation state to commit to localStorage when this reserve is consumed. */
@@ -177,7 +180,6 @@ async function fetchBecauseYouLike(
 async function fillBecauseReserve(
   pool: BecauseYouLikeAnchor[],
   serverId: string,
-  poolKey: string,
   anchorHistKey: string | null,
   picksHistKey: string | null,
 ): Promise<void> {
@@ -186,7 +188,7 @@ async function fillBecauseReserve(
   try {
     const result = await fetchBecauseYouLike(pool, anchorHistKey, picksHistKey);
     if (result) {
-      _becauseReserve = { serverId, poolKey, ...result };
+      _becauseReserve = { serverId, ...result };
     }
   } catch {
     /* Network failure — next visit falls back to a fresh fetch. */
@@ -305,12 +307,8 @@ function picksHistoryKey(serverId: string | null): string | null {
   return serverId ? `${PICKS_HISTORY_KEY_PREFIX}${serverId}` : null;
 }
 
-function hasValidReserve(serverId: string | null, poolKey: string): boolean {
-  return (
-    _becauseReserve != null &&
-    _becauseReserve.serverId === (serverId ?? '') &&
-    _becauseReserve.poolKey === poolKey
-  );
+function hasValidReserve(serverId: string | null): boolean {
+  return _becauseReserve != null && _becauseReserve.serverId === (serverId ?? '');
 }
 
 export default function BecauseYouLikeRail({
@@ -331,20 +329,20 @@ export default function BecauseYouLikeRail({
   );
   const location = useLocation();
   // Initialise state in priority order: reserve (new batch) > session cache (stale-while-
-  // revalidate) > skeleton. The cache lookup does NOT need poolKey so it fires correctly
-  // even on the first render when pool is still [].
+  // revalidate) > skeleton. Both checks work without poolKey so they fire correctly on the
+  // first render when pool is still [] (Home.tsx loads mostPlayed asynchronously).
   const [anchor, setAnchor] = useState<BecauseYouLikeAnchor | null>(() => {
-    if (hasValidReserve(activeServerId, poolKey)) return _becauseReserve!.anchor;
+    if (hasValidReserve(activeServerId)) return _becauseReserve!.anchor;
     return readBecauseYouLikeCache(activeServerId)?.anchor ?? null;
   });
   const [recs, setRecs] = useState<SubsonicAlbum[]>(() => {
-    if (hasValidReserve(activeServerId, poolKey)) return _becauseReserve!.recs;
+    if (hasValidReserve(activeServerId)) return _becauseReserve!.recs;
     return readBecauseYouLikeCache(activeServerId)?.recs ?? [];
   });
   const containerRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
   const [refreshing, setRefreshing] = useState(() => {
-    if (hasValidReserve(activeServerId, poolKey)) return false;
+    if (hasValidReserve(activeServerId)) return false;
     const snap = readBecauseYouLikeCache(activeServerId);
     return !snap || snap.recs.length === 0;
   });
@@ -356,7 +354,7 @@ export default function BecauseYouLikeRail({
    *  (synchronous, before browser paint) or fall back to session cache (stale-
    *  while-revalidate), only clearing to skeleton when nothing is available. */
   useLayoutEffect(() => {
-    if (hasValidReserve(activeServerId, poolKey)) {
+    if (hasValidReserve(activeServerId)) {
       setAnchor(_becauseReserve!.anchor);
       setRecs(_becauseReserve!.recs);
       setRefreshing(false);
@@ -393,6 +391,12 @@ export default function BecauseYouLikeRail({
   useEffect(() => {
     let cancelled = false;
     if (pool.length === 0) {
+      // Pool is still being loaded (Home.tsx fetches data asynchronously). Do not
+      // run the fetch/reserve logic yet — useLayoutEffect already shows reserve or
+      // cache content. The effect will re-run once pool is populated.
+      return;
+    }
+    if (!activeServerId) {
       setAnchor(null);
       setRecs([]);
       setRefreshing(false);
@@ -403,12 +407,9 @@ export default function BecauseYouLikeRail({
     const picksHistKey = picksHistoryKey(activeServerId);
     const snap = readBecauseYouLikeCache(activeServerId);
 
-    // Consume module-level reserve if it matches the current context.
-    const reserved = (
-      _becauseReserve != null &&
-      _becauseReserve.serverId === (activeServerId ?? '') &&
-      _becauseReserve.poolKey === poolKey
-    ) ? _becauseReserve : null;
+    // Consume module-level reserve (keyed by serverId only — poolKey omitted so
+    // the reserve is usable even before pool has loaded on first render).
+    const reserved = hasValidReserve(activeServerId) ? _becauseReserve : null;
     _becauseReserve = null;
 
     (async () => {
@@ -431,7 +432,7 @@ export default function BecauseYouLikeRail({
         }
         setRefreshing(false);
         // Pre-fetch the next batch so the next visit is also instant.
-        void fillBecauseReserve(pool, activeServerId ?? '', poolKey, anchorHistKey, picksHistKey);
+        void fillBecauseReserve(pool, activeServerId, anchorHistKey, picksHistKey);
         return;
       }
 
@@ -465,7 +466,7 @@ export default function BecauseYouLikeRail({
         }
         setRefreshing(false);
         // Pre-fetch next batch so the next visit is instant.
-        void fillBecauseReserve(pool, activeServerId ?? '', poolKey, anchorHistKey, picksHistKey);
+        void fillBecauseReserve(pool, activeServerId, anchorHistKey, picksHistKey);
       } else {
         // Network failed — restore session cache if available.
         if (snap) {
