@@ -108,11 +108,22 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
     if (nextRef.radioAdded && !isRadioFetching()) {
       const remainingRadio = queueItems.slice(nextIdx + 1).filter(r => r.radioAdded).length;
       if (remainingRadio <= 2) {
-        const artistId = nextTrack.artistId ?? getCurrentRadioArtistId() ?? null;
-        const artistName = nextTrack.artist;
-        if (artistId) {
+        // H2: nextTrack may be a placeholder if its ref is still cold — empty
+        // artist/artistId would seed `getSimilarSongs2('')` and silently
+        // return nothing, leaving radio dry. Prefer the just-played
+        // currentTrack (always fully resolved in playerStore) and the stored
+        // radio seed artist; fall back to nextTrack metadata only when those
+        // are missing. Skip the top-up entirely when no stable seed exists
+        // rather than firing a non-deterministic empty request.
+        const seedArtistId =
+          currentTrack?.artistId
+          ?? getCurrentRadioArtistId()
+          ?? nextTrack.artistId
+          ?? null;
+        const seedArtistName = currentTrack?.artist || nextTrack.artist;
+        if (seedArtistId && seedArtistName) {
           setRadioFetching(true);
-          Promise.all([getSimilarSongs2(artistId), getTopSongs(artistName)])
+          Promise.all([getSimilarSongs2(seedArtistId), getTopSongs(seedArtistName)])
             .then(([similar, top]) => {
               const existingIds = new Set(get().queueItems.map(r => r.trackId));
               // Lead with similar (other artists) for variety; top tracks
