@@ -9,6 +9,7 @@
 @import './main-content.css';
 @import './offline-banner.css';
 @import './offline-storage-full-banner.css';
+@import './lossless-mode-banner.css';
 @import './player-bar.css';
 @import './eq-popup.css';
 @import './queue-panel.css';

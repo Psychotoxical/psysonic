@@ -25,6 +25,7 @@ import { search } from '../../api/subsonicSearch';
 import { libraryScopeForServer } from '../../api/subsonicClient';
 import { libraryIsReady } from './libraryReady';
 import { logLibrarySearch, timed } from './libraryDevLog';
+import { isLosslessSuffix } from './losslessFormats';
 import { OXIMEDIA_MOOD_SEARCH_ENABLED } from './trackEnrichment';
 
 export type AdvancedResultType = 'all' | 'artists' | 'albums' | 'songs';
@@ -38,6 +39,7 @@ export interface LocalSearchOpts {
   bpmFrom: string;
   bpmTo: string;
   moodGroup: string;
+  losslessOnly?: boolean;
   resultType: AdvancedResultType;
 }
 
@@ -89,6 +91,9 @@ function buildFilters(opts: LocalSearchOpts): LibraryFilterClause[] {
   if (OXIMEDIA_MOOD_SEARCH_ENABLED && opts.moodGroup) {
     filters.push({ field: 'mood_group', op: 'eq', value: opts.moodGroup });
   }
+  if (opts.losslessOnly) {
+    filters.push({ field: 'lossless', op: 'is_true' });
+  }
   return filters;
 }
 
@@ -107,6 +112,7 @@ function applyClientSongFilters(
   if (to !== null) r = r.filter(s => !s.year || s.year <= to);
   if (bpmFrom !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm >= bpmFrom);
   if (bpmTo !== null) r = r.filter(s => s.bpm != null && s.bpm > 0 && s.bpm <= bpmTo);
+  if (opts.losslessOnly) r = r.filter(s => isLosslessSuffix(s.suffix));
   return r;
 }
 
@@ -223,6 +229,12 @@ export async function runNetworkAdvancedTextSearch(
   if (g) albums = albums.filter(a => a.genre?.toLowerCase() === g.toLowerCase());
   if (from !== null) albums = albums.filter(a => !a.year || a.year >= from);
   if (to !== null) albums = albums.filter(a => !a.year || a.year <= to);
+  if (opts.losslessOnly) {
+    const albumIds = new Set(songs.map(s => s.albumId).filter(Boolean));
+    albums = albums.filter(a => albumIds.has(a.id));
+    const artistIds = new Set(songs.map(s => s.artistId).filter(Boolean));
+    artists = artists.filter(a => artistIds.has(a.id));
+  }
 
   return {
     artists: rt === 'albums' || rt === 'songs' ? [] : artists,

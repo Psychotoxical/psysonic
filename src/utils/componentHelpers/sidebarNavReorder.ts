@@ -1,5 +1,5 @@
 import { ALL_NAV_ITEMS } from '../../config/navItems';
-import type { SidebarItemConfig } from '../../store/sidebarStore';
+import { CONSERVED_SIDEBAR_NAV_IDS, type SidebarItemConfig } from '../../store/sidebarStore';
 
 export type SidebarNavSection = 'library' | 'system';
 
@@ -14,6 +14,7 @@ export function getLibraryItemsForReorder(
   randomNavMode: 'hub' | 'separate',
 ): SidebarItemConfig[] {
   return items.filter(cfg => {
+    if (CONSERVED_SIDEBAR_NAV_IDS.has(cfg.id)) return false;
     if (!ALL_NAV_ITEMS[cfg.id] || ALL_NAV_ITEMS[cfg.id].section !== 'library') return false;
     if (randomNavMode === 'hub' && (cfg.id === 'randomMix' || cfg.id === 'randomAlbums' || cfg.id === 'luckyMix')) return false;
     if (randomNavMode === 'separate' && cfg.id === 'randomPicker') return false;
@@ -27,7 +28,7 @@ export function getSystemItemsForReorder(items: SidebarItemConfig[]): SidebarIte
 
 /** Same entries as in Settings toggles — safe to hide via drag-out. */
 export function isSidebarNavItemUserHideable(id: string): boolean {
-  return Boolean(ALL_NAV_ITEMS[id]);
+  return Boolean(ALL_NAV_ITEMS[id]) && !CONSERVED_SIDEBAR_NAV_IDS.has(id);
 }
 
 /**

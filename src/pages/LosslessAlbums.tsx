@@ -4,6 +4,7 @@ import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AlbumCard from '../components/AlbumCard';
+import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 import { ndListLosslessAlbumsPage } from '../api/navidromeBrowse';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
@@ -22,16 +23,16 @@ import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { runLocalLosslessAlbums } from '../utils/library/browseTextSearch';
 
-/** Per-loadMore budget — tuned for snappy initial paint over completeness.
- *  100 songs ≈ 500 KB response (Navidrome's /api/song carries lyrics/tags/
- *  participants and ignores `_fields`); 2 internal pages = ~1 MB worst case
- *  per loadMore, much faster than the rail's 5×200 = 1000-song budget. The
- *  page makes up for the smaller batch by triggering a fresh loadMore on
- *  scroll, so the user sees albums sooner instead of waiting on a fat call. */
-const PAGE_TARGET_ALBUMS = 12;
-const PAGE_SONGS_PER_FETCH = 100;
-const PAGE_MAX_FETCHES_PER_LOAD = 2;
+/** Local index page size — SQLite is cheap; larger pages than the network walk. */
+const LOCAL_PAGE_SIZE = 30;
+
+/** Per-loadMore budget for the Navidrome bit_depth song-stream fallback. */
+const NETWORK_TARGET_ALBUMS = 12;
+const NETWORK_SONGS_PER_FETCH = 100;
+const NETWORK_MAX_FETCHES_PER_LOAD = 2;
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
@@ -43,6 +44,7 @@ export default function LosslessAlbums() {
   const auth = useAuthStore();
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -52,6 +54,8 @@ export default function LosslessAlbums() {
   const [hasMore, setHasMore] = useState(true);
   const [unsupported, setUnsupported] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  /** `true` = local SQLite; `false` = Navidrome song-stream walk; `null` until first fetch picks. */
+  const [useLocalIndex, setUseLocalIndex] = useState<boolean | null>(null);
 
   const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(albums);
   const selectedAlbums = albums.filter(a => selectedIds.has(a.id));
@@ -59,17 +63,10 @@ export default function LosslessAlbums() {
   const toggleSelectionMode = () => { setSelectionMode(v => !v); resetSelection(); };
   const clearSelection = () => { setSelectionMode(false); resetSelection(); };
 
-  /** Pagination cursor + dedupe set, kept across loadMore calls so each page
-   *  resumes the song-stream walk where the previous one left off. Reset to
-   *  a fresh pair whenever the active server changes. */
+  /** Network pagination cursor — unused on the local path. */
   const songCursor = useRef(0);
   const seenIds = useRef<Set<string>>(new Set());
-  /** Re-entrancy guard. The IntersectionObserver can fire repeatedly while a
-   *  previous loadMore is still in flight (fast scroll, sentinel re-entering
-   *  the rootMargin band) — without this guard, two concurrent calls would
-   *  read the same songCursor, fetch the same song page, and push duplicate
-   *  album entries because each captures its own snapshot of the seen-Set
-   *  reference. */
+  const localOffset = useRef(0);
   const inFlight = useRef(false);
   const observerTarget = useRef<HTMLDivElement>(null);
   const scrollBodyRef = useRef<HTMLDivElement | null>(null);
@@ -85,62 +82,97 @@ export default function LosslessAlbums() {
     activeServerId,
   ]);
 
+  const loadMoreNetwork = useCallback(async (onProgress?: (albums: SubsonicAlbum[]) => void) => {
+    const page = await ndListLosslessAlbumsPage({
+      startSongOffset: songCursor.current,
+      seenAlbumIds: seenIds.current,
+      targetNewAlbums: NETWORK_TARGET_ALBUMS,
+      songsPerPage: NETWORK_SONGS_PER_FETCH,
+      maxPagesPerCall: NETWORK_MAX_FETCHES_PER_LOAD,
+      onProgress: onProgress
+        ? (entries) => { onProgress(entries.map(e => e.album)); }
+        : undefined,
+    });
+    songCursor.current = page.nextSongOffset;
+    return page;
+  }, []);
+
+  const loadMoreLocal = useCallback(async () => {
+    const page = await runLocalLosslessAlbums(serverId, LOCAL_PAGE_SIZE, localOffset.current);
+    if (!page) return null;
+    localOffset.current += page.albums.length;
+    return page;
+  }, [serverId]);
+
   const loadMore = useCallback(async () => {
-    if (inFlight.current) return;
+    if (inFlight.current || useLocalIndex === null) return;
     inFlight.current = true;
     setLoading(true);
     try {
-      const page = await ndListLosslessAlbumsPage({
-        startSongOffset: songCursor.current,
-        seenAlbumIds: seenIds.current,
-        targetNewAlbums: PAGE_TARGET_ALBUMS,
-        songsPerPage: PAGE_SONGS_PER_FETCH,
-        maxPagesPerCall: PAGE_MAX_FETCHES_PER_LOAD,
-        onProgress: (newEntries) => {
-          setAlbums(prev => [...prev, ...newEntries.map(e => e.album)]);
-        },
-      });
-      songCursor.current = page.nextSongOffset;
-      setHasMore(!page.done);
+      if (useLocalIndex) {
+        const page = await loadMoreLocal();
+        if (!page) {
+          setHasMore(false);
+          return;
+        }
+        setAlbums(prev => [...prev, ...page.albums]);
+        setHasMore(page.hasMore);
+      } else {
+        const page = await loadMoreNetwork(albums => {
+          setAlbums(prev => [...prev, ...albums]);
+        });
+        setHasMore(!page.done);
+      }
     } catch {
-      setUnsupported(true);
+      if (!useLocalIndex) {
+        setUnsupported(true);
+      }
       setHasMore(false);
     } finally {
       inFlight.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [loadMoreLocal, loadMoreNetwork, useLocalIndex]);
 
   useEffect(() => {
     let cancelled = false;
 
     songCursor.current = 0;
     seenIds.current = new Set();
+    localOffset.current = 0;
     inFlight.current = false;
     setAlbums([]);
     setHasMore(true);
     setUnsupported(false);
+    setUseLocalIndex(null);
     setLoading(true);
 
     (async () => {
       inFlight.current = true;
       try {
-        const page = await ndListLosslessAlbumsPage({
-          startSongOffset: 0,
-          seenAlbumIds: seenIds.current,
-          targetNewAlbums: PAGE_TARGET_ALBUMS,
-          songsPerPage: PAGE_SONGS_PER_FETCH,
-          maxPagesPerCall: PAGE_MAX_FETCHES_PER_LOAD,
-          onProgress: (newEntries) => {
-            if (cancelled) return;
-            setAlbums(prev => [...prev, ...newEntries.map(e => e.album)]);
-          },
+        if (indexEnabled && serverId) {
+          const local = await runLocalLosslessAlbums(serverId, LOCAL_PAGE_SIZE, 0);
+          if (cancelled) return;
+          if (local) {
+            setUseLocalIndex(true);
+            localOffset.current = local.albums.length;
+            setAlbums(local.albums);
+            setHasMore(local.hasMore);
+            return;
+          }
+        }
+
+        if (cancelled) return;
+        setUseLocalIndex(false);
+        const page = await loadMoreNetwork(albums => {
+          if (!cancelled) setAlbums(prev => [...prev, ...albums]);
         });
         if (cancelled) return;
         songCursor.current = page.nextSongOffset;
         setHasMore(!page.done);
       } catch {
         if (cancelled) return;
+        setUseLocalIndex(false);
         setUnsupported(true);
         setHasMore(false);
       } finally {
@@ -150,10 +182,10 @@ export default function LosslessAlbums() {
     })();
 
     return () => { cancelled = true; };
-  }, [activeServerId]);
+  }, [activeServerId, indexEnabled, loadMoreNetwork, serverId]);
 
   useEffect(() => {
-    if (!hasMore) return;
+    if (!hasMore || useLocalIndex === null) return;
     const node = observerTarget.current;
     if (!node) return;
     const root = scrollBodyRef.current;
@@ -166,7 +198,7 @@ export default function LosslessAlbums() {
     );
     obs.observe(node);
     return () => obs.disconnect();
-  }, [hasMore, loadMore, loading, albums.length, scrollBodyEl]);
+  }, [hasMore, loadMore, loading, albums.length, scrollBodyEl, useLocalIndex]);
 
   const handleEnqueueSelected = async () => {
     if (selectedAlbums.length === 0) return;
@@ -232,7 +264,7 @@ export default function LosslessAlbums() {
                   ? t('albums.selectionCount', { count: selectedIds.size })
                   : t('home.losslessAlbums')}
               </h1>
-              {!(selectionMode && selectedIds.size > 0) && (
+              {!(selectionMode && selectedIds.size > 0) && useLocalIndex === false && (
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
                   {t('losslessAlbums.slowFetchHint')}
                 </p>
@@ -282,6 +314,7 @@ export default function LosslessAlbums() {
           albums.length,
           hasMore,
           selectionMode,
+          useLocalIndex,
           perfFlags.disableMainstageVirtualLists,
           perfFlags.disableMainstageStickyHeader,
         ]}
@@ -311,6 +344,7 @@ export default function LosslessAlbums() {
               renderItem={a => (
                 <AlbumCard
                   album={a}
+                  linkQuery={LOSSLESS_MODE_QUERY}
                   selectionMode={selectionMode}
                   selected={selectedIds.has(a.id)}
                   onToggleSelect={toggleSelect}

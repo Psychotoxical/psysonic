@@ -102,6 +102,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Lossless — local index browse, filters, and drill-down
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#871](https://github.com/Psychotoxical/psysonic/pull/871)**
+
+* **Local index:** `library_list_lossless_albums` queries indexed tracks by lossless suffix allowlist; `/lossless-albums` and Home rail use SQLite when the library index is ready, with Navidrome bit_depth walk as fallback.
+* **Advanced Search:** `lossless is true` on tracks, albums, and artists (local + network); artist/album links open detail with `?lossless=1` and a lossless-mode banner.
+* **All Albums:** lossless toggle (local index only — plain lossless, year, and genre combinations).
+* **Sidebar:** dedicated Lossless page route conserved; nav entry hidden by default and removed from visibility settings.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text

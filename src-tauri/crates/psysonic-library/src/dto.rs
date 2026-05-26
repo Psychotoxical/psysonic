@@ -541,6 +541,51 @@ pub struct LibraryLiveSearchResponse {
     pub source: String,
 }
 
+/// `library_list_lossless_albums` request — paginated lossless browse (local index).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryLosslessAlbumsRequest {
+    pub server_id: String,
+    #[serde(default)]
+    pub library_scope: Option<String>,
+    #[serde(default = "default_lossless_limit")]
+    pub limit: u32,
+    #[serde(default)]
+    pub offset: u32,
+}
+
+fn default_lossless_limit() -> u32 {
+    30
+}
+
+/// `library_list_lossless_albums` response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryLosslessAlbumsResponse {
+    pub albums: Vec<LibraryAlbumDto>,
+    pub has_more: bool,
+    pub source: String,
+}
+
+/// `library_get_artist_lossless_browse` request.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryArtistLosslessBrowseRequest {
+    pub server_id: String,
+    pub artist_id: String,
+    #[serde(default)]
+    pub library_scope: Option<String>,
+}
+
+/// Lossless albums + tracks for one artist (local index).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryArtistLosslessBrowseResponse {
+    pub albums: Vec<LibraryAlbumDto>,
+    pub tracks: Vec<LibraryTrackDto>,
+    pub source: String,
+}
+
 /// `library_search_cross_server` response (§5.5B / §5.9).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

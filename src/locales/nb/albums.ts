@@ -14,6 +14,9 @@ export const albums = {
   compilationTooltipAll: 'Alle album · klikk: kun samleplater',
   compilationTooltipOnly: 'Kun samleplater · klikk: skjul samleplater',
   compilationTooltipHide: 'Samleplater skjult · klikk: vis alle',
+  losslessLabel: 'Lossless',
+  losslessTooltipOn: 'Kun lossless-album · klikk: vis alle',
+  losslessTooltipOff: 'Vis kun lossless-album',
   select: 'Multivalg',
   startSelect: 'Aktiver multivalg',
   cancelSelect: 'Avbryt',
@@ -29,4 +32,7 @@ export const albums = {
   downloadZipFailed: 'Kunne ikke laste ned {{name}}',
   offlineQueuing: 'Legger {{count}} album i kø for offline…',
   offlineFailed: 'Kunne ikke legge til {{name}} offline',
+  noFavorites: 'Ingen favorittalbum samsvarer med gjeldende filtre.',
+  noCompilations: 'Ingen samleplater samsvarer med gjeldende filtre.',
+  noMatchingFilters: 'Ingen album samsvarer med gjeldende filtre.',
 };

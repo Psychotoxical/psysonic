@@ -14,6 +14,9 @@ export const albums = {
   compilationTooltipAll: '所有专辑 · 点击：仅合辑',
   compilationTooltipOnly: '仅合辑 · 点击：隐藏合辑',
   compilationTooltipHide: '已隐藏合辑 · 点击：显示全部',
+  losslessLabel: '无损',
+  losslessTooltipOn: '仅无损专辑 · 点击：显示全部',
+  losslessTooltipOff: '仅显示无损专辑',
   select: '多选',
   startSelect: '启用多选',
   cancelSelect: '取消',
@@ -29,4 +32,7 @@ export const albums = {
   downloadZipFailed: '下载 {{name}} 失败',
   offlineQueuing: '正在将 {{count}} 张专辑加入离线队列…',
   offlineFailed: '添加 {{name}} 离线失败',
+  noFavorites: '没有符合当前筛选条件的收藏专辑。',
+  noCompilations: '没有符合当前筛选条件的合辑。',
+  noMatchingFilters: '没有符合当前筛选条件的专辑。',
 };

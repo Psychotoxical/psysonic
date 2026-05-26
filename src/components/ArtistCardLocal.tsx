@@ -9,15 +9,18 @@ import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 
 interface Props {
   artist: SubsonicArtist;
+  /** Appended to `/artist/:id`, e.g. `lossless=1`. */
+  linkQuery?: string;
 }
 
-export default function ArtistCardLocal({ artist }: Props) {
+export default function ArtistCardLocal({ artist, linkQuery }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const coverId = coverArtIdFromArtist(artist);
+  const href = linkQuery ? `/artist/${artist.id}?${linkQuery}` : `/artist/${artist.id}`;
 
   return (
-    <div className="artist-card" onClick={() => navigate(`/artist/${artist.id}`)}>
+    <div className="artist-card" onClick={() => navigate(href)}>
       <div className="artist-card-avatar">
         {artist.coverArt || artist.id ? (
           <CoverArtImage

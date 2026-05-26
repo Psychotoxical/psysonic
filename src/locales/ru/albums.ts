@@ -14,6 +14,9 @@ export const albums = {
   compilationTooltipAll: 'Все альбомы · клик: только сборники',
   compilationTooltipOnly: 'Только сборники · клик: скрыть сборники',
   compilationTooltipHide: 'Сборники скрыты · клик: показать всё',
+  losslessLabel: 'Lossless',
+  losslessTooltipOn: 'Только lossless-альбомы · клик: показать все',
+  losslessTooltipOff: 'Показать только lossless-альбомы',
   select: 'Множественный выбор',
   startSelect: 'Включить множественный выбор',
   cancelSelect: 'Отмена',
@@ -33,4 +36,7 @@ export const albums = {
   downloadZipFailed: 'Не удалось скачать {{name}}',
   offlineQueuing: 'Добавление {{count}} альбом(ов) в офлайн…',
   offlineFailed: 'Не удалось добавить {{name}} офлайн',
+  noFavorites: 'Нет избранных альбомов с текущими фильтрами.',
+  noCompilations: 'Нет сборников с текущими фильтрами.',
+  noMatchingFilters: 'Нет альбомов с текущими фильтрами.',
 };
