@@ -47,6 +47,7 @@ import { useGlobalDndAndSelectionBlockers } from '../hooks/useGlobalDndAndSelect
 import { useAppActivityTracking } from '../hooks/useAppActivityTracking';
 import { useMainScrollingIndicator } from '../hooks/useMainScrollingIndicator';
 import { useCoverNavigationPriority } from '../hooks/useCoverNavigationPriority';
+import { useNowPlayingPrewarm } from '../hooks/useNowPlayingPrewarm';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
@@ -98,6 +99,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   useCoverNavigationPriority();
+  useNowPlayingPrewarm();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
