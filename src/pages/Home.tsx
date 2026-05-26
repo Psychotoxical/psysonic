@@ -113,12 +113,21 @@ export default function Home() {
     const songRefs = discoverSongs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : []));
     const unregHero = coverPrefetchRegister(heroRefs, { surface: 'dense', priority: 'high' });
     const unregRecent = coverPrefetchRegister(recentRefs, { surface: 'dense', priority: 'high' });
-    const cappedRest = [...restAlbumRefs, ...artistRefs, ...songRefs].slice(0, 24);
+    // The album-and-artist `cappedRest` bucket is sized for the visible album
+    // rails (random + mostPlayed + recentlyPlayed + starred = 48 refs, plus
+    // 16 artist refs) and would otherwise crowd `songRefs` out entirely at
+    // the 24-entry slice. Register the Discover Songs rail on its own with
+    // its own modest cap so the song row gets a fair share of background
+    // bandwidth without inflating the 'low' bucket.
+    const cappedRest = [...restAlbumRefs, ...artistRefs].slice(0, 24);
     const unregRest = coverPrefetchRegister(cappedRest, { surface: 'dense', priority: 'low' });
+    const cappedSongs = songRefs.slice(0, 16);
+    const unregSongs = coverPrefetchRegister(cappedSongs, { surface: 'dense', priority: 'middle' });
     return () => {
       unregHero();
       unregRecent();
       unregRest();
+      unregSongs();
     };
   }, [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs]);
 

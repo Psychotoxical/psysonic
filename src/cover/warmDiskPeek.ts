@@ -154,16 +154,23 @@ export async function warmHomeMainstageCovers(snapshot: {
   // Prepare above-the-fold mainstage covers ahead of return navigation:
   // if a refreshed snapshot introduces new albums not yet on disk, ensure them
   // now in background so Hero / first rows don't wait on per-cell ensure.
+  // `discoverSongs` shares the same dense surface as the album rails — the
+  // pre-merge code only walked album collections here and the song row was
+  // left to lazy per-card ensure, which produced visible placeholder cards
+  // on cold caches.
+  const discoverSongsForEnsure = snapshot.discoverSongs ?? [];
   await Promise.allSettled([
     ensureAlbumCoverMisses(snapshot.heroAlbums, 220, { surface: 'dense', limit: 8 }),
     ensureAlbumCoverMisses(snapshot.recent, 300, { surface: 'dense', limit: 14 }),
     ensureAlbumCoverMisses(snapshot.random, 300, { surface: 'dense', limit: 10 }),
+    ensureAlbumCoverMisses(discoverSongsForEnsure, 200, { surface: 'dense', limit: 12 }),
   ]);
 
   // Fire-and-forget decode warmup to reduce first-paint "from cache" delay.
   void predecodeWarmAlbums(snapshot.heroAlbums, 220, 8);
   void predecodeWarmAlbums(snapshot.recent, 300, 10);
   void predecodeWarmAlbums(snapshot.random, 300, 8);
+  void predecodeWarmAlbums(discoverSongsForEnsure, 200, 8);
 }
 
 async function predecodeWarmAlbums(
