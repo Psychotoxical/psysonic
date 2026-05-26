@@ -48,10 +48,11 @@ describe('playbackServer', () => {
     expect(getPlaybackServerId()).toBe('b');
   });
 
-  it('bindQueueServerForPlayback pins active server', () => {
+  it('bindQueueServerForPlayback pins active server as canonical index key', () => {
     useAuthStore.setState({ activeServerId: 'b' });
     bindQueueServerForPlayback();
-    expect(usePlayerStore.getState().queueServerId).toBe('b');
+    // B1: writers emit the canonical (URL-derived) server key, not the UUID.
+    expect(usePlayerStore.getState().queueServerId).toBe('b.test');
   });
 
   it('playbackServerDiffersFromActive when queue server != active', () => {
@@ -68,7 +69,8 @@ describe('playbackServer', () => {
     const s = usePlayerStore.getState();
     expect(s.queueItems).toEqual([]);
     expect(s.currentTrack).toBeNull();
-    expect(s.queueServerId).toBe('b');
+    // Canonical index key on re-pin (B1).
+    expect(s.queueServerId).toBe('b.test');
     expect(playbackServerDiffersFromActive()).toBe(false);
   });
 
@@ -76,6 +78,9 @@ describe('playbackServer', () => {
     useAuthStore.setState({ activeServerId: 'a' });
     prepareActiveServerForNewMix();
     expect(usePlayerStore.getState().queueItems).toHaveLength(1);
+    // Pre-existing queueServerId='a' (UUID) is tolerated by the reader helpers
+    // even while writers emit canonical index keys — this is the migration
+    // window the resolver compat path covers (B1).
     expect(usePlayerStore.getState().queueServerId).toBe('a');
   });
 

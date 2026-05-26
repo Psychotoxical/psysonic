@@ -8,7 +8,11 @@ import { switchActiveServer } from '../server/switchActiveServer';
 import { sameQueueTrackId } from './queueIdentity';
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import { resolveServerIdForIndexKey } from '../server/serverLookup';
-import { resolveIndexKey, serverIndexKeyFromUrl } from '../server/serverIndexKey';
+import {
+  resolveIndexKey,
+  serverIndexKeyForProfile,
+  serverIndexKeyFromUrl,
+} from '../server/serverIndexKey';
 
 /** Server that owns the current queue / stream URLs (may differ from the browsed server). */
 export function getPlaybackServerId(): string {
@@ -43,7 +47,13 @@ export function getPlaybackCacheServerKey(): string {
 export function bindQueueServerForPlayback(): void {
   const sid = useAuthStore.getState().activeServerId;
   if (!sid) return;
-  usePlayerStore.setState({ queueServerId: sid });
+  const server = useAuthStore.getState().servers.find(s => s.id === sid);
+  // Canonical index key on writes so mixed-server queues stay unambiguous —
+  // every ref/queue-level server identifier follows the same shape that the
+  // library index already uses. Falls back to the raw id when the server
+  // profile cannot be resolved (e.g. tests with a stubbed auth store).
+  const canonical = server ? serverIndexKeyForProfile(server) || sid : sid;
+  usePlayerStore.setState({ queueServerId: canonical });
 }
 
 export function clearQueueServerForPlayback(): void {

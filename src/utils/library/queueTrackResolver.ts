@@ -3,6 +3,7 @@ import { getSong } from '../../api/subsonicLibrary';
 import { usePlayerStore } from '../../store/playerStore';
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
+import { canonicalQueueServerKey } from '../server/serverIndexKey';
 import { trackToSong } from './advancedSearchLocal';
 import { libraryIsReady } from './libraryReady';
 
@@ -70,7 +71,17 @@ export function getCachedTrack(ref: QueueItemRef): Track | undefined {
   // Pure read — no LRU bump. Called from component render (QueueList rows), where
   // a Map mutation (delete+set) is a render side-effect. Recency is set at write
   // time in cacheSet instead; this cache is effectively insertion-order/FIFO.
-  return cache.get(refKey(ref));
+  const direct = cache.get(refKey(ref));
+  if (direct) return direct;
+  // Compat: refs persisted before B1 (queue server identity canonicalization)
+  // may still carry a UUID. Writes are canonical now, so the live cache key
+  // is `${indexKey}:${trackId}`; map UUID → indexKey on read to bridge the
+  // migration window.
+  const canonical = canonicalQueueServerKey(ref.serverId);
+  if (canonical && canonical !== ref.serverId) {
+    return cache.get(refKey({ serverId: canonical, trackId: ref.trackId }));
+  }
+  return undefined;
 }
 
 /** Lightweight placeholder shown until a ref resolves. */
@@ -102,10 +113,13 @@ export function applyQueueOverrides(track: Track): Track {
   return next;
 }
 
-/** Seed the cache with already-known tracks (e.g. on enqueue) — no fetch. */
+/** Seed the cache with already-known tracks (e.g. on enqueue) — no fetch.
+ *  Canonicalizes the caller-supplied server id so seed and refs always agree
+ *  on a single key shape. */
 export function seedQueueResolver(serverId: string, tracks: Track[]): void {
   if (tracks.length === 0) return;
-  for (const t of tracks) cacheSet(refKey({ serverId, trackId: t.id }), t);
+  const canonicalId = canonicalQueueServerKey(serverId);
+  for (const t of tracks) cacheSet(refKey({ serverId: canonicalId, trackId: t.id }), t);
   notify();
 }
 

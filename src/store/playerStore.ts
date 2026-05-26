@@ -4,6 +4,7 @@ import { createSafeJSONStorage } from './safeStorage';
 import { emitPlaybackProgress } from './playbackProgress';
 import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
+import { canonicalQueueServerKey } from '../utils/server/serverIndexKey';
 import { readInitialQueueVisibility } from './queueVisibilityStorage';
 import { createLastfmActions } from './lastfmActions';
 import { createMiscActions } from './miscActions';
@@ -110,18 +111,25 @@ export const usePlayerStore = create<PlayerState>()(
       // the obsolete fat `queue` key from the persisted object.
       merge: (persisted, current) => {
         const blob = (persisted ?? {}) as Record<string, unknown>;
-        const serverId = (blob.queueServerId as string | null | undefined) ?? null;
+        const rawServerId = (blob.queueServerId as string | null | undefined) ?? null;
+        // B1: queue server identity is canonical (index key) on every write path.
+        // Migrate persisted blobs forward here once on rehydrate so the live
+        // store never has to handle a mix of UUID and index-key refs.
+        const canonicalSid = rawServerId ? canonicalQueueServerKey(rawServerId) : null;
 
         let queueItems: QueueItemRef[] | undefined;
         if (Array.isArray(blob.queueItems) && blob.queueItems.length > 0) {
-          queueItems = blob.queueItems as QueueItemRef[];
+          queueItems = (blob.queueItems as QueueItemRef[]).map(ref => ({
+            ...ref,
+            serverId: canonicalQueueServerKey(ref.serverId),
+          }));
         } else if (Array.isArray(blob.queueRefs) && blob.queueRefs.length > 0) {
           queueItems = (blob.queueRefs as string[]).map(trackId => ({
-            serverId: serverId ?? '',
+            serverId: canonicalSid ?? '',
             trackId,
           }));
         } else if (Array.isArray(blob.queue) && blob.queue.length > 0) {
-          queueItems = toQueueItemRefs(serverId ?? '', blob.queue as Track[]);
+          queueItems = toQueueItemRefs(canonicalSid ?? '', blob.queue as Track[]);
         }
 
         // Restore-pending sentinel: prefer the persisted one; else the legacy
@@ -137,6 +145,11 @@ export const usePlayerStore = create<PlayerState>()(
 
         // Drop the obsolete windowed fat-array key — `queueItems` is canonical.
         delete blob.queue;
+        // Persist the canonical form back onto the merged blob so subsequent
+        // reads of state.queueServerId always see the index key.
+        if (canonicalSid !== null) {
+          blob.queueServerId = canonicalSid;
+        }
 
         return {
           ...current,

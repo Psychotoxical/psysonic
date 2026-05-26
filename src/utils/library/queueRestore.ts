@@ -1,6 +1,7 @@
 import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import type { QueueItemRef } from '../../store/playerStoreTypes';
+import { canonicalQueueServerKey } from '../server/serverIndexKey';
 import { resolveBatch } from './queueTrackResolver';
 
 /**
@@ -32,7 +33,8 @@ export async function hydrateQueueFromIndex(): Promise<void> {
 
   let refs: QueueItemRef[] = player.queueItems ?? [];
   if (refs.length === 0 && player.queueRefs?.length) {
-    const sid = player.queueServerId ?? useAuthStore.getState().activeServerId ?? '';
+    const rawSid = player.queueServerId ?? useAuthStore.getState().activeServerId ?? '';
+    const sid = canonicalQueueServerKey(rawSid);
     refs = player.queueRefs.map(trackId => ({ serverId: sid, trackId }));
   }
 
