@@ -5,6 +5,7 @@ import { getDiskSrc, rememberDiskSrc } from '../cover/diskSrcCache';
 import { coverIndexKeyFromRef, coverStorageKey } from '../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../cover/tiers';
 import { coverArtIdFromRadio } from '../cover/ids';
+import type { CoverServerScope } from '../cover/types';
 import { prewarmNowPlayingFetchers } from './useNowPlayingFetchers';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -12,9 +13,11 @@ import { usePlaybackServerId } from './usePlaybackServerId';
 
 const NOW_PLAYING_COVER_CSS_PX = 800;
 
-async function prewarmPlaybackCover(coverArtId: string): Promise<void> {
+async function prewarmCoverForScope(
+  coverArtId: string,
+  scope: CoverServerScope,
+): Promise<void> {
   if (!coverArtId) return;
-  const scope = resolvePlaybackCoverScope();
   const tier = resolveCoverDisplayTier(NOW_PLAYING_COVER_CSS_PX, { surface: 'sparse' });
   const ref = coverArtRef(coverArtId, scope);
   const storageKey = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
@@ -48,14 +51,14 @@ export function useNowPlayingPrewarm(): void {
   const currentRadio = usePlayerStore(s => s.currentRadio);
   const playbackServerId = usePlaybackServerId();
   const enableBandsintown = useAuthStore(s => s.enableBandsintown);
-  const audiomuseNavidromeByServer = useAuthStore(s => s.audiomuseNavidromeByServer);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const audiomuseNavidromeEnabled = useAuthStore(
+    s => (playbackServerId ? Boolean(s.audiomuseNavidromeByServer[playbackServerId]) : false),
+  );
   const lastfmUsername = useAuthStore(s => s.lastfmUsername);
 
   useEffect(() => {
     if (!currentTrack || !playbackServerId) return;
-    const audiomuseNavidromeEnabled = Boolean(
-      playbackServerId && audiomuseNavidromeByServer[playbackServerId],
-    );
 
     void prewarmNowPlayingFetchers({
       songId: currentTrack.id,
@@ -71,7 +74,7 @@ export function useNowPlayingPrewarm(): void {
     });
 
     if (currentTrack.coverArt) {
-      void prewarmPlaybackCover(currentTrack.coverArt);
+      void prewarmCoverForScope(currentTrack.coverArt, resolvePlaybackCoverScope());
     }
   }, [
     currentTrack?.id,
@@ -81,14 +84,14 @@ export function useNowPlayingPrewarm(): void {
     currentTrack?.artist,
     playbackServerId,
     enableBandsintown,
+    audiomuseNavidromeEnabled,
     lastfmUsername,
-    audiomuseNavidromeByServer,
   ]);
 
   useEffect(() => {
-    if (!currentRadio?.coverArt) return;
+    if (!currentRadio?.coverArt || !activeServerId) return;
     const radioCoverArtId = coverArtIdFromRadio(currentRadio.id);
-    void prewarmPlaybackCover(radioCoverArtId);
-  }, [currentRadio?.id, currentRadio?.coverArt]);
+    void prewarmCoverForScope(radioCoverArtId, { kind: 'active' });
+  }, [currentRadio?.id, currentRadio?.coverArt, activeServerId]);
 }
 

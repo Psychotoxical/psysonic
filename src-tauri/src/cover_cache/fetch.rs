@@ -25,20 +25,25 @@ pub fn build_cover_art_url(
     } else {
         format!("{base}/rest")
     };
-    let mut url = Url::parse(&format!("{api_base}/getCoverArt.view")).expect("cover url");
     let salt = random_salt();
     let token = format!("{:x}", md5::compute(format!("{password}{salt}")));
-    {
-        let mut q = url.query_pairs_mut();
-        q.append_pair("id", cover_art_id);
-        q.append_pair("size", &size.to_string());
-        q.append_pair("u", username);
-        q.append_pair("t", &token);
-        q.append_pair("s", &salt);
-        q.append_pair("v", "1.16.1");
-        q.append_pair("c", SUBSONIC_CLIENT);
+    let endpoint = format!("{api_base}/getCoverArt.view");
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    serializer.append_pair("id", cover_art_id);
+    serializer.append_pair("size", &size.to_string());
+    serializer.append_pair("u", username);
+    serializer.append_pair("t", &token);
+    serializer.append_pair("s", &salt);
+    serializer.append_pair("v", "1.16.1");
+    serializer.append_pair("c", SUBSONIC_CLIENT);
+    let query = serializer.finish();
+    match Url::parse(&endpoint) {
+        Ok(mut url) => {
+            url.set_query(Some(&query));
+            url.to_string()
+        }
+        Err(_) => format!("{endpoint}?{query}"),
     }
-    url.to_string()
 }
 
 #[cfg(test)]
@@ -70,6 +75,13 @@ mod tests {
         );
         assert!(url.starts_with("http://navidrome.local:4533/rest/getCoverArt.view?"));
         assert!(!url.contains("/rest/rest/"));
+    }
+
+    #[test]
+    fn cover_url_does_not_panic_on_malformed_base() {
+        let url = build_cover_art_url("://bad-url", "u", "p", "al-1", 128);
+        assert!(url.contains("/rest/getCoverArt.view?"));
+        assert!(url.contains("id=al-1"));
     }
 }
 

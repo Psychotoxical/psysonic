@@ -13,11 +13,15 @@ export function usePlaybackCoverArt(
   const queueServerId = usePlayerStore(s => s.queueServerId);
   const queueLength = usePlayerStore(s => s.queue.length);
   const activeServerId = useAuthStore(s => s.activeServerId);
-  const serverCount = useAuthStore(s => s.servers.length);
+  const serversFingerprint = useAuthStore(s =>
+    s.servers
+      .map(srv => `${srv.id}\u0001${srv.url}\u0001${srv.username}\u0001${srv.password}`)
+      .join('\u0002'),
+  );
 
   const scope = useMemo(
     () => resolvePlaybackCoverScope(),
-    [queueServerId, queueLength, activeServerId, serverCount],
+    [queueServerId, queueLength, activeServerId, serversFingerprint],
   );
   return useCoverArt(coverArtId, displayCssPx, {
     serverScope: scope,

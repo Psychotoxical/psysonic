@@ -38,7 +38,7 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack } from '@/test/helpers/factories';
-import { onInvoke } from '@/test/mocks/tauri';
+import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
 import { fireEvent } from '@testing-library/react';
 
 beforeEach(() => {
@@ -48,6 +48,7 @@ beforeEach(() => {
     name: 'T', url: 'https://x.test', username: 'u', password: 'p',
   });
   useAuthStore.getState().setActiveServer(id);
+  registerDefaultCoverInvokeHandlers();
   onInvoke('audio_play', () => undefined);
   onInvoke('audio_pause', () => undefined);
   onInvoke('audio_resume', () => undefined);

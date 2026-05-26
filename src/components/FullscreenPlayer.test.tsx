@@ -54,7 +54,7 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack } from '@/test/helpers/factories';
-import { onInvoke } from '@/test/mocks/tauri';
+import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
 import { fireEvent } from '@testing-library/react';
 
 beforeEach(() => {
@@ -64,6 +64,7 @@ beforeEach(() => {
   });
   useAuthStore.getState().setActiveServer(id);
   vi.mocked(useCachedUrl).mockClear();
+  registerDefaultCoverInvokeHandlers();
   onInvoke('audio_play', () => undefined);
   onInvoke('audio_pause', () => undefined);
   onInvoke('audio_stop', () => undefined);

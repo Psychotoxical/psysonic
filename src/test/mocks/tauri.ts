@@ -27,9 +27,10 @@ export type EventCallback = (payload: unknown) => void;
 const invokeHandlers = new Map<string, InvokeHandler>();
 const eventListeners = new Map<string, EventCallback[]>();
 
-function registerDefaultInvokeHandlers(): void {
+export function registerDefaultCoverInvokeHandlers(): void {
   // Cover pipeline is globally imported by several UI components. Keep tests
-  // deterministic by providing harmless defaults unless a test overrides them.
+  // deterministic by providing harmless defaults when a suite mounts
+  // cover-aware UI but doesn't care about native cache behaviour.
   onInvoke('cover_cache_peek_batch', () => ({}));
   onInvoke('cover_cache_ensure', () => ({ hit: false, path: '', tier: 128 }));
 }
@@ -93,7 +94,6 @@ export function resetTauriMocks(): void {
   eventListeners.clear();
   invokeMock.mockClear();
   listenMock.mockClear();
-  registerDefaultInvokeHandlers();
 }
 
 export { invokeMock, listenMock };
