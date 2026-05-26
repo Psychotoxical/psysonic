@@ -23,9 +23,7 @@ import { useRangeSelection } from '../hooks/useRangeSelection';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers, COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 import {
-  collectAlbumCoverWarmItems,
   primeAlbumCoversForDisplay,
-  warmCoverDiskSrcBatch,
 } from '../cover/warmDiskPeek';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
@@ -105,15 +103,18 @@ function takeReserve(filterId: string): SubsonicAlbum[] | null {
 }
 
 /**
- * Fire-and-forget: fetch the next batch in the background and warm covers
- * via a disk-only peek (no HTTP, doesn't compete with visible cover traffic).
+ * Fire-and-forget: fetch the next batch in the background so it's ready for
+ * the next Refresh. Covers are NOT pre-warmed here — doing so would call
+ * bumpDiskSrcCache() for every reserve cover, which re-renders all useCoverArt
+ * subscribers on the current page and causes a visible flash ~1.5 s after load.
+ * Covers are warmed lazily via primeAlbumCoversForDisplay when the reserve is
+ * actually consumed.
  */
 async function fillReserve(filterId: string, genres: string[]): Promise<void> {
   if (_reserveFilling) return;
   _reserveFilling = true;
   try {
     const albums = await doFetchRandomAlbums(genres);
-    await warmCoverDiskSrcBatch(collectAlbumCoverWarmItems(albums, COVER_DENSE_GRID_MIN_CELL_CSS_PX));
     _nextReserve = { filterId, albums };
   } catch {
     // Network or cache failure — next Refresh falls back to a fresh fetch.
@@ -196,6 +197,7 @@ export default function RandomAlbums() {
       );
       const reserved = takeReserve(filterId);
       if (reserved) {
+        await primeAlbumCoversForDisplay(reserved, COVER_DENSE_GRID_MIN_CELL_CSS_PX);
         setAlbums(reserved);
       } else {
         const data = await doFetchRandomAlbums(genres);
