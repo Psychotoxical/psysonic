@@ -356,6 +356,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — mixed-server routing and quota-safe persist
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#872](https://github.com/Psychotoxical/psysonic/pull/872)**
+
+* Mixed-server queues with the same track ID on different servers now stay on their original server through track switches, undo, and radio top-ups.
+* Persisted queue is quota-safe — a full local storage no longer blocks playback on very large queues.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
