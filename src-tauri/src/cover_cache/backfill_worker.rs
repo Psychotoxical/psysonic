@@ -259,9 +259,11 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
             break;
         }
         let ids = batch.cover_ids.clone();
+        let mut paused_for_ui_priority = false;
         let mut set = tokio::task::JoinSet::new();
         for id in ids {
             if worker.ui_priority_hold.load(Ordering::Relaxed) {
+                paused_for_ui_priority = true;
                 break;
             }
             let st = st_arc.clone();
@@ -274,7 +276,7 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
             });
         }
         while set.join_next().await.is_some() {}
-        if worker.ui_priority_hold.load(Ordering::Relaxed) {
+        if paused_for_ui_priority || worker.ui_priority_hold.load(Ordering::Relaxed) {
             continue;
         }
 

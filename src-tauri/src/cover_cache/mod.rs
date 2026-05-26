@@ -137,10 +137,8 @@ impl CoverCacheState {
         let img = match load_cover_source(&dir, &client, &http_sem, args).await {
             Ok(img) => img,
             Err(_) => {
-                if !args.library_bulk {
-                    let _ = std::fs::create_dir_all(&dir);
-                    let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
-                }
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
                 return Ok(CoverCacheEnsureResult {
                     hit: false,
                     path: String::new(),

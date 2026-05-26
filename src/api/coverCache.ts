@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
 import { coverIndexKeyFromRef } from '../cover/storageKeys';
 import { serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
+import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { restBaseFromUrl } from './subsonicClient';
 import type { CoverArtRef, CoverArtTier } from '../cover/types';
 
@@ -50,8 +51,20 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
       password: scope.password,
     };
   }
-  const server = getActiveServer();
-  const baseUrl = getBaseUrl();
+  const server =
+    scope.kind === 'playback'
+      ? (() => {
+          const playbackServerId = getPlaybackServerId();
+          if (playbackServerId) {
+            const playbackServer = useAuthStore
+              .getState()
+              .servers.find(s => s.id === playbackServerId);
+            if (playbackServer) return playbackServer;
+          }
+          return getActiveServer();
+        })()
+      : getActiveServer();
+  const baseUrl = server?.url || getBaseUrl();
   return {
     serverIndexKey: coverIndexKeyFromRef(ref),
     coverArtId: ref.coverArtId,
