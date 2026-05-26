@@ -305,6 +305,14 @@ function picksHistoryKey(serverId: string | null): string | null {
   return serverId ? `${PICKS_HISTORY_KEY_PREFIX}${serverId}` : null;
 }
 
+function hasValidReserve(serverId: string | null, poolKey: string): boolean {
+  return (
+    _becauseReserve != null &&
+    _becauseReserve.serverId === (serverId ?? '') &&
+    _becauseReserve.poolKey === poolKey
+  );
+}
+
 export default function BecauseYouLikeRail({
   mostPlayed,
   recentlyPlayed,
@@ -322,24 +330,27 @@ export default function BecauseYouLikeRail({
     [pool],
   );
   const location = useLocation();
-  const [anchor, setAnchor] = useState<BecauseYouLikeAnchor | null>(null);
-  const [recs, setRecs] = useState<SubsonicAlbum[]>([]);
+  // Lazy-initialise from reserve so the component renders content immediately
+  // on remount (no skeleton flash) when a pre-fetched batch is already available.
+  // The lazy initializer runs only once (on mount), which is exactly when we need
+  // it — subsequent navigations are handled by useLayoutEffect below.
+  const [anchor, setAnchor] = useState<BecauseYouLikeAnchor | null>(() =>
+    hasValidReserve(activeServerId, poolKey) ? _becauseReserve!.anchor : null,
+  );
+  const [recs, setRecs] = useState<SubsonicAlbum[]>(() =>
+    hasValidReserve(activeServerId, poolKey) ? _becauseReserve!.recs : [],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
-  const [refreshing, setRefreshing] = useState(true);
+  const [refreshing, setRefreshing] = useState(() => !hasValidReserve(activeServerId, poolKey));
   const skeletonSlots = useBecauseRowSlotCount(refreshing, SHOW_COUNT);
   const contentReady = !refreshing && Boolean(anchor) && recs.length > 0;
   const contentSlots = useBecauseRowSlotCount(contentReady, recs.length);
 
-  /** Drop stale cards/text before the next paint when revisiting Mainstage or refetching seeds.
-   *  If a matching reserve is ready, skip the clear — content will appear within one effect tick. */
+  /** On subsequent navigations (same mount, new location.key / server / pool):
+   *  clear to skeleton unless a fresh reserve is waiting for this context. */
   useLayoutEffect(() => {
-    const hasReserve = (
-      _becauseReserve != null &&
-      _becauseReserve.serverId === (activeServerId ?? '') &&
-      _becauseReserve.poolKey === poolKey
-    );
-    if (!hasReserve) {
+    if (!hasValidReserve(activeServerId, poolKey)) {
       setRefreshing(true);
       setAnchor(null);
       setRecs([]);
