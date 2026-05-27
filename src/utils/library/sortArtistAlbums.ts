@@ -1,18 +1,16 @@
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 
-export type ArtistAlbumSort = 'releaseType' | 'yearDesc' | 'yearAsc';
+export type ArtistAlbumYearOrder = 'yearDesc' | 'yearAsc';
 
-export function sortArtistAlbums(
+export function sortArtistAlbumsByYear(
   albums: SubsonicAlbum[],
-  sort: ArtistAlbumSort,
+  order: ArtistAlbumYearOrder,
 ): SubsonicAlbum[] {
-  if (sort === 'releaseType') return albums;
-
   const out = [...albums];
   out.sort((a, b) => {
     const ay = a.year ?? 0;
     const by = b.year ?? 0;
-    if (ay !== by) return sort === 'yearDesc' ? by - ay : ay - by;
+    if (ay !== by) return order === 'yearDesc' ? by - ay : ay - by;
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
   return out;

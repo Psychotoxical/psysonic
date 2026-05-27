@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#877](https://github.com/Psychotoxical/psysonic/pull/877)**
 
-* **Albums by …** on the artist page: sort by release type (default), year newest first, or year oldest first.
+* **Albums by …** on the artist page: toggle year sort (newest/oldest) within each release-type block; preference persists for the session per server.
 
 
 

@@ -7,8 +7,7 @@ import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AlbumCard from '../components/AlbumCard';
-import SortDropdown, { type SortOption } from '../components/SortDropdown';
-import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2, AudioLines } from 'lucide-react';
+import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2, AudioLines, ArrowDownUp } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { open } from '@tauri-apps/plugin-shell';
@@ -25,6 +24,10 @@ import { showToast } from '../utils/ui/toast';
 import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
 import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
+import {
+  DEFAULT_ARTIST_ALBUM_YEAR_ORDER,
+  useArtistAlbumYearSortStore,
+} from '../store/artistAlbumYearSortStore';
 
 import { useArtistDetailData } from '../hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '../hooks/useArtistSimilarArtists';
@@ -43,10 +46,7 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
-import {
-  sortArtistAlbums,
-  type ArtistAlbumSort,
-} from '../utils/library/sortArtistAlbums';
+import { sortArtistAlbumsByYear } from '../utils/library/sortArtistAlbums';
 
 
 export default function ArtistDetail() {
@@ -67,7 +67,6 @@ export default function ArtistDetail() {
   const { similarArtists, similarLoading } = useArtistSimilarArtists(artist, info, artistInfoLoading);
   const [uploading, setUploading] = useState(false);
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
-  const [albumSort, setAlbumSort] = useState<ArtistAlbumSort>('releaseType');
   const isMobile = useIsMobile();
   const [coverRevision, setCoverRevision] = useState(0);
   /** True after header cover onError — avoid `display:none` on the img (breaks recovery). */
@@ -90,6 +89,10 @@ export default function ArtistDetail() {
     s => !!(s.activeServerId && s.audiomuseNavidromeByServer[s.activeServerId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const albumYearOrder = useArtistAlbumYearSortStore(
+    s => s.orderByServer[activeServerId] ?? DEFAULT_ARTIST_ALBUM_YEAR_ORDER,
+  );
+  const toggleAlbumYearOrder = useArtistAlbumYearSortStore(s => s.toggleYearOrder);
   // MUST stay above the loading / !artist early returns or React's hook
   // call order will mismatch between renders.
   const sectionConfig = useArtistLayoutStore(s => s.sections);
@@ -166,23 +169,8 @@ export default function ArtistDetail() {
   const coverId = artist ? (artist.coverArt || artist.id) : '';
   const artistCoverFallback = useCoverArt(coverId || undefined, 80, { surface: 'sparse' });
 
-  useEffect(() => {
-    setAlbumSort('releaseType');
-  }, [id]);
-
-  const albumSortOptions = useMemo((): SortOption<ArtistAlbumSort>[] => [
-    { value: 'releaseType', label: t('artistDetail.sortByReleaseType') },
-    { value: 'yearDesc', label: t('artistDetail.sortYearDesc') },
-    { value: 'yearAsc', label: t('artistDetail.sortYearAsc') },
-  ], [t]);
-
-  const sortedAlbums = useMemo(
-    () => sortArtistAlbums(albums, albumSort),
-    [albums, albumSort],
-  );
-
   const groupedAlbums = useMemo(() => {
-    if (albumSort !== 'releaseType' || albums.length === 0) return [];
+    if (albums.length === 0) return [];
     const RELEASE_TYPE_ORDER = ['album', 'ep', 'single', 'compilation', 'live', 'soundtrack', 'remix', 'other'];
     const defaultKey = 'album';
     const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -198,8 +186,11 @@ export default function ArtistDetail() {
       groups.get(key)!.push(album);
     }
 
+    const sortGroup = (group: SubsonicAlbum[]) =>
+      sortArtistAlbumsByYear(group, albumYearOrder);
+
     if (groups.size === 1 && groups.has(defaultKey)) {
-      return [[translateType(defaultKey), albums] as const];
+      return [[translateType(defaultKey), sortGroup(albums)] as const];
     }
 
     const sortKey = (key: string) => {
@@ -209,8 +200,11 @@ export default function ArtistDetail() {
 
     return [...groups.entries()]
       .sort((a, b) => sortKey(a[0]) - sortKey(b[0]) || a[0].localeCompare(b[0]))
-      .map(([key, group]) => [key.split(' · ').map(translateType).join(' · '), group] as const);
-  }, [albums, albumSort, t]);
+      .map(([key, group]) => [
+        key.split(' · ').map(translateType).join(' · '),
+        sortGroup(group),
+      ] as const);
+  }, [albums, albumYearOrder, t]);
 
   useEffect(() => {
     setHeaderCoverFailed(false);
@@ -358,35 +352,28 @@ export default function ArtistDetail() {
                     : t('artistDetail.albumsBy', { name: artist.name })}
                 </h2>
                 {albums.length > 0 && (
-                  <SortDropdown
-                    value={albumSort}
-                    options={albumSortOptions}
-                    onChange={setAlbumSort}
-                    ariaLabel={t('artistDetail.sortAlbumsAria')}
-                  />
+                  <button
+                    type="button"
+                    className="btn btn-surface btn-sort-active"
+                    onClick={() => toggleAlbumYearOrder(activeServerId)}
+                    aria-label={t('artistDetail.sortYearToggleAria')}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <ArrowDownUp size={14} />
+                    {albumYearOrder === 'yearDesc'
+                      ? t('artistDetail.sortYearDesc')
+                      : t('artistDetail.sortYearAsc')}
+                  </button>
                 )}
               </div>
               {albums.length > 0 ? (
-                albumSort !== 'releaseType' ? (
+                groupedAlbums.length === 1 ? (
                   <VirtualCardGrid
-                    items={sortedAlbums}
+                    items={groupedAlbums[0][1]}
                     itemKey={(a, i) => `${a.id}-${i}`}
                     rowVariant="album"
                     disableVirtualization={perfFlags.disableMainstageVirtualLists}
-                    layoutSignal={sortedAlbums.length}
-                    wrapClassName="album-grid-wrap album-grid-wrap--artist"
-                    warmGridCovers={albumGridWarmCovers()}
-                    renderItem={a => (
-                      <AlbumCard album={a} linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined} />
-                    )}
-                  />
-                ) : groupedAlbums.length === 1 ? (
-                  <VirtualCardGrid
-                    items={albums}
-                    itemKey={(a, i) => `${a.id}-${i}`}
-                    rowVariant="album"
-                    disableVirtualization={perfFlags.disableMainstageVirtualLists}
-                    layoutSignal={albums.length}
+                    layoutSignal={groupedAlbums[0][1].length}
                     wrapClassName="album-grid-wrap album-grid-wrap--artist"
                     warmGridCovers={albumGridWarmCovers()}
                     renderItem={a => (
