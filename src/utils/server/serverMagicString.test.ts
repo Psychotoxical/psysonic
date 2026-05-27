@@ -65,8 +65,9 @@ describe('serverMagicString', () => {
     expect(decodeServerMagicString(garbage)).toBeNull();
   });
 
-  it('rejects a payload with the wrong version', () => {
-    const wrongVersion = btoa(JSON.stringify({ v: 2, url: 'https://x', u: 'u', w: 'p' }))
+  it('rejects a payload with an unknown version', () => {
+    // v: 3 is out of range; v1 + v2 are both accepted.
+    const wrongVersion = btoa(JSON.stringify({ v: 3, url: 'https://x', u: 'u', w: 'p' }))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     expect(decodeServerMagicString(SERVER_MAGIC_STRING_PREFIX + wrongVersion)).toBeNull();
   });
@@ -99,6 +100,110 @@ describe('serverMagicString', () => {
 
   it('rejects text that contains only the bare prefix', () => {
     expect(decodeServerMagicStringFromText(`prefix only: ${SERVER_MAGIC_STRING_PREFIX} done`)).toBeNull();
+  });
+
+  // ─── v2 (dual-address) ──────────────────────────────────────────────────
+
+  it('emits v1 for a single-address invite (backward-compatible)', () => {
+    // No alternateUrl, no shareUsesLocalUrl → v1 wire format. Verified by
+    // round-tripping through a v1-decode of the inner JSON.
+    const encoded = encodeServerMagicString({
+      url: 'https://music.example.com',
+      username: 'alice',
+      password: 'pw',
+    });
+    const b64 = encoded.slice(SERVER_MAGIC_STRING_PREFIX.length);
+    const b64Std = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64Std + '='.repeat((4 - (b64Std.length % 4)) % 4);
+    const inner = JSON.parse(atob(padded));
+    expect(inner.v).toBe(1);
+    expect(inner.alt).toBeUndefined();
+    expect(inner.shareLocal).toBeUndefined();
+  });
+
+  it('emits v2 when alternateUrl is set', () => {
+    const encoded = encodeServerMagicString({
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10:4533',
+      username: 'alice',
+      password: 'pw',
+    });
+    const b64 = encoded.slice(SERVER_MAGIC_STRING_PREFIX.length);
+    const b64Std = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64Std + '='.repeat((4 - (b64Std.length % 4)) % 4);
+    const inner = JSON.parse(atob(padded));
+    expect(inner.v).toBe(2);
+    expect(inner.url).toBe('https://music.example.com');
+    expect(inner.alt).toBe('http://192.168.0.10:4533');
+    expect(inner.shareLocal).toBeUndefined();
+  });
+
+  it('emits v2 when only shareUsesLocalUrl is set (no alt)', () => {
+    // Edge: the host has dropped the second address but kept the share flag
+    // on. We still emit v2 so the receiver picks up the preference.
+    const encoded = encodeServerMagicString({
+      url: 'https://music.example.com',
+      username: 'alice',
+      password: 'pw',
+      shareUsesLocalUrl: true,
+    });
+    const b64 = encoded.slice(SERVER_MAGIC_STRING_PREFIX.length);
+    const b64Std = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64Std + '='.repeat((4 - (b64Std.length % 4)) % 4);
+    const inner = JSON.parse(atob(padded));
+    expect(inner.v).toBe(2);
+    expect(inner.alt).toBeUndefined();
+    expect(inner.shareLocal).toBe(true);
+  });
+
+  it('round-trips v2 with alternateUrl + shareUsesLocalUrl + name', () => {
+    const original = {
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10:4533',
+      shareUsesLocalUrl: true,
+      username: 'alice',
+      password: 'pw',
+      name: 'Home',
+    };
+    const encoded = encodeServerMagicString(original);
+    expect(decodeServerMagicString(encoded)).toEqual(original);
+  });
+
+  it('round-trips v2 with alternateUrl only (default share flag absent)', () => {
+    const original = {
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10:4533',
+      username: 'alice',
+      password: 'pw',
+    };
+    const decoded = decodeServerMagicString(encodeServerMagicString(original));
+    expect(decoded).toEqual(original);
+    // shareUsesLocalUrl must NOT be set on the decoded payload when the
+    // host didn't flip the flag — kept absent rather than `false` so
+    // existing zustand persist diffs stay clean.
+    expect(decoded?.shareUsesLocalUrl).toBeUndefined();
+  });
+
+  it('decodes a v1 invite without alternateUrl / shareUsesLocalUrl', () => {
+    // Hand-built v1 payload → verify backward-compat decode path leaves the
+    // v2-only fields undefined.
+    const v1 = btoa(JSON.stringify({ v: 1, url: 'https://x.example', u: 'u', w: 'p' }))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const decoded = decodeServerMagicString(SERVER_MAGIC_STRING_PREFIX + v1);
+    expect(decoded?.url).toBe('https://x.example');
+    expect(decoded?.alternateUrl).toBeUndefined();
+    expect(decoded?.shareUsesLocalUrl).toBeUndefined();
+  });
+
+  it('treats an empty alt field on v2 as absent (no alternateUrl)', () => {
+    // Defensive — a misformed v2 invite with `alt: ''` should decode as if
+    // no alternate were set, not as an empty-string alternateUrl that
+    // would later fail isLanUrl / normalize checks.
+    const v2 = btoa(JSON.stringify({
+      v: 2, url: 'https://x.example', alt: '   ', u: 'u', w: 'p',
+    })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const decoded = decodeServerMagicString(SERVER_MAGIC_STRING_PREFIX + v2);
+    expect(decoded?.alternateUrl).toBeUndefined();
   });
 });
 
