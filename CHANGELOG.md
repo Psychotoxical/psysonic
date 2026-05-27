@@ -408,7 +408,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Small cover surfaces on Windows (player bar, queue, artist top tracks) no longer stay empty while large album art loads — tier ladder disk lookup, valid `asset://` URLs only, and broader Tauri asset scope.
 * Fixes a startup/UI freeze when disk paths were applied via `rememberGridDiskSrc` (notify loop); seeds cache without waking subscribers.
 * Resolves Subsonic `coverArt` when it equals the track id — prefers `albumId` and warmed album-grid art on playback and artist pages.
-* `CoverArtImage` shows a placeholder until a loadable disk URL exists (no broken-image flash).
+* No broken-image flash on cover surfaces while disk tiers warm (placeholder until a loadable URL exists).
 * Rust cover pipeline decodes **PNG** bytes from the server (previously JPEG/WebP only); failed decode no longer leaves albums stuck with `.fetch-failed`.
 
 

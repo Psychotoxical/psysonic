@@ -8,7 +8,7 @@ import { usePreviewStore } from '../../store/previewStore';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { formatTrackTime } from '../../utils/format/formatDuration';
-import ArtistSuggestionTrackCover from './ArtistSuggestionTrackCover';
+import ArtistTopTrackCover from './ArtistTopTrackCover';
 
 interface Props {
   topSongs: SubsonicSong[];
@@ -97,7 +97,7 @@ export default function ArtistDetailTopTracks({
           {(() => {
             const coverId = resolveArtistPageSongCoverArtId(song, albums);
             return coverId ? (
-              <ArtistSuggestionTrackCover coverArt={coverId} album={song.album} />
+              <ArtistTopTrackCover coverArt={coverId} album={song.album} />
             ) : null;
           })()}
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>

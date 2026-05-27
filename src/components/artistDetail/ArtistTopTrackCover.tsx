@@ -2,7 +2,7 @@ import React from 'react';
 import { CoverArtImage } from '../../cover/CoverArtImage';
 import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '../../cover/layoutSizes';
 
-export default function ArtistSuggestionTrackCover({ coverArt, album }: { coverArt: string; album: string }) {
+export default function ArtistTopTrackCover({ coverArt, album }: { coverArt: string; album: string }) {
   return (
     <CoverArtImage
       coverArtId={coverArt}
