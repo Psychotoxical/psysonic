@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
 import { coverIndexKeyFromRef, coverStorageKeyFromRef } from '../cover/storageKeys';
+import { connectBaseUrlForServer } from '../utils/server/serverEndpoint';
 import { serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { restBaseFromUrl } from './subsonicClient';
@@ -42,13 +43,17 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const scope = ref.serverScope;
   if (scope.kind === 'server') {
+    // scope.url is the index-stable primary; the Rust cover fetcher needs
+    // the runtime connect URL (LAN or public, whichever currently answers).
     return {
       serverIndexKey: coverIndexKeyFromRef(ref),
       cacheKind: ref.cacheKind,
       cacheEntityId: ref.cacheEntityId,
       coverArtId: ref.fetchCoverArtId,
       tier,
-      restBaseUrl: coverCacheRestHost(scope.url),
+      restBaseUrl: coverCacheRestHost(
+        connectBaseUrlForServer({ id: scope.serverId, url: scope.url }),
+      ),
       username: scope.username,
       password: scope.password,
     };
@@ -66,7 +71,7 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
           return getActiveServer();
         })()
       : getActiveServer();
-  const baseUrl = server?.url || getBaseUrl();
+  const baseUrl = server ? connectBaseUrlForServer(server) : getBaseUrl();
   return {
     serverIndexKey: coverIndexKeyFromRef(ref),
     cacheKind: ref.cacheKind,

@@ -4,14 +4,19 @@ import {
 } from '../api/subsonicStreamUrl';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from '../store/authStore';
+import { connectBaseUrlForServer } from '../utils/server/serverEndpoint';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 /** Builds ephemeral getCoverArt URL — NOT a cache key */
 export function buildCoverArtFetchUrl(ref: CoverArtRef, tier: CoverArtTier): string {
   const { fetchCoverArtId, serverScope } = ref;
   if (serverScope.kind === 'server') {
+    // Scope.url is the index-stable primary URL (so storage keys keep working
+    // across LAN ↔ public). For the actual cover fetch we want the connect
+    // endpoint — use connectBaseUrlForServer to pick the cached LAN/public
+    // URL, falling back to the primary url when no probe has run yet.
     return buildCoverArtUrlForServer(
-      serverScope.url,
+      connectBaseUrlForServer({ id: serverScope.serverId, url: serverScope.url }),
       serverScope.username,
       serverScope.password,
       fetchCoverArtId,
@@ -25,7 +30,7 @@ export function buildCoverArtFetchUrl(ref: CoverArtRef, tier: CoverArtTier): str
       const server = useAuthStore.getState().servers.find(s => s.id === playbackSid);
       if (server) {
         return buildCoverArtUrlForServer(
-          server.url,
+          connectBaseUrlForServer(server),
           server.username,
           server.password,
           fetchCoverArtId,
