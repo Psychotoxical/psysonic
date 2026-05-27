@@ -4,8 +4,7 @@ import { songToTrack } from '../utils/playback/songToTrack';
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import { albumGridWarmCovers, coverDisplayCssPxForAlbumGrid } from '../cover/layoutSizes';
-import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { albumCoverRef } from '../cover/ref';
+import { useLibraryCoverPrefetch } from '../cover/useLibraryCoverPrefetch';
 import { useAuthStore } from '../store/authStore';
 import { clampLibraryGridMaxColumns } from '../store/authStoreHelpers';
 import { computeCardGridColumnCount } from '../utils/cardGridLayout';
@@ -211,13 +210,15 @@ export default function Albums() {
     return () => ro.disconnect();
   }, [maxGridCols, visibleAlbums.length]);
 
-  useEffect(() => {
-    const viewportBudget = Math.max(albumGridCols * 3, albumGridCols);
-    const refs = visibleAlbums
-      .slice(0, viewportBudget)
-      .flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
-    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
-  }, [visibleAlbums, albumGridCols]);
+  useLibraryCoverPrefetch(
+    [
+      {
+        albums: visibleAlbums.slice(0, Math.max(albumGridCols * 3, albumGridCols)),
+        priority: 'high',
+      },
+    ],
+    [visibleAlbums, albumGridCols],
+  );
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
     sort,

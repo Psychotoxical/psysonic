@@ -1,6 +1,5 @@
 import React from 'react';
-import { CoverArtImage } from '../../cover/CoverArtImage';
-import { albumCoverRef } from '../../cover/ref';
+import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '../../cover/layoutSizes';
 
 export default function ArtistTopTrackCover({
@@ -13,8 +12,9 @@ export default function ArtistTopTrackCover({
   album: string;
 }) {
   return (
-    <CoverArtImage
-      coverRef={albumCoverRef(albumId, coverArt)}
+    <AlbumCoverArtImage
+      albumId={albumId}
+      coverArt={coverArt}
       displayCssPx={COVER_ARTIST_TOP_TRACK_CSS_PX}
       surface="sparse"
       ensurePriority="high"

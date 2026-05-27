@@ -18,6 +18,10 @@ export {
   useTrackCoverRef,
 } from './useLibraryCoverRef';
 export { CoverArtImage } from './CoverArtImage';
+export { AlbumCoverArtImage } from './AlbumCoverArtImage';
+export { ArtistCoverArtImage } from './ArtistCoverArtImage';
+export { TrackCoverArtImage } from './TrackCoverArtImage';
+export { useLibraryCoverPrefetch } from './useLibraryCoverPrefetch';
 export {
   clearAllDiskSrcCache,
   forgetDiskSrc,
@@ -34,6 +38,11 @@ export {
   resolveSongFetchCoverArtId,
   coverEntryToRef,
 } from './resolveEntry';
+export {
+  resolveAlbumCoverRefsFromLibrary,
+  resolveArtistCoverRefsFromLibrary,
+  resolveTrackCoverRefsFromLibrary,
+} from './resolveEntryLibrary';
 export {
   resolveArtistPageSongCoverArtId,
   resolvePlaybackTrackCoverArtId,

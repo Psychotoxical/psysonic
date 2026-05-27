@@ -5,15 +5,15 @@ import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { formatTrackTime } from '../../utils/format/formatDuration';
-import { CoverArtImage } from '../../cover/CoverArtImage';
-import { albumCoverRef } from '../../cover/ref';
+import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
 import { AddToPlaylistSubmenu } from '../ContextMenu';
 
 function PlaylistSearchResultThumb({ albumId, coverArt }: { albumId: string; coverArt: string }) {
   return (
-    <CoverArtImage
-      coverRef={albumCoverRef(albumId, coverArt)}
+    <AlbumCoverArtImage
+      albumId={albumId}
+      coverArt={coverArt}
       displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
       surface="dense"
       alt=""

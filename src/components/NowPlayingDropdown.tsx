@@ -1,5 +1,5 @@
 import { CoverArtImage } from '../cover/CoverArtImage';
-import { albumCoverRef } from '../cover/ref';
+import { TrackCoverArtImage } from '../cover/TrackCoverArtImage';
 import { getNowPlaying } from '../api/subsonicScrobble';
 import type { SubsonicNowPlaying } from '../api/subsonicTypes';
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
@@ -162,9 +162,14 @@ export default function NowPlayingDropdown() {
                   style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: 'var(--bg-hover)', padding: '0.5rem', borderRadius: '8px', cursor: stream.albumId ? 'pointer' : 'default' }}
                 >
                   <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: '6px', overflow: 'hidden', background: 'var(--bg-surface)' }}>
-                    {stream.coverArt ? (
-                      <CoverArtImage
-                        coverRef={albumCoverRef(stream.albumId ?? stream.coverArt, stream.coverArt)}
+                    {stream.albumId && stream.coverArt ? (
+                      <TrackCoverArtImage
+                        song={{
+                          id: stream.id,
+                          albumId: stream.albumId,
+                          coverArt: stream.coverArt,
+                          discNumber: undefined,
+                        }}
                         displayCssPx={50}
                         surface="sparse"
                         alt="Cover"

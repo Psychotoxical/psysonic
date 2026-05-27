@@ -28,10 +28,10 @@ import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useTranslation } from 'react-i18next';
 import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
-import { CoverArtImage } from '../cover/CoverArtImage';
+import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
+import { ArtistCoverArtImage } from '../cover/ArtistCoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../cover/layoutSizes';
-import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { albumCoverRef, artistCoverRef } from '../cover/ref';
+import { useLibraryCoverPrefetch } from '../cover/useLibraryCoverPrefetch';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
@@ -41,8 +41,9 @@ type LiveSearchSource = 'local' | 'network';
 
 function LiveSearchAlbumThumb({ albumId, coverArt }: { albumId: string; coverArt: string }) {
   return (
-    <CoverArtImage
-      coverRef={albumCoverRef(albumId, coverArt)}
+    <AlbumCoverArtImage
+      albumId={albumId}
+      coverArt={coverArt}
       displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
       surface="dense"
       className="search-result-thumb"
@@ -56,8 +57,9 @@ function LiveSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id' |
   useEffect(() => { setFailed(false); }, [artist.id, artist.coverArt]);
   if (failed) return <div className="search-result-icon"><Users size={14} /></div>;
   return (
-    <CoverArtImage
-      coverRef={artistCoverRef(artist.id, artist.coverArt)}
+    <ArtistCoverArtImage
+      artistId={artist.id}
+      coverArt={artist.coverArt}
       displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
       surface="dense"
       className="search-result-thumb"
@@ -420,15 +422,16 @@ export default function LiveSearch() {
     !!share.shareMatch ||
     (results && (results.artists.length || results.albums.length || results.songs.length));
 
-  useEffect(() => {
-    if (!results || share.shareMatch) return () => {};
-    const refs = [
-      ...results.artists.map(a => artistCoverRef(a.id, a.coverArt)),
-      ...results.albums.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : [])),
-      ...results.songs.flatMap(s => (s.albumId && s.coverArt ? [albumCoverRef(s.albumId, s.coverArt)] : [])),
-    ];
-    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
-  }, [results, share.shareMatch]);
+  useLibraryCoverPrefetch(
+    results && !share.shareMatch
+      ? [
+          { artists: results.artists, priority: 'high' },
+          { albums: results.albums, priority: 'high' },
+          { songs: results.songs, priority: 'high' },
+        ]
+      : [],
+    [results, share.shareMatch],
+  );
 
   // Flat list of all navigable items for keyboard nav
   const flatItems = share.shareMatch && share.hasShareKeyboardTarget ? [

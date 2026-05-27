@@ -9,10 +9,10 @@ import { activateShareSearchServer } from '../../utils/share/enqueueShareSearchP
 import { sharePayloadTotal, type ShareSearchMatch } from '../../utils/share/shareSearch';
 import type { ShareSearchPreviewState } from '../../hooks/useShareSearchPreview';
 import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from '../CachedImage';
-import { CoverArtImage } from '../../cover/CoverArtImage';
+import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
+import { ArtistCoverArtImage } from '../../cover/ArtistCoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
 import type { CoverServerScope } from '../../cover/types';
-import { albumCoverRef, artistCoverRef } from '../../cover/ref';
 import { useShareQueuePreview } from '../../hooks/useShareQueuePreview';
 import ShareQueuePreviewModal from './ShareQueuePreviewModal';
 
@@ -58,8 +58,10 @@ function ShareAlbumThumb({
 }) {
   const cls = displayCssPx >= 64 ? 'mobile-search-thumb' : 'search-result-thumb';
   return (
-    <CoverArtImage
-      coverRef={albumCoverRef(albumId, coverArt, shareCoverServerScope(coverServer))}
+    <AlbumCoverArtImage
+      albumId={albumId}
+      coverArt={coverArt}
+      serverScope={shareCoverServerScope(coverServer)}
       displayCssPx={displayCssPx}
       surface="dense"
       className={cls}
@@ -100,8 +102,10 @@ function ShareArtistThumb({
       ? 'mobile-search-thumb mobile-search-thumb--artist-round'
       : 'search-result-thumb';
   return (
-    <CoverArtImage
-      coverRef={artistCoverRef(artist.id, artist.coverArt, shareCoverServerScope(coverServer))}
+    <ArtistCoverArtImage
+      artistId={artist.id}
+      coverArt={artist.coverArt}
+      serverScope={shareCoverServerScope(coverServer)}
       displayCssPx={displayCssPx}
       surface="dense"
       className={cls}

@@ -95,3 +95,31 @@ export async function resolveTrackCoverRefFromLibrary(
   const entry = fromLibrary ?? resolveTrackCoverEntry(song, distinctDiscCovers);
   return entry ? coverEntryToRef(entry, serverScope) : undefined;
 }
+
+export async function resolveAlbumCoverRefsFromLibrary(
+  albums: ReadonlyArray<{ id: string; coverArt?: string | null }>,
+  serverScope: CoverServerScope = { kind: 'active' },
+): Promise<CoverArtRef[]> {
+  return Promise.all(
+    albums.map(a => resolveAlbumCoverRefFromLibrary(a.id, a.coverArt, serverScope)),
+  );
+}
+
+export async function resolveArtistCoverRefsFromLibrary(
+  artists: ReadonlyArray<{ id: string; coverArt?: string | null }>,
+  serverScope: CoverServerScope = { kind: 'active' },
+): Promise<CoverArtRef[]> {
+  return Promise.all(
+    artists.map(a => resolveArtistCoverRefFromLibrary(a.id, a.coverArt, serverScope)),
+  );
+}
+
+export async function resolveTrackCoverRefsFromLibrary(
+  songs: ReadonlyArray<Parameters<typeof resolveTrackCoverEntry>[0]>,
+  serverScope: CoverServerScope = { kind: 'active' },
+): Promise<CoverArtRef[]> {
+  const refs = await Promise.all(
+    songs.map(s => resolveTrackCoverRefFromLibrary(s, serverScope)),
+  );
+  return refs.filter((r): r is CoverArtRef => !!r);
+}

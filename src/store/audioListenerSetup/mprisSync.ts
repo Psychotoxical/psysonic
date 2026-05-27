@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { albumCoverRefForPlayback } from '../../cover/ref';
+import { resolvePlaybackCoverScope } from '../../cover/ref';
+import { resolveTrackCoverRefFromLibrary } from '../../cover/resolveEntryLibrary';
 import { coverArtUrlForMpris } from '../../cover/integrations/mpris';
 import { usePlayerStore } from '../playerStore';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../playbackProgress';
@@ -26,18 +27,27 @@ export function setupMprisSync(): () => void {
       const artist = currentTrack.artist;
       const album = currentTrack.album;
       const durationSecs = currentTrack.duration;
-      if (currentTrack.coverArt) {
-        const ref = albumCoverRefForPlayback(currentTrack);
-        if (!ref) return;
-        coverArtUrlForMpris(ref)
-          .then(coverUrl => invoke('mpris_set_metadata', {
-            title,
-            artist,
-            album,
-            coverUrl: coverUrl || undefined,
-            durationSecs,
-          }))
-          .catch(() => {});
+      if (currentTrack.coverArt && currentTrack.albumId) {
+        void resolveTrackCoverRefFromLibrary(
+          {
+            id: currentTrack.id,
+            albumId: currentTrack.albumId,
+            coverArt: currentTrack.coverArt,
+            discNumber: (currentTrack as { discNumber?: number }).discNumber,
+          },
+          resolvePlaybackCoverScope(),
+        ).then(ref => {
+          if (!ref) return;
+          coverArtUrlForMpris(ref)
+            .then(coverUrl => invoke('mpris_set_metadata', {
+              title,
+              artist,
+              album,
+              coverUrl: coverUrl || undefined,
+              durationSecs,
+            }))
+            .catch(() => {});
+        });
       } else {
         invoke('mpris_set_metadata', {
           title,

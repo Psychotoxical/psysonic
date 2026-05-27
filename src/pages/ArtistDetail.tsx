@@ -1,6 +1,6 @@
 import { uploadArtistImage } from '../api/subsonicPlaylists';
 import { useCoverArt } from '../cover/useCoverArt';
-import { artistCoverRef } from '../cover/ref';
+import { useArtistCoverRef } from '../cover/useLibraryCoverRef';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
@@ -168,11 +168,8 @@ export default function ArtistDetail() {
 
   // Cover URLs — must run every render (before early returns) or hook order breaks.
   const coverId = artist ? (artist.coverArt || artist.id) : '';
-  const artistCoverFallback = useCoverArt(
-    artist ? artistCoverRef(artist.id, artist.coverArt) : null,
-    80,
-    { surface: 'sparse' },
-  );
+  const artistCoverRefResolved = useArtistCoverRef(artist?.id, artist?.coverArt);
+  const artistCoverFallback = useCoverArt(artistCoverRefResolved, 80, { surface: 'sparse' });
 
   const groupedAlbums = useMemo(() => {
     if (albums.length === 0) return [];

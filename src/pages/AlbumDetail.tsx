@@ -24,11 +24,10 @@ import AlbumTrackList from '../components/AlbumTrackList';
 import { AlbumDetailToolbar } from '../components/albumDetail/AlbumDetailToolbar';
 import { useCoverArt } from '../cover/useCoverArt';
 import {
-  albumCoverRef,
-  artistCoverRef,
   forgetAlbumDistinctDiscCovers,
   rememberAlbumDistinctDiscCovers,
 } from '../cover/ref';
+import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/ui/toast';
 import { useSelectionStore } from '../store/selectionStore';
@@ -282,11 +281,11 @@ const handleShuffleAll = () => {
     userRatingOverrides,
   });
 
-  const albumCover = useCoverArt(
-    album ? albumCoverRef(album.album.id, album.album.coverArt) : null,
-    400,
-    { surface: 'sparse' },
+  const albumCoverRefResolved = useAlbumCoverRef(
+    album?.album.id,
+    album?.album.coverArt,
   );
+  const albumCover = useCoverArt(albumCoverRefResolved, 400, { surface: 'sparse' });
   const resolvedCoverUrl = albumCover.src || null;
 
   useEffect(() => {

@@ -11,7 +11,7 @@ import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useAuthStore } from '../../store/authStore';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
-import { artistCoverRef } from '../../cover/ref';
+import { useArtistCoverRef } from '../../cover/useLibraryCoverRef';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
 import LastfmIcon from '../LastfmIcon';
 import StarRating from '../StarRating';
@@ -58,10 +58,7 @@ export default function ArtistDetailHero({
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
 
-  const coverRef = useMemo(
-    () => (coverId ? artistCoverRef(artist.id, coverId) : null),
-    [coverId, artist.id],
-  );
+  const coverRef = useArtistCoverRef(artist.id, coverId);
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, { alt: artist.name });
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;

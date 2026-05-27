@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use psysonic_core::cover_cache_layout::{self, is_fetch_only_cover_id};
+use crate::cover_resolve::{resolve_album_cover_entry, resolve_artist_cover_entry};
 use crate::store::LibraryStore;
 
 const DEFAULT_BATCH: u32 = 32;
@@ -62,6 +63,48 @@ const COVER_CATALOG_SUBQUERY: &str = "
 pub const COVER_FETCH_FAIL_MARKER: &str = ".fetch-failed";
 
 /// Recent HTTP failure — skip in backfill cursor so slots go to fetchable album art.
+/// Re-resolve catalog row through `cover_resolve` (multi-CD, album `cover_art_id`, …).
+fn normalize_backfill_item(
+    store: &LibraryStore,
+    library_server_id: &str,
+    item: CoverBackfillItem,
+) -> Result<Option<CoverBackfillItem>, String> {
+    match item.cache_kind.as_str() {
+        "album" => {
+            let has_album_row: bool = store.with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM album WHERE server_id = ?1 AND id = ?2
+                     )",
+                    rusqlite::params![library_server_id, item.cache_entity_id],
+                    |row| row.get(0),
+                )
+            })?;
+            if has_album_row {
+                resolve_album_cover_entry(store, library_server_id, &item.cache_entity_id)
+                    .map(|opt| {
+                        opt.map(|dto| CoverBackfillItem {
+                            cache_kind: dto.cache_kind,
+                            cache_entity_id: dto.cache_entity_id,
+                            fetch_cover_art_id: dto.fetch_cover_art_id,
+                        })
+                    })
+            } else {
+                Ok(Some(item))
+            }
+        }
+        "artist" => resolve_artist_cover_entry(store, library_server_id, &item.cache_entity_id)
+            .map(|opt| {
+                opt.map(|dto| CoverBackfillItem {
+                    cache_kind: dto.cache_kind,
+                    cache_entity_id: dto.cache_entity_id,
+                    fetch_cover_art_id: dto.fetch_cover_art_id,
+                })
+            }),
+        _ => Ok(Some(item)),
+    }
+}
+
 pub fn cover_fetch_recently_failed(cover_dir: &Path) -> bool {
     let marker = cover_dir.join(COVER_FETCH_FAIL_MARKER);
     let Ok(meta) = std::fs::metadata(&marker) else {
@@ -230,7 +273,9 @@ pub fn collect_cover_backfill_batch(
             )) {
                 continue;
             }
-            pending.push(item);
+            if let Some(normalized) = normalize_backfill_item(store, library_server_id, item)? {
+                pending.push(normalized);
+            }
             if pending.len() >= want {
                 break;
             }

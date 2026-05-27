@@ -1,5 +1,6 @@
 import { buildCoverArtFetchUrl } from '../../cover/fetchUrl';
-import { albumCoverRefForPlayback } from '../../cover/ref';
+import { resolvePlaybackCoverScope } from '../../cover/ref';
+import { coverEntryToRef, resolveAlbumCoverEntry } from '../../cover/resolveEntry';
 import { coverStorageKeyFromRef } from '../../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../../cover/tiers';
 import { useAuthStore } from '../../store/authStore';
@@ -106,10 +107,11 @@ export function playbackCoverArtForAlbum(
   coverArt: string,
   displayCssPx: number,
 ): { src: string; cacheKey: string } {
-  const ref = albumCoverRefForPlayback({ albumId, coverArt, id: albumId, discNumber: undefined });
-  if (!ref) {
+  const entry = resolveAlbumCoverEntry(albumId, coverArt);
+  if (!entry) {
     return playbackCoverArtForId(coverArt, displayCssPx);
   }
+  const ref = coverEntryToRef(entry, resolvePlaybackCoverScope());
   const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'sparse' });
   return {
     src: buildCoverArtFetchUrl(ref, tier),

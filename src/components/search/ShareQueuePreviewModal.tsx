@@ -12,7 +12,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import { CoverArtImage } from '../../cover/CoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
 import type { CoverServerScope } from '../../cover/types';
-import { albumCoverRef } from '../../cover/ref';
+import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 
 type ShareQueuePreviewModalProps = {
   open: boolean;
@@ -52,8 +52,10 @@ function QueuePreviewTrackRow({
   return (
     <li className="share-queue-preview-track">
       {song.coverArt ? (
-        <CoverArtImage
-          coverRef={albumCoverRef(coverId, coverId, shareCoverServerScope(coverServer))}
+        <AlbumCoverArtImage
+          albumId={song.albumId ?? coverId}
+          coverArt={song.coverArt}
+          serverScope={shareCoverServerScope(coverServer)}
           displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
           surface="dense"
           className="share-queue-preview-track__thumb"

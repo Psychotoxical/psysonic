@@ -9,9 +9,9 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
-import { CoverArtImage } from '../cover/CoverArtImage';
-import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { albumCoverRef, artistCoverRef } from '../cover/ref';
+import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
+import { ArtistCoverArtImage } from '../cover/ArtistCoverArtImage';
+import { useLibraryCoverPrefetch } from '../cover/useLibraryCoverPrefetch';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
@@ -48,8 +48,9 @@ function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id'
     );
   }
   return (
-    <CoverArtImage
-      coverRef={artistCoverRef(artist.id, artist.coverArt)}
+    <ArtistCoverArtImage
+      artistId={artist.id}
+      coverArt={artist.coverArt}
       displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
       surface="dense"
       className="mobile-search-thumb mobile-search-thumb--artist-round"
@@ -101,15 +102,16 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     doSearch(query);
   }, [query, doSearch, share.shareMatch]);
 
-  useEffect(() => {
-    if (!results) return () => {};
-    const refs = [
-      ...results.artists.map(a => artistCoverRef(a.id, a.coverArt)),
-      ...results.albums.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : [])),
-      ...results.songs.flatMap(s => (s.albumId && s.coverArt ? [albumCoverRef(s.albumId, s.coverArt)] : [])),
-    ];
-    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
-  }, [results]);
+  useLibraryCoverPrefetch(
+    results
+      ? [
+          { artists: results.artists, priority: 'high' },
+          { albums: results.albums, priority: 'high' },
+          { songs: results.songs, priority: 'high' },
+        ]
+      : [],
+    [results],
+  );
 
   const commit = (q: string) => {
     if (q.trim()) setRecentSearches(prev => saveRecent(q, prev));
@@ -285,8 +287,9 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                 {results!.albums.map(a => (
                   <button key={a.id} className="mobile-search-item" onClick={() => goTo(`/album/${a.id}`)}>
                     {a.coverArt ? (
-                      <CoverArtImage
-                        coverRef={albumCoverRef(a.id, a.coverArt)}
+                      <AlbumCoverArtImage
+                        albumId={a.id}
+                        coverArt={a.coverArt}
                         displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
                         surface="dense"
                         className="mobile-search-thumb"
@@ -312,9 +315,10 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                 <div className="mobile-search-section-label">{t('search.songs')}</div>
                 {results!.songs.map(s => (
                   <button key={s.id} className="mobile-search-item" onClick={() => enqueueSong(s)}>
-                    {s.coverArt ? (
-                      <CoverArtImage
-                        coverRef={albumCoverRef(s.albumId, s.coverArt)}
+                    {s.albumId && s.coverArt ? (
+                      <AlbumCoverArtImage
+                        albumId={s.albumId}
+                        coverArt={s.coverArt}
                         displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
                         surface="dense"
                         className="mobile-search-thumb"

@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useCoverArt } from '../cover/useCoverArt';
-import { albumCoverRef } from '../cover/ref';
+import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { playAlbum } from '../utils/playback/playAlbum';
@@ -260,10 +260,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     });
   }, [album?.id]);
 
-  const bgHandle = useCoverArt(
-    album ? albumCoverRef(album.id, album.coverArt) : null,
-    HERO_BG_CSS_PX,
-    {
+  const heroCoverRef = useAlbumCoverRef(album?.id, album?.coverArt);
+  const bgHandle = useCoverArt(heroCoverRef, HERO_BG_CSS_PX, {
     surface: 'dense',
     ensurePriority: 'high',
   });
@@ -289,9 +287,9 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
 
       {/* key causes re-mount → animate-fade-in triggers on each album change */}
       <div className="hero-content" key={album.id}>
-        {album.coverArt && !isMobile && (
+        {heroCoverRef && !isMobile && (
           <CoverArtImage
-            coverRef={albumCoverRef(album.id, album.coverArt)}
+            coverRef={heroCoverRef}
             displayCssPx={HERO_FG_CSS_PX}
             surface="dense"
             ensurePriority="high"

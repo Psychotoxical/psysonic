@@ -55,6 +55,10 @@ export function resolveAlbumCoverCacheEntityId(
   return resolveAlbumCoverEntry(albumId, fetchCoverArtId, distinctDiscCovers)?.cacheEntityId ?? '';
 }
 
+/**
+ * Sync fallback for cover identity — UI should prefer {@link useAlbumCoverRef} /
+ * {@link AlbumCoverArtImage}; async paths should use {@link resolveAlbumCoverRefFromLibrary}.
+ */
 export function albumCoverRef(
   albumId: string,
   fetchCoverArtId?: string | null,

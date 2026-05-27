@@ -39,11 +39,11 @@ export function useWarmGridCovers(
 
   useLayoutEffect(() => {
     if (!enabled || displayCssPx <= 0) return;
-    const batch = collectAlbumCoverWarmItems(items, displayCssPx, surface, limit);
-    if (batch.length === 0) return;
 
     let cancelled = false;
     void (async () => {
+      const batch = await collectAlbumCoverWarmItems(items, displayCssPx, surface, limit);
+      if (cancelled || batch.length === 0) return;
       await warmCoverDiskSrcBatch(batch);
       if (cancelled) return;
       if (primeAllMisses) {

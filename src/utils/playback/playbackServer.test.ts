@@ -109,7 +109,7 @@ describe('playbackServer', () => {
     useAuthStore.setState({ activeServerId: 'b' });
     const { src, cacheKey } = playbackCoverArtForId('cov1', 128);
     expect(src).toContain('a.test');
-    expect(cacheKey).toBe('a.test:cover:cov1:128');
+    expect(cacheKey).toBe('a.test:cover:album:cov1:128');
   });
 
   it('shouldBindQueueServerForPlay detects queue replacement', () => {

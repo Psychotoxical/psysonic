@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { artistCoverRef } from '../../cover/ref';
+import { ArtistCoverArtImage } from '../../cover/ArtistCoverArtImage';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
 
 export interface TopFavoriteArtist {
@@ -93,8 +93,9 @@ function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: 
     >
       <div className="artist-card-avatar">
         {coverId ? (
-          <CoverArtImage
-            coverRef={artistCoverRef(artist.id, artist.coverArtId)}
+          <ArtistCoverArtImage
+            artistId={artist.id}
+            coverArt={artist.coverArtId}
             displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
             surface="dense"
             alt={artist.name}

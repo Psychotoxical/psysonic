@@ -7,8 +7,8 @@ import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Music } from 'lucide-react';
-import { albumCoverRef } from '../cover/ref';
-import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
+import { useLibraryCoverPrefetch } from '../cover/useLibraryCoverPrefetch';
 import { coverImgSrc } from '../cover/imgSrc';
 import { useCoverArt } from '../cover/useCoverArt';
 import { primeAlbumCoversForDisplay } from '../cover/warmDiskPeek';
@@ -500,11 +500,10 @@ export default function BecauseYouLikeRail({
     return () => { cancelled = true; };
   }, [pool, activeServerId, disableArtwork, poolKey]);
 
-  useEffect(() => {
-    if (disableArtwork || recs.length === 0) return;
-    const refs = recs.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
-    return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
-  }, [recs, disableArtwork]);
+  useLibraryCoverPrefetch(
+    disableArtwork || recs.length === 0 ? [] : [{ albums: recs, priority: 'high' }],
+    [recs, disableArtwork],
+  );
 
   if (pool.length === 0) {
     return <div ref={containerRef} />;
@@ -562,7 +561,8 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   const { t } = useTranslation();
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverHandle = useCoverArt(albumCoverRef(album.id, album.coverArt), BECAUSE_CARD_COVER_CSS_PX, {
+  const coverRef = useAlbumCoverRef(album.id, album.coverArt);
+  const coverHandle = useCoverArt(coverRef, BECAUSE_CARD_COVER_CSS_PX, {
     surface: 'dense',
     ensurePriority: 'high',
   });

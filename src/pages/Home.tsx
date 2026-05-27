@@ -18,8 +18,7 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { dedupeById } from '../utils/dedupeById';
 import { shuffleArray } from '../utils/playback/shuffleArray';
-import { albumCoverRef, artistCoverRef } from '../cover/ref';
-import { coverPrefetchRegister } from '../cover/prefetchRegistry';
+import { useLibraryCoverPrefetch } from '../cover/useLibraryCoverPrefetch';
 import { primeAlbumCoversForDisplay, warmHomeMainstageCovers } from '../cover/warmDiskPeek';
 import { readBecauseYouLikeCache } from '../store/becauseYouLikeCache';
 import {
@@ -102,36 +101,20 @@ export default function Home() {
     bumpPerfCounter('homeCommits');
   });
 
-  useEffect(() => {
-    const heroRefs = heroAlbums.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
-    const recentRefs = recent.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
-    const restAlbumRefs = [...random, ...mostPlayed, ...recentlyPlayed, ...starred].flatMap(a =>
-      a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : [],
-    );
-    const artistRefs = randomArtists.map(a => artistCoverRef(a.id, a.coverArt));
-    const songRefs = discoverSongs.flatMap(s => {
-      if (!s.albumId || !s.coverArt) return [];
-      return [albumCoverRef(s.albumId, s.coverArt)];
-    });
-    const unregHero = coverPrefetchRegister(heroRefs, { surface: 'dense', priority: 'high' });
-    const unregRecent = coverPrefetchRegister(recentRefs, { surface: 'dense', priority: 'high' });
-    // The album-and-artist `cappedRest` bucket is sized for the visible album
-    // rails (random + mostPlayed + recentlyPlayed + starred = 48 refs, plus
-    // 16 artist refs) and would otherwise crowd `songRefs` out entirely at
-    // the 24-entry slice. Register the Discover Songs rail on its own with
-    // its own modest cap so the song row gets a fair share of background
-    // bandwidth without inflating the 'low' bucket.
-    const cappedRest = [...restAlbumRefs, ...artistRefs].slice(0, 24);
-    const unregRest = coverPrefetchRegister(cappedRest, { surface: 'dense', priority: 'low' });
-    const cappedSongs = songRefs.slice(0, 16);
-    const unregSongs = coverPrefetchRegister(cappedSongs, { surface: 'dense', priority: 'middle' });
-    return () => {
-      unregHero();
-      unregRecent();
-      unregRest();
-      unregSongs();
-    };
-  }, [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs]);
+  useLibraryCoverPrefetch(
+    [
+      { albums: heroAlbums, priority: 'high' },
+      { albums: recent, priority: 'high' },
+      {
+        albums: [...random, ...mostPlayed, ...recentlyPlayed, ...starred],
+        artists: randomArtists,
+        limit: 24,
+        priority: 'low',
+      },
+      { songs: discoverSongs, limit: 16, priority: 'middle' },
+    ],
+    [heroAlbums, recent, random, mostPlayed, recentlyPlayed, starred, randomArtists, discoverSongs],
+  );
 
   useEffect(() => {
     if (!activeServerId) return;

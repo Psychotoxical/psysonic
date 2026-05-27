@@ -14,7 +14,7 @@ import {
 } from '../../utils/componentHelpers/playlistDetailHelpers';
 import type { CoverArtId } from '../../cover/types';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { albumCoverRef } from '../../cover/ref';
+import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '../../hooks/usePlaylistCovers';
 import { PlaylistSmartCoverCell } from '../playlists/PlaylistCoverImages';
 
@@ -88,8 +88,9 @@ export default function PlaylistHero({
               onClick={() => setEditingMeta(true)}
             >
               {customCoverId ? (
-                <CoverArtImage
-                  coverRef={albumCoverRef(customCoverId, customCoverId)}
+                <AlbumCoverArtImage
+                  albumId={customCoverId}
+                  coverArt={customCoverId}
                   displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
                   surface="dense"
                   alt=""

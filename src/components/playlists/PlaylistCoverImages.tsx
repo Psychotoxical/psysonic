@@ -1,6 +1,5 @@
 import React from 'react';
-import { CoverArtImage } from '../../cover/CoverArtImage';
-import { albumCoverRef } from '../../cover/ref';
+import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 
 /** 2×2 collage cell — half of clamp(120px, 15vw, 200px) playlist hero grid. */
 const PLAYLIST_QUAD_CELL_CSS_PX = 100;
@@ -9,8 +8,9 @@ const PLAYLIST_MAIN_COVER_CSS_PX = 200;
 
 export function PlaylistSmartCoverCell({ coverId }: { coverId: string }) {
   return (
-    <CoverArtImage
-      coverRef={albumCoverRef(coverId, coverId)}
+    <AlbumCoverArtImage
+      albumId={coverId}
+      coverArt={coverId}
       displayCssPx={PLAYLIST_QUAD_CELL_CSS_PX}
       surface="dense"
       className="playlist-cover-cell"
@@ -21,8 +21,9 @@ export function PlaylistSmartCoverCell({ coverId }: { coverId: string }) {
 
 export function PlaylistCardMainCover({ coverArt, alt }: { coverArt: string; alt: string }) {
   return (
-    <CoverArtImage
-      coverRef={albumCoverRef(coverArt, coverArt)}
+    <AlbumCoverArtImage
+      albumId={coverArt}
+      coverArt={coverArt}
       displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
       surface="dense"
       alt={alt}

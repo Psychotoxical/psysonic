@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { coverCacheEnsure, coverCachePeekBatch } from '../api/coverCache';
-import { albumCoverRef, albumCoverRefForPlayback } from '../cover/ref';
+import { albumCoverRef } from '../cover/ref';
+import { resolvePlaybackCoverScope } from '../cover/ref';
+import { resolveTrackCoverRefFromLibrary } from '../cover/resolveEntryLibrary';
 import { getDiskSrc, rememberDiskSrc } from '../cover/diskSrcCache';
 import { coverStorageKeyFromRef } from '../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../cover/tiers';
@@ -63,9 +65,18 @@ export function useNowPlayingPrewarm(): void {
       fetchEnabled: true,
     });
 
-    if (currentTrack.albumId && currentTrack.coverArt) {
-      const ref = albumCoverRefForPlayback(currentTrack);
-      if (ref) void prewarmCoverRef(ref);
+    if (currentTrack.albumId && currentTrack.id) {
+      void resolveTrackCoverRefFromLibrary(
+        {
+          id: currentTrack.id,
+          albumId: currentTrack.albumId,
+          coverArt: currentTrack.coverArt,
+          discNumber: (currentTrack as { discNumber?: number }).discNumber,
+        },
+        resolvePlaybackCoverScope(),
+      ).then(ref => {
+        if (ref) void prewarmCoverRef(ref);
+      });
     }
   }, [
     currentTrack?.id,

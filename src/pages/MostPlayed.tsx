@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound, Play, ListPlus } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { CoverArtImage } from '../cover/CoverArtImage';
-import { albumCoverRef, artistCoverRef } from '../cover/ref';
+import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
+import { ArtistCoverArtImage } from '../cover/ArtistCoverArtImage';
 import { playAlbum } from '../utils/playback/playAlbum';
 import { useTranslation } from 'react-i18next';
 
@@ -56,17 +56,6 @@ function formatPlays(n: number, t: ReturnType<typeof import('react-i18next').use
 /** Most-played list row cover layout px. */
 const MOST_PLAYED_COVER_CSS_PX = 80;
 
-function MpCover80({ coverRef, alt, className }: { coverRef: import("../cover/types").CoverArtRef; alt: string; className: string }) {
-  return (
-    <CoverArtImage
-      coverRef={coverRef}
-      displayCssPx={MOST_PLAYED_COVER_CSS_PX}
-      surface="dense"
-      alt={alt}
-      className={className}
-    />
-  );
-}
 
 export default function MostPlayed() {
   const { t } = useTranslation();
@@ -170,7 +159,14 @@ export default function MostPlayed() {
               >
                 <span className="mp-rank">{i + 1}</span>
                 {artist.coverArt ? (
-                  <MpCover80 coverRef={artistCoverRef(artist.id, artist.coverArt)} alt="" className="mp-artist-avatar" />
+                  <ArtistCoverArtImage
+                    artistId={artist.id}
+                    coverArt={artist.coverArt}
+                    displayCssPx={MOST_PLAYED_COVER_CSS_PX}
+                    surface="dense"
+                    alt=""
+                    className="mp-artist-avatar"
+                  />
                 ) : (
                   <div className="mp-artist-avatar mp-artist-avatar--placeholder" />
                 )}
@@ -207,7 +203,14 @@ export default function MostPlayed() {
                 >
                   <span className="mp-album-rank">{sortAsc ? withPlays.length - i : i + 1}</span>
                   {album.coverArt ? (
-                    <MpCover80 coverRef={albumCoverRef(album.id, album.coverArt)} alt="" className="mp-album-cover" />
+                    <AlbumCoverArtImage
+                      albumId={album.id}
+                      coverArt={album.coverArt}
+                      displayCssPx={MOST_PLAYED_COVER_CSS_PX}
+                      surface="dense"
+                      alt=""
+                      className="mp-album-cover"
+                    />
                   ) : (
                     <div className="mp-album-cover mp-album-cover--placeholder" />
                   )}

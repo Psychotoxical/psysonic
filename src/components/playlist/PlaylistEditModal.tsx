@@ -4,7 +4,7 @@ import { Camera, Loader2, X } from 'lucide-react';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import type { CoverArtId } from '../../cover/types';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { albumCoverRef } from '../../cover/ref';
+import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '../../hooks/usePlaylistCovers';
 import { PlaylistSmartCoverCell } from '../playlists/PlaylistCoverImages';
 
@@ -80,8 +80,9 @@ export default function PlaylistEditModal({
             {coverPreview ? (
               <img src={coverPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             ) : !coverRemoved && customCoverId ? (
-              <CoverArtImage
-                coverRef={albumCoverRef(customCoverId, customCoverId)}
+              <AlbumCoverArtImage
+                albumId={customCoverId}
+                coverArt={customCoverId}
                 displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
                 surface="dense"
                 alt=""
