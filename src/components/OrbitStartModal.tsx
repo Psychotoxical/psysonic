@@ -13,7 +13,7 @@ import {
 import { randomOrbitSessionName } from '../utils/orbitNames';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { isLanUrl } from '../utils/server/serverEndpoint';
+import { isLanUrl, serverShareBaseUrl } from '../utils/server/serverEndpoint';
 import { ORBIT_DEFAULT_MAX_USERS } from '../api/orbit';
 
 interface Props { onClose: () => void; }
@@ -38,7 +38,10 @@ export default function OrbitStartModal({ onClose }: Props) {
   const [clearQueue, setClearQueue] = useState(false);
 
   const server     = useAuthStore.getState().getActiveServer();
-  const serverBase = server?.url ?? '';
+  // Orbit links go to remote guests — use the share URL (public by default
+  // when both are set; LAN only if shareUsesLocalUrl is on). The LAN warning
+  // then correctly reads the address the guest will actually see.
+  const serverBase = server ? serverShareBaseUrl(server) : '';
   const serverName = server?.name ?? server?.url ?? t('orbit.fallbackServer');
   const onLan      = isLanUrl(serverBase);
 

@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useAuthStore } from '../store/authStore';
 import { encodeSharePayload } from '../utils/share/shareLink';
+import { serverShareBaseUrl } from '../utils/server/serverEndpoint';
 import { copyTextToClipboard } from '../utils/server/serverMagicString';
 import { showToast } from '../utils/ui/toast';
 import { useThemeStore } from '../store/themeStore';
@@ -196,7 +197,12 @@ function QueuePanelHostOrSolo() {
       showToast(t('queue.shareQueueEmpty'), 3000, 'info');
       return;
     }
-    const srv = useAuthStore.getState().getBaseUrl();
+    // Queue share goes to remote recipients — use the share URL, not the
+    // connect URL the active app is currently bound to (would leak the LAN
+    // host on a dual-address profile).
+    const active = useAuthStore.getState().getActiveServer();
+    if (!active) return;
+    const srv = serverShareBaseUrl(active);
     if (!srv) return;
     const ids = queueItems.map(r => r.trackId);
     const ok = await copyTextToClipboard(encodeSharePayload({ srv, k: 'queue', ids }));

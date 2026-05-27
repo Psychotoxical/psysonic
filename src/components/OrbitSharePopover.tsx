@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import { useAuthStore } from '../store/authStore';
 import { buildOrbitShareLink } from '../utils/orbit';
+import { serverShareBaseUrl } from '../utils/server/serverEndpoint';
 
 interface Props {
   anchorRef: React.RefObject<HTMLElement | null>;
@@ -23,7 +24,10 @@ export default function OrbitSharePopover({ anchorRef, onClose }: Props) {
   const [copied, setCopied] = useState(false);
 
   const shareLink = sessionId
-    ? buildOrbitShareLink(useAuthStore.getState().getActiveServer()?.url ?? '', sessionId)
+    ? (() => {
+        const active = useAuthStore.getState().getActiveServer();
+        return buildOrbitShareLink(active ? serverShareBaseUrl(active) : '', sessionId);
+      })()
     : null;
 
   useEffect(() => {
