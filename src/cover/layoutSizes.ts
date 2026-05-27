@@ -1,6 +1,8 @@
 import { computeCardGridColumnCount, computeCellWidthPx } from '../utils/cardGridLayout';
 
 export const COVER_DENSE_SEARCH_CSS_PX = 40;
+/** Artist detail top-track thumb (32×32 CSS px). */
+export const COVER_ARTIST_TOP_TRACK_CSS_PX = 32;
 export const COVER_DENSE_ARTIST_LIST_CSS_PX = 64;
 export const COVER_DENSE_RAIL_CELL_CSS_PX = 180;
 export const COVER_DENSE_GRID_MIN_CELL_CSS_PX = 140;

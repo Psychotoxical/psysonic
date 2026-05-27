@@ -1,6 +1,6 @@
 import { queueSongStar } from '../store/pendingStarSync';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
-import { resolveSubsonicSongCoverArtId } from '../utils/library/advancedSearchLocal';
+import { resolvePlaybackTrackCoverArtId } from '../cover/resolveCoverArtId';
 import type { Track } from '../store/playerStoreTypes';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
 import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
@@ -225,7 +225,7 @@ export default function MobilePlayerView() {
   const duration = currentTrack?.duration ?? 0;
 
   const playbackCoverArtId = useMemo(
-    () => (currentTrack ? resolveSubsonicSongCoverArtId(currentTrack) : undefined),
+    () => resolvePlaybackTrackCoverArtId(currentTrack),
     [currentTrack],
   );
   const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(playbackCoverArtId, 800);

@@ -1,6 +1,6 @@
 import { queueSongStar } from '../store/pendingStarSync';
 import { coverArtIdFromRadio } from '../cover/ids';
-import { resolveSubsonicSongCoverArtId } from '../utils/library/advancedSearchLocal';
+import { resolvePlaybackTrackCoverArtId } from '../cover/resolveCoverArtId';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -150,7 +150,7 @@ export default function PlayerBar() {
 
   const coverArtId = showPreviewMeta
     ? previewingTrack?.coverArt
-    : (currentTrack ? resolveSubsonicSongCoverArtId(currentTrack) : undefined);
+    : resolvePlaybackTrackCoverArtId(currentTrack);
 
   const handleVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));

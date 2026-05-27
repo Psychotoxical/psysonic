@@ -15,7 +15,7 @@ import { useQueueTrackEnrichment } from '../../hooks/useQueueTrackEnrichment';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { resolveSubsonicSongCoverArtId } from '../../utils/library/advancedSearchLocal';
+import { resolvePlaybackTrackCoverArtId } from '../../cover/resolveCoverArtId';
 import { usePlayerStore } from '../../store/playerStore';
 
 interface Props {
@@ -203,7 +203,7 @@ export function QueueCurrentTrack({
       <div className="queue-current-track-body">
         <div className={`queue-current-cover${showBufferingOverlay ? ' playback-buffering' : ''}`}>
           {(() => {
-            const coverId = resolveSubsonicSongCoverArtId(currentTrack);
+            const coverId = resolvePlaybackTrackCoverArtId(currentTrack);
             return coverId ? (
               <CoverArtImage
                 coverArtId={coverId}

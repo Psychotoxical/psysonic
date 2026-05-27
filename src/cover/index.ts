@@ -18,6 +18,11 @@ export {
   rememberDiskSrc,
 } from './diskSrcCache';
 export { usePlaybackCoverArt } from './usePlaybackCoverArt';
+export {
+  resolveArtistPageSongCoverArtId,
+  resolvePlaybackTrackCoverArtId,
+  resolveSubsonicSongCoverArtId,
+} from './resolveCoverArtId';
 export { ensureCoverTierJs } from './resolveJs';
 export { ensureCoverTierDiskSrc, ensureCoverTierDiskBlob } from './resolveDisk';
 export { buildCoverArtFetchUrl } from './fetchUrl';

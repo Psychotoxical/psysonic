@@ -77,13 +77,13 @@ export function useCoverArt(
   const cachedSrc = readCachedSrc();
 
   const applyDiskPath = useCallback((path: string) => {
-    if (!ref || !storageKey) return;
+    if (!ref) return;
     if (!path) {
       forgetDiskSrcPrefix(coverIndexKeyFromRef(ref), ref.coverArtId);
       return;
     }
     seedGridDiskSrcCache(ref.serverScope, ref.coverArtId, tier, path);
-  }, [ref, storageKey, tier]);
+  }, [ref, tier]);
 
   useEffect(() => {
     if (!ref || !storageKey) return;

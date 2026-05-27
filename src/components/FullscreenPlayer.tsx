@@ -1,6 +1,6 @@
 import { queueSongStar } from '../store/pendingStarSync';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
-import { resolveSubsonicSongCoverArtId } from '../utils/library/advancedSearchLocal';
+import { resolvePlaybackTrackCoverArtId } from '../cover/resolveCoverArtId';
 import { playbackCoverArtForId } from '../utils/playback/playbackServer';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
@@ -52,7 +52,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const duration = currentTrack?.duration ?? 0;
 
   const playbackCoverArtId = useMemo(
-    () => (currentTrack ? resolveSubsonicSongCoverArtId(currentTrack) : undefined),
+    () => resolvePlaybackTrackCoverArtId(currentTrack),
     [currentTrack],
   );
 

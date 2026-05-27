@@ -3,8 +3,6 @@ import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import {
-  resolveArtistPageSongCoverArtId,
-  resolveSubsonicSongCoverArtId,
   resolveTrackCoverArtId,
   runLocalAdvancedSearch,
   runLocalSongBrowse,
@@ -105,34 +103,6 @@ describe('runLocalAdvancedSearch', () => {
     expect(captured).toMatchObject({
       request: { filters: [{ field: 'bpm', op: 'between', value: 120, valueTo: 130 }] },
     });
-  });
-
-  it('resolveSubsonicSongCoverArtId prefers albumId when coverArt is the track id', () => {
-    expect(
-      resolveSubsonicSongCoverArtId({
-        id: 'tr-1',
-        coverArt: 'tr-1',
-        albumId: 'al-42',
-      }),
-    ).toBe('al-42');
-  });
-
-  it('resolveArtistPageSongCoverArtId prefers album coverArt over song coverArt', () => {
-    expect(
-      resolveArtistPageSongCoverArtId(
-        { id: 'tr-1', coverArt: 'tr-1', albumId: 'al-octa', album: 'Octastorium' },
-        [{ id: 'al-octa', name: 'Octastorium', coverArt: 'cov-octa' }],
-      ),
-    ).toBe('cov-octa');
-  });
-
-  it('resolveArtistPageSongCoverArtId ignores album coverArt when it echoes track id', () => {
-    expect(
-      resolveArtistPageSongCoverArtId(
-        { id: 'tr-1', coverArt: 'tr-1', albumId: 'al-octa', album: 'Octastorium' },
-        [{ id: 'al-octa', name: 'Octastorium', coverArt: 'tr-1' }],
-      ),
-    ).toBe('al-octa');
   });
 
   it('resolveTrackCoverArtId falls back to albumId when coverArtId is empty', () => {

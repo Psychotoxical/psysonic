@@ -2,7 +2,7 @@ import React, { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, Play, Square } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
-import { resolveArtistPageSongCoverArtId } from '../../utils/library/advancedSearchLocal';
+import { resolveArtistPageSongCoverArtId } from '../../cover/resolveCoverArtId';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
