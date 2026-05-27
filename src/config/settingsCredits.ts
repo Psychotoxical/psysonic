@@ -134,6 +134,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Lossless: local index browse, Advanced Search and All Albums filters, artist/album drill-down mode, conserved sidebar page (PR #871)',
       'Albums: combined browse filters (genre/year/favorites/lossless/compilations), session restore from album detail, favorites reconcile via local index (PR #876)',
       'Artist detail: sort albums by year (newest/oldest) in the Albums section (PR #877)',
+      'Servers: optional second address per profile (LAN + public), LAN-first connect with sticky fallback, same-server verify on save, share-link picker, URL-change library remigration, magic invite v2 (PR #880)',
       'Cover art: Windows thumbnails, tier fallback, PNG decode, Subsonic coverArt id resolution (PR #878)',
       'Analytics: native advanced library backfill coordinator — UI stays responsive on large libraries (PR #881)',
       'Analytics: library backfill scan phase/cursor persistence so advanced indexing can finish large libraries (PR #882)',

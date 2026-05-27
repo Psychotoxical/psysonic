@@ -131,6 +131,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Servers — second optional address per profile (LAN + public)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#880](https://github.com/Psychotoxical/psysonic/pull/880)**
+
+* **Settings → Servers:** a profile can carry a second address — typically a LAN counterpart of a public URL or vice versa. The app probes LAN-first and uses whichever endpoint actually answers, so the same profile is fast at home and reachable away from home without manual switching. Single-address profiles behave exactly as before.
+* **Same-server verify on save** when both addresses are filled — mismatched or unreachable pairs are blocked with a clear message; two-LAN combinations are caught client-side before any network call.
+* **Share links** (Orbit invites, library / queue shares, magic invite v2) embed the **public** address by default so off-LAN guests can reach the host; a *Use local address in share links* checkbox flips that for LAN-only groups. Pasted invites match either address.
+* **Editing the primary URL** to a new host triggers a confirm-modal-gated data move: library + analysis databases, cover-cache files on disk, and player queue all re-tag to the new identifier in one go. Changing only the second address or `http`↔`https` skips the migration entirely.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
