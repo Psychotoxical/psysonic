@@ -103,27 +103,24 @@ describe('FullscreenPlayer — regression §4.5 of v2 plan', () => {
   // The `false` arg is load-bearing — it avoids a double crossfade by
   // routing through the cache-only path. Pin it.
   it('passes opt=false on the cover-art useCachedUrl call (no fetchUrl fallback)', () => {
-    const track = makeTrack({ id: 'tr-1', coverArt: 'art-1', albumId: 'al-fs-cover' });
-    usePlayerStore.setState({ currentTrack: track });
+    usePlayerStore.setState({ currentTrack: makeTrack({ coverArt: 'art-1' }) });
     renderWithProviders(<FullscreenPlayer onClose={() => {}} />);
 
     const calls = vi.mocked(useCachedUrl).mock.calls;
-    // Portrait path — cache key uses resolved cover id (`albumId` when set).
     const coverCall = calls.find(c => c[2] === false);
     expect(coverCall).toBeDefined();
     expect(typeof coverCall?.[1]).toBe('string');
-    expect(String(coverCall?.[1])).toContain('al-fs-cover');
+    expect(String(coverCall?.[1])).toContain('art-1');
   });
 
   it('also issues a useCachedUrl call with the default behaviour for the small art box', () => {
-    const track = makeTrack({ id: 'tr-1', coverArt: 'art-1', albumId: 'al-fs-cover' });
-    usePlayerStore.setState({ currentTrack: track });
+    usePlayerStore.setState({ currentTrack: makeTrack({ coverArt: 'art-1' }) });
     renderWithProviders(<FullscreenPlayer onClose={() => {}} />);
 
     const calls = vi.mocked(useCachedUrl).mock.calls;
     const defaultOptCalls = calls.filter(c => c[2] !== false);
     expect(defaultOptCalls.length).toBeGreaterThanOrEqual(1);
-    expect(defaultOptCalls.some(c => String(c[1]).includes('al-fs-cover'))).toBe(true);
+    expect(defaultOptCalls.some(c => String(c[1]).includes('art-1'))).toBe(true);
   });
 });
 

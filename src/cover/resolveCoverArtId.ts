@@ -5,12 +5,14 @@ export type CoverArtResolvableSong = Pick<SubsonicSong, 'id' | 'coverArt'> & {
 };
 
 /**
- * Subsonic songs often set `coverArt` to the track id (no art). Prefer `albumId` then.
+ * Subsonic songs often set `coverArt` to the track id (no art). Use `albumId` only then;
+ * keep a distinct `coverArt` when it differs from the song id (per-track art).
  */
 export function resolveSubsonicSongCoverArtId(song: CoverArtResolvableSong): string | undefined {
   const albumId = song.albumId?.trim();
   const cover = song.coverArt?.trim();
-  if (cover && song.id && cover === song.id && albumId) return albumId;
+  const songId = song.id?.trim();
+  if (cover && (!songId || cover !== songId)) return cover;
   if (albumId) return albumId;
   if (cover) return cover;
   return undefined;

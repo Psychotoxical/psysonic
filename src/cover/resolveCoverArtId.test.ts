@@ -15,6 +15,16 @@ describe('resolveSubsonicSongCoverArtId', () => {
       }),
     ).toBe('al-42');
   });
+
+  it('keeps coverArt when it differs from song id and albumId is set', () => {
+    expect(
+      resolveSubsonicSongCoverArtId({
+        id: 'tr-1',
+        coverArt: 'cov-track',
+        albumId: 'al-42',
+      }),
+    ).toBe('cov-track');
+  });
 });
 
 describe('resolvePlaybackTrackCoverArtId', () => {

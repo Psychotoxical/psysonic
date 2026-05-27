@@ -38,6 +38,7 @@ function isRawFsPath(url: string, fsPath: string): boolean {
   if (/^[a-zA-Z]:[\\/]/.test(fsPath)) {
     const norm = fsPath.replace(/\\/g, '/');
     const urlNorm = url.replace(/\\/g, '/');
+    // `endsWith(norm)`: convertFileSrc passthrough; `norm.endsWith(urlNorm)`: partial URL match.
     if (urlNorm === norm || urlNorm.endsWith(norm) || norm.endsWith(urlNorm)) {
       return !isAssetProtocolUrl(url);
     }
