@@ -873,6 +873,11 @@ pub fn cover_revalidate_batch() -> Result<serde_json::Value, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
+    use image::{ImageBuffer, ImageFormat, Rgba};
+
+    use super::decode_image_bytes;
     use super::disk::{cover_dir, tier_path};
 
     #[test]
@@ -881,5 +886,15 @@ mod tests {
         let dir = cover_dir(root, "srv", "al-1");
         assert_eq!(dir, root.join("srv").join("al-1"));
         assert_eq!(tier_path(&dir, 512), dir.join("512.webp"));
+    }
+
+    #[test]
+    fn decode_image_bytes_accepts_png() {
+        let img = ImageBuffer::from_pixel(2, 2, Rgba([1u8, 2, 3, 255]));
+        let mut buf = Cursor::new(Vec::new());
+        img.write_to(&mut buf, ImageFormat::Png).expect("png encode");
+        let decoded = decode_image_bytes(buf.get_ref()).expect("png decode");
+        assert_eq!(decoded.width(), 2);
+        assert_eq!(decoded.height(), 2);
     }
 }
