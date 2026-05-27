@@ -1,7 +1,7 @@
 //! Library cursor scan for background cover disk warm-up.
 //!
-//! Cover IDs for backfill come from **track** + **album** rows using
-//! `COALESCE(cover_art_id, album_id)` (album table id as fallback).
+//! Cover IDs for backfill are the **distinct** `album_id` and `cover_art_id` values from
+//! track + album rows (Navidrome often uses `al-*` vs `mf-*` for the same art).
 //! Artist IDs are excluded — `getCoverArt` with `artist_id` often 404s and stalled the queue.
 
 use std::path::Path;
@@ -30,21 +30,21 @@ pub struct LibraryCoverProgressDto {
 }
 
 const COVER_ID_SUBQUERY: &str = "
-    SELECT DISTINCT COALESCE(NULLIF(TRIM(album_id), ''), NULLIF(TRIM(cover_art_id), '')) AS id
+    SELECT DISTINCT NULLIF(TRIM(album_id), '') AS id
     FROM track
-    WHERE server_id = ?1 AND deleted = 0
-      AND (
-        NULLIF(TRIM(album_id), '') IS NOT NULL
-        OR NULLIF(TRIM(cover_art_id), '') IS NOT NULL
-      )
+    WHERE server_id = ?1 AND deleted = 0 AND NULLIF(TRIM(album_id), '') IS NOT NULL
     UNION
-    SELECT DISTINCT COALESCE(NULLIF(TRIM(id), ''), NULLIF(TRIM(cover_art_id), '')) AS id
+    SELECT DISTINCT NULLIF(TRIM(cover_art_id), '') AS id
+    FROM track
+    WHERE server_id = ?1 AND deleted = 0 AND NULLIF(TRIM(cover_art_id), '') IS NOT NULL
+    UNION
+    SELECT DISTINCT NULLIF(TRIM(id), '') AS id
     FROM album
-    WHERE server_id = ?1
-      AND (
-        NULLIF(TRIM(id), '') IS NOT NULL
-        OR NULLIF(TRIM(cover_art_id), '') IS NOT NULL
-      )";
+    WHERE server_id = ?1 AND NULLIF(TRIM(id), '') IS NOT NULL
+    UNION
+    SELECT DISTINCT NULLIF(TRIM(cover_art_id), '') AS id
+    FROM album
+    WHERE server_id = ?1 AND NULLIF(TRIM(cover_art_id), '') IS NOT NULL";
 
 pub const COVER_FETCH_FAIL_MARKER: &str = ".fetch-failed";
 
@@ -332,9 +332,9 @@ mod tests {
     }
 
     #[test]
-    fn count_distinct_includes_artist_ids() {
+    fn count_distinct_includes_both_album_and_cover_art_ids() {
         let store = LibraryStore::open_in_memory();
-        seed_track(&store, "srv", "tr1", "al-1", Some("cv-1"));
+        seed_track(&store, "srv", "tr1", "al-1", Some("mf-1"));
         store
             .with_conn_mut("test_artist", |conn| {
                 conn.execute(
@@ -347,6 +347,23 @@ mod tests {
             })
             .unwrap();
         let n = count_distinct_cover_ids(&store, "srv").unwrap();
-        assert_eq!(n, 2); // cv-1, al-1 — artist ids excluded from backfill catalog
+        assert_eq!(n, 3); // al-1, mf-1, al-2 — artist ids excluded
+    }
+
+    #[test]
+    fn backfill_queues_mf_and_al_when_both_set() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "srv", "tr1", "al-99", Some("mf-88"));
+        let batch = collect_cover_backfill_batch(
+            &store,
+            "srv",
+            Path::new("/tmp/empty-cover-root"),
+            "srv-host",
+            None,
+            Some(10),
+        )
+        .unwrap();
+        assert!(batch.cover_ids.contains(&"al-99".to_string()));
+        assert!(batch.cover_ids.contains(&"mf-88".to_string()));
     }
 }

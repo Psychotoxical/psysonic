@@ -25,6 +25,16 @@ describe('resolveSubsonicSongCoverArtId', () => {
       }),
     ).toBe('cov-track');
   });
+
+  it('prefers Navidrome album id when coverArt is mf-*', () => {
+    expect(
+      resolveSubsonicSongCoverArtId({
+        id: 'tr-1',
+        coverArt: 'mf-Gg7kLxzr2dNSB7BZ9eV2Xz_69d63a8a',
+        albumId: 'al-07lZYKfVt0F4MOgbhsmeyo_69d63b4d',
+      }),
+    ).toBe('al-07lZYKfVt0F4MOgbhsmeyo_69d63b4d');
+  });
 });
 
 describe('resolvePlaybackTrackCoverArtId', () => {
@@ -60,5 +70,19 @@ describe('resolveArtistPageSongCoverArtId', () => {
         [{ id: 'al-octa', name: 'Octastorium', coverArt: 'tr-1' }],
       ),
     ).toBe('al-octa');
+  });
+
+  it('prefers album id when album coverArt is mf-*', () => {
+    expect(
+      resolveArtistPageSongCoverArtId(
+        {
+          id: 'tr-1',
+          coverArt: 'mf-x_1',
+          albumId: 'al-octa_2',
+          album: 'Octastorium',
+        },
+        [{ id: 'al-octa_2', name: 'Octastorium', coverArt: 'mf-x_1' }],
+      ),
+    ).toBe('al-octa_2');
   });
 });

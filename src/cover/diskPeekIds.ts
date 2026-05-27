@@ -9,7 +9,7 @@ export type DiskCoverIdHints = {
   albumCoverArt?: string | null;
 };
 
-/** Order: resolved id, raw coverArt, album row coverArt, albumId, song id. */
+/** Order tuned for Navidrome `al-*` / `mf-*` disk layout vs Subsonic coverArtId. */
 export function diskCoverArtIdCandidates(
   primaryId: CoverArtId,
   hints?: DiskCoverIdHints,
@@ -19,10 +19,17 @@ export function diskCoverArtIdCandidates(
     const t = typeof v === 'string' ? v.trim() : '';
     if (t && !out.includes(t)) out.push(t);
   };
+
   add(primaryId);
-  add(hints?.rawCoverArt);
-  add(hints?.albumCoverArt);
-  add(hints?.albumId);
+  if (primaryId.startsWith('mf-')) {
+    add(hints?.albumId);
+    add(hints?.albumCoverArt);
+    add(hints?.rawCoverArt);
+  } else {
+    add(hints?.rawCoverArt);
+    add(hints?.albumCoverArt);
+    add(hints?.albumId);
+  }
   add(hints?.songId);
   return out;
 }

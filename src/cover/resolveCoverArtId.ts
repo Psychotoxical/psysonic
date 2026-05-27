@@ -5,6 +5,20 @@ export type CoverArtResolvableSong = Pick<SubsonicSong, 'id' | 'coverArt'> & {
 };
 
 /**
+ * Navidrome: `coverArt` / `coverArtId` is often `mf-*` (media file) while the on-disk
+ * `cover-cache` folder from library backfill is `al-*` (album id). Prefer `al-*` for UI.
+ */
+export function navidromeAlbumDiskCoverId(
+  coverArt: string | undefined,
+  albumId: string | undefined,
+): string | undefined {
+  const cover = coverArt?.trim();
+  const album = albumId?.trim();
+  if (album?.startsWith('al-') && cover?.startsWith('mf-')) return album;
+  return undefined;
+}
+
+/**
  * Subsonic songs often set `coverArt` to the track id (no art). Use `albumId` only then;
  * keep a distinct `coverArt` when it differs from the song id (per-track art).
  */
@@ -12,6 +26,8 @@ export function resolveSubsonicSongCoverArtId(song: CoverArtResolvableSong): str
   const albumId = song.albumId?.trim();
   const cover = song.coverArt?.trim();
   const songId = song.id?.trim();
+  const navidromeAlbum = navidromeAlbumDiskCoverId(cover, albumId);
+  if (navidromeAlbum) return navidromeAlbum;
   if (cover && (!songId || cover !== songId)) return cover;
   if (albumId) return albumId;
   if (cover) return cover;
@@ -40,6 +56,8 @@ export function resolveArtistPageSongCoverArtId(
   const album = song.albumId
     ? albums.find(a => a.id === song.albumId)
     : albums.find(a => a.name === song.album);
+  const navidromeAlbum = navidromeAlbumDiskCoverId(album?.coverArt, album?.id);
+  if (navidromeAlbum) return navidromeAlbum;
   const albumCover = album?.coverArt?.trim();
   const songId = song.id?.trim();
   // Album row `coverArt` can echo the track id (no art) — do not prefer it over albumId.

@@ -13,6 +13,16 @@ describe('diskCoverArtIdCandidates', () => {
     ).toEqual(['al-42', 'tr-1', 'cov-grid']);
   });
 
+  it('prioritizes album id after mf-* primary', () => {
+    expect(
+      diskCoverArtIdCandidates('mf-x_1', {
+        albumId: 'al-octa_2',
+        rawCoverArt: 'mf-x_1',
+        songId: 'tr-1',
+      }),
+    ).toEqual(['mf-x_1', 'al-octa_2', 'tr-1']);
+  });
+
   it('dedupes identical hints', () => {
     expect(
       diskCoverArtIdCandidates('tr-1', {
