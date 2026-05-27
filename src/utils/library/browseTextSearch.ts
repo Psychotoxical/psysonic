@@ -20,6 +20,7 @@ import {
   trackToSong,
   type LocalSearchOpts,
 } from './advancedSearchLocal';
+import { albumYearFilterClauses, type AlbumYearBounds } from './albumYearFilter';
 import {
   logLibrarySearch,
   timed,
@@ -452,18 +453,13 @@ export async function runLocalAlbumBrowsePage(
   sort: AlbumBrowseSort,
   offset: number,
   pageSize: number,
-  yearFilter?: { from: number; to: number },
+  yearFilter?: AlbumYearBounds,
   losslessOnly?: boolean,
 ): Promise<SubsonicAlbum[] | null> {
   if (!serverId || !(await libraryIsReady(serverId))) return null;
   const filters: LibraryFilterClause[] = [];
   if (yearFilter) {
-    filters.push({
-      field: 'year',
-      op: 'between',
-      value: yearFilter.from,
-      valueTo: yearFilter.to,
-    });
+    filters.push(...albumYearFilterClauses(yearFilter));
   }
   if (losslessOnly) {
     filters.push({ field: 'lossless', op: 'is_true' });

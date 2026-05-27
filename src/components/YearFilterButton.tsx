@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { CalendarRange, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import FilterQuickClear from './FilterQuickClear';
+import { formatAlbumYearFilterLabel, resolveAlbumYearBounds } from '../utils/library/albumYearFilter';
 
 interface Props {
   from: string;
@@ -21,9 +22,8 @@ export default function YearFilterButton({ from, to, onChange }: Props) {
   const popRef = useRef<HTMLDivElement>(null);
   const fromRef = useRef<HTMLInputElement>(null);
 
-  const fromNum = parseInt(from, 10);
-  const toNum = parseInt(to, 10);
-  const active = !isNaN(fromNum) && !isNaN(toNum) && fromNum >= 1 && toNum >= 1;
+  const { active, bounds } = resolveAlbumYearBounds(from, to);
+  const activeLabel = formatAlbumYearFilterLabel(bounds);
 
   const updatePopStyle = () => {
     if (!triggerRef.current) return;
@@ -103,7 +103,7 @@ export default function YearFilterButton({ from, to, onChange }: Props) {
         }}
       >
         <CalendarRange size={14} />
-        {active ? `${fromNum}–${toNum}` : t('albums.yearFilterLabel')}
+        {active && activeLabel ? activeLabel : t('albums.yearFilterLabel')}
         {active && <FilterQuickClear onActiveChip onClear={clear} />}
       </button>
 

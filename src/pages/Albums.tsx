@@ -41,6 +41,11 @@ import {
   type AlbumBrowseSort,
 } from '../utils/library/browseTextSearch';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
+import {
+  albumYearSubsonicParams,
+  resolveAlbumYearBounds,
+  type AlbumYearBounds,
+} from '../utils/library/albumYearFilter';
 
 type SortType = AlbumBrowseSort;
 type CompFilter = 'all' | 'only' | 'hide';
@@ -191,9 +196,10 @@ export default function Albums() {
 
   // ── Data loading ─────────────────────────────────────────────────────────
   const genreFiltered = selectedGenres.length > 0;
-  const fromNum = parseInt(yearFrom, 10);
-  const toNum = parseInt(yearTo, 10);
-  const yearActive = !isNaN(fromNum) && !isNaN(toNum) && fromNum >= 1 && toNum >= 1;
+  const { active: yearActive, bounds: yearBounds } = useMemo(
+    () => resolveAlbumYearBounds(yearFrom, yearTo),
+    [yearFrom, yearTo],
+  );
 
   const pendingClientFilterMatch =
     clientFilterActive && visibleAlbums.length === 0 && hasMore && !genreFiltered;
@@ -244,7 +250,7 @@ export default function Albums() {
     sortType: SortType,
     offset: number,
     append = false,
-    yearFilter?: { from: number; to: number },
+    yearFilter?: AlbumYearBounds,
     lossless = false,
   ) => {
     setLoading(true);
@@ -305,7 +311,7 @@ export default function Albums() {
         );
       }
       if (data == null) {
-        const extra = yearFilter ? { fromYear: yearFilter.from, toYear: yearFilter.to } : {};
+        const extra = yearFilter ? albumYearSubsonicParams(yearFilter) : {};
         const type = yearFilter ? 'byYear' : sortType;
         data = await getAlbumList(type, PAGE_SIZE, offset, extra);
       }
@@ -360,17 +366,17 @@ export default function Albums() {
     if (genreFiltered) {
       loadFiltered(selectedGenres, sort, losslessOnly);
     } else if (yearActive) {
-      load(sort, 0, false, { from: fromNum, to: toNum }, losslessOnly);
+      load(sort, 0, false, yearBounds, losslessOnly);
     } else {
       load(sort, 0, false, undefined, losslessOnly);
     }
-  }, [sort, genreFiltered, selectedGenres, yearActive, fromNum, toNum, losslessOnly, load, loadFiltered]);
+  }, [sort, genreFiltered, selectedGenres, yearActive, yearBounds, losslessOnly, load, loadFiltered]);
 
   const loadMore = useCallback(() => {
     if (loading || !hasMore || genreFiltered) return;
     const next = page + 1;
     setPage(next);
-    const yf = yearActive ? { from: fromNum, to: toNum } : undefined;
+    const yf = yearActive ? yearBounds : undefined;
     load(sort, next * PAGE_SIZE, true, yf, losslessOnly);
   }, [
     loading,
@@ -380,8 +386,7 @@ export default function Albums() {
     load,
     genreFiltered,
     yearActive,
-    fromNum,
-    toNum,
+    yearBounds,
     losslessOnly,
   ]);
 
