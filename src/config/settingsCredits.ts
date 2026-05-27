@@ -133,6 +133,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Cover art pipeline: tier ladder, WebP disk cache, dense-grid prefetch, Settings cover cache budget (PR #869)',
       'Lossless: local index browse, Advanced Search and All Albums filters, artist/album drill-down mode, conserved sidebar page (PR #871)',
       'Albums: combined browse filters (genre/year/favorites/lossless/compilations), session restore from album detail, favorites reconcile via local index (PR #876)',
+      'Artist detail: sort albums by year (newest/oldest) in the Albums section (PR #877)',
     ],
   },
   {
