@@ -3,11 +3,10 @@ import {
   librarySyncBindSession,
 } from '../../api/library';
 import { enqueueLibrarySync, queueInitialSyncIfNeeded } from './librarySyncQueue';
-import { pingWithCredentials } from '../../api/subsonic';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
-import { serverProfileBaseUrl } from '../server/serverBaseUrl';
+import { ensureConnectUrlResolved } from '../server/serverEndpoint';
 import { serverIndexKeyForProfile } from '../server/serverIndexKey';
 import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 
@@ -18,15 +17,14 @@ export type BindServerResult = 'bound' | 'offline' | 'error';
  */
 export async function bindIndexedServer(server: ServerProfile): Promise<BindServerResult> {
   if (!useLibraryIndexStore.getState().isIndexEnabled(server.id)) return 'error';
-  const baseUrl = serverProfileBaseUrl(server);
-  if (!baseUrl) return 'error';
 
-  try {
-    const ping = await pingWithCredentials(server.url, server.username, server.password);
-    if (!ping.ok) return 'offline';
-  } catch {
-    return 'offline';
-  }
+  // Dual-address: resolve the connect URL once (LAN-first, sticky cached) and
+  // hand that to the Rust bind-session command — Rust then sees the reachable
+  // endpoint instead of the literal primary URL. Single-address profiles fall
+  // through to one ping, identical to the legacy path.
+  const probe = await ensureConnectUrlResolved(server);
+  if (!probe.ok) return 'offline';
+  const baseUrl = probe.baseUrl;
 
   try {
     const t0 = performance.now();

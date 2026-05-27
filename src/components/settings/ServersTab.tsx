@@ -13,6 +13,7 @@ import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { type ServerMagicPayload } from '../../utils/server/serverMagicString';
+import { ensureConnectUrlResolved } from '../../utils/server/serverEndpoint';
 import { showAudiomuseNavidromeServerSetting } from '../../utils/server/subsonicServerIdentity';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
 import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
@@ -112,17 +113,21 @@ export function ServersTab({
   const testConnection = async (server: ServerProfile) => {
     setConnStatus(s => ({ ...s, [server.id]: 'testing' }));
     try {
-      const ping = await pingWithCredentials(server.url, server.username, server.password);
-      if (ping.ok) {
+      // Dual-address: probe through the connect layer so the test reflects
+      // whichever endpoint the app would actually use right now (LAN at home,
+      // public elsewhere). probe.baseUrl also feeds the AudioMuse probe so
+      // that one hits the same endpoint.
+      const probe = await ensureConnectUrlResolved(server);
+      if (probe.ok) {
         const identity = {
-          type: ping.type,
-          serverVersion: ping.serverVersion,
-          openSubsonic: ping.openSubsonic,
+          type: probe.ping.type,
+          serverVersion: probe.ping.serverVersion,
+          openSubsonic: probe.ping.openSubsonic,
         };
         auth.setSubsonicServerIdentity(server.id, identity);
-        scheduleInstantMixProbeForServer(server.id, server.url, server.username, server.password, identity);
+        scheduleInstantMixProbeForServer(server.id, probe.baseUrl, server.username, server.password, identity);
       }
-      setConnStatus(s => ({ ...s, [server.id]: ping.ok ? 'ok' : 'error' }));
+      setConnStatus(s => ({ ...s, [server.id]: probe.ok ? 'ok' : 'error' }));
     } catch {
       setConnStatus(s => ({ ...s, [server.id]: 'error' }));
     }
