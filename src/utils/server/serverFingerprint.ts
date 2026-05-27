@@ -119,17 +119,18 @@ function extractMusicFolders(data: unknown): Array<{ id: string; name: string }>
   return normalized;
 }
 
-function extractUserId(data: unknown, fallbackUsername: string): string | null {
+function extractUserId(data: unknown): string | null {
   const user = (data as Record<string, unknown> | null)?.['user'] as
     | Record<string, unknown>
     | undefined;
   if (!user) return null;
+  // Only count the server-supplied id as a signal. A username-only fallback
+  // (spec §7.2 footnote) would create false `mismatch` results when one
+  // endpoint surfaces an explicit id and the other only returns the
+  // username we already authenticated with — both sides would carry a
+  // value and the comparator would compare unrelated strings.
   const explicit = typeof user.id === 'string' ? user.id.trim() : '';
-  if (explicit) return explicit;
-  // Fallback to normalized username only if neither side carries an id — but
-  // we don't know "neither side" yet at extract time, so just normalize and
-  // let the comparator decide whether to consider it a signal.
-  return fallbackUsername.trim().toLowerCase() || null;
+  return explicit || null;
 }
 
 function extractLicenseEmail(data: unknown): string | null {
@@ -214,7 +215,7 @@ export async function fetchServerFingerprint(
       apiVersion: ping.apiVersion,
     },
     musicFolders: extractMusicFolders(value(foldersResult)),
-    userId: extractUserId(value(userResult), username),
+    userId: extractUserId(value(userResult)),
     licenseKey: extractLicenseEmail(value(licenseResult)),
     indexesDigest: extractIndexesDigest(value(indexesResult)),
   };

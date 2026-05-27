@@ -181,6 +181,20 @@ describe('fetchServerFingerprint', () => {
     expect(fp.indexesDigest).toMatch(/^letters:2\|/);
   });
 
+  it('extracts userId only when the server supplies an explicit id (no username fallback)', async () => {
+    // Two servers return the same authenticated user but only one of them
+    // surfaces a `user.id` — the username-only side must extract null so the
+    // comparator skips the signal instead of comparing two unrelated strings.
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(navidromePingResponse()));
+    vi.mocked(apiWithCredentials)
+      .mockResolvedValueOnce({ musicFolders: { musicFolder: [] } })
+      .mockResolvedValueOnce({ user: { username: 'frank' } }) // no `id` field
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    const fp = await fetchServerFingerprint('https://x.example.com', 'frank', 'pw');
+    expect(fp.userId).toBeNull();
+  });
+
   it('soft-fails optional calls — minimal Subsonic-shape', async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse(ampachePingResponse()),
