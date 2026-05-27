@@ -21,6 +21,7 @@ export type AlbumBrowseQuery = {
   genres: string[];
   year?: AlbumYearBounds;
   losslessOnly: boolean;
+  starredOnly: boolean;
 };
 
 export function albumBrowseHasGenreFilter(query: AlbumBrowseQuery): boolean {
@@ -28,14 +29,28 @@ export function albumBrowseHasGenreFilter(query: AlbumBrowseQuery): boolean {
 }
 
 export function albumBrowseHasServerFilters(query: AlbumBrowseQuery): boolean {
-  return albumBrowseHasGenreFilter(query) || query.year != null || query.losslessOnly;
+  return (
+    albumBrowseHasGenreFilter(query)
+    || query.year != null
+    || query.losslessOnly
+    || query.starredOnly
+  );
 }
 
 function sharedServerFilters(query: AlbumBrowseQuery): LibraryFilterClause[] {
   const filters: LibraryFilterClause[] = [];
   if (query.year) filters.push(...albumYearFilterClauses(query.year));
   if (query.losslessOnly) filters.push({ field: 'lossless', op: 'is_true' });
+  if (query.starredOnly) filters.push({ field: 'starred', op: 'is_true' });
   return filters;
+}
+
+/** Client-side starred filter (star/unstar overrides in-session). */
+export function filterAlbumsByStarred(
+  albums: SubsonicAlbum[],
+  starredOverrides: Record<string, boolean>,
+): SubsonicAlbum[] {
+  return albums.filter(a => (a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred));
 }
 
 export function filterAlbumsByYearBounds(
@@ -77,6 +92,7 @@ export async function runLocalAlbumBrowse(
             libraryScope: scope,
             entityTypes: ['album'],
             filters: [{ field: 'genre', op: 'eq', value: genre }, ...shared],
+            starredOnly: query.starredOnly || undefined,
             sort: albumSortClauses(query.sort),
             limit: GENRE_ALBUM_FETCH_LIMIT,
             offset: 0,
@@ -101,6 +117,7 @@ export async function runLocalAlbumBrowse(
       libraryScope: scope,
       entityTypes: ['album'],
       filters: shared,
+      starredOnly: query.starredOnly || undefined,
       sort: albumSortClauses(query.sort),
       limit: pageSize,
       offset,
@@ -114,6 +131,16 @@ export async function runLocalAlbumBrowse(
   }
 }
 
+function applyNetworkPostFilters(
+  albums: SubsonicAlbum[],
+  query: AlbumBrowseQuery,
+): SubsonicAlbum[] {
+  let out = albums;
+  if (query.year) out = filterAlbumsByYearBounds(out, query.year);
+  if (query.starredOnly) out = out.filter(a => !!a.starred);
+  return sortSubsonicAlbums(out, query.sort);
+}
+
 async function fetchAlbumBrowseNetwork(
   query: AlbumBrowseQuery,
   offset: number,
@@ -121,9 +148,17 @@ async function fetchAlbumBrowseNetwork(
 ): Promise<{ albums: SubsonicAlbum[]; hasMore: boolean }> {
   if (query.genres.length > 0) {
     if (offset > 0) return { albums: [], hasMore: false };
-    let data = await fetchByGenres(query.genres);
-    if (query.year) data = filterAlbumsByYearBounds(data, query.year);
-    return { albums: sortSubsonicAlbums(data, query.sort), hasMore: false };
+    const data = applyNetworkPostFilters(await fetchByGenres(query.genres), query);
+    return { albums: data, hasMore: false };
+  }
+
+  if (query.starredOnly) {
+    const extra = query.year ? albumYearSubsonicParams(query.year) : {};
+    const data = applyNetworkPostFilters(
+      await getAlbumList('starred', pageSize, offset, extra),
+      query,
+    );
+    return { albums: data, hasMore: data.length === pageSize };
   }
 
   if (query.year) {

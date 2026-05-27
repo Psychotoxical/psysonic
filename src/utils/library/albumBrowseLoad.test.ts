@@ -12,6 +12,7 @@ describe('albumBrowseLoad', () => {
     sort: 'alphabeticalByName',
     genres: [],
     losslessOnly: false,
+    starredOnly: false,
   };
 
   it('detects combined server filters', () => {
@@ -19,6 +20,7 @@ describe('albumBrowseLoad', () => {
     expect(albumBrowseHasServerFilters({ ...base, genres: ['Rock'] })).toBe(true);
     expect(albumBrowseHasServerFilters({ ...base, year: { from: 1990 } })).toBe(true);
     expect(albumBrowseHasServerFilters({ ...base, losslessOnly: true })).toBe(true);
+    expect(albumBrowseHasServerFilters({ ...base, starredOnly: true })).toBe(true);
     expect(
       albumBrowseHasServerFilters({
         ...base,

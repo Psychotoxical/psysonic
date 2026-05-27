@@ -448,6 +448,7 @@ export async function runLocalAlbumBrowsePage(
     genres: [],
     year: yearFilter,
     losslessOnly: !!losslessOnly,
+    starredOnly: false,
   };
   const page = await runLocalAlbumBrowse(serverId, query, offset, pageSize);
   return page?.albums ?? null;
@@ -464,7 +465,7 @@ export async function runLocalAlbumsByGenres(
   losslessOnly?: boolean,
 ): Promise<SubsonicAlbum[] | null> {
   if (!serverId || genres.length === 0) return null;
-  const query: AlbumBrowseQuery = { sort, genres, losslessOnly: !!losslessOnly };
+  const query: AlbumBrowseQuery = { sort, genres, losslessOnly: !!losslessOnly, starredOnly: false };
   const page = await runLocalAlbumBrowse(serverId, query, 0, limitPerGenre);
   return page?.albums ?? null;
 }

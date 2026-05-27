@@ -39,6 +39,7 @@ import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
   fetchAlbumBrowsePage,
+  filterAlbumsByStarred,
   type AlbumBrowseQuery,
 } from '../utils/library/albumBrowseLoad';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -102,14 +103,12 @@ export default function Albums() {
   const [selectionMode, setSelectionMode] = useState(false);
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const clientFilterActive = starredOnly || compFilter !== 'all';
+  const compFilterActive = compFilter !== 'all';
   const visibleAlbums = useMemo(() => {
     let out = albums;
     if (compFilter === 'only') out = out.filter(a => a.isCompilation);
     else if (compFilter === 'hide') out = out.filter(a => !a.isCompilation);
-    if (starredOnly) {
-      out = out.filter(a => a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred);
-    }
+    if (starredOnly) out = filterAlbumsByStarred(out, starredOverrides);
     return out;
   }, [albums, compFilter, starredOnly, starredOverrides]);
 
@@ -197,13 +196,15 @@ export default function Albums() {
     genres: selectedGenres,
     year: yearActive ? yearBounds : undefined,
     losslessOnly,
-  }), [sort, selectedGenres, yearActive, yearBounds, losslessOnly]);
+    starredOnly,
+  }), [sort, selectedGenres, yearActive, yearBounds, losslessOnly, starredOnly]);
 
   const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
   const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
 
+  // Compilations are client-only — paginate until matches appear or catalog ends.
   const pendingClientFilterMatch =
-    clientFilterActive && visibleAlbums.length === 0 && hasMore && !genreFiltered;
+    compFilterActive && visibleAlbums.length === 0 && hasMore && !genreFiltered;
 
   const visibleEmptyMessage = useMemo(() => {
     if (starredOnly) return t('albums.noFavorites');
@@ -422,7 +423,7 @@ export default function Albums() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <div className="spinner" />
           </div>
-        ) : !loading && albums.length === 0 && !serverFilterActive && !clientFilterActive ? (
+        ) : !loading && albums.length === 0 && !serverFilterActive && !compFilterActive ? (
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {t('common.libraryEmpty')}
           </div>
@@ -430,7 +431,7 @@ export default function Albums() {
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {t('losslessAlbums.empty')}
           </div>
-        ) : !loading && visibleAlbums.length === 0 && clientFilterActive ? (
+        ) : !loading && visibleAlbums.length === 0 && (starredOnly || compFilterActive) ? (
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {visibleEmptyMessage}
           </div>
