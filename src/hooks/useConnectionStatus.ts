@@ -6,6 +6,7 @@ import {
   ensureConnectUrlResolved,
   invalidateReachableEndpointCache,
   isLanUrl,
+  type ServerEndpointKind,
 } from '../utils/server/serverEndpoint';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
@@ -18,6 +19,11 @@ export function useConnectionStatus() {
   const perfFlags = usePerfProbeFlags();
   const [status, setStatus] = useState<ConnectionStatus>('checking');
   const [isRetrying, setIsRetrying] = useState(false);
+  // Tracks the kind of endpoint the last successful probe answered on so the
+  // badge reflects the *active* connection, not just whatever the user typed
+  // as the primary URL. A LAN-tagged primary that has fallen over to its
+  // public alternate must read as 'public', not 'local'.
+  const [activeEndpointKind, setActiveEndpointKind] = useState<ServerEndpointKind | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const check = useCallback(async () => {
@@ -48,6 +54,9 @@ export function useConnectionStatus() {
         useAuthStore.getState().setSubsonicServerIdentity(sid, identity);
         scheduleInstantMixProbeForServer(sid, probe.baseUrl, server.username, server.password, identity);
       }
+      setActiveEndpointKind(probe.endpoint.kind);
+    } else {
+      setActiveEndpointKind(null);
     }
     setStatus(probe.ok ? 'connected' : 'disconnected');
   }, []);
@@ -104,7 +113,16 @@ export function useConnectionStatus() {
     status,
     isRetrying,
     retry,
-    isLan: server ? isLanUrl(server.url) : false,
+    // Active endpoint kind preferred; until the first probe completes we
+    // fall back to the primary url's classification so the badge has
+    // *something* to render at mount time. Once a probe has resolved,
+    // `activeEndpointKind` is the source of truth.
+    isLan:
+      activeEndpointKind !== null
+        ? activeEndpointKind === 'local'
+        : server
+        ? isLanUrl(server.url)
+        : false,
     serverName,
   };
 }
