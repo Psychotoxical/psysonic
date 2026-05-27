@@ -214,12 +214,6 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
     let http_sem = worker.backfill_http.clone();
     let mut batch_count = 0u32;
 
-    let server_dir = root.join(&session.server_index_key);
-    let _ = tauri::async_runtime::spawn_blocking(move || {
-        psysonic_core::cover_cache_layout::prune_legacy_flat_server_dirs(&server_dir)
-    })
-    .await;
-
     loop {
         if !session_still_focused(&worker, &session).await {
             break;

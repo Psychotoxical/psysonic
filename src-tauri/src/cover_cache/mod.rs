@@ -68,8 +68,6 @@ fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
     cover_dir(root, &args.server_index_key, &args.cache_kind, &args.cache_entity_id)
 }
 
-pub(crate) use psysonic_core::cover_cache_layout::cover_cache_catalog_entry as cache_kind_entity_for_id;
-
 /// Cap concurrent cover HTTP fetches for visible UI routes (library backfill uses its own pool).
 const COVER_HTTP_CONCURRENCY: usize = 16;
 /// Max concurrent CPU-heavy cover steps (JPEG decode + WebP encode) — all paths share this.
@@ -430,7 +428,6 @@ fn reset_cover_cache_for_index_key_layout(root: &Path) -> Result<(), String> {
     if stamp.is_file() {
         if let Ok(s) = std::fs::read_to_string(&stamp) {
             if s.trim() == COVER_CACHE_LAYOUT_STAMP {
-                let _ = psysonic_core::cover_cache_layout::prune_all_legacy_flat_dirs(root);
                 return Ok(());
             }
         }

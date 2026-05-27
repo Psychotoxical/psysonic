@@ -23,22 +23,6 @@ pub fn is_fetch_only_cover_id(id: &str) -> bool {
         || id.starts_with("ra-")
 }
 
-/// Legacy classifier when only an id string is known — backfill should use SQL `kind` instead.
-pub fn cover_cache_catalog_entry(id: &str) -> Option<(&'static str, &str)> {
-    let id = id.trim();
-    if id.is_empty() || is_fetch_only_cover_id(id) {
-        return None;
-    }
-    if id.starts_with("ar-") {
-        Some(("artist", id))
-    } else if id.starts_with("al-") {
-        Some(("album", id))
-    } else {
-        // Navidrome bare album/artist id — default album; ambiguous without SQL kind.
-        Some(("album", id))
-    }
-}
-
 /// Sanitize a single path segment for Windows / Unix (Navidrome ids are usually already safe).
 pub fn sanitize_path_segment(segment: &str) -> String {
     const FORBIDDEN: &[char] = &['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
@@ -181,56 +165,6 @@ pub fn cover_root_disk_usage(cover_root: &Path) -> (u64, u64) {
     (bytes, count)
 }
 
-fn legacy_flat_cover_dir(dir: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return false;
-    };
-    entries.flatten().any(|e| {
-        e.path().is_file() && e.path().extension().and_then(|s| s.to_str()) == Some("webp")
-    })
-}
-
-/// Remove pre-segment-v3 flat dirs (`server/al-*`, bare hashes) that sit beside `album/` / `artist/`.
-pub fn prune_legacy_flat_server_dirs(server_dir: &Path) -> u32 {
-    let Ok(entries) = std::fs::read_dir(server_dir) else {
-        return 0;
-    };
-    let mut removed = 0u32;
-    for ent in entries.flatten() {
-        if !ent.path().is_dir() {
-            continue;
-        }
-        let fname = ent.file_name();
-        let name = fname.to_string_lossy();
-        if SEGMENT_KINDS.iter().any(|k| *k == name.as_ref()) {
-            continue;
-        }
-        if legacy_flat_cover_dir(&ent.path()) {
-            if std::fs::remove_dir_all(ent.path()).is_ok() {
-                removed += 1;
-            }
-        }
-    }
-    removed
-}
-
-/// Prune legacy flat dirs under every server bucket (safe when layout stamp already matches).
-pub fn prune_all_legacy_flat_dirs(cover_root: &Path) -> u32 {
-    let Ok(entries) = std::fs::read_dir(cover_root) else {
-        return 0;
-    };
-    let mut total = 0u32;
-    for ent in entries.flatten() {
-        let fname = ent.file_name();
-        let name = fname.to_string_lossy();
-        if name == ".storage-layout" || !ent.path().is_dir() {
-            continue;
-        }
-        total += prune_legacy_flat_server_dirs(&ent.path());
-    }
-    total
-}
-
 /// Artist — one disk slot per artist id.
 pub fn resolve_artist_cover(artist_id: &str, cover_art_id: Option<&str>) -> Option<CoverEntry> {
     let artist = artist_id.trim();
@@ -303,21 +237,6 @@ mod tests {
         let (bytes, count) = server_cover_disk_usage(&server);
         assert_eq!(count, 1);
         assert!(bytes >= 3);
-        let _ = std::fs::remove_dir_all(&server);
-    }
-
-    #[test]
-    fn prune_removes_flat_legacy_not_segment_dirs() {
-        let server = test_server_dir("prune");
-        let legacy = server.join("al-legacy");
-        std::fs::create_dir_all(&legacy).unwrap();
-        std::fs::write(legacy.join("800.webp"), b"z").unwrap();
-        let canonical = server.join("album").join("al-ok");
-        std::fs::create_dir_all(&canonical).unwrap();
-        std::fs::write(canonical.join("800.webp"), b"z").unwrap();
-        assert_eq!(prune_legacy_flat_server_dirs(&server), 1);
-        assert!(!legacy.exists());
-        assert!(canonical.join("800.webp").is_file());
         let _ = std::fs::remove_dir_all(&server);
     }
 }

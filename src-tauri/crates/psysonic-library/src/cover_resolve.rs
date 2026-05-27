@@ -88,17 +88,110 @@ pub fn resolve_album_cover_entry(
     if album_id.is_empty() {
         return Ok(None);
     }
-    let cover_art_id: Option<String> = store.with_read_conn(|conn| {
+    let cover_art_id = match store.with_read_conn(|conn| {
         conn.query_row(
             "SELECT cover_art_id FROM album WHERE server_id = ?1 AND id = ?2",
             rusqlite::params![library_server_id, album_id],
-            |row| row.get(0),
+            |row| row.get::<_, Option<String>>(0),
         )
         .optional()
         .map_err(Into::into)
-    })?;
+    })? {
+        None => return Ok(None),
+        Some(v) => v,
+    };
     let distinct = album_has_distinct_disc_covers(store, library_server_id, album_id)?;
     Ok(resolve_album_cover(album_id, cover_art_id.as_deref(), distinct).map(Into::into))
+}
+
+/// Album id appears only on `track` rows (no `album` table row) — mirror catalog `fetch_id`.
+fn track_only_album_backfill_entry(
+    store: &LibraryStore,
+    library_server_id: &str,
+    album_id: &str,
+) -> Result<Option<CoverEntryDto>, String> {
+    store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COALESCE(NULLIF(TRIM(cover_art_id), ''), TRIM(album_id))
+             FROM track
+             WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0
+             ORDER BY id ASC
+             LIMIT 1",
+                rusqlite::params![library_server_id, album_id],
+                |row| {
+                    let fetch: String = row.get(0)?;
+                    Ok(resolve_album_cover(album_id, Some(fetch.as_str()), false).map(Into::into))
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+        })
+        .map(|opt| opt.flatten())
+}
+
+/// All disk slots to warm for one album — includes per-CD `mf-*` / `dc-*` dirs when discs differ.
+pub fn cover_backfill_items_for_album(
+    store: &LibraryStore,
+    library_server_id: &str,
+    album_id: &str,
+) -> Result<Vec<CoverEntryDto>, String> {
+    let album_id = album_id.trim();
+    if album_id.is_empty() {
+        return Ok(Vec::new());
+    }
+    let distinct = album_has_distinct_disc_covers(store, library_server_id, album_id)?;
+    if !distinct {
+        if let Some(dto) = resolve_album_cover_entry(store, library_server_id, album_id)? {
+            return Ok(vec![dto]);
+        }
+        return Ok(track_only_album_backfill_entry(store, library_server_id, album_id)?
+            .into_iter()
+            .collect());
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    let mut push = |dto: CoverEntryDto| {
+        if seen.insert(dto.cache_entity_id.clone()) {
+            out.push(dto);
+        }
+    };
+
+    if let Some(dto) = resolve_album_cover_entry(store, library_server_id, album_id)? {
+        push(dto);
+    }
+
+    store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(
+            "SELECT id, disc_number, cover_art_id, album_id
+             FROM track
+             WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![library_server_id, album_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<i64>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        })?;
+        for row in rows {
+            let (track_id, disc_number, cover_art_id, row_album_id) = row?;
+            let _disc = disc_number.unwrap_or(1);
+            let al = row_album_id
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(album_id);
+            let fetch = song_fetch_cover_art_id(cover_art_id.as_deref(), &track_id, al);
+            if let Some(entry) = resolve_album_cover(album_id, Some(fetch.as_str()), true) {
+                push(entry.into());
+            }
+        }
+        Ok(())
+    })?;
+
+    Ok(out)
 }
 
 pub fn resolve_artist_cover_entry(
@@ -215,6 +308,18 @@ mod tests {
         let e = resolve_track_cover_entry(&store, "srv", "tr1").unwrap().unwrap();
         assert_eq!(e.cache_entity_id, "al-1");
         assert_eq!(e.fetch_cover_art_id, "mf-a");
+    }
+
+    #[test]
+    fn backfill_album_slots_include_each_disc_mf() {
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "srv", "al-box", None);
+        seed_track(&store, "srv", "tr1", "al-box", 1, Some("mf-a"));
+        seed_track(&store, "srv", "tr2", "al-box", 2, Some("mf-b"));
+        let items = cover_backfill_items_for_album(&store, "srv", "al-box").unwrap();
+        let ids: Vec<_> = items.iter().map(|i| i.cache_entity_id.as_str()).collect();
+        assert!(ids.contains(&"mf-a"));
+        assert!(ids.contains(&"mf-b"));
     }
 
     #[test]

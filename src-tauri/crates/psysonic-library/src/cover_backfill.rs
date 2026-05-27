@@ -6,7 +6,10 @@
 use std::path::{Path, PathBuf};
 
 use psysonic_core::cover_cache_layout::{self, is_fetch_only_cover_id};
-use crate::cover_resolve::{resolve_album_cover_entry, resolve_artist_cover_entry};
+use crate::cover_resolve::{
+    cover_backfill_items_for_album, resolve_album_cover_entry, resolve_artist_cover_entry,
+    CoverEntryDto,
+};
 use crate::store::LibraryStore;
 
 const DEFAULT_BATCH: u32 = 32;
@@ -93,14 +96,34 @@ fn parse_catalog_cursor(cursor: &str) -> (String, String) {
 pub const COVER_FETCH_FAIL_MARKER: &str = ".fetch-failed";
 
 /// Recent HTTP failure — skip in backfill cursor so slots go to fetchable album art.
-/// Re-resolve catalog row through `cover_resolve` (multi-CD, album `cover_art_id`, …).
-fn normalize_backfill_item(
+fn dto_to_backfill_item(dto: CoverEntryDto) -> CoverBackfillItem {
+    CoverBackfillItem {
+        cache_kind: dto.cache_kind,
+        cache_entity_id: dto.cache_entity_id,
+        fetch_cover_art_id: dto.fetch_cover_art_id,
+    }
+}
+
+/// Re-resolve catalog row through `cover_resolve` (multi-CD per-disc `mf-*` slots, …).
+fn expand_backfill_items(
     store: &LibraryStore,
     library_server_id: &str,
     item: CoverBackfillItem,
-) -> Result<Option<CoverBackfillItem>, String> {
+) -> Result<Vec<CoverBackfillItem>, String> {
     match item.cache_kind.as_str() {
-        "album" => {
+        "album" => Ok(cover_backfill_items_for_album(
+            store,
+            library_server_id,
+            &item.cache_entity_id,
+        )?
+        .into_iter()
+        .map(dto_to_backfill_item)
+        .collect()),
+        "artist" => Ok(resolve_artist_cover_entry(store, library_server_id, &item.cache_entity_id)?
+            .into_iter()
+            .map(dto_to_backfill_item)
+            .collect()),
+        _ => {
             let has_album_row: bool = store.with_read_conn(|conn| {
                 conn.query_row(
                     "SELECT EXISTS(
@@ -111,27 +134,14 @@ fn normalize_backfill_item(
                 )
             })?;
             if has_album_row {
-                resolve_album_cover_entry(store, library_server_id, &item.cache_entity_id)
-                    .map(|opt| {
-                        opt.map(|dto| CoverBackfillItem {
-                            cache_kind: dto.cache_kind,
-                            cache_entity_id: dto.cache_entity_id,
-                            fetch_cover_art_id: dto.fetch_cover_art_id,
-                        })
-                    })
+                Ok(resolve_album_cover_entry(store, library_server_id, &item.cache_entity_id)?
+                    .into_iter()
+                    .map(dto_to_backfill_item)
+                    .collect())
             } else {
-                Ok(Some(item))
+                Ok(vec![item])
             }
         }
-        "artist" => resolve_artist_cover_entry(store, library_server_id, &item.cache_entity_id)
-            .map(|opt| {
-                opt.map(|dto| CoverBackfillItem {
-                    cache_kind: dto.cache_kind,
-                    cache_entity_id: dto.cache_entity_id,
-                    fetch_cover_art_id: dto.fetch_cover_art_id,
-                })
-            }),
-        _ => Ok(Some(item)),
     }
 }
 
@@ -292,23 +302,25 @@ pub fn collect_cover_backfill_batch(
         }
         for item in page {
             after = format_catalog_cursor(&item.cache_kind, &item.cache_entity_id);
-            let Some(normalized) = normalize_backfill_item(store, library_server_id, item)? else {
-                continue;
-            };
-            if cover_canonical_cached_on_disk(
-                cover_root,
-                server_index_key,
-                &normalized.cache_kind,
-                &normalized.cache_entity_id,
-            ) || cover_fetch_recently_failed(&cover_cache_dir(
-                cover_root,
-                server_index_key,
-                &normalized.cache_kind,
-                &normalized.cache_entity_id,
-            )) {
-                continue;
+            for normalized in expand_backfill_items(store, library_server_id, item)? {
+                if cover_canonical_cached_on_disk(
+                    cover_root,
+                    server_index_key,
+                    &normalized.cache_kind,
+                    &normalized.cache_entity_id,
+                ) || cover_fetch_recently_failed(&cover_cache_dir(
+                    cover_root,
+                    server_index_key,
+                    &normalized.cache_kind,
+                    &normalized.cache_entity_id,
+                )) {
+                    continue;
+                }
+                pending.push(normalized);
+                if pending.len() >= want {
+                    break;
+                }
             }
-            pending.push(normalized);
             if pending.len() >= want {
                 break;
             }
@@ -349,16 +361,15 @@ pub fn count_pending_canonical_covers(
         let page_len = page.len();
         for item in page {
             after = format_catalog_cursor(&item.cache_kind, &item.cache_entity_id);
-            let Some(normalized) = normalize_backfill_item(store, library_server_id, item)? else {
-                continue;
-            };
-            if !cover_canonical_cached_on_disk(
-                cover_root,
-                server_index_key,
-                &normalized.cache_kind,
-                &normalized.cache_entity_id,
-            ) {
-                pending += 1;
+            for normalized in expand_backfill_items(store, library_server_id, item)? {
+                if !cover_canonical_cached_on_disk(
+                    cover_root,
+                    server_index_key,
+                    &normalized.cache_kind,
+                    &normalized.cache_entity_id,
+                ) {
+                    pending += 1;
+                }
             }
         }
         if (page_len as i64) < SCAN_PAGE {
@@ -522,6 +533,49 @@ mod tests {
         assert!(batch2.cover_ids.is_empty());
 
         let _ = std::fs::remove_dir_all(root.join(host));
+    }
+
+    #[test]
+    fn backfill_includes_per_disc_mf_when_discs_differ() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("seed_box", |conn| {
+                conn.execute(
+                    "INSERT INTO album (server_id, id, name, synced_at, raw_json)
+                     VALUES ('srv', 'al-box', 'Box', 1, '{}')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO track (
+                      server_id, id, title, album, album_id, disc_number, duration_sec, deleted, synced_at, raw_json, cover_art_id
+                    ) VALUES ('srv', 'tr1', 't', 'Box', 'al-box', 1, 200, 0, 1, '{}', 'mf-a')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO track (
+                      server_id, id, title, album, album_id, disc_number, duration_sec, deleted, synced_at, raw_json, cover_art_id
+                    ) VALUES ('srv', 'tr2', 't', 'Box', 'al-box', 2, 200, 0, 1, '{}', 'mf-b')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let batch = collect_cover_backfill_batch(
+            &store,
+            "srv",
+            Path::new("/tmp/empty-cover-root"),
+            "srv-host",
+            None,
+            Some(10),
+        )
+        .unwrap();
+        let ids: Vec<_> = batch
+            .items
+            .iter()
+            .map(|i| i.cache_entity_id.as_str())
+            .collect();
+        assert!(ids.contains(&"mf-a"));
+        assert!(ids.contains(&"mf-b"));
     }
 
     #[test]
