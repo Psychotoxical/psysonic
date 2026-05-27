@@ -128,6 +128,30 @@ export function serverAddressEndpoints(
   ];
 }
 
+/**
+ * URL to embed in **shares** (Orbit invites, entity / queue share payloads,
+ * magic strings). Different from the connect URL: a guest opening the share
+ * link is not on the host's LAN, so the public address is the right default
+ * when both are configured. `shareUsesLocalUrl` flips that for the rare
+ * "share into a LAN-only group" case (spec §5).
+ *
+ * Single-address profiles return their one normalized address; empty
+ * profiles still return a normalized form of `url` (possibly empty).
+ */
+export function serverShareBaseUrl(
+  profile: Pick<ServerProfile, 'url' | 'alternateUrl' | 'shareUsesLocalUrl'>,
+): string {
+  const endpoints = allNormalizedAddresses(profile);
+  if (endpoints.length === 0) return normalizeServerBaseUrl(profile.url);
+  if (endpoints.length === 1) return endpoints[0]!;
+
+  const local = endpoints.find(isLanUrl);
+  const publicEndpoint = endpoints.find(u => !isLanUrl(u));
+
+  if (profile.shareUsesLocalUrl) return local ?? endpoints[0]!;
+  return publicEndpoint ?? endpoints[0]!;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Connect cache (in-memory, per-session)
 //

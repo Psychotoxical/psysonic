@@ -14,6 +14,7 @@ import {
   normalizeServerBaseUrl,
   pickReachableBaseUrl,
   serverAddressEndpoints,
+  serverShareBaseUrl,
 } from './serverEndpoint';
 import type { ServerProfile } from '../../store/authStoreTypes';
 
@@ -332,5 +333,65 @@ describe('invalidateReachableEndpointCache', () => {
     await ensureConnectUrlResolved(makeProfile({ id: 'a' }));
     invalidateReachableEndpointCache();
     expect(getCachedConnectBaseUrl('a')).toBeNull();
+  });
+});
+
+describe('serverShareBaseUrl', () => {
+  it('returns the single address for a single-URL profile', () => {
+    expect(serverShareBaseUrl({ url: 'https://music.example.com' })).toBe(
+      'https://music.example.com',
+    );
+  });
+
+  it('falls back to a normalized url even when empty', () => {
+    // Defensive — never throws; downstream consumers tolerate the empty string.
+    expect(serverShareBaseUrl({ url: '' })).toBe('');
+  });
+
+  it('prefers the public address by default when both are set', () => {
+    expect(
+      serverShareBaseUrl({
+        url: 'https://music.example.com',
+        alternateUrl: 'http://192.168.0.10',
+      }),
+    ).toBe('https://music.example.com');
+  });
+
+  it('still prefers public when the LAN address is the primary', () => {
+    expect(
+      serverShareBaseUrl({
+        url: 'http://192.168.0.10',
+        alternateUrl: 'https://music.example.com',
+      }),
+    ).toBe('https://music.example.com');
+  });
+
+  it('returns the LAN address when shareUsesLocalUrl is true', () => {
+    expect(
+      serverShareBaseUrl({
+        url: 'https://music.example.com',
+        alternateUrl: 'http://192.168.0.10',
+        shareUsesLocalUrl: true,
+      }),
+    ).toBe('http://192.168.0.10');
+  });
+
+  it('falls back to the first endpoint when no LAN exists and flag is set', () => {
+    expect(
+      serverShareBaseUrl({
+        url: 'https://music.example.com',
+        alternateUrl: 'https://music-alt.example.com',
+        shareUsesLocalUrl: true,
+      }),
+    ).toBe('https://music.example.com');
+  });
+
+  it('falls back to the first endpoint when both are LAN and flag is off', () => {
+    expect(
+      serverShareBaseUrl({
+        url: 'http://10.0.0.5',
+        alternateUrl: 'http://192.168.0.10',
+      }),
+    ).toBe('http://10.0.0.5');
   });
 });
