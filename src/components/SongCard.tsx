@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useCoverArt } from '../cover/useCoverArt';
-import { albumCoverRefForSong } from '../cover/ref';
+import { useTrackCoverRef } from '../cover/useLibraryCoverRef';
 import { COVER_DENSE_RAIL_CELL_CSS_PX } from '../cover/layoutSizes';
 import { enqueueAndPlay } from '../utils/playback/playSong';
 import { useDragDrop } from '../contexts/DragDropContext';
@@ -33,7 +33,7 @@ function SongCard({
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverRef = albumCoverRefForSong(song);
+  const coverRef = useTrackCoverRef(song);
   const coverHandle = useCoverArt(coverRef, layoutPx, {
     surface: 'dense',
     ensurePriority: 'middle',

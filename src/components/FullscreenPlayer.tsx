@@ -1,6 +1,6 @@
 import { queueSongStar } from '../store/pendingStarSync';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
-import { albumCoverRefForPlayback } from '../cover/ref';
+import { usePlaybackTrackCoverRef } from '../cover/useLibraryCoverRef';
 import { playbackCoverArtForAlbum } from '../utils/playback/playbackServer';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
@@ -51,12 +51,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
 
   const duration = currentTrack?.duration ?? 0;
 
-  const playbackCoverRef = useMemo(
-    () => (currentTrack?.albumId && currentTrack.coverArt
-      ? albumCoverRefForPlayback(currentTrack)
-      : undefined),
-    [currentTrack?.albumId, currentTrack?.coverArt],
-  );
+  const playbackCoverRef = usePlaybackTrackCoverRef(currentTrack ?? undefined);
 
   const artCover = usePlaybackCoverArt(playbackCoverRef, 300);
   const artUrl = artCover.src;

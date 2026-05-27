@@ -11,6 +11,12 @@ export * from './resolveEntry';
 export * from './resolveEntryLibrary';
 export * from './ref';
 export { useCoverArt } from './useCoverArt';
+export {
+  useAlbumCoverRef,
+  useArtistCoverRef,
+  usePlaybackTrackCoverRef,
+  useTrackCoverRef,
+} from './useLibraryCoverRef';
 export { CoverArtImage } from './CoverArtImage';
 export {
   clearAllDiskSrcCache,

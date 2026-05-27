@@ -9,10 +9,10 @@ import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
-import { albumCoverRef } from '../cover/ref';
+import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
+import { coverStorageKeyFromRef } from '../cover/storageKeys';
 import type { CoverPrefetchPriority } from '../cover/types';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
-import { coverStorageKeyFromRef } from '../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../cover/tiers';
 import { acquireUrl } from '../utils/imageCache/urlPool';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
@@ -66,11 +66,12 @@ function AlbumCard({
     return meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
   });
   const psyDrag = useDragDrop();
+  const coverRef = useAlbumCoverRef(album.id, album.coverArt);
   const dragCoverKey = useMemo(() => {
-    if (!album.coverArt) return '';
+    if (!coverRef) return '';
     const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
-    return coverStorageKeyFromRef(albumCoverRef(album.id, album.coverArt), tier);
-  }, [album.id, album.coverArt, displayCssPx]);
+    return coverStorageKeyFromRef(coverRef, tier);
+  }, [coverRef, displayCssPx]);
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
 
@@ -113,9 +114,9 @@ function AlbumCard({
       }}
     >
       <div className="album-card-cover">
-        {!disableArtwork && album.coverArt ? (
+        {!disableArtwork && coverRef ? (
           <CoverArtImage
-            coverRef={albumCoverRef(album.id, album.coverArt)}
+            coverRef={coverRef}
             displayCssPx={displayCssPx}
             surface="dense"
             alt={`${album.name} Cover`}

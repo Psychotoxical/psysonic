@@ -15,7 +15,7 @@ import { useQueueTrackEnrichment } from '../../hooks/useQueueTrackEnrichment';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { albumCoverRefForPlayback } from '../../cover/ref';
+import { usePlaybackTrackCoverRef } from '../../cover/useLibraryCoverRef';
 import { usePlayerStore } from '../../store/playerStore';
 
 interface Props {
@@ -51,6 +51,7 @@ export function QueueCurrentTrack({
   lufsTgtBtnRef, lufsTgtMenuRef, lufsTgtPopStyle, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
+  const coverRef = usePlaybackTrackCoverRef(currentTrack);
   const enrichment = useQueueTrackEnrichment(currentTrack.id);
   const bpmTech = formatQueueBpmTech(enrichment, t);
   const moodLine = formatQueueMoodLabels(enrichment.moodLabels, t);
@@ -202,25 +203,18 @@ export function QueueCurrentTrack({
       })()}
       <div className="queue-current-track-body">
         <div className={`queue-current-cover${showBufferingOverlay ? ' playback-buffering' : ''}`}>
-          {(() => {
-            const coverRef =
-              currentTrack.albumId && currentTrack.coverArt
-                ? albumCoverRefForPlayback(currentTrack)
-                : undefined;
-            if (!coverRef) {
-              return <div className="fallback"><Music size={32} /></div>;
-            }
-            return (
-              <CoverArtImage
-                coverRef={coverRef}
-                displayCssPx={128}
-                surface="sparse"
-                ensurePriority="high"
-                alt=""
-                loading="eager"
-              />
-            );
-          })()}
+          {coverRef ? (
+            <CoverArtImage
+              coverRef={coverRef}
+              displayCssPx={128}
+              surface="sparse"
+              ensurePriority="high"
+              alt=""
+              loading="eager"
+            />
+          ) : (
+            <div className="fallback"><Music size={32} /></div>
+          )}
           {showBufferingOverlay && <PlaybackBufferingOverlay />}
         </div>
         <div className="queue-current-info">

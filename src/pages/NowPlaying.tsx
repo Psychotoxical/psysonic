@@ -1,5 +1,6 @@
 import { useCoverArt } from '../cover/useCoverArt';
-import { albumCoverRef, albumCoverRefForPlayback } from '../cover/ref';
+import { albumCoverRef } from '../cover/ref';
+import { usePlaybackTrackCoverRef } from '../cover/useLibraryCoverRef';
 import { coverArtIdFromRadio } from '../cover/ids';
 import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
@@ -95,9 +96,7 @@ export default function NowPlaying() {
     showLyrics();
   }, [isQueueVisible, toggleQueue, showLyrics]);
 
-  const playbackCoverRef = currentTrack?.albumId && currentTrack.coverArt
-    ? albumCoverRefForPlayback(currentTrack)
-    : undefined;
+  const playbackCoverRef = usePlaybackTrackCoverRef(currentTrack ?? undefined);
 
   const radioCoverArtId = currentRadio?.coverArt ? coverArtIdFromRadio(currentRadio.id) : undefined;
   const radioCover = useCoverArt(

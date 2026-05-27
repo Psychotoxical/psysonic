@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
 import { CoverArtImage } from '../cover/CoverArtImage';
-import { albumCoverRef } from '../cover/ref';
+import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { useCoverLightboxSrc } from '../cover/lightbox';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -121,10 +121,7 @@ export default function AlbumHeader({
   const isMobile = useIsMobile();
   const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
 
-  const coverRef = useMemo(
-    () => (coverArtId ? albumCoverRef(info.id, coverArtId) : null),
-    [coverArtId, info.id],
-  );
+  const coverRef = useAlbumCoverRef(info.id, coverArtId);
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, {
     alt: `${info.name} Cover`,
   });
@@ -167,7 +164,7 @@ export default function AlbumHeader({
             <ChevronLeft size={16} /> {t('albumDetail.back')}
           </button>
           <div className="album-detail-hero">
-            {coverArtId ? (
+            {coverRef ? (
               <button
                 className="album-detail-cover-btn"
                 onClick={openLightbox}
@@ -176,7 +173,7 @@ export default function AlbumHeader({
               >
                 <CoverArtImage
                   className="album-detail-cover"
-                  coverRef={albumCoverRef(info.id, coverArtId)}
+                  coverRef={coverRef}
                   displayCssPx={400}
                   surface="sparse"
                   alt={`${info.name} Cover`}

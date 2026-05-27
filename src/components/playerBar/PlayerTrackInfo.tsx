@@ -6,7 +6,8 @@ import type { PlayerState, Track } from '../../store/playerStoreTypes';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import type { PreviewingTrack } from '../../store/previewStore';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { albumCoverRef, albumCoverRefForPlayback } from '../../cover/ref';
+import { albumCoverRef } from '../../cover/ref';
+import { usePlaybackTrackCoverRef } from '../../cover/useLibraryCoverRef';
 import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
@@ -52,6 +53,9 @@ export function PlayerTrackInfo({
   navigate, openContextMenu, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
+  const playbackCoverRef = usePlaybackTrackCoverRef(
+    showPreviewMeta ? null : currentTrack ?? undefined,
+  );
   const layoutItems = usePlayerBarLayoutStore(s => s.items);
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
@@ -77,13 +81,13 @@ export function PlayerTrackInfo({
               <Cast size={20} />
             </div>
           )
-        ) : !isRadio && coverArtId ? (
+        ) : !isRadio && (showPreviewMeta ? coverArtId : playbackCoverRef) ? (
           <CoverArtImage
             className="player-album-art"
             coverRef={
               showPreviewMeta
-                ? albumCoverRef(coverArtId, coverArtId, { kind: 'active' })
-                : albumCoverRefForPlayback(currentTrack!)!
+                ? albumCoverRef(coverArtId!, coverArtId!, { kind: 'active' })
+                : playbackCoverRef!
             }
             displayCssPx={128}
             surface="sparse"
