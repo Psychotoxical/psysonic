@@ -1,3 +1,4 @@
+import { pingWithCredentials } from '../../api/subsonic';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { serverProfileBaseUrl } from './serverBaseUrl';
 
@@ -8,6 +9,10 @@ export type ServerEndpoint = {
   url: string;
   kind: ServerEndpointKind;
 };
+
+export type PickReachableResult =
+  | { ok: true; baseUrl: string; endpoint: ServerEndpoint }
+  | { ok: false; reason: 'unreachable' };
 
 /**
  * Aligned with `serverProfileBaseUrl` so connect / share / index helpers all
@@ -110,4 +115,88 @@ export function serverAddressEndpoints(
     ...endpoints.filter(e => e.kind === 'local'),
     ...endpoints.filter(e => e.kind === 'public'),
   ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Connect cache (in-memory, per-session)
+//
+// `pickReachableBaseUrl` probes the LAN-first endpoint list with the existing
+// `pingWithCredentials`, sequentially (not parallel) so LAN wins over public
+// without racing. The first OK URL is cached against the profile id so the
+// next sync `getBaseUrl()` lookup is instant. Cache is **session only** —
+// never persisted; cleared on profile edit / credentials change / online
+// event / manual retry via `invalidateReachableEndpointCache`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const connectCache = new Map<string, string>();
+
+/**
+ * Last resolved connect URL for the profile, if a probe has succeeded in this
+ * session. `null` means "no probe yet" — sync `getBaseUrl()` callers should
+ * fall back to the normalized primary `url`.
+ */
+export function getCachedConnectBaseUrl(profileId: string): string | null {
+  return connectCache.get(profileId) ?? null;
+}
+
+/**
+ * Drop one or all cached connect URLs. Call when:
+ * - profile was edited (url / alternateUrl / credentials changed)
+ * - network went online (re-check sticky)
+ * - user explicitly retried the connection
+ */
+export function invalidateReachableEndpointCache(profileId?: string): void {
+  if (profileId === undefined) {
+    connectCache.clear();
+    return;
+  }
+  connectCache.delete(profileId);
+}
+
+/**
+ * Sequentially ping the profile's endpoints (LAN-first), return the first one
+ * that answers OK. Sticky: if a cached endpoint exists and is still in the
+ * list, it's tried first; on failure, the cache entry is cleared and the full
+ * sequence runs.
+ *
+ * Single-address profiles: one ping, identical to the legacy behavior.
+ */
+export async function pickReachableBaseUrl(
+  profile: ServerProfile,
+): Promise<PickReachableResult> {
+  const ordered = serverAddressEndpoints(profile);
+  if (ordered.length === 0) return { ok: false, reason: 'unreachable' };
+
+  // Apply sticky: move the cached endpoint (if still in the list) to the front.
+  const cached = connectCache.get(profile.id);
+  const endpoints =
+    cached && ordered.some(e => e.url === cached)
+      ? [
+          ordered.find(e => e.url === cached)!,
+          ...ordered.filter(e => e.url !== cached),
+        ]
+      : ordered;
+
+  for (const endpoint of endpoints) {
+    const ping = await pingWithCredentials(endpoint.url, profile.username, profile.password);
+    if (ping.ok) {
+      connectCache.set(profile.id, endpoint.url);
+      return { ok: true, baseUrl: endpoint.url, endpoint };
+    }
+  }
+
+  // Every endpoint failed — drop any stale cache entry so the next probe
+  // starts from the natural LAN-first order.
+  connectCache.delete(profile.id);
+  return { ok: false, reason: 'unreachable' };
+}
+
+/**
+ * Boot / switch / online-event entry point: same mechanism as
+ * `pickReachableBaseUrl` but named for intent at the call site.
+ */
+export async function ensureConnectUrlResolved(
+  profile: ServerProfile,
+): Promise<PickReachableResult> {
+  return pickReachableBaseUrl(profile);
 }

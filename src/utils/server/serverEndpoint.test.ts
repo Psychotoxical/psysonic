@@ -1,10 +1,39 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../api/subsonic', () => ({
+  pingWithCredentials: vi.fn(),
+}));
+
+import { pingWithCredentials } from '../../api/subsonic';
 import {
   allNormalizedAddresses,
+  ensureConnectUrlResolved,
+  getCachedConnectBaseUrl,
+  invalidateReachableEndpointCache,
   isLanUrl,
   normalizeServerBaseUrl,
+  pickReachableBaseUrl,
   serverAddressEndpoints,
 } from './serverEndpoint';
+import type { ServerProfile } from '../../store/authStoreTypes';
+
+function makeProfile(overrides: Partial<ServerProfile> = {}): ServerProfile {
+  return {
+    id: 'profile-1',
+    name: 'Test',
+    url: 'https://music.example.com',
+    username: 'u',
+    password: 'p',
+    ...overrides,
+  };
+}
+
+function pingOk() {
+  return { ok: true as const };
+}
+function pingFail() {
+  return { ok: false as const };
+}
 
 describe('normalizeServerBaseUrl', () => {
   it('strips a single trailing slash', () => {
@@ -159,5 +188,141 @@ describe('serverAddressEndpoints', () => {
       { url: 'http://10.0.0.5', kind: 'local' },
       { url: 'http://192.168.0.10', kind: 'local' },
     ]);
+  });
+});
+
+describe('pickReachableBaseUrl', () => {
+  beforeEach(() => {
+    invalidateReachableEndpointCache();
+    vi.mocked(pingWithCredentials).mockReset();
+  });
+
+  it('returns the single endpoint when it pings ok and caches it', async () => {
+    vi.mocked(pingWithCredentials).mockResolvedValue(pingOk());
+    const result = await pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
+    expect(result).toEqual({
+      ok: true,
+      baseUrl: 'https://music.example.com',
+      endpoint: { url: 'https://music.example.com', kind: 'public' },
+    });
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+    expect(pingWithCredentials).toHaveBeenCalledTimes(1);
+  });
+
+  it('prefers the LAN endpoint even when alternateUrl is the LAN one', async () => {
+    vi.mocked(pingWithCredentials).mockResolvedValue(pingOk());
+    const result = await pickReachableBaseUrl(
+      makeProfile({
+        url: 'https://music.example.com',
+        alternateUrl: 'http://192.168.0.10',
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.baseUrl).toBe('http://192.168.0.10');
+    expect(pingWithCredentials).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(pingWithCredentials).mock.calls[0]![0]).toBe('http://192.168.0.10');
+  });
+
+  it('falls through to the public endpoint when LAN ping fails', async () => {
+    vi.mocked(pingWithCredentials)
+      .mockResolvedValueOnce(pingFail())
+      .mockResolvedValueOnce(pingOk());
+    const result = await pickReachableBaseUrl(
+      makeProfile({
+        url: 'https://music.example.com',
+        alternateUrl: 'http://192.168.0.10',
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.baseUrl).toBe('https://music.example.com');
+    expect(pingWithCredentials).toHaveBeenCalledTimes(2);
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+  });
+
+  it('returns unreachable and clears cache when every endpoint fails', async () => {
+    vi.mocked(pingWithCredentials).mockResolvedValue(pingFail());
+    // Seed a stale cache entry first.
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+
+    vi.mocked(pingWithCredentials).mockReset();
+    vi.mocked(pingWithCredentials).mockResolvedValue(pingFail());
+    const result = await pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
+    expect(result).toEqual({ ok: false, reason: 'unreachable' });
+    expect(getCachedConnectBaseUrl('profile-1')).toBeNull();
+  });
+
+  it('returns unreachable when the profile has no usable url', async () => {
+    const result = await pickReachableBaseUrl(makeProfile({ url: '' }));
+    expect(result).toEqual({ ok: false, reason: 'unreachable' });
+    expect(pingWithCredentials).not.toHaveBeenCalled();
+  });
+
+  it('tries the cached endpoint first on subsequent calls (sticky)', async () => {
+    const profile = makeProfile({
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10',
+    });
+    // First call: LAN responds ok, becomes cached.
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(profile);
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('http://192.168.0.10');
+
+    // Second call: cached URL is tried first; sole ping happens against it.
+    vi.mocked(pingWithCredentials).mockClear();
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    const result = await pickReachableBaseUrl(profile);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.baseUrl).toBe('http://192.168.0.10');
+    expect(pingWithCredentials).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(pingWithCredentials).mock.calls[0]![0]).toBe('http://192.168.0.10');
+  });
+
+  it('falls back to the natural order if the cached endpoint stops answering', async () => {
+    const profile = makeProfile({
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10',
+    });
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(profile);
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('http://192.168.0.10');
+
+    // LAN now fails; public answers.
+    vi.mocked(pingWithCredentials).mockClear();
+    vi.mocked(pingWithCredentials)
+      .mockResolvedValueOnce(pingFail())
+      .mockResolvedValueOnce(pingOk());
+    const result = await pickReachableBaseUrl(profile);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.baseUrl).toBe('https://music.example.com');
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+  });
+});
+
+describe('invalidateReachableEndpointCache', () => {
+  beforeEach(() => {
+    invalidateReachableEndpointCache();
+    vi.mocked(pingWithCredentials).mockReset();
+  });
+
+  it('clears a specific profile', async () => {
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await ensureConnectUrlResolved(makeProfile({ id: 'a' }));
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await ensureConnectUrlResolved(makeProfile({ id: 'b' }));
+    expect(getCachedConnectBaseUrl('a')).not.toBeNull();
+    expect(getCachedConnectBaseUrl('b')).not.toBeNull();
+
+    invalidateReachableEndpointCache('a');
+    expect(getCachedConnectBaseUrl('a')).toBeNull();
+    expect(getCachedConnectBaseUrl('b')).not.toBeNull();
+  });
+
+  it('clears everything when called with no argument', async () => {
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await ensureConnectUrlResolved(makeProfile({ id: 'a' }));
+    invalidateReachableEndpointCache();
+    expect(getCachedConnectBaseUrl('a')).toBeNull();
   });
 });
