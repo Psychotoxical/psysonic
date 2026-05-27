@@ -24,6 +24,8 @@ interface Props {
   initialArtworkBudget?: number;
   /** Appended to `/album/:id` links, e.g. `lossless=1`. */
   albumLinkQuery?: string;
+  /** Search/browse rows: API `coverArt` only — no per-card library_resolve IPC. */
+  libraryResolve?: boolean;
 }
 
 export default function AlbumRow({
@@ -41,6 +43,7 @@ export default function AlbumRow({
   windowArtworkByViewport = false,
   initialArtworkBudget = 8,
   albumLinkQuery,
+  libraryResolve,
 }: Props) {
   const perfFlags = usePerfProbeFlags();
   const artworkDisabled = perfFlags.disableMainstageRailArtwork || disableArtwork;
@@ -171,6 +174,7 @@ export default function AlbumRow({
               album={a}
               showRating={showRating}
               linkQuery={albumLinkQuery}
+              libraryResolve={libraryResolve}
               disableArtwork={
                 artworkDisabled ||
                 (windowArtworkByViewport && idx >= artworkBudget)

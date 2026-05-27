@@ -130,11 +130,17 @@ export default function SearchResults() {
       {!loading && results && (
         <>
           {results.artists.length > 0 && (
-            <ArtistRow title={t('search.artists')} artists={results.artists} />
+            <ArtistRow title={t('search.artists')} artists={results.artists} libraryResolve={false} />
           )}
 
           {results.albums.length > 0 && (
-            <AlbumRow title={t('search.albums')} albums={results.albums} />
+            <AlbumRow
+              title={t('search.albums')}
+              albums={results.albums}
+              libraryResolve={false}
+              windowArtworkByViewport
+              initialArtworkBudget={12}
+            />
           )}
 
           {results.songs.length > 0 && (

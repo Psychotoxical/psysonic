@@ -642,6 +642,7 @@ export default function AdvancedSearch() {
               title={`${t('search.artists')} (${filteredResults.artists.length})`}
               artists={filteredResults.artists}
               artistLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+              libraryResolve={false}
             />
           )}
 
@@ -650,6 +651,9 @@ export default function AdvancedSearch() {
               title={`${t('search.albums')} (${filteredResults.albums.length})`}
               albums={filteredResults.albums}
               albumLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+              libraryResolve={false}
+              windowArtworkByViewport
+              initialArtworkBudget={12}
             />
           )}
 

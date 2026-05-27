@@ -11,12 +11,14 @@ interface Props {
   artist: SubsonicArtist;
   /** Appended to `/artist/:id`, e.g. `lossless=1`. */
   linkQuery?: string;
+  /** Search/browse rows: API `coverArt` only — no per-card library_resolve IPC. */
+  libraryResolve?: boolean;
 }
 
-export default function ArtistCardLocal({ artist, linkQuery }: Props) {
+export default function ArtistCardLocal({ artist, linkQuery, libraryResolve }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const coverRef = useArtistCoverRef(artist.id, artist.coverArt);
+  const coverRef = useArtistCoverRef(artist.id, artist.coverArt, undefined, { libraryResolve });
   const href = linkQuery ? `/artist/${artist.id}?${linkQuery}` : `/artist/${artist.id}`;
 
   return (
