@@ -13,7 +13,12 @@ import type { ServerProfile } from '../../store/authStoreTypes';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { type ServerMagicPayload } from '../../utils/server/serverMagicString';
-import { ensureConnectUrlResolved } from '../../utils/server/serverEndpoint';
+import { ensureConnectUrlResolved, invalidateReachableEndpointCache } from '../../utils/server/serverEndpoint';
+import {
+  verifySameServerEndpoints,
+  type VerifySameServerResult,
+} from '../../utils/server/serverFingerprint';
+import { showToast } from '../../utils/ui/toast';
 import { showAudiomuseNavidromeServerSetting } from '../../utils/server/subsonicServerIdentity';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
 import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
@@ -171,12 +176,48 @@ export function ServersTab({
     setPastedServerInvite(null);
   };
 
+  /**
+   * Surface a dual-address verify failure as a toast (mismatch /
+   * insufficient / unreachable). Returns true when the result is `ok` and
+   * the caller should proceed; false when the user must fix something
+   * before save.
+   */
+  const announceVerifyResult = (result: VerifySameServerResult): boolean => {
+    if (result.ok) return true;
+    if (result.reason === 'unreachable') {
+      showToast(
+        t('settings.dualAddressUnreachable', { host: result.unreachableHost ?? '' }),
+        6000,
+        'error',
+      );
+    } else if (result.reason === 'mismatch') {
+      showToast(t('settings.dualAddressMismatch'), 6000, 'error');
+    } else {
+      showToast(t('settings.dualAddressInsufficient'), 6000, 'error');
+    }
+    return false;
+  };
+
   const handleAddServer = async (data: Omit<ServerProfile, 'id'>) => {
     setShowAddForm(false);
     setPastedServerInvite(null);
     const tempId = '_new';
     setConnStatus(s => ({ ...s, [tempId]: 'testing' }));
     try {
+      // Dual-address: confirm both addresses point at the same server
+      // before persisting anything. Single-address adds skip verify and go
+      // straight to the legacy ping (which is also the connect-test).
+      if (data.alternateUrl) {
+        const verify = await verifySameServerEndpoints(
+          { url: data.url, alternateUrl: data.alternateUrl },
+          data.username,
+          data.password,
+        );
+        if (!announceVerifyResult(verify)) {
+          setConnStatus(s => ({ ...s, [tempId]: 'error' }));
+          return;
+        }
+      }
       const ping = await pingWithCredentials(data.url, data.username, data.password);
       if (ping.ok) {
         const id = auth.addServer(data);
@@ -198,13 +239,44 @@ export function ServersTab({
     }
   };
 
-  // Edit saves unconditionally — ping result becomes a post-save status
-  // indicator (analog zum existing Test-Button) rather than blocking the
-  // save. Lets users update a profile even when the server is currently
+  // Edit normally saves unconditionally — ping result becomes a post-save
+  // status indicator (analog zum existing Test-Button) rather than blocking
+  // the save. Lets users update a profile even when the server is currently
   // unreachable.
+  //
+  // **Dual-address exception:** when the edit introduces or changes the
+  // second address (or changes the primary url while a second address is
+  // already saved), verify both addresses are the same server *before*
+  // persisting. A mismatch here would silently bind library / cover / queue
+  // data to two unrelated boxes — the spec blocks save in v1.
   const handleEditServer = async (id: string, data: Omit<ServerProfile, 'id'>) => {
+    const previous = auth.servers.find(s => s.id === id);
+    const dualAddressChanged =
+      data.alternateUrl != null &&
+      data.alternateUrl !== '' &&
+      (data.alternateUrl !== previous?.alternateUrl ||
+        data.url !== previous?.url ||
+        data.username !== previous?.username ||
+        data.password !== previous?.password);
+
+    if (dualAddressChanged) {
+      setConnStatus(s => ({ ...s, [id]: 'testing' }));
+      const verify = await verifySameServerEndpoints(
+        { url: data.url, alternateUrl: data.alternateUrl },
+        data.username,
+        data.password,
+      );
+      if (!announceVerifyResult(verify)) {
+        setConnStatus(s => ({ ...s, [id]: 'error' }));
+        return;
+      }
+    }
+
     setEditingServerId(null);
     auth.updateServer(id, data);
+    // Profile edited → any cached sticky connect URL for this id may now be
+    // stale (credentials may have changed, alternate may have been added).
+    invalidateReachableEndpointCache(id);
     setConnStatus(s => ({ ...s, [id]: 'testing' }));
     try {
       const ping = await pingWithCredentials(data.url, data.username, data.password);
