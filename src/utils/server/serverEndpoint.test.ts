@@ -288,6 +288,47 @@ describe('pickReachableBaseUrl', () => {
     expect(vi.mocked(pingWithCredentials).mock.calls[0]![0]).toBe('http://192.168.0.10');
   });
 
+  it('dedupes concurrent calls for the same profile (single shared probe)', async () => {
+    // Two callers in the same tick must observe the same promise — without
+    // the in-flight map both would ping every endpoint and race on the
+    // cache write, with last-write-wins potentially clobbering the correct
+    // LAN sticky a millisecond after it was set.
+    let resolvePing: ((v: ReturnType<typeof pingOk>) => void) | null = null;
+    vi.mocked(pingWithCredentials).mockReturnValueOnce(
+      new Promise(r => {
+        resolvePing = r;
+      }),
+    );
+    const profile = makeProfile({ url: 'http://192.168.0.10' });
+    const p1 = pickReachableBaseUrl(profile);
+    const p2 = pickReachableBaseUrl(profile);
+
+    // Both calls saw a pending probe — only one ping should have been fired.
+    expect(pingWithCredentials).toHaveBeenCalledTimes(1);
+
+    resolvePing!(pingOk());
+    const [r1, r2] = await Promise.all([p1, p2]);
+
+    expect(r1.ok).toBe(true);
+    expect(r2.ok).toBe(true);
+    if (r1.ok && r2.ok) {
+      expect(r1.baseUrl).toBe(r2.baseUrl);
+    }
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('http://192.168.0.10');
+  });
+
+  it('starts a fresh probe after the in-flight one settles', async () => {
+    // Once the previous probe resolves, the in-flight slot is freed and
+    // the next call hits the network again (subject to the sticky cache).
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(makeProfile({ url: 'http://192.168.0.10' }));
+
+    vi.mocked(pingWithCredentials).mockClear();
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(makeProfile({ url: 'http://192.168.0.10' }));
+    expect(pingWithCredentials).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back to the natural order if the cached endpoint stops answering', async () => {
     const profile = makeProfile({
       url: 'https://music.example.com',
@@ -393,5 +434,29 @@ describe('serverShareBaseUrl', () => {
         alternateUrl: 'http://192.168.0.10',
       }),
     ).toBe('http://10.0.0.5');
+  });
+
+  it('returns the first LAN endpoint when both are LAN and flag is on', () => {
+    // Two LAN addresses + flag set: spec §5.1 says "local ?? endpoints[0]".
+    // `find(isLanUrl)` returns the first LAN, which is endpoints[0] either
+    // way — pin the test so future refactors don't accidentally drift.
+    expect(
+      serverShareBaseUrl({
+        url: 'http://10.0.0.5',
+        alternateUrl: 'http://192.168.0.10',
+        shareUsesLocalUrl: true,
+      }),
+    ).toBe('http://10.0.0.5');
+  });
+
+  it('returns the first endpoint when both are public and flag is off', () => {
+    // Reverse case: two publics, no LAN exists, flag default → publicEndpoint
+    // matches the first one. Identity, but locks the rule down.
+    expect(
+      serverShareBaseUrl({
+        url: 'https://music.example.com',
+        alternateUrl: 'https://backup.example.com',
+      }),
+    ).toBe('https://music.example.com');
   });
 });

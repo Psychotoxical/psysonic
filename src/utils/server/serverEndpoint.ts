@@ -166,6 +166,17 @@ export function serverShareBaseUrl(
 const connectCache = new Map<string, string>();
 
 /**
+ * In-flight probes keyed by `profile.id`. Three call sites (useConnectionStatus
+ * 120-s tick, switchActiveServer, bindIndexedServer, plus retry / online
+ * handlers) can fire near-simultaneously; without this map two probes would
+ * each see an empty cache, both ping every endpoint, and race to set the
+ * sticky URL — the loser's `connectCache.set` would stomp the winner.
+ * Returning the existing promise dedupes them so every caller gets the
+ * same result.
+ */
+const inFlightProbes = new Map<string, Promise<PickReachableResult>>();
+
+/**
  * Last resolved connect URL for the profile, if a probe has succeeded in this
  * session. `null` means "no probe yet" — sync `getBaseUrl()` callers should
  * fall back to the normalized primary `url`.
@@ -198,6 +209,10 @@ export function connectBaseUrlForServer(
 export function invalidateReachableEndpointCache(profileId?: string): void {
   if (profileId === undefined) {
     connectCache.clear();
+    // Don't clear in-flight slots — they're already racing against the
+    // network, letting their own `finally` clean up keeps the dedup
+    // invariant. Their results will still write to the (now empty) cache,
+    // which is the right behaviour: the freshest probe wins.
     return;
   }
   connectCache.delete(profileId);
@@ -214,31 +229,46 @@ export function invalidateReachableEndpointCache(profileId?: string): void {
 export async function pickReachableBaseUrl(
   profile: ServerProfile,
 ): Promise<PickReachableResult> {
-  const ordered = serverAddressEndpoints(profile);
-  if (ordered.length === 0) return { ok: false, reason: 'unreachable' };
+  // Dedupe concurrent calls for the same profile — see `inFlightProbes`.
+  const existing = inFlightProbes.get(profile.id);
+  if (existing) return existing;
 
-  // Apply sticky: move the cached endpoint (if still in the list) to the front.
-  const cached = connectCache.get(profile.id);
-  const endpoints =
-    cached && ordered.some(e => e.url === cached)
-      ? [
-          ordered.find(e => e.url === cached)!,
-          ...ordered.filter(e => e.url !== cached),
-        ]
-      : ordered;
+  const promise = (async (): Promise<PickReachableResult> => {
+    const ordered = serverAddressEndpoints(profile);
+    if (ordered.length === 0) return { ok: false, reason: 'unreachable' };
 
-  for (const endpoint of endpoints) {
-    const ping = await pingWithCredentials(endpoint.url, profile.username, profile.password);
-    if (ping.ok) {
-      connectCache.set(profile.id, endpoint.url);
-      return { ok: true, baseUrl: endpoint.url, endpoint, ping };
+    // Apply sticky: move the cached endpoint (if still in the list) to the front.
+    const cached = connectCache.get(profile.id);
+    const endpoints =
+      cached && ordered.some(e => e.url === cached)
+        ? [
+            ordered.find(e => e.url === cached)!,
+            ...ordered.filter(e => e.url !== cached),
+          ]
+        : ordered;
+
+    for (const endpoint of endpoints) {
+      const ping = await pingWithCredentials(endpoint.url, profile.username, profile.password);
+      if (ping.ok) {
+        connectCache.set(profile.id, endpoint.url);
+        return { ok: true, baseUrl: endpoint.url, endpoint, ping };
+      }
     }
-  }
 
-  // Every endpoint failed — drop any stale cache entry so the next probe
-  // starts from the natural LAN-first order.
-  connectCache.delete(profile.id);
-  return { ok: false, reason: 'unreachable' };
+    // Every endpoint failed — drop any stale cache entry so the next probe
+    // starts from the natural LAN-first order.
+    connectCache.delete(profile.id);
+    return { ok: false, reason: 'unreachable' };
+  })();
+
+  inFlightProbes.set(profile.id, promise);
+  try {
+    return await promise;
+  } finally {
+    // Always clear the in-flight slot when this promise settles — the next
+    // call (after a real boundary in time) starts a fresh probe.
+    inFlightProbes.delete(profile.id);
+  }
 }
 
 /**
