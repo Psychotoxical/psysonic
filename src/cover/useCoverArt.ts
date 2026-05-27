@@ -1,25 +1,20 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { libraryGetTrack } from '../api/library';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { coverEnsureQueued, coverEnsureRelease } from './ensureQueue';
 import { coverPeekQueued } from './peekQueue';
 import { getDiskSrcForGrid, seedGridDiskSrcCache } from './diskSrcLookup';
-import { mergeDiskIdHints } from './mergeDiskIdHints';
 import {
   forgetDiskSrcPrefix,
   getDiskSrcCacheGeneration,
   subscribeDiskSrcCache,
 } from './diskSrcCache';
 import { subscribeCoverDiskReady } from './diskHandoff';
-import { coverArtRef } from './ref';
 import { coverServerReachable } from './reachability';
-import { coverIndexKeyFromRef, coverStorageKey } from './storageKeys';
+import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
-import type { DiskCoverIdHints } from './diskPeekIds';
 import type {
   CoverArtHandle,
-  CoverArtId,
+  CoverArtRef,
   CoverPrefetchPriority,
-  CoverServerScope,
   CoverSurfaceKind,
 } from './types';
 
@@ -27,87 +22,44 @@ import type {
  * Disk cache in Rust (WebP tiers) — no webview `getCoverArt` fetch when server is reachable.
  */
 export function useCoverArt(
-  coverArtId: CoverArtId | null | undefined,
+  coverRef: CoverArtRef | null | undefined,
   displayCssPx: number,
   opts?: {
-    serverScope?: CoverServerScope;
     surface?: CoverSurfaceKind;
     fullRes?: boolean;
     fetchQueueBias?: number;
     observeRootMargin?: string;
     alt?: string;
-    /** Download / ensure ordering — visible cells should pass `high`. */
     ensurePriority?: CoverPrefetchPriority;
-    /** Probe legacy on-disk folders (track id vs album id) when the resolved id misses. */
-    diskIdHints?: DiskCoverIdHints;
-    /** When Subsonic omits `albumId`, load `al-*` from the library index for mf→al peek. */
-    libraryTrackId?: string;
   },
 ): CoverArtHandle {
-  const serverScope = opts?.serverScope ?? { kind: 'active' };
+  const ref = coverRef ?? null;
   const surface = opts?.surface ?? 'sparse';
-  const reachable = coverServerReachable(serverScope);
+  const reachable = ref ? coverServerReachable(ref.serverScope) : false;
 
   const tier = useMemo(
     () =>
-      coverArtId
+      ref
         ? resolveCoverDisplayTier(displayCssPx, {
             surface,
             fullRes: opts?.fullRes,
           })
         : 128,
-    [coverArtId, displayCssPx, surface, opts?.fullRes],
-  );
-
-  const ref = useMemo(
-    () => (coverArtId ? coverArtRef(coverArtId, serverScope) : null),
-    [coverArtId, serverScope],
+    [ref, displayCssPx, surface, opts?.fullRes],
   );
 
   const storageKey = useMemo(
-    () => (ref ? coverStorageKey(ref.serverScope, ref.coverArtId, tier) : ''),
+    () => (ref ? coverStorageKeyFromRef(ref, tier) : ''),
     [ref, tier],
   );
 
   const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority ?? 'middle';
 
-  const [libraryDiskHints, setLibraryDiskHints] = useState<DiskCoverIdHints | undefined>();
-  const diskIdHints = useMemo(
-    () => mergeDiskIdHints(opts?.diskIdHints, libraryDiskHints),
-    [opts?.diskIdHints, libraryDiskHints],
-  );
-
-  useEffect(() => {
-    const trackId = opts?.libraryTrackId?.trim();
-    if (!trackId || !ref?.coverArtId.startsWith('mf-')) {
-      setLibraryDiskHints(undefined);
-      return;
-    }
-    if (opts?.diskIdHints?.albumId?.trim()?.startsWith('al-')) {
-      setLibraryDiskHints(undefined);
-      return;
-    }
-    let cancelled = false;
-    const serverKey = coverIndexKeyFromRef(ref);
-    void libraryGetTrack(serverKey, trackId).then(row => {
-      if (cancelled || !row) return;
-      setLibraryDiskHints({
-        albumId: row.albumId ?? undefined,
-        rawCoverArt: row.coverArtId ?? undefined,
-        songId: row.id,
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [opts?.libraryTrackId, opts?.diskIdHints?.albumId, ref]);
-
-  /** Dense grids: peek on mount; HTTP ensure only when IO marks the cell `high`. */
   const deferEnsureUntilVisible = surface === 'dense' && ensurePriority !== 'high';
 
   const readCachedSrc = useCallback(() => {
     if (!ref) return '';
-    return getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier);
+    return getDiskSrcForGrid(ref, tier);
   }, [ref, tier]);
 
   useSyncExternalStore(subscribeDiskSrcCache, getDiskSrcCacheGeneration);
@@ -117,10 +69,10 @@ export function useCoverArt(
   const applyDiskPath = useCallback((path: string) => {
     if (!ref) return;
     if (!path) {
-      forgetDiskSrcPrefix(coverIndexKeyFromRef(ref), ref.coverArtId);
+      forgetDiskSrcPrefix(ref);
       return;
     }
-    seedGridDiskSrcCache(ref.serverScope, ref.coverArtId, tier, path);
+    seedGridDiskSrcCache(ref, tier, path);
   }, [ref, tier]);
 
   useEffect(() => {
@@ -131,25 +83,13 @@ export function useCoverArt(
     let cancelled = false;
 
     void (async () => {
-      const peekHit = await coverPeekQueued(storageKey, ref, tier, diskIdHints);
+      const peekHit = await coverPeekQueued(storageKey, ref, tier);
       if (cancelled) return;
       if (peekHit || readCachedSrc()) return;
 
       if (reachable && !deferEnsureUntilVisible) {
-        let result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
+        const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
         if (cancelled) return;
-        const albumId = diskIdHints?.albumId?.trim();
-        if (
-          !result.hit
-          && ref.coverArtId.startsWith('mf-')
-          && albumId?.startsWith('al-')
-          && albumId !== ref.coverArtId
-        ) {
-          const altRef = { ...ref, coverArtId: albumId };
-          const altKey = coverStorageKey(ref.serverScope, albumId, tier);
-          result = await coverEnsureQueued(altKey, altRef, tier, ensurePriority);
-          if (cancelled) return;
-        }
         if (result.hit && result.path) {
           applyDiskPath(result.path);
         }
@@ -174,7 +114,6 @@ export function useCoverArt(
     deferEnsureUntilVisible,
     applyDiskPath,
     readCachedSrc,
-    diskIdHints,
   ]);
 
   const src = cachedSrc;
@@ -182,7 +121,7 @@ export function useCoverArt(
 
   const onImgError = useCallback(() => {
     if (!ref) return;
-    forgetDiskSrcPrefix(coverIndexKeyFromRef(ref), ref.coverArtId);
+    forgetDiskSrcPrefix(ref);
     if (reachable) {
       void coverEnsureQueued(storageKey, ref, tier, 'high').then(result => {
         if (result.hit && result.path) applyDiskPath(result.path);

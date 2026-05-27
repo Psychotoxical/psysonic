@@ -5,7 +5,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import AlbumCard from '../components/AlbumCard';
 import { albumGridWarmCovers, coverDisplayCssPxForAlbumGrid } from '../cover/layoutSizes';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { coverArtRef } from '../cover/ref';
+import { albumCoverRef } from '../cover/ref';
 import { useAuthStore } from '../store/authStore';
 import { clampLibraryGridMaxColumns } from '../store/authStoreHelpers';
 import { computeCardGridColumnCount } from '../utils/cardGridLayout';
@@ -215,7 +215,7 @@ export default function Albums() {
     const viewportBudget = Math.max(albumGridCols * 3, albumGridCols);
     const refs = visibleAlbums
       .slice(0, viewportBudget)
-      .flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+      .flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
     return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
   }, [visibleAlbums, albumGridCols]);
 

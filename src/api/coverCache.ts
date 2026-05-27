@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
-import { coverIndexKeyFromRef } from '../cover/storageKeys';
+import { coverIndexKeyFromRef, coverStorageKeyFromRef } from '../cover/storageKeys';
 import { serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { restBaseFromUrl } from './subsonicClient';
@@ -44,7 +44,9 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
   if (scope.kind === 'server') {
     return {
       serverIndexKey: coverIndexKeyFromRef(ref),
-      coverArtId: ref.coverArtId,
+      cacheKind: ref.cacheKind,
+      cacheEntityId: ref.cacheEntityId,
+      coverArtId: ref.fetchCoverArtId,
       tier,
       restBaseUrl: coverCacheRestHost(scope.url),
       username: scope.username,
@@ -67,7 +69,9 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
   const baseUrl = server?.url || getBaseUrl();
   return {
     serverIndexKey: coverIndexKeyFromRef(ref),
-    coverArtId: ref.coverArtId,
+    cacheKind: ref.cacheKind,
+    cacheEntityId: ref.cacheEntityId,
+    coverArtId: ref.fetchCoverArtId,
     tier,
     restBaseUrl: baseUrl ? coverCacheRestHost(baseUrl) : '',
     username: server?.username ?? '',
@@ -77,22 +81,26 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
 
 export type CoverCachePeekItem = {
   serverIndexKey: string;
-  coverArtId: string;
+  cacheKind: 'album' | 'artist';
+  cacheEntityId: string;
   tier: CoverArtTier;
+  storageKey: string;
 };
 
 /** Disk-only — no HTTP. Returns map storageKey → absolute .webp path. */
 export async function coverCachePeekBatch(
-  items: CoverCachePeekItem[],
+  refs: CoverArtRef[],
+  tier: CoverArtTier,
 ): Promise<Record<string, string>> {
-  if (items.length === 0) return {};
-  const raw = await invoke<Record<string, string>>('cover_cache_peek_batch', { items });
-  const out: Record<string, string> = {};
-  for (const item of items) {
-    const key = `${item.serverIndexKey}:cover:${item.coverArtId}:${item.tier}`;
-    if (raw[key]) out[key] = raw[key];
-  }
-  return out;
+  if (refs.length === 0) return {};
+  const items: CoverCachePeekItem[] = refs.map(ref => ({
+    serverIndexKey: coverIndexKeyFromRef(ref),
+    cacheKind: ref.cacheKind,
+    cacheEntityId: ref.cacheEntityId,
+    tier,
+    storageKey: coverStorageKeyFromRef(ref, tier),
+  }));
+  return invoke<Record<string, string>>('cover_cache_peek_batch', { items });
 }
 
 export async function coverCacheEnsure(

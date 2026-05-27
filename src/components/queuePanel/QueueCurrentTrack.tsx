@@ -15,8 +15,7 @@ import { useQueueTrackEnrichment } from '../../hooks/useQueueTrackEnrichment';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { resolvePlaybackCoverScope } from '../../cover/ref';
-import { resolvePlaybackTrackCoverArtId } from '../../cover/resolveCoverArtId';
+import { albumCoverRefForPlayback } from '../../cover/ref';
 import { usePlayerStore } from '../../store/playerStore';
 
 interface Props {
@@ -204,25 +203,22 @@ export function QueueCurrentTrack({
       <div className="queue-current-track-body">
         <div className={`queue-current-cover${showBufferingOverlay ? ' playback-buffering' : ''}`}>
           {(() => {
-            const coverId = resolvePlaybackTrackCoverArtId(currentTrack);
-            return coverId ? (
+            const coverRef =
+              currentTrack.albumId && currentTrack.coverArt
+                ? albumCoverRefForPlayback(currentTrack)
+                : undefined;
+            if (!coverRef) {
+              return <div className="fallback"><Music size={32} /></div>;
+            }
+            return (
               <CoverArtImage
-                coverArtId={coverId}
+                coverRef={coverRef}
                 displayCssPx={128}
                 surface="sparse"
-                serverScope={resolvePlaybackCoverScope()}
-                diskIdHints={{
-                  albumId: currentTrack.albumId,
-                  songId: currentTrack.id,
-                  rawCoverArt: currentTrack.coverArt,
-                }}
                 ensurePriority="high"
-                libraryTrackId={currentTrack.id}
                 alt=""
                 loading="eager"
               />
-            ) : (
-              <div className="fallback"><Music size={32} /></div>
             );
           })()}
           {showBufferingOverlay && <PlaybackBufferingOverlay />}

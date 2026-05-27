@@ -11,7 +11,7 @@ import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useAuthStore } from '../../store/authStore';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
-import { coverArtRef } from '../../cover/ref';
+import { artistCoverRef } from '../../cover/ref';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
 import LastfmIcon from '../LastfmIcon';
 import StarRating from '../StarRating';
@@ -59,8 +59,8 @@ export default function ArtistDetailHero({
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
 
   const coverRef = useMemo(
-    () => (coverId ? coverArtRef(coverId) : null),
-    [coverId],
+    () => (coverId ? artistCoverRef(artist.id, coverId) : null),
+    [coverId, artist.id],
   );
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, { alt: artist.name });
 

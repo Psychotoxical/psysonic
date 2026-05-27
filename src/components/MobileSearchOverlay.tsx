@@ -10,9 +10,8 @@ import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
 import { CoverArtImage } from '../cover/CoverArtImage';
-import { coverArtIdFromArtist } from '../cover/ids';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { coverArtRef } from '../cover/ref';
+import { albumCoverRef, artistCoverRef } from '../cover/ref';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
@@ -40,8 +39,7 @@ const MOBILE_SEARCH_THUMB_CSS_PX = 80;
 
 function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id' | 'coverArt'> }) {
   const [failed, setFailed] = useState(false);
-  const coverId = coverArtIdFromArtist(artist);
-  useEffect(() => { setFailed(false); }, [coverId]);
+  useEffect(() => { setFailed(false); }, [artist.id, artist.coverArt]);
   if (failed) {
     return (
       <div className="mobile-search-avatar mobile-search-avatar--circle">
@@ -51,7 +49,7 @@ function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id'
   }
   return (
     <CoverArtImage
-      coverArtId={coverId}
+      coverRef={artistCoverRef(artist.id, artist.coverArt)}
       displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
       surface="dense"
       className="mobile-search-thumb mobile-search-thumb--artist-round"
@@ -106,9 +104,9 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   useEffect(() => {
     if (!results) return () => {};
     const refs = [
-      ...results.artists.map(a => coverArtRef(coverArtIdFromArtist(a))),
-      ...results.albums.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : [])),
-      ...results.songs.flatMap(s => (s.coverArt ? [coverArtRef(s.coverArt)] : [])),
+      ...results.artists.map(a => artistCoverRef(a.id, a.coverArt)),
+      ...results.albums.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : [])),
+      ...results.songs.flatMap(s => (s.albumId && s.coverArt ? [albumCoverRef(s.albumId, s.coverArt)] : [])),
     ];
     return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
   }, [results]);
@@ -288,7 +286,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                   <button key={a.id} className="mobile-search-item" onClick={() => goTo(`/album/${a.id}`)}>
                     {a.coverArt ? (
                       <CoverArtImage
-                        coverArtId={a.coverArt}
+                        coverRef={albumCoverRef(a.id, a.coverArt)}
                         displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
                         surface="dense"
                         className="mobile-search-thumb"
@@ -316,7 +314,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                   <button key={s.id} className="mobile-search-item" onClick={() => enqueueSong(s)}>
                     {s.coverArt ? (
                       <CoverArtImage
-                        coverArtId={s.coverArt}
+                        coverRef={albumCoverRef(s.albumId, s.coverArt)}
                         displayCssPx={MOBILE_SEARCH_THUMB_CSS_PX}
                         surface="dense"
                         className="mobile-search-thumb"

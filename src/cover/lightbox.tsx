@@ -30,7 +30,7 @@ export function useCoverLightboxSrc(
     return () => {
       cancelled = true;
     };
-  }, [open, ref?.coverArtId, ref?.serverScope]);
+  }, [open, ref?.cacheEntityId, ref?.cacheKind, ref?.fetchCoverArtId, ref?.serverScope]);
 
   useEffect(() => {
     if (open) return;

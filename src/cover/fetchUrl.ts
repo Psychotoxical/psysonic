@@ -8,13 +8,13 @@ import type { CoverArtRef, CoverArtTier } from './types';
 
 /** Builds ephemeral getCoverArt URL — NOT a cache key */
 export function buildCoverArtFetchUrl(ref: CoverArtRef, tier: CoverArtTier): string {
-  const { coverArtId, serverScope } = ref;
+  const { fetchCoverArtId, serverScope } = ref;
   if (serverScope.kind === 'server') {
     return buildCoverArtUrlForServer(
       serverScope.url,
       serverScope.username,
       serverScope.password,
-      coverArtId,
+      fetchCoverArtId,
       tier,
     );
   }
@@ -28,11 +28,11 @@ export function buildCoverArtFetchUrl(ref: CoverArtRef, tier: CoverArtTier): str
           server.url,
           server.username,
           server.password,
-          coverArtId,
+          fetchCoverArtId,
           tier,
         );
       }
     }
   }
-  return buildCoverArtUrl(coverArtId, tier);
+  return buildCoverArtUrl(fetchCoverArtId, tier);
 }

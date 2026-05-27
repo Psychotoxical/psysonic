@@ -10,6 +10,7 @@ import {
   suggestionKey,
 } from '../utils/orbit';
 import { CoverArtImage } from '../cover/CoverArtImage';
+import { albumCoverRef } from '../cover/ref';
 import { ORBIT_DEFAULT_SETTINGS } from '../api/orbit';
 
 const HOST_APPROVAL_COVER_CSS_PX = 36;
@@ -87,7 +88,7 @@ export default function HostApprovalQueue() {
             <div key={key} className="host-approval__item">
               {song?.coverArt ? (
                 <CoverArtImage
-                  coverArtId={song.coverArt}
+                  coverRef={albumCoverRef(song.albumId, song.coverArt)}
                   displayCssPx={HOST_APPROVAL_COVER_CSS_PX}
                   surface="dense"
                   alt=""

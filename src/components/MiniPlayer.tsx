@@ -1,5 +1,5 @@
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
-import { resolvePlaybackTrackCoverArtId } from '../cover/resolveCoverArtId';
+import { albumCoverRefForPlayback } from '../cover/ref';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -141,8 +141,13 @@ export default function MiniPlayer() {
   }, [queueOpen, state.queueIndex]);
 
   const { track, isPlaying } = state;
-  const miniCoverArtId = useMemo(() => resolvePlaybackTrackCoverArtId(track), [track]);
-  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(miniCoverArtId, 300, track?.id);
+  const miniCoverRef = useMemo(
+    () => (track?.albumId && track.coverArt
+      ? albumCoverRefForPlayback(track)
+      : undefined),
+    [track?.albumId, track?.coverArt],
+  );
+  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(miniCoverRef, 300);
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (

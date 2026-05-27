@@ -7,7 +7,7 @@ const MAX_REGISTRY = 120;
 const registry = new Map<string, { ref: CoverArtRef; priority: CoverPrefetchPriority }>();
 
 function registryKey(ref: CoverArtRef): string {
-  return `${coverIndexKeyFromRef(ref)}:${ref.coverArtId}`;
+  return `${coverIndexKeyFromRef(ref)}:${ref.cacheKind}:${ref.cacheEntityId}`;
 }
 
 export function coverPrefetchRegister(
@@ -23,7 +23,7 @@ export function coverPrefetchRegister(
 
   const keys: string[] = [];
   for (const ref of refs) {
-    if (!ref.coverArtId || !coverServerReachable(ref.serverScope)) continue;
+    if (!ref.cacheEntityId || !coverServerReachable(ref.serverScope)) continue;
     const key = registryKey(ref);
     if (registry.size >= MAX_REGISTRY && !registry.has(key)) {
       const drop = [...registry.entries()].find(([, v]) => v.priority === 'low');
@@ -62,7 +62,7 @@ export function coverPrefetchBumpPriority(
   ref: CoverArtRef,
   priority: CoverPrefetchPriority,
 ): void {
-  if (!ref.coverArtId || !coverServerReachable(ref.serverScope)) return;
+  if (!ref.cacheEntityId || !coverServerReachable(ref.serverScope)) return;
   const key = registryKey(ref);
   const existing = registry.get(key);
   if (!existing) {

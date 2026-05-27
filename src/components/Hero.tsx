@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Play, ListPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useCoverArt } from '../cover/useCoverArt';
+import { albumCoverRef } from '../cover/ref';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
 import { playAlbum } from '../utils/playback/playAlbum';
@@ -259,7 +260,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     });
   }, [album?.id]);
 
-  const bgHandle = useCoverArt(album?.coverArt, HERO_BG_CSS_PX, {
+  const bgHandle = useCoverArt(
+    album ? albumCoverRef(album.id, album.coverArt) : null,
+    HERO_BG_CSS_PX,
+    {
     surface: 'dense',
     ensurePriority: 'high',
   });
@@ -287,7 +291,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       <div className="hero-content" key={album.id}>
         {album.coverArt && !isMobile && (
           <CoverArtImage
-            coverArtId={album.coverArt}
+            coverRef={albumCoverRef(album.id, album.coverArt)}
             displayCssPx={HERO_FG_CSS_PX}
             surface="dense"
             ensurePriority="high"

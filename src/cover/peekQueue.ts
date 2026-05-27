@@ -1,21 +1,20 @@
+import { coverCachePeekBatch } from '../api/coverCache';
 import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverTrafficServerSwitchPaused } from './coverTraffic';
 import { rememberGridDiskSrc } from './diskSrcLookup';
-import type { DiskCoverIdHints } from './diskPeekIds';
-import { peekCoverPathOnDisk } from './peekCoverOnDisk';
+import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 function peekMemoryHit(storageKey: string, ref: CoverArtRef, tier: CoverArtTier): boolean {
   if (getDiskSrc(storageKey)) return true;
-  return Boolean(getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier));
+  return Boolean(getDiskSrcForGrid(ref, tier));
 }
 
 type PeekJob = {
   storageKey: string;
   ref: CoverArtRef;
   tier: CoverArtTier;
-  diskIdHints?: DiskCoverIdHints;
   resolve: (hit: boolean) => void;
 };
 
@@ -52,14 +51,24 @@ async function flush(): Promise<void> {
   }
   if (needDisk.length === 0) return;
 
+  const byTier = new Map<CoverArtTier, PeekJob[]>();
   for (const job of needDisk) {
-    const path = await peekCoverPathOnDisk(job.ref, job.tier, job.diskIdHints);
-    const hit = Boolean(
-      path
-      && rememberGridDiskSrc(job.ref.serverScope, job.ref.coverArtId, job.tier, path),
+    const list = byTier.get(job.tier) ?? [];
+    list.push(job);
+    byTier.set(job.tier, list);
+  }
+
+  for (const [tier, jobs] of byTier) {
+    const hits = await coverCachePeekBatch(
+      jobs.map(j => j.ref),
+      tier,
     );
-    job.resolve(hit);
-    inflight.delete(job.storageKey);
+    for (const job of jobs) {
+      const path = hits[job.storageKey] ?? '';
+      const hit = Boolean(path && rememberGridDiskSrc(job.ref, job.tier, path));
+      job.resolve(hit);
+      inflight.delete(job.storageKey);
+    }
   }
 }
 
@@ -68,7 +77,6 @@ export function coverPeekQueued(
   storageKey: string,
   ref: CoverArtRef,
   tier: CoverArtTier,
-  diskIdHints?: DiskCoverIdHints,
 ): Promise<boolean> {
   if (peekMemoryHit(storageKey, ref, tier)) {
     return Promise.resolve(true);
@@ -87,7 +95,7 @@ export function coverPeekQueued(
       };
       return;
     }
-    pending.set(storageKey, { storageKey, ref, tier, diskIdHints, resolve });
+    pending.set(storageKey, { storageKey, ref, tier, resolve });
     scheduleFlush();
   }).finally(() => {
     if (inflight.get(storageKey) === p) inflight.delete(storageKey);

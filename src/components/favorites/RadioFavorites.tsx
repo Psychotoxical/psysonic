@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Cast, ChevronLeft, ChevronRight, Heart, X } from 'lucide-react';
 import type { InternetRadioStation } from '../../api/subsonicTypes';
 import { CoverArtImage } from '../../cover/CoverArtImage';
+import { albumCoverRef } from '../../cover/ref';
 import { coverArtIdFromRadio } from '../../cover/ids';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
 
@@ -78,7 +79,7 @@ function RadioFavCard({ station: s, isActive, isPlaying, onPlay, onUnfavorite }:
       <div className="album-card-cover">
         {s.coverArt ? (
           <CoverArtImage
-            coverArtId={coverArtIdFromRadio(s.id)}
+            coverRef={albumCoverRef(coverArtIdFromRadio(s.id), coverArtIdFromRadio(s.id))}
             displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
             surface="dense"
             alt={s.name}

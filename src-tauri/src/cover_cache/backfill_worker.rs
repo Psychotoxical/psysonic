@@ -160,14 +160,16 @@ async fn ensure_one(
     http_sem: Arc<Semaphore>,
     app: AppHandle,
     session: CoverBackfillSession,
-    cover_art_id: String,
+    item: psysonic_library::cover_backfill::CoverBackfillItem,
 ) {
     if worker.ui_priority_hold.load(Ordering::Relaxed) {
         return;
     }
     let args = CoverCacheEnsureArgs {
         server_index_key: session.server_index_key,
-        cover_art_id,
+        cache_kind: item.cache_kind,
+        cache_entity_id: item.cache_entity_id,
+        cover_art_id: item.fetch_cover_art_id,
         tier: LIBRARY_COVER_CANONICAL_TIER,
         rest_base_url: session.rest_base_url,
         username: session.username,
@@ -258,10 +260,10 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
         if !session_still_focused(&worker, &session).await {
             break;
         }
-        let ids = batch.cover_ids.clone();
+        let items = batch.items.clone();
         let mut paused_for_ui_priority = false;
         let mut set = tokio::task::JoinSet::new();
-        for id in ids {
+        for item in items {
             if worker.ui_priority_hold.load(Ordering::Relaxed) {
                 paused_for_ui_priority = true;
                 break;
@@ -272,7 +274,7 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
             let session = session.clone();
             let worker_arc = worker.clone();
             set.spawn(async move {
-                ensure_one(worker_arc.as_ref(), st, http_sem, app, session, id).await;
+                ensure_one(worker_arc.as_ref(), st, http_sem, app, session, item).await;
             });
         }
         while set.join_next().await.is_some() {}

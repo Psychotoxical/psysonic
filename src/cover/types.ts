@@ -1,5 +1,7 @@
-/** Subsonic / Navidrome cover art ID passed to getCoverArt.view */
+/** Subsonic / Navidrome id passed to `getCoverArt.view` (`al-*`, `ar-*`, …). */
 export type CoverArtId = string;
+
+export type CoverCacheKind = 'album' | 'artist';
 
 /** Fixed storage / server-request tiers */
 export const COVER_ART_TIERS = [64, 128, 256, 512, 800, 2000] as const;
@@ -18,8 +20,13 @@ export type CoverSurfaceKind = 'dense' | 'sparse';
 
 export type CoverPrefetchPriority = 'high' | 'middle' | 'low';
 
+/** Disk cache is keyed by `cacheKind` + `cacheEntityId`; HTTP uses `fetchCoverArtId`. */
 export type CoverArtRef = {
-  coverArtId: CoverArtId;
+  cacheKind: CoverCacheKind;
+  /** Disk segment — usually `al-*` / `ar-*`; per-CD `mf-*` only when album has distinct disc art. */
+  cacheEntityId: string;
+  /** Navidrome `getCoverArt` id — usually matches `cacheEntityId`; may differ only transiently. */
+  fetchCoverArtId: CoverArtId;
   serverScope: CoverServerScope;
 };
 

@@ -13,7 +13,7 @@ import { rememberBlob } from '../utils/imageCache/blobCache';
 import { putBlob } from '../utils/imageCache/idbStore';
 import { buildCoverArtFetchUrl } from './fetchUrl';
 import { coverServerReachable } from './reachability';
-import { coverStorageKey } from './storageKeys';
+import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 const CANONICAL_TIER = 800 as CoverArtTier;
@@ -40,8 +40,8 @@ async function scheduleColdCoverRace(
   signal: AbortSignal | undefined,
   getPriority?: () => number,
 ): Promise<Blob | null> {
-  const targetKey = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
-  const canonicalKey = coverStorageKey(ref.serverScope, ref.coverArtId, CANONICAL_TIER);
+  const targetKey = coverStorageKeyFromRef(ref, tier);
+  const canonicalKey = coverStorageKeyFromRef(ref, CANONICAL_TIER);
   const chainCtl = new AbortController();
   const directCtl = new AbortController();
   let winner = false;
@@ -96,9 +96,9 @@ export async function ensureCoverTierJs(
   signal?: AbortSignal,
   getPriority?: () => number,
 ): Promise<Blob | null> {
-  if (!ref.coverArtId || signal?.aborted) return null;
+  if (!ref.fetchCoverArtId || signal?.aborted) return null;
 
-  const cacheKey = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
+  const cacheKey = coverStorageKeyFromRef(ref, tier);
   const mem = blobCache.get(cacheKey);
   if (mem) return mem;
 
@@ -128,7 +128,7 @@ export async function ensureCoverTierJs(
     return getCachedBlob(buildCoverArtFetchUrl(ref, 2000), cacheKey, signal, getPriority);
   }
 
-  const canonicalKey = coverStorageKey(ref.serverScope, ref.coverArtId, CANONICAL_TIER);
+  const canonicalKey = coverStorageKeyFromRef(ref, CANONICAL_TIER);
   const hasChain =
     blobCache.has(canonicalKey) ||
     (parsed && (await probeSiblingCoverBlobFromIDB(parsed.stem, parsed.size)) !== null);

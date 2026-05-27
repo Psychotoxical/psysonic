@@ -47,6 +47,10 @@ pub struct CoverCacheStatsDto {
 #[serde(rename_all = "camelCase")]
 pub struct CoverCacheEnsureArgs {
     pub server_index_key: String,
+    /// `album` or `artist` — with `cache_entity_id` selects the SHA-256 cache directory.
+    pub cache_kind: String,
+    pub cache_entity_id: String,
+    /// Navidrome / Subsonic `getCoverArt` id (`al-*`, `ar-*`, …).
     pub cover_art_id: String,
     pub tier: u32,
     pub rest_base_url: String,
@@ -56,6 +60,12 @@ pub struct CoverCacheEnsureArgs {
     #[serde(default)]
     pub library_bulk: bool,
 }
+
+fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
+    cover_dir(root, &args.server_index_key, &args.cache_kind, &args.cache_entity_id)
+}
+
+pub(crate) use psysonic_core::cover_cache_layout::cover_cache_catalog_entry as cache_kind_entity_for_id;
 
 /// Cap concurrent cover HTTP fetches (library backfill + UI share this pool).
 const COVER_HTTP_CONCURRENCY: usize = 16;
@@ -103,7 +113,7 @@ impl CoverCacheState {
         http_sem_override: Option<Arc<Semaphore>>,
     ) -> Result<CoverCacheEnsureResult, String> {
         let this = state.lock().await;
-        let dir = cover_dir(&this.root, &args.server_index_key, &args.cover_art_id);
+        let dir = cover_dir_for_args(&this.root, args);
         if let Some(path) = peek_tier_path(&dir, args.tier) {
             return Ok(CoverCacheEnsureResult {
                 hit: true,
@@ -237,7 +247,8 @@ fn emit_tier_ready(app: &AppHandle, args: &CoverCacheEnsureArgs, tier: u32, path
         "cover:tier-ready",
         serde_json::json!({
             "serverIndexKey": args.server_index_key,
-            "coverArtId": args.cover_art_id,
+            "cacheKind": args.cache_kind,
+            "cacheEntityId": args.cache_entity_id,
             "tier": tier,
             "path": path.to_string_lossy(),
         }),
@@ -315,7 +326,7 @@ fn spawn_derive_remaining_tiers(
     tauri::async_runtime::spawn(async move {
         let dir = {
             let guard = state.lock().await;
-            cover_dir(&guard.root, &args.server_index_key, &args.cover_art_id)
+            cover_dir_for_args(&guard.root, &args)
         };
         let _ = tauri::async_runtime::spawn_blocking(move || {
             for tier in tiers_bg {
@@ -445,7 +456,7 @@ fn state(app: &AppHandle) -> Result<Arc<Mutex<CoverCacheState>>, String> {
         .ok_or_else(|| "cover cache not initialized".into())
 }
 
-const COVER_CACHE_LAYOUT_STAMP: &str = "index-key-v1";
+const COVER_CACHE_LAYOUT_STAMP: &str = psysonic_core::cover_cache_layout::LAYOUT_STAMP;
 
 /// Drop legacy profile-uuid directories when switching to host index keys (no migration).
 fn reset_cover_cache_for_index_key_layout(root: &Path) -> Result<(), String> {
@@ -567,8 +578,11 @@ pub async fn library_cover_backfill_configure(
 #[serde(rename_all = "camelCase")]
 pub struct CoverCachePeekItem {
     pub server_index_key: String,
-    pub cover_art_id: String,
+    pub cache_kind: String,
+    pub cache_entity_id: String,
     pub tier: u32,
+    /// Frontend `coverStorageKey` — echoed in the batch result map.
+    pub storage_key: String,
 }
 
 /// Best-effort disk hit without network (exact tier, then largest tier on disk ≤ wanted).
@@ -584,14 +598,15 @@ pub async fn cover_cache_peek_batch(
     };
     let mut out = HashMap::new();
     for item in items {
-        let dir = cover_dir(&root, &item.server_index_key, &item.cover_art_id);
+        let dir = cover_dir(
+            &root,
+            &item.server_index_key,
+            &item.cache_kind,
+            &item.cache_entity_id,
+        );
         let path = peek_tier_path(&dir, item.tier);
         if let Some(p) = path {
-            let key = format!(
-                "{}:cover:{}:{}",
-                item.server_index_key, item.cover_art_id, item.tier
-            );
-            out.insert(key, p.to_string_lossy().into_owned());
+            out.insert(item.storage_key, p.to_string_lossy().into_owned());
         }
     }
     Ok(out)
@@ -626,6 +641,8 @@ fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
 pub async fn cover_cache_ensure(
     app: AppHandle,
     server_index_key: String,
+    cache_kind: String,
+    cache_entity_id: String,
     cover_art_id: String,
     tier: u32,
     rest_base_url: String,
@@ -634,6 +651,8 @@ pub async fn cover_cache_ensure(
 ) -> Result<CoverCacheEnsureResult, String> {
     let args = CoverCacheEnsureArgs {
         server_index_key,
+        cache_kind,
+        cache_entity_id,
         cover_art_id,
         tier,
         rest_base_url,
@@ -883,8 +902,8 @@ mod tests {
     #[test]
     fn disk_layout_paths() {
         let root = std::path::Path::new("/tmp/cover-test");
-        let dir = cover_dir(root, "srv", "al-1");
-        assert_eq!(dir, root.join("srv").join("al-1"));
+        let dir = cover_dir(root, "srv", "album", "al-1");
+        assert_eq!(dir, root.join("srv").join("album").join("al-1"));
         assert_eq!(tier_path(&dir, 512), dir.join("512.webp"));
     }
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import type { CoverArtId } from '../cover/types';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { coverArtRef } from '../cover/ref';
+import { albumCoverRef } from '../cover/ref';
 import { useCoverArt } from '../cover/useCoverArt';
 
 const PLAYLIST_HERO_BG_CSS_PX = 200;
@@ -12,6 +12,12 @@ export interface PlaylistCovers {
   coverQuadIds: (CoverArtId | null)[];
   bgCoverId: CoverArtId | null;
   resolvedBgUrl: string;
+}
+
+function playlistCoverRef(coverId: string, songs: SubsonicSong[]) {
+  const song = songs.find(s => s.coverArt === coverId || s.albumId === coverId);
+  if (song?.albumId) return albumCoverRef(song.albumId, coverId);
+  return albumCoverRef(coverId, coverId);
 }
 
 export function usePlaylistCovers(songs: SubsonicSong[], customCoverId: string | null): PlaylistCovers {
@@ -38,7 +44,11 @@ export function usePlaylistCovers(songs: SubsonicSong[], customCoverId: string |
   );
 
   const bgCoverId = customCoverId ?? coverQuad[0] ?? null;
-  const { src: resolvedBgUrl } = useCoverArt(bgCoverId, PLAYLIST_HERO_BG_CSS_PX, {
+  const bgCoverRef = useMemo(
+    () => (bgCoverId ? playlistCoverRef(bgCoverId, songs) : null),
+    [bgCoverId, songs],
+  );
+  const { src: resolvedBgUrl } = useCoverArt(bgCoverRef, PLAYLIST_HERO_BG_CSS_PX, {
     surface: 'dense',
     ensurePriority: 'high',
   });
@@ -46,10 +56,10 @@ export function usePlaylistCovers(songs: SubsonicSong[], customCoverId: string |
   useEffect(() => {
     const refs = coverQuadIds
       .filter((id): id is CoverArtId => !!id)
-      .map(id => coverArtRef(id));
-    if (bgCoverId) refs.push(coverArtRef(bgCoverId));
+      .map(id => playlistCoverRef(id, songs));
+    if (bgCoverId) refs.push(playlistCoverRef(bgCoverId, songs));
     return coverPrefetchRegister(refs, { surface: 'dense', priority: 'middle' });
-  }, [coverQuadIds, bgCoverId]);
+  }, [coverQuadIds, bgCoverId, songs]);
 
   return { coverQuadIds, bgCoverId, resolvedBgUrl };
 }

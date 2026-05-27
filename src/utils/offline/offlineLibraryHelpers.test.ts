@@ -65,7 +65,9 @@ describe('offlineLibraryHelpers', () => {
     const scope = offlineAlbumCoverScope(album);
     expect(scope).toMatchObject({ kind: 'server', serverId: 'a' });
     const tier = resolveCoverDisplayTier(300, { surface: 'dense' });
-    expect(coverStorageKey(scope!, 'ca1', tier)).toBe('a.test:cover:ca1:512');
+    expect(coverStorageKey(scope!, { cacheKind: 'album', cacheEntityId: 'ca1' }, tier)).toBe(
+      'a.test:cover:album:ca1:512',
+    );
   });
 
   it('ensureServerForOfflineAlbum skips switch when already active', async () => {

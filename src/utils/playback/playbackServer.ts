@@ -1,6 +1,6 @@
 import { buildCoverArtFetchUrl } from '../../cover/fetchUrl';
-import { coverArtRef, resolvePlaybackCoverScope } from '../../cover/ref';
-import { coverStorageKey } from '../../cover/storageKeys';
+import { albumCoverRefForPlayback } from '../../cover/ref';
+import { coverStorageKeyFromRef } from '../../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../../cover/tiers';
 import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
@@ -101,13 +101,25 @@ export async function ensurePlaybackServerActive(): Promise<boolean> {
 }
 
 /** Cover fetch URL + storage key for queue prefetch (displayCssPx = layout CSS px). */
-export function playbackCoverArtForId(coverId: string, displayCssPx: number): { src: string; cacheKey: string } {
-  const ref = coverArtRef(coverId, resolvePlaybackCoverScope());
+export function playbackCoverArtForAlbum(
+  albumId: string,
+  coverArt: string,
+  displayCssPx: number,
+): { src: string; cacheKey: string } {
+  const ref = albumCoverRefForPlayback({ albumId, coverArt, id: albumId, discNumber: undefined });
+  if (!ref) {
+    return playbackCoverArtForId(coverArt, displayCssPx);
+  }
   const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'sparse' });
   return {
     src: buildCoverArtFetchUrl(ref, tier),
-    cacheKey: coverStorageKey(ref.serverScope, coverId, tier),
+    cacheKey: coverStorageKeyFromRef(ref, tier),
   };
+}
+
+/** @deprecated Use {@link playbackCoverArtForAlbum} with album id. */
+export function playbackCoverArtForId(coverId: string, displayCssPx: number): { src: string; cacheKey: string } {
+  return playbackCoverArtForAlbum(coverId, coverId, displayCssPx);
 }
 
 export function shouldBindQueueServerForPlay(

@@ -71,11 +71,10 @@ export function ArtistHeroCover({
     );
   }
 
-  if (coverFallback?.coverArtId) {
+  if (coverFallback?.fetchCoverArtId) {
     return (
       <CoverArtImage
-        coverArtId={coverFallback.coverArtId}
-        serverScope={coverFallback.serverScope}
+        coverRef={coverFallback}
         displayCssPx={displayCssPx}
         surface={surface}
         className={className}

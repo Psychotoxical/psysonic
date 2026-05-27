@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CoverArtHandle } from './types';
+import { albumCoverRef } from './ref';
 import { usePlaybackCoverArt } from './usePlaybackCoverArt';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -10,7 +11,7 @@ import { toQueueItemRefs } from '../utils/library/queueItemRef';
 
 const hoisted = vi.hoisted(() => ({
   useCoverArtMock: vi.fn(
-    (_coverArtId?: unknown, _displayCssPx?: unknown, _opts?: unknown): CoverArtHandle => ({
+    (_coverRef?: unknown, _displayCssPx?: unknown, _opts?: unknown): CoverArtHandle => ({
       src: '',
       storageKey: '',
       cacheKey: '',
@@ -24,7 +25,7 @@ vi.mock('./useCoverArt', () => ({
   useCoverArt: hoisted.useCoverArtMock,
 }));
 
-function seedPlaybackState(): { active: string; playback: string } {
+function seedPlaybackState(): { active: string; playback: string; track: ReturnType<typeof makeTrack> } {
   const active = useAuthStore.getState().addServer({
     name: 'Active',
     url: 'https://active.test',
@@ -38,14 +39,14 @@ function seedPlaybackState(): { active: string; playback: string } {
     password: 'play-pass',
   });
   useAuthStore.getState().setActiveServer(active);
-  const track = makeTrack({ id: 'song-1', coverArt: 'cover-1' });
+  const track = makeTrack({ id: 'song-1', albumId: 'album-1', coverArt: 'cover-1' });
   usePlayerStore.setState({
     queueItems: toQueueItemRefs(playback, [track]),
     queueIndex: 0,
     queueServerId: playback,
     currentTrack: track,
   });
-  return { active, playback };
+  return { active, playback, track };
 }
 
 describe('usePlaybackCoverArt', () => {
@@ -55,13 +56,14 @@ describe('usePlaybackCoverArt', () => {
   });
 
   it('recomputes server scope when playback server credentials change', async () => {
-    const { playback } = seedPlaybackState();
-    const { rerender } = renderHook(() => usePlaybackCoverArt('cover-1', 300));
+    const { playback, track } = seedPlaybackState();
+    const coverRef = albumCoverRef(track.albumId!, track.coverArt!);
+    const { rerender } = renderHook(() => usePlaybackCoverArt(coverRef, 300));
 
     const calls = hoisted.useCoverArtMock.mock.calls as Array<
-      [unknown, unknown, { serverScope?: Record<string, unknown> }]
+      [{ serverScope?: Record<string, unknown> } | null, unknown, unknown]
     >;
-    const firstScope = calls[0]?.[2]?.serverScope;
+    const firstScope = calls[0]?.[0]?.serverScope;
     expect(firstScope).toMatchObject({
       kind: 'server',
       serverId: playback,
@@ -79,7 +81,7 @@ describe('usePlaybackCoverArt', () => {
     rerender();
 
     await waitFor(() => {
-      const latestScope = calls[calls.length - 1]?.[2]?.serverScope;
+      const latestScope = calls[calls.length - 1]?.[0]?.serverScope;
       expect(latestScope).toMatchObject({
         kind: 'server',
         serverId: playback,

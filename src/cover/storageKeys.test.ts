@@ -36,9 +36,9 @@ describe('coverStorageKey', () => {
   });
 
   it('uses host index key for active scope (not profile uuid)', () => {
-    expect(coverStorageKey({ kind: 'active' }, 'al-42', 128)).toBe(
-      'music.local:4533:cover:al-42:128',
-    );
+    expect(
+      coverStorageKey({ kind: 'active' }, { cacheKind: 'album', cacheEntityId: 'al-42' }, 128),
+    ).toBe('music.local:4533:cover:album:al-42:128');
   });
 
   it('uses host index key from explicit server url', () => {
@@ -51,10 +51,10 @@ describe('coverStorageKey', () => {
           username: 'u',
           password: 'p',
         },
-        'ar-1',
+        { cacheKind: 'artist', cacheEntityId: 'ar-1' },
         512,
       ),
-    ).toBe('nav.example.com/navidrome:cover:ar-1:512');
+    ).toBe('nav.example.com/navidrome:cover:artist:ar-1:512');
   });
 
   it('coverIndexKeyFromScope matches library-style keys', () => {

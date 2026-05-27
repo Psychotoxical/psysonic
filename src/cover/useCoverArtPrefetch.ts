@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { coverPrefetchDrainBatch } from './prefetchRegistry';
 import { coverTrafficBackgroundPaused } from './coverTraffic';
 import { coverEnsureQueued } from './ensureQueue';
-import { coverStorageKey } from './storageKeys';
+import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import type { CoverArtTier } from './types';
 
@@ -43,7 +43,7 @@ export function useCoverArtPrefetch(enabled = true): void {
         if (batch.length > 0) {
           await Promise.all(
             batch.map(ref => {
-              const key = coverStorageKey(ref.serverScope, ref.coverArtId, DENSE_PREFETCH_TIER);
+              const key = coverStorageKeyFromRef(ref, DENSE_PREFETCH_TIER);
               return coverEnsureQueued(key, ref, DENSE_PREFETCH_TIER, 'low');
             }),
           );

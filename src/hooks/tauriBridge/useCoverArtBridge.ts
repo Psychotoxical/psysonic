@@ -8,18 +8,20 @@ import { rememberDiskSrcLadder } from '../../cover/diskSrcLookup';
 import { notifyCoverDiskReady } from '../../cover/diskHandoff';
 import { invalidateCacheKey } from '../../utils/imageCache';
 import { COVER_ART_TIERS } from '../../cover/tiers';
-import type { CoverArtTier } from '../../cover/types';
+import type { CoverArtTier, CoverCacheKind } from '../../cover/types';
 
 type CoverTierReadyPayload = {
   serverIndexKey: string;
-  coverArtId: string;
+  cacheKind: CoverCacheKind;
+  cacheEntityId: string;
   tier: CoverArtTier;
   path: string;
 };
 
 type CoverEvictedPayload = {
   serverIndexKey: string;
-  coverArtId: string;
+  cacheKind: CoverCacheKind;
+  cacheEntityId: string;
 };
 
 /** Rust → UI: disk `.webp` ready — do not invalidate IDB (that caused webview refetch storms). */
@@ -29,10 +31,10 @@ export function useCoverArtBridge(): void {
     void (async () => {
       unsubs.push(
         await listen<CoverTierReadyPayload>('cover:tier-ready', ev => {
-          const { serverIndexKey, coverArtId, tier, path } = ev.payload;
+          const { serverIndexKey, cacheKind, cacheEntityId, tier, path } = ev.payload;
           if (!path) return;
-          const key = `${serverIndexKey}:cover:${coverArtId}:${tier}`;
-          rememberDiskSrcLadder(serverIndexKey, coverArtId, tier, path);
+          const key = `${serverIndexKey}:cover:${cacheKind}:${cacheEntityId}:${tier}`;
+          rememberDiskSrcLadder(serverIndexKey, { cacheKind, cacheEntityId }, tier, path);
           notifyCoverDiskReady(key, path);
           void invalidateCacheKey(key);
         }),
@@ -44,10 +46,14 @@ export function useCoverArtBridge(): void {
       );
       unsubs.push(
         await listen<CoverEvictedPayload>('cover:evicted', ev => {
-          const { serverIndexKey, coverArtId } = ev.payload;
-          forgetDiskSrcPrefix(serverIndexKey, coverArtId);
+          const { serverIndexKey, cacheKind, cacheEntityId } = ev.payload;
+          forgetDiskSrcPrefix({
+            serverScope: { kind: 'active' },
+            cacheKind,
+            cacheEntityId,
+          });
           for (const tier of COVER_ART_TIERS) {
-            notifyCoverDiskReady(`${serverIndexKey}:cover:${coverArtId}:${tier}`, '');
+            notifyCoverDiskReady(`${serverIndexKey}:cover:${cacheKind}:${cacheEntityId}:${tier}`, '');
           }
         }),
       );

@@ -1,4 +1,5 @@
 import { CoverArtImage } from '../cover/CoverArtImage';
+import { albumCoverRef } from '../cover/ref';
 import { getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -111,7 +112,7 @@ export default function Tracks() {
           <div className="tracks-hero-cover">
             {hero.coverArt ? (
               <CoverArtImage
-                coverArtId={hero.coverArt}
+                coverRef={albumCoverRef(hero.albumId, hero.coverArt)}
                 displayCssPx={600}
                 surface="sparse"
                 alt=""

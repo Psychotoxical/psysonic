@@ -23,6 +23,12 @@ import AlbumHeader from '../components/AlbumHeader';
 import AlbumTrackList from '../components/AlbumTrackList';
 import { AlbumDetailToolbar } from '../components/albumDetail/AlbumDetailToolbar';
 import { useCoverArt } from '../cover/useCoverArt';
+import {
+  albumCoverRef,
+  artistCoverRef,
+  forgetAlbumDistinctDiscCovers,
+  rememberAlbumDistinctDiscCovers,
+} from '../cover/ref';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/ui/toast';
 import { useSelectionStore } from '../store/selectionStore';
@@ -89,6 +95,12 @@ export default function AlbumDetail() {
     if (!losslessOnly) return album.songs;
     return album.songs.filter(s => isLosslessSuffix(s.suffix));
   }, [album?.songs, losslessOnly]);
+
+  useEffect(() => {
+    if (!albumId || !effectiveSongs?.length) return;
+    rememberAlbumDistinctDiscCovers(albumId, effectiveSongs);
+    return () => forgetAlbumDistinctDiscCovers(albumId);
+  }, [albumId, effectiveSongs]);
 
 const handlePlayAll = () => {
      if (!album || !effectiveSongs) return;
@@ -270,7 +282,11 @@ const handleShuffleAll = () => {
     userRatingOverrides,
   });
 
-  const albumCover = useCoverArt(album?.album.coverArt, 400, { surface: 'sparse' });
+  const albumCover = useCoverArt(
+    album ? albumCoverRef(album.album.id, album.album.coverArt) : null,
+    400,
+    { surface: 'sparse' },
+  );
   const resolvedCoverUrl = albumCover.src || null;
 
   useEffect(() => {

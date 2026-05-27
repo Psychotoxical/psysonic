@@ -1,7 +1,7 @@
 import { getDiskSrc, rememberDiskSrc } from './diskSrcCache';
 import { hasCoverDiskReadyListeners, notifyCoverDiskReady } from './diskHandoff';
-import { coverStorageKey } from './storageKeys';
-import type { CoverArtId, CoverArtTier, CoverServerScope } from './types';
+import { coverStorageKeyFromRef } from './storageKeys';
+import type { CoverArtRef, CoverArtTier } from './types';
 
 /** Dense grids: prefer a larger on-disk tier (800) before tiny thumbs when the ideal tier is missing. */
 export function gridDiskSrcLookupOrder(want: CoverArtTier): CoverArtTier[] {
@@ -17,29 +17,20 @@ export function gridDiskSrcLookupOrder(want: CoverArtTier): CoverArtTier[] {
 }
 
 /** Synchronous hit from `diskSrcCache` — any tier already warmed/peeked for this cover. */
-export function getDiskSrcForGrid(
-  scope: CoverServerScope,
-  coverArtId: CoverArtId,
-  wantTier: CoverArtTier,
-): string {
+export function getDiskSrcForGrid(ref: CoverArtRef, wantTier: CoverArtTier): string {
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
-    const src = getDiskSrc(coverStorageKey(scope, coverArtId, tier));
+    const src = getDiskSrc(coverStorageKeyFromRef(ref, tier));
     if (src) return src;
   }
   return '';
 }
 
 /** Seed lookup-order tier keys (512 + 800 fallback path, etc.) — no subscriber wakeups. */
-export function seedGridDiskSrcCache(
-  scope: CoverServerScope,
-  coverArtId: CoverArtId,
-  wantTier: CoverArtTier,
-  fsPath: string,
-): boolean {
+export function seedGridDiskSrcCache(ref: CoverArtRef, wantTier: CoverArtTier, fsPath: string): boolean {
   if (!fsPath) return false;
   let hit = false;
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
-    if (rememberDiskSrc(coverStorageKey(scope, coverArtId, tier), fsPath)) hit = true;
+    if (rememberDiskSrc(coverStorageKeyFromRef(ref, tier), fsPath)) hit = true;
   }
   return hit;
 }
@@ -47,15 +38,10 @@ export function seedGridDiskSrcCache(
 /**
  * After peek/ensure: seed cache and wake mounted cells once (avoids 4× notify / re-render storms).
  */
-export function rememberGridDiskSrc(
-  scope: CoverServerScope,
-  coverArtId: CoverArtId,
-  wantTier: CoverArtTier,
-  fsPath: string,
-): boolean {
-  const hit = seedGridDiskSrcCache(scope, coverArtId, wantTier, fsPath);
+export function rememberGridDiskSrc(ref: CoverArtRef, wantTier: CoverArtTier, fsPath: string): boolean {
+  const hit = seedGridDiskSrcCache(ref, wantTier, fsPath);
   if (!hit) return false;
-  const wantKey = coverStorageKey(scope, coverArtId, wantTier);
+  const wantKey = coverStorageKeyFromRef(ref, wantTier);
   if (hasCoverDiskReadyListeners(wantKey)) {
     notifyCoverDiskReady(wantKey, fsPath);
   }
@@ -65,14 +51,14 @@ export function rememberGridDiskSrc(
 /** Rust `cover:tier-ready` — seed ladder keys so sparse cells see 800.webp when they want 128. */
 export function rememberDiskSrcLadder(
   serverIndexKey: string,
-  coverArtId: CoverArtId,
+  ref: Pick<CoverArtRef, 'cacheKind' | 'cacheEntityId'>,
   wantTier: CoverArtTier,
   fsPath: string,
 ): boolean {
-  if (!serverIndexKey || !coverArtId || !fsPath) return false;
+  if (!serverIndexKey || !ref.cacheEntityId || !fsPath) return false;
   let hit = false;
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
-    const key = `${serverIndexKey}:cover:${coverArtId}:${tier}`;
+    const key = `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`;
     if (rememberDiskSrc(key, fsPath)) hit = true;
   }
   return hit;

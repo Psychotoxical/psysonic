@@ -6,7 +6,7 @@ import type { PlayerState, Track } from '../../store/playerStoreTypes';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import type { PreviewingTrack } from '../../store/previewStore';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { resolvePlaybackCoverScope } from '../../cover/ref';
+import { albumCoverRef, albumCoverRefForPlayback } from '../../cover/ref';
 import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
@@ -64,10 +64,10 @@ export function PlayerTrackInfo({
         data-tooltip={!isRadio && !showPreviewMeta && currentTrack ? t('player.openFullscreen') : undefined}
       >
         {isRadio ? (
-          radioCoverArtId ? (
+          radioCoverArtId && currentRadio ? (
             <CoverArtImage
               className="player-album-art"
-              coverArtId={radioCoverArtId}
+              coverRef={albumCoverRef(radioCoverArtId, radioCoverArtId)}
               displayCssPx={128}
               surface="sparse"
               alt={currentRadio?.name ?? ''}
@@ -77,24 +77,17 @@ export function PlayerTrackInfo({
               <Cast size={20} />
             </div>
           )
-        ) : coverArtId ? (
+        ) : !isRadio && coverArtId ? (
           <CoverArtImage
             className="player-album-art"
-            coverArtId={coverArtId}
+            coverRef={
+              showPreviewMeta
+                ? albumCoverRef(coverArtId, coverArtId, { kind: 'active' })
+                : albumCoverRefForPlayback(currentTrack!)!
+            }
             displayCssPx={128}
             surface="sparse"
-            serverScope={showPreviewMeta ? { kind: 'active' } : resolvePlaybackCoverScope()}
-            diskIdHints={
-              currentTrack
-                ? {
-                    albumId: currentTrack.albumId,
-                    songId: currentTrack.id,
-                    rawCoverArt: currentTrack.coverArt,
-                  }
-                : undefined
-            }
             ensurePriority="high"
-            libraryTrackId={currentTrack?.id}
             alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
           />
           ) : (

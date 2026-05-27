@@ -5,6 +5,7 @@ import { Radio, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOrbitStore } from '../store/orbitStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
+import { albumCoverRef } from '../cover/ref';
 import OrbitQueueHead from './OrbitQueueHead';
 
 const ORBIT_QUEUE_COVER_LG_CSS_PX = 54;
@@ -79,7 +80,7 @@ export default function OrbitGuestQueue() {
           <div className="orbit-guest-queue__current-body">
             {currentSong?.coverArt ? (
               <CoverArtImage
-                coverArtId={currentSong.coverArt}
+                coverRef={albumCoverRef(currentSong.albumId, currentSong.coverArt)}
                 displayCssPx={ORBIT_QUEUE_COVER_LG_CSS_PX}
                 surface="dense"
                 alt=""
@@ -116,7 +117,7 @@ export default function OrbitGuestQueue() {
               <div key={trackId} className="orbit-guest-queue__item orbit-guest-queue__item--pending">
                 {song?.coverArt ? (
                   <CoverArtImage
-                    coverArtId={song.coverArt}
+                    coverRef={albumCoverRef(song.albumId, song.coverArt)}
                     displayCssPx={ORBIT_QUEUE_COVER_SM_CSS_PX}
                     surface="dense"
                     alt=""
@@ -155,7 +156,7 @@ export default function OrbitGuestQueue() {
             >
               {song?.coverArt ? (
                 <CoverArtImage
-                  coverArtId={song.coverArt}
+                  coverRef={albumCoverRef(song.albumId, song.coverArt)}
                   displayCssPx={ORBIT_QUEUE_COVER_SM_CSS_PX}
                   surface="dense"
                   alt=""

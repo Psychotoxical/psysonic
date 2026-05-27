@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CoverArtImage } from '../cover/CoverArtImage';
-import { coverArtIdFromArtist } from '../cover/ids';
+import { artistCoverRef } from '../cover/ref';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 
 interface Props {
@@ -16,7 +16,7 @@ interface Props {
 export default function ArtistCardLocal({ artist, linkQuery }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const coverId = coverArtIdFromArtist(artist);
+  const coverRef = artistCoverRef(artist.id, artist.coverArt);
   const href = linkQuery ? `/artist/${artist.id}?${linkQuery}` : `/artist/${artist.id}`;
 
   return (
@@ -24,7 +24,7 @@ export default function ArtistCardLocal({ artist, linkQuery }: Props) {
       <div className="artist-card-avatar">
         {artist.coverArt || artist.id ? (
           <CoverArtImage
-            coverArtId={coverId}
+            coverRef={coverRef}
             displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
             surface="dense"
             alt={artist.name}

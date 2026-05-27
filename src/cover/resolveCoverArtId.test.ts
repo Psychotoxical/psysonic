@@ -26,14 +26,14 @@ describe('resolveSubsonicSongCoverArtId', () => {
     ).toBe('cov-track');
   });
 
-  it('prefers Navidrome album id when coverArt is mf-*', () => {
+  it('keeps mf-* coverArt for per-disc art', () => {
     expect(
       resolveSubsonicSongCoverArtId({
         id: 'tr-1',
         coverArt: 'mf-Gg7kLxzr2dNSB7BZ9eV2Xz_69d63a8a',
         albumId: 'al-07lZYKfVt0F4MOgbhsmeyo_69d63b4d',
       }),
-    ).toBe('al-07lZYKfVt0F4MOgbhsmeyo_69d63b4d');
+    ).toBe('mf-Gg7kLxzr2dNSB7BZ9eV2Xz_69d63a8a');
   });
 });
 
@@ -72,7 +72,7 @@ describe('resolveArtistPageSongCoverArtId', () => {
     ).toBe('al-octa');
   });
 
-  it('prefers album id when album coverArt is mf-*', () => {
+  it('uses album row coverArt when present', () => {
     expect(
       resolveArtistPageSongCoverArtId(
         {
@@ -83,6 +83,6 @@ describe('resolveArtistPageSongCoverArtId', () => {
         },
         [{ id: 'al-octa_2', name: 'Octastorium', coverArt: 'mf-x_1' }],
       ),
-    ).toBe('al-octa_2');
+    ).toBe('mf-x_1');
   });
 });

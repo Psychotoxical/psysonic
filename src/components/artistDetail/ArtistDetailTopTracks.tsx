@@ -99,16 +99,11 @@ export default function ArtistDetailTopTracks({
               ? albums.find(a => a.id === song.albumId)
               : albums.find(a => a.name === song.album);
             const coverId = resolveArtistPageSongCoverArtId(song, albums);
-            return coverId ? (
+            return coverId && song.albumId ? (
               <ArtistTopTrackCover
+                albumId={song.albumId}
                 coverArt={coverId}
                 album={song.album}
-                diskIdHints={{
-                  albumId: song.albumId,
-                  songId: song.id,
-                  rawCoverArt: song.coverArt,
-                  albumCoverArt: albumRow?.coverArt,
-                }}
               />
             ) : null;
           })()}

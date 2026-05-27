@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { coverArtRef, resolvePlaybackCoverScope } from '../../cover/ref';
+import { albumCoverRefForPlayback } from '../../cover/ref';
 import { coverArtUrlForDiscord } from '../../cover/integrations/discord';
 import { useAuthStore } from '../authStore';
 import { usePlayerStore } from '../playerStore';
@@ -82,7 +82,11 @@ export function setupDiscordPresence(): () => void {
       if (cached !== undefined) {
         sendPresence(cached);
       } else {
-        const ref = coverArtRef(currentTrack.coverArt, resolvePlaybackCoverScope());
+        const ref = albumCoverRefForPlayback(currentTrack);
+        if (!ref) {
+          sendPresence(null);
+          return;
+        }
         coverArtUrlForDiscord(ref).then(url => {
           discordServerCoverCache.set(cacheKey, url);
           sendPresence(url);

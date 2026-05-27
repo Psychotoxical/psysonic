@@ -1,24 +1,23 @@
 import React from 'react';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import type { DiskCoverIdHints } from '../../cover/diskPeekIds';
+import { albumCoverRef } from '../../cover/ref';
 import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '../../cover/layoutSizes';
 
 export default function ArtistTopTrackCover({
+  albumId,
   coverArt,
   album,
-  diskIdHints,
 }: {
+  albumId: string;
   coverArt: string;
   album: string;
-  diskIdHints?: DiskCoverIdHints;
 }) {
   return (
     <CoverArtImage
-      coverArtId={coverArt}
+      coverRef={albumCoverRef(albumId, coverArt)}
       displayCssPx={COVER_ARTIST_TOP_TRACK_CSS_PX}
       surface="sparse"
       ensurePriority="high"
-      diskIdHints={diskIdHints}
       alt={album}
       style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }}
     />

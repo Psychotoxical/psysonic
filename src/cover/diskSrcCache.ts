@@ -1,4 +1,6 @@
 import { convertFileSrc, isTauri } from '@tauri-apps/api/core';
+import { coverIndexKeyFromScope } from './storageKeys';
+import type { CoverServerScope } from './types';
 
 /** Stable asset URLs for disk `.webp` tiers — survives route unmount. */
 const diskSrcByStorageKey = new Map<string, string>();
@@ -104,8 +106,13 @@ export function forgetDiskSrc(storageKey: string): void {
   if (diskSrcByStorageKey.delete(storageKey)) bumpDiskSrcCache();
 }
 
-export function forgetDiskSrcPrefix(serverIndexKey: string, coverArtId: string): void {
-  const prefix = `${serverIndexKey}:cover:${coverArtId}:`;
+export function forgetDiskSrcPrefix(ref: {
+  serverScope: CoverServerScope;
+  cacheKind: string;
+  cacheEntityId: string;
+}): void {
+  const serverIndexKey = coverIndexKeyFromScope(ref.serverScope);
+  const prefix = `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:`;
   let changed = false;
   for (const key of diskSrcByStorageKey.keys()) {
     if (key.startsWith(prefix)) {

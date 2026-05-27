@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { coverCacheEnsure, coverCachePeekBatch } from '../api/coverCache';
-import { serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
+import { coverIndexKeyFromRef } from '../cover/storageKeys';
 import { useNowPlayingPrewarm } from './useNowPlayingPrewarm';
 import { prewarmNowPlayingFetchers } from './useNowPlayingFetchers';
 import { useAuthStore } from '../store/authStore';
@@ -65,10 +65,10 @@ describe('useNowPlayingPrewarm', () => {
       expect(coverCachePeekBatch).toHaveBeenCalledTimes(1);
     });
 
-    const peekArg = vi.mocked(coverCachePeekBatch).mock.calls[0]?.[0]?.[0];
+    const peekRef = vi.mocked(coverCachePeekBatch).mock.calls[0]?.[0]?.[0];
     const playbackProfile = useAuthStore.getState().servers.find(s => s.id === playback);
     expect(playbackProfile).toBeDefined();
-    expect(peekArg?.serverIndexKey).toBe(serverIndexKeyForProfile(playbackProfile!));
+    expect(peekRef && coverIndexKeyFromRef(peekRef)).toBe('playback.test');
     const ensureRef = vi.mocked(coverCacheEnsure).mock.calls[0]?.[0];
     expect(ensureRef?.serverScope.kind).toBe('server');
   });
@@ -95,10 +95,10 @@ describe('useNowPlayingPrewarm', () => {
       expect(coverCachePeekBatch).toHaveBeenCalledTimes(1);
     });
 
-    const peekArg = vi.mocked(coverCachePeekBatch).mock.calls[0]?.[0]?.[0];
+    const peekRef = vi.mocked(coverCachePeekBatch).mock.calls[0]?.[0]?.[0];
     const activeProfile = useAuthStore.getState().servers.find(s => s.id === active);
     expect(activeProfile).toBeDefined();
-    expect(peekArg?.serverIndexKey).toBe(serverIndexKeyForProfile(activeProfile!));
+    expect(peekRef && coverIndexKeyFromRef(peekRef)).toBe('active.test');
     const ensureRef = vi.mocked(coverCacheEnsure).mock.calls[0]?.[0];
     expect(ensureRef?.serverScope).toEqual({ kind: 'active' });
   });

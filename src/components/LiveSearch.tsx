@@ -30,9 +30,8 @@ import { useTranslation } from 'react-i18next';
 import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../cover/layoutSizes';
-import { coverArtIdFromArtist } from '../cover/ids';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { coverArtRef } from '../cover/ref';
+import { albumCoverRef, artistCoverRef } from '../cover/ref';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
@@ -40,10 +39,10 @@ import { resolveIndexKey } from '../utils/server/serverIndexKey';
 
 type LiveSearchSource = 'local' | 'network';
 
-function LiveSearchAlbumThumb({ coverArt }: { coverArt: string }) {
+function LiveSearchAlbumThumb({ albumId, coverArt }: { albumId: string; coverArt: string }) {
   return (
     <CoverArtImage
-      coverArtId={coverArt}
+      coverRef={albumCoverRef(albumId, coverArt)}
       displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
       surface="dense"
       className="search-result-thumb"
@@ -54,12 +53,11 @@ function LiveSearchAlbumThumb({ coverArt }: { coverArt: string }) {
 
 function LiveSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id' | 'coverArt'> }) {
   const [failed, setFailed] = useState(false);
-  const coverId = coverArtIdFromArtist(artist);
-  useEffect(() => { setFailed(false); }, [coverId]);
+  useEffect(() => { setFailed(false); }, [artist.id, artist.coverArt]);
   if (failed) return <div className="search-result-icon"><Users size={14} /></div>;
   return (
     <CoverArtImage
-      coverArtId={coverId}
+      coverRef={artistCoverRef(artist.id, artist.coverArt)}
       displayCssPx={COVER_DENSE_SEARCH_CSS_PX}
       surface="dense"
       className="search-result-thumb"
@@ -425,12 +423,9 @@ export default function LiveSearch() {
   useEffect(() => {
     if (!results || share.shareMatch) return () => {};
     const refs = [
-      ...results.artists.map(a => coverArtRef(coverArtIdFromArtist(a))),
-      ...results.albums.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : [])),
-      ...results.songs.flatMap(s => {
-        const id = s.coverArt ?? s.albumId;
-        return id ? [coverArtRef(id)] : [];
-      }),
+      ...results.artists.map(a => artistCoverRef(a.id, a.coverArt)),
+      ...results.albums.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : [])),
+      ...results.songs.flatMap(s => (s.albumId && s.coverArt ? [albumCoverRef(s.albumId, s.coverArt)] : [])),
     ];
     return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
   }, [results, share.shareMatch]);
@@ -674,7 +669,7 @@ export default function LiveSearch() {
                         }}
                         role="option" aria-selected={activeIndex === i}>
                         {a.coverArt ? (
-                          <LiveSearchAlbumThumb coverArt={a.coverArt} />
+                          <LiveSearchAlbumThumb albumId={a.id} coverArt={a.coverArt} />
                         ) : (
                           <div className="search-result-icon"><Disc3 size={14} /></div>
                         )}
@@ -710,7 +705,7 @@ export default function LiveSearch() {
                         }}
                         role="option" aria-selected={activeIndex === i}>
                         {(s.coverArt ?? s.albumId) ? (
-                          <LiveSearchAlbumThumb coverArt={s.coverArt ?? s.albumId!} />
+                          <LiveSearchAlbumThumb albumId={s.albumId!} coverArt={s.coverArt ?? s.albumId!} />
                         ) : (
                           <div className="search-result-icon"><Music size={14} /></div>
                         )}

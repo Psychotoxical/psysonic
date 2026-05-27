@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
 import { CoverArtImage } from '../cover/CoverArtImage';
-import { coverArtRef } from '../cover/ref';
+import { albumCoverRef } from '../cover/ref';
 import { useCoverLightboxSrc } from '../cover/lightbox';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -122,8 +122,8 @@ export default function AlbumHeader({
   const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
 
   const coverRef = useMemo(
-    () => (coverArtId ? coverArtRef(coverArtId) : null),
-    [coverArtId],
+    () => (coverArtId ? albumCoverRef(info.id, coverArtId) : null),
+    [coverArtId, info.id],
   );
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, {
     alt: `${info.name} Cover`,
@@ -176,7 +176,7 @@ export default function AlbumHeader({
               >
                 <CoverArtImage
                   className="album-detail-cover"
-                  coverArtId={coverArtId}
+                  coverRef={albumCoverRef(info.id, coverArtId)}
                   displayCssPx={400}
                   surface="sparse"
                   alt={`${info.name} Cover`}

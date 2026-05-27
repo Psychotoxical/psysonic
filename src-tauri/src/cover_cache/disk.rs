@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
 
+pub use psysonic_core::cover_cache_layout;
+
 pub const DERIVE_TIERS: [u32; 4] = [128, 256, 512, 800];
 
-/// `server_index_key` — host (+ optional path), same bucket as library `server_id`.
-pub fn cover_dir(root: &Path, server_index_key: &str, cover_art_id: &str) -> PathBuf {
-    root.join(server_index_key).join(cover_art_id)
+/// Delegates to [`cover_cache_layout::cover_dir`] — disk path format lives in `psysonic-core`.
+pub fn cover_dir(root: &Path, server_index_key: &str, cache_kind: &str, cache_entity_id: &str) -> PathBuf {
+    cover_cache_layout::cover_dir(root, server_index_key, cache_kind, cache_entity_id)
 }
 
 pub fn tier_path(dir: &Path, tier: u32) -> PathBuf {

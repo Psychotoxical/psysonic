@@ -7,6 +7,7 @@ import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound, Play, ListPlus
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
+import { albumCoverRef, artistCoverRef } from '../cover/ref';
 import { playAlbum } from '../utils/playback/playAlbum';
 import { useTranslation } from 'react-i18next';
 
@@ -55,10 +56,10 @@ function formatPlays(n: number, t: ReturnType<typeof import('react-i18next').use
 /** Most-played list row cover layout px. */
 const MOST_PLAYED_COVER_CSS_PX = 80;
 
-function MpCover80({ coverArt, alt, className }: { coverArt: string; alt: string; className: string }) {
+function MpCover80({ coverRef, alt, className }: { coverRef: import("../cover/types").CoverArtRef; alt: string; className: string }) {
   return (
     <CoverArtImage
-      coverArtId={coverArt}
+      coverRef={coverRef}
       displayCssPx={MOST_PLAYED_COVER_CSS_PX}
       surface="dense"
       alt={alt}
@@ -169,7 +170,7 @@ export default function MostPlayed() {
               >
                 <span className="mp-rank">{i + 1}</span>
                 {artist.coverArt ? (
-                  <MpCover80 coverArt={artist.coverArt} alt="" className="mp-artist-avatar" />
+                  <MpCover80 coverRef={artistCoverRef(artist.id, artist.coverArt)} alt="" className="mp-artist-avatar" />
                 ) : (
                   <div className="mp-artist-avatar mp-artist-avatar--placeholder" />
                 )}
@@ -206,7 +207,7 @@ export default function MostPlayed() {
                 >
                   <span className="mp-album-rank">{sortAsc ? withPlays.length - i : i + 1}</span>
                   {album.coverArt ? (
-                    <MpCover80 coverArt={album.coverArt} alt="" className="mp-album-cover" />
+                    <MpCover80 coverRef={albumCoverRef(album.id, album.coverArt)} alt="" className="mp-album-cover" />
                   ) : (
                     <div className="mp-album-cover mp-album-cover--placeholder" />
                   )}

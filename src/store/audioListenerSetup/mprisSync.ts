@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { coverArtRef, resolvePlaybackCoverScope } from '../../cover/ref';
+import { albumCoverRefForPlayback } from '../../cover/ref';
 import { coverArtUrlForMpris } from '../../cover/integrations/mpris';
 import { usePlayerStore } from '../playerStore';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../playbackProgress';
@@ -27,7 +27,8 @@ export function setupMprisSync(): () => void {
       const album = currentTrack.album;
       const durationSecs = currentTrack.duration;
       if (currentTrack.coverArt) {
-        const ref = coverArtRef(currentTrack.coverArt, resolvePlaybackCoverScope());
+        const ref = albumCoverRefForPlayback(currentTrack);
+        if (!ref) return;
         coverArtUrlForMpris(ref)
           .then(coverUrl => invoke('mpris_set_metadata', {
             title,

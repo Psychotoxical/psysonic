@@ -61,7 +61,7 @@ function trimQueue(): void {
 }
 
 function coverInflightKey(ref: CoverArtRef): string {
-  return `${coverIndexKeyFromRef(ref)}:${ref.coverArtId}`;
+  return `${coverIndexKeyFromRef(ref)}:${ref.cacheKind}:${ref.cacheEntityId}`;
 }
 
 /** Serialize ensures per cover ID so we do not re-download for every tier. */
@@ -164,12 +164,12 @@ export function __test_resetCoverEnsureQueue(): void {
 
 /** @internal Vitest-only — queued cover art IDs front-to-back. */
 export function __test_queuedCoverIds(): string[] {
-  return queue.map(j => j.ref.coverArtId);
+  return queue.map(j => j.ref.cacheEntityId);
 }
 
 function ensureMemoryHit(storageKey: string, ref: CoverArtRef, tier: CoverArtTier): boolean {
   if (getDiskSrc(storageKey)) return true;
-  return Boolean(getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier));
+  return Boolean(getDiskSrcForGrid(ref, tier));
 }
 
 /** Rust disk ensure — parallel slots; one download chain per cover art ID. */

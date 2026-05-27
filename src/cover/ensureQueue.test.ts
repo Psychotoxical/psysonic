@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { ensureImpl } = vi.hoisted(() => ({
   ensureImpl: vi.fn(
-    async (_ref: { coverArtId: string }, _tier: number, _priority: string) => {
+    async (ref: { fetchCoverArtId: string }, _tier: number, _priority: string) => {
       await new Promise(r => setTimeout(r, 2));
-      return { hit: true, path: `/tmp/${_ref.coverArtId}.webp`, tier: 128 };
+      return { hit: true, path: `/tmp/${ref.fetchCoverArtId}.webp`, tier: 128 };
     },
   ),
 }));

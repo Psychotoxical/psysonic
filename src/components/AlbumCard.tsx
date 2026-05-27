@@ -9,9 +9,10 @@ import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
+import { albumCoverRef } from '../cover/ref';
 import type { CoverPrefetchPriority } from '../cover/types';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
-import { coverStorageKey } from '../cover/storageKeys';
+import { coverStorageKeyFromRef } from '../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../cover/tiers';
 import { acquireUrl } from '../utils/imageCache/urlPool';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
@@ -68,8 +69,8 @@ function AlbumCard({
   const dragCoverKey = useMemo(() => {
     if (!album.coverArt) return '';
     const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
-    return coverStorageKey({ kind: 'active' }, album.coverArt, tier);
-  }, [album.coverArt, displayCssPx]);
+    return coverStorageKeyFromRef(albumCoverRef(album.id, album.coverArt), tier);
+  }, [album.id, album.coverArt, displayCssPx]);
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
 
@@ -114,7 +115,7 @@ function AlbumCard({
       <div className="album-card-cover">
         {!disableArtwork && album.coverArt ? (
           <CoverArtImage
-            coverArtId={album.coverArt}
+            coverRef={albumCoverRef(album.id, album.coverArt)}
             displayCssPx={displayCssPx}
             surface="dense"
             alt={`${album.name} Cover`}

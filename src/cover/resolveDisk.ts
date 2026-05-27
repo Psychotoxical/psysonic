@@ -3,7 +3,7 @@ import { coverCacheEnsure } from '../api/coverCache';
 import { invalidateCacheKey } from '../utils/imageCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { getDiskSrc, rememberDiskSrc } from './diskSrcCache';
-import { coverStorageKey } from './storageKeys';
+import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 /**
@@ -13,10 +13,10 @@ export async function ensureCoverTierDiskSrc(
   ref: CoverArtRef,
   tier: CoverArtTier,
 ): Promise<string> {
-  if (!ref.coverArtId || !isTauri()) return '';
+  if (!ref.fetchCoverArtId || !isTauri()) return '';
 
-  const storageKey = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
-  const cached = getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier) || getDiskSrc(storageKey);
+  const storageKey = coverStorageKeyFromRef(ref, tier);
+  const cached = getDiskSrcForGrid(ref, tier) || getDiskSrc(storageKey);
   if (cached) return cached;
 
   const result = await coverCacheEnsure(ref, tier, 'high');
@@ -35,7 +35,7 @@ export async function ensureCoverTierDiskBlob(
   tier: CoverArtTier,
   signal?: AbortSignal,
 ): Promise<Blob | null> {
-  const storageKey = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
+  const storageKey = coverStorageKeyFromRef(ref, tier);
   const existing = getDiskSrc(storageKey);
   if (existing) {
     try {

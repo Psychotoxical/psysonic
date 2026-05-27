@@ -8,9 +8,9 @@ vi.mock('../utils/imageCache', () => ({
 
 vi.mock('../utils/imageCache/coverSiblings', () => ({
   parseCoverCacheKey: (key: string) => {
-    const m = key.match(/^(.+):cover:(.+):(\d+)$/);
+    const m = key.match(/^(.+):cover:(.+):(.+):(\d+)$/);
     if (!m) return null;
-    return { stem: `${m[1]}:cover:${m[2]}`, size: Number(m[3]) };
+    return { stem: `${m[1]}:cover:${m[2]}:${m[3]}`, size: Number(m[4]) };
   },
   probeSiblingCoverBlobInMemory: () => null,
   probeSiblingCoverBlobFromIDB: async () => null,
@@ -38,7 +38,9 @@ vi.mock('./fetchUrl', () => ({
 }));
 
 const ref: CoverArtRef = {
-  coverArtId: 'al-1',
+  cacheKind: 'album',
+  cacheEntityId: 'al-1',
+  fetchCoverArtId: 'al-1',
   serverScope: { kind: 'active' },
 };
 
@@ -48,7 +50,7 @@ describe('ensureCoverTierJs', () => {
   });
 
   it('returns null when cover id missing', async () => {
-    expect(await ensureCoverTierJs({ ...ref, coverArtId: '' }, 128)).toBeNull();
+    expect(await ensureCoverTierJs({ ...ref, fetchCoverArtId: '' }, 128)).toBeNull();
   });
 
   it('fetches via getCachedBlob on cold path', async () => {

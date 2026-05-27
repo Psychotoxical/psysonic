@@ -18,9 +18,8 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import { dedupeById } from '../utils/dedupeById';
 import { shuffleArray } from '../utils/playback/shuffleArray';
-import { coverArtIdFromArtist } from '../cover/ids';
+import { albumCoverRef, artistCoverRef } from '../cover/ref';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
-import { coverArtRef } from '../cover/ref';
 import { primeAlbumCoversForDisplay, warmHomeMainstageCovers } from '../cover/warmDiskPeek';
 import { readBecauseYouLikeCache } from '../store/becauseYouLikeCache';
 import {
@@ -104,15 +103,15 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const heroRefs = heroAlbums.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
-    const recentRefs = recent.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const heroRefs = heroAlbums.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
+    const recentRefs = recent.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
     const restAlbumRefs = [...random, ...mostPlayed, ...recentlyPlayed, ...starred].flatMap(a =>
-      a.coverArt ? [coverArtRef(a.coverArt)] : [],
+      a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : [],
     );
-    const artistRefs = randomArtists.map(a => coverArtRef(coverArtIdFromArtist(a)));
+    const artistRefs = randomArtists.map(a => artistCoverRef(a.id, a.coverArt));
     const songRefs = discoverSongs.flatMap(s => {
-      const id = s.coverArt ?? s.albumId;
-      return id ? [coverArtRef(id)] : [];
+      if (!s.albumId || !s.coverArt) return [];
+      return [albumCoverRef(s.albumId, s.coverArt)];
     });
     const unregHero = coverPrefetchRegister(heroRefs, { surface: 'dense', priority: 'high' });
     const unregRecent = coverPrefetchRegister(recentRefs, { surface: 'dense', priority: 'high' });

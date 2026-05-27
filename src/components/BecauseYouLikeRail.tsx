@@ -7,7 +7,7 @@ import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Music } from 'lucide-react';
-import { coverArtRef } from '../cover/ref';
+import { albumCoverRef } from '../cover/ref';
 import { coverPrefetchRegister } from '../cover/prefetchRegistry';
 import { coverImgSrc } from '../cover/imgSrc';
 import { useCoverArt } from '../cover/useCoverArt';
@@ -502,7 +502,7 @@ export default function BecauseYouLikeRail({
 
   useEffect(() => {
     if (disableArtwork || recs.length === 0) return;
-    const refs = recs.flatMap(a => (a.coverArt ? [coverArtRef(a.coverArt)] : []));
+    const refs = recs.flatMap(a => (a.coverArt ? [albumCoverRef(a.id, a.coverArt)] : []));
     return coverPrefetchRegister(refs, { surface: 'dense', priority: 'high' });
   }, [recs, disableArtwork]);
 
@@ -562,7 +562,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   const { t } = useTranslation();
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverHandle = useCoverArt(album.coverArt, BECAUSE_CARD_COVER_CSS_PX, {
+  const coverHandle = useCoverArt(albumCoverRef(album.id, album.coverArt), BECAUSE_CARD_COVER_CSS_PX, {
     surface: 'dense',
     ensurePriority: 'high',
   });

@@ -5,18 +5,15 @@ import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '../components/CachedImage';
 import { resolveIntersectionScrollRoot } from '../utils/ui/resolveIntersectionScrollRoot';
 import { coverEnsureBump } from './ensureQueue';
 import { coverPrefetchBumpPriority } from './prefetchRegistry';
-import { coverArtRef } from './ref';
-import { coverStorageKey } from './storageKeys';
+import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import { coverImgSrc } from './imgSrc';
 import { useCoverArt } from './useCoverArt';
-import type { DiskCoverIdHints } from './diskPeekIds';
-import type { CoverArtId, CoverPrefetchPriority, CoverServerScope, CoverSurfaceKind } from './types';
+import type { CoverArtRef, CoverPrefetchPriority, CoverSurfaceKind } from './types';
 
 export type CoverArtImageProps = {
-  coverArtId: CoverArtId | null | undefined;
+  coverRef: CoverArtRef;
   displayCssPx: number;
-  serverScope?: CoverServerScope;
   surface?: CoverSurfaceKind;
   fullRes?: boolean;
   className?: string;
@@ -24,18 +21,12 @@ export type CoverArtImageProps = {
   fetchQueueBias?: number;
   observeRootMargin?: string;
   observeScrollRootId?: string;
-  /** Initial ensure tier — use `high` for hero / above-the-fold cells. */
   ensurePriority?: CoverPrefetchPriority;
-  /** Extra ids to probe in `cover-cache` when the primary folder is empty. */
-  diskIdHints?: DiskCoverIdHints;
-  /** Library SQLite row — supplies `albumId` when Subsonic only sent `mf-*`. */
-  libraryTrackId?: string;
 } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'>;
 
 export function CoverArtImage({
-  coverArtId,
+  coverRef,
   displayCssPx,
-  serverScope,
   surface,
   fullRes,
   className,
@@ -44,12 +35,9 @@ export function CoverArtImage({
   observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
   observeScrollRootId,
   ensurePriority: ensurePriorityProp,
-  diskIdHints,
-  libraryTrackId,
   onError: restOnError,
   ...rest
 }: CoverArtImageProps) {
-  const scope = serverScope ?? { kind: 'active' };
   const [ensurePriority, setEnsurePriority] = useState<CoverPrefetchPriority>(
     ensurePriorityProp ?? 'middle',
   );
@@ -62,26 +50,25 @@ export function CoverArtImage({
 
   useEffect(() => {
     setImgLoadFailed(false);
-  }, [coverArtId, displayCssPx, serverScope, surface, fullRes]);
+  }, [coverRef.cacheEntityId, coverRef.cacheKind, coverRef.fetchCoverArtId, displayCssPx, surface, fullRes]);
 
   useEffect(() => {
     const el = imgRef.current;
-    if (!el || !coverArtId) return;
+    if (!el) return;
 
     const root =
       (observeScrollRootId
         ? (document.getElementById(observeScrollRootId) as Element | null)
         : null) ?? resolveIntersectionScrollRoot(el);
 
-    const ref = coverArtRef(coverArtId, scope);
     const tier = resolveCoverDisplayTier(displayCssPx, { surface, fullRes });
-    const storageKey = coverStorageKey(scope, coverArtId, tier);
+    const storageKey = coverStorageKeyFromRef(coverRef, tier);
     const observer = new IntersectionObserver(
       entries => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
             setEnsurePriority('high');
-            coverPrefetchBumpPriority(ref, 'high');
+            coverPrefetchBumpPriority(coverRef, 'high');
             coverEnsureBump(storageKey, 'high');
           }
         }
@@ -94,15 +81,12 @@ export function CoverArtImage({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [coverArtId, scope, displayCssPx, surface, fullRes, observeRootMargin, observeScrollRootId]);
+  }, [coverRef, displayCssPx, surface, fullRes, observeRootMargin, observeScrollRootId]);
 
-  const { src, provisional, onImgError } = useCoverArt(coverArtId, displayCssPx, {
-    serverScope: scope,
+  const { src, provisional, onImgError } = useCoverArt(coverRef, displayCssPx, {
     surface,
     fullRes,
     ensurePriority,
-    diskIdHints,
-    libraryTrackId,
     alt,
   });
 

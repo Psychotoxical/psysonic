@@ -1,7 +1,7 @@
 import React from 'react';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
 import { CoverArtImage } from '../../cover/CoverArtImage';
-import { coverArtIdFromArtist } from '../../cover/ids';
+import { artistCoverRef } from '../../cover/ref';
 import {
   COVER_DENSE_ARTIST_LIST_CSS_PX,
   COVER_DENSE_GRID_MIN_CELL_CSS_PX,
@@ -21,12 +21,11 @@ interface AvatarProps {
  */
 export function ArtistCardAvatar({ artist, showImages }: AvatarProps) {
   const color = nameColor(artist.name);
-  const coverId = coverArtIdFromArtist(artist);
   if (showImages && (artist.coverArt || artist.id)) {
     return (
       <div className="artist-card-avatar">
         <CoverArtImage
-          coverArtId={coverId}
+          coverRef={artistCoverRef(artist.id, artist.coverArt)}
           displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
           surface="dense"
           alt={artist.name}
@@ -48,12 +47,11 @@ export function ArtistCardAvatar({ artist, showImages }: AvatarProps) {
  */
 export function ArtistRowAvatar({ artist, showImages }: AvatarProps) {
   const color = nameColor(artist.name);
-  const coverId = coverArtIdFromArtist(artist);
   if (showImages && (artist.coverArt || artist.id)) {
     return (
       <div className="artist-avatar">
         <CoverArtImage
-          coverArtId={coverId}
+          coverRef={artistCoverRef(artist.id, artist.coverArt)}
           displayCssPx={COVER_DENSE_ARTIST_LIST_CSS_PX}
           surface="dense"
           alt={artist.name}

@@ -6,7 +6,7 @@ import {
   serverIndexKeyForProfile,
   serverIndexKeyFromUrl,
 } from '../utils/server/serverIndexKey';
-import type { CoverArtId, CoverArtRef, CoverArtTier, CoverServerScope } from './types';
+import type { CoverArtRef, CoverArtTier, CoverServerScope } from './types';
 
 /**
  * Stable server bucket for cover disk + IDB — same host index key as library SQLite (`server_id` column).
@@ -39,8 +39,12 @@ export const serverIdFromScope = coverIndexKeyFromScope;
 
 export function coverStorageKey(
   serverScope: CoverServerScope,
-  coverArtId: CoverArtId,
+  ref: Pick<CoverArtRef, 'cacheKind' | 'cacheEntityId'>,
   tier: CoverArtTier,
 ): string {
-  return `${coverIndexKeyFromScope(serverScope)}:cover:${coverArtId}:${tier}`;
+  return `${coverIndexKeyFromScope(serverScope)}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`;
+}
+
+export function coverStorageKeyFromRef(ref: CoverArtRef, tier: CoverArtTier): string {
+  return coverStorageKey(ref.serverScope, ref, tier);
 }

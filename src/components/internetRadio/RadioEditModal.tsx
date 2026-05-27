@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Camera, Cast, Loader2, X } from 'lucide-react';
 import type { InternetRadioStation } from '../../api/subsonicTypes';
 import { CoverArtImage } from '../../cover/CoverArtImage';
+import { albumCoverRef } from '../../cover/ref';
 import { coverArtIdFromRadio } from '../../cover/ids';
 
 interface RadioEditModalProps {
@@ -92,7 +93,7 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
               <img src={coverPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             ) : !coverRemoved && station?.coverArt ? (
               <CoverArtImage
-                coverArtId={coverArtIdFromRadio(station.id)}
+                coverRef={albumCoverRef(coverArtIdFromRadio(station.id), coverArtIdFromRadio(station.id))}
                 displayCssPx={140}
                 surface="sparse"
                 alt=""

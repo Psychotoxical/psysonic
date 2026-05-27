@@ -5,6 +5,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import type { InternetRadioStation } from '../../api/subsonicTypes';
 import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
 import { CoverArtImage } from '../../cover/CoverArtImage';
+import { albumCoverRef } from '../../cover/ref';
 import { coverArtIdFromRadio } from '../../cover/ids';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
 
@@ -87,7 +88,7 @@ export default function RadioCard({
       <div className="album-card-cover">
         {s.coverArt ? (
           <CoverArtImage
-            coverArtId={coverArtIdFromRadio(s.id)}
+            coverRef={albumCoverRef(coverArtIdFromRadio(s.id), coverArtIdFromRadio(s.id))}
             displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
             surface="dense"
             alt={s.name}
