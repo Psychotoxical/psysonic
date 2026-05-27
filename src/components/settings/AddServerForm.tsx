@@ -181,11 +181,22 @@ export function AddServerForm({
         showToast(t('login.magicStringInvalid'), 4000, 'error');
         return;
       }
+      // v2 invites carry alternateUrl + shareUsesLocalUrl — must survive the
+      // magic-string submit path (handleMagicStringChange already prefills
+      // them into form state, but the magic-string branch forwards the
+      // decoded payload directly so we have to pick them off here too).
+      const altDecoded = decoded.alternateUrl?.trim() ?? '';
       await onSave({
         name: form.name.trim() || (decoded.name && decoded.name.trim()) || shortHostFromServerUrl(decoded.url),
         url: decoded.url,
         username: decoded.username,
         password: decoded.password,
+        ...(altDecoded
+          ? {
+              alternateUrl: altDecoded,
+              shareUsesLocalUrl: decoded.shareUsesLocalUrl ?? false,
+            }
+          : {}),
       });
       return;
     }
