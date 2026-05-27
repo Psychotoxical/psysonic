@@ -428,6 +428,7 @@ pub struct LibraryArtistDto {
     pub id: String,
     pub name: String,
     pub album_count: Option<i64>,
+    pub starred_at: Option<i64>,
     pub synced_at: i64,
     pub raw_json: Value,
 }

@@ -1,6 +1,7 @@
 /**
  * Browse-page text search — local index vs network race (LiveSearch / AdvancedSearch pattern).
  */
+import { getStarred } from '../../api/subsonicStarRating';
 import { search, searchSongsPaged } from '../../api/subsonicSearch';
 import type { SearchResults, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
 import { libraryAdvancedSearch, libraryGetArtistLosslessBrowse, libraryListLosslessAlbums } from '../../api/library';
@@ -490,4 +491,33 @@ export async function runLocalBrowseAllArtists(
   } catch {
     return null;
   }
+}
+
+/** Local artist favorites — `artist.starred_at` only (not track stars). */
+export async function runLocalBrowseStarredArtists(
+  serverId: string | null | undefined,
+  limit = 10_000,
+): Promise<SubsonicArtist[] | null> {
+  if (!serverId || !(await libraryIsReady(serverId))) return null;
+  try {
+    const resp = await libraryAdvancedSearch({
+      serverId,
+      libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      entityTypes: ['artist'],
+      starredOnly: true,
+      limit,
+      offset: 0,
+      skipTotals: true,
+    });
+    if (resp.source !== 'local') return null;
+    return resp.artists.map(artistToArtist);
+  } catch {
+    return null;
+  }
+}
+
+/** Network fallback: starred artists from `getStarred2` (artist-level only). */
+export async function fetchNetworkStarredArtists(): Promise<SubsonicArtist[]> {
+  const { artists } = await getStarred();
+  return artists.map(a => ({ ...a, starred: a.starred ?? 'true' }));
 }

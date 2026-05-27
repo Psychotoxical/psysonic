@@ -60,7 +60,14 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
               <div className="context-menu-item" onClick={() => handleAction(() => {
                 const starred = isStarred(album.id, album.starred);
                 setStarredOverride(album.id, !starred);
-                return starred ? unstar(album.id, 'album') : star(album.id, 'album');
+                const meta = {
+                  name: album.name,
+                  artist: album.artist,
+                  artistId: album.artistId,
+                  coverArtId: album.coverArt,
+                  year: album.year,
+                };
+                return starred ? unstar(album.id, 'album', meta) : star(album.id, 'album', meta);
               })}>
                 <Heart size={14} fill={isStarred(album.id, album.starred) ? 'currentColor' : 'none'} />
                 {isStarred(album.id, album.starred) ? t('contextMenu.unfavoriteAlbum') : t('contextMenu.favoriteAlbum')}

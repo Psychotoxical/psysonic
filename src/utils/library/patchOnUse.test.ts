@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { onInvoke, invokeMock } from '@/test/mocks/tauri';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
-import { patchLibraryTrackOnUse } from './patchOnUse';
+import { patchLibraryAlbumOnUse, patchLibraryArtistOnUse, patchLibraryTrackOnUse } from './patchOnUse';
 
 describe('patchLibraryTrackOnUse', () => {
   beforeEach(() => {
@@ -48,5 +48,46 @@ describe('patchLibraryTrackOnUse', () => {
     });
     expect(() => patchLibraryTrackOnUse('s1', 't1', { playedAt: 9 })).not.toThrow();
     await Promise.resolve();
+  });
+});
+
+describe('patchLibraryAlbumOnUse', () => {
+  beforeEach(() => {
+    useLibraryIndexStore.setState({ masterEnabled: true });
+    onInvoke('library_patch_album', () => undefined);
+  });
+
+  it('patches the library album when the index is enabled', async () => {
+    patchLibraryAlbumOnUse('s1', 'al1', { starredAt: 1700, name: 'Album' });
+    await Promise.resolve();
+    expect(invokeMock).toHaveBeenCalledWith('library_patch_album', {
+      serverId: 's1',
+      albumId: 'al1',
+      patch: { starredAt: 1700, name: 'Album' },
+    });
+  });
+
+  it('is a no-op when the index is disabled for the server', async () => {
+    useLibraryIndexStore.setState({ masterEnabled: false });
+    patchLibraryAlbumOnUse('s1', 'al1', { starredAt: 1700 });
+    await Promise.resolve();
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('patchLibraryArtistOnUse', () => {
+  beforeEach(() => {
+    useLibraryIndexStore.setState({ masterEnabled: true });
+    onInvoke('library_patch_artist', () => undefined);
+  });
+
+  it('patches the library artist when the index is enabled', async () => {
+    patchLibraryArtistOnUse('s1', 'ar1', { starredAt: 1700, name: 'Artist' });
+    await Promise.resolve();
+    expect(invokeMock).toHaveBeenCalledWith('library_patch_artist', {
+      serverId: 's1',
+      artistId: 'ar1',
+      patch: { starredAt: 1700, name: 'Artist' },
+    });
   });
 });

@@ -99,8 +99,9 @@ export default function ComposerDetail() {
     setIsStarred(next);
     setStarredOverride(artist.id, next);
     try {
-      if (next) await star(artist.id, 'artist');
-      else await unstar(artist.id, 'artist');
+      const meta = { name: artist.name, albumCount: artist.albumCount };
+      if (next) await star(artist.id, 'artist', meta);
+      else await unstar(artist.id, 'artist', meta);
     } catch (err) {
       console.warn('[psysonic] composer star failed:', err);
       setIsStarred(!next);

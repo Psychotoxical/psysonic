@@ -50,7 +50,10 @@ export function filterAlbumsByStarred(
   albums: SubsonicAlbum[],
   starredOverrides: Record<string, boolean>,
 ): SubsonicAlbum[] {
-  return albums.filter(a => (a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred));
+  return albums.filter(a => {
+    if (a.id in starredOverrides) return starredOverrides[a.id];
+    return !!a.starred;
+  });
 }
 
 export function filterAlbumsByYearBounds(
@@ -62,6 +65,16 @@ export function filterAlbumsByYearBounds(
     if (bounds.from != null && a.year < bounds.from) return false;
     if (bounds.to != null && a.year > bounds.to) return false;
     return true;
+  });
+}
+
+/** OR match against album `genre` (same spirit as genre-filtered browse). */
+export function filterAlbumsByGenres(albums: SubsonicAlbum[], genres: string[]): SubsonicAlbum[] {
+  if (genres.length === 0) return albums;
+  const sel = genres.map(g => g.toLowerCase());
+  return albums.filter(a => {
+    const ag = (a.genre ?? '').toLowerCase();
+    return sel.some(g => ag === g || ag.includes(g));
   });
 }
 
@@ -183,6 +196,7 @@ export type AlbumBrowsePageResult = {
 /**
  * One entry point for Albums browse: local advanced search when possible, else Subsonic.
  * Lossless without a local index returns an empty page (no network walk on this screen).
+ * Starred filter uses album-level stars only (`album.starred_at` / `getAlbumList.starred`).
  */
 export async function fetchAlbumBrowsePage(
   serverId: string,
@@ -197,7 +211,11 @@ export async function fetchAlbumBrowsePage(
 
   if (indexEnabled && serverId) {
     const local = await runLocalAlbumBrowse(serverId, query, offset, pageSize);
-    if (local != null) return local;
+    if (local != null) {
+      const localStarredEmpty =
+        query.starredOnly && local.albums.length === 0 && offset === 0;
+      if (!localStarredEmpty) return local;
+    }
   }
 
   return fetchAlbumBrowseNetwork(query, offset, pageSize);

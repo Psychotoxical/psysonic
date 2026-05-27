@@ -967,6 +967,26 @@ pub fn library_patch_track(
     apply_track_patch(&runtime, &server_id, &track_id, &patch)
 }
 
+#[tauri::command]
+pub fn library_patch_album(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    album_id: String,
+    patch: Value,
+) -> Result<(), String> {
+    apply_album_patch(&runtime, &server_id, &album_id, &patch)
+}
+
+#[tauri::command]
+pub fn library_patch_artist(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    artist_id: String,
+    patch: Value,
+) -> Result<(), String> {
+    apply_artist_patch(&runtime, &server_id, &artist_id, &patch)
+}
+
 /// Apply a sparse `library_patch_track` JSON patch (extracted from the command
 /// so it is unit-testable without a Tauri `State`). Only fields explicitly
 /// present in `patch` are applied; absent keys leave the column untouched. For
@@ -1030,6 +1050,103 @@ pub(crate) fn apply_track_patch(
                      WHERE server_id = ?1 AND id = ?2",
                     params![server_id, track_id, v],
                 )?;
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Apply a sparse `library_patch_album` JSON patch. Spec §6.5 patch-on-use for
+/// `starred_at` on the `album` table (album-level favorites, not track stars).
+/// When starring and no row exists yet, inserts a minimal album stub so
+/// advanced-search starred browse can find it without a full resync.
+pub(crate) fn apply_album_patch(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    album_id: &str,
+    patch: &Value,
+) -> Result<(), String> {
+    let starred_at = patch.get("starredAt").map(|v| v.as_i64());
+    let name = patch
+        .get("name")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+    let artist = patch.get("artist").and_then(|v| v.as_str());
+    let artist_id = patch.get("artistId").and_then(|v| v.as_str());
+    let cover_art_id = patch.get("coverArtId").and_then(|v| v.as_str());
+    let year = patch.get("year").and_then(|v| v.as_i64());
+
+    runtime
+        .store
+        .with_conn("misc", |conn| {
+            if let Some(y) = year {
+                conn.execute(
+                    "UPDATE album SET year = ?3 WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, album_id, y],
+                )?;
+            }
+            if let Some(v) = starred_at {
+                let updated = conn.execute(
+                    "UPDATE album SET starred_at = ?3 \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, album_id, v],
+                )?;
+                if updated == 0 && v.is_some() {
+                    let synced_at = v.unwrap_or(0);
+                    let album_name = name.unwrap_or(album_id);
+                    conn.execute(
+                        "INSERT INTO album (server_id, id, name, artist, artist_id, cover_art_id, year, starred_at, synced_at, raw_json) \
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, '{}')",
+                        params![
+                            server_id,
+                            album_id,
+                            album_name,
+                            artist,
+                            artist_id,
+                            cover_art_id,
+                            year,
+                            v,
+                            synced_at,
+                        ],
+                    )?;
+                }
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Apply a sparse `library_patch_artist` JSON patch (`starred_at` on `artist`).
+pub(crate) fn apply_artist_patch(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    artist_id: &str,
+    patch: &Value,
+) -> Result<(), String> {
+    let starred_at = patch.get("starredAt").map(|v| v.as_i64());
+    let name = patch
+        .get("name")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+
+    runtime
+        .store
+        .with_conn("misc", |conn| {
+            if let Some(v) = starred_at {
+                let updated = conn.execute(
+                    "UPDATE artist SET starred_at = ?3 \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, artist_id, v],
+                )?;
+                if updated == 0 && v.is_some() {
+                    let synced_at = v.unwrap_or(0);
+                    let artist_name = name.unwrap_or(artist_id);
+                    conn.execute(
+                        "INSERT INTO artist (server_id, id, name, starred_at, synced_at, raw_json) \
+                         VALUES (?1, ?2, ?3, ?4, ?5, '{}')",
+                        params![server_id, artist_id, artist_name, v, synced_at],
+                    )?;
+                }
             }
             Ok(())
         })
@@ -1516,6 +1633,85 @@ mod tests {
         assert_eq!(normalize_base_url("https://nas.example.com"), "https://nas.example.com");
         assert_eq!(normalize_base_url("https://nas.example.com/"), "https://nas.example.com");
         assert_eq!(normalize_base_url("http://localhost:4533/"), "http://localhost:4533");
+    }
+
+    #[test]
+    fn apply_artist_patch_inserts_stub_when_missing() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let rt = runtime(store.clone());
+        let patch = serde_json::json!({
+            "starredAt": 1_700_000_111_i64,
+            "name": "My Artist",
+        });
+        apply_artist_patch(&rt, "s1", "ar_new", &patch).unwrap();
+        let starred_at: Option<i64> = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT starred_at FROM artist WHERE server_id = 's1' AND id = 'ar_new'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(starred_at, Some(1_700_000_111));
+    }
+
+    #[test]
+    fn apply_album_patch_inserts_stub_when_missing() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let rt = runtime(store.clone());
+        let patch = serde_json::json!({
+            "starredAt": 1_700_000_000_i64,
+            "name": "My Album",
+            "artist": "Artist",
+        });
+        apply_album_patch(&rt, "s1", "al_new", &patch).unwrap();
+        let starred_at: Option<i64> = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'al_new'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(starred_at, Some(1_700_000_000));
+        let name: String = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT name FROM album WHERE server_id = 's1' AND id = 'al_new'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(name, "My Album");
+    }
+
+    #[test]
+    fn apply_album_patch_clears_starred_at_on_unstar() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'al1', 'A', 99, 1, '{}')",
+                    [],
+                )
+            })
+            .unwrap();
+        let rt = runtime(store.clone());
+        apply_album_patch(&rt, "s1", "al1", &serde_json::json!({ "starredAt": null })).unwrap();
+        let starred_at: Option<i64> = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'al1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert!(starred_at.is_none());
     }
 
     #[test]

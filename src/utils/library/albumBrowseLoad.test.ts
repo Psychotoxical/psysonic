@@ -3,6 +3,8 @@ import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
+  filterAlbumsByGenres,
+  filterAlbumsByStarred,
   filterAlbumsByYearBounds,
   type AlbumBrowseQuery,
 } from './albumBrowseLoad';
@@ -33,6 +35,34 @@ describe('albumBrowseLoad', () => {
 
   it('genre filter disables pagination path', () => {
     expect(albumBrowseHasGenreFilter({ ...base, genres: ['Rock'] })).toBe(true);
+  });
+});
+
+describe('filterAlbumsByStarred', () => {
+  const album: SubsonicAlbum = {
+    id: 'a1',
+    name: 'A',
+    artist: 'X',
+    artistId: 'x',
+    songCount: 1,
+    duration: 1,
+  };
+
+  it('requires starred flag or a positive override', () => {
+    expect(filterAlbumsByStarred([album], {})).toHaveLength(0);
+    expect(filterAlbumsByStarred([{ ...album, starred: '2020-01-01' }], {})).toHaveLength(1);
+    expect(filterAlbumsByStarred([album], { a1: true })).toHaveLength(1);
+    expect(filterAlbumsByStarred([{ ...album, starred: '2020-01-01' }], { a1: false })).toHaveLength(0);
+  });
+});
+
+describe('filterAlbumsByGenres', () => {
+  it('matches any selected genre', () => {
+    const albums: SubsonicAlbum[] = [
+      { id: '1', name: 'A', artist: 'X', artistId: 'a', songCount: 1, duration: 1, genre: 'Rock' },
+      { id: '2', name: 'B', artist: 'Y', artistId: 'b', songCount: 1, duration: 1, genre: 'Jazz' },
+    ];
+    expect(filterAlbumsByGenres(albums, ['Jazz']).map(a => a.id)).toEqual(['2']);
   });
 });
 

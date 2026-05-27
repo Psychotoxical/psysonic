@@ -191,6 +191,15 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   return merged;
 }
 
+/** Merge `raw_json` without nullish Subsonic fields wiping hot columns (e.g. year). */
+function mergeAlbumRawJson(base: SubsonicAlbum, raw: Partial<SubsonicAlbum>): SubsonicAlbum {
+  const merged = { ...base } as SubsonicAlbum & Record<string, unknown>;
+  for (const [key, value] of Object.entries(raw)) {
+    if (value != null && value !== '') merged[key] = value;
+  }
+  return merged;
+}
+
 export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
   const raw = isObject(a.rawJson) ? a.rawJson : {};
   const base: SubsonicAlbum = {
@@ -205,7 +214,7 @@ export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
     coverArt: a.coverArtId ?? a.id,
     starred: a.starredAt != null ? new Date(a.starredAt).toISOString() : undefined,
   };
-  return { ...base, ...(raw as Partial<SubsonicAlbum>) };
+  return mergeAlbumRawJson(base, raw as Partial<SubsonicAlbum>);
 }
 
 export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
@@ -215,6 +224,7 @@ export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
     name: ar.name,
     albumCount: ar.albumCount ?? undefined,
     coverArt: ar.id,
+    starred: ar.starredAt != null ? new Date(ar.starredAt).toISOString() : undefined,
   };
   return { ...base, ...(raw as Partial<SubsonicArtist>) };
 }

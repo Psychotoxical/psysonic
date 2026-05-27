@@ -55,8 +55,9 @@ export async function runArtistToggleStar(deps: RunArtistToggleStarDeps): Promis
   const currentlyStarred = isStarred;
   setIsStarred(!currentlyStarred);
   try {
-    if (currentlyStarred) await unstar(artist.id, 'artist');
-    else await star(artist.id, 'artist');
+    const meta = { name: artist.name, albumCount: artist.albumCount };
+    if (currentlyStarred) await unstar(artist.id, 'artist', meta);
+    else await star(artist.id, 'artist', meta);
   } catch (e) {
     console.error('Failed to toggle star', e);
     setIsStarred(currentlyStarred);

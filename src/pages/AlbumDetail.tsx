@@ -210,8 +210,15 @@ const handleShuffleAll = () => {
     const wasStarred = isStarred;
     setIsStarred(!wasStarred);
     try {
-      if (wasStarred) await unstar(album.album.id);
-      else await star(album.album.id);
+      const meta = {
+        name: album.album.name,
+        artist: album.album.artist,
+        artistId: album.album.artistId,
+        coverArtId: album.album.coverArt,
+        year: album.album.year,
+      };
+      if (wasStarred) await unstar(album.album.id, 'album', meta);
+      else await star(album.album.id, 'album', meta);
     } catch (e) {
       console.error('Failed to toggle star', e);
       setIsStarred(wasStarred);
