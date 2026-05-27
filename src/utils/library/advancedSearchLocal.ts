@@ -155,21 +155,31 @@ export function resolveTrackCoverArtId(
 }
 
 /**
- * Artist top tracks: use the album row's `coverArt` when the grid already warmed it
- * (song.coverArt is often a track id with no art while Octastorium shows in the grid).
+ * Subsonic songs often set `coverArt` to the track id (no art). Prefer `albumId` then.
+ */
+export function resolveSubsonicSongCoverArtId(
+  song: Pick<SubsonicSong, 'id' | 'coverArt' | 'albumId'>,
+): string | undefined {
+  const albumId = song.albumId?.trim();
+  const cover = song.coverArt?.trim();
+  if (cover && song.id && cover === song.id && albumId) return albumId;
+  if (albumId) return albumId;
+  if (cover) return cover;
+  return undefined;
+}
+
+/**
+ * Artist top tracks: use the album row's `coverArt` when the grid already warmed it.
  */
 export function resolveArtistPageSongCoverArtId(
-  song: Pick<SubsonicSong, 'coverArt' | 'albumId' | 'album'>,
+  song: Pick<SubsonicSong, 'id' | 'coverArt' | 'albumId' | 'album'>,
   albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'name' | 'coverArt'>>,
 ): string | undefined {
   const album = song.albumId
     ? albums.find(a => a.id === song.albumId)
     : albums.find(a => a.name === song.album);
   if (album?.coverArt?.trim()) return album.coverArt.trim();
-  const fromSong = song.coverArt?.trim();
-  if (fromSong) return fromSong;
-  if (song.albumId?.trim()) return song.albumId.trim();
-  return undefined;
+  return resolveSubsonicSongCoverArtId(song);
 }
 
 export function trackToSong(t: LibraryTrackDto): SubsonicSong {

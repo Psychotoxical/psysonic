@@ -24,7 +24,6 @@ interface Props {
   radioMeta: RadioMetadata;
   radioCoverArtId?: string;
   coverArtId?: string;
-  displayCoverArt: string | undefined;
   displayTitle: string;
   displayArtist: string;
   /** When set (OpenSubsonic `artists` on the playing track), render split links like album track rows. */
@@ -45,7 +44,7 @@ interface Props {
 
 export function PlayerTrackInfo({
   currentTrack, currentRadio, isRadio, radioMeta, radioCoverArtId,
-  coverArtId, displayCoverArt, displayTitle, displayArtist, displayArtistRefs,
+  coverArtId, displayTitle, displayArtist, displayArtistRefs,
   showPreviewMeta, previewingTrack, isStarred, toggleStar,
   lastfmSessionKey, lastfmLoved, toggleLastfmLove,
   userRatingOverrides, toggleFullscreen,

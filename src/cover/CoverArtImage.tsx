@@ -1,4 +1,5 @@
 import type { ImgHTMLAttributes } from 'react';
+import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '../components/CachedImage';
 import { resolveIntersectionScrollRoot } from '../utils/ui/resolveIntersectionScrollRoot';
@@ -92,6 +93,21 @@ export function CoverArtImage({
   });
 
   const imgSrc = coverImgSrc(src);
+
+  if (!imgSrc) {
+    return (
+      <div
+        ref={imgRef as React.RefObject<HTMLDivElement | null>}
+        className={className}
+        data-cover-provisional="true"
+        data-observe-root-margin={observeRootMargin}
+        data-observe-scroll-root={observeScrollRootId}
+        role="img"
+        aria-label={alt ?? ''}
+        {...(rest as React.HTMLAttributes<HTMLDivElement>)}
+      />
+    );
+  }
 
   return (
     <img

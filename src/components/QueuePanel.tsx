@@ -31,7 +31,6 @@ import { QueueToolbar } from './queuePanel/QueueToolbar';
 import { QueueList } from './queuePanel/QueueList';
 import { QueueTabBar } from './queuePanel/QueueTabBar';
 import { useQueueAutoScroll } from '../hooks/useQueueAutoScroll';
-import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 
 export default function QueuePanel() {
   const orbitRole = useOrbitStore(s => s.role);
@@ -79,7 +78,6 @@ function QueuePanelHostOrSolo() {
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
-  const { src: currentCoverSrc } = usePlaybackCoverArt(currentTrack?.coverArt, 128);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
   const playTrack = usePlayerStore(s => s.playTrack);
   const clearQueue = usePlayerStore(s => s.clearQueue);
@@ -255,7 +253,6 @@ function QueuePanelHostOrSolo() {
       {currentTrack && !isNowPlayingCollapsed && (
         <QueueCurrentTrack
           currentTrack={currentTrack}
-          currentCoverSrc={currentCoverSrc}
           userRatingOverrides={userRatingOverrides}
           orbitAttributionLabel={orbitAttributionLabel}
           navigate={navigatePlaybackLibrary}

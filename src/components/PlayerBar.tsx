@@ -1,6 +1,6 @@
 import { queueSongStar } from '../store/pendingStarSync';
-import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import { coverArtIdFromRadio } from '../cover/ids';
+import { resolveSubsonicSongCoverArtId } from '../utils/library/advancedSearchLocal';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -142,15 +142,15 @@ export default function PlayerBar() {
   // Preview takes visual priority over the queued track in the player-bar info
   // cell, but only when not in radio mode (radio has its own meta layout).
   const showPreviewMeta = isPreviewing && !isRadio && previewingTrack !== null;
-  const displayCoverArt = showPreviewMeta ? previewingTrack!.coverArt : currentTrack?.coverArt;
   const displayTitle = showPreviewMeta ? previewingTrack!.title : (currentTrack?.title ?? t('player.noTitle'));
   const displayArtist = showPreviewMeta ? previewingTrack!.artist : (currentTrack?.artist ?? '—');
   const displayArtistRefs = !showPreviewMeta && currentTrack?.artists && currentTrack.artists.length > 0
     ? currentTrack.artists
     : undefined;
 
-  usePlaybackCoverArt(showPreviewMeta ? undefined : displayCoverArt, 128);
-  const coverArtId = showPreviewMeta ? previewingTrack?.coverArt : displayCoverArt;
+  const coverArtId = showPreviewMeta
+    ? previewingTrack?.coverArt
+    : (currentTrack ? resolveSubsonicSongCoverArtId(currentTrack) : undefined);
 
   const handleVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setVolume(parseFloat(e.target.value));
@@ -197,7 +197,6 @@ export default function PlayerBar() {
         radioMeta={radioMeta}
         radioCoverArtId={radioCoverArtId}
         coverArtId={coverArtId}
-        displayCoverArt={displayCoverArt}
         displayTitle={displayTitle}
         displayArtist={displayArtist}
         displayArtistRefs={displayArtistRefs}
