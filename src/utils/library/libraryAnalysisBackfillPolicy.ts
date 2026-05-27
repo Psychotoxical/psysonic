@@ -14,24 +14,26 @@ export function computeLibraryBackfillTargetDepth(workers: number): number {
   );
 }
 
-/** HTTP jobs waiting or actively downloading (keeps workers fed after decode decoupling). */
-export function libraryBackfillPipelineBacklog(
-  stats: Pick<AnalysisPipelineQueueStatsDto, 'httpQueued' | 'httpDownloadActive'>,
-): number {
-  return stats.httpQueued + stats.httpDownloadActive;
+type PipelineBacklogStats = Pick<
+  AnalysisPipelineQueueStatsDto,
+  'httpQueued' | 'httpDownloadActive' | 'cpuQueued' | 'cpuDecodeActive'
+>;
+
+/** HTTP + in-flight CPU seed jobs (decode backpressure must not look like an empty pipeline). */
+export function libraryBackfillPipelineBacklog(stats: PipelineBacklogStats): number {
+  return (
+    stats.httpQueued
+    + stats.httpDownloadActive
+    + stats.cpuQueued
+    + stats.cpuDecodeActive
+  );
 }
 
-export function libraryBackfillNeedsTopUp(
-  stats: Pick<AnalysisPipelineQueueStatsDto, 'httpQueued' | 'httpDownloadActive'>,
-  workers: number,
-): boolean {
+export function libraryBackfillNeedsTopUp(stats: PipelineBacklogStats, workers: number): boolean {
   return libraryBackfillPipelineBacklog(stats) < computeLibraryBackfillTargetDepth(workers);
 }
 
-export function libraryBackfillTopUpLimit(
-  stats: Pick<AnalysisPipelineQueueStatsDto, 'httpQueued' | 'httpDownloadActive'>,
-  workers: number,
-): number {
+export function libraryBackfillTopUpLimit(stats: PipelineBacklogStats, workers: number): number {
   const target = computeLibraryBackfillTargetDepth(workers);
   const deficit = target - libraryBackfillPipelineBacklog(stats);
   if (deficit <= 0) return 0;

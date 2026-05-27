@@ -34,6 +34,13 @@ enum ScanMode {
     Full,
 }
 
+/// Candidate SQL skips tracks that already have `content_hash` and an analysis BPM
+/// fact. Those rows can still need waveform/LUFS — the full-table pass must start
+/// from the first id, not from the last candidate cursor.
+fn begin_full_library_scan() -> (ScanMode, Option<String>) {
+    (ScanMode::Full, None)
+}
+
 pub fn collect_analysis_backfill_batch(
     app: &AppHandle,
     runtime: &LibraryRuntime,
@@ -63,7 +70,7 @@ pub fn collect_analysis_backfill_batch(
         if page.is_empty() {
             match mode {
                 ScanMode::Candidates => {
-                    mode = ScanMode::Full;
+                    (mode, after) = begin_full_library_scan();
                     continue;
                 }
                 ScanMode::Full => {
@@ -98,7 +105,7 @@ pub fn collect_analysis_backfill_batch(
         if page_len < SCAN_CHUNK {
             match mode {
                 ScanMode::Candidates => {
-                    mode = ScanMode::Full;
+                    (mode, after) = begin_full_library_scan();
                 }
                 ScanMode::Full => {
                     return Ok(LibraryAnalysisBackfillBatchDto {

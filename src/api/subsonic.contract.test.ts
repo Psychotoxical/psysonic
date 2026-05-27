@@ -130,12 +130,12 @@ describe('getClient', () => {
 describe('coverArtCacheKey', () => {
   it('uses host index key + entity id + tier as a stable cache key', () => {
     setUpServer();
-    expect(coverArtCacheKey('cover-1')).toBe('music.example.com:cover:cover-1:256');
-    expect(coverArtCacheKey('cover-1', 200)).toBe('music.example.com:cover:cover-1:200');
+    expect(coverArtCacheKey('cover-1')).toBe('music.example.com:cover:album:cover-1:256');
+    expect(coverArtCacheKey('cover-1', 200)).toBe('music.example.com:cover:album:cover-1:200');
   });
 
   it('falls back to "_" as the server-id segment when no server is active', () => {
-    expect(coverArtCacheKey('cover-99')).toBe('_:cover:cover-99:256');
+    expect(coverArtCacheKey('cover-99')).toBe('_:cover:album:cover-99:256');
   });
 
   it('does not embed the ephemeral salt or token — keys stay cacheable across calls', () => {
@@ -214,7 +214,7 @@ describe('buildCoverArtUrlForServer', () => {
 describe('coverArtCacheKeyForServer', () => {
   it('scopes cache keys by host index key when profile is known', () => {
     const profileId = setUpServer({ url: 'https://b.example' });
-    expect(coverArtCacheKeyForServer(profileId, 'cover-1', 80)).toBe('b.example:cover:cover-1:80');
+    expect(coverArtCacheKeyForServer(profileId, 'cover-1', 80)).toBe('b.example:cover:album:cover-1:80');
   });
 });
 

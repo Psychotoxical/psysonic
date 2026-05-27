@@ -20,8 +20,10 @@ import { libraryIsReady } from '../utils/library/libraryReady';
 const TOP_UP_POLL_MS = 500;
 const STEADY_POLL_MS = 2000;
 const READY_POLL_MS = 5000;
-const EXHAUSTED_PAUSE_MS = 60_000;
+const EXHAUSTED_PAUSE_MS = 15_000;
 const COMPLETED_RECHECK_MS = 5 * 60_000;
+/** Consecutive exhausted scans with zero enqueue before treating the library as done. */
+const EXHAUSTED_DONE_STREAK = 2;
 
 const EMPTY_PIPELINE_STATS = {
   pipelineWorkers: 1,
@@ -56,6 +58,7 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
   );
   const cursorRef = useRef<string | null>(null);
   const completedTotalRef = useRef<number | null>(null);
+  const exhaustedIdleStreakRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -69,19 +72,9 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
 
     let cancelled = false;
     const serverId = activeServerId;
-    let initialized = false;
 
     void (async () => {
       while (!cancelled) {
-        if (!initialized) {
-          initialized = true;
-          const progress = await libraryAnalysisProgress(serverId).catch(() => null);
-          if (progress && progress.pendingTracks <= 0) {
-            completedTotalRef.current = progress.totalTracks;
-            cursorRef.current = null;
-          }
-        }
-
         if (completedTotalRef.current !== null) {
           const totalTracks = await libraryCountLiveTracks(serverId).catch(() => null);
           if (!Number.isFinite(totalTracks)) {
@@ -94,6 +87,7 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
           }
           completedTotalRef.current = null;
           cursorRef.current = null;
+          exhaustedIdleStreakRef.current = 0;
         }
 
         if (!(await libraryIsReady(serverId))) {
@@ -145,19 +139,31 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
 
         if (cancelled) return;
 
+        if (batch.trackIds.length > 0) {
+          exhaustedIdleStreakRef.current = 0;
+        }
+
         if (batch.exhausted) {
           cursorRef.current = null;
           const progress = await libraryAnalysisProgress(serverId).catch(() => null);
-          if (progress && progress.pendingTracks <= 0) {
-            completedTotalRef.current = progress.totalTracks;
-            await new Promise(r => setTimeout(r, COMPLETED_RECHECK_MS));
+          const pending = progress?.pendingTracks ?? -1;
+          if (pending <= 0 && batch.trackIds.length === 0) {
+            exhaustedIdleStreakRef.current += 1;
+            if (exhaustedIdleStreakRef.current >= EXHAUSTED_DONE_STREAK && progress) {
+              completedTotalRef.current = progress.totalTracks;
+              await new Promise(r => setTimeout(r, COMPLETED_RECHECK_MS));
+              continue;
+            }
+          } else {
+            exhaustedIdleStreakRef.current = 0;
+          }
+          if (pending > 0) {
             continue;
           }
           await new Promise(r => setTimeout(r, EXHAUSTED_PAUSE_MS));
         } else if (batch.trackIds.length === 0) {
           await new Promise(r => setTimeout(r, TOP_UP_POLL_MS));
         }
-        // else: loop immediately if still below watermark
       }
     })();
 
@@ -165,6 +171,7 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
       cancelled = true;
       cursorRef.current = null;
       completedTotalRef.current = null;
+      exhaustedIdleStreakRef.current = 0;
     };
   }, [strategy, activeServerId, advancedParallelism, enabled]);
 }

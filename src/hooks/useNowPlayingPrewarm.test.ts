@@ -10,10 +10,14 @@ import { makeTrack } from '../test/helpers/factories';
 import { resetAllStores } from '../test/helpers/storeReset';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
 
-vi.mock('../api/coverCache', () => ({
-  coverCachePeekBatch: vi.fn(async () => ({})),
-  coverCacheEnsure: vi.fn(async () => ({ hit: false, path: '', tier: 800 })),
-}));
+vi.mock('../api/coverCache', async importOriginal => {
+  const actual = await importOriginal<typeof import('../api/coverCache')>();
+  return {
+    ...actual,
+    coverCachePeekBatch: vi.fn(async () => ({})),
+    coverCacheEnsure: vi.fn(async () => ({ hit: false, path: '', tier: 800 })),
+  };
+});
 
 vi.mock('./useNowPlayingFetchers', () => ({
   prewarmNowPlayingFetchers: vi.fn(async () => undefined),
