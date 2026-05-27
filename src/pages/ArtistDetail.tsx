@@ -7,6 +7,7 @@ import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AlbumCard from '../components/AlbumCard';
+import SortDropdown, { type SortOption } from '../components/SortDropdown';
 import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2, AudioLines } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
@@ -42,6 +43,10 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
+import {
+  sortArtistAlbums,
+  type ArtistAlbumSort,
+} from '../utils/library/sortArtistAlbums';
 
 
 export default function ArtistDetail() {
@@ -62,6 +67,7 @@ export default function ArtistDetail() {
   const { similarArtists, similarLoading } = useArtistSimilarArtists(artist, info, artistInfoLoading);
   const [uploading, setUploading] = useState(false);
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
+  const [albumSort, setAlbumSort] = useState<ArtistAlbumSort>('releaseType');
   const isMobile = useIsMobile();
   const [coverRevision, setCoverRevision] = useState(0);
   /** True after header cover onError — avoid `display:none` on the img (breaks recovery). */
@@ -160,8 +166,23 @@ export default function ArtistDetail() {
   const coverId = artist ? (artist.coverArt || artist.id) : '';
   const artistCoverFallback = useCoverArt(coverId || undefined, 80, { surface: 'sparse' });
 
+  useEffect(() => {
+    setAlbumSort('releaseType');
+  }, [id]);
+
+  const albumSortOptions = useMemo((): SortOption<ArtistAlbumSort>[] => [
+    { value: 'releaseType', label: t('artistDetail.sortByReleaseType') },
+    { value: 'yearDesc', label: t('artistDetail.sortYearDesc') },
+    { value: 'yearAsc', label: t('artistDetail.sortYearAsc') },
+  ], [t]);
+
+  const sortedAlbums = useMemo(
+    () => sortArtistAlbums(albums, albumSort),
+    [albums, albumSort],
+  );
+
   const groupedAlbums = useMemo(() => {
-    if (albums.length === 0) return [];
+    if (albumSort !== 'releaseType' || albums.length === 0) return [];
     const RELEASE_TYPE_ORDER = ['album', 'ep', 'single', 'compilation', 'live', 'soundtrack', 'remix', 'other'];
     const defaultKey = 'album';
     const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -189,7 +210,7 @@ export default function ArtistDetail() {
     return [...groups.entries()]
       .sort((a, b) => sortKey(a[0]) - sortKey(b[0]) || a[0].localeCompare(b[0]))
       .map(([key, group]) => [key.split(' · ').map(translateType).join(' · '), group] as const);
-  }, [albums, t]);
+  }, [albums, albumSort, t]);
 
   useEffect(() => {
     setHeaderCoverFailed(false);
@@ -320,13 +341,46 @@ export default function ArtistDetail() {
 
           case 'albums': return (
             <Fragment key="albums">
-              <h2 className="section-title" style={{ marginTop: sectionMt('albums'), marginBottom: '1rem' }}>
-                {losslessOnly
-                  ? t('artistDetail.albumsByLossless', { name: artist.name })
-                  : t('artistDetail.albumsBy', { name: artist.name })}
-              </h2>
+              <div
+                style={{
+                  marginTop: sectionMt('albums'),
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  {losslessOnly
+                    ? t('artistDetail.albumsByLossless', { name: artist.name })
+                    : t('artistDetail.albumsBy', { name: artist.name })}
+                </h2>
+                {albums.length > 0 && (
+                  <SortDropdown
+                    value={albumSort}
+                    options={albumSortOptions}
+                    onChange={setAlbumSort}
+                    ariaLabel={t('artistDetail.sortAlbumsAria')}
+                  />
+                )}
+              </div>
               {albums.length > 0 ? (
-                groupedAlbums.length === 1 ? (
+                albumSort !== 'releaseType' ? (
+                  <VirtualCardGrid
+                    items={sortedAlbums}
+                    itemKey={(a, i) => `${a.id}-${i}`}
+                    rowVariant="album"
+                    disableVirtualization={perfFlags.disableMainstageVirtualLists}
+                    layoutSignal={sortedAlbums.length}
+                    wrapClassName="album-grid-wrap album-grid-wrap--artist"
+                    warmGridCovers={albumGridWarmCovers()}
+                    renderItem={a => (
+                      <AlbumCard album={a} linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined} />
+                    )}
+                  />
+                ) : groupedAlbums.length === 1 ? (
                   <VirtualCardGrid
                     items={albums}
                     itemKey={(a, i) => `${a.id}-${i}`}
