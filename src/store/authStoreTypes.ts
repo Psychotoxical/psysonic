@@ -7,7 +7,25 @@ import type {
 export interface ServerProfile {
   id: string;
   name: string;
+  /**
+   * Primary address. **Canonical source of the index key** — adding or changing
+   * `alternateUrl` never touches library/cover/analysis storage. Only editing
+   * `url` (host/port/path) triggers an index-key remigration.
+   */
   url: string;
+  /**
+   * Optional second address (typically a LAN counterpart of a public `url`, or
+   * vice versa). Used by the connect layer as a sequential fallback and by the
+   * share layer when `shareUsesLocalUrl` flips. Never participates in the index
+   * key.
+   */
+  alternateUrl?: string;
+  /**
+   * When both `url` and `alternateUrl` are set, controls which one is embedded
+   * in Orbit / entity / magic-string shares. Default behaviour (absent / false)
+   * is to prefer the **public** address.
+   */
+  shareUsesLocalUrl?: boolean;
   username: string;
   password: string;
 }
