@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Albums — combined browse filters and session restore
 
-**By [@cucadmuh](https://github.com/cucadmuh)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#876](https://github.com/Psychotoxical/psysonic/pull/876)**
 
 * **Albums** toolbar: sort, genre (with counts), year range, favorites, lossless, and compilations combine in one browse query when the local index is ready; returning from album detail restores the same filter state.
 * Favorites list reconciles from the server into the local index (no stub album rows); genre/year/lossless/compilation filters apply on the indexed catalog.
