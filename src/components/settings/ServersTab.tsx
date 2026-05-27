@@ -18,6 +18,11 @@ import {
   verifySameServerEndpoints,
   type VerifySameServerResult,
 } from '../../utils/server/serverFingerprint';
+import {
+  indexKeyRemapForUrlChange,
+  runIndexKeyRemigration,
+} from '../../utils/server/serverUrlRemigration';
+import { useConfirmModalStore } from '../../store/confirmModalStore';
 import { showToast } from '../../utils/ui/toast';
 import { showAudiomuseNavidromeServerSetting } from '../../utils/server/subsonicServerIdentity';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
@@ -251,6 +256,38 @@ export function ServersTab({
   // data to two unrelated boxes — the spec blocks save in v1.
   const handleEditServer = async (id: string, data: Omit<ServerProfile, 'id'>) => {
     const previous = auth.servers.find(s => s.id === id);
+
+    // URL-change remigration — runs BEFORE everything else when the edit
+    // changes the derived index key. User confirms first; on failure the
+    // edit is aborted with a stage-specific toast. Spec §8.
+    const remap = previous ? indexKeyRemapForUrlChange(previous, data) : null;
+    if (remap) {
+      const confirmed = await useConfirmModalStore.getState().request({
+        title: t('settings.urlRemigrationTitle'),
+        message: t('settings.urlRemigrationMessage', {
+          oldKey: remap.oldKey,
+          newKey: remap.newKey,
+        }),
+        confirmLabel: t('settings.urlRemigrationConfirm'),
+        cancelLabel: t('common.cancel'),
+        danger: true,
+      });
+      if (!confirmed) return;
+      setConnStatus(s => ({ ...s, [id]: 'testing' }));
+      const result = await runIndexKeyRemigration(remap);
+      if (!result.ok) {
+        const failureKey =
+          result.failure.stage === 'inspect'
+            ? 'settings.urlRemigrationFailureInspect'
+            : result.failure.stage === 'run'
+            ? 'settings.urlRemigrationFailureRun'
+            : 'settings.urlRemigrationFailureCoverRename';
+        showToast(t(failureKey), 8000, 'error');
+        setConnStatus(s => ({ ...s, [id]: 'error' }));
+        return;
+      }
+    }
+
     const dualAddressChanged =
       data.alternateUrl != null &&
       data.alternateUrl !== '' &&

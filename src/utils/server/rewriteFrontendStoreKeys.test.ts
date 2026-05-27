@@ -85,16 +85,16 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
   it('does not clobber an existing entry under the new key', async () => {
     useOfflineStore.setState({
       tracks: {
-        'old:t1': { serverId: 'old', path: 'old.flac' } as never,
-        'new:t1': { serverId: 'new', path: 'new.flac' } as never,
+        'old:t1': { serverId: 'old', tag: 'from-old' } as never,
+        'new:t1': { serverId: 'new', tag: 'from-new' } as never,
       },
       albums: {},
     });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
-    const tracks = useOfflineStore.getState().tracks;
+    const tracks = useOfflineStore.getState().tracks as unknown as Record<string, { tag: string }>;
     // Existing destination preserved — same prefer-existing semantics as
     // the disk-side cover bucket merge.
-    expect((tracks['new:t1'] as { path: string }).path).toBe('new.flac');
+    expect(tracks['new:t1']?.tag).toBe('from-new');
     expect(tracks).not.toHaveProperty('old:t1');
   });
 });
