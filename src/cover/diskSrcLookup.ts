@@ -61,3 +61,19 @@ export function rememberGridDiskSrc(
   }
   return true;
 }
+
+/** Rust `cover:tier-ready` — seed ladder keys so sparse cells see 800.webp when they want 128. */
+export function rememberDiskSrcLadder(
+  serverIndexKey: string,
+  coverArtId: CoverArtId,
+  wantTier: CoverArtTier,
+  fsPath: string,
+): boolean {
+  if (!serverIndexKey || !coverArtId || !fsPath) return false;
+  let hit = false;
+  for (const tier of gridDiskSrcLookupOrder(wantTier)) {
+    const key = `${serverIndexKey}:cover:${coverArtId}:${tier}`;
+    if (rememberDiskSrc(key, fsPath)) hit = true;
+  }
+  return hit;
+}

@@ -3,16 +3,14 @@ import { coverEnsureQueued, coverEnsureRelease } from './ensureQueue';
 import { coverPeekQueued } from './peekQueue';
 import { getDiskSrcForGrid, seedGridDiskSrcCache } from './diskSrcLookup';
 import {
-  forgetDiskSrc,
-  getDiskSrc,
+  forgetDiskSrcPrefix,
   getDiskSrcCacheGeneration,
-  rememberDiskSrc,
   subscribeDiskSrcCache,
 } from './diskSrcCache';
 import { subscribeCoverDiskReady } from './diskHandoff';
 import { coverArtRef } from './ref';
 import { coverServerReachable } from './reachability';
-import { coverStorageKey } from './storageKeys';
+import { coverIndexKeyFromRef, coverStorageKey } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import type {
   CoverArtHandle,
@@ -71,11 +69,8 @@ export function useCoverArt(
 
   const readCachedSrc = useCallback(() => {
     if (!ref) return '';
-    if (surface === 'dense') {
-      return getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier);
-    }
-    return getDiskSrc(storageKey);
-  }, [ref, storageKey, surface, tier]);
+    return getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier);
+  }, [ref, tier]);
 
   useSyncExternalStore(subscribeDiskSrcCache, getDiskSrcCacheGeneration);
 
@@ -84,15 +79,11 @@ export function useCoverArt(
   const applyDiskPath = useCallback((path: string) => {
     if (!ref || !storageKey) return;
     if (!path) {
-      forgetDiskSrc(storageKey);
+      forgetDiskSrcPrefix(coverIndexKeyFromRef(ref), ref.coverArtId);
       return;
     }
-    if (surface === 'dense') {
-      seedGridDiskSrcCache(ref.serverScope, ref.coverArtId, tier, path);
-    } else {
-      rememberDiskSrc(storageKey, path);
-    }
-  }, [ref, storageKey, tier, surface, readCachedSrc]);
+    seedGridDiskSrcCache(ref.serverScope, ref.coverArtId, tier, path);
+  }, [ref, storageKey, tier]);
 
   useEffect(() => {
     if (!ref || !storageKey) return;
@@ -139,8 +130,9 @@ export function useCoverArt(
   const provisional = Boolean(ref && storageKey && !src);
 
   const onImgError = useCallback(() => {
-    forgetDiskSrc(storageKey);
-    if (ref && reachable) {
+    if (!ref) return;
+    forgetDiskSrcPrefix(coverIndexKeyFromRef(ref), ref.coverArtId);
+    if (reachable) {
       void coverEnsureQueued(storageKey, ref, tier, 'high').then(result => {
         if (result.hit && result.path) applyDiskPath(result.path);
       });

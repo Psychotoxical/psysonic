@@ -27,9 +27,22 @@ export function getDiskSrcCacheGeneration(): number {
   return cacheGeneration;
 }
 
+function isAssetProtocolUrl(url: string): boolean {
+  return url.startsWith('asset:') || /^https?:\/\/asset\.localhost/i.test(url);
+}
+
 /** True when `convertFileSrc` failed and returned the filesystem path unchanged. */
 function isRawFsPath(url: string, fsPath: string): boolean {
-  return url === fsPath || (url.startsWith('/') && fsPath.startsWith('/'));
+  if (url === fsPath) return true;
+  if (url.startsWith('/') && fsPath.startsWith('/')) return true;
+  if (/^[a-zA-Z]:[\\/]/.test(fsPath)) {
+    const norm = fsPath.replace(/\\/g, '/');
+    const urlNorm = url.replace(/\\/g, '/');
+    if (urlNorm === norm || urlNorm.endsWith(norm) || norm.endsWith(urlNorm)) {
+      return !isAssetProtocolUrl(url);
+    }
+  }
+  return false;
 }
 
 /**
@@ -39,9 +52,9 @@ function isRawFsPath(url: string, fsPath: string): boolean {
 export function coverDiskUrl(fsPath: string): string {
   if (!fsPath || !isTauri()) return '';
   const src = convertFileSrc(fsPath);
-  if (isRawFsPath(src, fsPath)) {
+  if (!src || isRawFsPath(src, fsPath) || !isAssetProtocolUrl(src)) {
     if (import.meta.env.DEV) {
-      console.warn('[cover] convertFileSrc out of asset scope — check tauri.conf assetProtocol', fsPath);
+      console.warn('[cover] convertFileSrc out of asset scope — check tauri.conf assetProtocol', { fsPath, src });
     }
     return '';
   }

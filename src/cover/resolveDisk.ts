@@ -1,6 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { coverCacheEnsure } from '../api/coverCache';
 import { invalidateCacheKey } from '../utils/imageCache';
+import { getDiskSrcForGrid } from './diskSrcLookup';
 import { getDiskSrc, rememberDiskSrc } from './diskSrcCache';
 import { coverStorageKey } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
@@ -15,7 +16,7 @@ export async function ensureCoverTierDiskSrc(
   if (!ref.coverArtId || !isTauri()) return '';
 
   const storageKey = coverStorageKey(ref.serverScope, ref.coverArtId, tier);
-  const cached = getDiskSrc(storageKey);
+  const cached = getDiskSrcForGrid(ref.serverScope, ref.coverArtId, tier) || getDiskSrc(storageKey);
   if (cached) return cached;
 
   const result = await coverCacheEnsure(ref, tier, 'high');

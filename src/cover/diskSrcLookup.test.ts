@@ -12,7 +12,7 @@ vi.mock('./diskHandoff', () => ({
 
 import { rememberDiskSrc } from './diskSrcCache';
 import { notifyCoverDiskReady } from './diskHandoff';
-import { gridDiskSrcLookupOrder, rememberGridDiskSrc } from './diskSrcLookup';
+import { gridDiskSrcLookupOrder, rememberDiskSrcLadder, rememberGridDiskSrc } from './diskSrcLookup';
 
 describe('gridDiskSrcLookupOrder', () => {
   it('prefers 800 right after 512 when 512 is wanted', () => {
@@ -36,5 +36,20 @@ describe('rememberGridDiskSrc', () => {
     expect(hit).toBe(true);
     expect(vi.mocked(rememberDiskSrc).mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(vi.mocked(notifyCoverDiskReady)).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('rememberDiskSrcLadder', () => {
+  beforeEach(() => {
+    vi.mocked(rememberDiskSrc).mockClear();
+    vi.mocked(rememberDiskSrc).mockReturnValue('asset://x');
+  });
+
+  it('seeds 128 when only 800.webp path arrives', () => {
+    const hit = rememberDiskSrcLadder('srv', 'al-1', 128, '/data/800.webp');
+    expect(hit).toBe(true);
+    const keys = vi.mocked(rememberDiskSrc).mock.calls.map(c => c[0]);
+    expect(keys).toContain('srv:cover:al-1:128');
+    expect(keys).toContain('srv:cover:al-1:800');
   });
 });

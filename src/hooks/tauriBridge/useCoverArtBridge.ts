@@ -3,8 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import {
   clearAllDiskSrcCache,
   forgetDiskSrcPrefix,
-  rememberDiskSrc,
 } from '../../cover/diskSrcCache';
+import { rememberDiskSrcLadder } from '../../cover/diskSrcLookup';
 import { notifyCoverDiskReady } from '../../cover/diskHandoff';
 import { invalidateCacheKey } from '../../utils/imageCache';
 import { COVER_ART_TIERS } from '../../cover/tiers';
@@ -32,7 +32,7 @@ export function useCoverArtBridge(): void {
           const { serverIndexKey, coverArtId, tier, path } = ev.payload;
           if (!path) return;
           const key = `${serverIndexKey}:cover:${coverArtId}:${tier}`;
-          rememberDiskSrc(key, path);
+          rememberDiskSrcLadder(serverIndexKey, coverArtId, tier, path);
           notifyCoverDiskReady(key, path);
           void invalidateCacheKey(key);
         }),
