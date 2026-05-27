@@ -284,6 +284,8 @@ const handleShuffleAll = () => {
   const albumCoverRefResolved = useAlbumCoverRef(
     album?.album.id,
     album?.album.coverArt,
+    undefined,
+    { libraryResolve: true },
   );
   const albumCover = useCoverArt(albumCoverRefResolved, 400, { surface: 'sparse' });
   const resolvedCoverUrl = albumCover.src || null;

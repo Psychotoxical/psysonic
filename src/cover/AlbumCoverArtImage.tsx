@@ -14,7 +14,7 @@ export function AlbumCoverArtImage({
   albumId,
   coverArt,
   serverScope,
-  libraryResolve,
+  libraryResolve = false,
   ...rest
 }: AlbumCoverArtImageProps) {
   const coverRef = useAlbumCoverRef(

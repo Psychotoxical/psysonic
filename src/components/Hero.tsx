@@ -260,7 +260,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     });
   }, [album?.id]);
 
-  const heroCoverRef = useAlbumCoverRef(album?.id, album?.coverArt);
+  const heroCoverRef = useAlbumCoverRef(album?.id, album?.coverArt, undefined, { libraryResolve: false });
   const bgHandle = useCoverArt(heroCoverRef, HERO_BG_CSS_PX, {
     surface: 'dense',
     ensurePriority: 'high',

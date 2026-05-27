@@ -561,7 +561,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   const { t } = useTranslation();
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverRef = useAlbumCoverRef(album.id, album.coverArt);
+  const coverRef = useAlbumCoverRef(album.id, album.coverArt, undefined, { libraryResolve: false });
   const coverHandle = useCoverArt(coverRef, BECAUSE_CARD_COVER_CSS_PX, {
     surface: 'dense',
     ensurePriority: 'high',

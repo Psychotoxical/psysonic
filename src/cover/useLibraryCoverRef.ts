@@ -37,7 +37,11 @@ function applySyncRef<T extends CoverArtRef | null | undefined>(
 }
 
 export type LibraryCoverRefOptions = {
-  /** When false, use search/API `coverArt` only — no `library_resolve_cover_entry` IPC. */
+  /**
+   * When false, use API/index `coverArt` only — no per-mount `library_resolve_cover_entry`.
+   * Default for browse/search grids is false at the component layer; enable on album/artist
+   * detail headers and queue rows that need per-disc slots from SQLite.
+   */
   libraryResolve?: boolean;
 };
 
@@ -121,7 +125,9 @@ export function useArtistCoverRef(
 export function useTrackCoverRef(
   song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'> | null | undefined,
   serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
+  options?: LibraryCoverRefOptions,
 ): CoverArtRef | undefined {
+  const libraryResolve = options?.libraryResolve !== false;
   const scopeKey = coverScopeKey(serverScope);
   const songId = song?.id;
   const albumId = song?.albumId;
@@ -152,6 +158,7 @@ export function useTrackCoverRef(
 
   useEffect(() => {
     applySyncRef(setRef, syncRef);
+    if (!libraryResolve) return;
     const trackId = songId?.trim();
     const al = albumId?.trim();
     if (!trackId || !al || !song) return;
@@ -183,9 +190,9 @@ export function useTrackCoverRef(
     return () => {
       cancelled = true;
     };
-  }, [song, songId, albumId, coverArt, discNumber, scopeKey, syncRef]);
+  }, [song, songId, albumId, coverArt, discNumber, scopeKey, syncRef, libraryResolve, distinctDiscCovers]);
 
-  return ref;
+  return libraryResolve ? ref : syncRef;
 }
 
 /** Now playing / queue — playback server scope + library-backed multi-CD. */

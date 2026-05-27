@@ -169,7 +169,9 @@ export default function ArtistDetail() {
 
   // Cover URLs — must run every render (before early returns) or hook order breaks.
   const coverId = artist ? (artist.coverArt || artist.id) : '';
-  const artistCoverRefResolved = useArtistCoverRef(artist?.id, artist?.coverArt);
+  const artistCoverRefResolved = useArtistCoverRef(artist?.id, artist?.coverArt, undefined, {
+    libraryResolve: true,
+  });
   const artistCoverFallback = useCoverArt(artistCoverRefResolved, 80, { surface: 'sparse' });
 
   const groupedAlbums = useMemo(() => {
@@ -398,7 +400,6 @@ export default function ArtistDetail() {
                       <AlbumCard
                         album={a}
                         linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
-                        libraryResolve={false}
                       />
                     )}
                   />
@@ -420,7 +421,6 @@ export default function ArtistDetail() {
                       <AlbumCard
                         album={a}
                         linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
-                        libraryResolve={false}
                       />
                     )}
                     />
@@ -453,7 +453,7 @@ export default function ArtistDetail() {
                   wrapClassName="album-grid-wrap album-grid-wrap--artist"
                   wrapStyle={{ animation: 'fadeIn 0.3s ease' }}
                   warmGridCovers={albumGridWarmCovers()}
-                  renderItem={a => <AlbumCard album={a} libraryResolve={false} />}
+                  renderItem={a => <AlbumCard album={a} />}
                 />
               )}
             </Fragment>

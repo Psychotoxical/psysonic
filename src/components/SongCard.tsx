@@ -33,7 +33,7 @@ function SongCard({
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
-  const coverRef = useTrackCoverRef(song);
+  const coverRef = useTrackCoverRef(song, undefined, { libraryResolve: false });
   const coverHandle = useCoverArt(coverRef, layoutPx, {
     surface: 'dense',
     ensurePriority: 'middle',

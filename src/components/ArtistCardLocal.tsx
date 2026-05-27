@@ -15,7 +15,7 @@ interface Props {
   libraryResolve?: boolean;
 }
 
-export default function ArtistCardLocal({ artist, linkQuery, libraryResolve }: Props) {
+export default function ArtistCardLocal({ artist, linkQuery, libraryResolve = false }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const coverRef = useArtistCoverRef(artist.id, artist.coverArt, undefined, { libraryResolve });

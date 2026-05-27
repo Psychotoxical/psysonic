@@ -89,6 +89,7 @@ export default function HostApprovalQueue() {
               {song ? (
                 <TrackCoverArtImage
                   song={song}
+                  libraryResolve
                   displayCssPx={HOST_APPROVAL_COVER_CSS_PX}
                   surface="dense"
                   alt=""

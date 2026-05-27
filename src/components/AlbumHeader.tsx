@@ -121,7 +121,7 @@ export default function AlbumHeader({
   const isMobile = useIsMobile();
   const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
 
-  const coverRef = useAlbumCoverRef(info.id, coverArtId);
+  const coverRef = useAlbumCoverRef(info.id, coverArtId, undefined, { libraryResolve: true });
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, {
     alt: `${info.name} Cover`,
   });

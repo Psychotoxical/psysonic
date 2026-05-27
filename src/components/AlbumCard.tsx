@@ -56,7 +56,7 @@ function AlbumCard({
   observeScrollRootId,
   ensurePriority,
   linkQuery,
-  libraryResolve,
+  libraryResolve = false,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();

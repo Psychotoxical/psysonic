@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function ArtistRow({
-  title, artists, moreLink, moreText, artistLinkQuery, libraryResolve,
+  title, artists, moreLink, moreText, artistLinkQuery, libraryResolve = false,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();

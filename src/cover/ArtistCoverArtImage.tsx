@@ -13,7 +13,7 @@ export function ArtistCoverArtImage({
   artistId,
   coverArt,
   serverScope,
-  libraryResolve,
+  libraryResolve = false,
   ...rest
 }: ArtistCoverArtImageProps) {
   const coverRef = useArtistCoverRef(

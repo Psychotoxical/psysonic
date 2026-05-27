@@ -43,7 +43,7 @@ export default function AlbumRow({
   windowArtworkByViewport = false,
   initialArtworkBudget = 8,
   albumLinkQuery,
-  libraryResolve,
+  libraryResolve = false,
 }: Props) {
   const perfFlags = usePerfProbeFlags();
   const artworkDisabled = perfFlags.disableMainstageRailArtwork || disableArtwork;

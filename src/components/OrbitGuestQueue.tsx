@@ -80,6 +80,7 @@ export default function OrbitGuestQueue() {
             {currentSong?.coverArt ? (
               <TrackCoverArtImage
                 song={currentSong}
+                libraryResolve
                 displayCssPx={ORBIT_QUEUE_COVER_LG_CSS_PX}
                 surface="dense"
                 alt=""
@@ -117,6 +118,7 @@ export default function OrbitGuestQueue() {
                 {song?.coverArt ? (
                   <TrackCoverArtImage
                     song={song}
+                    libraryResolve
                     displayCssPx={ORBIT_QUEUE_COVER_SM_CSS_PX}
                     surface="dense"
                     alt=""
@@ -156,6 +158,7 @@ export default function OrbitGuestQueue() {
               {song?.coverArt ? (
                 <TrackCoverArtImage
                   song={song}
+                  libraryResolve
                   displayCssPx={ORBIT_QUEUE_COVER_SM_CSS_PX}
                   surface="dense"
                   alt=""
