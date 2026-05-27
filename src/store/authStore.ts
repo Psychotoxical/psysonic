@@ -21,6 +21,8 @@ import {
 } from './authStoreDefaults';
 import { computeAuthStoreRehydration } from './authStoreRehydrate';
 import type { AuthState } from './authStoreTypes';
+import { getCachedConnectBaseUrl } from '../utils/server/serverEndpoint';
+import { serverProfileBaseUrl } from '../utils/server/serverBaseUrl';
 
 
 
@@ -142,8 +144,13 @@ export const useAuthStore = create<AuthState>()(
         const s = get();
         const server = s.servers.find(srv => srv.id === s.activeServerId);
         if (!server?.url) return '';
-        const base = server.url.startsWith('http') ? server.url : `http://${server.url}`;
-        return base.replace(/\/$/, '');
+        // Dual-address: read the runtime-probed connect URL from the
+        // serverEndpoint cache. `null` (no probe yet — first boot, switch
+        // happening right now) falls back to the normalized primary URL so
+        // callers running before the first probe still get a usable base.
+        const cached = getCachedConnectBaseUrl(server.id);
+        if (cached) return cached;
+        return serverProfileBaseUrl({ url: server.url });
       },
 
       getActiveServer: () => {
