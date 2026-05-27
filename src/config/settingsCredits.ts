@@ -329,6 +329,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Interface Scale: scales the entire window — sidebar, queue, player bar, modals and the fullscreen player follow the main content (PR #781)',
       'Local library index (preview): SQLite per-server track store, background initial and delta sync, live and Advanced Search against the local index, integrity verify and auto-reconcile on count drop (PR #846)',
       'Server index-key rebuild: safe dual-DB migration flow, per-server analysis strategy controls, and playback/index scope hardening (PR #864)',
+      'Home: Discover Songs cover art from albumId when local index omits coverArtId (PR #874)',
     ],
   },
 ] as const;
