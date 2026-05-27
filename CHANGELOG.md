@@ -376,7 +376,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Home — Discover Songs cover art with local index
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#874](https://github.com/Psychotoxical/psysonic/pull/874)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#874](https://github.com/Psychotoxical/psysonic/pull/874)**
 
 * **Mainstage → Discover Songs** no longer shows disc placeholders when the local library index returns tracks without `coverArt` but with a valid `albumId` — cover resolution matches the Rust backfill rule (`COALESCE(cover_art_id, album_id)`).
 * Discover Songs row gets dedicated mainstage cover prefetch and warmup so song cards are not crowded out by album rails on cold caches.
