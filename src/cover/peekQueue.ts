@@ -3,7 +3,8 @@ import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverTrafficServerSwitchPaused } from './coverTraffic';
 import { rememberGridDiskSrc } from './diskSrcLookup';
-import { coverIndexKeyFromRef } from './storageKeys';
+import { diskCoverArtIdCandidates, type DiskCoverIdHints } from './diskPeekIds';
+import { coverIndexKeyFromRef, coverStorageKey } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 function peekMemoryHit(storageKey: string, ref: CoverArtRef, tier: CoverArtTier): boolean {
@@ -15,6 +16,7 @@ type PeekJob = {
   storageKey: string;
   ref: CoverArtRef;
   tier: CoverArtTier;
+  diskIdHints?: DiskCoverIdHints;
   resolve: (hit: boolean) => void;
 };
 
@@ -51,16 +53,31 @@ async function flush(): Promise<void> {
   }
   if (needDisk.length === 0) return;
 
-  const hits = await coverCachePeekBatch(
-    needDisk.map(job => ({
-      serverIndexKey: coverIndexKeyFromRef(job.ref),
-      coverArtId: job.ref.coverArtId,
-      tier: job.tier,
-    })),
-  );
+  const peekItems: { serverIndexKey: string; coverArtId: string; tier: CoverArtTier }[] = [];
+  const peekKeysByJob = new Map<string, string[]>();
 
   for (const job of needDisk) {
-    const path = hits[job.storageKey];
+    const serverIndexKey = coverIndexKeyFromRef(job.ref);
+    const ids = diskCoverArtIdCandidates(job.ref.coverArtId, job.diskIdHints);
+    const keys: string[] = [];
+    for (const coverArtId of ids) {
+      peekItems.push({ serverIndexKey, coverArtId, tier: job.tier });
+      keys.push(coverStorageKey(job.ref.serverScope, coverArtId, job.tier));
+    }
+    peekKeysByJob.set(job.storageKey, keys);
+  }
+
+  const hits = await coverCachePeekBatch(peekItems);
+
+  for (const job of needDisk) {
+    const keys = peekKeysByJob.get(job.storageKey) ?? [job.storageKey];
+    let path = '';
+    for (const key of keys) {
+      if (hits[key]) {
+        path = hits[key]!;
+        break;
+      }
+    }
     const hit = Boolean(
       path
       && rememberGridDiskSrc(job.ref.serverScope, job.ref.coverArtId, job.tier, path),
@@ -75,6 +92,7 @@ export function coverPeekQueued(
   storageKey: string,
   ref: CoverArtRef,
   tier: CoverArtTier,
+  diskIdHints?: DiskCoverIdHints,
 ): Promise<boolean> {
   if (peekMemoryHit(storageKey, ref, tier)) {
     return Promise.resolve(true);
@@ -93,7 +111,7 @@ export function coverPeekQueued(
       };
       return;
     }
-    pending.set(storageKey, { storageKey, ref, tier, resolve });
+    pending.set(storageKey, { storageKey, ref, tier, diskIdHints, resolve });
     scheduleFlush();
   }).finally(() => {
     if (inflight.get(storageKey) === p) inflight.delete(storageKey);

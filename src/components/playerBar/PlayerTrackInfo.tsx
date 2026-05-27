@@ -6,6 +6,7 @@ import type { PlayerState, Track } from '../../store/playerStoreTypes';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import type { PreviewingTrack } from '../../store/previewStore';
 import { CoverArtImage } from '../../cover/CoverArtImage';
+import { resolvePlaybackCoverScope } from '../../cover/ref';
 import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
@@ -82,7 +83,17 @@ export function PlayerTrackInfo({
             coverArtId={coverArtId}
             displayCssPx={128}
             surface="sparse"
-            serverScope={showPreviewMeta ? { kind: 'active' } : { kind: 'playback' }}
+            serverScope={showPreviewMeta ? { kind: 'active' } : resolvePlaybackCoverScope()}
+            diskIdHints={
+              currentTrack
+                ? {
+                    albumId: currentTrack.albumId,
+                    songId: currentTrack.id,
+                    rawCoverArt: currentTrack.coverArt,
+                  }
+                : undefined
+            }
+            ensurePriority="high"
             alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
           />
           ) : (

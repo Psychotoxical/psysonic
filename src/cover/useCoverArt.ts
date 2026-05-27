@@ -12,6 +12,7 @@ import { coverArtRef } from './ref';
 import { coverServerReachable } from './reachability';
 import { coverIndexKeyFromRef, coverStorageKey } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
+import type { DiskCoverIdHints } from './diskPeekIds';
 import type {
   CoverArtHandle,
   CoverArtId,
@@ -35,6 +36,8 @@ export function useCoverArt(
     alt?: string;
     /** Download / ensure ordering — visible cells should pass `high`. */
     ensurePriority?: CoverPrefetchPriority;
+    /** Probe legacy on-disk folders (track id vs album id) when the resolved id misses. */
+    diskIdHints?: DiskCoverIdHints;
   },
 ): CoverArtHandle {
   const serverScope = opts?.serverScope ?? { kind: 'active' };
@@ -93,7 +96,7 @@ export function useCoverArt(
     let cancelled = false;
 
     void (async () => {
-      const peekHit = await coverPeekQueued(storageKey, ref, tier);
+      const peekHit = await coverPeekQueued(storageKey, ref, tier, opts?.diskIdHints);
       if (cancelled) return;
       if (peekHit || readCachedSrc()) return;
 

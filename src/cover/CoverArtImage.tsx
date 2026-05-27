@@ -10,6 +10,7 @@ import { coverStorageKey } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import { coverImgSrc } from './imgSrc';
 import { useCoverArt } from './useCoverArt';
+import type { DiskCoverIdHints } from './diskPeekIds';
 import type { CoverArtId, CoverPrefetchPriority, CoverServerScope, CoverSurfaceKind } from './types';
 
 export type CoverArtImageProps = {
@@ -25,6 +26,8 @@ export type CoverArtImageProps = {
   observeScrollRootId?: string;
   /** Initial ensure tier — use `high` for hero / above-the-fold cells. */
   ensurePriority?: CoverPrefetchPriority;
+  /** Extra ids to probe in `cover-cache` when the primary folder is empty. */
+  diskIdHints?: DiskCoverIdHints;
 } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'>;
 
 export function CoverArtImage({
@@ -39,6 +42,7 @@ export function CoverArtImage({
   observeRootMargin = DEFAULT_CACHED_IMAGE_PREPARE_MARGIN,
   observeScrollRootId,
   ensurePriority: ensurePriorityProp,
+  diskIdHints,
   onError: restOnError,
   ...rest
 }: CoverArtImageProps) {
@@ -94,6 +98,7 @@ export function CoverArtImage({
     surface,
     fullRes,
     ensurePriority,
+    diskIdHints,
     alt,
   });
 

@@ -15,6 +15,7 @@ import { useQueueTrackEnrichment } from '../../hooks/useQueueTrackEnrichment';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { CoverArtImage } from '../../cover/CoverArtImage';
+import { resolvePlaybackCoverScope } from '../../cover/ref';
 import { resolvePlaybackTrackCoverArtId } from '../../cover/resolveCoverArtId';
 import { usePlayerStore } from '../../store/playerStore';
 
@@ -209,7 +210,12 @@ export function QueueCurrentTrack({
                 coverArtId={coverId}
                 displayCssPx={128}
                 surface="sparse"
-                serverScope={{ kind: 'playback' }}
+                serverScope={resolvePlaybackCoverScope()}
+                diskIdHints={{
+                  albumId: currentTrack.albumId,
+                  songId: currentTrack.id,
+                  rawCoverArt: currentTrack.coverArt,
+                }}
                 ensurePriority="high"
                 alt=""
                 loading="eager"

@@ -1,5 +1,6 @@
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from '../store/authStore';
+import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
 import type { CoverArtId, CoverArtRef, CoverServerScope } from './types';
 
 export function coverArtRef(
@@ -13,7 +14,7 @@ export function resolvePlaybackCoverScope(): CoverServerScope {
   const playbackSid = getPlaybackServerId();
   const activeSid = useAuthStore.getState().activeServerId;
   if (playbackSid && activeSid && playbackSid !== activeSid) {
-    const server = useAuthStore.getState().servers.find(s => s.id === playbackSid);
+    const server = findServerByIdOrIndexKey(playbackSid);
     if (server) {
       return {
         kind: 'server',

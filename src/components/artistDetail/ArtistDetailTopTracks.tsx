@@ -95,9 +95,21 @@ export default function ArtistDetailTopTracks({
               : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
           </button>
           {(() => {
+            const albumRow = song.albumId
+              ? albums.find(a => a.id === song.albumId)
+              : albums.find(a => a.name === song.album);
             const coverId = resolveArtistPageSongCoverArtId(song, albums);
             return coverId ? (
-              <ArtistTopTrackCover coverArt={coverId} album={song.album} />
+              <ArtistTopTrackCover
+                coverArt={coverId}
+                album={song.album}
+                diskIdHints={{
+                  albumId: song.albumId,
+                  songId: song.id,
+                  rawCoverArt: song.coverArt,
+                  albumCoverArt: albumRow?.coverArt,
+                }}
+              />
             ) : null;
           })()}
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>

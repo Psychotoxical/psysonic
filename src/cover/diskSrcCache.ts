@@ -58,15 +58,29 @@ function isRawFsPath(url: string, fsPath: string): boolean {
  * Turn a Rust disk path into a webview-loadable URL.
  * Returns empty when not in Tauri or path is outside asset scope (never put raw paths in `<img src>`).
  */
+function tryCoverDiskUrl(fsPath: string): string {
+  const paths = fsPath.includes('\\')
+    ? [normalizePathForConvert(fsPath), fsPath]
+    : [fsPath, normalizePathForConvert(fsPath)];
+  const seen = new Set<string>();
+  for (const p of paths) {
+    if (!p || seen.has(p)) continue;
+    seen.add(p);
+    const src = convertFileSrc(p);
+    if (!src || isRawFsPath(src, p) || isRawFsPath(src, fsPath)) continue;
+    return src;
+  }
+  return '';
+}
+
 export function coverDiskUrl(fsPath: string): string {
   if (!fsPath || !isTauri()) return '';
-  const normalized = normalizePathForConvert(fsPath);
-  const src = convertFileSrc(normalized);
-  if (!src || isRawFsPath(src, normalized) || isRawFsPath(src, fsPath)) {
-    if (import.meta.env.DEV) {
-      console.warn('[cover] convertFileSrc out of asset scope — check tauri.conf assetProtocol', { fsPath, src });
-    }
-    return '';
+  const src = tryCoverDiskUrl(fsPath);
+  if (!src && import.meta.env.DEV) {
+    console.warn('[cover] convertFileSrc out of asset scope — check tauri.conf assetProtocol', {
+      fsPath,
+      src: convertFileSrc(normalizePathForConvert(fsPath)),
+    });
   }
   return src;
 }

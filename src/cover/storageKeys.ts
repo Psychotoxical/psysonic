@@ -1,6 +1,8 @@
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from '../store/authStore';
+import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
 import {
+  resolveIndexKey,
   serverIndexKeyForProfile,
   serverIndexKeyFromUrl,
 } from '../utils/server/serverIndexKey';
@@ -18,10 +20,9 @@ export function coverIndexKeyFromScope(scope: CoverServerScope): string {
     const playbackSid = getPlaybackServerId();
     const activeSid = useAuthStore.getState().activeServerId;
     const sid = playbackSid || activeSid;
-    const server = sid
-      ? useAuthStore.getState().servers.find(s => s.id === sid)
-      : undefined;
+    const server = sid ? findServerByIdOrIndexKey(sid) : undefined;
     if (server) return serverIndexKeyForProfile(server);
+    if (sid) return resolveIndexKey(sid) || sid;
     return '_';
   }
   const server = useAuthStore.getState().getActiveServer();
