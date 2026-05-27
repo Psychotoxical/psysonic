@@ -1,5 +1,6 @@
 import { Gem } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import FilterQuickClear from './FilterQuickClear';
 
 interface Props {
   active: boolean;
@@ -25,6 +26,7 @@ export default function LosslessFilterButton({ active, onChange }: Props) {
     >
       <Gem size={14} />
       {t('albums.losslessLabel')}
+      {active && <FilterQuickClear onActiveChip onClear={() => onChange(false)} />}
     </button>
   );
 }

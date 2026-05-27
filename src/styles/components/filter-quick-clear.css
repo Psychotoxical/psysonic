@@ -1,0 +1,26 @@
+.filter-quick-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 0.1rem;
+  padding: 0.12rem;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.88;
+  color: inherit;
+}
+
+.filter-quick-clear:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.filter-quick-clear--on-active-chip:hover {
+  background: color-mix(in srgb, var(--ctp-crust) 22%, transparent);
+}
+
+.filter-quick-clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

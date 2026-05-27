@@ -26,6 +26,7 @@ import { join } from '@tauri-apps/api/path';
 import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { CheckSquare2, Download, HardDriveDownload, Disc3, ListPlus } from 'lucide-react';
+import FilterQuickClear from '../components/FilterQuickClear';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
@@ -37,7 +38,6 @@ import { useAlbumBrowseFilters } from '../hooks/useAlbumBrowseFilters';
 import {
   runLocalAlbumBrowsePage,
   runLocalAlbumsByGenres,
-  runLocalLosslessAlbums,
   type AlbumBrowseSort,
 } from '../utils/library/browseTextSearch';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -256,15 +256,22 @@ export default function Albums() {
           return;
         }
         if (!yearFilter) {
-          const page = await runLocalLosslessAlbums(serverId, PAGE_SIZE, offset);
-          if (!page) {
+          const data = await runLocalAlbumBrowsePage(
+            serverId,
+            sortType,
+            offset,
+            PAGE_SIZE,
+            undefined,
+            true,
+          );
+          if (data == null) {
             setAlbums([]);
             setHasMore(false);
             return;
           }
-          if (append) setAlbums(prev => dedupeById([...prev, ...page.albums]));
-          else setAlbums(page.albums);
-          setHasMore(page.hasMore);
+          if (append) setAlbums(prev => dedupeById([...prev, ...data]));
+          else setAlbums(data);
+          setHasMore(data.length === PAGE_SIZE);
           return;
         }
         const data = await runLocalAlbumBrowsePage(
@@ -478,6 +485,9 @@ export default function Albums() {
                     {compFilter === 'all' ? t('albums.compilationLabel')
                       : compFilter === 'only' ? t('albums.compilationOnly')
                       : t('albums.compilationHide')}
+                    {compFilter !== 'all' && (
+                      <FilterQuickClear onActiveChip onClear={() => setCompFilter('all')} />
+                    )}
                   </button>
                 </>
               )}

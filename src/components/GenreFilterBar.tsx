@@ -3,6 +3,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom';
 import { Check, Filter, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import FilterQuickClear from './FilterQuickClear';
 
 interface GenreFilterBarProps {
   selected: string[];
@@ -131,6 +132,7 @@ export default function GenreFilterBar({ selected, onSelectionChange }: GenreFil
         <Filter size={14} />
         {t('common.filterGenre')}
         {count > 0 && <span className="genre-filter-count">{count}</span>}
+        {count > 0 && <FilterQuickClear onActiveChip onClear={clear} />}
       </button>
 
       {open && createPortal(

@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarRange, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import FilterQuickClear from './FilterQuickClear';
 
 interface Props {
   from: string;
@@ -103,6 +104,7 @@ export default function YearFilterButton({ from, to, onChange }: Props) {
       >
         <CalendarRange size={14} />
         {active ? `${fromNum}–${toNum}` : t('albums.yearFilterLabel')}
+        {active && <FilterQuickClear onActiveChip onClear={clear} />}
       </button>
 
       {open && createPortal(

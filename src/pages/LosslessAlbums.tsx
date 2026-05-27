@@ -2,7 +2,7 @@ import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 import { ndListLosslessAlbumsPage } from '../api/navidromeBrowse';
@@ -24,7 +24,16 @@ import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import { runLocalLosslessAlbums } from '../utils/library/browseTextSearch';
+import SortDropdown from '../components/SortDropdown';
+import {
+  albumBrowseSortForServer,
+  useAlbumBrowseSessionStore,
+} from '../store/albumBrowseSessionStore';
+import {
+  runLocalAlbumBrowsePage,
+  sortSubsonicAlbums,
+  type AlbumBrowseSort,
+} from '../utils/library/browseTextSearch';
 
 /** Local index page size — SQLite is cheap; larger pages than the network walk. */
 const LOCAL_PAGE_SIZE = 30;
@@ -45,6 +54,8 @@ export default function LosslessAlbums() {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.sortByServer, serverId));
+  const setBrowseSort = useAlbumBrowseSessionStore(s => s.setSort);
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -57,8 +68,13 @@ export default function LosslessAlbums() {
   /** `true` = local SQLite; `false` = Navidrome song-stream walk; `null` until first fetch picks. */
   const [useLocalIndex, setUseLocalIndex] = useState<boolean | null>(null);
 
-  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(albums);
-  const selectedAlbums = albums.filter(a => selectedIds.has(a.id));
+  const displayAlbums = useMemo(() => {
+    if (useLocalIndex === false) return sortSubsonicAlbums(albums, sort);
+    return albums;
+  }, [albums, sort, useLocalIndex]);
+
+  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(displayAlbums);
+  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(a.id));
 
   const toggleSelectionMode = () => { setSelectionMode(v => !v); resetSelection(); };
   const clearSelection = () => { setSelectionMode(false); resetSelection(); };
@@ -76,10 +92,16 @@ export default function LosslessAlbums() {
     setScrollBodyEl(el);
   }, []);
 
+  const sortOptions: { value: AlbumBrowseSort; label: string }[] = [
+    { value: 'alphabeticalByName', label: t('albums.sortByName') },
+    { value: 'alphabeticalByArtist', label: t('albums.sortByArtist') },
+  ];
+
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
     unsupported,
     selectionMode,
     activeServerId,
+    sort,
   ]);
 
   const loadMoreNetwork = useCallback(async (onProgress?: (albums: SubsonicAlbum[]) => void) => {
@@ -98,11 +120,18 @@ export default function LosslessAlbums() {
   }, []);
 
   const loadMoreLocal = useCallback(async () => {
-    const page = await runLocalLosslessAlbums(serverId, LOCAL_PAGE_SIZE, localOffset.current);
-    if (!page) return null;
-    localOffset.current += page.albums.length;
-    return page;
-  }, [serverId]);
+    const data = await runLocalAlbumBrowsePage(
+      serverId,
+      sort,
+      localOffset.current,
+      LOCAL_PAGE_SIZE,
+      undefined,
+      true,
+    );
+    if (data == null) return null;
+    localOffset.current += data.length;
+    return { albums: data, hasMore: data.length === LOCAL_PAGE_SIZE };
+  }, [serverId, sort]);
 
   const loadMore = useCallback(async () => {
     if (inFlight.current || useLocalIndex === null) return;
@@ -151,13 +180,20 @@ export default function LosslessAlbums() {
       inFlight.current = true;
       try {
         if (indexEnabled && serverId) {
-          const local = await runLocalLosslessAlbums(serverId, LOCAL_PAGE_SIZE, 0);
+          const data = await runLocalAlbumBrowsePage(
+            serverId,
+            sort,
+            0,
+            LOCAL_PAGE_SIZE,
+            undefined,
+            true,
+          );
           if (cancelled) return;
-          if (local) {
+          if (data != null) {
             setUseLocalIndex(true);
-            localOffset.current = local.albums.length;
-            setAlbums(local.albums);
-            setHasMore(local.hasMore);
+            localOffset.current = data.length;
+            setAlbums(data);
+            setHasMore(data.length === LOCAL_PAGE_SIZE);
             return;
           }
         }
@@ -182,7 +218,7 @@ export default function LosslessAlbums() {
     })();
 
     return () => { cancelled = true; };
-  }, [activeServerId, indexEnabled, loadMoreNetwork, serverId]);
+  }, [activeServerId, indexEnabled, loadMoreNetwork, serverId, sort]);
 
   useEffect(() => {
     if (!hasMore || useLocalIndex === null) return;
@@ -271,6 +307,13 @@ export default function LosslessAlbums() {
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {!(selectionMode && selectedIds.size > 0) && (
+                <SortDropdown
+                  value={sort}
+                  options={sortOptions}
+                  onChange={value => setBrowseSort(serverId, value)}
+                />
+              )}
               {selectionMode && selectedIds.size > 0 && (
                 <>
                   <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
@@ -323,22 +366,22 @@ export default function LosslessAlbums() {
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
             {t('losslessAlbums.unsupported')}
           </div>
-        ) : loading && albums.length === 0 ? (
+        ) : loading && displayAlbums.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <div className="spinner" />
           </div>
-        ) : albums.length === 0 ? (
+        ) : displayAlbums.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
             {t('losslessAlbums.empty')}
           </div>
         ) : (
           <>
             <VirtualCardGrid
-              items={albums}
+              items={displayAlbums}
               itemKey={(a, _i) => a.id}
               rowVariant="album"
               disableVirtualization={perfFlags.disableMainstageVirtualLists}
-              layoutSignal={albums.length}
+              layoutSignal={displayAlbums.length}
               scrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
               warmGridCovers={albumGridWarmCovers()}
               renderItem={a => (

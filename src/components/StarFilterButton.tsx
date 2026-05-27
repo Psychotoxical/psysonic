@@ -1,5 +1,6 @@
 import { Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import FilterQuickClear from './FilterQuickClear';
 
 interface Props {
   active: boolean;
@@ -63,6 +64,7 @@ export default function StarFilterButton({ active, onChange, size = 'default' }:
     >
       <Star size={14} fill={active ? 'currentColor' : 'none'} />
       {t('common.favorites')}
+      {active && <FilterQuickClear onActiveChip onClear={() => onChange(false)} />}
     </button>
   );
 }
