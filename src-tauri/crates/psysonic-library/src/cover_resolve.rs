@@ -95,7 +95,6 @@ pub fn resolve_album_cover_entry(
             |row| row.get::<_, Option<String>>(0),
         )
         .optional()
-        .map_err(Into::into)
     })? {
         None => return Ok(None),
         Some(v) => v,
@@ -125,7 +124,6 @@ fn track_only_album_backfill_entry(
                 },
             )
             .optional()
-            .map_err(Into::into)
         })
         .map(|opt| opt.flatten())
 }
@@ -229,7 +227,6 @@ pub fn resolve_track_cover_entry(
             },
         )
         .optional()
-        .map_err(Into::into)
     })?;
     let Some((id, cover_art_id, Some(album_id))) = row else {
         return Ok(None);
