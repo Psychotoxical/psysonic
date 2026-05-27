@@ -1,16 +1,12 @@
 import { api, libraryFilterParams } from './subsonicClient';
 import { invalidateEntityUserRatingCaches } from './subsonicRatings';
 import { useAuthStore } from '../store/authStore';
+import { patchLibraryTrackOnUse, type StarPatchMeta } from '../utils/library/patchOnUse';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import {
-  patchLibraryAlbumOnUse,
-  patchLibraryArtistOnUse,
-  patchLibraryTrackOnUse,
-  type StarPatchMeta,
-} from '../utils/library/patchOnUse';
-import {
-  reconcileAlbumStarsFromServer,
-  reconcileArtistStarsFromServer,
-} from '../utils/library/starredReconcile';
+  invalidateStarredAlbumBrowse,
+  refreshStarredAlbumIndexFromServer,
+} from '../utils/library/starredAlbumIndexSync';
 import type {
   EntityRatingSupportLevel,
   StarredResults,
@@ -34,7 +30,7 @@ export async function getStarred(): Promise<StarredResults> {
 export async function star(
   id: string,
   type: 'song' | 'album' | 'artist' = 'album',
-  meta?: StarPatchMeta,
+  _meta?: StarPatchMeta,
 ): Promise<void> {
   const params: Record<string, string> = {};
   if (type === 'song') params.id = id;
@@ -44,23 +40,17 @@ export async function star(
   const serverId = useAuthStore.getState().activeServerId;
   if (type === 'song') {
     patchLibraryTrackOnUse(serverId, id, { starredAt: Date.now() });
-  } else if (type === 'album') {
-    patchLibraryAlbumOnUse(serverId, id, { starredAt: Date.now(), ...meta });
-    void reconcileAlbumStarsFromServer(serverId).catch(() => {});
-  } else if (type === 'artist') {
-    patchLibraryArtistOnUse(serverId, id, {
-      starredAt: Date.now(),
-      name: meta?.name,
-      albumCount: meta?.albumCount,
-    });
-    void reconcileArtistStarsFromServer(serverId).catch(() => {});
+  } else if (type === 'album' && serverId) {
+    invalidateStarredAlbumBrowse(serverId);
+    const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
+    void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
   }
 }
 
 export async function unstar(
   id: string,
   type: 'song' | 'album' | 'artist' = 'album',
-  meta?: StarPatchMeta,
+  _meta?: StarPatchMeta,
 ): Promise<void> {
   const params: Record<string, string> = {};
   if (type === 'song') params.id = id;
@@ -70,16 +60,10 @@ export async function unstar(
   const serverId = useAuthStore.getState().activeServerId;
   if (type === 'song') {
     patchLibraryTrackOnUse(serverId, id, { starredAt: null });
-  } else if (type === 'album') {
-    patchLibraryAlbumOnUse(serverId, id, { starredAt: null, ...meta });
-    void reconcileAlbumStarsFromServer(serverId).catch(() => {});
-  } else if (type === 'artist') {
-    patchLibraryArtistOnUse(serverId, id, {
-      starredAt: null,
-      name: meta?.name,
-      albumCount: meta?.albumCount,
-    });
-    void reconcileArtistStarsFromServer(serverId).catch(() => {});
+  } else if (type === 'album' && serverId) {
+    invalidateStarredAlbumBrowse(serverId);
+    const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
+    void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
   }
 }
 

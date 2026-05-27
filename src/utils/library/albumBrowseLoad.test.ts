@@ -3,6 +3,7 @@ import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
+  albumBrowseStarredNeedsLocalIntersect,
   filterAlbumsByGenres,
   filterAlbumsByStarred,
   filterAlbumsByYearBounds,
@@ -35,6 +36,33 @@ describe('albumBrowseLoad', () => {
 
   it('genre filter disables pagination path', () => {
     expect(albumBrowseHasGenreFilter({ ...base, genres: ['Rock'] })).toBe(true);
+  });
+
+  it('starred + lossless uses local intersect when index is on', () => {
+    expect(albumBrowseStarredNeedsLocalIntersect({ ...base, starredOnly: true }, true, 's1')).toBe(
+      false,
+    );
+    expect(
+      albumBrowseStarredNeedsLocalIntersect(
+        { ...base, starredOnly: true, losslessOnly: true },
+        true,
+        's1',
+      ),
+    ).toBe(true);
+    expect(
+      albumBrowseStarredNeedsLocalIntersect(
+        { ...base, starredOnly: true, genres: ['Rock'] },
+        true,
+        's1',
+      ),
+    ).toBe(true);
+    expect(
+      albumBrowseStarredNeedsLocalIntersect(
+        { ...base, starredOnly: true, losslessOnly: true },
+        false,
+        's1',
+      ),
+    ).toBe(false);
   });
 });
 

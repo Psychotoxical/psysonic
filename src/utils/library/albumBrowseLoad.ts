@@ -10,9 +10,10 @@ import {
   albumYearSubsonicParams,
   type AlbumYearBounds,
 } from './albumYearFilter';
+import { peekStarredAlbumBrowseCache } from './albumBrowseStarredCache';
+import { refreshStarredAlbumIndexFromServer } from './starredAlbumIndexSync';
 import { albumToAlbum } from './advancedSearchLocal';
 import { libraryIsReady } from './libraryReady';
-import { reconcileAlbumStarsFromServer } from './starredReconcile';
 import { albumSortClauses, sortSubsonicAlbums, type AlbumBrowseSort } from './albumBrowseSort';
 
 const GENRE_ALBUM_FETCH_LIMIT = 500;
@@ -23,6 +24,16 @@ export type AlbumBrowseQuery = {
   year?: AlbumYearBounds;
   losslessOnly: boolean;
   starredOnly: boolean;
+};
+
+export type AlbumBrowsePageResult = {
+  albums: SubsonicAlbum[];
+  hasMore: boolean;
+};
+
+export type AlbumBrowseFetchCallbacks = {
+  /** Earlier page (cache / local index) before server favorites refresh finishes. */
+  onPartial?: (page: AlbumBrowsePageResult) => void;
 };
 
 export function albumBrowseHasGenreFilter(query: AlbumBrowseQuery): boolean {
@@ -38,11 +49,30 @@ export function albumBrowseHasServerFilters(query: AlbumBrowseQuery): boolean {
   );
 }
 
-function sharedServerFilters(query: AlbumBrowseQuery): LibraryFilterClause[] {
+/** Favorites need the local index when combined with lossless or genre (AND). */
+export function albumBrowseStarredNeedsLocalIntersect(
+  query: AlbumBrowseQuery,
+  indexEnabled: boolean,
+  serverId: string | null | undefined,
+): boolean {
+  return !!(
+    query.starredOnly
+    && indexEnabled
+    && serverId
+    && (query.losslessOnly || query.genres.length > 0)
+  );
+}
+
+function sharedServerFilters(
+  query: AlbumBrowseQuery,
+  useServerStarredIds: boolean,
+): LibraryFilterClause[] {
   const filters: LibraryFilterClause[] = [];
   if (query.year) filters.push(...albumYearFilterClauses(query.year));
   if (query.losslessOnly) filters.push({ field: 'lossless', op: 'is_true' });
-  if (query.starredOnly) filters.push({ field: 'starred', op: 'is_true' });
+  if (query.starredOnly && !useServerStarredIds) {
+    filters.push({ field: 'starred', op: 'is_true' });
+  }
   return filters;
 }
 
@@ -84,17 +114,35 @@ async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
   return dedupeById(results.flat());
 }
 
+function markServerStarredAlbums(albums: SubsonicAlbum[]): SubsonicAlbum[] {
+  return albums.map(a => ({ ...a, starred: a.starred ?? 'true' }));
+}
+
+function paginateStarredAlbums(
+  all: SubsonicAlbum[],
+  query: AlbumBrowseQuery,
+  offset: number,
+  pageSize: number,
+): AlbumBrowsePageResult {
+  const filtered = applyNetworkPostFilters(all, query);
+  const page = filtered.slice(offset, offset + pageSize);
+  return { albums: page, hasMore: offset + pageSize < filtered.length };
+}
+
 /** Local index: combined genre + year + lossless filters (AND), genres OR union. */
 export async function runLocalAlbumBrowse(
   serverId: string,
   query: AlbumBrowseQuery,
   offset: number,
   pageSize: number,
-): Promise<{ albums: SubsonicAlbum[]; hasMore: boolean } | null> {
+  restrictAlbumIds?: string[],
+): Promise<AlbumBrowsePageResult | null> {
   if (!serverId || !(await libraryIsReady(serverId))) return null;
 
   const scope = libraryScopeForServer(serverId) ?? undefined;
-  const shared = sharedServerFilters(query);
+  const useServerStarredIds = restrictAlbumIds != null;
+  const shared = sharedServerFilters(query, useServerStarredIds);
+  const starredOnly = useServerStarredIds ? undefined : (query.starredOnly || undefined);
 
   if (query.genres.length > 0) {
     if (offset > 0) return { albums: [], hasMore: false };
@@ -106,7 +154,8 @@ export async function runLocalAlbumBrowse(
             libraryScope: scope,
             entityTypes: ['album'],
             filters: [{ field: 'genre', op: 'eq', value: genre }, ...shared],
-            starredOnly: query.starredOnly || undefined,
+            starredOnly,
+            restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
             sort: albumSortClauses(query.sort),
             limit: GENRE_ALBUM_FETCH_LIMIT,
             offset: 0,
@@ -115,7 +164,8 @@ export async function runLocalAlbumBrowse(
         ),
       );
       if (pages.some(p => p.source !== 'local')) return null;
-      const merged = dedupeById(pages.flatMap(p => p.albums.map(albumToAlbum)));
+      let merged = dedupeById(pages.flatMap(p => p.albums.map(albumToAlbum)));
+      if (useServerStarredIds) merged = markServerStarredAlbums(merged);
       return {
         albums: sortSubsonicAlbums(merged, query.sort),
         hasMore: false,
@@ -131,14 +181,16 @@ export async function runLocalAlbumBrowse(
       libraryScope: scope,
       entityTypes: ['album'],
       filters: shared,
-      starredOnly: query.starredOnly || undefined,
+      starredOnly,
+      restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
       sort: albumSortClauses(query.sort),
       limit: pageSize,
       offset,
       skipTotals: true,
     });
     if (resp.source !== 'local') return null;
-    const albums = resp.albums.map(albumToAlbum);
+    let albums = resp.albums.map(albumToAlbum);
+    if (useServerStarredIds) albums = markServerStarredAlbums(albums);
     return { albums, hasMore: albums.length === pageSize };
   } catch {
     return null;
@@ -159,7 +211,7 @@ async function fetchAlbumBrowseNetwork(
   query: AlbumBrowseQuery,
   offset: number,
   pageSize: number,
-): Promise<{ albums: SubsonicAlbum[]; hasMore: boolean }> {
+): Promise<AlbumBrowsePageResult> {
   if (query.genres.length > 0) {
     if (offset > 0) return { albums: [], hasMore: false };
     const data = applyNetworkPostFilters(await fetchByGenres(query.genres), query);
@@ -189,16 +241,53 @@ async function fetchAlbumBrowseNetwork(
   return { albums: data, hasMore: data.length === pageSize };
 }
 
-export type AlbumBrowsePageResult = {
-  albums: SubsonicAlbum[];
-  hasMore: boolean;
-};
+async function fetchStarredAlbumBrowse(
+  serverId: string,
+  indexEnabled: boolean,
+  query: AlbumBrowseQuery,
+  offset: number,
+  pageSize: number,
+  callbacks?: AlbumBrowseFetchCallbacks,
+): Promise<AlbumBrowsePageResult> {
+  const emitPartial = (page: AlbumBrowsePageResult | null) => {
+    if (page && offset === 0 && page.albums.length > 0) {
+      callbacks?.onPartial?.(page);
+    }
+  };
+
+  if (offset === 0) {
+    const cached = peekStarredAlbumBrowseCache(serverId);
+    if (cached?.length) {
+      if (albumBrowseStarredNeedsLocalIntersect(query, indexEnabled, serverId)) {
+        const fromCache = await runLocalAlbumBrowse(
+          serverId,
+          query,
+          0,
+          pageSize,
+          cached.map(a => a.id),
+        );
+        emitPartial(fromCache);
+      } else {
+        emitPartial(paginateStarredAlbums(cached, query, 0, pageSize));
+      }
+    }
+  }
+
+  const serverAlbums = await refreshStarredAlbumIndexFromServer(serverId, indexEnabled);
+
+  if (albumBrowseStarredNeedsLocalIntersect(query, indexEnabled, serverId)) {
+    const serverIds = serverAlbums.map(a => a.id);
+    const authoritative = await runLocalAlbumBrowse(serverId, query, offset, pageSize, serverIds);
+    if (authoritative != null) return authoritative;
+    if (query.losslessOnly) return { albums: [], hasMore: false };
+  }
+
+  return paginateStarredAlbums(serverAlbums, query, offset, pageSize);
+}
 
 /**
  * One entry point for Albums browse: local advanced search when possible, else Subsonic.
- * Lossless without a local index returns an empty page (no network walk on this screen).
- * Favorites (starredOnly): server `getAlbumList.starred` is source of truth; reconcile
- * keeps the index aligned without stub inserts.
+ * Favorites: reconciled cache (`onPartial`), then `getStarred2` → DB reconcile → final list.
  */
 export async function fetchAlbumBrowsePage(
   serverId: string,
@@ -206,16 +295,14 @@ export async function fetchAlbumBrowsePage(
   query: AlbumBrowseQuery,
   offset: number,
   pageSize: number,
+  callbacks?: AlbumBrowseFetchCallbacks,
 ): Promise<AlbumBrowsePageResult> {
   if (query.losslessOnly && (!indexEnabled || !serverId)) {
     return { albums: [], hasMore: false };
   }
 
   if (query.starredOnly) {
-    if (indexEnabled && serverId && offset === 0) {
-      await reconcileAlbumStarsFromServer(serverId).catch(() => {});
-    }
-    return fetchAlbumBrowseNetwork(query, offset, pageSize);
+    return fetchStarredAlbumBrowse(serverId, indexEnabled, query, offset, pageSize, callbacks);
   }
 
   if (indexEnabled && serverId) {

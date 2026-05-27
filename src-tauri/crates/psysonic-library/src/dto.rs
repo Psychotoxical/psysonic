@@ -428,7 +428,6 @@ pub struct LibraryArtistDto {
     pub id: String,
     pub name: String,
     pub album_count: Option<i64>,
-    pub starred_at: Option<i64>,
     pub synced_at: i64,
     pub raw_json: Value,
 }
@@ -479,6 +478,11 @@ pub struct LibraryAdvancedSearchRequest {
     pub filters: Vec<LibraryFilterClause>,
     #[serde(default)]
     pub starred_only: Option<bool>,
+    /// When set, album browse is limited to these ids (e.g. server `getStarred2`
+    /// intersected with local lossless / genre filters). Not combined with
+    /// `starred_only` — use one or the other.
+    #[serde(default)]
+    pub restrict_album_ids: Option<Vec<String>>,
     #[serde(default)]
     pub sort: Vec<LibrarySortClause>,
     pub limit: u32,

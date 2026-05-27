@@ -248,12 +248,21 @@ export default function Albums() {
     selectedGenres,
   ]);
 
+  const loadGenerationRef = useRef(0);
+
   const loadBrowse = useCallback(async (
     query: AlbumBrowseQuery,
     offset: number,
     append = false,
   ) => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
+    const applyPage = (page: { albums: SubsonicAlbum[]; hasMore: boolean }) => {
+      if (generation !== loadGenerationRef.current) return;
+      if (append) setAlbums(prev => dedupeById([...prev, ...page.albums]));
+      else setAlbums(page.albums);
+      setHasMore(page.hasMore);
+    };
     try {
       const page = await fetchAlbumBrowsePage(
         serverId,
@@ -261,12 +270,17 @@ export default function Albums() {
         query,
         offset,
         PAGE_SIZE,
+        {
+          onPartial: partial => {
+            if (generation !== loadGenerationRef.current) return;
+            applyPage(partial);
+            setLoading(false);
+          },
+        },
       );
-      if (append) setAlbums(prev => dedupeById([...prev, ...page.albums]));
-      else setAlbums(page.albums);
-      setHasMore(page.hasMore);
+      applyPage(page);
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) setLoading(false);
     }
   }, [indexEnabled, serverId]);
 

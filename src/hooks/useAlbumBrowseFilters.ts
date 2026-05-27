@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigationType } from 'react-router-dom';
+import { useNavigationType, type NavigationType } from 'react-router-dom';
 import {
   DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
   type AlbumBrowseCompFilter,
@@ -10,17 +10,40 @@ import {
 } from '../store/albumBrowseSessionStore';
 import type { AlbumBrowseSort } from '../utils/library/browseTextSearch';
 
+function returnFiltersForNavigation(
+  serverId: string,
+  navigationType: NavigationType,
+): AlbumBrowseReturnFilters {
+  if (navigationType !== 'POP' || !serverId) return DEFAULT_ALBUM_BROWSE_RETURN_FILTERS;
+  return (
+    useAlbumBrowseSessionStore.getState().peekReturnStash(serverId)
+    ?? DEFAULT_ALBUM_BROWSE_RETURN_FILTERS
+  );
+}
+
 export function useAlbumBrowseFilters(serverId: string) {
   const navigationType = useNavigationType();
   const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.sortByServer, serverId));
   const setBrowseSort = useAlbumBrowseSessionStore(s => s.setSort);
 
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [yearFrom, setYearFrom] = useState('');
-  const [yearTo, setYearTo] = useState('');
-  const [compFilter, setCompFilter] = useState<AlbumBrowseCompFilter>('all');
-  const [starredOnly, setStarredOnly] = useState(false);
-  const [losslessOnly, setLosslessOnly] = useState(false);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(() =>
+    returnFiltersForNavigation(serverId, navigationType).selectedGenres,
+  );
+  const [yearFrom, setYearFrom] = useState(() =>
+    returnFiltersForNavigation(serverId, navigationType).yearFrom,
+  );
+  const [yearTo, setYearTo] = useState(() =>
+    returnFiltersForNavigation(serverId, navigationType).yearTo,
+  );
+  const [compFilter, setCompFilter] = useState<AlbumBrowseCompFilter>(() =>
+    returnFiltersForNavigation(serverId, navigationType).compFilter,
+  );
+  const [starredOnly, setStarredOnly] = useState(() =>
+    returnFiltersForNavigation(serverId, navigationType).starredOnly,
+  );
+  const [losslessOnly, setLosslessOnly] = useState(() =>
+    returnFiltersForNavigation(serverId, navigationType).losslessOnly,
+  );
 
   const filtersRef = useRef<AlbumBrowseReturnFilters>(DEFAULT_ALBUM_BROWSE_RETURN_FILTERS);
   filtersRef.current = {
@@ -44,6 +67,7 @@ export function useAlbumBrowseFilters(serverId: string) {
         setCompFilter(restored.compFilter);
         setStarredOnly(restored.starredOnly);
         setLosslessOnly(restored.losslessOnly);
+        useAlbumBrowseSessionStore.getState().clearReturnStash(serverId);
       }
       return;
     }

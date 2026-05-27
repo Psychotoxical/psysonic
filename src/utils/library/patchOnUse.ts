@@ -1,4 +1,4 @@
-import { libraryPatchAlbum, libraryPatchArtist, libraryPatchTrack } from '../../api/library';
+import { libraryPatchTrack } from '../../api/library';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 
 type TrackPatch = {
@@ -10,7 +10,7 @@ type TrackPatch = {
   playedAt?: number | null;
 };
 
-/** Optional index hints when starring entities (stub row metadata). */
+/** Optional metadata on star/unstar (album/artist); not mirrored into the local index. */
 export type StarPatchMeta = {
   name?: string;
   artist?: string;
@@ -23,23 +23,12 @@ export type StarPatchMeta = {
 /** @deprecated Use {@link StarPatchMeta} */
 export type AlbumPatchMeta = StarPatchMeta;
 
-type AlbumPatch = {
-  starredAt?: number | null;
-} & StarPatchMeta;
-
-type ArtistPatch = {
-  starredAt?: number | null;
-  name?: string;
-  albumCount?: number;
-};
-
 /**
- * Patch-on-use (spec §6.5 / F3): after a successful star / rating / scrobble,
- * mirror the change into the local library index so its reads (browse F1,
- * advanced search F2) reflect the action immediately — no stale list after a
- * rate, no full resync. Skipped when the index is off for the server; the Rust
- * command additionally no-ops when no row exists / the id is not a track.
- * Fire-and-forget: never throws, never blocks the originating network action.
+ * Patch-on-use (spec §6.5 / F3): after a successful star / rating / scrobble on a
+ * **track**, mirror the change into the local library index. Skipped when the index
+ * is off; Rust no-ops when no row exists. Fire-and-forget.
+ *
+ * Album/artist stars are server-only on browse (no stub rows, no `artist.starred_at`).
  */
 export function patchLibraryTrackOnUse(
   serverId: string | null | undefined,
@@ -49,29 +38,4 @@ export function patchLibraryTrackOnUse(
   if (!serverId || !trackId) return;
   if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return;
   void libraryPatchTrack({ serverId, trackId, patch }).catch(() => {});
-}
-
-/**
- * Mirror album-level star/unstar into `album.starred_at` for Albums browse
- * (album favorites only — not track stars).
- */
-export function patchLibraryAlbumOnUse(
-  serverId: string | null | undefined,
-  albumId: string,
-  patch: AlbumPatch,
-): void {
-  if (!serverId || !albumId) return;
-  if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return;
-  void libraryPatchAlbum({ serverId, albumId, patch }).catch(() => {});
-}
-
-/** Mirror artist-level star/unstar into `artist.starred_at` for Artists browse. */
-export function patchLibraryArtistOnUse(
-  serverId: string | null | undefined,
-  artistId: string,
-  patch: ArtistPatch,
-): void {
-  if (!serverId || !artistId) return;
-  if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return;
-  void libraryPatchArtist({ serverId, artistId, patch }).catch(() => {});
 }

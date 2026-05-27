@@ -194,7 +194,6 @@ fn query_artists(
             id: r.get(1)?,
             name: r.get::<_, Option<String>>(2)?.unwrap_or_default(),
             album_count: None,
-            starred_at: None,
             synced_at: r.get(3)?,
             raw_json: serde_json::Value::Null,
         })

@@ -206,6 +206,8 @@ export interface LibraryAdvancedSearchRequest {
   entityTypes: LibraryEntityType[];
   filters?: LibraryFilterClause[];
   starredOnly?: boolean | null;
+  /** Server favorites ids ∩ local filters (lossless, genre, year). */
+  restrictAlbumIds?: string[] | null;
   sort?: LibrarySortClause[];
   limit: number;
   offset?: number;
@@ -234,7 +236,6 @@ export interface LibraryArtistDto {
   id: string;
   name: string;
   albumCount?: number | null;
-  starredAt?: number | null;
   syncedAt: number;
   rawJson: unknown;
 }
@@ -600,55 +601,16 @@ export function libraryPatchTrack(args: {
   return invoke<void>('library_patch_track', { ...args, serverId: indexKey });
 }
 
-export function libraryPatchAlbum(args: {
-  serverId: string;
-  albumId: string;
-  patch: {
-    starredAt?: number | null;
-    name?: string;
-    artist?: string;
-    artistId?: string;
-    coverArtId?: string;
-    year?: number | null;
-  };
-}): Promise<void> {
-  const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<void>('library_patch_album', { ...args, serverId: indexKey });
-}
-
+/** Server favorites → `album.starred_at` (UPDATE only, no stub rows). */
 export function libraryReconcileAlbumStars(args: {
   serverId: string;
-  starredAlbumIds: string[];
+  starredAlbums: Array<{ id: string; starredAt: number }>;
 }): Promise<void> {
   const indexKey = serverIndexKeyForId(args.serverId);
   return invoke<void>('library_reconcile_album_stars', {
     serverId: indexKey,
-    starredAlbumIds: args.starredAlbumIds,
+    starredAlbums: args.starredAlbums.map(a => ({ id: a.id, starredAt: a.starredAt })),
   });
-}
-
-export function libraryReconcileArtistStars(args: {
-  serverId: string;
-  starredArtistIds: string[];
-}): Promise<void> {
-  const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<void>('library_reconcile_artist_stars', {
-    serverId: indexKey,
-    starredArtistIds: args.starredArtistIds,
-  });
-}
-
-export function libraryPatchArtist(args: {
-  serverId: string;
-  artistId: string;
-  patch: {
-    starredAt?: number | null;
-    name?: string;
-    albumCount?: number;
-  };
-}): Promise<void> {
-  const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<void>('library_patch_artist', { ...args, serverId: indexKey });
 }
 
 export function libraryPutArtifact(args: {

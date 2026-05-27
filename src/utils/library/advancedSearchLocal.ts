@@ -224,7 +224,6 @@ export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
     name: ar.name,
     albumCount: ar.albumCount ?? undefined,
     coverArt: ar.id,
-    starred: ar.starredAt != null ? new Date(ar.starredAt).toISOString() : undefined,
   };
   return { ...base, ...(raw as Partial<SubsonicArtist>) };
 }
