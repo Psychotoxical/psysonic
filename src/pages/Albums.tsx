@@ -1,8 +1,6 @@
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
-import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
-import { dedupeById } from '../utils/dedupeById';
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import AlbumCard from '../components/AlbumCard';
 import { albumGridWarmCovers, coverDisplayCssPxForAlbumGrid } from '../cover/layoutSizes';
@@ -34,30 +32,12 @@ import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useAlbumBrowseFilters } from '../hooks/useAlbumBrowseFilters';
+import { useAlbumBrowseData } from '../hooks/useAlbumBrowseData';
 import { useAlbumCatalogYearBounds } from '../hooks/useAlbumCatalogYearBounds';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
-import { albumBrowseCompScanComplete } from '../utils/library/albumCompilation';
-import {
-  albumBrowseHasGenreFilter,
-  albumBrowseHasServerFilters,
-  fetchAlbumBrowseGenreOptions,
-  fetchAlbumBrowsePage,
-  filterAlbumsByCompilation,
-  filterAlbumsByStarred,
-  type AlbumBrowseQuery,
-  type GenreFilterOption,
-} from '../utils/library/albumBrowseLoad';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
-import {
-  ALBUM_YEAR_FILTER_DEBOUNCE_MS,
-  resolveAlbumYearBounds,
-} from '../utils/library/albumYearFilter';
 
 type SortType = AlbumBrowseSort;
-type CompFilter = 'all' | 'only' | 'hide';
-
-const PAGE_SIZE = 30;
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
@@ -91,10 +71,35 @@ export default function Albums() {
     setLosslessOnly,
   } = useAlbumBrowseFilters(serverId);
 
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
+  const {
+    albums,
+    loading,
+    hasMore,
+    visibleAlbums,
+    genreFiltered,
+    serverFilterActive,
+    narrowGenreList,
+    genreCatalogOptions,
+    yearFilterActive,
+    debouncedYearFields,
+    compFilterActive,
+    pendingClientFilterMatch,
+    loadMore,
+  } = useAlbumBrowseData({
+    serverId,
+    indexEnabled,
+    musicLibraryFilterVersion,
+    sort,
+    selectedGenres,
+    yearFrom,
+    yearTo,
+    losslessOnly,
+    starredOnly,
+    compFilter,
+    starredOverrides,
+  });
+
   const observerTarget = useRef<HTMLDivElement>(null);
   const gridMeasureRef = useRef<HTMLDivElement>(null);
   const maxGridCols = useAuthStore(s => clampLibraryGridMaxColumns(s.libraryGridMaxColumns));
@@ -111,19 +116,6 @@ export default function Albums() {
   // selectedIds + toggleSelect come from useRangeSelection (declared after
   // `visibleAlbums` so Shift-click range expansion follows the visible order).
   const [selectionMode, setSelectionMode] = useState(false);
-
-  const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const compFilterActive = compFilter !== 'all';
-  // Local index filters in SQL when possible; client pass covers network + stale rows.
-  const compFilterClientOnly = compFilterActive && !indexEnabled;
-
-  const visibleAlbums = useMemo(() => {
-    let out = compFilterActive
-      ? filterAlbumsByCompilation(albums, compFilter)
-      : albums;
-    if (starredOnly) out = filterAlbumsByStarred(out, starredOverrides);
-    return out;
-  }, [albums, compFilter, compFilterActive, starredOnly, starredOverrides]);
 
   const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(visibleAlbums);
 
@@ -198,49 +190,6 @@ export default function Albums() {
     clearSelection();
   };
 
-  // ── Data loading ─────────────────────────────────────────────────────────
-  const yearFields = useMemo(() => ({ from: yearFrom, to: yearTo }), [yearFrom, yearTo]);
-  const debouncedYearFields = useDebouncedValue(yearFields, ALBUM_YEAR_FILTER_DEBOUNCE_MS);
-
-  const { active: yearFilterActive, bounds: yearFilterBounds } = useMemo(
-    () => resolveAlbumYearBounds(debouncedYearFields.from, debouncedYearFields.to),
-    [debouncedYearFields.from, debouncedYearFields.to],
-  );
-
-  const browseQuery = useMemo<AlbumBrowseQuery>(() => ({
-    sort,
-    genres: selectedGenres,
-    year: yearFilterActive ? yearFilterBounds : undefined,
-    losslessOnly,
-    starredOnly,
-    compFilter,
-  }), [sort, selectedGenres, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
-
-  const browseQueryWithoutGenre = useMemo<AlbumBrowseQuery>(() => ({
-    sort,
-    genres: [],
-    year: yearFilterActive ? yearFilterBounds : undefined,
-    losslessOnly,
-    starredOnly,
-    compFilter,
-  }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
-
-  const narrowGenreList = yearFilterActive || losslessOnly || starredOnly || compFilterActive;
-  const [genreCatalogOptions, setGenreCatalogOptions] = useState<GenreFilterOption[] | null>(null);
-
-  const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
-  const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
-
-  // Without local index, compilation filter is client-only — paginate until matches or cap.
-  const compScanExhausted = useMemo(
-    () => compFilterClientOnly && !genreFiltered
-      && albumBrowseCompScanComplete(albums, compFilter, hasMore),
-    [compFilterClientOnly, genreFiltered, albums, compFilter, hasMore],
-  );
-
-  const pendingClientFilterMatch =
-    compFilterClientOnly && visibleAlbums.length === 0 && hasMore && !genreFiltered && !compScanExhausted;
-
   const visibleEmptyMessage = useMemo(() => {
     if (starredOnly) return t('albums.noFavorites');
     if (compFilter === 'only') return t('albums.noCompilations');
@@ -284,95 +233,6 @@ export default function Albums() {
   ]);
 
   useEffect(() => {
-    if (!narrowGenreList) {
-      setGenreCatalogOptions(null);
-      return;
-    }
-    let cancelled = false;
-    void fetchAlbumBrowseGenreOptions(
-      serverId,
-      indexEnabled,
-      browseQueryWithoutGenre,
-      compFilter,
-    ).then(options => {
-      if (!cancelled) setGenreCatalogOptions(options);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    narrowGenreList,
-    serverId,
-    indexEnabled,
-    browseQueryWithoutGenre,
-    compFilter,
-    musicLibraryFilterVersion,
-  ]);
-
-  const loadGenerationRef = useRef(0);
-
-  const loadBrowse = useCallback(async (
-    query: AlbumBrowseQuery,
-    offset: number,
-    append = false,
-  ) => {
-    const generation = ++loadGenerationRef.current;
-    setLoading(true);
-    const applyPage = (page: { albums: SubsonicAlbum[]; hasMore: boolean }) => {
-      if (generation !== loadGenerationRef.current) return;
-      if (append) setAlbums(prev => dedupeById([...prev, ...page.albums]));
-      else setAlbums(page.albums);
-      setHasMore(page.hasMore);
-    };
-    try {
-      const page = await fetchAlbumBrowsePage(
-        serverId,
-        indexEnabled,
-        query,
-        offset,
-        PAGE_SIZE,
-        {
-          onPartial: partial => {
-            if (generation !== loadGenerationRef.current) return;
-            applyPage(partial);
-            setLoading(false);
-          },
-        },
-      );
-      applyPage(page);
-    } finally {
-      if (generation === loadGenerationRef.current) setLoading(false);
-    }
-  }, [indexEnabled, serverId]);
-
-  useEffect(() => {
-    setPage(0);
-    loadBrowse(browseQuery, 0, false);
-  }, [browseQuery, loadBrowse, musicLibraryFilterVersion]);
-
-  const loadMore = useCallback(() => {
-    if (loading || !hasMore || genreFiltered) return;
-    if (compFilterClientOnly && visibleAlbums.length === 0
-      && albumBrowseCompScanComplete(albums, compFilter, hasMore)) {
-      return;
-    }
-    const next = page + 1;
-    setPage(next);
-    loadBrowse(browseQuery, next * PAGE_SIZE, true);
-  }, [
-    loading,
-    hasMore,
-    page,
-    browseQuery,
-    loadBrowse,
-    genreFiltered,
-    compFilterClientOnly,
-    visibleAlbums.length,
-    albums,
-    compFilter,
-  ]);
-
-  useEffect(() => {
     if (!indexEnabled && losslessOnly) setLosslessOnly(false);
   }, [indexEnabled, losslessOnly]);
 
@@ -390,11 +250,6 @@ export default function Albums() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [loadMore, scrollBodyEl]);
-
-  useEffect(() => {
-    if (!pendingClientFilterMatch || loading) return;
-    loadMore();
-  }, [pendingClientFilterMatch, loading, loadMore]);
 
   const sortOptions: { value: SortType; label: string }[] = [
     { value: 'alphabeticalByName',   label: t('albums.sortByName') },

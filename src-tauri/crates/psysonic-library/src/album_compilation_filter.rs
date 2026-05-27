@@ -17,11 +17,6 @@ pub fn compilation_raw_json_sql(table_alias: &str) -> String {
     )
 }
 
-/// Album-table alias helper (same SQL as track).
-pub fn album_is_compilation_sql(album_table_alias: &str) -> String {
-    compilation_raw_json_sql(album_table_alias)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

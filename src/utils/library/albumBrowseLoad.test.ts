@@ -6,12 +6,10 @@ import {
   albumBrowseStarredNeedsLocalIntersect,
   compilationFilterClauses,
   countGenresFromAlbums,
-  extractGenresFromAlbums,
-  filterAlbumsByGenres,
   filterAlbumsByStarred,
   filterAlbumsByYearBounds,
-  type AlbumBrowseQuery,
-} from './albumBrowseLoad';
+} from './albumBrowseFilters';
+import type { AlbumBrowseQuery } from './albumBrowseTypes';
 
 describe('albumBrowseLoad', () => {
   const base: AlbumBrowseQuery = {
@@ -117,24 +115,6 @@ describe('countGenresFromAlbums', () => {
       { genre: 'Rock', count: 2 },
       { genre: 'Jazz', count: 1 },
     ]);
-  });
-
-  it('extractGenresFromAlbums preserves count order', () => {
-    expect(extractGenresFromAlbums([
-      album('1', 'Rock'),
-      album('2', 'Jazz'),
-      album('3', 'Rock'),
-    ])).toEqual(['Rock', 'Jazz']);
-  });
-});
-
-describe('filterAlbumsByGenres', () => {
-  it('matches any selected genre', () => {
-    const albums: SubsonicAlbum[] = [
-      { id: '1', name: 'A', artist: 'X', artistId: 'a', songCount: 1, duration: 1, genre: 'Rock' },
-      { id: '2', name: 'B', artist: 'Y', artistId: 'b', songCount: 1, duration: 1, genre: 'Jazz' },
-    ];
-    expect(filterAlbumsByGenres(albums, ['Jazz']).map(a => a.id)).toEqual(['2']);
   });
 });
 

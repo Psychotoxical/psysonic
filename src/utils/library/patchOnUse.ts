@@ -20,9 +20,6 @@ export type StarPatchMeta = {
   albumCount?: number;
 };
 
-/** @deprecated Use {@link StarPatchMeta} */
-export type AlbumPatchMeta = StarPatchMeta;
-
 /**
  * Patch-on-use (spec §6.5 / F3): after a successful star / rating / scrobble on a
  * **track**, mirror the change into the local library index. Skipped when the index

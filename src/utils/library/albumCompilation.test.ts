@@ -5,9 +5,11 @@ import {
   albumIsCompilation,
   ALBUM_COMP_FILTER_MAX_SCAN_ALBUMS,
 } from './albumCompilation';
-import { filterAlbumsByCompilation } from './albumBrowseLoad';
+import { filterAlbumsByCompilation } from './albumBrowseFilters';
 
-const album = (overrides: Partial<SubsonicAlbum> = {}): SubsonicAlbum => ({
+const album = (
+  overrides: Partial<SubsonicAlbum> & { compilation?: boolean } = {},
+): SubsonicAlbum => ({
   id: '1',
   name: 'A',
   artist: 'X',
@@ -20,7 +22,7 @@ const album = (overrides: Partial<SubsonicAlbum> = {}): SubsonicAlbum => ({
 describe('albumIsCompilation', () => {
   it('reads isCompilation, compilation, releaseTypes, and VA artist', () => {
     expect(albumIsCompilation(album({ isCompilation: true }))).toBe(true);
-    expect(albumIsCompilation(album({ compilation: true } as SubsonicAlbum))).toBe(true);
+    expect(albumIsCompilation(album({ compilation: true }))).toBe(true);
     expect(albumIsCompilation(album({ releaseTypes: ['Live', 'Compilation'] }))).toBe(true);
     expect(albumIsCompilation(album({ artist: 'Various Artists' }))).toBe(true);
     expect(albumIsCompilation(album())).toBe(false);

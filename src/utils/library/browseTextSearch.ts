@@ -335,6 +335,7 @@ export type { AlbumBrowseSort } from './albumBrowseSort';
 export { albumSortClauses, sortSubsonicAlbums } from './albumBrowseSort';
 import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
 import { runLocalAlbumBrowse, type AlbumBrowseQuery } from './albumBrowseLoad';
+import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 
 /**
  * Random track sample from the local `track` table — SQLite `ORDER BY RANDOM() LIMIT N`.
@@ -455,8 +456,6 @@ export async function runLocalAlbumBrowsePage(
   const page = await runLocalAlbumBrowse(serverId, query, offset, pageSize);
   return page?.albums ?? null;
 }
-
-const GENRE_ALBUM_FETCH_LIMIT = 500;
 
 /** Genre-filtered album union for All Albums / Random Albums genre bar. */
 export async function runLocalAlbumsByGenres(
