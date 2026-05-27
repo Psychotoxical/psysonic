@@ -74,14 +74,27 @@ export function resolveAlbumYearBounds(from: string, to: string): {
   };
 }
 
-export function formatAlbumYearFilterLabel(bounds: AlbumYearBounds): string | null {
+/** Chip label; open-ended bounds show catalog (or default) min/max on the missing side. */
+export function formatAlbumYearFilterLabel(
+  bounds: AlbumYearBounds,
+  catalog?: AlbumCatalogYearRange,
+): string | null {
+  const catalogMin = catalog?.min ?? ALBUM_YEAR_MIN;
+  const catalogMax = catalog?.max ?? ALBUM_YEAR_MAX;
+
   if (bounds.from != null && bounds.to != null) {
     const lo = Math.min(bounds.from, bounds.to);
     const hi = Math.max(bounds.from, bounds.to);
     return lo === hi ? String(lo) : `${lo}–${hi}`;
   }
-  if (bounds.from != null) return `${bounds.from}–`;
-  if (bounds.to != null) return `–${bounds.to}`;
+  if (bounds.from != null) {
+    const hi = catalogMax;
+    return bounds.from === hi ? String(bounds.from) : `${bounds.from}–${hi}`;
+  }
+  if (bounds.to != null) {
+    const lo = catalogMin;
+    return bounds.to === lo ? String(bounds.to) : `${lo}–${bounds.to}`;
+  }
   return null;
 }
 

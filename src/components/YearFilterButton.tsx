@@ -41,7 +41,7 @@ export default function YearFilterButton({
   const yMax = catalogMaxYear ?? ALBUM_YEAR_MAX;
 
   const { active, bounds } = resolveAlbumYearBounds(from, to);
-  const activeLabel = formatAlbumYearFilterLabel(bounds);
+  const activeLabel = formatAlbumYearFilterLabel(bounds, { min: yMin, max: yMax });
 
   const updatePopStyle = () => {
     if (!triggerRef.current) return;

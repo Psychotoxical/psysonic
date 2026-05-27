@@ -51,10 +51,17 @@ describe('albumYearFilterClauses', () => {
 });
 
 describe('formatAlbumYearFilterLabel', () => {
-  it('formats partial ranges', () => {
-    expect(formatAlbumYearFilterLabel({ from: 1990 })).toBe('1990–');
-    expect(formatAlbumYearFilterLabel({ to: 2000 })).toBe('–2000');
-    expect(formatAlbumYearFilterLabel({ from: 2000, to: 2010 })).toBe('2000–2010');
+  const catalog = { min: 1975, max: 2020 };
+
+  it('formats partial ranges using catalog edges', () => {
+    expect(formatAlbumYearFilterLabel({ from: 1990 }, catalog)).toBe('1990–2020');
+    expect(formatAlbumYearFilterLabel({ to: 2000 }, catalog)).toBe('1975–2000');
+    expect(formatAlbumYearFilterLabel({ from: 2000, to: 2010 }, catalog)).toBe('2000–2010');
+  });
+
+  it('collapses when the only bound equals the implied catalog edge', () => {
+    expect(formatAlbumYearFilterLabel({ from: 2020 }, catalog)).toBe('2020');
+    expect(formatAlbumYearFilterLabel({ to: 1975 }, catalog)).toBe('1975');
   });
 });
 
