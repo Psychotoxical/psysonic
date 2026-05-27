@@ -67,7 +67,7 @@ describe('coverCacheEnsure', () => {
 
     const call = invokeMock.mock.calls.find(c => c[0] === 'cover_cache_ensure');
     expect(call).toBeTruthy();
-    const payload = call?.[1] as Record<string, unknown>;
+    const payload = (call?.[1] as { args: Record<string, unknown> }).args;
     expect(payload.restBaseUrl).toBe('http://playback.example:5533');
     expect(payload.username).toBe('playback-user');
     expect(payload.password).toBe('playback-pass');

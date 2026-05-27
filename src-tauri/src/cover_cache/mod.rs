@@ -616,26 +616,8 @@ fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
 #[tauri::command]
 pub async fn cover_cache_ensure(
     app: AppHandle,
-    server_index_key: String,
-    cache_kind: String,
-    cache_entity_id: String,
-    cover_art_id: String,
-    tier: u32,
-    rest_base_url: String,
-    username: String,
-    password: String,
+    args: CoverCacheEnsureArgs,
 ) -> Result<CoverCacheEnsureResult, String> {
-    let args = CoverCacheEnsureArgs {
-        server_index_key,
-        cache_kind,
-        cache_entity_id,
-        cover_art_id,
-        tier,
-        rest_base_url,
-        username,
-        password,
-        library_bulk: false,
-    };
     let st = state(&app)?;
     CoverCacheState::ensure_inner(&st, &app, &args, None).await
 }

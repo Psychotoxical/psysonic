@@ -108,7 +108,9 @@ export async function coverCacheEnsure(
   tier: CoverArtTier,
   _priority?: string,
 ): Promise<CoverCacheEnsureResult> {
-  return invoke<CoverCacheEnsureResult>('cover_cache_ensure', ensureArgsFromRef(ref, tier));
+  return invoke<CoverCacheEnsureResult>('cover_cache_ensure', {
+    args: ensureArgsFromRef(ref, tier),
+  });
 }
 
 export async function coverCacheEnsureBatch(
