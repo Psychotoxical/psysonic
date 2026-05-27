@@ -767,12 +767,29 @@ pub async fn cover_cache_rename_server_bucket(
 fn is_safe_index_key(key: &str) -> bool {
     // Real index keys are `host[:port][/sub/path]` shape — forward slashes
     // are legitimate path components (Navidrome behind a reverse-proxy
-    // subpath, etc.). Backslashes and `..` segments are not, and at this FS
-    // boundary we reject them defensively rather than canonicalize after the
-    // fact.
+    // subpath, etc.). Everything below is defense-in-depth at the FS
+    // boundary; real keys come out of `serverIndexKeyFromUrl` and never
+    // start with a separator or carry the patterns we reject here.
+    if key.is_empty() {
+        return false;
+    }
+    // Absolute-path leaders — `root.join("/etc/...")` and `root.join("\\foo\\")`
+    // on Unix / Windows respectively REPLACE the base path with the absolute
+    // argument. Reject before that ever happens.
+    if key.starts_with('/') || key.starts_with('\\') {
+        return false;
+    }
+    // Windows drive-letter root (`C:`, `c:`). `Path::join("C:")` is also
+    // treated as absolute on Windows.
+    let bytes = key.as_bytes();
+    if bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() {
+        return false;
+    }
+    // Backslash anywhere — separators are forward-slash only.
     if key.contains('\\') {
         return false;
     }
+    // No `..` segments anywhere — would escape the cover-cache root.
     for segment in key.split('/') {
         if segment == ".." {
             return false;
@@ -988,6 +1005,21 @@ mod tests {
         assert!(!is_safe_index_key("a/../b"));
         assert!(!is_safe_index_key("a\\b"));
         assert!(!is_safe_index_key("..\\evil"));
+    }
+
+    #[test]
+    fn safe_index_key_rejects_absolute_paths_and_drive_letters() {
+        // Path::join with an absolute argument replaces the base — must
+        // never accept keys that lead with a separator.
+        assert!(!is_safe_index_key("/etc/passwd"));
+        assert!(!is_safe_index_key("/"));
+        assert!(!is_safe_index_key("\\windows"));
+        // Windows drive-letter roots are also treated as absolute.
+        assert!(!is_safe_index_key("C:"));
+        assert!(!is_safe_index_key("C:/Windows"));
+        assert!(!is_safe_index_key("c:foo"));
+        // Empty key is meaningless and would join to the root itself.
+        assert!(!is_safe_index_key(""));
     }
 
     /// Build a unique tmpdir for the merge tests so parallel runs don't trip
