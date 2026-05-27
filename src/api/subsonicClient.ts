@@ -3,6 +3,7 @@ import md5 from 'md5';
 import { version } from '../../package.json';
 import { useAuthStore } from '../store/authStore';
 import type { ServerProfile } from '../store/authStoreTypes';
+import { connectBaseUrlForServer } from '../utils/server/serverEndpoint';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../utils/server/serverLookup';
 
 export const SUBSONIC_CLIENT = `psysonic/${version}`;
@@ -66,7 +67,18 @@ export async function apiForServer<T>(
 ): Promise<T> {
   const server = getServerById(serverId);
   if (!server) throw new Error(`Unknown server: ${serverId}`);
-  return apiWithCredentials(server.url, server.username, server.password, endpoint, extra, timeout);
+  // Dual-address: route through the cached connect URL when one has been
+  // probed for this profile; otherwise the normalized primary url is the
+  // same string the legacy code path used, so single-address profiles are
+  // byte-identical to before.
+  return apiWithCredentials(
+    connectBaseUrlForServer(server),
+    server.username,
+    server.password,
+    endpoint,
+    extra,
+    timeout,
+  );
 }
 
 export async function api<T>(

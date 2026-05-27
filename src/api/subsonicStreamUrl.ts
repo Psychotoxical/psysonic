@@ -3,6 +3,7 @@ import { coverStorageKey, coverStorageKeyFromRef } from '../cover/storageKeys';
 import { coverEntryToRef, resolveAlbumCoverEntry } from '../cover/resolveEntry';
 import type { CoverArtTier } from '../cover/types';
 import { useAuthStore } from '../store/authStore';
+import { connectBaseUrlForServer } from '../utils/server/serverEndpoint';
 import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
 import { restBaseFromUrl, SUBSONIC_CLIENT, secureRandomSalt } from './subsonicClient';
 
@@ -45,7 +46,8 @@ function streamUrlFromProfile(
 export function buildStreamUrlForServer(serverId: string, id: string): string {
   const server = findServerByIdOrIndexKey(serverId);
   if (!server) return buildStreamUrl(id);
-  return streamUrlFromProfile(server.url, server.username, server.password, id);
+  // Dual-address: route the stream through the cached connect endpoint.
+  return streamUrlFromProfile(connectBaseUrlForServer(server), server.username, server.password, id);
 }
 
 export function buildStreamUrl(id: string): string {
@@ -53,7 +55,10 @@ export function buildStreamUrl(id: string): string {
   const server = getActiveServer();
   const baseUrl = getBaseUrl();
   if (!server || !baseUrl) return streamUrlFromProfile('', '', '', id);
-  return streamUrlFromProfile(server.url, server.username, server.password, id);
+  // `getBaseUrl()` already returns the cached connect URL; use it directly
+  // instead of re-normalizing `server.url`, which would bypass the dual-
+  // address connect cache.
+  return streamUrlFromProfile(baseUrl, server.username, server.password, id);
 }
 
 /** @deprecated Use `coverStorageKey` from `src/cover/storageKeys` — shim until migration. */
