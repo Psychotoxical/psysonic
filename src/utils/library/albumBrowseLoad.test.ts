@@ -4,6 +4,7 @@ import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
   albumBrowseStarredNeedsLocalIntersect,
+  compilationFilterClauses,
   countGenresFromAlbums,
   extractGenresFromAlbums,
   filterAlbumsByGenres,
@@ -18,6 +19,7 @@ describe('albumBrowseLoad', () => {
     genres: [],
     losslessOnly: false,
     starredOnly: false,
+    compFilter: 'all',
   };
 
   it('detects combined server filters', () => {
@@ -83,6 +85,14 @@ describe('filterAlbumsByStarred', () => {
     expect(filterAlbumsByStarred([{ ...album, starred: '2020-01-01' }], {})).toHaveLength(1);
     expect(filterAlbumsByStarred([album], { a1: true })).toHaveLength(1);
     expect(filterAlbumsByStarred([{ ...album, starred: '2020-01-01' }], { a1: false })).toHaveLength(0);
+  });
+});
+
+describe('compilationFilterClauses', () => {
+  it('maps only/hide to local index filters', () => {
+    expect(compilationFilterClauses('only')).toEqual([{ field: 'compilation', op: 'is_true' }]);
+    expect(compilationFilterClauses('hide')).toEqual([{ field: 'compilation', op: 'eq', value: false }]);
+    expect(compilationFilterClauses('all')).toEqual([]);
   });
 });
 

@@ -27,6 +27,7 @@ export type AlbumBrowseQuery = {
   year?: AlbumYearBounds;
   losslessOnly: boolean;
   starredOnly: boolean;
+  compFilter: AlbumCompFilter;
 };
 
 export type AlbumBrowsePageResult = {
@@ -66,6 +67,12 @@ export function albumBrowseStarredNeedsLocalIntersect(
   );
 }
 
+export function compilationFilterClauses(compFilter: AlbumCompFilter): LibraryFilterClause[] {
+  if (compFilter === 'only') return [{ field: 'compilation', op: 'is_true' }];
+  if (compFilter === 'hide') return [{ field: 'compilation', op: 'eq', value: false }];
+  return [];
+}
+
 function sharedServerFilters(
   query: AlbumBrowseQuery,
   useServerStarredIds: boolean,
@@ -73,6 +80,7 @@ function sharedServerFilters(
   const filters: LibraryFilterClause[] = [];
   if (query.year) filters.push(...albumYearFilterClauses(query.year));
   if (query.losslessOnly) filters.push({ field: 'lossless', op: 'is_true' });
+  filters.push(...compilationFilterClauses(query.compFilter));
   if (query.starredOnly && !useServerStarredIds) {
     filters.push({ field: 'starred', op: 'is_true' });
   }
@@ -238,6 +246,7 @@ function applyNetworkPostFilters(
 ): SubsonicAlbum[] {
   let out = albums;
   if (query.year) out = filterAlbumsByYearBounds(out, query.year);
+  out = filterAlbumsByCompilation(out, query.compFilter);
   if (query.starredOnly) out = out.filter(a => !!a.starred);
   return sortSubsonicAlbums(out, query.sort);
 }
@@ -263,16 +272,22 @@ async function fetchAlbumBrowseNetwork(
   }
 
   if (query.year) {
-    const data = await getAlbumList(
-      'byYear',
-      pageSize,
-      offset,
-      albumYearSubsonicParams(query.year),
+    const data = applyNetworkPostFilters(
+      await getAlbumList(
+        'byYear',
+        pageSize,
+        offset,
+        albumYearSubsonicParams(query.year),
+      ),
+      query,
     );
     return { albums: data, hasMore: data.length === pageSize };
   }
 
-  const data = await getAlbumList(query.sort, pageSize, offset, {});
+  const data = applyNetworkPostFilters(
+    await getAlbumList(query.sort, pageSize, offset, {}),
+    query,
+  );
   return { albums: data, hasMore: data.length === pageSize };
 }
 

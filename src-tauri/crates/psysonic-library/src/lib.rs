@@ -9,6 +9,7 @@
 
 pub(crate) mod bulk_ingest;
 pub mod advanced_search;
+pub mod album_compilation_filter;
 mod advanced_search_mood;
 pub mod analysis_backfill;
 pub mod artist_lossless_browse;

@@ -859,6 +859,30 @@ fn resolve_clause(
                 params: vec![],
             }));
         }
+        ("compilation", EntityKind::Album) => {
+            let comp_sql = crate::album_compilation_filter::album_is_compilation_sql("a");
+            return match c.op {
+                FilterOp::IsTrue => Ok(Some(SqlFragment {
+                    sql: comp_sql,
+                    params: vec![],
+                })),
+                FilterOp::Eq => {
+                    let want_comp = json_to_bool(&c.field, c.value.as_ref())?;
+                    let sql = if want_comp {
+                        comp_sql
+                    } else {
+                        format!("NOT ({comp_sql})")
+                    };
+                    Ok(Some(SqlFragment { sql, params: vec![] }))
+                }
+                _ => Err(filter::FilterError::UnsupportedOp {
+                    field: c.field.clone(),
+                    op: c.op.as_str(),
+                }
+                .to_string()),
+            };
+        }
+        ("compilation", _) => return Ok(None),
         // `text` is handled by the entity builder (FTS / LIKE), never here.
         ("text", _) => return Ok(None),
         // Registered but no v1 SQL builder (user_rating / suffix / bit_rate).
@@ -1232,6 +1256,19 @@ fn sort_column(field: &str, entity: EntityKind) -> Option<&'static str> {
         // no index scan needed beyond the row-id range. Direction is ignored.
         ("random", _) => Some("RANDOM()"),
         _ => None,
+    }
+}
+
+fn json_to_bool(field: &str, v: Option<&Value>) -> Result<bool, String> {
+    match v {
+        Some(Value::Bool(b)) => Ok(*b),
+        Some(Value::Number(n)) => Ok(n.as_i64() == Some(1)),
+        Some(Value::String(s)) => Ok(matches!(s.as_str(), "1" | "true" | "TRUE")),
+        _ => Err(filter::FilterError::BadValue {
+            field: field.to_string(),
+            detail: "expected boolean".to_string(),
+        }
+        .to_string()),
     }
 }
 
@@ -1899,6 +1936,60 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.artists.len(), 1);
         assert_eq!(resp.artists[0].id, "ar1");
+    }
+
+    fn insert_album_raw(
+        store: &LibraryStore,
+        server: &str,
+        id: &str,
+        name: &str,
+        raw_json: &str,
+    ) {
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, synced_at, raw_json) \
+                     VALUES (?1, ?2, ?3, 1, ?4)",
+                    rusqlite::params![server, id, name, raw_json],
+                )
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn compilation_filter_only_returns_compilation_albums() {
+        let store = LibraryStore::open_in_memory();
+        insert_album_raw(
+            &store,
+            "s1",
+            "al_comp",
+            "Greatest Hits",
+            r#"{"compilation":true}"#,
+        );
+        insert_album_raw(&store, "s1", "al_regular", "Studio", "{}");
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![clause("compilation", FilterOp::IsTrue, None, None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al_comp");
+    }
+
+    #[test]
+    fn compilation_eq_false_hides_compilations() {
+        let store = LibraryStore::open_in_memory();
+        insert_album_raw(
+            &store,
+            "s1",
+            "al_comp",
+            "Greatest Hits",
+            r#"{"releaseTypes":["Compilation"]}"#,
+        );
+        insert_album_raw(&store, "s1", "al_regular", "Studio", "{}");
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![clause("compilation", FilterOp::Eq, Some(json!(false)), None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al_regular");
     }
 
     #[test]

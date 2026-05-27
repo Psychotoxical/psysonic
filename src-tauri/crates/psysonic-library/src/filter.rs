@@ -129,6 +129,12 @@ pub const FILTER_FIELD_REGISTRY: &[FilterField] = &[
         status: FilterStatus::V1,
     },
     FilterField {
+        id: "compilation",
+        entities: &[EntityKind::Album],
+        ops: &[FilterOp::IsTrue, FilterOp::Eq],
+        status: FilterStatus::V1,
+    },
+    FilterField {
         id: "bit_rate",
         entities: &[EntityKind::Track],
         ops: &[FilterOp::Gte, FilterOp::Lte, FilterOp::Between],

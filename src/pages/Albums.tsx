@@ -114,11 +114,15 @@ export default function Albums() {
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const compFilterActive = compFilter !== 'all';
+  const compFilterClientOnly = compFilterActive && !indexEnabled;
+
   const visibleAlbums = useMemo(() => {
-    let out = filterAlbumsByCompilation(albums, compFilter);
+    let out = compFilterClientOnly
+      ? filterAlbumsByCompilation(albums, compFilter)
+      : albums;
     if (starredOnly) out = filterAlbumsByStarred(out, starredOverrides);
     return out;
-  }, [albums, compFilter, starredOnly, starredOverrides]);
+  }, [albums, compFilter, compFilterClientOnly, starredOnly, starredOverrides]);
 
   const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(visibleAlbums);
 
@@ -208,7 +212,8 @@ export default function Albums() {
     year: yearFilterActive ? yearFilterBounds : undefined,
     losslessOnly,
     starredOnly,
-  }), [sort, selectedGenres, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly]);
+    compFilter,
+  }), [sort, selectedGenres, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
 
   const browseQueryWithoutGenre = useMemo<AlbumBrowseQuery>(() => ({
     sort,
@@ -216,7 +221,8 @@ export default function Albums() {
     year: yearFilterActive ? yearFilterBounds : undefined,
     losslessOnly,
     starredOnly,
-  }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly]);
+    compFilter,
+  }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
 
   const narrowGenreList = yearFilterActive || losslessOnly || starredOnly || compFilterActive;
   const [genreCatalogOptions, setGenreCatalogOptions] = useState<GenreFilterOption[] | null>(null);
@@ -224,15 +230,15 @@ export default function Albums() {
   const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
   const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
 
-  // Compilations are client-only — paginate until matches appear or catalog ends.
+  // Without local index, compilation filter is client-only — paginate until matches or cap.
   const compScanExhausted = useMemo(
-    () => compFilterActive && !genreFiltered
+    () => compFilterClientOnly && !genreFiltered
       && albumBrowseCompScanComplete(albums, compFilter, hasMore),
-    [compFilterActive, genreFiltered, albums, compFilter, hasMore],
+    [compFilterClientOnly, genreFiltered, albums, compFilter, hasMore],
   );
 
   const pendingClientFilterMatch =
-    compFilterActive && visibleAlbums.length === 0 && hasMore && !genreFiltered && !compScanExhausted;
+    compFilterClientOnly && visibleAlbums.length === 0 && hasMore && !genreFiltered && !compScanExhausted;
 
   const visibleEmptyMessage = useMemo(() => {
     if (starredOnly) return t('albums.noFavorites');
@@ -345,7 +351,7 @@ export default function Albums() {
 
   const loadMore = useCallback(() => {
     if (loading || !hasMore || genreFiltered) return;
-    if (compFilterActive && visibleAlbums.length === 0
+    if (compFilterClientOnly && visibleAlbums.length === 0
       && albumBrowseCompScanComplete(albums, compFilter, hasMore)) {
       return;
     }
@@ -359,7 +365,7 @@ export default function Albums() {
     browseQuery,
     loadBrowse,
     genreFiltered,
-    compFilterActive,
+    compFilterClientOnly,
     visibleAlbums.length,
     albums,
     compFilter,
