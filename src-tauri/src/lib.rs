@@ -599,6 +599,7 @@ pub fn run() {
             backup_import_full,
             migration_inspect,
             migration_run,
+            resolve_host_addresses,
             psysonic_syncfs::sync::batch::calculate_sync_payload,
             exit_app,
             cli_publish_player_snapshot,

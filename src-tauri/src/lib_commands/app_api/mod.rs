@@ -3,6 +3,7 @@ mod cli_bridge;
 mod core;
 mod integration;
 mod migration;
+mod network;
 mod perf;
 pub(crate) mod platform;
 
@@ -33,6 +34,7 @@ pub(crate) use integration::{
     unregister_global_shortcut,
 };
 pub(crate) use migration::{migration_inspect, migration_run};
+pub(crate) use network::resolve_host_addresses;
 
 // Discord, Navidrome admin, last.fm + radio-browser + CORS proxy, bandsintown,
 // and analysis admin commands now live in their domain crates. invoke_handler!
