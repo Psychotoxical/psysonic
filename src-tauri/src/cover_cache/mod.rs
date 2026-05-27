@@ -70,8 +70,10 @@ fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
 
 /// Cap concurrent cover HTTP fetches for visible UI routes (library backfill uses its own pool).
 const COVER_HTTP_CONCURRENCY: usize = 16;
-/// Max concurrent CPU-heavy cover steps (JPEG decode + WebP encode) — all paths share this.
-const COVER_CPU_CONCURRENCY: usize = 2;
+/// UI-visible decode + WebP encode (grid, hero, player) — not shared with library backfill.
+const COVER_CPU_UI_CONCURRENCY: usize = 2;
+/// Library backfill encode ladder — separate pool so bulk warm-up cannot starve the webview.
+const COVER_CPU_BACKFILL_CONCURRENCY: usize = 2;
 
 pub struct CoverCacheState {
     pub root: PathBuf,
@@ -80,7 +82,8 @@ pub struct CoverCacheState {
     pub high_watermark_pct: u64,
     pub resume_watermark_pct: u64,
     pub http_sem: Arc<Semaphore>,
-    pub cover_cpu_sem: Arc<Semaphore>,
+    pub cover_cpu_ui_sem: Arc<Semaphore>,
+    pub cover_cpu_backfill_sem: Arc<Semaphore>,
 }
 
 impl CoverCacheState {
@@ -98,8 +101,17 @@ impl CoverCacheState {
             high_watermark_pct: 90,
             resume_watermark_pct: 85,
             http_sem: Arc::new(Semaphore::new(COVER_HTTP_CONCURRENCY)),
-            cover_cpu_sem: Arc::new(Semaphore::new(COVER_CPU_CONCURRENCY)),
+            cover_cpu_ui_sem: Arc::new(Semaphore::new(COVER_CPU_UI_CONCURRENCY)),
+            cover_cpu_backfill_sem: Arc::new(Semaphore::new(COVER_CPU_BACKFILL_CONCURRENCY)),
         })
+    }
+
+    fn cpu_sem_for(&self, library_bulk: bool) -> Arc<Semaphore> {
+        if library_bulk {
+            self.cover_cpu_backfill_sem.clone()
+        } else {
+            self.cover_cpu_ui_sem.clone()
+        }
     }
 
     fn pressure_from_bytes(&self, _bytes: u64) -> (String, bool) {
@@ -139,7 +151,7 @@ impl CoverCacheState {
         let client = this.client.clone();
         let root = this.root.clone();
         let http_sem = http_sem_override.unwrap_or_else(|| this.http_sem.clone());
-        let cover_cpu_sem = this.cover_cpu_sem.clone();
+        let cover_cpu_sem = this.cpu_sem_for(args.library_bulk);
         drop(this);
 
         if cover_fetch_recently_failed(&dir) {
@@ -358,7 +370,7 @@ fn spawn_derive_remaining_tiers(
             let guard = state.lock().await;
             (
                 cover_dir_for_args(&guard.root, &args),
-                guard.cover_cpu_sem.clone(),
+                guard.cpu_sem_for(args.library_bulk),
             )
         };
         let written = tauri::async_runtime::spawn_blocking(move || -> Vec<(u32, PathBuf)> {

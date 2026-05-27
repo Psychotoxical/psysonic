@@ -75,7 +75,9 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
   const mixMinRatingAlbum = useAuthStore(s => s.mixMinRatingAlbum);
   const mixMinRatingArtist = useAuthStore(s => s.mixMinRatingArtist);
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
+  const [albums, setAlbums] = useState<SubsonicAlbum[]>(() =>
+    albumsProp?.length ? albumsProp : [],
+  );
   const [activeIdx, setActiveIdx] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const windowHidden = useWindowVisibility();
@@ -126,6 +128,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     heroScrollRootRef.current =
       scrollRoot ?? (node.closest('.app-shell-route-scroll__viewport') as HTMLElement | null);
     updateHeroVisibility();
+    // Layout may settle after first paint (hero mounts after albums hydrate from props).
+    const layoutRaf = window.requestAnimationFrame(() => updateHeroVisibility());
     const root = heroScrollRootRef.current;
     const onScroll = () => {
       if (visibilityRafRef.current != null) return;
@@ -149,8 +153,9 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
         window.cancelAnimationFrame(visibilityRafRef.current);
         visibilityRafRef.current = null;
       }
+      window.cancelAnimationFrame(layoutRaf);
     };
-  }, [updateHeroVisibility]);
+  }, [updateHeroVisibility, albums.length]);
 
   useEffect(() => {
     const updateBlurState = () => {
@@ -260,7 +265,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     });
   }, [album?.id]);
 
-  const heroCoverRef = useAlbumCoverRef(album?.id, album?.coverArt, undefined, { libraryResolve: false });
+  const heroCoverRef = useAlbumCoverRef(album?.id, album?.coverArt);
   const bgHandle = useCoverArt(heroCoverRef, HERO_BG_CSS_PX, {
     surface: 'dense',
     ensurePriority: 'high',
@@ -269,7 +274,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   // Keep the last known good URL so HeroBg never receives '' during a cache-miss
   // transition (which would cause the background to flash empty before fading in).
   const stableBgUrl = useRef('');
-  if (bgHandle.src) stableBgUrl.current = bgHandle.src;
+  const albumId = album?.id;
+  useEffect(() => {
+    if (bgHandle.src) stableBgUrl.current = bgHandle.src;
+  }, [bgHandle.src, albumId]);
 
   if (!album) return <div className="hero-placeholder" />;
 
