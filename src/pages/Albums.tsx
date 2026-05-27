@@ -1,6 +1,5 @@
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
-import { getAlbumsByGenre } from '../api/subsonicGenres';
-import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
+import { getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { dedupeById } from '../utils/dedupeById';
@@ -35,17 +34,15 @@ import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useAlbumBrowseFilters } from '../hooks/useAlbumBrowseFilters';
+import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
 import {
-  runLocalAlbumBrowsePage,
-  runLocalAlbumsByGenres,
-  type AlbumBrowseSort,
-} from '../utils/library/browseTextSearch';
+  albumBrowseHasGenreFilter,
+  albumBrowseHasServerFilters,
+  fetchAlbumBrowsePage,
+  type AlbumBrowseQuery,
+} from '../utils/library/albumBrowseLoad';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
-import {
-  albumYearSubsonicParams,
-  resolveAlbumYearBounds,
-  type AlbumYearBounds,
-} from '../utils/library/albumYearFilter';
+import { resolveAlbumYearBounds } from '../utils/library/albumYearFilter';
 
 type SortType = AlbumBrowseSort;
 type CompFilter = 'all' | 'only' | 'hide';
@@ -54,11 +51,6 @@ const PAGE_SIZE = 30;
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
-}
-
-async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
-  const results = await Promise.all(genres.map(g => getAlbumsByGenre(g, 500, 0)));
-  return dedupeById(results.flat());
 }
 
 export default function Albums() {
@@ -195,11 +187,20 @@ export default function Albums() {
   };
 
   // ── Data loading ─────────────────────────────────────────────────────────
-  const genreFiltered = selectedGenres.length > 0;
   const { active: yearActive, bounds: yearBounds } = useMemo(
     () => resolveAlbumYearBounds(yearFrom, yearTo),
     [yearFrom, yearTo],
   );
+
+  const browseQuery = useMemo<AlbumBrowseQuery>(() => ({
+    sort,
+    genres: selectedGenres,
+    year: yearActive ? yearBounds : undefined,
+    losslessOnly,
+  }), [sort, selectedGenres, yearActive, yearBounds, losslessOnly]);
+
+  const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
+  const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
 
   const pendingClientFilterMatch =
     clientFilterActive && visibleAlbums.length === 0 && hasMore && !genreFiltered;
@@ -246,149 +247,39 @@ export default function Albums() {
     selectedGenres,
   ]);
 
-  const load = useCallback(async (
-    sortType: SortType,
+  const loadBrowse = useCallback(async (
+    query: AlbumBrowseQuery,
     offset: number,
     append = false,
-    yearFilter?: AlbumYearBounds,
-    lossless = false,
   ) => {
     setLoading(true);
     try {
-      if (lossless) {
-        if (!indexEnabled || !serverId) {
-          setAlbums([]);
-          setHasMore(false);
-          return;
-        }
-        if (!yearFilter) {
-          const data = await runLocalAlbumBrowsePage(
-            serverId,
-            sortType,
-            offset,
-            PAGE_SIZE,
-            undefined,
-            true,
-          );
-          if (data == null) {
-            setAlbums([]);
-            setHasMore(false);
-            return;
-          }
-          if (append) setAlbums(prev => dedupeById([...prev, ...data]));
-          else setAlbums(data);
-          setHasMore(data.length === PAGE_SIZE);
-          return;
-        }
-        const data = await runLocalAlbumBrowsePage(
-          serverId,
-          sortType,
-          offset,
-          PAGE_SIZE,
-          yearFilter,
-          true,
-        );
-        if (data == null) {
-          setAlbums([]);
-          setHasMore(false);
-          return;
-        }
-        if (append) setAlbums(prev => [...prev, ...data]);
-        else setAlbums(data);
-        setHasMore(data.length === PAGE_SIZE);
-        return;
-      }
-
-      let data: SubsonicAlbum[] | null = null;
-      if (indexEnabled && serverId) {
-        data = await runLocalAlbumBrowsePage(
-          serverId,
-          sortType,
-          offset,
-          PAGE_SIZE,
-          yearFilter,
-          false,
-        );
-      }
-      if (data == null) {
-        const extra = yearFilter ? albumYearSubsonicParams(yearFilter) : {};
-        const type = yearFilter ? 'byYear' : sortType;
-        data = await getAlbumList(type, PAGE_SIZE, offset, extra);
-      }
-      if (append) setAlbums(prev => [...prev, ...data]);
-      else setAlbums(data);
-      setHasMore(data.length === PAGE_SIZE);
+      const page = await fetchAlbumBrowsePage(
+        serverId,
+        indexEnabled,
+        query,
+        offset,
+        PAGE_SIZE,
+      );
+      if (append) setAlbums(prev => dedupeById([...prev, ...page.albums]));
+      else setAlbums(page.albums);
+      setHasMore(page.hasMore);
     } finally {
       setLoading(false);
     }
-  }, [musicLibraryFilterVersion, indexEnabled, serverId]);
-
-  const loadFiltered = useCallback(async (
-    genres: string[],
-    sortType: SortType,
-    lossless: boolean,
-  ) => {
-    setLoading(true);
-    try {
-      if (lossless) {
-        if (!indexEnabled || !serverId) {
-          setAlbums([]);
-          setHasMore(false);
-          return;
-        }
-        const data = await runLocalAlbumsByGenres(serverId, genres, sortType, undefined, true);
-        setAlbums(data ?? []);
-        setHasMore(false);
-        return;
-      }
-
-      let data: SubsonicAlbum[] | null = null;
-      if (indexEnabled && serverId) {
-        data = await runLocalAlbumsByGenres(serverId, genres, sortType);
-      }
-      if (data == null) {
-        data = await fetchByGenres(genres);
-        data = [...data].sort((a, b) =>
-          sortType === 'alphabeticalByArtist'
-            ? a.artist.localeCompare(b.artist)
-            : a.name.localeCompare(b.name),
-        );
-      }
-      setAlbums(data);
-      setHasMore(false);
-    } finally {
-      setLoading(false);
-    }
-  }, [musicLibraryFilterVersion, indexEnabled, serverId]);
+  }, [indexEnabled, serverId]);
 
   useEffect(() => {
     setPage(0);
-    if (genreFiltered) {
-      loadFiltered(selectedGenres, sort, losslessOnly);
-    } else if (yearActive) {
-      load(sort, 0, false, yearBounds, losslessOnly);
-    } else {
-      load(sort, 0, false, undefined, losslessOnly);
-    }
-  }, [sort, genreFiltered, selectedGenres, yearActive, yearBounds, losslessOnly, load, loadFiltered]);
+    loadBrowse(browseQuery, 0, false);
+  }, [browseQuery, loadBrowse, musicLibraryFilterVersion]);
 
   const loadMore = useCallback(() => {
     if (loading || !hasMore || genreFiltered) return;
     const next = page + 1;
     setPage(next);
-    const yf = yearActive ? yearBounds : undefined;
-    load(sort, next * PAGE_SIZE, true, yf, losslessOnly);
-  }, [
-    loading,
-    hasMore,
-    page,
-    sort,
-    load,
-    genreFiltered,
-    yearActive,
-    yearBounds,
-    losslessOnly,
-  ]);
+    loadBrowse(browseQuery, next * PAGE_SIZE, true);
+  }, [loading, hasMore, page, browseQuery, loadBrowse, genreFiltered]);
 
   useEffect(() => {
     if (!indexEnabled && losslessOnly) setLosslessOnly(false);
@@ -447,13 +338,11 @@ export default function Albums() {
                 </>
               ) : (
                 <>
-                  {!yearActive && (
-                    <SortDropdown
-                      value={sort}
-                      options={sortOptions}
-                      onChange={onSortChange}
-                    />
-                  )}
+                  <SortDropdown
+                    value={sort}
+                    options={sortOptions}
+                    onChange={onSortChange}
+                  />
 
                   <YearFilterButton
                     from={yearFrom}
@@ -533,7 +422,7 @@ export default function Albums() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <div className="spinner" />
           </div>
-        ) : !loading && albums.length === 0 && !genreFiltered && !yearActive && !clientFilterActive && !losslessOnly ? (
+        ) : !loading && albums.length === 0 && !serverFilterActive && !clientFilterActive ? (
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {t('common.libraryEmpty')}
           </div>

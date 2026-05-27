@@ -9,7 +9,7 @@ import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
   LIVE_SEARCH_DEBOUNCE_RACE_MS,
 } from './liveSearchLocal';
-import type { LibraryFilterClause, LibrarySortClause } from '../../api/library';
+import type { LibrarySortClause } from '../../api/library';
 import { dedupeById } from '../dedupeById';
 import {
   albumToAlbum,
@@ -20,7 +20,7 @@ import {
   trackToSong,
   type LocalSearchOpts,
 } from './advancedSearchLocal';
-import { albumYearFilterClauses, type AlbumYearBounds } from './albumYearFilter';
+import type { AlbumYearBounds } from './albumYearFilter';
 import {
   logLibrarySearch,
   timed,
@@ -330,24 +330,10 @@ export async function loadMoreLocalBrowseSongs(
   return loadMoreLocalSongs(serverId, songBrowseOpts(query), offset, pageSize);
 }
 
-export type AlbumBrowseSort = 'alphabeticalByName' | 'alphabeticalByArtist';
-
-export function sortSubsonicAlbums(albums: SubsonicAlbum[], sort: AlbumBrowseSort): SubsonicAlbum[] {
-  const out = [...albums];
-  out.sort((a, b) =>
-    sort === 'alphabeticalByArtist'
-      ? a.artist.localeCompare(b.artist) || a.name.localeCompare(b.name)
-      : a.name.localeCompare(b.name) || a.artist.localeCompare(b.artist),
-  );
-  return out;
-}
-
-function albumSortClauses(sort: AlbumBrowseSort): LibrarySortClause[] {
-  if (sort === 'alphabeticalByArtist') {
-    return [{ field: 'artist', dir: 'asc' }];
-  }
-  return [{ field: 'name', dir: 'asc' }];
-}
+export type { AlbumBrowseSort } from './albumBrowseSort';
+export { albumSortClauses, sortSubsonicAlbums } from './albumBrowseSort';
+import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
+import { runLocalAlbumBrowse, type AlbumBrowseQuery } from './albumBrowseLoad';
 
 /**
  * Random track sample from the local `track` table — SQLite `ORDER BY RANDOM() LIMIT N`.
@@ -456,32 +442,15 @@ export async function runLocalAlbumBrowsePage(
   yearFilter?: AlbumYearBounds,
   losslessOnly?: boolean,
 ): Promise<SubsonicAlbum[] | null> {
-  if (!serverId || !(await libraryIsReady(serverId))) return null;
-  const filters: LibraryFilterClause[] = [];
-  if (yearFilter) {
-    filters.push(...albumYearFilterClauses(yearFilter));
-  }
-  if (losslessOnly) {
-    filters.push({ field: 'lossless', op: 'is_true' });
-  }
-  try {
-    const resp = await libraryAdvancedSearch({
-      serverId,
-      libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      entityTypes: ['album'],
-      filters,
-      sort: yearFilter
-        ? [{ field: 'year', dir: 'desc' }, { field: 'name', dir: 'asc' }]
-        : albumSortClauses(sort),
-      limit: pageSize,
-      offset,
-      skipTotals: true,
-    });
-    if (resp.source !== 'local') return null;
-    return resp.albums.map(albumToAlbum);
-  } catch {
-    return null;
-  }
+  if (!serverId) return null;
+  const query: AlbumBrowseQuery = {
+    sort,
+    genres: [],
+    year: yearFilter,
+    losslessOnly: !!losslessOnly,
+  };
+  const page = await runLocalAlbumBrowse(serverId, query, offset, pageSize);
+  return page?.albums ?? null;
 }
 
 const GENRE_ALBUM_FETCH_LIMIT = 500;
@@ -494,34 +463,10 @@ export async function runLocalAlbumsByGenres(
   limitPerGenre = GENRE_ALBUM_FETCH_LIMIT,
   losslessOnly?: boolean,
 ): Promise<SubsonicAlbum[] | null> {
-  if (!serverId || !(await libraryIsReady(serverId)) || genres.length === 0) return null;
-  try {
-    const pages = await Promise.all(
-      genres.map(genre => {
-        const filters: LibraryFilterClause[] = [{ field: 'genre', op: 'eq', value: genre }];
-        if (losslessOnly) filters.push({ field: 'lossless', op: 'is_true' });
-        return libraryAdvancedSearch({
-          serverId,
-          libraryScope: libraryScopeForServer(serverId) ?? undefined,
-          entityTypes: ['album'],
-          filters,
-          sort: albumSortClauses(sort),
-          limit: limitPerGenre,
-          offset: 0,
-          skipTotals: true,
-        });
-      }),
-    );
-    if (pages.some(p => p.source !== 'local')) return null;
-    const merged = dedupeById(pages.flatMap(p => p.albums.map(albumToAlbum)));
-    return merged.sort((a, b) =>
-      sort === 'alphabeticalByArtist'
-        ? a.artist.localeCompare(b.artist) || a.name.localeCompare(b.name)
-        : a.name.localeCompare(b.name) || a.artist.localeCompare(b.artist),
-    );
-  } catch {
-    return null;
-  }
+  if (!serverId || genres.length === 0) return null;
+  const query: AlbumBrowseQuery = { sort, genres, losslessOnly: !!losslessOnly };
+  const page = await runLocalAlbumBrowse(serverId, query, 0, limitPerGenre);
+  return page?.albums ?? null;
 }
 
 /** Local artist table browse-all when the index is ready (optional fast path). */
