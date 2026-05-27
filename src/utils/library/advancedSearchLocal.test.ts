@@ -120,7 +120,7 @@ describe('runLocalAdvancedSearch', () => {
   it('resolveArtistPageSongCoverArtId prefers album coverArt over song coverArt', () => {
     expect(
       resolveArtistPageSongCoverArtId(
-        { coverArt: 'tr-1', albumId: 'al-octa', album: 'Octastorium' },
+        { id: 'tr-1', coverArt: 'tr-1', albumId: 'al-octa', album: 'Octastorium' },
         [{ id: 'al-octa', name: 'Octastorium', coverArt: 'cov-octa' }],
       ),
     ).toBe('cov-octa');
