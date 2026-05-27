@@ -45,6 +45,7 @@ import ArtistCard from '../components/nowPlaying/ArtistCard';
 import LosslessModeBanner from '../components/LosslessModeBanner';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
+import { rememberAlbumDistinctDiscCovers } from '../cover/ref';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 import { sortArtistAlbumsByYear } from '../utils/library/sortArtistAlbums';
@@ -212,6 +213,19 @@ export default function ArtistDetail() {
     setHeaderCoverFailed(false);
   }, [coverId, coverRevision, id]);
 
+  useEffect(() => {
+    const byAlbum = new Map<string, SubsonicSong[]>();
+    for (const song of topSongs) {
+      const albumId = song.albumId?.trim();
+      if (!albumId) continue;
+      if (!byAlbum.has(albumId)) byAlbum.set(albumId, []);
+      byAlbum.get(albumId)!.push(song);
+    }
+    for (const [albumId, songs] of byAlbum) {
+      rememberAlbumDistinctDiscCovers(albumId, songs);
+    }
+  }, [topSongs]);
+
   if (loading) {
     return (
       <div className="content-body" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -286,6 +300,7 @@ export default function ArtistDetail() {
         openedLink={openedLink}
         openLink={openLink}
         coverId={coverId}
+        coverRef={artistCoverRefResolved}
         coverRevision={coverRevision}
         headerCoverFailed={headerCoverFailed}
         setHeaderCoverFailed={setHeaderCoverFailed}
@@ -380,7 +395,11 @@ export default function ArtistDetail() {
                     wrapClassName="album-grid-wrap album-grid-wrap--artist"
                     warmGridCovers={albumGridWarmCovers()}
                     renderItem={a => (
-                      <AlbumCard album={a} linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined} />
+                      <AlbumCard
+                        album={a}
+                        linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+                        libraryResolve={false}
+                      />
                     )}
                   />
                 ) : groupedAlbums.map(([label, group]) => (
@@ -398,7 +417,11 @@ export default function ArtistDetail() {
                       wrapClassName="album-grid-wrap album-grid-wrap--artist"
                       warmGridCovers={albumGridWarmCovers()}
                       renderItem={a => (
-                      <AlbumCard album={a} linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined} />
+                      <AlbumCard
+                        album={a}
+                        linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+                        libraryResolve={false}
+                      />
                     )}
                     />
                   </div>
@@ -430,7 +453,7 @@ export default function ArtistDetail() {
                   wrapClassName="album-grid-wrap album-grid-wrap--artist"
                   wrapStyle={{ animation: 'fadeIn 0.3s ease' }}
                   warmGridCovers={albumGridWarmCovers()}
-                  renderItem={a => <AlbumCard album={a} />}
+                  renderItem={a => <AlbumCard album={a} libraryResolve={false} />}
                 />
               )}
             </Fragment>

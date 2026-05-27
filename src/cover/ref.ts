@@ -34,6 +34,38 @@ export function forgetAlbumDistinctDiscCovers(albumId: string): void {
   albumDistinctDiscCoversByAlbumId.delete(albumId.trim());
 }
 
+export type DistinctDiscCoversHint = Pick<
+  SubsonicSong,
+  'discNumber' | 'coverArt' | 'id' | 'albumId'
+>;
+
+/**
+ * Whether per-disc `mf-*` cache slots apply — from album tracklist memory or song hints
+ * when the album page has not been opened yet.
+ */
+export function resolveDistinctDiscCoversForAlbum(
+  albumId: string,
+  fetchCoverArtId?: string | null,
+  songHint?: DistinctDiscCoversHint,
+): boolean {
+  const album = albumId.trim();
+  if (!album) return false;
+
+  const known = albumDistinctDiscCoversByAlbumId.get(album);
+  if (known === true) return true;
+  if (known === false) return false;
+
+  if (songHint) {
+    const cover = songHint.coverArt?.trim();
+    if ((songHint.discNumber ?? 1) > 1 && Boolean(cover && cover !== album)) return true;
+  }
+
+  const fetch = fetchCoverArtId?.trim();
+  if (fetch && fetch !== album && fetch.startsWith('mf-')) return true;
+
+  return false;
+}
+
 function resolveAlbumCoverRefOptions(
   third?: CoverServerScope | AlbumCoverRefOptions,
 ): { serverScope: CoverServerScope; distinctDiscCovers: boolean } {
@@ -78,10 +110,14 @@ export function albumCoverRef(
 
 export function albumCoverRefForSong(
   song: Pick<SubsonicSong, 'albumId' | 'coverArt' | 'id' | 'discNumber'>,
-  distinctDiscCovers = false,
+  distinctDiscCovers?: boolean,
   serverScope: CoverServerScope = { kind: 'active' },
 ): CoverArtRef | undefined {
-  const entry = resolveTrackCoverEntry(song, distinctDiscCovers);
+  const albumId = song.albumId?.trim();
+  const distinct =
+    distinctDiscCovers
+    ?? (albumId ? resolveDistinctDiscCoversForAlbum(albumId, song.coverArt, song) : false);
+  const entry = resolveTrackCoverEntry(song, distinct);
   return entry ? coverEntryToRef(entry, serverScope) : undefined;
 }
 
@@ -91,11 +127,11 @@ export function albumCoverRefForPlayback(
 ): CoverArtRef | undefined {
   const albumId = track.albumId?.trim();
   if (!albumId) return undefined;
-  const known = albumDistinctDiscCoversByAlbumId.get(albumId);
-  const cover = track.coverArt?.trim();
-  const fallbackDisc =
-    (track.discNumber ?? 1) > 1 && Boolean(cover && cover !== albumId);
-  const distinctDiscCovers = known === true || (known === undefined && fallbackDisc);
+  const distinctDiscCovers = resolveDistinctDiscCoversForAlbum(
+    albumId,
+    track.coverArt,
+    { ...track, albumId } as DistinctDiscCoversHint,
+  );
   return albumCoverRefForSong(
     { ...track, albumId } as Pick<SubsonicSong, 'albumId' | 'coverArt' | 'id' | 'discNumber'>,
     distinctDiscCovers,

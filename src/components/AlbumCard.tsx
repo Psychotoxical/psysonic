@@ -39,6 +39,8 @@ interface AlbumCardProps {
   observeScrollRootId?: string;
   /** `high` for bounded grids (Random Albums, …) — skip defer-until-visible. */
   ensurePriority?: CoverPrefetchPriority;
+  /** Artist/detail grids: API `coverArt` is enough — skip per-card library_resolve IPC. */
+  libraryResolve?: boolean;
 }
 
 function AlbumCard({
@@ -54,6 +56,7 @@ function AlbumCard({
   observeScrollRootId,
   ensurePriority,
   linkQuery,
+  libraryResolve,
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -66,7 +69,7 @@ function AlbumCard({
     return meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
   });
   const psyDrag = useDragDrop();
-  const coverRef = useAlbumCoverRef(album.id, album.coverArt);
+  const coverRef = useAlbumCoverRef(album.id, album.coverArt, undefined, { libraryResolve });
   const dragCoverKey = useMemo(() => {
     if (!coverRef) return '';
     const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });

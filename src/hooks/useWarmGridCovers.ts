@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { GRID_COVER_PRIME_ALL_MAX } from '../cover/layoutSizes';
 import {
   collectAlbumCoverWarmItems,
@@ -10,7 +10,7 @@ import type { CoverSurfaceKind } from '../cover/types';
 const DEFAULT_LIMIT = 120;
 
 /**
- * Peek before paint; for small grids (≤48) queue ensures only for disk misses.
+ * Peek after mount (non-blocking); for small grids (≤48) queue ensures only for disk misses.
  */
 export function useWarmGridCovers(
   items: ReadonlyArray<{ coverArt?: string | null }>,
@@ -37,12 +37,12 @@ export function useWarmGridCovers(
 
   const primeAllMisses = items.length > 0 && items.length <= GRID_COVER_PRIME_ALL_MAX;
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!enabled || displayCssPx <= 0) return;
 
     let cancelled = false;
     void (async () => {
-      const batch = await collectAlbumCoverWarmItems(items, displayCssPx, surface, limit);
+      const batch = collectAlbumCoverWarmItems(items, displayCssPx, surface, limit);
       if (cancelled || batch.length === 0) return;
       await warmCoverDiskSrcBatch(batch);
       if (cancelled) return;

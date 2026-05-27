@@ -11,8 +11,8 @@ import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useAuthStore } from '../../store/authStore';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
-import { useArtistCoverRef } from '../../cover/useLibraryCoverRef';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
+import type { CoverArtRef } from '../../cover/types';
 import LastfmIcon from '../LastfmIcon';
 import StarRating from '../StarRating';
 
@@ -36,6 +36,7 @@ interface Props {
   openedLink: string | null;
   openLink: (url: string, key: string) => void;
   coverId: string;
+  coverRef: CoverArtRef | null;
   coverRevision: number;
   headerCoverFailed: boolean;
   setHeaderCoverFailed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -46,7 +47,7 @@ export default function ArtistDetailHero({
   toggleStar, handlePlayAll, handleShuffle, handleStartRadio, handleShareArtist,
   handleImageUpload, playAllLoading, radioLoading, uploading,
   openedLink, openLink,
-  coverId, coverRevision, headerCoverFailed, setHeaderCoverFailed,
+  coverId, coverRef, coverRevision, headerCoverFailed, setHeaderCoverFailed,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -58,7 +59,6 @@ export default function ArtistDetailHero({
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
 
-  const coverRef = useArtistCoverRef(artist.id, coverId);
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, { alt: artist.name });
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;

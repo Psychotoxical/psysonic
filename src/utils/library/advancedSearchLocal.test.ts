@@ -115,6 +115,15 @@ describe('runLocalAdvancedSearch', () => {
     expect(resolveTrackCoverArtId({ coverArtId: 'cv1', albumId: 'al-42' })).toBe('cv1');
   });
 
+  it('resolveTrackCoverArtId prefers raw_json mf art over stale index column', () => {
+    expect(
+      resolveTrackCoverArtId(
+        { coverArtId: 'mf-disc1', albumId: 'al-box' },
+        { coverArt: 'mf-disc2', albumId: 'al-box', discNumber: 2 },
+      ),
+    ).toBe('mf-disc2');
+  });
+
   it('trackToSong sets coverArt from albumId when the index row has no cover_art_id', () => {
     const song = trackToSong({
       serverId: 's1',

@@ -12,6 +12,7 @@ export interface Track {
   artists?: SubsonicOpenArtistRef[];
   duration: number;
   coverArt?: string;
+  discNumber?: number;
   track?: number;
   year?: number;
   bitRate?: number;

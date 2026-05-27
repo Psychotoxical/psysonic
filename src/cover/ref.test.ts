@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   albumCoverRef,
   albumCoverRefForPlayback,
+  albumCoverRefForSong,
   albumHasDistinctDiscCovers,
   rememberAlbumDistinctDiscCovers,
   resolveAlbumCoverCacheEntityId,
+  resolveDistinctDiscCoversForAlbum,
 } from './ref';
 
 describe('resolveAlbumCoverCacheEntityId', () => {
@@ -61,7 +63,43 @@ describe('albumCoverRef', () => {
   });
 });
 
+describe('resolveDistinctDiscCoversForAlbum', () => {
+  it('detects mf-* fetch id before album page visit', () => {
+    expect(resolveDistinctDiscCoversForAlbum('al-box', 'mf-d2')).toBe(true);
+    expect(resolveDistinctDiscCoversForAlbum('al-box', 'al-box')).toBe(false);
+  });
+
+  it('respects remembered false for same art on all discs', () => {
+    rememberAlbumDistinctDiscCovers('al-same', [
+      { id: 't1', albumId: 'al-same', coverArt: 'mf-x', discNumber: 1 },
+      { id: 't2', albumId: 'al-same', coverArt: 'mf-x', discNumber: 2 },
+    ]);
+    expect(resolveDistinctDiscCoversForAlbum('al-same', 'mf-x')).toBe(false);
+  });
+});
+
+describe('albumCoverRefForSong', () => {
+  it('keys per-disc without library resolve', () => {
+    const ref = albumCoverRefForSong({
+      id: 't2',
+      albumId: 'al-box',
+      coverArt: 'mf-d2',
+      discNumber: 2,
+    });
+    expect(ref?.cacheEntityId).toBe('mf-d2');
+  });
+});
+
 describe('albumCoverRefForPlayback', () => {
+  it('keys per-disc from mf coverArt before album page visit', () => {
+    const ref = albumCoverRefForPlayback(
+      { albumId: 'al-box', coverArt: 'mf-disc2', id: 't2', discNumber: 2 },
+      { kind: 'active' },
+    );
+    expect(ref?.cacheEntityId).toBe('mf-disc2');
+    expect(ref?.fetchCoverArtId).toBe('mf-disc2');
+  });
+
   it('uses remembered album flag', () => {
     rememberAlbumDistinctDiscCovers('al-1', [
       { id: 't1', albumId: 'al-1', coverArt: 'mf-a', discNumber: 1 },

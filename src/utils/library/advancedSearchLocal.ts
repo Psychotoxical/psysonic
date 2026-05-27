@@ -147,6 +147,12 @@ export function resolveTrackCoverArtId(
   hot: Pick<LibraryTrackDto, 'coverArtId' | 'albumId'>,
   song: Partial<SubsonicSong> = {},
 ): string | undefined {
+  const songArt = typeof song.coverArt === 'string' ? song.coverArt.trim() : '';
+  const hotArt = typeof hot.coverArtId === 'string' ? hot.coverArtId.trim() : '';
+  // `raw_json` per-disc `coverArt` wins over a stale index `cover_art_id` (often disc 1).
+  if (songArt && hotArt && songArt !== hotArt && songArt.startsWith('mf-')) {
+    return songArt;
+  }
   for (const c of [hot.coverArtId, song.coverArt, hot.albumId, song.albumId]) {
     const id = typeof c === 'string' ? c.trim() : '';
     if (id) return id;

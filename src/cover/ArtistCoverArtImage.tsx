@@ -6,15 +6,22 @@ export type ArtistCoverArtImageProps = Omit<CoverArtImageProps, 'coverRef'> & {
   artistId: string;
   coverArt?: string | null;
   serverScope?: CoverServerScope;
+  libraryResolve?: boolean;
 };
 
 export function ArtistCoverArtImage({
   artistId,
   coverArt,
   serverScope,
+  libraryResolve,
   ...rest
 }: ArtistCoverArtImageProps) {
-  const coverRef = useArtistCoverRef(artistId, coverArt, serverScope ?? COVER_SCOPE_ACTIVE);
+  const coverRef = useArtistCoverRef(
+    artistId,
+    coverArt,
+    serverScope ?? COVER_SCOPE_ACTIVE,
+    { libraryResolve },
+  );
   if (!coverRef) return null;
   return <CoverArtImage coverRef={coverRef} {...rest} />;
 }

@@ -11,6 +11,7 @@ export function songToTrack(song: SubsonicSong): Track {
     artists: song.artists && song.artists.length > 0 ? song.artists : undefined,
     duration: song.duration,
     coverArt: song.coverArt,
+    discNumber: song.discNumber,
     track: song.track,
     year: song.year,
     bitRate: song.bitRate,

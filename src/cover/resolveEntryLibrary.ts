@@ -12,8 +12,10 @@ import {
   resolveAlbumCoverEntry,
   resolveArtistCoverEntry,
   resolveTrackCoverEntry,
+  resolveSongFetchCoverArtId,
   type CoverEntry,
 } from './resolveEntry';
+import { resolveDistinctDiscCoversForAlbum } from './ref';
 import { coverIndexKeyFromScope } from './storageKeys';
 
 export type LibraryCoverEntryDto = {
@@ -42,6 +44,38 @@ export function libraryServerIdFromScope(scope: CoverServerScope): string {
   return active ? librarySqlServerId(active) : '_';
 }
 
+function libraryResolveCacheKey(
+  serverId: string,
+  entity: CoverLibraryEntity,
+  entityId: string,
+): string {
+  return `${librarySqlServerId(serverId)}\u0000${entity}\u0000${entityId.trim()}`;
+}
+
+const resolvedEntryCache = new Map<string, CoverEntry | null>();
+const inflightResolves = new Map<string, Promise<CoverEntry | null>>();
+
+const LIBRARY_RESOLVE_MAX_INFLIGHT = 4;
+let libraryResolveActive = 0;
+const libraryResolveWaiters: Array<() => void> = [];
+
+function runLibraryResolveLimited<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const start = () => {
+      libraryResolveActive += 1;
+      fn()
+        .then(resolve, reject)
+        .finally(() => {
+          libraryResolveActive -= 1;
+          const next = libraryResolveWaiters.shift();
+          if (next) next();
+        });
+    };
+    if (libraryResolveActive < LIBRARY_RESOLVE_MAX_INFLIGHT) start();
+    else libraryResolveWaiters.push(start);
+  });
+}
+
 export async function libraryResolveCoverEntry(
   serverId: string,
   entity: CoverLibraryEntity,
@@ -49,16 +83,33 @@ export async function libraryResolveCoverEntry(
 ): Promise<CoverEntry | null> {
   const id = entityId.trim();
   if (!id || !serverId.trim()) return null;
-  try {
-    const dto = await invoke<LibraryCoverEntryDto | null>('library_resolve_cover_entry', {
-      serverId: librarySqlServerId(serverId),
-      entity,
-      entityId: id,
-    });
-    return dto ? dtoToEntry(dto) : null;
-  } catch {
-    return null;
-  }
+
+  const key = libraryResolveCacheKey(serverId, entity, id);
+  if (resolvedEntryCache.has(key)) return resolvedEntryCache.get(key) ?? null;
+
+  const inflight = inflightResolves.get(key);
+  if (inflight) return inflight;
+
+  const promise = runLibraryResolveLimited(async () => {
+    try {
+      const dto = await invoke<LibraryCoverEntryDto | null>('library_resolve_cover_entry', {
+        serverId: librarySqlServerId(serverId),
+        entity,
+        entityId: id,
+      });
+      const entry = dto ? dtoToEntry(dto) : null;
+      resolvedEntryCache.set(key, entry);
+      return entry;
+    } catch {
+      resolvedEntryCache.set(key, null);
+      return null;
+    } finally {
+      inflightResolves.delete(key);
+    }
+  });
+
+  inflightResolves.set(key, promise);
+  return promise;
 }
 
 export async function resolveAlbumCoverRefFromLibrary(
@@ -83,16 +134,52 @@ export async function resolveArtistCoverRefFromLibrary(
   return coverEntryToRef(entry!, serverScope);
 }
 
+function pickTrackCoverEntry(
+  song: Parameters<typeof resolveTrackCoverEntry>[0],
+  fromLibrary: CoverEntry | null,
+  distinctDiscCovers: boolean,
+): CoverEntry | undefined {
+  const albumId = song.albumId?.trim();
+  const fromClient = resolveTrackCoverEntry(song, distinctDiscCovers);
+  if (!fromLibrary) return fromClient;
+  if (!fromClient) return fromLibrary;
+
+  const songArt = resolveSongFetchCoverArtId(song);
+  const libraryIsAlbumBucket =
+    Boolean(albumId)
+    && fromLibrary.cacheEntityId === albumId
+    && fromClient.cacheEntityId !== albumId;
+
+  if (
+    distinctDiscCovers
+    && libraryIsAlbumBucket
+    && songArt
+    && fromClient.fetchCoverArtId === songArt
+  ) {
+    return fromClient;
+  }
+
+  if (fromClient.cacheEntityId !== fromLibrary.cacheEntityId && distinctDiscCovers) {
+    return fromClient;
+  }
+
+  return fromLibrary;
+}
+
 export async function resolveTrackCoverRefFromLibrary(
   song: Parameters<typeof resolveTrackCoverEntry>[0],
   serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
-  distinctDiscCovers = false,
+  distinctDiscCovers?: boolean,
 ): Promise<CoverArtRef | undefined> {
+  const albumId = song.albumId?.trim();
+  const distinct =
+    distinctDiscCovers
+    ?? (albumId ? resolveDistinctDiscCoversForAlbum(albumId, song.coverArt, song) : false);
   const trackId = song.id?.trim();
   const fromLibrary = trackId
     ? await libraryResolveCoverEntry(libraryServerIdFromScope(serverScope), 'track', trackId)
     : null;
-  const entry = fromLibrary ?? resolveTrackCoverEntry(song, distinctDiscCovers);
+  const entry = pickTrackCoverEntry(song, fromLibrary, distinct);
   return entry ? coverEntryToRef(entry, serverScope) : undefined;
 }
 

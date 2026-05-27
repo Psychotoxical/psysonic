@@ -7,6 +7,7 @@ import {
   albumCoverRefForPlayback,
   albumCoverRefForSong,
   artistCoverRef,
+  resolveDistinctDiscCoversForAlbum,
   resolvePlaybackCoverScope,
 } from './ref';
 import {
@@ -35,23 +36,35 @@ function applySyncRef<T extends CoverArtRef | null | undefined>(
   });
 }
 
+export type LibraryCoverRefOptions = {
+  /** When false, use search/API `coverArt` only — no `library_resolve_cover_entry` IPC. */
+  libraryResolve?: boolean;
+};
+
 /** Album grid / card — sync fallback, then local library index when indexed. */
 export function useAlbumCoverRef(
   albumId: string | null | undefined,
   fallbackCoverArt?: string | null,
   serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
+  options?: LibraryCoverRefOptions,
 ): CoverArtRef | null {
+  const libraryResolve = options?.libraryResolve !== false;
   const scopeKey = coverScopeKey(serverScope);
+  const distinctDiscCovers = useMemo(
+    () => resolveDistinctDiscCoversForAlbum(albumId ?? '', fallbackCoverArt),
+    [albumId, fallbackCoverArt],
+  );
   const syncRef = useMemo(() => {
     const id = albumId?.trim();
     if (!id) return null;
-    return albumCoverRef(id, fallbackCoverArt, serverScope);
-  }, [albumId, fallbackCoverArt, scopeKey, serverScope]);
+    return albumCoverRef(id, fallbackCoverArt, { serverScope, distinctDiscCovers });
+  }, [albumId, fallbackCoverArt, scopeKey, serverScope, distinctDiscCovers]);
 
   const [ref, setRef] = useState<CoverArtRef | null>(syncRef);
 
   useEffect(() => {
     applySyncRef(setRef, syncRef);
+    if (!libraryResolve) return;
     const id = albumId?.trim();
     if (!id) return;
     let cancelled = false;
@@ -63,9 +76,9 @@ export function useAlbumCoverRef(
     return () => {
       cancelled = true;
     };
-  }, [albumId, fallbackCoverArt, scopeKey, syncRef]);
+  }, [albumId, fallbackCoverArt, scopeKey, syncRef, libraryResolve]);
 
-  return ref;
+  return libraryResolve ? ref : syncRef;
 }
 
 /** Artist grid — sync fallback, then library index. */
@@ -73,7 +86,9 @@ export function useArtistCoverRef(
   artistId: string | null | undefined,
   fallbackCoverArt?: string | null,
   serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
+  options?: LibraryCoverRefOptions,
 ): CoverArtRef | null {
+  const libraryResolve = options?.libraryResolve !== false;
   const scopeKey = coverScopeKey(serverScope);
   const syncRef = useMemo(() => {
     const id = artistId?.trim();
@@ -85,6 +100,7 @@ export function useArtistCoverRef(
 
   useEffect(() => {
     applySyncRef(setRef, syncRef);
+    if (!libraryResolve) return;
     const id = artistId?.trim();
     if (!id) return;
     let cancelled = false;
@@ -96,9 +112,9 @@ export function useArtistCoverRef(
     return () => {
       cancelled = true;
     };
-  }, [artistId, fallbackCoverArt, scopeKey, syncRef]);
+  }, [artistId, fallbackCoverArt, scopeKey, syncRef, libraryResolve]);
 
-  return ref;
+  return libraryResolve ? ref : syncRef;
 }
 
 /** Track row / song card — album-scoped; multi-CD from library when indexed. */
@@ -112,10 +128,25 @@ export function useTrackCoverRef(
   const coverArt = song?.coverArt;
   const discNumber = song?.discNumber;
 
+  const distinctDiscCovers = useMemo(
+    () => (albumId?.trim()
+      ? resolveDistinctDiscCoversForAlbum(albumId, coverArt, {
+        id: songId ?? '',
+        albumId,
+        coverArt,
+        discNumber,
+      })
+      : false),
+    [albumId, coverArt, discNumber, songId],
+  );
+
   const syncRef = useMemo(() => {
     if (!songId?.trim() || !albumId?.trim()) return undefined;
-    return albumCoverRefForSong({ id: songId, albumId, coverArt, discNumber });
-  }, [songId, albumId, coverArt, discNumber]);
+    return albumCoverRefForSong(
+      { id: songId, albumId, coverArt, discNumber },
+      distinctDiscCovers,
+    );
+  }, [songId, albumId, coverArt, discNumber, distinctDiscCovers]);
 
   const [ref, setRef] = useState<CoverArtRef | undefined>(syncRef);
 
@@ -128,10 +159,22 @@ export function useTrackCoverRef(
     void resolveTrackCoverRefFromLibrary(
       { ...song, id: trackId, albumId: al },
       serverScope,
+      distinctDiscCovers,
     ).then(next => {
       if (!cancelled) {
         setRef(prev => {
           if (!next) return undefined;
+          if (
+            prev
+            && prev.cacheKind === 'album'
+            && next.cacheKind === 'album'
+            && al
+            && next.cacheEntityId === al
+            && prev.cacheEntityId !== al
+            && prev.fetchCoverArtId !== next.fetchCoverArtId
+          ) {
+            return prev;
+          }
           if (prev && coverRefsEqual(prev, next)) return prev;
           return next;
         });
@@ -167,7 +210,7 @@ export function usePlaybackTrackCoverRef(
   const trackId = track?.id;
   const albumId = track?.albumId;
   const coverArt = track?.coverArt;
-  const discNumber = (track as { discNumber?: number } | null | undefined)?.discNumber;
+  const discNumber = track?.discNumber;
 
   const syncRef = useMemo(() => {
     if (!albumId?.trim() || !track) return undefined;
@@ -182,13 +225,30 @@ export function usePlaybackTrackCoverRef(
     const al = albumId?.trim();
     if (!tid || !al || !track) return;
     let cancelled = false;
+    const distinctDiscCovers = resolveDistinctDiscCoversForAlbum(al, track.coverArt, {
+      id: tid,
+      albumId: al,
+      coverArt: track.coverArt,
+      discNumber: track.discNumber,
+    });
     void resolveTrackCoverRefFromLibrary(
       { ...track, id: tid, albumId: al } as Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'>,
       scope,
+      distinctDiscCovers,
     ).then(next => {
       if (!cancelled) {
         setRef(prev => {
-          if (!next) return prev;
+          if (!next) return prev ?? next;
+          if (
+            prev
+            && prev.cacheKind === 'album'
+            && next.cacheKind === 'album'
+            && next.cacheEntityId === al
+            && prev.cacheEntityId !== al
+            && prev.fetchCoverArtId !== next.fetchCoverArtId
+          ) {
+            return prev;
+          }
           if (prev && coverRefsEqual(prev, next)) return prev;
           return next;
         });

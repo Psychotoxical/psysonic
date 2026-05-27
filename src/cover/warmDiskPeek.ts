@@ -45,20 +45,19 @@ export async function coverWarmItemFromLibrary(
   };
 }
 
-export async function collectAlbumCoverWarmItems(
+export function collectAlbumCoverWarmItems(
   albums: ReadonlyArray<{ id?: string; coverArt?: string | null }>,
   displayCssPx: number,
   surface: CoverSurfaceKind = 'dense',
   limit = 96,
-): Promise<CoverWarmItem[]> {
+): CoverWarmItem[] {
   const out: CoverWarmItem[] = [];
   for (const a of albums) {
     if (out.length >= limit) break;
     const entityId = a.id ?? a.coverArt;
     if (!entityId) continue;
-    out.push(
-      await coverWarmItemFromLibrary(entityId, a.coverArt ?? entityId, displayCssPx, surface),
-    );
+    // Grid warm/peek uses API coverArt ids — avoids N sequential library_resolve IPC.
+    out.push(coverWarmItem(entityId, a.coverArt ?? entityId, displayCssPx, surface));
   }
   return out;
 }
@@ -115,7 +114,7 @@ export async function ensureAlbumCoverMisses(
   for (const album of slice) {
     const entityId = album.id ?? album.coverArt;
     if (!entityId || !album.coverArt) continue;
-    const ref = await resolveAlbumCoverRefFromLibrary(entityId, album.coverArt);
+    const ref = albumCoverRef(entityId, album.coverArt);
     if (!getDiskSrcForGrid(ref, tier)) {
       needEnsure.push({ entityId, coverArt: album.coverArt, ref });
     }
@@ -148,7 +147,7 @@ export async function primeAlbumCoversForDisplay(
   if (opts?.disabled) return;
   const surface = opts?.surface ?? 'dense';
   const limit = opts?.limit ?? albums.length;
-  const items = await collectAlbumCoverWarmItems(albums, displayCssPx, surface, limit);
+  const items = collectAlbumCoverWarmItems(albums, displayCssPx, surface, limit);
   if (items.length === 0) return;
 
   await warmCoverDiskSrcBatch(items);
@@ -176,12 +175,12 @@ export async function warmHomeMainstageCovers(snapshot: {
   discoverSongs?: Array<{ albumId?: string; coverArt?: string | null }>;
 }): Promise<void> {
   const items = dedupeWarmItems([
-    ...(await collectAlbumCoverWarmItems(snapshot.heroAlbums, 220, 'dense', 12)),
-    ...(await collectAlbumCoverWarmItems(snapshot.recent, 300, 'dense', 24)),
-    ...(await collectAlbumCoverWarmItems(snapshot.random, 300, 'dense', 24)),
-    ...(await collectAlbumCoverWarmItems(snapshot.mostPlayed, 300, 'dense', 20)),
-    ...(await collectAlbumCoverWarmItems(snapshot.recentlyPlayed, 300, 'dense', 20)),
-    ...(await collectAlbumCoverWarmItems(snapshot.starred, 300, 'dense', 20)),
+    ...collectAlbumCoverWarmItems(snapshot.heroAlbums, 220, 'dense', 12),
+    ...collectAlbumCoverWarmItems(snapshot.recent, 300, 'dense', 24),
+    ...collectAlbumCoverWarmItems(snapshot.random, 300, 'dense', 24),
+    ...collectAlbumCoverWarmItems(snapshot.mostPlayed, 300, 'dense', 20),
+    ...collectAlbumCoverWarmItems(snapshot.recentlyPlayed, 300, 'dense', 20),
+    ...collectAlbumCoverWarmItems(snapshot.starred, 300, 'dense', 20),
     ...(await collectSongCoverWarmItems(snapshot.discoverSongs ?? [], 200, 'dense', 20)),
   ]);
   await warmCoverDiskSrcBatch(items);
@@ -220,7 +219,7 @@ async function predecodeWarmAlbums(
     if (!album.coverArt || urls.length >= limit) continue;
     const entityId = album.id ?? album.coverArt;
     if (!entityId) continue;
-    const ref = await resolveAlbumCoverRefFromLibrary(entityId, album.coverArt);
+    const ref = albumCoverRef(entityId, album.coverArt);
     const src = getDiskSrcForGrid(ref, tier);
     if (!src) continue;
     urls.push(src);

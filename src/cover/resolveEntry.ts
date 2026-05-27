@@ -103,14 +103,26 @@ export function coverEntryToRef(
 export const resolveSubsonicSongCoverArtId = resolveSongFetchCoverArtId;
 
 export function resolveArtistPageSongFetchCoverArtId(
-  song: Pick<SubsonicSong, 'id' | 'coverArt' | 'albumId' | 'album'>,
+  song: Pick<SubsonicSong, 'id' | 'coverArt' | 'albumId' | 'album' | 'discNumber'>,
   albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'name' | 'coverArt'>>,
 ): string | undefined {
+  const songArt = resolveSongFetchCoverArtId(song);
   const album = song.albumId
     ? albums.find(a => a.id === song.albumId)
     : albums.find(a => a.name === song.album);
   const albumCover = album?.coverArt?.trim();
   const songId = song.id?.trim();
+
+  const songRowArt = song.coverArt?.trim();
+  const perDiscArt =
+    Boolean(songArt && albumCover && songArt !== albumCover)
+    && Boolean(
+      (songRowArt && songRowArt !== songId)
+      || (songArt?.startsWith('mf-') ?? false),
+    );
+
+  if (perDiscArt && songArt) return songArt;
+
   if (albumCover && (!songId || albumCover !== songId)) return albumCover;
-  return resolveSongFetchCoverArtId(song);
+  return songArt;
 }

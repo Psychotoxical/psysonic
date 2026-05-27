@@ -85,4 +85,19 @@ describe('resolveArtistPageSongCoverArtId', () => {
       ),
     ).toBe('mf-x_1');
   });
+
+  it('uses per-disc coverArt when it differs from the album row', () => {
+    expect(
+      resolveArtistPageSongCoverArtId(
+        {
+          id: 'tr-2',
+          coverArt: 'mf-disc2',
+          albumId: 'al-box',
+          album: 'Box Set',
+          discNumber: 2,
+        },
+        [{ id: 'al-box', name: 'Box Set', coverArt: 'mf-disc1' }],
+      ),
+    ).toBe('mf-disc2');
+  });
 });
