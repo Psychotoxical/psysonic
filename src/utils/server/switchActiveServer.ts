@@ -1,5 +1,5 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
-import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../../api/subsonic';
+import { scheduleInstantMixProbeForServer } from '../../api/subsonic';
 import {
   coverTrafficBeginServerSwitch,
   coverTrafficEndServerSwitch,
@@ -7,12 +7,17 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useOrbitStore } from '../../store/orbitStore';
 import { endOrbitSession, leaveOrbitSession } from '../orbit';
+import { ensureConnectUrlResolved } from './serverEndpoint';
 
 export async function switchActiveServer(server: ServerProfile): Promise<boolean> {
   coverTrafficBeginServerSwitch();
   try {
-    const ping = await pingWithCredentials(server.url, server.username, server.password);
-    if (!ping.ok) return false;
+    // Resolve the reachable endpoint (LAN-first, sticky cached); this also
+    // populates the connect cache so the sync `getBaseUrl()` lookup serves the
+    // probed URL on the very next read. Single-address profiles fall through
+    // to one ping, identical to the legacy behaviour.
+    const probe = await ensureConnectUrlResolved(server);
+    if (!probe.ok) return false;
 
     // Tear down any active Orbit session before we actually switch. The
     // session's playlists live on the *old* server — once we flip the
@@ -32,13 +37,13 @@ export async function switchActiveServer(server: ServerProfile): Promise<boolean
     }
 
     const identity = {
-      type: ping.type,
-      serverVersion: ping.serverVersion,
-      openSubsonic: ping.openSubsonic,
+      type: probe.ping.type,
+      serverVersion: probe.ping.serverVersion,
+      openSubsonic: probe.ping.openSubsonic,
     };
     const auth = useAuthStore.getState();
     auth.setSubsonicServerIdentity(server.id, identity);
-    scheduleInstantMixProbeForServer(server.id, server.url, server.username, server.password, identity);
+    scheduleInstantMixProbeForServer(server.id, probe.baseUrl, server.username, server.password, identity);
     auth.setActiveServer(server.id);
     auth.setLoggedIn(true);
     return true;
