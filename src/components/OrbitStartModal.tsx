@@ -13,7 +13,7 @@ import {
 import { randomOrbitSessionName } from '../utils/orbitNames';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { isLanUrl } from '../hooks/useConnectionStatus';
+import { isLanUrl } from '../utils/server/serverEndpoint';
 import { ORBIT_DEFAULT_MAX_USERS } from '../api/orbit';
 
 interface Props { onClose: () => void; }

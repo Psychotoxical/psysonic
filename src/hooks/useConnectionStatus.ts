@@ -2,25 +2,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
 import { serverListDisplayLabel } from '../utils/server/serverDisplayName';
+import { isLanUrl } from '../utils/server/serverEndpoint';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
-export type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
+// Backward-compatible re-export for call sites that still import from the hook.
+export { isLanUrl };
 
-export function isLanUrl(url: string): boolean {
-  try {
-    const hostname = new URL(url.startsWith('http') ? url : `http://${url}`).hostname;
-    return (
-      hostname === 'localhost' ||
-      hostname.endsWith('.local') ||
-      /^127\./.test(hostname) ||
-      /^10\./.test(hostname) ||
-      /^192\.168\./.test(hostname) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
-    );
-  } catch {
-    return false;
-  }
-}
+export type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
 
 export function useConnectionStatus() {
   const perfFlags = usePerfProbeFlags();
