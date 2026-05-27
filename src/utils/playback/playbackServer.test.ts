@@ -30,7 +30,7 @@ describe('playbackServer', () => {
       isLoggedIn: true,
     });
     usePlayerStore.setState({
-      queue: [{ id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al1', duration: 100 }],
+      queueItems: [{ serverId: 'a', trackId: 't1' }],
       queueServerId: 'a',
       queueIndex: 0,
     });
@@ -43,21 +43,22 @@ describe('playbackServer', () => {
 
   it('getPlaybackServerId falls back to active when queue is empty', () => {
     clearQueueServerForPlayback();
-    usePlayerStore.setState({ queue: [] });
+    usePlayerStore.setState({ queueItems: [] });
     useAuthStore.setState({ activeServerId: 'b' });
     expect(getPlaybackServerId()).toBe('b');
   });
 
-  it('bindQueueServerForPlayback pins active server', () => {
+  it('bindQueueServerForPlayback pins active server as canonical index key', () => {
     useAuthStore.setState({ activeServerId: 'b' });
     bindQueueServerForPlayback();
-    expect(usePlayerStore.getState().queueServerId).toBe('b');
+    // B1: writers emit the canonical (URL-derived) server key, not the UUID.
+    expect(usePlayerStore.getState().queueServerId).toBe('b.test');
   });
 
   it('playbackServerDiffersFromActive when queue server != active', () => {
     useAuthStore.setState({ activeServerId: 'b' });
     expect(playbackServerDiffersFromActive()).toBe(true);
-    usePlayerStore.setState({ queue: [] });
+    usePlayerStore.setState({ queueItems: [] });
     expect(playbackServerDiffersFromActive()).toBe(false);
   });
 
@@ -66,16 +67,20 @@ describe('playbackServer', () => {
     useAuthStore.setState({ activeServerId: 'b' });
     prepareActiveServerForNewMix();
     const s = usePlayerStore.getState();
-    expect(s.queue).toEqual([]);
+    expect(s.queueItems).toEqual([]);
     expect(s.currentTrack).toBeNull();
-    expect(s.queueServerId).toBe('b');
+    // Canonical index key on re-pin (B1).
+    expect(s.queueServerId).toBe('b.test');
     expect(playbackServerDiffersFromActive()).toBe(false);
   });
 
   it('prepareActiveServerForNewMix is a no-op when queue already matches active', () => {
     useAuthStore.setState({ activeServerId: 'a' });
     prepareActiveServerForNewMix();
-    expect(usePlayerStore.getState().queue).toHaveLength(1);
+    expect(usePlayerStore.getState().queueItems).toHaveLength(1);
+    // Pre-existing queueServerId='a' (UUID) is tolerated by the reader helpers
+    // even while writers emit canonical index keys — this is the migration
+    // window the resolver compat path covers (B1).
     expect(usePlayerStore.getState().queueServerId).toBe('a');
   });
 
@@ -108,12 +113,14 @@ describe('playbackServer', () => {
   });
 
   it('shouldBindQueueServerForPlay detects queue replacement', () => {
-    const prev = [{ id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al1', duration: 100 }];
+    // Thin-state: prevQueue is the canonical refs; newQueue / explicit arg are Tracks.
+    const prevRefs = [{ serverId: 'a', trackId: 't1' }];
+    const sameTrack = [{ id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al1', duration: 100 }];
     const next = [
       { id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al1', duration: 100 },
       { id: 't2', title: 'T2', artist: 'A', album: 'Al', albumId: 'al1', duration: 100 },
     ];
-    expect(shouldBindQueueServerForPlay(prev, next, next)).toBe(true);
-    expect(shouldBindQueueServerForPlay(prev, prev, undefined)).toBe(false);
+    expect(shouldBindQueueServerForPlay(prevRefs, next, next)).toBe(true);
+    expect(shouldBindQueueServerForPlay(prevRefs, sameTrack, undefined)).toBe(false);
   });
 });

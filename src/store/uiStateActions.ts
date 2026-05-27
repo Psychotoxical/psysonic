@@ -37,9 +37,10 @@ export function createUiStateActions(set: SetState): Pick<
         const nextOverrides = { ...s.userRatingOverrides };
         if (rating === 0) delete nextOverrides[id];
         else nextOverrides[id] = rating;
+        // Thin-state: the queue's copy lives in the resolver cache; the override
+        // map (merged on read via applyQueueOverrides) drives the queue-row UI.
         return {
           userRatingOverrides: nextOverrides,
-          queue: s.queue.map(t => (t.id === id ? { ...t, userRating: rating } : t)),
           currentTrack:
             s.currentTrack?.id === id ? { ...s.currentTrack, userRating: rating } : s.currentTrack,
         };

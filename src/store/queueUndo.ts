@@ -1,10 +1,14 @@
-import type { PlayerState, Track } from './playerStoreTypes';
+import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 /** Hard cap on undo/redo depth — keeps memory bounded for very long sessions. */
 export const QUEUE_UNDO_MAX = 32;
 
 export type QueueUndoSnapshot = {
-  queue: Track[];
+  /** Thin queue refs (thin-state phase 4) — not hydrated `Track[]`, so 32
+   *  snapshots of a 50k queue cost refs, not 32×50k full tracks. Rebuilt to a
+   *  display `Track[]` through the resolver on restore. */
+  queueItems: QueueItemRef[];
   queueIndex: number;
+  /** Kept full — one resolved playing track, restored to the engine on undo. */
   currentTrack: Track | null;
   /** Seconds — captured with the snapshot (older entries may omit). */
   currentTime?: number;
@@ -12,6 +16,12 @@ export type QueueUndoSnapshot = {
   isPlaying?: boolean;
   /** Main queue panel list `scrollTop` when the snapshot was taken. */
   queueListScrollTop?: number;
+  /** Canonical playback-server identity at snapshot time. Restore uses this
+   *  for any ref it has to prepend (e.g. a still-playing track absent from the
+   *  snapshot's queue) so a mid-restore server switch can't bind the prepended
+   *  ref to the wrong server (B1/H3). Older in-memory entries may omit it;
+   *  callers fall back to the live `queueServerId` in that case. */
+  queueServerId?: string | null;
 };
 
 const queueUndoStack: QueueUndoSnapshot[] = [];
@@ -50,12 +60,15 @@ export function consumePendingQueueListScrollTop(): number | undefined {
 export function queueUndoSnapshotFromState(s: PlayerState): QueueUndoSnapshot {
   const scrollTop = readQueueListScrollTopForUndo();
   return {
-    queue: s.queue.map(t => ({ ...t })),
+    // Thin refs straight off the canonical list — 32 snapshots cost refs, not
+    // 32×50k full tracks (the undo "hidden multiplier" the thin-state plan kills).
+    queueItems: [...s.queueItems],
     queueIndex: s.queueIndex,
     currentTrack: s.currentTrack ? { ...s.currentTrack } : null,
     currentTime: s.currentTime,
     progress: s.progress,
     isPlaying: s.isPlaying,
+    queueServerId: s.queueServerId,
     ...(scrollTop !== undefined ? { queueListScrollTop: scrollTop } : {}),
   };
 }

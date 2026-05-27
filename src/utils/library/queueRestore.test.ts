@@ -4,6 +4,10 @@ import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { usePlayerStore } from '@/store/playerStore';
 import type { TrackRefDto } from '@/api/library';
 import type { Track } from '@/store/playerStoreTypes';
+import {
+  getCachedTrack,
+  _resetQueueResolverForTest,
+} from './queueTrackResolver';
 import { hydrateQueueFromIndex } from './queueRestore';
 
 const ready = () =>
@@ -34,72 +38,39 @@ const track = (id: string): Track => ({ id, title: id, artist: '', album: 'A', a
 
 function seedStore(over: Partial<ReturnType<typeof usePlayerStore.getState>> = {}) {
   usePlayerStore.setState({
-    queue: [track('w1')],
     queueServerId: 's1',
     queueIndex: 0,
     currentTrack: null,
+    queueItems: [],
+    queueItemsIndex: undefined,
     queueRefs: undefined,
     queueRefsIndex: undefined,
     ...over,
   });
 }
 
+/**
+ * Thin-state `hydrateQueueFromIndex`: the store is refs-canonical, so cold
+ * restore eagerly resolves the whole `queueItems` ref list into the resolver
+ * cache (index batch → getSong fallback) and clears the restore-pending
+ * sentinel. It no longer swaps a fat `Track[]` into the store — `queueItems`
+ * stays the source of truth.
+ */
 describe('hydrateQueueFromIndex', () => {
   beforeEach(() => {
     useLibraryIndexStore.setState({ masterEnabled: true });
+    _resetQueueResolverForTest();
     seedStore();
   });
 
-  it('does nothing without persisted refs', async () => {
-    seedStore({ queueRefs: undefined });
+  it('does nothing without a restore-pending sentinel', async () => {
+    seedStore({ queueItems: [{ serverId: 's1', trackId: 'w1' }], queueItemsIndex: undefined });
     await hydrateQueueFromIndex();
-    expect(usePlayerStore.getState().queue.map(t => t.id)).toEqual(['w1']);
+    // No resolve dispatched (no sentinel) → nothing cached.
+    expect(getCachedTrack({ serverId: 's1', trackId: 'w1' })).toBeUndefined();
   });
 
-  it('keeps the windowed fallback when the index is not ready', async () => {
-    onInvoke('library_get_status', () => ({ serverId: 's1', libraryScope: '', syncPhase: 'initial_sync' }));
-    seedStore({ queueRefs: ['t1', 't2', 't3'], queueRefsIndex: 1 });
-    await hydrateQueueFromIndex();
-    expect(usePlayerStore.getState().queue.map(t => t.id)).toEqual(['w1']);
-    expect(usePlayerStore.getState().queueRefs).toEqual(['t1', 't2', 't3']); // not cleared
-  });
-
-  it('restores the full queue and re-locates the current track when ready', async () => {
-    ready();
-    echoBatch();
-    seedStore({
-      queueRefs: ['t1', 't2', 't3'],
-      queueRefsIndex: 1,
-      currentTrack: track('t2'),
-    });
-    await hydrateQueueFromIndex();
-    const s = usePlayerStore.getState();
-    expect(s.queue.map(t => t.id)).toEqual(['t1', 't2', 't3']);
-    expect(s.queueIndex).toBe(1); // re-located to current track t2
-    expect(s.queueRefs).toBeUndefined(); // cleared after success
-  });
-
-  it('batches refs in chunks of 100', async () => {
-    ready();
-    echoBatch();
-    const refs = Array.from({ length: 150 }, (_, i) => `t${i}`);
-    seedStore({ queueRefs: refs, queueRefsIndex: 0 });
-    await hydrateQueueFromIndex();
-    expect(usePlayerStore.getState().queue).toHaveLength(150);
-  });
-
-  it('keeps the fallback when the current track is not in the hydrated list', async () => {
-    ready();
-    echoBatch();
-    seedStore({
-      queueRefs: ['t1', 't2'],
-      currentTrack: track('gone'),
-    });
-    await hydrateQueueFromIndex();
-    expect(usePlayerStore.getState().queue.map(t => t.id)).toEqual(['w1']); // unchanged
-  });
-
-  it('hydrates from queueItems (preferred) and clears the ref lists', async () => {
+  it('resolves the whole queueItems ref list into the resolver cache and clears the sentinel', async () => {
     ready();
     echoBatch();
     seedStore({
@@ -113,17 +84,31 @@ describe('hydrateQueueFromIndex', () => {
     });
     await hydrateQueueFromIndex();
     const s = usePlayerStore.getState();
-    expect(s.queue.map(t => t.id)).toEqual(['t1', 't2', 't3']);
-    expect(s.queueIndex).toBe(1); // re-located to current track t2
-    expect(s.queueItems).toBeUndefined();
-    expect(s.queueRefs).toBeUndefined();
+    // queueItems stays canonical (no fat-array swap).
+    expect(s.queueItems.map(r => r.trackId)).toEqual(['t1', 't2', 't3']);
+    // Restore-pending sentinel cleared so it runs at most once.
+    expect(s.queueItemsIndex).toBeUndefined();
+    // Every ref was resolved into the cache.
+    expect(getCachedTrack({ serverId: 's1', trackId: 't1' })?.id).toBe('t1');
+    expect(getCachedTrack({ serverId: 's1', trackId: 't3' })?.id).toBe('t3');
   });
 
-  it('upgrades a legacy queueRefs-only store (no queueItems) via queueServerId', async () => {
+  it('batches refs in chunks of 100', async () => {
+    ready();
+    echoBatch();
+    const items = Array.from({ length: 150 }, (_, i) => ({ serverId: 's1', trackId: `t${i}` }));
+    seedStore({ queueItems: items, queueItemsIndex: 0 });
+    await hydrateQueueFromIndex();
+    // All 150 resolved into the cache (the resolver chunks ≤100/call internally).
+    expect(getCachedTrack({ serverId: 's1', trackId: 't0' })?.id).toBe('t0');
+    expect(getCachedTrack({ serverId: 's1', trackId: 't149' })?.id).toBe('t149');
+  });
+
+  it('upgrades a legacy queueRefs-only blob via queueServerId, then clears it', async () => {
     ready();
     echoBatch();
     seedStore({
-      queueItems: undefined, // pre-Phase-1 persist shape
+      queueItems: [], // pre-thin-state in-memory shape
       queueRefs: ['t1', 't2', 't3'],
       queueRefsIndex: 1,
       queueServerId: 's1',
@@ -131,28 +116,23 @@ describe('hydrateQueueFromIndex', () => {
     });
     await hydrateQueueFromIndex();
     const s = usePlayerStore.getState();
-    expect(s.queue.map(t => t.id)).toEqual(['t1', 't2', 't3']);
-    expect(s.queueIndex).toBe(1);
-    expect(s.queueRefs).toBeUndefined(); // both ref lists cleared after success
-    expect(s.queueItems).toBeUndefined();
+    // Legacy refs resolved into the cache and the legacy fields cleared.
+    expect(getCachedTrack({ serverId: 's1', trackId: 't1' })?.id).toBe('t1');
+    expect(getCachedTrack({ serverId: 's1', trackId: 't3' })?.id).toBe('t3');
+    expect(s.queueItemsIndex).toBeUndefined();
+    expect(s.queueRefs).toBeUndefined();
   });
 
-  it('carries queue-only flags from queueItems onto hydrated tracks', async () => {
-    ready();
-    echoBatch();
+  it('clears the sentinel even when the index is not ready (best-effort getSong fallback runs)', async () => {
+    onInvoke('library_get_status', () => ({ serverId: 's1', libraryScope: '', syncPhase: 'initial_sync' }));
+    onInvoke('library_get_tracks_batch', () => []);
     seedStore({
-      queueItems: [
-        { serverId: 's1', trackId: 't1' },
-        { serverId: 's1', trackId: 't2', radioAdded: true },
-        { serverId: 's1', trackId: 't3', autoAdded: true, playNextAdded: true },
-      ],
+      queueItems: [{ serverId: 's1', trackId: 't1' }],
       queueItemsIndex: 0,
     });
     await hydrateQueueFromIndex();
-    const q = usePlayerStore.getState().queue;
-    expect(q.find(t => t.id === 't1')?.radioAdded).toBeUndefined();
-    expect(q.find(t => t.id === 't2')?.radioAdded).toBe(true);
-    expect(q.find(t => t.id === 't3')?.autoAdded).toBe(true);
-    expect(q.find(t => t.id === 't3')?.playNextAdded).toBe(true);
+    // Sentinel cleared up front so the eager resolve runs at most once; refs stay.
+    expect(usePlayerStore.getState().queueItemsIndex).toBeUndefined();
+    expect(usePlayerStore.getState().queueItems.map(r => r.trackId)).toEqual(['t1']);
   });
 });

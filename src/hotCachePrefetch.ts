@@ -1,6 +1,7 @@
 import { buildStreamUrlForServer } from './api/subsonicStreamUrl';
 import { getPlaybackCacheServerKey } from './utils/playback/playbackServer';
-import type { Track } from './store/playerStoreTypes';
+import type { QueueItemRef } from './store/playerStoreTypes';
+import { resolveQueueTrack } from './utils/library/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from './store/authStore';
 import { useHotCacheStore } from './store/hotCacheStore';
@@ -113,12 +114,9 @@ async function runWorker() {
       }
 
       const player = usePlayerStore.getState();
-      const { queue, queueIndex } = player;
-      const wantIds = new Set(
-        queue
-          .slice(queueIndex + 1, queueIndex + 1 + PREFETCH_AHEAD)
-          .map(t => t.id),
-      );
+      const { queueItems, queueIndex } = player;
+      const upcomingRefs = queueItems.slice(queueIndex + 1, queueIndex + 1 + PREFETCH_AHEAD);
+      const wantIds = new Set(upcomingRefs.map(r => r.trackId));
       if (!wantIds.has(job.trackId)) {
         hotCacheFrontendDebug({
           event: 'prefetch-skip-job',
@@ -130,8 +128,11 @@ async function runWorker() {
         continue;
       }
 
-      const track = queue.find(t => t.id === job.trackId);
-      if (!track) {
+      // Thin-state: the upcoming window sits inside the resolver-warm range, so
+      // resolveQueueTrack returns the full Track (placeholder only on a cold
+      // miss, where the size estimate falls back to the bitrate heuristic).
+      const jobRef = upcomingRefs.find(r => r.trackId === job.trackId);
+      if (!jobRef) {
         hotCacheFrontendDebug({
           event: 'prefetch-skip-job',
           trackId: job.trackId,
@@ -139,10 +140,11 @@ async function runWorker() {
         });
         continue;
       }
+      const track = resolveQueueTrack(jobRef);
       const hotEntries = useHotCacheStore.getState().entries;
-      const occupied = sumCachedBytesInProtectedWindow(queue, queueIndex, job.serverId, hotEntries);
+      const occupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, job.serverId, hotEntries);
       const est = estimateTrackHotCacheBytes(track);
-      const isImmediateNext = queue[queueIndex + 1]?.id === job.trackId;
+      const isImmediateNext = queueItems[queueIndex + 1]?.trackId === job.trackId;
       if (!isImmediateNext && occupied + est > maxBytes) {
         hotCacheFrontendDebug({
           event: 'prefetch-skip-job',
@@ -172,7 +174,7 @@ async function runWorker() {
         const authAfter = useAuthStore.getState();
         const maxAfter = Math.max(0, authAfter.hotCacheMaxMb) * 1024 * 1024;
         await useHotCacheStore.getState().evictToFit(
-          fresh.queue,
+          fresh.queueItems,
           fresh.queueIndex,
           maxAfter,
           getPlaybackCacheServerKey(),
@@ -217,7 +219,7 @@ async function replanNow() {
   const customDir = auth.hotCacheDownloadDir || null;
   if (maxBytes <= 0) return;
 
-  const { queue, queueIndex, currentRadio } = usePlayerStore.getState();
+  const { queueItems, queueIndex, currentRadio } = usePlayerStore.getState();
   if (currentRadio) {
     hotCacheFrontendDebug({ event: 'replan-skip', reason: 'radio-mode' });
     return;
@@ -225,15 +227,18 @@ async function replanNow() {
 
   const offline = useOfflineStore.getState();
 
-  await useHotCacheStore.getState().evictToFit(queue, queueIndex, maxBytes, serverId, customDir);
+  await useHotCacheStore.getState().evictToFit(queueItems, queueIndex, maxBytes, serverId, customDir);
 
   // Must read entries after eviction: the pre-evict snapshot still lists removed keys and would
   // skip prefetch for upcoming tracks that no longer have on-disk rows.
   const hotEntries = useHotCacheStore.getState().entries;
 
-  const targets = queue.slice(queueIndex + 1, queueIndex + 1 + PREFETCH_AHEAD);
-  const immediateNextId = queue[queueIndex + 1]?.id;
-  let projectedOccupied = sumCachedBytesInProtectedWindow(queue, queueIndex, serverId, hotEntries);
+  // Thin-state: resolve only the small upcoming window (within the resolver-warm
+  // range) to full Tracks for the size estimates / suffix.
+  const targetRefs = queueItems.slice(queueIndex + 1, queueIndex + 1 + PREFETCH_AHEAD);
+  const targets = targetRefs.map(r => resolveQueueTrack(r));
+  const immediateNextId = queueItems[queueIndex + 1]?.trackId;
+  let projectedOccupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, serverId, hotEntries);
   const jobs: PrefetchJob[] = [];
   const skipped: { trackId: string; reason: string }[] = [];
   for (const t of targets) {
@@ -278,7 +283,7 @@ export function initHotCachePrefetch(): () => void {
   let lastQueueRef: unknown = null;
   let lastQueueIndex = -1;
   const unsubPlayer = usePlayerStore.subscribe(state => {
-    const q = state.queue;
+    const q = state.queueItems;
     const i = state.queueIndex;
     if (q === lastQueueRef && i === lastQueueIndex) return;
     const prevIdx = lastQueueIndex;
@@ -288,11 +293,11 @@ export function initHotCachePrefetch(): () => void {
     lastQueueIndex = i;
     scheduleAnalysisQueuePruneFromPlaybackQueue();
     if (onlyIndexMoved && i > prevIdx && prevIdx >= 0 && Array.isArray(prevQ)) {
-      const left = (prevQ as Track[])[prevIdx];
+      const left = (prevQ as QueueItemRef[])[prevIdx];
       const a = useAuthStore.getState();
       const graceSid = getPlaybackCacheServerKey();
       if (left && graceSid) {
-        bumpHotCachePreviousTrackGrace(left.id, graceSid, a.hotCacheDebounceSec);
+        bumpHotCachePreviousTrackGrace(left.trackId, graceSid, a.hotCacheDebounceSec);
         scheduleEvictAfterPreviousGrace();
       }
     }

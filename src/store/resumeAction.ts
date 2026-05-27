@@ -28,6 +28,7 @@ import {
   recordEnginePlayUrl,
 } from './playbackUrlRouting';
 import type { PlayerState } from './playerStoreTypes';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { syncQueueToServer } from './queueSync';
 import { resumeRadio } from './radioPlayer';
@@ -112,10 +113,14 @@ export function runResume(set: SetState, get: GetState): void {
     set({ isPlaying: true });
     return;
   }
-  const { currentTrack, queue, queueIndex, currentTime } = get();
+  const { currentTrack, queueItems, queueIndex, currentTime } = get();
   if (!currentTrack) return;
-  const coldPrev = queueIndex > 0 ? queue[queueIndex - 1] : null;
-  const coldNext = queueIndex + 1 < queue.length ? queue[queueIndex + 1] : null;
+  // ReplayGain album-mode neighbours (resolver cache → placeholder; only their
+  // RG tags matter, which a placeholder lacks → fallback dB).
+  const coldPrev = queueIndex > 0 && queueItems[queueIndex - 1]
+    ? resolveQueueTrack(queueItems[queueIndex - 1]) : null;
+  const coldNext = queueIndex + 1 < queueItems.length && queueItems[queueIndex + 1]
+    ? resolveQueueTrack(queueItems[queueIndex + 1]) : null;
 
   if (getIsAudioPaused()) {
     // Rust engine has audio loaded but paused — just resume it.
@@ -185,7 +190,7 @@ export function runResume(set: SetState, get: GetState): void {
           console.error('[psysonic] audio_play (cold resume) failed:', err);
           set({ isPlaying: false });
         });
-        syncQueueToServer(queue, trackToPlay, currentTime);
+        syncQueueToServer(queueItems, trackToPlay, currentTime);
       }).catch(() => {
         if (getPlayGeneration() !== gen) return;
         // Fallback to currentTrack if fetch fails
@@ -221,7 +226,7 @@ export function runResume(set: SetState, get: GetState): void {
           console.error('[psysonic] audio_play (cold resume) failed:', err);
           set({ isPlaying: false });
         });
-        syncQueueToServer(queue, currentTrack, currentTime);
+        syncQueueToServer(queueItems, currentTrack, currentTime);
       });
     })();
   }

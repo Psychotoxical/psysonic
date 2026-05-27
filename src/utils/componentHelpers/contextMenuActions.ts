@@ -6,6 +6,7 @@ import { buildDownloadUrl } from '../../api/subsonicStreamUrl';
 import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import type { Track } from '../../store/playerStoreTypes';
+import { resolveQueueTrack } from '../library/queueTrackView';
 import { useZipDownloadStore } from '../../store/zipDownloadStore';
 import { useDownloadModalStore } from '../../store/downloadModalStore';
 import type { EntityShareKind } from '../share/shareLink';
@@ -90,8 +91,13 @@ export async function startRadio(
           .filter(t => t.id !== topTracks[0].id),
       );
       if (similarTracks.length === 0) return;
-      const { queue, queueIndex } = usePlayerStore.getState();
-      const pendingRadio = queue.slice(queueIndex + 1).filter(t => t.radioAdded);
+      const { queueItems, queueIndex } = usePlayerStore.getState();
+      // Thin-state: resolve the upcoming radio refs (cache-warm window) back to
+      // Tracks so they merge with the new similars in enqueueRadio.
+      const pendingRadio = queueItems
+        .slice(queueIndex + 1)
+        .filter(r => r.radioAdded)
+        .map(r => resolveQueueTrack(r));
       usePlayerStore.getState().enqueueRadio([...pendingRadio, ...similarTracks], artistId);
     });
   } catch (e) {

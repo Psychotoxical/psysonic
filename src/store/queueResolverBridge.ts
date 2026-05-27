@@ -1,21 +1,22 @@
 /**
- * Side-effect wiring (queue thin-state, phase 2b): seed the queue track
- * resolver cache with the tracks around the current index whenever the queue
- * changes. The store stays `queue: Track[]`-canonical for now — this only fills
- * the resolver cache (additive; no mutation or persist change), so the queue
- * selectors resolve without a fetch once consumers move onto them (phase 3) and
- * after `queue: Track[]` is dropped (phase 4).
+ * Side-effect wiring (queue thin-state): keep the queue track resolver cache
+ * warm around the current index whenever the canonical `queueItems` ref list or
+ * the playing index changes. The store is refs-canonical now, so this fills the
+ * cache (via `resolveVisibleRange` — index batch → getSong fallback) so the
+ * queue selectors / list rows resolve without a synchronous miss. Render paths
+ * stay pure (no cache mutation in render); the seed travels with the playing
+ * track here, off the render path.
  */
 import { usePlayerStore } from './playerStore';
-import { seedQueueResolver } from '../utils/library/queueTrackResolver';
-
-const SEED_BACK = 50;
-const SEED_AHEAD = 200;
+import { resolveVisibleRange } from '../utils/library/queueTrackResolver';
 
 usePlayerStore.subscribe((state, prev) => {
-  if (state.queue === prev.queue && state.queueServerId === prev.queueServerId) return;
-  const serverId = state.queueServerId ?? '';
-  if (!serverId || state.queue.length === 0) return;
-  const start = Math.max(0, state.queueIndex - SEED_BACK);
-  seedQueueResolver(serverId, state.queue.slice(start, state.queueIndex + SEED_AHEAD + 1));
+  // Re-seed when the queue refs or the current index change — the prefetch
+  // window (resolveVisibleRange's PREFETCH_BACK/AHEAD) travels with the index.
+  if (
+    state.queueItems === prev.queueItems &&
+    state.queueIndex === prev.queueIndex
+  ) return;
+  if (state.queueItems.length === 0) return;
+  resolveVisibleRange(state.queueItems, state.queueIndex, state.queueIndex);
 });

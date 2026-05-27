@@ -22,6 +22,8 @@ interface Props {
   artworkSize?: number;
   windowArtworkByViewport?: boolean;
   initialArtworkBudget?: number;
+  /** Appended to `/album/:id` links, e.g. `lossless=1`. */
+  albumLinkQuery?: string;
 }
 
 export default function AlbumRow({
@@ -38,6 +40,7 @@ export default function AlbumRow({
   artworkSize,
   windowArtworkByViewport = false,
   initialArtworkBudget = 8,
+  albumLinkQuery,
 }: Props) {
   const perfFlags = usePerfProbeFlags();
   const artworkDisabled = perfFlags.disableMainstageRailArtwork || disableArtwork;
@@ -167,6 +170,7 @@ export default function AlbumRow({
               key={a.id}
               album={a}
               showRating={showRating}
+              linkQuery={albumLinkQuery}
               disableArtwork={
                 artworkDisabled ||
                 (windowArtworkByViewport && idx >= artworkBudget)

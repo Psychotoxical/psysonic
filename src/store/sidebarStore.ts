@@ -6,6 +6,9 @@ export interface SidebarItemConfig {
   visible: boolean;
 }
 
+/** Kept in nav/routes but hidden from sidebar and visibility settings. */
+export const CONSERVED_SIDEBAR_NAV_IDS = new Set<string>(['losslessAlbums']);
+
 // All configurable nav items in their default order.
 // Fixed items (nowPlaying, settings, offline) are not listed here.
 export const DEFAULT_SIDEBAR_ITEMS: SidebarItemConfig[] = [
@@ -23,7 +26,7 @@ export const DEFAULT_SIDEBAR_ITEMS: SidebarItemConfig[] = [
   { id: 'favorites',     visible: true },
   { id: 'playlists',     visible: true },
   { id: 'mostPlayed',    visible: true },
-  { id: 'losslessAlbums',visible: true  },
+  { id: 'losslessAlbums',visible: false },
   { id: 'radio',         visible: true },
   { id: 'folderBrowser', visible: false },
   { id: 'deviceSync',    visible: false },
@@ -59,7 +62,10 @@ export const useSidebarStore = create<SidebarStore>()(
         const safe = (state.items ?? []).filter((i): i is SidebarItemConfig => i != null && typeof i.id === 'string');
         const known = new Set(safe.map(i => i.id));
         const missing = DEFAULT_SIDEBAR_ITEMS.filter(i => !known.has(i.id));
-        state.items = missing.length > 0 ? [...safe, ...missing] : safe;
+        const merged = missing.length > 0 ? [...safe, ...missing] : safe;
+        state.items = merged.map(item =>
+          CONSERVED_SIDEBAR_NAV_IDS.has(item.id) ? { ...item, visible: false } : item,
+        );
       },
     }
   )

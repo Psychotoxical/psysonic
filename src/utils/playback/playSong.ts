@@ -45,14 +45,14 @@ export async function playSongNow(song: SubsonicSong, queue?: SubsonicSong[]): P
 export async function enqueueAndPlay(song: SubsonicSong): Promise<void> {
   const track = songToTrack(song);
   const store = usePlayerStore.getState();
-  const { isPlaying, volume, queue } = store;
+  const { isPlaying, volume, queueItems } = store;
 
   if (isPlaying) {
     await fadeOut(store.setVolume, volume, 700);
     usePlayerStore.setState({ volume });
   }
 
-  if (!queue.some(t => t.id === track.id)) {
+  if (!queueItems.some(r => r.trackId === track.id)) {
     usePlayerStore.getState().enqueue([track]);
   }
   // playTrack with no queue arg uses the current state.queue, finds the track by id,

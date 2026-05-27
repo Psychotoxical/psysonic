@@ -9,7 +9,7 @@ import { getPlaybackServerId } from '../utils/playback/playbackServer';
  */
 export function usePlaybackServerId(): string {
   const queueServerId = usePlayerStore(s => s.queueServerId);
-  const queueLength = usePlayerStore(s => s.queue.length);
+  const queueLength = usePlayerStore(s => s.queueItems.length);
   const activeServerId = useAuthStore(s => s.activeServerId);
   return useMemo(
     () => getPlaybackServerId(),

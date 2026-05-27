@@ -11,7 +11,7 @@ export function usePlaybackCoverArt(
   displayCssPx: number,
 ): CoverArtHandle {
   const queueServerId = usePlayerStore(s => s.queueServerId);
-  const queueLength = usePlayerStore(s => s.queue.length);
+  const queueLength = usePlayerStore(s => s.queueItems.length);
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serversFingerprint = useAuthStore(s =>
     s.servers

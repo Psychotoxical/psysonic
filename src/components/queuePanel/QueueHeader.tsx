@@ -1,16 +1,21 @@
-import { useMemo } from 'react';
+import { useDeferredValue, useMemo, useSyncExternalStore } from 'react';
 import { ChevronDown, ListMusic } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import { useAuthStore } from '../../store/authStore';
-import type { Track } from '../../store/playerStoreTypes';
+import type { QueueItemRef } from '../../store/playerStoreTypes';
 import type { DurationMode } from '../../utils/componentHelpers/queuePanelHelpers';
 import { formatLongDuration } from '../../utils/format/formatDuration';
 import { formatClockTime } from '../../utils/format/formatClockTime';
+import { resolveQueueTrack } from '../../utils/library/queueTrackView';
+import {
+  getQueueResolverVersion,
+  subscribeQueueResolver,
+} from '../../utils/library/queueTrackResolver';
 
 interface Props {
-  queue: Track[];
+  queue: QueueItemRef[];
   queueIndex: number;
   activePlaylist: { id: string; name: string } | null;
   isNowPlayingCollapsed: boolean;
@@ -29,16 +34,32 @@ export function QueueHeader({
   const clockFormat = useAuthStore((s) => s.clockFormat);
   const { i18n } = useTranslation();
 
-  const totalSecs = useMemo(() =>
-    queue.reduce((acc: number, track: Track) => acc + (track.duration || 0), 0),
-    [queue]
-  );
-  const futureTracksDuration = useMemo(() =>
-    queue.slice(queueIndex + 1).reduce((acc: number, track: Track) => acc + (track.duration || 0), 0),
-    [queue, queueIndex]
-  );
+  // Thin-state: durations come from the resolver cache. The totals re-derive as
+  // the cache fills (version) and on queue change; tracks past the cache window
+  // contribute 0 until they resolve. Pure read (no cache mutation) in the memo.
+  // H1 mitigation: a mass-resolve burst (queue restore, prefetch window slide)
+  // bumps `version` dozens of times in one frame; useDeferredValue coalesces
+  // the burst into a single low-priority commit so long queues do not block
+  // the main thread on every cache tick. The aggregation itself is a single
+  // pass — one loop produces both totals so a 50k-track queue costs one walk,
+  // not two.
+  const version = useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
+  const deferredVersion = useDeferredValue(version);
+  const { totalSecs, futureTracksDuration } = useMemo(() => {
+    if (queue.length === 0) return { totalSecs: 0, futureTracksDuration: 0 };
+    let total = 0;
+    let future = 0;
+    for (let i = 0; i < queue.length; i += 1) {
+      const dur = resolveQueueTrack(queue[i]).duration || 0;
+      total += dur;
+      if (i > queueIndex) future += dur;
+    }
+    return { totalSecs: total, futureTracksDuration: future };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue, queueIndex, deferredVersion]);
 
-  const remainingSecs = Math.max(0, (queue[queueIndex]?.duration ?? 0) - currentTime + futureTracksDuration);
+  const currentDuration = queue[queueIndex] ? resolveQueueTrack(queue[queueIndex]).duration : 0;
+  const remainingSecs = Math.max(0, (currentDuration ?? 0) - currentTime + futureTracksDuration);
 
   let dur: string | null = null;
   if (queue.length > 0) {

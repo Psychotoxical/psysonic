@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Track } from '../store/playerStoreTypes';
+import type { QueueItemRef, Track } from '../store/playerStoreTypes';
 import { useAuthStore } from '../store/authStore';
 import { HOT_CACHE_PROTECT_AFTER_CURRENT, type HotCacheEntry } from '../store/hotCacheStore';
 
@@ -23,7 +23,7 @@ export function entryKey(serverId: string, trackId: string): string {
 
 /** Sum of on-disk bytes for eviction-protected slots (current + next — same span as `evictToFit`). */
 export function sumCachedBytesInProtectedWindow(
-  queue: Track[],
+  queue: QueueItemRef[],
   queueIndex: number,
   serverId: string,
   entries: Record<string, HotCacheEntry>,
@@ -32,7 +32,7 @@ export function sumCachedBytesInProtectedWindow(
   const protectHi = Math.min(queue.length - 1, queueIndex + HOT_CACHE_PROTECT_AFTER_CURRENT);
   let sum = 0;
   for (let i = protectLo; i <= protectHi; i++) {
-    const e = entries[entryKey(serverId, queue[i].id)];
+    const e = entries[entryKey(serverId, queue[i].trackId)];
     if (e) sum += e.sizeBytes || 0;
   }
   return sum;

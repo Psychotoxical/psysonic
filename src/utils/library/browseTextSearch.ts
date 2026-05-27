@@ -3,7 +3,7 @@
  */
 import { search, searchSongsPaged } from '../../api/subsonicSearch';
 import type { SearchResults, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
-import { libraryAdvancedSearch } from '../../api/library';
+import { libraryAdvancedSearch, libraryGetArtistLosslessBrowse, libraryListLosslessAlbums } from '../../api/library';
 import { libraryScopeForServer } from '../../api/subsonicClient';
 import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
@@ -364,6 +364,52 @@ export async function runLocalRandomSongs(
   }
 }
 
+/** Paginated lossless albums from the local index. Returns null when unavailable. */
+export async function runLocalLosslessAlbums(
+  serverId: string | null | undefined,
+  limit: number,
+  offset: number,
+): Promise<{ albums: SubsonicAlbum[]; hasMore: boolean } | null> {
+  if (!serverId || !(await libraryIsReady(serverId))) return null;
+  try {
+    const resp = await libraryListLosslessAlbums({
+      serverId,
+      libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      limit,
+      offset,
+    });
+    if (resp.source !== 'local') return null;
+    return {
+      albums: resp.albums.map(albumToAlbum),
+      hasMore: resp.hasMore,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Lossless albums + tracks for one artist. Returns null when the index is unavailable. */
+export async function runLocalArtistLosslessBrowse(
+  serverId: string | null | undefined,
+  artistId: string,
+): Promise<{ albums: SubsonicAlbum[]; songs: SubsonicSong[] } | null> {
+  if (!serverId || !artistId || !(await libraryIsReady(serverId))) return null;
+  try {
+    const resp = await libraryGetArtistLosslessBrowse({
+      serverId,
+      artistId,
+      libraryScope: libraryScopeForServer(serverId) ?? undefined,
+    });
+    if (resp.source !== 'local') return null;
+    return {
+      albums: resp.albums.map(albumToAlbum),
+      songs: resp.tracks.map(trackToSong),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Random album sample from the local `album` table — SQLite `ORDER BY RANDOM() LIMIT N`.
  * Returns null when the index is unavailable (caller falls back to the network).
@@ -397,6 +443,7 @@ export async function runLocalAlbumBrowsePage(
   offset: number,
   pageSize: number,
   yearFilter?: { from: number; to: number },
+  losslessOnly?: boolean,
 ): Promise<SubsonicAlbum[] | null> {
   if (!serverId || !(await libraryIsReady(serverId))) return null;
   const filters: LibraryFilterClause[] = [];
@@ -407,6 +454,9 @@ export async function runLocalAlbumBrowsePage(
       value: yearFilter.from,
       valueTo: yearFilter.to,
     });
+  }
+  if (losslessOnly) {
+    filters.push({ field: 'lossless', op: 'is_true' });
   }
   try {
     const resp = await libraryAdvancedSearch({
@@ -436,22 +486,25 @@ export async function runLocalAlbumsByGenres(
   genres: string[],
   sort: AlbumBrowseSort,
   limitPerGenre = GENRE_ALBUM_FETCH_LIMIT,
+  losslessOnly?: boolean,
 ): Promise<SubsonicAlbum[] | null> {
   if (!serverId || !(await libraryIsReady(serverId)) || genres.length === 0) return null;
   try {
     const pages = await Promise.all(
-      genres.map(genre =>
-        libraryAdvancedSearch({
+      genres.map(genre => {
+        const filters: LibraryFilterClause[] = [{ field: 'genre', op: 'eq', value: genre }];
+        if (losslessOnly) filters.push({ field: 'lossless', op: 'is_true' });
+        return libraryAdvancedSearch({
           serverId,
           libraryScope: libraryScopeForServer(serverId) ?? undefined,
           entityTypes: ['album'],
-          filters: [{ field: 'genre', op: 'eq', value: genre }],
+          filters,
           sort: albumSortClauses(sort),
           limit: limitPerGenre,
           offset: 0,
           skipTotals: true,
-        }),
-      ),
+        });
+      }),
     );
     if (pages.some(p => p.source !== 'local')) return null;
     const merged = dedupeById(pages.flatMap(p => p.albums.map(albumToAlbum)));

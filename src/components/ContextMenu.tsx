@@ -27,14 +27,14 @@ export default function ContextMenu() {
   const navigate = useNavigate();
   const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const orbitRole = useOrbitStore(s => s.role);
-  const { contextMenu, closeContextMenu, playTrack, enqueue, playNext, queue, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore(
+  const { contextMenu, closeContextMenu, playTrack, enqueue, playNext, queueItems, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore(
     useShallow(s => ({
       contextMenu: s.contextMenu,
       closeContextMenu: s.closeContextMenu,
       playTrack: s.playTrack,
       enqueue: s.enqueue,
       playNext: s.playNext,
-      queue: s.queue,
+      queueItems: s.queueItems,
       currentTrack: s.currentTrack,
       removeTrack: s.removeTrack,
       lastfmLovedCache: s.lastfmLovedCache,
@@ -202,7 +202,7 @@ export default function ContextMenu() {
           playNext={playNext}
           enqueue={enqueue}
           removeTrack={removeTrack}
-          queue={queue}
+          queue={queueItems}
           currentTrack={currentTrack}
           closeContextMenu={closeContextMenu}
           starredOverrides={starredOverrides}

@@ -31,7 +31,7 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
           const song = item as Track;
           return (
             <>
-              <div className="context-menu-item" onClick={() => handleAction(() => playTrack(song, queue, undefined, undefined, queueIndex))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => playTrack(song, undefined, undefined, undefined, queueIndex))}>
                 <Play size={14} /> {t('contextMenu.playNow')}
               </div>
               <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(() => {

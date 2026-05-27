@@ -14,6 +14,9 @@ export const albums = {
   compilationTooltipAll: 'Alle Alben · klicken: nur Sampler',
   compilationTooltipOnly: 'Nur Sampler · klicken: Sampler ausblenden',
   compilationTooltipHide: 'Sampler ausgeblendet · klicken: alle zeigen',
+  losslessLabel: 'Lossless',
+  losslessTooltipOn: 'Nur Lossless-Alben · klicken: alle anzeigen',
+  losslessTooltipOff: 'Nur Lossless-Alben anzeigen',
   select: 'Mehrfachauswahl',
   startSelect: 'Mehrfachauswahl aktivieren',
   cancelSelect: 'Abbrechen',
@@ -29,4 +32,7 @@ export const albums = {
   downloadZipFailed: 'Download fehlgeschlagen: {{name}}',
   offlineQueuing: '{{count}} Album(s) für Offline einreihen…',
   offlineFailed: '{{name}} konnte nicht offline hinzugefügt werden',
+  noFavorites: 'Keine Lieblingsalben entsprechen den aktuellen Filtern.',
+  noCompilations: 'Keine Sampler entsprechen den aktuellen Filtern.',
+  noMatchingFilters: 'Keine Alben entsprechen den aktuellen Filtern.',
 };

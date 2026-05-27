@@ -48,7 +48,7 @@ import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
-import { makeTrack, makeServer } from '@/test/helpers/factories';
+import { makeTrack, makeServer, seedQueue } from '@/test/helpers/factories';
 import { onInvoke } from '@/test/mocks/tauri';
 import { fireEvent } from '@testing-library/react';
 
@@ -183,7 +183,7 @@ describe('ContextMenu — type=artist', () => {
 describe('ContextMenu — type=queue-item', () => {
   it('shows a Remove from Queue affordance the song menu does not have', () => {
     const track = makeTrack({ id: 'q-1' });
-    usePlayerStore.setState({ queue: [track], queueIndex: 0, currentTrack: track });
+    seedQueue([track], { index: 0, currentTrack: track });
     openMenuFor('queue-item', track, 0);
     const { container } = renderWithProviders(<ContextMenu />);
     expect(container.querySelector('.context-menu')).not.toBeNull();

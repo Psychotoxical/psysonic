@@ -331,7 +331,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
     runInMiniWindow: false,
     run: () => {
       const store = usePlayerStore.getState();
-      const { currentTrack, queue, stop, resetAudioPause, playTrack, initializeFromServerQueue } = store;
+      const { currentTrack, stop, resetAudioPause, playTrack, initializeFromServerQueue } = store;
       stop();
       resetAudioPause();
       invoke('audio_stop')
@@ -341,9 +341,10 @@ export const SHORTCUT_ACTION_REGISTRY = {
             try {
               const fresh = await getSong(currentTrack.id);
               const t = fresh ? songToTrack(fresh) : currentTrack;
-              playTrack(t, queue, true);
+              // No-arg queue: keep the canonical refs, re-bind the current track.
+              playTrack(t, undefined, true);
             } catch {
-              playTrack(currentTrack, queue, true);
+              playTrack(currentTrack, undefined, true);
             }
           } else {
             await initializeFromServerQueue();

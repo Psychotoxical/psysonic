@@ -5,6 +5,13 @@ import type {
   SubsonicAlbum, SubsonicArtist, SubsonicArtistInfo, SubsonicSong,
 } from '../api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
+import { runLocalArtistLosslessBrowse } from '../utils/library/browseTextSearch';
+import { isLosslessSuffix } from '../utils/library/losslessFormats';
+
+export interface UseArtistDetailDataOptions {
+  /** When true, albums and top tracks are limited to lossless containers (local index preferred). */
+  losslessOnly?: boolean;
+}
 
 export interface ArtistDetailDataResult {
   artist: SubsonicArtist | null;
@@ -18,9 +25,27 @@ export interface ArtistDetailDataResult {
   featuredLoading: boolean;
   isStarred: boolean;
   setIsStarred: React.Dispatch<React.SetStateAction<boolean>>;
+  losslessOnly: boolean;
 }
 
-export function useArtistDetailData(id: string | undefined): ArtistDetailDataResult {
+function filterNetworkArtistToLossless(
+  albums: SubsonicAlbum[],
+  songs: SubsonicSong[],
+): { albums: SubsonicAlbum[]; songs: SubsonicSong[] } {
+  const losslessSongs = songs.filter(s => isLosslessSuffix(s.suffix));
+  const albumIds = new Set(losslessSongs.map(s => s.albumId).filter(Boolean));
+  return {
+    albums: albums.filter(a => albumIds.has(a.id)),
+    songs: losslessSongs,
+  };
+}
+
+export function useArtistDetailData(
+  id: string | undefined,
+  options: UseArtistDetailDataOptions = {},
+): ArtistDetailDataResult {
+  const losslessOnly = options.losslessOnly ?? false;
+  const serverId = useAuthStore(s => s.activeServerId);
   const audiomuseNavidromeEnabled = useAuthStore(
     s => !!(s.activeServerId && s.audiomuseNavidromeByServer[s.activeServerId]),
   );
@@ -30,9 +55,6 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [featuredAlbums, setFeaturedAlbums] = useState<SubsonicAlbum[]>([]);
   const [topSongs, setTopSongs] = useState<SubsonicSong[]>([]);
-  // Tuple gates `info` on id-match so a CachedImage-style consumer (shared
-  // ArtistCard) can never see info from a previously-viewed artist paired
-  // with the current `id`. Same pattern as `useNowPlayingFetchers`.
   const [infoEntry, setInfoEntry] = useState<{ id: string; value: SubsonicArtistInfo | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isStarred, setIsStarred] = useState(false);
@@ -46,22 +68,51 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
     setInfoEntry(null);
     setTopSongs([]);
     setFeaturedAlbums([]);
-    getArtist(id).then(artistData => {
-      if (cancelled) return;
-      setArtist(artistData.artist);
-      setAlbums(artistData.albums);
-      setIsStarred(!!artistData.artist.starred);
-      // Render the page immediately from local data
-      setLoading(false);
 
-      getTopSongs(artistData.artist.name).then(songsData => {
-        if (!cancelled) setTopSongs(songsData ?? []);
-      }).catch(() => {});
-    }).catch(err => {
-      if (!cancelled) { console.error(err); setLoading(false); }
-    });
+    (async () => {
+      try {
+        if (losslessOnly && serverId) {
+          const local = await runLocalArtistLosslessBrowse(serverId, id);
+          if (cancelled) return;
+          if (local) {
+            const artistData = await getArtist(id).catch(() => null);
+            if (cancelled) return;
+            if (artistData) {
+              setArtist(artistData.artist);
+              setIsStarred(!!artistData.artist.starred);
+            }
+            setAlbums(local.albums);
+            setTopSongs([...local.songs].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0)));
+            setLoading(false);
+            return;
+          }
+        }
+
+        const artistData = await getArtist(id);
+        if (cancelled) return;
+        setArtist(artistData.artist);
+        let nextAlbums = artistData.albums;
+        setIsStarred(!!artistData.artist.starred);
+        setLoading(false);
+
+        const songsData = await getTopSongs(artistData.artist.name).catch(() => [] as SubsonicSong[]);
+        if (cancelled) return;
+        let nextSongs = songsData ?? [];
+        if (losslessOnly) {
+          ({ albums: nextAlbums, songs: nextSongs } = filterNetworkArtistToLossless(nextAlbums, nextSongs));
+        }
+        setAlbums(nextAlbums);
+        setTopSongs(nextSongs);
+      } catch (err) {
+        if (!cancelled) {
+          console.error(err);
+          setLoading(false);
+        }
+      }
+    })();
+
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, losslessOnly, serverId]);
 
   useEffect(() => {
     if (!id) return;
@@ -80,7 +131,6 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
     return () => { cancelled = true; };
   }, [id, audiomuseNavidromeEnabled]);
 
-  // "Also Featured On" — loaded in background after main content renders
   useEffect(() => {
     if (!id || !artist) return;
     const ownAlbumIds = new Set(albums.map(a => a.id));
@@ -88,9 +138,12 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
     search(artist.name, { songCount: 500, artistCount: 0, albumCount: 0 })
       .catch(() => ({ songs: [], albums: [], artists: [] }))
       .then(searchResults => {
-        const featuredSongs = (searchResults.songs ?? []).filter(
-          song => song.artistId === id && !ownAlbumIds.has(song.albumId)
+        let featuredSongs = (searchResults.songs ?? []).filter(
+          song => song.artistId === id && !ownAlbumIds.has(song.albumId),
         );
+        if (losslessOnly) {
+          featuredSongs = featuredSongs.filter(s => isLosslessSuffix(s.suffix));
+        }
         const albumMap = new Map<string, SubsonicAlbum>();
         featuredSongs.forEach(song => {
           if (!albumMap.has(song.albumId)) {
@@ -114,7 +167,7 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
         setFeaturedLoading(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artist?.id, musicLibraryFilterVersion]);
+  }, [artist?.id, musicLibraryFilterVersion, losslessOnly, albums]);
 
   const info = infoEntry && infoEntry.id === id ? infoEntry.value : null;
 
@@ -122,5 +175,6 @@ export function useArtistDetailData(id: string | undefined): ArtistDetailDataRes
     artist, setArtist, albums, topSongs, info, featuredAlbums,
     loading, artistInfoLoading, featuredLoading,
     isStarred, setIsStarred,
+    losslessOnly,
   };
 }

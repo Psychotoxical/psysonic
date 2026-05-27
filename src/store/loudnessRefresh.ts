@@ -91,7 +91,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
         && !isBackfillInFlight(trackId)
         && attempts < MAX_BACKFILL_ATTEMPTS_PER_TRACK) {
         const live = usePlayerStore.getState();
-        if (!isTrackInsideLoudnessBackfillWindow(trackId, live.queue, live.queueIndex, live.currentTrack)) {
+        if (!isTrackInsideLoudnessBackfillWindow(trackId, live.queueItems, live.queueIndex, live.currentTrack)) {
           emitNormalizationDebug('backfill:skipped-outside-window', {
             trackId,
             queueIndex: live.queueIndex,
@@ -103,7 +103,7 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
         const url = buildStreamUrl(trackId);
         const priority = loudnessBackfillPriorityForTrack(
           trackId,
-          live.queue,
+          live.queueItems,
           live.queueIndex,
           live.currentTrack,
         );

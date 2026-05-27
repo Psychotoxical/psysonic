@@ -12,6 +12,12 @@ vi.mock('../api/subsonicStarRating', () => ({
 import { usePlayerStore } from './playerStore';
 import type { Track } from './playerStoreTypes';
 import { queueSongStar, queueSongRating, _resetPendingStarSyncForTest } from './pendingStarSync';
+import {
+  getCachedTrack,
+  seedQueueResolver,
+  _resetQueueResolverForTest,
+} from '../utils/library/queueTrackResolver';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 
 const track = (id: string): Track => ({
   id, title: id, artist: '', album: 'A', albumId: 'A', duration: 1,
@@ -24,9 +30,14 @@ describe('pendingStarSync', () => {
     unstarMock.mockReset().mockResolvedValue(undefined);
     setRatingMock.mockReset().mockResolvedValue(undefined);
     _resetPendingStarSyncForTest();
+    _resetQueueResolverForTest();
+    // Thin-state: the queue's track copy lives in the resolver cache. Seed it so
+    // a star/rating success has a cached entry to patch in place.
+    seedQueueResolver('', [track('t1')]);
     usePlayerStore.setState({
       currentTrack: track('t1'),
-      queue: [track('t1')],
+      queueItems: toQueueItemRefs('', [track('t1')]),
+      queueServerId: null,
       starredOverrides: {},
       userRatingOverrides: {},
     });
@@ -46,7 +57,12 @@ describe('pendingStarSync', () => {
     const s = usePlayerStore.getState();
     expect('t1' in s.starredOverrides).toBe(false); // cleared on success
     expect(s.currentTrack?.starred).toBeTruthy(); // in-memory track patched
-    expect(s.queue[0].starred).toBeTruthy();
+    // Thin-state: the resolver cache entry is patched in place (not dropped) so
+    // the visible queue row keeps its title and reflects the synced star —
+    // dropping it would blank the row to a "…" placeholder.
+    const cached = getCachedTrack({ serverId: '', trackId: 't1' });
+    expect(cached?.title).toBe('t1');
+    expect(cached?.starred).toBeTruthy();
   });
 
   it('does NOT roll back on a network failure and keeps retrying', async () => {

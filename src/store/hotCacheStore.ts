@@ -1,4 +1,4 @@
-import type { Track } from './playerStoreTypes';
+import type { QueueItemRef } from './playerStoreTypes';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
@@ -32,9 +32,10 @@ interface HotCacheState {
   touchPlayed: (trackId: string, serverId: string) => void;
   removeEntry: (trackId: string, serverId: string) => void;
   totalBytes: () => number;
-  /** Evict until total size ≤ maxBytes. Protects current + next (+ grace for last «previous» track). */
+  /** Evict until total size ≤ maxBytes. Protects current + next (+ grace for last «previous» track).
+   *  Thin-state: only track ids / positions matter here, so it takes the canonical refs. */
   evictToFit: (
-    queue: Track[],
+    queue: QueueItemRef[],
     queueIndex: number,
     maxBytes: number,
     activeServerId: string,
@@ -149,11 +150,11 @@ export const useHotCacheStore = create<HotCacheState>()(
         const protectHi = Math.min(queue.length - 1, queueIndex + HOT_CACHE_PROTECT_AFTER_CURRENT);
         const protectedIds = new Set<string>();
         for (let i = protectLo; i <= protectHi; i++) {
-          protectedIds.add(queue[i].id);
+          protectedIds.add(queue[i].trackId);
         }
 
         const indexOfInQueue = (trackId: string): number | null => {
-          const idx = queue.findIndex(t => t.id === trackId);
+          const idx = queue.findIndex(r => r.trackId === trackId);
           return idx >= 0 ? idx : null;
         };
 

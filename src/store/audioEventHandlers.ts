@@ -1,5 +1,6 @@
 import { reportNowPlaying, scrobbleSong } from '../api/subsonicScrobble';
 import type { Track } from './playerStoreTypes';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
 import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../api/lastfm';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
@@ -179,7 +180,7 @@ export function handleAudioProgress(
   if (store.isPlaying && !store.currentRadio) {
     const now = Date.now();
     if (now - getLastQueueHeartbeatAt() >= 15_000) {
-      void flushQueueSyncToServer(store.queue, track, displayTime);
+      void flushQueueSyncToServer(store.queueItems, track, displayTime);
     }
   }
 
@@ -246,11 +247,18 @@ export function handleAudioProgress(
   );
 
   if (shouldChainGapless || shouldBytePreload || shouldPreloadLocalFileAnalysis || gaplessEnabled) {
-    const { queue, queueIndex, repeatMode } = store;
+    const { queueItems, queueIndex, repeatMode } = store;
     const nextIdx = queueIndex + 1;
+    // Next track for preload/chain. The resolver bridge keeps the window around
+    // queueIndex warm, so the next ref is cache-hot; resolveQueueTrack falls
+    // back to a placeholder (correct trackId, so URL building still works) on a
+    // cold miss. current track = `track` (full) — never resolved.
+    const nextRef = repeatMode === 'one'
+      ? null
+      : (nextIdx < queueItems.length ? queueItems[nextIdx] : (repeatMode === 'all' ? queueItems[0] : null));
     const nextTrack = repeatMode === 'one'
       ? track
-      : (nextIdx < queue.length ? queue[nextIdx] : (repeatMode === 'all' ? queue[0] : null));
+      : (nextRef ? resolveQueueTrack(nextRef) : null);
     if (!nextTrack || nextTrack.id === track.id) return;
 
     // Gapless backup: keep next-track bytes ready even if chain/decode misses
@@ -311,10 +319,12 @@ export function handleAudioProgress(
       void refreshLoudnessForTrack(nextTrack.id, { syncPlayingEngine: false });
       const authState = useAuthStore.getState();
       // Auto-mode neighbours for the *next* track: current track on its left,
-      // queue[nextIdx+1] on its right.
-      const nextNeighbour = nextIdx + 1 < queue.length
-        ? queue[nextIdx + 1]
-        : (repeatMode === 'all' && queue.length > 0 ? queue[0] : null);
+      // queueItems[nextIdx+1] on its right (resolved; placeholder on a cold miss
+      // — only its replaygain tags matter, which a placeholder lacks → fallback).
+      const nextNeighbourRef = nextIdx + 1 < queueItems.length
+        ? queueItems[nextIdx + 1]
+        : (repeatMode === 'all' && queueItems.length > 0 ? queueItems[0] : null);
+      const nextNeighbour = nextNeighbourRef ? resolveQueueTrack(nextNeighbourRef) : null;
       const replayGainDb = resolveReplayGainDb(
         nextTrack, track, nextNeighbour,
         isReplayGainActive(), authState.replayGainMode,
@@ -355,7 +365,7 @@ export function handleAudioEnded(): void {
     return;
   }
 
-  const { repeatMode, currentTrack, queue, queueIndex } = usePlayerStore.getState();
+  const { repeatMode, currentTrack, queueIndex } = usePlayerStore.getState();
   setIsAudioPaused(false);
   usePlayerStore.setState({
     isPlaying: false,
@@ -379,7 +389,8 @@ export function handleAudioEnded(): void {
           );
         }
         // Pin to the current slot — the track may appear elsewhere in the queue.
-        usePlayerStore.getState().playTrack(currentTrack, queue, false, false, queueIndex);
+        // No-arg queue: playTrack keeps the canonical refs and just re-binds.
+        usePlayerStore.getState().playTrack(currentTrack, undefined, false, false, queueIndex);
       } else {
         usePlayerStore.getState().next(false);
       }
@@ -401,7 +412,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
   if (store.currentTrack?.id) {
     useAuthStore.getState().clearSkipStarManualCountForTrack(store.currentTrack.id);
   }
-  const { queue, queueIndex, repeatMode } = store;
+  const { queueItems, queueIndex, repeatMode } = store;
   const nextIdx = queueIndex + 1;
   let nextTrack: Track | null = null;
   let newIndex = queueIndex;
@@ -409,11 +420,14 @@ export function handleAudioTrackSwitched(_duration: number): void {
   if (repeatMode === 'one' && store.currentTrack) {
     nextTrack = store.currentTrack;
     // queueIndex stays the same
-  } else if (nextIdx < queue.length) {
-    nextTrack = queue[nextIdx];
+  } else if (nextIdx < queueItems.length) {
+    // The Rust engine already chained this source sample-accurately, so it must
+    // have been preloaded — meaning the resolver had it cached. resolveQueueTrack
+    // returns the full Track from cache (placeholder only on an unexpected miss).
+    nextTrack = resolveQueueTrack(queueItems[nextIdx]);
     newIndex = nextIdx;
-  } else if (repeatMode === 'all' && queue.length > 0) {
-    nextTrack = queue[0];
+  } else if (repeatMode === 'all' && queueItems.length > 0) {
+    nextTrack = resolveQueueTrack(queueItems[0]);
     newIndex = 0;
   }
 
@@ -425,10 +439,20 @@ export function handleAudioTrackSwitched(_duration: number): void {
   const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(nextTrack.id, switchServerId, switchResolvedUrl);
 
+  // Neighbour window for normalization (replaygain album-mode reads prev/next).
+  // current track on the left, the track after `nextTrack` on the right.
+  const switchPrev = store.currentTrack;
+  const switchNextNextRef = newIndex + 1 < queueItems.length ? queueItems[newIndex + 1] : null;
+  const switchNeighbourWindow: Track[] = [
+    switchPrev ?? nextTrack,
+    nextTrack,
+    ...(switchNextNextRef ? [resolveQueueTrack(switchNextNextRef)] : []),
+  ];
+
   usePlayerStore.setState({
     currentTrack: nextTrack,
     waveformBins: null,
-    ...deriveNormalizationSnapshot(nextTrack, queue, newIndex),
+    ...deriveNormalizationSnapshot(nextTrack, switchNeighbourWindow, 1),
     normalizationDbgSource: 'track-switched',
     normalizationDbgTrackId: nextTrack.id,
     queueIndex: newIndex,
@@ -463,7 +487,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
       }));
     });
   }
-  syncQueueToServer(queue, nextTrack, 0);
+  syncQueueToServer(queueItems, nextTrack, 0);
   touchHotCacheOnPlayback(nextTrack.id, getPlaybackCacheServerKey());
 }
 

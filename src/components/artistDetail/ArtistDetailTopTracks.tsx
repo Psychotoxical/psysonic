@@ -13,9 +13,12 @@ interface Props {
   topSongs: SubsonicSong[];
   marginTop: string;
   playTopSongWithContinuation: (startIndex: number) => Promise<void>;
+  losslessOnly?: boolean;
 }
 
-export default function ArtistDetailTopTracks({ topSongs, marginTop, playTopSongWithContinuation }: Props) {
+export default function ArtistDetailTopTracks({
+  topSongs, marginTop, playTopSongWithContinuation, losslessOnly = false,
+}: Props) {
   const { t } = useTranslation();
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
@@ -27,7 +30,7 @@ export default function ArtistDetailTopTracks({ topSongs, marginTop, playTopSong
   return (
     <Fragment>
       <h2 className="section-title" style={{ marginTop, marginBottom: '1rem' }}>
-        {t('artistDetail.topTracks')}
+        {t(losslessOnly ? 'artistDetail.topTracksLossless' : 'artistDetail.topTracks')}
       </h2>
   <div className="tracklist" data-preview-loc="artist" style={{ padding: 0, marginBottom: '2rem' }}>
     <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(100px, 1fr) 65px' }}>

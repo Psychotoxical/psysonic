@@ -9,9 +9,10 @@ interface Props {
   artists: SubsonicArtist[];
   moreLink?: string;
   moreText?: string;
+  artistLinkQuery?: string;
 }
 
-export default function ArtistRow({ title, artists, moreLink, moreText }: Props) {
+export default function ArtistRow({ title, artists, moreLink, moreText, artistLinkQuery }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [showLeft, setShowLeft] = useState(false);
@@ -54,7 +55,7 @@ export default function ArtistRow({ title, artists, moreLink, moreText }: Props)
 
       <div className="album-grid-wrapper">
         <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
-          {artists.map(a => <ArtistCardLocal key={a.id} artist={a} />)}
+          {artists.map(a => <ArtistCardLocal key={a.id} artist={a} linkQuery={artistLinkQuery} />)}
           {moreLink && (
             <div className="album-card-more" onClick={() => navigate(moreLink)}>
               <div style={{ padding: '1rem', background: 'var(--bg-app)', borderRadius: 'var(--radius-sm)' }}>

@@ -102,6 +102,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Lossless — local index browse, filters, and drill-down
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#871](https://github.com/Psychotoxical/psysonic/pull/871)**
+
+* **Local index:** `library_list_lossless_albums` queries indexed tracks by lossless suffix allowlist; `/lossless-albums` and Home rail use SQLite when the library index is ready, with Navidrome bit_depth walk as fallback.
+* **Advanced Search:** `lossless is true` on tracks, albums, and artists (local + network); artist/album links open detail with `?lossless=1` and a lossless-mode banner.
+* **All Albums:** lossless toggle (local index only — plain lossless, year, and genre combinations).
+* **Sidebar:** dedicated Lossless page route conserved; nav entry hidden by default and removed from visibility settings.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
@@ -199,6 +210,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#859](https://github.com/Psychotoxical/psysonic/pull/859)**
 
 * Continued groundwork for multi-thousand-track queues: track details are resolved on demand through a shared cache rather than all being held at once. No change to how the queue looks or behaves.
+
+
+
+### Queue — panel now reads through the shared track cache
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#860](https://github.com/Psychotoxical/psysonic/pull/860)**
+
+* The queue panel sources its row details through the on-demand track cache, another step toward keeping multi-thousand-track queues light on memory. No visible change.
 
 
 
@@ -334,6 +353,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Live Search** with a local index no longer returns empty or wrong-server hits on multi-server libraries — FTS is scoped to the active server instead of global bm25 across all indexed tracks.
 * Local artist/album rows dedupe correctly (one performer no longer fills the whole dropdown); Advanced Search text queries use the same server scope fix.
+
+
+
+### Queue — mixed-server routing and quota-safe persist
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) + [@cucadmuh](https://github.com/cucadmuh), PR [#872](https://github.com/Psychotoxical/psysonic/pull/872)**
+
+* Mixed-server queues with the same track ID on different servers now stay on their original server through track switches, undo, and radio top-ups.
+* Persisted queue is quota-safe — a full local storage no longer blocks playback on very large queues.
+
+
+
+### Analytics — aggressive scan no longer eats memory on big libraries
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#873](https://github.com/Psychotoxical/psysonic/pull/873)**
+
+* **Settings → Library → Analytics → Aggressive** on multi-server or 100k+ track libraries no longer climbs in memory until the system swaps (Linux) or runs out (Windows OOM mid-scan): the HTTP download stage now waits for Symphonia decode + loudness to catch up instead of buffering tracks faster than they can be processed.
+* Now-playing prefetch still bypasses the cap, so starting a track during a background scan stays instant.
 
 
 

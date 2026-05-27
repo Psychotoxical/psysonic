@@ -131,6 +131,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Server index-key rebuild follow-up: startup-safe migration orchestration, per-server analysis strategy controls, playback/cache scope hardening, and backup/restore for library databases with blocking progress UX (PR #864)',
       'Live Search: server-scoped local FTS, multi-server hit fix, and local vs search3 race merge (PR #868)',
       'Cover art pipeline: tier ladder, WebP disk cache, dense-grid prefetch, Settings cover cache budget (PR #869)',
+      'Lossless: local index browse, Advanced Search and All Albums filters, artist/album drill-down mode, conserved sidebar page (PR #871)',
     ],
   },
   {

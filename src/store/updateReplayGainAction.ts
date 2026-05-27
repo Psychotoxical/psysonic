@@ -10,6 +10,7 @@ import {
 import { deriveNormalizationSnapshot } from './normalizationSnapshot';
 import { invokeAudioUpdateReplayGainDeduped } from './normalizationIpcDedupe';
 import type { PlayerState } from './playerStoreTypes';
+import { resolveQueueTrack } from '../utils/library/queueTrackView';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -33,11 +34,14 @@ type GetState = () => PlayerState;
  *   deduplicated IPC channel.
  */
 export function runUpdateReplayGainForCurrentTrack(set: SetState, get: GetState): void {
-  const { currentTrack, queue, queueIndex, volume } = get();
+  const { currentTrack, queueItems, queueIndex, volume } = get();
   if (!currentTrack || !currentTrack.id) return;
   const authState = useAuthStore.getState();
-  const prev = queueIndex > 0 ? queue[queueIndex - 1] : null;
-  const next = queueIndex + 1 < queue.length ? queue[queueIndex + 1] : null;
+  // ReplayGain album-mode neighbours, resolved from refs (cache → placeholder).
+  const prev = queueIndex > 0 && queueItems[queueIndex - 1]
+    ? resolveQueueTrack(queueItems[queueIndex - 1]) : null;
+  const next = queueIndex + 1 < queueItems.length && queueItems[queueIndex + 1]
+    ? resolveQueueTrack(queueItems[queueIndex + 1]) : null;
   const replayGainDb = resolveReplayGainDb(
     currentTrack, prev, next,
     isReplayGainActive(), authState.replayGainMode,
@@ -46,7 +50,9 @@ export function runUpdateReplayGainForCurrentTrack(set: SetState, get: GetState)
     ? (currentTrack.replayGainPeak ?? null)
     : null;
 
-  const normalization = deriveNormalizationSnapshot(currentTrack, queue, queueIndex);
+  // Neighbour window for the normalization snapshot: prev, current, next.
+  const normWindow = [prev ?? currentTrack, currentTrack, ...(next ? [next] : [])];
+  const normalization = deriveNormalizationSnapshot(currentTrack, normWindow, prev ? 1 : 0);
   const cachedLoud = getCachedLoudnessGain(currentTrack.id);
   const cachedLoudDb = Number.isFinite(cachedLoud) ? cachedLoud! : null;
   const haveStableLoud = hasStableLoudness(currentTrack.id);

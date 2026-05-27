@@ -53,7 +53,7 @@ import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
-import { makeTrack } from '@/test/helpers/factories';
+import { makeTrack, seedQueue } from '@/test/helpers/factories';
 import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
 import { fireEvent } from '@testing-library/react';
 
@@ -147,12 +147,11 @@ describe('FullscreenPlayer — control wiring', () => {
   });
 
   it('clicking Previous Track calls previous()', () => {
-    usePlayerStore.setState({
-      queue: [makeTrack({ id: 'a' }), makeTrack({ id: 'b' })],
-      queueIndex: 1,
+    seedQueue([makeTrack({ id: 'a' }), makeTrack({ id: 'b' })], {
+      index: 1,
       currentTrack: makeTrack({ id: 'b' }),
-      currentTime: 5,
     });
+    usePlayerStore.setState({ currentTime: 5 });
     const prevSpy = vi.spyOn(usePlayerStore.getState(), 'previous');
     const { getByLabelText } = renderWithProviders(
       <FullscreenPlayer onClose={() => {}} />,
@@ -162,9 +161,8 @@ describe('FullscreenPlayer — control wiring', () => {
   });
 
   it('clicking Next Track calls next()', () => {
-    usePlayerStore.setState({
-      queue: [makeTrack({ id: 'a' }), makeTrack({ id: 'b' })],
-      queueIndex: 0,
+    seedQueue([makeTrack({ id: 'a' }), makeTrack({ id: 'b' })], {
+      index: 0,
       currentTrack: makeTrack({ id: 'a' }),
     });
     const nextSpy = vi.spyOn(usePlayerStore.getState(), 'next');

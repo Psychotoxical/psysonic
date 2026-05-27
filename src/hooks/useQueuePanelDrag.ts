@@ -66,7 +66,7 @@ export function useQueuePanelDrag({
 
       const insertIdx = dropTarget
         ? (dropTarget.before ? dropTarget.idx : dropTarget.idx + 1)
-        : usePlayerStore.getState().queue.length;
+        : usePlayerStore.getState().queueItems.length;
 
       if (parsedData.type === 'queue_reorder') {
         const fromIdx: number = parsedData.index;

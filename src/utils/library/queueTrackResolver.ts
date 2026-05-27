@@ -3,6 +3,7 @@ import { getSong } from '../../api/subsonicLibrary';
 import { usePlayerStore } from '../../store/playerStore';
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
+import { canonicalQueueServerKey } from '../server/serverIndexKey';
 import { trackToSong } from './advancedSearchLocal';
 import { libraryIsReady } from './libraryReady';
 
@@ -30,24 +31,22 @@ const refKey = (r: { serverId: string; trackId: string }) => `${r.serverId}:${r.
 const cache = new Map<string, Track>();
 const inFlight = new Set<string>();
 const listeners = new Set<() => void>();
+let cacheVersion = 0;
 
 function notify(): void {
+  cacheVersion++;
   for (const l of listeners) l();
+}
+
+/** Monotonic version, bumped on every cache change (for `useSyncExternalStore`). */
+export function getQueueResolverVersion(): number {
+  return cacheVersion;
 }
 
 /** Subscribe to cache changes (for `useSyncExternalStore` selectors). */
 export function subscribeQueueResolver(cb: () => void): () => void {
   listeners.add(cb);
   return () => { listeners.delete(cb); };
-}
-
-function cacheTouch(key: string): Track | undefined {
-  const t = cache.get(key);
-  if (t !== undefined) {
-    cache.delete(key);
-    cache.set(key, t); // move to most-recent
-  }
-  return t;
 }
 
 function cacheSet(key: string, track: Track): void {
@@ -69,7 +68,20 @@ function carryFlags(track: Track, ref: QueueItemRef | undefined): Track {
 
 /** Synchronous cache read (no fetch); undefined on miss. */
 export function getCachedTrack(ref: QueueItemRef): Track | undefined {
-  return cacheTouch(refKey(ref));
+  // Pure read — no LRU bump. Called from component render (QueueList rows), where
+  // a Map mutation (delete+set) is a render side-effect. Recency is set at write
+  // time in cacheSet instead; this cache is effectively insertion-order/FIFO.
+  const direct = cache.get(refKey(ref));
+  if (direct) return direct;
+  // Compat: refs persisted before B1 (queue server identity canonicalization)
+  // may still carry a UUID. Writes are canonical now, so the live cache key
+  // is `${indexKey}:${trackId}`; map UUID → indexKey on read to bridge the
+  // migration window.
+  const canonical = canonicalQueueServerKey(ref.serverId);
+  if (canonical && canonical !== ref.serverId) {
+    return cache.get(refKey({ serverId: canonical, trackId: ref.trackId }));
+  }
+  return undefined;
 }
 
 /** Lightweight placeholder shown until a ref resolves. */
@@ -101,10 +113,13 @@ export function applyQueueOverrides(track: Track): Track {
   return next;
 }
 
-/** Seed the cache with already-known tracks (e.g. on enqueue) — no fetch. */
+/** Seed the cache with already-known tracks (e.g. on enqueue) — no fetch.
+ *  Canonicalizes the caller-supplied server id so seed and refs always agree
+ *  on a single key shape. */
 export function seedQueueResolver(serverId: string, tracks: Track[]): void {
   if (tracks.length === 0) return;
-  for (const t of tracks) cacheSet(refKey({ serverId, trackId: t.id }), t);
+  const canonicalId = canonicalQueueServerKey(serverId);
+  for (const t of tracks) cacheSet(refKey({ serverId: canonicalId, trackId: t.id }), t);
   notify();
 }
 
@@ -177,13 +192,27 @@ export function resolveVisibleRange(refs: QueueItemRef[], fromIdx: number, toIdx
   if (end > start) void resolveBatch(refs.slice(start, end));
 }
 
-/** Drop cached entries for a track id (e.g. after a star/rating sync succeeds,
- *  so the next read re-fetches the server truth). */
+/** Drop cached entries for a track id, forcing the next resolve to re-fetch. */
 export function invalidateQueueResolver(trackId: string): void {
   let changed = false;
   for (const key of [...cache.keys()]) {
     if (key.endsWith(`:${trackId}`)) {
       cache.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) notify();
+}
+
+/** Patch cached entries for a track id in place (e.g. after a star/rating sync
+ *  succeeds). Unlike {@link invalidateQueueResolver}, this keeps the entry so a
+ *  visible queue row never blanks to a placeholder — the row stays resolved and
+ *  just reflects the synced value. No-op for refs not currently cached. */
+export function patchCachedTrack(trackId: string, patch: Partial<Track>): void {
+  let changed = false;
+  for (const [key, track] of cache) {
+    if (key.endsWith(`:${trackId}`)) {
+      cache.set(key, { ...track, ...patch });
       changed = true;
     }
   }

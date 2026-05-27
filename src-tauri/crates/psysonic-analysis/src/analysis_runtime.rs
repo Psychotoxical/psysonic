@@ -554,20 +554,66 @@ async fn analysis_backfill_worker_loop(
     }
 }
 
+/// Queued + currently-decoding CPU-seed jobs. Each retains the full track
+/// byte buffer, so this counter approximates pipeline memory pressure.
+fn cpu_seed_pipeline_load() -> usize {
+    let Some(shared) = ANALYSIS_CPU_SEED.get() else {
+        return 0;
+    };
+    let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
+    st.queued_len() + st.running.len()
+}
+
+/// Soft cap on in-flight CPU-seed jobs (queued + running). When reached, the
+/// HTTP backfill worker idles to keep decoded `Vec<u8>` buffers from piling up
+/// faster than Symphonia + R128 can drain them. Floor of 2 covers `workers=1`.
+fn cpu_seed_pipeline_cap(max_parallel: usize) -> usize {
+    max_parallel.saturating_mul(2).max(2)
+}
+
+/// Decide whether the HTTP backfill worker should idle right now. High-tier
+/// (now-playing) jobs always bypass the cap so playback is never starved.
+fn should_idle_for_cpu_backpressure(
+    cpu_load: usize,
+    cpu_cap: usize,
+    high_pending: bool,
+) -> bool {
+    !high_pending && cpu_load >= cpu_cap
+}
+
 async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackfillShared>) {
     loop {
         let max = shared.max_parallel();
+        // Backpressure against the CPU-seed pipeline: downloaded track bytes
+        // (Vec<u8>, tens of MB for FLAC) sit in `AnalysisCpuSeedJob.bytes` until
+        // Symphonia decode + R128 finish — much slower than HTTP. Without a cap,
+        // aggressive library backfill on large libraries grows RAM unbounded.
+        // High-tier (now-playing) jobs always proceed.
+        let cpu_load = cpu_seed_pipeline_load();
+        let cpu_cap = cpu_seed_pipeline_cap(max);
         let job_bundle = {
             let mut st = shared
                 .state
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
-            st.try_pop_next(max).map(|job| {
-                let worker_slot = st.in_progress.len();
-                (job, worker_slot)
-            })
+            let high_pending = !st.high.is_empty();
+            if should_idle_for_cpu_backpressure(cpu_load, cpu_cap, high_pending) {
+                None
+            } else {
+                st.try_pop_next(max).map(|job| {
+                    let worker_slot = st.in_progress.len();
+                    (job, worker_slot)
+                })
+            }
         };
         let Some(((track_id, url, server_id), worker_slot)) = job_bundle else {
+            if cpu_load >= cpu_cap {
+                crate::app_deprintln!(
+                    "[analysis] backfill idle: cpu_seed pipeline_load={} cap={} (waiting for decode catch-up)",
+                    cpu_load,
+                    cpu_cap
+                );
+            }
             break;
         };
         crate::app_deprintln!(
@@ -1112,6 +1158,11 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                 st.running.remove(&tid_log);
                 st.running_tiers.remove(&tid_log);
             }
+            // Decode slot freed → wake HTTP backfill in case it was idling on
+            // the `cpu_seed_pipeline_cap` backpressure check.
+            if let Some(http) = ANALYSIS_BACKFILL.get() {
+                http.ping_worker();
+            }
 
             match &seed_result {
                 Ok((outcome, timings)) => {
@@ -1559,5 +1610,37 @@ mod tests {
         let _ = s.prune_queued_not_in(&keep, None);
         let result = rx.blocking_recv().expect("sender side should have closed cleanly");
         assert!(result.is_err(), "pruned job must yield Err, got {result:?}");
+    }
+
+    // ── CPU-seed backpressure ─────────────────────────────────────────────────
+
+    #[test]
+    fn cpu_seed_pipeline_cap_scales_with_workers() {
+        assert_eq!(cpu_seed_pipeline_cap(1), 2);
+        assert_eq!(cpu_seed_pipeline_cap(3), 6);
+        assert_eq!(cpu_seed_pipeline_cap(6), 12);
+        assert_eq!(cpu_seed_pipeline_cap(20), 40);
+    }
+
+    #[test]
+    fn cpu_seed_pipeline_cap_has_floor_of_two() {
+        assert_eq!(cpu_seed_pipeline_cap(0), 2);
+    }
+
+    #[test]
+    fn backpressure_idles_when_cpu_load_meets_cap_and_no_high() {
+        assert!(should_idle_for_cpu_backpressure(12, 12, false));
+        assert!(should_idle_for_cpu_backpressure(20, 12, false));
+    }
+
+    #[test]
+    fn backpressure_allows_pop_when_cpu_load_below_cap() {
+        assert!(!should_idle_for_cpu_backpressure(11, 12, false));
+        assert!(!should_idle_for_cpu_backpressure(0, 12, false));
+    }
+
+    #[test]
+    fn backpressure_bypassed_for_high_priority_jobs() {
+        assert!(!should_idle_for_cpu_backpressure(100, 12, true));
     }
 }

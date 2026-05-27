@@ -14,6 +14,9 @@ export const albums = {
   compilationTooltipAll: 'Alle albums · klik: alleen compilaties',
   compilationTooltipOnly: 'Alleen compilaties · klik: compilaties verbergen',
   compilationTooltipHide: 'Compilaties verborgen · klik: toon alles',
+  losslessLabel: 'Lossless',
+  losslessTooltipOn: 'Alleen lossless-albums · klik: toon alles',
+  losslessTooltipOff: 'Alleen lossless-albums tonen',
   select: 'Meervoudige selectie',
   startSelect: 'Meervoudige selectie inschakelen',
   cancelSelect: 'Annuleren',
@@ -29,4 +32,7 @@ export const albums = {
   downloadZipFailed: 'Downloaden van {{name}} mislukt',
   offlineQueuing: '{{count}} album(s) in wachtrij voor offline…',
   offlineFailed: 'Toevoegen van {{name}} offline mislukt',
+  noFavorites: 'Geen favoriete albums komen overeen met de huidige filters.',
+  noCompilations: 'Geen compilaties komen overeen met de huidige filters.',
+  noMatchingFilters: 'Geen albums komen overeen met de huidige filters.',
 };

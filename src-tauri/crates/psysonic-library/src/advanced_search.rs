@@ -296,6 +296,11 @@ fn build_album(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    if scalar_requires_lossless_track_grouping(scalar) {
+        return build_album_from_tracks(
+            store, req, text, scalar, limit, offset, skip_totals, applied, true,
+        );
+    }
     if !scalar_requires_track_derived_entities(scalar) {
         let table = build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
         if !table.0.is_empty() || table.1 > 0 {
@@ -305,7 +310,9 @@ fn build_album(
     if let Some(q) = text.and_then(fts_album_prefix_match_query) {
         return build_album_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
     }
-    build_album_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
+    build_album_from_tracks(
+        store, req, text, scalar, limit, offset, skip_totals, applied, false,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -365,14 +372,17 @@ fn build_album_from_tracks(
     offset: u32,
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
+    include_album_table_rows: bool,
 ) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
     let mut w = WhereBuilder::new();
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
-    w.push_raw(
-        "NOT EXISTS (SELECT 1 FROM album a WHERE a.server_id = t.server_id AND a.id = t.album_id)",
-    );
+    if !include_album_table_rows {
+        w.push_raw(
+            "NOT EXISTS (SELECT 1 FROM album a WHERE a.server_id = t.server_id AND a.id = t.album_id)",
+        );
+    }
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
         let clause = library_scope_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
@@ -395,7 +405,7 @@ fn build_album_from_tracks(
     let select = "t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
         COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), MAX(t.cover_art_id), \
         MAX(t.starred_at), MAX(t.synced_at)";
-    let order = order_clause(&req.sort, EntityKind::Album).unwrap_or_else(|| {
+    let order = album_order_from_track_groups(&req.sort).unwrap_or_else(|| {
         "ORDER BY MAX(t.album) COLLATE NOCASE ASC, t.album_id ASC".to_string()
     });
     query_grouped_rows(
@@ -743,6 +753,12 @@ fn scalar_requires_track_derived_entities(scalar: &[&LibraryFilterClause]) -> bo
         .any(|c| matches!(c.field.as_str(), "mood_group" | "mood_tag"))
 }
 
+/// Lossless is defined on track `suffix`; year/genre filters must apply to the
+/// same track rows, not stale `album` table metadata.
+fn scalar_requires_lossless_track_grouping(scalar: &[&LibraryFilterClause]) -> bool {
+    scalar.iter().any(|c| c.field == "lossless")
+}
+
 /// Resolve one scalar clause to a WHERE fragment for `entity`. `Ok(None)`
 /// means the field is known but doesn't route to this entity (§5.13.3 skip).
 fn resolve_clause(
@@ -773,6 +789,24 @@ fn resolve_clause(
         ("starred", EntityKind::Artist) => return Ok(None),
         ("mood_group" | "mood_tag", EntityKind::Track) => {
             return crate::advanced_search_mood::resolve_mood_clause(c);
+        }
+        ("lossless", EntityKind::Track) => {
+            return Ok(Some(SqlFragment {
+                sql: crate::lossless_formats::track_is_lossless_sql("t"),
+                params: vec![],
+            }));
+        }
+        ("lossless", EntityKind::Album) => {
+            return Ok(Some(SqlFragment {
+                sql: crate::lossless_formats::album_has_lossless_track_sql("a"),
+                params: vec![],
+            }));
+        }
+        ("lossless", EntityKind::Artist) => {
+            return Ok(Some(SqlFragment {
+                sql: crate::lossless_formats::artist_has_lossless_track_sql("ar"),
+                params: vec![],
+            }));
         }
         // `text` is handled by the entity builder (FTS / LIKE), never here.
         ("text", _) => return Ok(None),
@@ -1071,6 +1105,31 @@ fn order_clause(sort: &[LibrarySortClause], entity: EntityKind) -> Option<String
             };
             keys.push(format!("{col} {dir}"));
         }
+    }
+    if keys.is_empty() {
+        None
+    } else {
+        Some(format!("ORDER BY {}", keys.join(", ")))
+    }
+}
+
+/// Sort for album rows aggregated from `track t` (`GROUP BY t.album_id`).
+/// Must not reference `album a` — that alias is absent in this query shape.
+fn album_order_from_track_groups(sort: &[LibrarySortClause]) -> Option<String> {
+    let mut keys: Vec<String> = Vec::new();
+    for s in sort {
+        let col = match s.field.as_str() {
+            "name" => "MAX(t.album) COLLATE NOCASE",
+            "artist" => "MAX(t.artist) COLLATE NOCASE",
+            "year" => "MAX(t.year)",
+            "random" => "RANDOM()",
+            _ => continue,
+        };
+        let dir = match s.dir {
+            SortDir::Asc => "ASC",
+            SortDir::Desc => "DESC",
+        };
+        keys.push(format!("{col} {dir}"));
     }
     if keys.is_empty() {
         None
@@ -1583,6 +1642,105 @@ mod tests {
         r.filters = vec![clause("nope", FilterOp::Eq, Some(json!("x")), None)];
         let err = run_advanced_search(&store, &r).unwrap_err();
         assert!(err.contains("unknown filter field"), "got: {err}");
+    }
+
+    #[test]
+    fn lossless_filter_returns_only_lossless_tracks() {
+        let store = LibraryStore::open_in_memory();
+        let mut flac = track("s1", "t1", "A", "X", "Alb");
+        flac.suffix = Some("flac".into());
+        let mut mp3 = track("s1", "t2", "B", "X", "Alb");
+        mp3.suffix = Some("mp3".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[flac, mp3])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.filters = vec![clause("lossless", FilterOp::IsTrue, None, None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t1");
+        assert!(resp.applied_filters.contains(&"lossless".to_string()));
+    }
+
+    #[test]
+    fn lossless_filter_on_album_entity_requires_lossless_track() {
+        let store = LibraryStore::open_in_memory();
+        insert_album(&store, "s1", "al1", "Lossless Album", None, None);
+        insert_album(&store, "s1", "al2", "Lossy Album", None, None);
+        let mut flac = track("s1", "t1", "A", "X", "Alb");
+        flac.album_id = Some("al1".into());
+        flac.suffix = Some("flac".into());
+        let mut mp3 = track("s1", "t2", "B", "Y", "Alb2");
+        mp3.album_id = Some("al2".into());
+        mp3.suffix = Some("mp3".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[flac, mp3])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![clause("lossless", FilterOp::IsTrue, None, None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al1");
+    }
+
+    #[test]
+    fn lossless_and_year_filters_use_track_year_when_album_table_differs() {
+        let store = LibraryStore::open_in_memory();
+        insert_album(&store, "s1", "al1", "Hi-Res Album", Some(1990), None);
+        let mut flac = track("s1", "t1", "Track", "Art", "Alb");
+        flac.album_id = Some("al1".into());
+        flac.suffix = Some("flac".into());
+        flac.year = Some(2022);
+        TrackRepository::new(&store)
+            .upsert_batch(&[flac])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![
+            clause("year", FilterOp::Between, Some(json!(2020)), Some(json!(2024))),
+            clause("lossless", FilterOp::IsTrue, None, None),
+        ];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al1");
+    }
+
+    #[test]
+    fn lossless_album_browse_with_name_sort_returns_rows() {
+        let store = LibraryStore::open_in_memory();
+        let mut flac = track("s1", "t1", "Track", "Art", "Zebra Album");
+        flac.suffix = Some("flac".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[flac])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![clause("lossless", FilterOp::IsTrue, None, None)];
+        r.sort = vec![LibrarySortClause {
+            field: "name".into(),
+            dir: SortDir::Asc,
+        }];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+    }
+
+    #[test]
+    fn lossless_filter_on_artist_entity_requires_lossless_track() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist(&store, "s1", "ar1", "Lossless Artist");
+        insert_artist(&store, "s1", "ar2", "Lossy Artist");
+        let mut flac = track("s1", "t1", "A", "Lossless Artist", "Alb");
+        flac.artist_id = Some("ar1".into());
+        flac.suffix = Some("flac".into());
+        let mut mp3 = track("s1", "t2", "B", "Lossy Artist", "Alb2");
+        mp3.artist_id = Some("ar2".into());
+        mp3.suffix = Some("mp3".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[flac, mp3])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.filters = vec![clause("lossless", FilterOp::IsTrue, None, None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar1");
     }
 
     #[test]

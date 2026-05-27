@@ -6,6 +6,7 @@ import { resetAllStores } from '../test/helpers/storeReset';
 import { invokeMock, onInvoke } from '../test/mocks/tauri';
 import { coverArtRef } from '../cover/ref';
 import { coverCacheEnsure, coverCacheRestHost, librarySqlServerId } from './coverCache';
+import { toQueueItemRefs } from '../utils/library/queueItemRef';
 
 describe('librarySqlServerId', () => {
   beforeEach(() => {
@@ -54,7 +55,7 @@ describe('coverCacheEnsure', () => {
 
     const track = makeTrack({ id: 'q1', coverArt: 'cover-1' });
     usePlayerStore.setState({
-      queue: [track],
+      queueItems: toQueueItemRefs(playbackServerId, [track]),
       queueIndex: 0,
       queueServerId: playbackServerId,
       currentTrack: track,

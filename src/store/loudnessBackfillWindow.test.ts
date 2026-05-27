@@ -4,7 +4,7 @@
  * = current track + next `LOUDNESS_BACKFILL_WINDOW_AHEAD` entries, with
  * duplicates collapsed.
  */
-import type { Track } from './playerStoreTypes';
+import type { QueueItemRef, Track } from './playerStoreTypes';
 import { describe, expect, it } from 'vitest';
 import {
   LOUDNESS_BACKFILL_WINDOW_AHEAD,
@@ -16,7 +16,12 @@ function track(id: string): Track {
   return { id, title: id, artist: 'A', album: 'X', albumId: 'X', duration: 100 };
 }
 
-const big = Array.from({ length: 12 }, (_, i) => track(`t${i}`));
+// Thin-state: the window functions take queue refs; the currentTrack arg stays a Track.
+function ref(id: string): QueueItemRef {
+  return { serverId: 's', trackId: id };
+}
+
+const big = Array.from({ length: 12 }, (_, i) => ref(`t${i}`));
 
 describe('LOUDNESS_BACKFILL_WINDOW_AHEAD', () => {
   it('is the value the runtime expects', () => {
@@ -26,23 +31,23 @@ describe('LOUDNESS_BACKFILL_WINDOW_AHEAD', () => {
 
 describe('isTrackInsideLoudnessBackfillWindow', () => {
   it('matches the current track unconditionally', () => {
-    expect(isTrackInsideLoudnessBackfillWindow('t0', big, 0, big[0])).toBe(true);
+    expect(isTrackInsideLoudnessBackfillWindow('t0', big, 0, track('t0'))).toBe(true);
   });
 
   it('matches an id inside the ahead window', () => {
     // queueIndex 0, AHEAD 5 → indices 1..5 are inside, t3 must hit.
-    expect(isTrackInsideLoudnessBackfillWindow('t3', big, 0, big[0])).toBe(true);
+    expect(isTrackInsideLoudnessBackfillWindow('t3', big, 0, track('t0'))).toBe(true);
   });
 
   it('returns false for an id beyond the ahead window', () => {
     // From queueIndex 0, indices 1..5 inside → t6 (index 6) is outside.
-    expect(isTrackInsideLoudnessBackfillWindow('t6', big, 0, big[0])).toBe(false);
+    expect(isTrackInsideLoudnessBackfillWindow('t6', big, 0, track('t0'))).toBe(false);
   });
 
   it('window slides with queueIndex', () => {
     // queueIndex 4, AHEAD 5 → indices 5..9 are inside, t9 must hit, t10 must not.
-    expect(isTrackInsideLoudnessBackfillWindow('t9', big, 4, big[4])).toBe(true);
-    expect(isTrackInsideLoudnessBackfillWindow('t10', big, 4, big[4])).toBe(false);
+    expect(isTrackInsideLoudnessBackfillWindow('t9', big, 4, track('t4'))).toBe(true);
+    expect(isTrackInsideLoudnessBackfillWindow('t10', big, 4, track('t4'))).toBe(false);
   });
 
   it('returns false for empty queue', () => {
@@ -50,7 +55,7 @@ describe('isTrackInsideLoudnessBackfillWindow', () => {
   });
 
   it('returns false for empty trackId', () => {
-    expect(isTrackInsideLoudnessBackfillWindow('', big, 0, big[0])).toBe(false);
+    expect(isTrackInsideLoudnessBackfillWindow('', big, 0, track('t0'))).toBe(false);
   });
 
   it('returns false when currentTrack is null and id is not in the queue window', () => {
@@ -60,12 +65,12 @@ describe('isTrackInsideLoudnessBackfillWindow', () => {
 
 describe('collectLoudnessBackfillWindowTrackIds', () => {
   it('returns current + next 5 entries', () => {
-    const ids = collectLoudnessBackfillWindowTrackIds(big, 0, big[0]);
+    const ids = collectLoudnessBackfillWindowTrackIds(big, 0, track('t0'));
     expect(ids).toEqual(['t0', 't1', 't2', 't3', 't4', 't5']);
   });
 
   it('clamps the window to the end of the queue', () => {
-    const ids = collectLoudnessBackfillWindowTrackIds(big, 9, big[9]);
+    const ids = collectLoudnessBackfillWindowTrackIds(big, 9, track('t9'));
     // queueIndex 9, AHEAD 5 → indices 10..11 available → t9, t10, t11
     expect(ids).toEqual(['t9', 't10', 't11']);
   });
@@ -76,8 +81,8 @@ describe('collectLoudnessBackfillWindowTrackIds', () => {
   });
 
   it('deduplicates when currentTrack is also in the ahead window', () => {
-    const queue = [track('a'), track('b'), track('a'), track('c')];
-    const ids = collectLoudnessBackfillWindowTrackIds(queue, 0, queue[0]);
+    const queue = [ref('a'), ref('b'), ref('a'), ref('c')];
+    const ids = collectLoudnessBackfillWindowTrackIds(queue, 0, track('a'));
     expect(ids).toEqual(['a', 'b', 'c']);
   });
 
