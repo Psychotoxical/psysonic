@@ -85,3 +85,13 @@ function scheduleNavigationResume(): void {
     syncBackfillUiPriority();
   }, NAVIGATION_QUIET_MS);
 }
+
+/** Test-only — reset module hold state between cases. */
+export function __test_resetCoverTraffic(): void {
+  navigationHoldDepth = 0;
+  serverSwitchHold = false;
+  if (resumeTimer) clearTimeout(resumeTimer);
+  if (serverSwitchEndTimer) clearTimeout(serverSwitchEndTimer);
+  resumeTimer = null;
+  serverSwitchEndTimer = null;
+}

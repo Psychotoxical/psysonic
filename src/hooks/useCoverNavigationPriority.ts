@@ -16,7 +16,7 @@ export function useCoverNavigationPriority(): void {
     coverTrafficBeginNavigation();
     coverTrafficEndNavigation();
     return () => {
-      coverTrafficBeginNavigation();
+      coverTrafficEndNavigation();
     };
   }, [pathname]);
 }

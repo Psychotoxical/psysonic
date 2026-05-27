@@ -260,22 +260,23 @@ pub fn collect_cover_backfill_batch(
         }
         for item in page {
             after.clone_from(&item.cache_entity_id);
+            let Some(normalized) = normalize_backfill_item(store, library_server_id, item)? else {
+                continue;
+            };
             if cover_canonical_cached_on_disk(
                 cover_root,
                 server_index_key,
-                &item.cache_kind,
-                &item.cache_entity_id,
+                &normalized.cache_kind,
+                &normalized.cache_entity_id,
             ) || cover_fetch_recently_failed(&cover_cache_dir(
                 cover_root,
                 server_index_key,
-                &item.cache_kind,
-                &item.cache_entity_id,
+                &normalized.cache_kind,
+                &normalized.cache_entity_id,
             )) {
                 continue;
             }
-            if let Some(normalized) = normalize_backfill_item(store, library_server_id, item)? {
-                pending.push(normalized);
-            }
+            pending.push(normalized);
             if pending.len() >= want {
                 break;
             }
