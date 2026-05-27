@@ -1,3 +1,6 @@
+import type { ServerProfile } from '../../store/authStoreTypes';
+import { normalizeServerBaseUrl, serverShareBaseUrl } from './serverEndpoint';
+
 /**
  * Prefix for server invite strings (Subsonic credentials). Same family as library
  * shares in `shareLink.ts` (`psysonic2-` + payload).
@@ -135,6 +138,39 @@ export function decodeServerMagicString(raw: string): ServerMagicPayload | null 
     };
   }
   return { url, username, password, name };
+}
+
+/**
+ * Pick out the dual-address fields for the saved profile whose primary URL
+ * or `alternateUrl` matches the given `serverUrl`. Returns the share URL +
+ * the alternate + the share flag when those exist; falls back to just the
+ * raw `serverUrl` for legacy / single-address profiles (v1 wire shape).
+ *
+ * Shared by `MagicStringModal` and `UserForm` (the two places we encode
+ * server invites from). The lookup is normalize-aware so it tolerates
+ * trailing-slash / scheme differences between the input URL and the saved
+ * profile's URL.
+ */
+export function magicPayloadAddressFields(
+  serverUrl: string,
+  servers: ServerProfile[],
+): {
+  url: string;
+  alternateUrl?: string;
+  shareUsesLocalUrl?: boolean;
+} {
+  const normalized = normalizeServerBaseUrl(serverUrl);
+  const match = servers.find(
+    s =>
+      normalizeServerBaseUrl(s.url) === normalized ||
+      (s.alternateUrl != null && normalizeServerBaseUrl(s.alternateUrl) === normalized),
+  );
+  if (!match) return { url: serverUrl };
+  return {
+    url: serverShareBaseUrl(match),
+    ...(match.alternateUrl ? { alternateUrl: match.alternateUrl } : {}),
+    ...(match.shareUsesLocalUrl ? { shareUsesLocalUrl: true } : {}),
+  };
 }
 
 export async function copyTextToClipboard(text: string): Promise<boolean> {
