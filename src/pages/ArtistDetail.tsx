@@ -313,6 +313,7 @@ export default function ArtistDetail() {
             <ArtistDetailTopTracks
               key="topTracks"
               topSongs={topSongs}
+              albums={albums}
               marginTop={sectionMt('topTracks')}
               playTopSongWithContinuation={playTopSongWithContinuation}
               losslessOnly={losslessOnly}

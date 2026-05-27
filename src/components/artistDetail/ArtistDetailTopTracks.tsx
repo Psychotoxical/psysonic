@@ -1,7 +1,8 @@
 import React, { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, Play, Square } from 'lucide-react';
-import type { SubsonicSong } from '../../api/subsonicTypes';
+import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
+import { resolveArtistPageSongCoverArtId } from '../../utils/library/advancedSearchLocal';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
@@ -11,13 +12,14 @@ import ArtistSuggestionTrackCover from './ArtistSuggestionTrackCover';
 
 interface Props {
   topSongs: SubsonicSong[];
+  albums: SubsonicAlbum[];
   marginTop: string;
   playTopSongWithContinuation: (startIndex: number) => Promise<void>;
   losslessOnly?: boolean;
 }
 
 export default function ArtistDetailTopTracks({
-  topSongs, marginTop, playTopSongWithContinuation, losslessOnly = false,
+  topSongs, albums, marginTop, playTopSongWithContinuation, losslessOnly = false,
 }: Props) {
   const { t } = useTranslation();
   const currentTrack = usePlayerStore(s => s.currentTrack);
@@ -92,9 +94,12 @@ export default function ArtistDetailTopTracks({
               ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
               : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
           </button>
-          {song.coverArt && (
-            <ArtistSuggestionTrackCover coverArt={song.coverArt} album={song.album} />
-          )}
+          {(() => {
+            const coverId = resolveArtistPageSongCoverArtId(song, albums);
+            return coverId ? (
+              <ArtistSuggestionTrackCover coverArt={coverId} album={song.album} />
+            ) : null;
+          })()}
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <div className="track-title">{song.title}</div>
           </div>
