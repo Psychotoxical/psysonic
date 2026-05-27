@@ -27,8 +27,8 @@ function makeFingerprint(overrides: Partial<ServerFingerprint> = {}): ServerFing
       apiVersion: '1.16.1',
     },
     musicFolders: [{ id: '1', name: 'Music' }],
-    userId: 'frank',
-    licenseKey: 'frank@example.com',
+    userId: 'tester',
+    licenseKey: 'tester@example.com',
     indexesDigest: 'letters:26|a1,a2',
     ...overrides,
   };
@@ -111,7 +111,7 @@ describe('compareFingerprints', () => {
   });
 
   it('mismatches when userId differs', () => {
-    const a = makeFingerprint({ userId: 'frank' });
+    const a = makeFingerprint({ userId: 'tester' });
     const b = makeFingerprint({ userId: 'maria' });
     expect(compareFingerprints(a, b)).toBe('mismatch');
   });
@@ -131,7 +131,7 @@ describe('compareFingerprints', () => {
   it('ignores a body signal that is null on one side', () => {
     // userId null on a — only license + folders + indexes contribute; they match.
     const a = makeFingerprint({ userId: null });
-    const b = makeFingerprint({ userId: 'frank' });
+    const b = makeFingerprint({ userId: 'tester' });
     expect(compareFingerprints(a, b)).toBe('match');
   });
 
@@ -159,8 +159,8 @@ describe('fetchServerFingerprint', () => {
     );
     vi.mocked(apiWithCredentials)
       .mockResolvedValueOnce({ musicFolders: { musicFolder: [{ id: '1', name: 'Music' }] } })
-      .mockResolvedValueOnce({ user: { id: 'frank', username: 'frank' } })
-      .mockResolvedValueOnce({ license: { email: 'frank@example.com' } })
+      .mockResolvedValueOnce({ user: { id: 'tester', username: 'tester' } })
+      .mockResolvedValueOnce({ license: { email: 'tester@example.com' } })
       .mockResolvedValueOnce({
         indexes: {
           index: [
@@ -170,14 +170,14 @@ describe('fetchServerFingerprint', () => {
         },
       });
 
-    const fp = await fetchServerFingerprint('https://music.example.com', 'frank', 'pw');
+    const fp = await fetchServerFingerprint('https://music.example.com', 'tester', 'pw');
     expect(fp.ping.type).toBe('navidrome');
     expect(fp.ping.serverVersion).toBe('0.55.0');
     expect(fp.ping.openSubsonic).toBe(true);
     expect(fp.ping.apiVersion).toBe('1.16.1');
     expect(fp.musicFolders).toEqual([{ id: '1', name: 'Music' }]);
-    expect(fp.userId).toBe('frank');
-    expect(fp.licenseKey).toBe('frank@example.com');
+    expect(fp.userId).toBe('tester');
+    expect(fp.licenseKey).toBe('tester@example.com');
     expect(fp.indexesDigest).toMatch(/^letters:2\|/);
   });
 
@@ -188,11 +188,30 @@ describe('fetchServerFingerprint', () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(navidromePingResponse()));
     vi.mocked(apiWithCredentials)
       .mockResolvedValueOnce({ musicFolders: { musicFolder: [] } })
-      .mockResolvedValueOnce({ user: { username: 'frank' } }) // no `id` field
+      .mockResolvedValueOnce({ user: { username: 'tester' } }) // no `id` field
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({});
-    const fp = await fetchServerFingerprint('https://x.example.com', 'frank', 'pw');
+    const fp = await fetchServerFingerprint('https://x.example.com', 'tester', 'pw');
     expect(fp.userId).toBeNull();
+  });
+
+  it('handles a partial-fail mix — some optional calls ok, others rejected', async () => {
+    // Real-world: a server answers getMusicFolders + getUser but rejects
+    // getLicense / getIndexes (subset of OpenSubsonic supported). The
+    // fingerprint must surface what succeeded and leave the rest null —
+    // guards against a Promise.all-vs-allSettled regression that would
+    // collapse the whole fingerprint when one call throws.
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(navidromePingResponse()));
+    vi.mocked(apiWithCredentials)
+      .mockResolvedValueOnce({ musicFolders: { musicFolder: [{ id: '1', name: 'Music' }] } })
+      .mockResolvedValueOnce({ user: { id: 'tester' } })
+      .mockRejectedValueOnce(new Error('license not implemented'))
+      .mockRejectedValueOnce(new Error('indexes not implemented'));
+    const fp = await fetchServerFingerprint('https://music.example.com', 'tester', 'pw');
+    expect(fp.musicFolders).toEqual([{ id: '1', name: 'Music' }]);
+    expect(fp.userId).toBe('tester');
+    expect(fp.licenseKey).toBeNull();
+    expect(fp.indexesDigest).toBeNull();
   });
 
   it('soft-fails optional calls — minimal Subsonic-shape', async () => {
@@ -288,13 +307,13 @@ describe('verifySameServerEndpoints', () => {
     // Two different folder lists.
     vi.mocked(apiWithCredentials)
       .mockResolvedValueOnce({ musicFolders: { musicFolder: [{ id: '1', name: 'Music' }] } })
-      .mockResolvedValueOnce({ user: { id: 'frank' } })
+      .mockResolvedValueOnce({ user: { id: 'tester' } })
       .mockResolvedValueOnce({ license: { email: 'a@e.com' } })
       .mockResolvedValueOnce({
         indexes: { index: [{ name: 'A', artist: [{ id: 'a1' }] }] },
       })
       .mockResolvedValueOnce({ musicFolders: { musicFolder: [{ id: '99', name: 'Other' }] } })
-      .mockResolvedValueOnce({ user: { id: 'frank' } })
+      .mockResolvedValueOnce({ user: { id: 'tester' } })
       .mockResolvedValueOnce({ license: { email: 'a@e.com' } })
       .mockResolvedValueOnce({
         indexes: { index: [{ name: 'A', artist: [{ id: 'a1' }] }] },

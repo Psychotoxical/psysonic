@@ -730,20 +730,35 @@ pub async fn cover_cache_rename_server_bucket(
     old_key: String,
     new_key: String,
 ) -> Result<(), String> {
+    let st = state(&app)?;
+    let guard = st.lock().await;
+    rename_bucket_inner(&guard.root, &old_key, &new_key)?;
+    drop(guard);
+    let _ = app.emit(
+        "cover:bucket-renamed",
+        serde_json::json!({ "oldKey": old_key, "newKey": new_key }),
+    );
+    Ok(())
+}
+
+/// FS-only worker for `cover_cache_rename_server_bucket`, lifted out so the
+/// command-level behaviour (sanitization + every short-circuit + the merge
+/// branch) is testable against a real `tempdir` without spinning up Tauri
+/// State. The command wrapper above adds nothing the tests need to cover
+/// except the event emit.
+fn rename_bucket_inner(root: &std::path::Path, old_key: &str, new_key: &str) -> Result<(), String> {
     if old_key.is_empty() || new_key.is_empty() {
         return Err("cover_cache_rename_server_bucket: empty key".into());
     }
-    if !is_safe_index_key(&old_key) || !is_safe_index_key(&new_key) {
+    if !is_safe_index_key(old_key) || !is_safe_index_key(new_key) {
         return Err("cover_cache_rename_server_bucket: key contains path separator".into());
     }
     if old_key == new_key {
         return Ok(());
     }
 
-    let st = state(&app)?;
-    let guard = st.lock().await;
-    let old_dir = guard.root.join(&old_key);
-    let new_dir = guard.root.join(&new_key);
+    let old_dir = root.join(old_key);
+    let new_dir = root.join(new_key);
 
     if !old_dir.is_dir() {
         return Ok(());
@@ -755,12 +770,6 @@ pub async fn cover_cache_rename_server_bucket(
         merge_cover_bucket(&old_dir, &new_dir)?;
         let _ = std::fs::remove_dir_all(&old_dir);
     }
-
-    drop(guard);
-    let _ = app.emit(
-        "cover:bucket-renamed",
-        serde_json::json!({ "oldKey": old_key, "newKey": new_key }),
-    );
     Ok(())
 }
 
@@ -969,7 +978,7 @@ mod tests {
 
     use super::decode_image_bytes;
     use super::disk::{cover_dir, tier_path};
-    use super::{is_safe_index_key, merge_cover_bucket};
+    use super::{is_safe_index_key, merge_cover_bucket, rename_bucket_inner};
     use std::fs;
     use std::path::PathBuf;
 
@@ -1065,6 +1074,87 @@ mod tests {
 
         // Existing destination wins; nothing was overwritten.
         assert_eq!(fs::read(new_.join("al-1").join("128.webp")).unwrap(), b"NEW");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    // ── rename_bucket_inner — command-level behaviour ─────────────────────────
+
+    #[test]
+    fn rename_bucket_inner_rejects_empty_keys() {
+        let root = fresh_tmpdir("rename-empty");
+        assert!(rename_bucket_inner(&root, "", "new").is_err());
+        assert!(rename_bucket_inner(&root, "old", "").is_err());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rename_bucket_inner_rejects_unsafe_keys() {
+        let root = fresh_tmpdir("rename-unsafe");
+        assert!(rename_bucket_inner(&root, "../escape", "new").is_err());
+        assert!(rename_bucket_inner(&root, "old", "/abs/path").is_err());
+        assert!(rename_bucket_inner(&root, "old", "C:/Windows").is_err());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rename_bucket_inner_noop_when_old_missing() {
+        let root = fresh_tmpdir("rename-missing");
+        // No old dir exists at all — must succeed without creating new.
+        rename_bucket_inner(&root, "old", "new").unwrap();
+        assert!(!root.join("new").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rename_bucket_inner_noop_when_keys_equal() {
+        let root = fresh_tmpdir("rename-equal");
+        fs::create_dir_all(root.join("same").join("al-1")).unwrap();
+        fs::write(root.join("same").join("al-1").join("128.webp"), b"x").unwrap();
+        rename_bucket_inner(&root, "same", "same").unwrap();
+        // Still exactly where it was; nothing renamed.
+        assert!(root.join("same").join("al-1").join("128.webp").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rename_bucket_inner_simple_rename_when_new_missing() {
+        let root = fresh_tmpdir("rename-simple");
+        fs::create_dir_all(root.join("old").join("al-1")).unwrap();
+        fs::write(root.join("old").join("al-1").join("128.webp"), b"payload").unwrap();
+        rename_bucket_inner(&root, "old", "new").unwrap();
+        assert!(!root.join("old").exists());
+        assert_eq!(
+            fs::read(root.join("new").join("al-1").join("128.webp")).unwrap(),
+            b"payload",
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rename_bucket_inner_merges_when_new_exists() {
+        let root = fresh_tmpdir("rename-merge");
+        fs::create_dir_all(root.join("old").join("al-1")).unwrap();
+        fs::create_dir_all(root.join("new").join("al-2")).unwrap();
+        fs::write(root.join("old").join("al-1").join("128.webp"), b"from-old").unwrap();
+        fs::write(root.join("new").join("al-2").join("128.webp"), b"from-new").unwrap();
+        // Collision on al-2 — destination wins.
+        fs::create_dir_all(root.join("old").join("al-2")).unwrap();
+        fs::write(root.join("old").join("al-2").join("128.webp"), b"overwrite-attempt").unwrap();
+
+        rename_bucket_inner(&root, "old", "new").unwrap();
+
+        // Old bucket gone.
+        assert!(!root.join("old").exists());
+        // al-1 moved in.
+        assert_eq!(
+            fs::read(root.join("new").join("al-1").join("128.webp")).unwrap(),
+            b"from-old",
+        );
+        // al-2 destination preserved (prefer-existing).
+        assert_eq!(
+            fs::read(root.join("new").join("al-2").join("128.webp")).unwrap(),
+            b"from-new",
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

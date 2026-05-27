@@ -267,4 +267,31 @@ describe('findServerIdForShareUrl', () => {
   it('returns null on an empty server list', () => {
     expect(findServerIdForShareUrl([], 'https://x.example')).toBeNull();
   });
+
+  it('matches a dual-address profile by its alternateUrl', () => {
+    // Host generated a v2 invite with shareUsesLocalUrl=true → the share URL
+    // in the payload is the LAN side. The receiver pastes that URL; their
+    // saved profile has the public URL as primary and the LAN as alternate,
+    // so the lookup must match on alternateUrl, not just url.
+    const a = makeServer({
+      id: 'a',
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10:4533',
+    });
+    expect(findServerIdForShareUrl([a], 'http://192.168.0.10:4533')).toBe('a');
+    expect(findServerIdForShareUrl([a], 'http://192.168.0.10:4533/')).toBe('a');
+  });
+
+  it('matches either primary or alternate, prefers primary when both exist on different profiles', () => {
+    const a = makeServer({
+      id: 'a',
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10',
+    });
+    const b = makeServer({ id: 'b', url: 'http://192.168.0.10:4533' });
+    // 'a' matches via alternateUrl, 'b' matches via url — both are valid
+    // hits; the function returns the first one (insertion order).
+    expect(findServerIdForShareUrl([a, b], 'http://192.168.0.10')).toBe('a');
+    expect(findServerIdForShareUrl([b, a], 'http://192.168.0.10:4533')).toBe('b');
+  });
 });
