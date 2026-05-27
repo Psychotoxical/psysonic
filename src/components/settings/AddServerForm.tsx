@@ -83,6 +83,11 @@ export function AddServerForm({
       ...f,
       name: (initialInvite.name && initialInvite.name.trim()) || shortHostFromServerUrl(initialInvite.url),
       url: initialInvite.url,
+      // v2 invites carry the host's dual-address fields. Pre-populate so the
+      // receiver sees both addresses + the share preference rather than
+      // re-typing them.
+      alternateUrl: initialInvite.alternateUrl ?? '',
+      shareUsesLocalUrl: initialInvite.shareUsesLocalUrl ?? false,
       username: initialInvite.username,
       password: initialInvite.password,
     }));
@@ -109,6 +114,8 @@ export function AddServerForm({
         ...f,
         name: (decoded.name && decoded.name.trim()) || shortHostFromServerUrl(decoded.url),
         url: decoded.url,
+        alternateUrl: decoded.alternateUrl ?? '',
+        shareUsesLocalUrl: decoded.shareUsesLocalUrl ?? false,
         username: decoded.username,
         password: decoded.password,
       }));

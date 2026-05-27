@@ -9,6 +9,39 @@ import {
   encodeServerMagicString,
 } from '../../../utils/server/serverMagicString';
 import { shortHostFromServerUrl } from '../../../utils/server/serverDisplayName';
+import { useAuthStore } from '../../../store/authStore';
+import {
+  normalizeServerBaseUrl,
+  serverShareBaseUrl,
+} from '../../../utils/server/serverEndpoint';
+import type { ServerProfile } from '../../../store/authStoreTypes';
+
+/**
+ * Pick out the dual-address fields for the profile that owns `serverUrl`,
+ * so the encoded invite carries the share URL + alternate + share flag
+ * when those exist. Falls back to the raw `serverUrl` for legacy / single-
+ * address profiles — v1 wire shape unchanged.
+ */
+function magicPayloadAddressFields(serverUrl: string): {
+  url: string;
+  alternateUrl?: string;
+  shareUsesLocalUrl?: boolean;
+} {
+  const normalized = normalizeServerBaseUrl(serverUrl);
+  const match = useAuthStore.getState().servers.find(
+    (s: ServerProfile) =>
+      normalizeServerBaseUrl(s.url) === normalized ||
+      (s.alternateUrl != null && normalizeServerBaseUrl(s.alternateUrl) === normalized),
+  );
+  if (!match) {
+    return { url: serverUrl };
+  }
+  return {
+    url: serverShareBaseUrl(match),
+    ...(match.alternateUrl ? { alternateUrl: match.alternateUrl } : {}),
+    ...(match.shareUsesLocalUrl ? { shareUsesLocalUrl: true } : {}),
+  };
+}
 
 interface Props {
   user: NdUser;
@@ -63,8 +96,9 @@ export function MagicStringModal({
         return;
       }
       setSubmitting(false);
+      const addressFields = magicPayloadAddressFields(serverUrl);
       const str = encodeServerMagicString({
-        url: serverUrl,
+        ...addressFields,
         username: user.userName,
         password: password.trim(),
         name: shortHostFromServerUrl(serverUrl),

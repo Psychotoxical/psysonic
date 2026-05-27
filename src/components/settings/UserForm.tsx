@@ -8,6 +8,34 @@ import {
   encodeServerMagicString,
 } from '../../utils/server/serverMagicString';
 import { shortHostFromServerUrl } from '../../utils/server/serverDisplayName';
+import { useAuthStore } from '../../store/authStore';
+import {
+  normalizeServerBaseUrl,
+  serverShareBaseUrl,
+} from '../../utils/server/serverEndpoint';
+import type { ServerProfile } from '../../store/authStoreTypes';
+
+/** v2 dual-address fields for the profile that owns `serverUrl`, or just the
+ *  url itself for legacy single-address profiles. Mirrors the same lookup
+ *  the MagicStringModal does so the two encode paths stay in sync. */
+function magicPayloadAddressFields(serverUrl: string): {
+  url: string;
+  alternateUrl?: string;
+  shareUsesLocalUrl?: boolean;
+} {
+  const normalized = normalizeServerBaseUrl(serverUrl);
+  const match = useAuthStore.getState().servers.find(
+    (s: ServerProfile) =>
+      normalizeServerBaseUrl(s.url) === normalized ||
+      (s.alternateUrl != null && normalizeServerBaseUrl(s.alternateUrl) === normalized),
+  );
+  if (!match) return { url: serverUrl };
+  return {
+    url: serverShareBaseUrl(match),
+    ...(match.alternateUrl ? { alternateUrl: match.alternateUrl } : {}),
+    ...(match.shareUsesLocalUrl ? { shareUsesLocalUrl: true } : {}),
+  };
+}
 
 export interface UserFormState {
   userName: string;
@@ -104,8 +132,9 @@ export function UserForm({
     } finally {
       setMagicGenBusy(false);
     }
+    const addressFields = magicPayloadAddressFields(shareServerUrl.trim());
     const str = encodeServerMagicString({
-      url: shareServerUrl.trim(),
+      ...addressFields,
       username: form.userName.trim(),
       password: form.password,
       name: shortHostFromServerUrl(shareServerUrl),

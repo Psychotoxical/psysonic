@@ -24,7 +24,18 @@ export default function Login() {
   const { t } = useTranslation();
   const { addServer, updateServer, setActiveServer, setLoggedIn, setConnecting, setConnectionError, servers } = useAuthStore();
 
-  const [form, setForm] = useState({ serverName: '', url: '', username: '', password: '' });
+  // alternateUrl / shareUsesLocalUrl are not user-editable on this page (Login
+  // stays single-address by design); they're populated only when a v2 magic
+  // string is decoded so the dual-address shape persists straight from the
+  // invite onto the saved profile.
+  const [form, setForm] = useState({
+    serverName: '',
+    url: '',
+    username: '',
+    password: '',
+    alternateUrl: '' as string,
+    shareUsesLocalUrl: false,
+  });
   const [magicString, setMagicString] = useState('');
   const [showPass, setShowPass] = useState(false);
   /** After a valid magic string decode, do not allow revealing the password in the UI. */
@@ -42,6 +53,8 @@ export default function Login() {
       url: inv.url,
       username: inv.username,
       password: inv.password,
+      alternateUrl: inv.alternateUrl ?? '',
+      shareUsesLocalUrl: inv.shareUsesLocalUrl ?? false,
     });
     setMagicString(encodeServerMagicString(inv));
     navigate('/login', { replace: true, state: {} });
@@ -63,6 +76,8 @@ export default function Login() {
         url: decoded.url,
         username: decoded.username,
         password: decoded.password,
+        alternateUrl: decoded.alternateUrl ?? '',
+        shareUsesLocalUrl: decoded.shareUsesLocalUrl ?? false,
       });
       if (status === 'error') {
         setStatus('idle');
@@ -71,7 +86,14 @@ export default function Login() {
     }
   };
 
-  const attemptConnect = async (profile: { name: string; url: string; username: string; password: string }) => {
+  const attemptConnect = async (profile: {
+    name: string;
+    url: string;
+    username: string;
+    password: string;
+    alternateUrl?: string;
+    shareUsesLocalUrl?: boolean;
+  }) => {
     if (!profile.url.trim()) {
       setTestMessage(t('login.urlRequired'));
       setStatus('error');
@@ -97,11 +119,21 @@ export default function Login() {
     if (ping.ok) {
       // Connection succeeded — now persist to store
       const existing = servers.find(s => s.url === profile.url.trim() && s.username === profile.username.trim());
+      // Dual-address fields persist straight off a v2 magic invite even
+      // though Login itself never shows the second-address field. The
+      // user can edit/remove them later via Settings → Servers.
+      const altTrimmed = profile.alternateUrl?.trim() ?? '';
       let serverId: string;
       if (existing) {
         updateServer(existing.id, {
           name: profile.name.trim() || profile.url.trim(),
           password: profile.password,
+          ...(altTrimmed
+            ? {
+                alternateUrl: altTrimmed,
+                shareUsesLocalUrl: profile.shareUsesLocalUrl ?? false,
+              }
+            : {}),
         });
         serverId = existing.id;
       } else {
@@ -110,6 +142,12 @@ export default function Login() {
           url: profile.url.trim(),
           username: profile.username.trim(),
           password: profile.password,
+          ...(altTrimmed
+            ? {
+                alternateUrl: altTrimmed,
+                shareUsesLocalUrl: profile.shareUsesLocalUrl ?? false,
+              }
+            : {}),
         });
       }
       const identity = {
@@ -152,18 +190,41 @@ export default function Login() {
         url: decoded.url,
         username: decoded.username,
         password: decoded.password,
+        alternateUrl: decoded.alternateUrl,
+        shareUsesLocalUrl: decoded.shareUsesLocalUrl,
       });
       return;
     }
-    await attemptConnect({ name: form.serverName, url: form.url, username: form.username, password: form.password });
+    await attemptConnect({
+      name: form.serverName,
+      url: form.url,
+      username: form.username,
+      password: form.password,
+      alternateUrl: form.alternateUrl,
+      shareUsesLocalUrl: form.shareUsesLocalUrl,
+    });
   };
 
   const handleQuickConnect = async (srv: typeof servers[0]) => {
     setMagicString('');
     setBlockPasswordReveal(false);
     setShowPass(false);
-    setForm({ serverName: srv.name, url: srv.url, username: srv.username, password: srv.password });
-    await attemptConnect({ name: srv.name, url: srv.url, username: srv.username, password: srv.password });
+    setForm({
+      serverName: srv.name,
+      url: srv.url,
+      username: srv.username,
+      password: srv.password,
+      alternateUrl: srv.alternateUrl ?? '',
+      shareUsesLocalUrl: srv.shareUsesLocalUrl ?? false,
+    });
+    await attemptConnect({
+      name: srv.name,
+      url: srv.url,
+      username: srv.username,
+      password: srv.password,
+      alternateUrl: srv.alternateUrl,
+      shareUsesLocalUrl: srv.shareUsesLocalUrl,
+    });
   };
 
   return (
