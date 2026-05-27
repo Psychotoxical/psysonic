@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -14,7 +14,7 @@ import {
   resolveArtistCoverRefFromLibrary,
   resolveTrackCoverRefFromLibrary,
 } from './resolveEntryLibrary';
-import type { CoverArtRef, CoverServerScope } from './types';
+import { COVER_SCOPE_ACTIVE, coverScopeKey, type CoverArtRef, type CoverServerScope } from './types';
 
 function coverRefsEqual(a: CoverArtRef, b: CoverArtRef): boolean {
   return (
@@ -24,22 +24,34 @@ function coverRefsEqual(a: CoverArtRef, b: CoverArtRef): boolean {
   );
 }
 
+function applySyncRef<T extends CoverArtRef | null | undefined>(
+  setRef: Dispatch<SetStateAction<T>>,
+  syncRef: T,
+): void {
+  setRef(prev => {
+    if (!syncRef) return syncRef;
+    if (prev && coverRefsEqual(prev, syncRef)) return prev;
+    return syncRef;
+  });
+}
+
 /** Album grid / card — sync fallback, then local library index when indexed. */
 export function useAlbumCoverRef(
   albumId: string | null | undefined,
   fallbackCoverArt?: string | null,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): CoverArtRef | null {
+  const scopeKey = coverScopeKey(serverScope);
   const syncRef = useMemo(() => {
     const id = albumId?.trim();
     if (!id) return null;
     return albumCoverRef(id, fallbackCoverArt, serverScope);
-  }, [albumId, fallbackCoverArt, serverScope]);
+  }, [albumId, fallbackCoverArt, scopeKey, serverScope]);
 
   const [ref, setRef] = useState<CoverArtRef | null>(syncRef);
 
   useEffect(() => {
-    setRef(syncRef);
+    applySyncRef(setRef, syncRef);
     const id = albumId?.trim();
     if (!id) return;
     let cancelled = false;
@@ -51,7 +63,7 @@ export function useAlbumCoverRef(
     return () => {
       cancelled = true;
     };
-  }, [albumId, fallbackCoverArt, serverScope, syncRef]);
+  }, [albumId, fallbackCoverArt, scopeKey, syncRef]);
 
   return ref;
 }
@@ -60,18 +72,19 @@ export function useAlbumCoverRef(
 export function useArtistCoverRef(
   artistId: string | null | undefined,
   fallbackCoverArt?: string | null,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): CoverArtRef | null {
+  const scopeKey = coverScopeKey(serverScope);
   const syncRef = useMemo(() => {
     const id = artistId?.trim();
     if (!id) return null;
     return artistCoverRef(id, fallbackCoverArt, serverScope);
-  }, [artistId, fallbackCoverArt, serverScope]);
+  }, [artistId, fallbackCoverArt, scopeKey, serverScope]);
 
   const [ref, setRef] = useState<CoverArtRef | null>(syncRef);
 
   useEffect(() => {
-    setRef(syncRef);
+    applySyncRef(setRef, syncRef);
     const id = artistId?.trim();
     if (!id) return;
     let cancelled = false;
@@ -83,7 +96,7 @@ export function useArtistCoverRef(
     return () => {
       cancelled = true;
     };
-  }, [artistId, fallbackCoverArt, serverScope, syncRef]);
+  }, [artistId, fallbackCoverArt, scopeKey, syncRef]);
 
   return ref;
 }
@@ -91,20 +104,31 @@ export function useArtistCoverRef(
 /** Track row / song card — album-scoped; multi-CD from library when indexed. */
 export function useTrackCoverRef(
   song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'> | null | undefined,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): CoverArtRef | undefined {
+  const scopeKey = coverScopeKey(serverScope);
+  const songId = song?.id;
+  const albumId = song?.albumId;
+  const coverArt = song?.coverArt;
+  const discNumber = song?.discNumber;
+
   const syncRef = useMemo(() => {
-    if (!song) return undefined;
-    return albumCoverRefForSong(song);
-  }, [song]);
+    if (!songId?.trim() || !albumId?.trim()) return undefined;
+    return albumCoverRefForSong({ id: songId, albumId, coverArt, discNumber });
+  }, [songId, albumId, coverArt, discNumber]);
 
   const [ref, setRef] = useState<CoverArtRef | undefined>(syncRef);
 
   useEffect(() => {
-    setRef(syncRef);
-    if (!song?.id?.trim()) return;
+    applySyncRef(setRef, syncRef);
+    const trackId = songId?.trim();
+    const al = albumId?.trim();
+    if (!trackId || !al || !song) return;
     let cancelled = false;
-    void resolveTrackCoverRefFromLibrary(song, serverScope).then(next => {
+    void resolveTrackCoverRefFromLibrary(
+      { ...song, id: trackId, albumId: al },
+      serverScope,
+    ).then(next => {
       if (!cancelled) {
         setRef(prev => {
           if (!next) return undefined;
@@ -116,7 +140,7 @@ export function useTrackCoverRef(
     return () => {
       cancelled = true;
     };
-  }, [song, serverScope, syncRef]);
+  }, [song, songId, albumId, coverArt, discNumber, scopeKey, syncRef]);
 
   return ref;
 }
@@ -138,22 +162,28 @@ export function usePlaybackTrackCoverRef(
     () => resolvePlaybackCoverScope(),
     [queueServerId, queueLength, activeServerId, serversFingerprint],
   );
+  const scopeKey = coverScopeKey(scope);
+
+  const trackId = track?.id;
+  const albumId = track?.albumId;
+  const coverArt = track?.coverArt;
+  const discNumber = (track as { discNumber?: number } | null | undefined)?.discNumber;
 
   const syncRef = useMemo(() => {
-    if (!track?.albumId?.trim()) return undefined;
+    if (!albumId?.trim() || !track) return undefined;
     return albumCoverRefForPlayback(track, scope);
-  }, [track, scope]);
+  }, [track, trackId, albumId, coverArt, discNumber, scopeKey]);
 
   const [ref, setRef] = useState<CoverArtRef | undefined>(syncRef);
 
   useEffect(() => {
-    setRef(syncRef);
-    const trackId = track?.id?.trim();
-    const albumId = track?.albumId?.trim();
-    if (!trackId || !albumId) return;
+    applySyncRef(setRef, syncRef);
+    const tid = trackId?.trim();
+    const al = albumId?.trim();
+    if (!tid || !al || !track) return;
     let cancelled = false;
     void resolveTrackCoverRefFromLibrary(
-      { ...track, id: trackId, albumId } as Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'>,
+      { ...track, id: tid, albumId: al } as Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'>,
       scope,
     ).then(next => {
       if (!cancelled) {
@@ -167,7 +197,7 @@ export function usePlaybackTrackCoverRef(
     return () => {
       cancelled = true;
     };
-  }, [track, scope, syncRef]);
+  }, [track, trackId, albumId, coverArt, discNumber, scopeKey, syncRef]);
 
   return ref;
 }

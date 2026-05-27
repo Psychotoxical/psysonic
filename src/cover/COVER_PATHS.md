@@ -27,3 +27,5 @@ All **library-backed** surfaces resolve through:
 
 Do **not** call `albumCoverRef` / `artistCoverRef` in new UI — use hooks or `*CoverArtImage`.
 `albumCoverRef` remains for sync fallback inside hooks, radio, and tests.
+
+**Hook pitfall:** never use inline `{ kind: 'active' }` as a default argument or dep — use `COVER_SCOPE_ACTIVE` from `types.ts`. Unstable scope objects caused render loops (IPC storm, frozen UI).

@@ -16,6 +16,15 @@ export type CoverServerScope =
   | { kind: 'playback' }
   | { kind: 'server'; serverId: string; url: string; username: string; password: string };
 
+/** Stable singleton — never inline `{ kind: 'active' }` in hook deps or default params. */
+export const COVER_SCOPE_ACTIVE: CoverServerScope = { kind: 'active' };
+
+export function coverScopeKey(scope: CoverServerScope): string {
+  if (scope.kind === 'active') return 'active';
+  if (scope.kind === 'playback') return 'playback';
+  return `server:${scope.serverId}`;
+}
+
 export type CoverSurfaceKind = 'dense' | 'sparse';
 
 export type CoverPrefetchPriority = 'high' | 'middle' | 'low';

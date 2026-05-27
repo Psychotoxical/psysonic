@@ -1,6 +1,6 @@
 import { CoverArtImage, type CoverArtImageProps } from './CoverArtImage';
 import { useAlbumCoverRef } from './useLibraryCoverRef';
-import type { CoverServerScope } from './types';
+import { COVER_SCOPE_ACTIVE, type CoverServerScope } from './types';
 
 export type AlbumCoverArtImageProps = Omit<CoverArtImageProps, 'coverRef'> & {
   albumId: string;
@@ -14,7 +14,7 @@ export function AlbumCoverArtImage({
   serverScope,
   ...rest
 }: AlbumCoverArtImageProps) {
-  const coverRef = useAlbumCoverRef(albumId, coverArt, serverScope);
+  const coverRef = useAlbumCoverRef(albumId, coverArt, serverScope ?? COVER_SCOPE_ACTIVE);
   if (!coverRef) return null;
   return <CoverArtImage coverRef={coverRef} {...rest} />;
 }

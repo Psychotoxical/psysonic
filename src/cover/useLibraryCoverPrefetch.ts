@@ -6,7 +6,7 @@ import {
   resolveArtistCoverRefsFromLibrary,
   resolveTrackCoverRefsFromLibrary,
 } from './resolveEntryLibrary';
-import type { CoverPrefetchPriority, CoverServerScope, CoverSurfaceKind } from './types';
+import { COVER_SCOPE_ACTIVE, type CoverPrefetchPriority, type CoverServerScope, type CoverSurfaceKind } from './types';
 
 export type LibraryCoverPrefetchBucket = {
   albums?: ReadonlyArray<{ id: string; coverArt?: string | null }>;
@@ -29,7 +29,7 @@ export function useLibraryCoverPrefetch(
 
     void (async () => {
       for (const bucket of buckets) {
-        const scope = bucket.serverScope ?? { kind: 'active' };
+        const scope = bucket.serverScope ?? COVER_SCOPE_ACTIVE;
         const refs = [
           ...(bucket.albums?.length
             ? await resolveAlbumCoverRefsFromLibrary(bucket.albums, scope)

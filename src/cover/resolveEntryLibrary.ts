@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { librarySqlServerId } from '../api/coverCache';
 import { useAuthStore } from '../store/authStore';
-import type { CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
+import { COVER_SCOPE_ACTIVE, type CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
 import {
   coverEntryToRef,
   resolveAlbumCoverEntry,
@@ -64,7 +64,7 @@ export async function libraryResolveCoverEntry(
 export async function resolveAlbumCoverRefFromLibrary(
   albumId: string,
   fallbackCoverArt: string | null | undefined,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): Promise<CoverArtRef> {
   const entry =
     (await libraryResolveCoverEntry(libraryServerIdFromScope(serverScope), 'album', albumId))
@@ -75,7 +75,7 @@ export async function resolveAlbumCoverRefFromLibrary(
 export async function resolveArtistCoverRefFromLibrary(
   artistId: string,
   fallbackCoverArt: string | null | undefined,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): Promise<CoverArtRef> {
   const entry =
     (await libraryResolveCoverEntry(libraryServerIdFromScope(serverScope), 'artist', artistId))
@@ -85,7 +85,7 @@ export async function resolveArtistCoverRefFromLibrary(
 
 export async function resolveTrackCoverRefFromLibrary(
   song: Parameters<typeof resolveTrackCoverEntry>[0],
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
   distinctDiscCovers = false,
 ): Promise<CoverArtRef | undefined> {
   const trackId = song.id?.trim();
@@ -98,7 +98,7 @@ export async function resolveTrackCoverRefFromLibrary(
 
 export async function resolveAlbumCoverRefsFromLibrary(
   albums: ReadonlyArray<{ id: string; coverArt?: string | null }>,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): Promise<CoverArtRef[]> {
   return Promise.all(
     albums.map(a => resolveAlbumCoverRefFromLibrary(a.id, a.coverArt, serverScope)),
@@ -107,7 +107,7 @@ export async function resolveAlbumCoverRefsFromLibrary(
 
 export async function resolveArtistCoverRefsFromLibrary(
   artists: ReadonlyArray<{ id: string; coverArt?: string | null }>,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): Promise<CoverArtRef[]> {
   return Promise.all(
     artists.map(a => resolveArtistCoverRefFromLibrary(a.id, a.coverArt, serverScope)),
@@ -116,7 +116,7 @@ export async function resolveArtistCoverRefsFromLibrary(
 
 export async function resolveTrackCoverRefsFromLibrary(
   songs: ReadonlyArray<Parameters<typeof resolveTrackCoverEntry>[0]>,
-  serverScope: CoverServerScope = { kind: 'active' },
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): Promise<CoverArtRef[]> {
   const refs = await Promise.all(
     songs.map(s => resolveTrackCoverRefFromLibrary(s, serverScope)),

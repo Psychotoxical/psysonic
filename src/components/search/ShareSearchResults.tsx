@@ -12,7 +12,7 @@ import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from '../CachedImage';
 import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { ArtistCoverArtImage } from '../../cover/ArtistCoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
-import type { CoverServerScope } from '../../cover/types';
+import { COVER_SCOPE_ACTIVE, type CoverServerScope } from '../../cover/types';
 import { useShareQueuePreview } from '../../hooks/useShareQueuePreview';
 import ShareQueuePreviewModal from './ShareQueuePreviewModal';
 
@@ -42,7 +42,7 @@ function shareCoverServerScope(coverServer?: ServerProfile | null): CoverServerS
       password: coverServer.password,
     };
   }
-  return { kind: 'active' };
+  return COVER_SCOPE_ACTIVE;
 }
 
 function ShareAlbumThumb({
