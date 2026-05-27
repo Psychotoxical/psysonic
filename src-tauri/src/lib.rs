@@ -734,6 +734,7 @@ pub fn run() {
             psysonic_library::commands::library_migrate_server_index_keys,
             psysonic_library::commands::library_delete_server_data,
             psysonic_library::commands::library_analysis_backfill_batch,
+            psysonic_library::commands::library_resolve_cover_entry,
             cover_cache::cover_cache_peek_batch,
             cover_cache::cover_cache_ensure,
             cover_cache::cover_cache_ensure_batch,

@@ -8,6 +8,7 @@ export * from './storageKeys';
 export * from './reachability';
 export * from './layoutSizes';
 export * from './resolveEntry';
+export * from './resolveEntryLibrary';
 export * from './ref';
 export { useCoverArt } from './useCoverArt';
 export { CoverArtImage } from './CoverArtImage';

@@ -16,6 +16,7 @@ use psysonic_integration::subsonic::SubsonicClient;
 
 use crate::advanced_search;
 use crate::analysis_backfill::{self, LibraryAnalysisBackfillBatchDto, LibraryAnalysisProgressDto};
+use crate::cover_resolve::CoverEntryDto;
 use crate::cross_server;
 use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
@@ -49,6 +50,28 @@ const ANALYSIS_PROGRESS_CACHE_TTL: Duration = Duration::from_secs(30);
 pub struct LibraryServerKeyMigrationDto {
     pub legacy_id: String,
     pub index_key: String,
+}
+
+/// Resolve cover disk + fetch ids from the local library (`album` | `artist` | `track`).
+#[tauri::command]
+pub fn library_resolve_cover_entry(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    entity: String,
+    entity_id: String,
+) -> Result<Option<CoverEntryDto>, String> {
+    let server_id = server_id.trim();
+    let entity_id = entity_id.trim();
+    if server_id.is_empty() || entity_id.is_empty() {
+        return Ok(None);
+    }
+    let store = &runtime.store;
+    match entity.trim() {
+        "album" => crate::cover_resolve::resolve_album_cover_entry(store, server_id, entity_id),
+        "artist" => crate::cover_resolve::resolve_artist_cover_entry(store, server_id, entity_id),
+        "track" => crate::cover_resolve::resolve_track_cover_entry(store, server_id, entity_id),
+        other => Err(format!("unknown cover entity kind: `{other}` (expected album|artist|track)")),
+    }
 }
 
 #[tauri::command]

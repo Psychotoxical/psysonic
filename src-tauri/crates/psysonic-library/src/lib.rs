@@ -15,6 +15,7 @@ mod advanced_search_mood;
 pub mod analysis_backfill;
 pub mod artist_lossless_browse;
 pub mod cover_backfill;
+pub mod cover_resolve;
 pub mod canonical;
 pub mod commands;
 pub mod cross_server;
