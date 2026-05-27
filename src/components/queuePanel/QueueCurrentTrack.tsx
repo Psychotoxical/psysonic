@@ -217,6 +217,7 @@ export function QueueCurrentTrack({
                   rawCoverArt: currentTrack.coverArt,
                 }}
                 ensurePriority="high"
+                libraryTrackId={currentTrack.id}
                 alt=""
                 loading="eager"
               />

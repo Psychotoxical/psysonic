@@ -1,10 +1,9 @@
-import { coverCachePeekBatch } from '../api/coverCache';
 import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverTrafficServerSwitchPaused } from './coverTraffic';
 import { rememberGridDiskSrc } from './diskSrcLookup';
-import { diskCoverArtIdCandidates, type DiskCoverIdHints } from './diskPeekIds';
-import { coverIndexKeyFromRef, coverStorageKey } from './storageKeys';
+import type { DiskCoverIdHints } from './diskPeekIds';
+import { peekCoverPathOnDisk } from './peekCoverOnDisk';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 function peekMemoryHit(storageKey: string, ref: CoverArtRef, tier: CoverArtTier): boolean {
@@ -53,31 +52,8 @@ async function flush(): Promise<void> {
   }
   if (needDisk.length === 0) return;
 
-  const peekItems: { serverIndexKey: string; coverArtId: string; tier: CoverArtTier }[] = [];
-  const peekKeysByJob = new Map<string, string[]>();
-
   for (const job of needDisk) {
-    const serverIndexKey = coverIndexKeyFromRef(job.ref);
-    const ids = diskCoverArtIdCandidates(job.ref.coverArtId, job.diskIdHints);
-    const keys: string[] = [];
-    for (const coverArtId of ids) {
-      peekItems.push({ serverIndexKey, coverArtId, tier: job.tier });
-      keys.push(coverStorageKey(job.ref.serverScope, coverArtId, job.tier));
-    }
-    peekKeysByJob.set(job.storageKey, keys);
-  }
-
-  const hits = await coverCachePeekBatch(peekItems);
-
-  for (const job of needDisk) {
-    const keys = peekKeysByJob.get(job.storageKey) ?? [job.storageKey];
-    let path = '';
-    for (const key of keys) {
-      if (hits[key]) {
-        path = hits[key]!;
-        break;
-      }
-    }
+    const path = await peekCoverPathOnDisk(job.ref, job.tier, job.diskIdHints);
     const hit = Boolean(
       path
       && rememberGridDiskSrc(job.ref.serverScope, job.ref.coverArtId, job.tier, path),

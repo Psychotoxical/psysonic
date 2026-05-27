@@ -228,7 +228,11 @@ export default function MobilePlayerView() {
     () => resolvePlaybackTrackCoverArtId(currentTrack),
     [currentTrack],
   );
-  const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(playbackCoverArtId, 800);
+  const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(
+    playbackCoverArtId,
+    800,
+    currentTrack?.id,
+  );
   const resolvedCover = useCachedUrl(coverFetchUrl, coverKey);
 
   // Dynamic background color extracted from cover art

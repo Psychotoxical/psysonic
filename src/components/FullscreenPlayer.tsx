@@ -57,10 +57,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   );
 
   // 300px for the small art box; 500px for the right-side portrait fallback.
-  const artCover = usePlaybackCoverArt(playbackCoverArtId, 300);
+  const artCover = usePlaybackCoverArt(playbackCoverArtId, 300, currentTrack?.id);
   const artUrl = artCover.src;
   const artKey = artCover.cacheKey;
-  const portraitCover = usePlaybackCoverArt(playbackCoverArtId, 500);
+  const portraitCover = usePlaybackCoverArt(playbackCoverArtId, 500, currentTrack?.id);
   const coverUrl = portraitCover.src;
   const coverKey = portraitCover.cacheKey;
   // `false` = no fetchUrl fallback — prevents double crossfade (fetchUrl → blobUrl).

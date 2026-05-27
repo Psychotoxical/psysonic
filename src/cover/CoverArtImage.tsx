@@ -28,6 +28,8 @@ export type CoverArtImageProps = {
   ensurePriority?: CoverPrefetchPriority;
   /** Extra ids to probe in `cover-cache` when the primary folder is empty. */
   diskIdHints?: DiskCoverIdHints;
+  /** Library SQLite row — supplies `albumId` when Subsonic only sent `mf-*`. */
+  libraryTrackId?: string;
 } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'>;
 
 export function CoverArtImage({
@@ -43,6 +45,7 @@ export function CoverArtImage({
   observeScrollRootId,
   ensurePriority: ensurePriorityProp,
   diskIdHints,
+  libraryTrackId,
   onError: restOnError,
   ...rest
 }: CoverArtImageProps) {
@@ -99,6 +102,7 @@ export function CoverArtImage({
     fullRes,
     ensurePriority,
     diskIdHints,
+    libraryTrackId,
     alt,
   });
 

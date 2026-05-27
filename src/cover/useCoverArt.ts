@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { libraryGetTrack } from '../api/library';
 import { coverEnsureQueued, coverEnsureRelease } from './ensureQueue';
 import { coverPeekQueued } from './peekQueue';
 import { getDiskSrcForGrid, seedGridDiskSrcCache } from './diskSrcLookup';
+import { mergeDiskIdHints } from './mergeDiskIdHints';
 import {
   forgetDiskSrcPrefix,
   getDiskSrcCacheGeneration,
@@ -38,6 +40,8 @@ export function useCoverArt(
     ensurePriority?: CoverPrefetchPriority;
     /** Probe legacy on-disk folders (track id vs album id) when the resolved id misses. */
     diskIdHints?: DiskCoverIdHints;
+    /** When Subsonic omits `albumId`, load `al-*` from the library index for mf→al peek. */
+    libraryTrackId?: string;
   },
 ): CoverArtHandle {
   const serverScope = opts?.serverScope ?? { kind: 'active' };
@@ -66,6 +70,37 @@ export function useCoverArt(
   );
 
   const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority ?? 'middle';
+
+  const [libraryDiskHints, setLibraryDiskHints] = useState<DiskCoverIdHints | undefined>();
+  const diskIdHints = useMemo(
+    () => mergeDiskIdHints(opts?.diskIdHints, libraryDiskHints),
+    [opts?.diskIdHints, libraryDiskHints],
+  );
+
+  useEffect(() => {
+    const trackId = opts?.libraryTrackId?.trim();
+    if (!trackId || !ref?.coverArtId.startsWith('mf-')) {
+      setLibraryDiskHints(undefined);
+      return;
+    }
+    if (opts?.diskIdHints?.albumId?.trim()?.startsWith('al-')) {
+      setLibraryDiskHints(undefined);
+      return;
+    }
+    let cancelled = false;
+    const serverKey = coverIndexKeyFromRef(ref);
+    void libraryGetTrack(serverKey, trackId).then(row => {
+      if (cancelled || !row) return;
+      setLibraryDiskHints({
+        albumId: row.albumId ?? undefined,
+        rawCoverArt: row.coverArtId ?? undefined,
+        songId: row.id,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [opts?.libraryTrackId, opts?.diskIdHints?.albumId, ref]);
 
   /** Dense grids: peek on mount; HTTP ensure only when IO marks the cell `high`. */
   const deferEnsureUntilVisible = surface === 'dense' && ensurePriority !== 'high';
@@ -96,13 +131,25 @@ export function useCoverArt(
     let cancelled = false;
 
     void (async () => {
-      const peekHit = await coverPeekQueued(storageKey, ref, tier, opts?.diskIdHints);
+      const peekHit = await coverPeekQueued(storageKey, ref, tier, diskIdHints);
       if (cancelled) return;
       if (peekHit || readCachedSrc()) return;
 
       if (reachable && !deferEnsureUntilVisible) {
-        const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
+        let result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
         if (cancelled) return;
+        const albumId = diskIdHints?.albumId?.trim();
+        if (
+          !result.hit
+          && ref.coverArtId.startsWith('mf-')
+          && albumId?.startsWith('al-')
+          && albumId !== ref.coverArtId
+        ) {
+          const altRef = { ...ref, coverArtId: albumId };
+          const altKey = coverStorageKey(ref.serverScope, albumId, tier);
+          result = await coverEnsureQueued(altKey, altRef, tier, ensurePriority);
+          if (cancelled) return;
+        }
         if (result.hit && result.path) {
           applyDiskPath(result.path);
         }
@@ -127,6 +174,7 @@ export function useCoverArt(
     deferEnsureUntilVisible,
     applyDiskPath,
     readCachedSrc,
+    diskIdHints,
   ]);
 
   const src = cachedSrc;

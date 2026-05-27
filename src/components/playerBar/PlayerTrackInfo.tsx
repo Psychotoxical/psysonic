@@ -94,6 +94,7 @@ export function PlayerTrackInfo({
                 : undefined
             }
             ensurePriority="high"
+            libraryTrackId={currentTrack?.id}
             alt={showPreviewMeta ? `${previewingTrack!.title} Cover` : `${currentTrack?.album ?? ''} Cover`}
           />
           ) : (

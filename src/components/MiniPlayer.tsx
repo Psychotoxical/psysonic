@@ -142,7 +142,7 @@ export default function MiniPlayer() {
 
   const { track, isPlaying } = state;
   const miniCoverArtId = useMemo(() => resolvePlaybackTrackCoverArtId(track), [track]);
-  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(miniCoverArtId, 300);
+  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(miniCoverArtId, 300, track?.id);
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (
