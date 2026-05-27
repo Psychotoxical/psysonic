@@ -126,6 +126,15 @@ describe('runLocalAdvancedSearch', () => {
     ).toBe('cov-octa');
   });
 
+  it('resolveArtistPageSongCoverArtId ignores album coverArt when it echoes track id', () => {
+    expect(
+      resolveArtistPageSongCoverArtId(
+        { id: 'tr-1', coverArt: 'tr-1', albumId: 'al-octa', album: 'Octastorium' },
+        [{ id: 'al-octa', name: 'Octastorium', coverArt: 'tr-1' }],
+      ),
+    ).toBe('al-octa');
+  });
+
   it('resolveTrackCoverArtId falls back to albumId when coverArtId is empty', () => {
     expect(
       resolveTrackCoverArtId(

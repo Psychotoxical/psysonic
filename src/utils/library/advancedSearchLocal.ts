@@ -178,7 +178,10 @@ export function resolveArtistPageSongCoverArtId(
   const album = song.albumId
     ? albums.find(a => a.id === song.albumId)
     : albums.find(a => a.name === song.album);
-  if (album?.coverArt?.trim()) return album.coverArt.trim();
+  const albumCover = album?.coverArt?.trim();
+  const songId = song.id?.trim();
+  // Album row `coverArt` can echo the track id (no art) — do not prefer it over albumId.
+  if (albumCover && (!songId || albumCover !== songId)) return albumCover;
   return resolveSubsonicSongCoverArtId(song);
 }
 

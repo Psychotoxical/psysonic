@@ -1,5 +1,6 @@
 import { queueSongStar } from '../store/pendingStarSync';
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
+import { resolveSubsonicSongCoverArtId } from '../utils/library/advancedSearchLocal';
 import { playbackCoverArtForId } from '../utils/playback/playbackServer';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
@@ -50,11 +51,16 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
 
   const duration = currentTrack?.duration ?? 0;
 
+  const playbackCoverArtId = useMemo(
+    () => (currentTrack ? resolveSubsonicSongCoverArtId(currentTrack) : undefined),
+    [currentTrack],
+  );
+
   // 300px for the small art box; 500px for the right-side portrait fallback.
-  const artCover = usePlaybackCoverArt(currentTrack?.coverArt, 300);
+  const artCover = usePlaybackCoverArt(playbackCoverArtId, 300);
   const artUrl = artCover.src;
   const artKey = artCover.cacheKey;
-  const portraitCover = usePlaybackCoverArt(currentTrack?.coverArt, 500);
+  const portraitCover = usePlaybackCoverArt(playbackCoverArtId, 500);
   const coverUrl = portraitCover.src;
   const coverKey = portraitCover.cacheKey;
   // `false` = no fetchUrl fallback — prevents double crossfade (fetchUrl → blobUrl).

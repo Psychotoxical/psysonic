@@ -1,4 +1,5 @@
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
+import { resolveSubsonicSongCoverArtId } from '../utils/library/advancedSearchLocal';
 import { useCoverArt } from '../cover/useCoverArt';
 import { coverArtIdFromRadio } from '../cover/ids';
 import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
@@ -95,7 +96,10 @@ export default function NowPlaying() {
     showLyrics();
   }, [isQueueVisible, toggleQueue, showLyrics]);
 
-  const trackCover = usePlaybackCoverArt(currentTrack?.coverArt, 800);
+  const playbackCoverArtId = currentTrack
+    ? resolveSubsonicSongCoverArtId(currentTrack)
+    : undefined;
+  const trackCover = usePlaybackCoverArt(playbackCoverArtId, 800);
   const resolvedCover = trackCover.src;
 
   const radioCoverArtId = currentRadio?.coverArt ? coverArtIdFromRadio(currentRadio.id) : undefined;

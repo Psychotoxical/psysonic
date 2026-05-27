@@ -1,4 +1,5 @@
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
+import { resolveSubsonicSongCoverArtId } from '../utils/library/advancedSearchLocal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -140,7 +141,18 @@ export default function MiniPlayer() {
   }, [queueOpen, state.queueIndex]);
 
   const { track, isPlaying } = state;
-  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(track?.coverArt, 300);
+  const miniCoverArtId = useMemo(
+    () =>
+      track
+        ? resolveSubsonicSongCoverArtId({
+            id: track.id,
+            coverArt: track.coverArt,
+            albumId: track.albumId ?? '',
+          })
+        : undefined,
+    [track],
+  );
+  const { src: miniCoverSrc, cacheKey: miniCoverKey } = usePlaybackCoverArt(miniCoverArtId, 300);
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (

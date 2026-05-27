@@ -7,7 +7,7 @@ export default function ArtistSuggestionTrackCover({ coverArt, album }: { coverA
     <CoverArtImage
       coverArtId={coverArt}
       displayCssPx={COVER_DENSE_ARTIST_LIST_CSS_PX}
-      surface="dense"
+      surface="sparse"
       ensurePriority="high"
       alt={album}
       style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }}
