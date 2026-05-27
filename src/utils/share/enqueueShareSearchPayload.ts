@@ -14,6 +14,7 @@ import { songToTrack } from '../playback/songToTrack';
 import type { Track } from '../../store/playerStoreTypes';
 import { orbitBulkGuard } from '../orbitBulkGuard';
 import { findServerIdForShareUrl } from './shareLink';
+import { connectBaseUrlForServer } from '../server/serverEndpoint';
 import { serverIndexKeyFromUrl } from '../server/serverIndexKey';
 import type {
   AlbumShareSearchPayload,
@@ -104,7 +105,12 @@ async function resolveSharedSong(
     activateShareServer(lookup.serverId);
     return getSong(id);
   }
-  return getSongWithCredentials(lookup.server.url, lookup.server.username, lookup.server.password, id);
+  return getSongWithCredentials(
+    connectBaseUrlForServer(lookup.server),
+    lookup.server.username,
+    lookup.server.password,
+    id,
+  );
 }
 
 async function getAlbumAfterActivation(
@@ -172,7 +178,12 @@ export async function resolveShareSearchAlbum(
   try {
     const { album } = options.activateServer
       ? await getAlbumAfterActivation(payload.id, lookup.serverId)
-      : await getAlbumWithCredentials(lookup.server.url, lookup.server.username, lookup.server.password, payload.id);
+      : await getAlbumWithCredentials(
+          connectBaseUrlForServer(lookup.server),
+          lookup.server.username,
+          lookup.server.password,
+          payload.id,
+        );
     return { type: 'ok', album };
   } catch {
     return { type: 'unavailable' };
@@ -194,7 +205,12 @@ export async function resolveShareSearchArtist(
   try {
     const { artist } = options.activateServer
       ? await getArtistAfterActivation(payload.id, lookup.serverId)
-      : await getArtistWithCredentials(lookup.server.url, lookup.server.username, lookup.server.password, payload.id);
+      : await getArtistWithCredentials(
+          connectBaseUrlForServer(lookup.server),
+          lookup.server.username,
+          lookup.server.password,
+          payload.id,
+        );
     return { type: 'ok', artist };
   } catch {
     return { type: 'unavailable' };

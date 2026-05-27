@@ -105,7 +105,14 @@ export function decodeSharePayloadFromText(text: string): EntitySharePayloadV1 |
 
 export function findServerIdForShareUrl(servers: ServerProfile[], shareSrv: string): string | null {
   const norm = normalizeShareServerUrl(shareSrv);
-  const hit = servers.find(s => normalizeShareServerUrl(s.url) === norm);
+  // Dual-address: a paste may carry either the host's primary url or the
+  // alternateUrl (depending on which the host had as their share URL at
+  // encode time, modulated by shareUsesLocalUrl). Match either.
+  const hit = servers.find(
+    s =>
+      normalizeShareServerUrl(s.url) === norm ||
+      (!!s.alternateUrl && normalizeShareServerUrl(s.alternateUrl) === norm),
+  );
   return hit?.id ?? null;
 }
 
