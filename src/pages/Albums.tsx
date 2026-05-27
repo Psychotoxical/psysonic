@@ -34,6 +34,11 @@ import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import {
+  albumBrowseGenresForServer,
+  albumBrowseSortForServer,
+  useAlbumBrowseSessionStore,
+} from '../store/albumBrowseSessionStore';
+import {
   runLocalAlbumBrowsePage,
   runLocalAlbumsByGenres,
   runLocalLosslessAlbums,
@@ -66,11 +71,13 @@ export default function Albums() {
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
 
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
-  const [sort, setSort] = useState<SortType>('alphabeticalByName');
+  const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.byServer, serverId));
+  const selectedGenres = useAlbumBrowseSessionStore(s => albumBrowseGenresForServer(s.byServer, serverId));
+  const setBrowseSort = useAlbumBrowseSessionStore(s => s.setSort);
+  const setBrowseGenres = useAlbumBrowseSessionStore(s => s.setSelectedGenres);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
   const [compFilter, setCompFilter] = useState<CompFilter>('all');
@@ -428,7 +435,7 @@ export default function Albums() {
                     <SortDropdown
                       value={sort}
                       options={sortOptions}
-                      onChange={setSort}
+                      onChange={value => setBrowseSort(serverId, value)}
                     />
                   )}
 
@@ -438,7 +445,10 @@ export default function Albums() {
                     onChange={(from, to) => { setYearFrom(from); setYearTo(to); }}
                   />
 
-                  <GenreFilterBar selected={selectedGenres} onSelectionChange={setSelectedGenres} />
+                  <GenreFilterBar
+                    selected={selectedGenres}
+                    onSelectionChange={genres => setBrowseGenres(serverId, genres)}
+                  />
 
                   <StarFilterButton active={starredOnly} onChange={setStarredOnly} />
 
