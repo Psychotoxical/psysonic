@@ -31,6 +31,14 @@ function isAssetProtocolUrl(url: string): boolean {
   return url.startsWith('asset:') || /^https?:\/\/asset\.localhost/i.test(url);
 }
 
+/** Windows: forward slashes before `convertFileSrc` (tauri#7970). */
+function normalizePathForConvert(fsPath: string): string {
+  if (/^[a-zA-Z]:[\\/]/.test(fsPath)) {
+    return fsPath.replace(/\\/g, '/');
+  }
+  return fsPath;
+}
+
 /** True when `convertFileSrc` failed and returned the filesystem path unchanged. */
 function isRawFsPath(url: string, fsPath: string): boolean {
   if (url === fsPath) return true;
@@ -52,8 +60,9 @@ function isRawFsPath(url: string, fsPath: string): boolean {
  */
 export function coverDiskUrl(fsPath: string): string {
   if (!fsPath || !isTauri()) return '';
-  const src = convertFileSrc(fsPath);
-  if (!src || isRawFsPath(src, fsPath) || !isAssetProtocolUrl(src)) {
+  const normalized = normalizePathForConvert(fsPath);
+  const src = convertFileSrc(normalized);
+  if (!src || isRawFsPath(src, normalized) || isRawFsPath(src, fsPath)) {
     if (import.meta.env.DEV) {
       console.warn('[cover] convertFileSrc out of asset scope — check tauri.conf assetProtocol', { fsPath, src });
     }

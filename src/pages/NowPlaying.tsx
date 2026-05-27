@@ -1,4 +1,3 @@
-import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import { resolvePlaybackTrackCoverArtId } from '../cover/resolveCoverArtId';
 import { useCoverArt } from '../cover/useCoverArt';
 import { coverArtIdFromRadio } from '../cover/ids';
@@ -97,8 +96,6 @@ export default function NowPlaying() {
   }, [isQueueVisible, toggleQueue, showLyrics]);
 
   const playbackCoverArtId = resolvePlaybackTrackCoverArtId(currentTrack);
-  const trackCover = usePlaybackCoverArt(playbackCoverArtId, 800);
-  const resolvedCover = trackCover.src;
 
   const radioCoverArtId = currentRadio?.coverArt ? coverArtIdFromRadio(currentRadio.id) : undefined;
   const radioCover = useCoverArt(radioCoverArtId, 800, { surface: 'sparse' });
@@ -244,7 +241,7 @@ export default function NowPlaying() {
               lfmLoved={lfmLoved}
               lfmLoveEnabled={lfmLoveEnabled}
               activeLyricsTab={activeTab === 'lyrics' && isQueueVisible}
-              coverUrl={resolvedCover}
+              coverArtId={playbackCoverArtId}
               onNavigate={stableNavigate}
               onToggleStar={toggleStar}
               onToggleLfmLove={toggleLfmLove}

@@ -26,6 +26,16 @@ describe('coverDiskUrl', () => {
     expect(coverDiskUrl(fsPath)).toBe('https://asset.localhost/C%3A%2Fcache%2F128.webp');
   });
 
+  it('normalizes Windows backslashes before convertFileSrc', () => {
+    const fsPath = 'C:\\Users\\me\\cover-cache\\al-1\\128.webp';
+    vi.mocked(convertFileSrc).mockImplementation((p: string) =>
+      `https://asset.localhost/${encodeURIComponent(p)}`,
+    );
+    const url = coverDiskUrl(fsPath);
+    expect(convertFileSrc).toHaveBeenCalledWith('C:/Users/me/cover-cache/al-1/128.webp');
+    expect(url).toContain('asset.localhost');
+  });
+
   it('accepts asset: protocol URLs from convertFileSrc', () => {
     const fsPath = '/home/u/.local/share/dev.psysonic.player/cover-cache/srv/al-1/128.webp';
     vi.mocked(convertFileSrc).mockReturnValue('asset://localhost/home/u/.../128.webp');

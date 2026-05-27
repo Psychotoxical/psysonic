@@ -47,10 +47,15 @@ export function CoverArtImage({
     ensurePriorityProp ?? 'middle',
   );
   const imgRef = useRef<HTMLImageElement>(null);
+  const [imgLoadFailed, setImgLoadFailed] = useState(false);
 
   useEffect(() => {
     if (ensurePriorityProp) setEnsurePriority(ensurePriorityProp);
   }, [ensurePriorityProp]);
+
+  useEffect(() => {
+    setImgLoadFailed(false);
+  }, [coverArtId, displayCssPx, serverScope, surface, fullRes]);
 
   useEffect(() => {
     const el = imgRef.current;
@@ -94,7 +99,7 @@ export function CoverArtImage({
 
   const imgSrc = coverImgSrc(src);
 
-  if (!imgSrc) {
+  if (!imgSrc || imgLoadFailed) {
     return (
       <div
         ref={imgRef as React.RefObject<HTMLDivElement | null>}
@@ -120,6 +125,7 @@ export function CoverArtImage({
       data-observe-scroll-root={observeScrollRootId}
       {...rest}
       onError={e => {
+        setImgLoadFailed(true);
         onImgError?.();
         restOnError?.(e);
       }}
