@@ -616,6 +616,28 @@ export function libraryPatchAlbum(args: {
   return invoke<void>('library_patch_album', { ...args, serverId: indexKey });
 }
 
+export function libraryReconcileAlbumStars(args: {
+  serverId: string;
+  starredAlbumIds: string[];
+}): Promise<void> {
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<void>('library_reconcile_album_stars', {
+    serverId: indexKey,
+    starredAlbumIds: args.starredAlbumIds,
+  });
+}
+
+export function libraryReconcileArtistStars(args: {
+  serverId: string;
+  starredArtistIds: string[];
+}): Promise<void> {
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<void>('library_reconcile_artist_stars', {
+    serverId: indexKey,
+    starredArtistIds: args.starredArtistIds,
+  });
+}
+
 export function libraryPatchArtist(args: {
   serverId: string;
   artistId: string;

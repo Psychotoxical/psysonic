@@ -7,6 +7,10 @@ import {
   patchLibraryTrackOnUse,
   type StarPatchMeta,
 } from '../utils/library/patchOnUse';
+import {
+  reconcileAlbumStarsFromServer,
+  reconcileArtistStarsFromServer,
+} from '../utils/library/starredReconcile';
 import type {
   EntityRatingSupportLevel,
   StarredResults,
@@ -42,12 +46,14 @@ export async function star(
     patchLibraryTrackOnUse(serverId, id, { starredAt: Date.now() });
   } else if (type === 'album') {
     patchLibraryAlbumOnUse(serverId, id, { starredAt: Date.now(), ...meta });
+    void reconcileAlbumStarsFromServer(serverId).catch(() => {});
   } else if (type === 'artist') {
     patchLibraryArtistOnUse(serverId, id, {
       starredAt: Date.now(),
       name: meta?.name,
       albumCount: meta?.albumCount,
     });
+    void reconcileArtistStarsFromServer(serverId).catch(() => {});
   }
 }
 
@@ -66,12 +72,14 @@ export async function unstar(
     patchLibraryTrackOnUse(serverId, id, { starredAt: null });
   } else if (type === 'album') {
     patchLibraryAlbumOnUse(serverId, id, { starredAt: null, ...meta });
+    void reconcileAlbumStarsFromServer(serverId).catch(() => {});
   } else if (type === 'artist') {
     patchLibraryArtistOnUse(serverId, id, {
       starredAt: null,
       name: meta?.name,
       albumCount: meta?.albumCount,
     });
+    void reconcileArtistStarsFromServer(serverId).catch(() => {});
   }
 }
 

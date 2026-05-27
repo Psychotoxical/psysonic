@@ -12,6 +12,7 @@ import {
 } from './albumYearFilter';
 import { albumToAlbum } from './advancedSearchLocal';
 import { libraryIsReady } from './libraryReady';
+import { reconcileAlbumStarsFromServer } from './starredReconcile';
 import { albumSortClauses, sortSubsonicAlbums, type AlbumBrowseSort } from './albumBrowseSort';
 
 const GENRE_ALBUM_FETCH_LIMIT = 500;
@@ -196,7 +197,8 @@ export type AlbumBrowsePageResult = {
 /**
  * One entry point for Albums browse: local advanced search when possible, else Subsonic.
  * Lossless without a local index returns an empty page (no network walk on this screen).
- * Starred filter uses album-level stars only (`album.starred_at` / `getAlbumList.starred`).
+ * Favorites (starredOnly): server `getAlbumList.starred` is source of truth; reconcile
+ * keeps the index aligned without stub inserts.
  */
 export async function fetchAlbumBrowsePage(
   serverId: string,
@@ -209,13 +211,16 @@ export async function fetchAlbumBrowsePage(
     return { albums: [], hasMore: false };
   }
 
+  if (query.starredOnly) {
+    if (indexEnabled && serverId && offset === 0) {
+      await reconcileAlbumStarsFromServer(serverId).catch(() => {});
+    }
+    return fetchAlbumBrowseNetwork(query, offset, pageSize);
+  }
+
   if (indexEnabled && serverId) {
     const local = await runLocalAlbumBrowse(serverId, query, offset, pageSize);
-    if (local != null) {
-      const localStarredEmpty =
-        query.starredOnly && local.albums.length === 0 && offset === 0;
-      if (!localStarredEmpty) return local;
-    }
+    if (local != null) return local;
   }
 
   return fetchAlbumBrowseNetwork(query, offset, pageSize);

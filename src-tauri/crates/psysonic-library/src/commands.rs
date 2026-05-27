@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use rusqlite::params;
+use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -1056,10 +1057,77 @@ pub(crate) fn apply_track_patch(
         .map_err(|e| e.to_string())
 }
 
+/// Align `album.starred_at` with the server's starred-album list (getStarred2).
+/// Clears local album stars not on the server; sets stars for listed ids (UPDATE
+/// only — no stub inserts). Browse UI should still use the network list.
+pub(crate) fn reconcile_album_stars(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    starred_ids: &[String],
+) -> Result<(), String> {
+    reconcile_table_stars(runtime, "album", server_id, starred_ids)
+}
+
+/// Align `artist.starred_at` with the server's starred-artist list.
+pub(crate) fn reconcile_artist_stars(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    starred_ids: &[String],
+) -> Result<(), String> {
+    reconcile_table_stars(runtime, "artist", server_id, starred_ids)
+}
+
+fn reconcile_table_stars(
+    runtime: &LibraryRuntime,
+    table: &str,
+    server_id: &str,
+    starred_ids: &[String],
+) -> Result<(), String> {
+    let table = match table {
+        "album" | "artist" => table,
+        _ => return Err(format!("unsupported reconcile table: {table}")),
+    };
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
+        .unwrap_or(0);
+
+    runtime.store.with_conn("misc", |conn| {
+        if starred_ids.is_empty() {
+            let clear = format!(
+                "UPDATE {table} SET starred_at = NULL \
+                 WHERE server_id = ?1 AND starred_at IS NOT NULL"
+            );
+            conn.execute(&clear, params![server_id])?;
+            return Ok(());
+        }
+
+        let placeholders = (0..starred_ids.len())
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
+        let clear_sql = format!(
+            "UPDATE {table} SET starred_at = NULL \
+             WHERE server_id = ?1 AND starred_at IS NOT NULL \
+             AND id NOT IN ({placeholders})"
+        );
+        let mut clear_params: Vec<SqlValue> = vec![SqlValue::Text(server_id.to_string())];
+        clear_params.extend(starred_ids.iter().cloned().map(SqlValue::Text));
+        conn.execute(&clear_sql, rusqlite::params_from_iter(clear_params.iter()))?;
+
+        let set_sql = format!(
+            "UPDATE {table} SET starred_at = ?1 \
+             WHERE server_id = ?2 AND id IN ({placeholders})"
+        );
+        let mut set_params: Vec<SqlValue> = vec![SqlValue::Integer(ts), SqlValue::Text(server_id.to_string())];
+        set_params.extend(starred_ids.iter().cloned().map(SqlValue::Text));
+        conn.execute(&set_sql, rusqlite::params_from_iter(set_params.iter()))?;
+        Ok(())
+    }).map_err(|e| e.to_string())
+}
+
 /// Apply a sparse `library_patch_album` JSON patch. Spec §6.5 patch-on-use for
-/// `starred_at` on the `album` table (album-level favorites, not track stars).
-/// When starring and no row exists yet, inserts a minimal album stub so
-/// advanced-search starred browse can find it without a full resync.
+/// `starred_at` on existing `album` rows only (optimistic; reconcile fixes drift).
 pub(crate) fn apply_album_patch(
     runtime: &LibraryRuntime,
     server_id: &str,
@@ -1067,13 +1135,6 @@ pub(crate) fn apply_album_patch(
     patch: &Value,
 ) -> Result<(), String> {
     let starred_at = patch.get("starredAt").map(|v| v.as_i64());
-    let name = patch
-        .get("name")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty());
-    let artist = patch.get("artist").and_then(|v| v.as_str());
-    let artist_id = patch.get("artistId").and_then(|v| v.as_str());
-    let cover_art_id = patch.get("coverArtId").and_then(|v| v.as_str());
     let year = patch.get("year").and_then(|v| v.as_i64());
 
     runtime
@@ -1086,30 +1147,11 @@ pub(crate) fn apply_album_patch(
                 )?;
             }
             if let Some(v) = starred_at {
-                let updated = conn.execute(
+                conn.execute(
                     "UPDATE album SET starred_at = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
                     params![server_id, album_id, v],
                 )?;
-                if updated == 0 && v.is_some() {
-                    let synced_at = v.unwrap_or(0);
-                    let album_name = name.unwrap_or(album_id);
-                    conn.execute(
-                        "INSERT INTO album (server_id, id, name, artist, artist_id, cover_art_id, year, starred_at, synced_at, raw_json) \
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, '{}')",
-                        params![
-                            server_id,
-                            album_id,
-                            album_name,
-                            artist,
-                            artist_id,
-                            cover_art_id,
-                            year,
-                            v,
-                            synced_at,
-                        ],
-                    )?;
-                }
             }
             Ok(())
         })
@@ -1124,33 +1166,38 @@ pub(crate) fn apply_artist_patch(
     patch: &Value,
 ) -> Result<(), String> {
     let starred_at = patch.get("starredAt").map(|v| v.as_i64());
-    let name = patch
-        .get("name")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty());
 
     runtime
         .store
         .with_conn("misc", |conn| {
             if let Some(v) = starred_at {
-                let updated = conn.execute(
+                conn.execute(
                     "UPDATE artist SET starred_at = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
                     params![server_id, artist_id, v],
                 )?;
-                if updated == 0 && v.is_some() {
-                    let synced_at = v.unwrap_or(0);
-                    let artist_name = name.unwrap_or(artist_id);
-                    conn.execute(
-                        "INSERT INTO artist (server_id, id, name, starred_at, synced_at, raw_json) \
-                         VALUES (?1, ?2, ?3, ?4, ?5, '{}')",
-                        params![server_id, artist_id, artist_name, v, synced_at],
-                    )?;
-                }
             }
             Ok(())
         })
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn library_reconcile_album_stars(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    starred_album_ids: Vec<String>,
+) -> Result<(), String> {
+    reconcile_album_stars(&runtime, &server_id, &starred_album_ids)
+}
+
+#[tauri::command]
+pub fn library_reconcile_artist_stars(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    starred_artist_ids: Vec<String>,
+) -> Result<(), String> {
+    reconcile_artist_stars(&runtime, &server_id, &starred_artist_ids)
 }
 
 #[tauri::command]
@@ -1636,56 +1683,63 @@ mod tests {
     }
 
     #[test]
-    fn apply_artist_patch_inserts_stub_when_missing() {
+    fn apply_album_patch_skips_insert_when_row_missing() {
         let store = Arc::new(LibraryStore::open_in_memory());
         let rt = runtime(store.clone());
-        let patch = serde_json::json!({
-            "starredAt": 1_700_000_111_i64,
-            "name": "My Artist",
-        });
-        apply_artist_patch(&rt, "s1", "ar_new", &patch).unwrap();
-        let starred_at: Option<i64> = store
+        apply_album_patch(
+            &rt,
+            "s1",
+            "al_missing",
+            &serde_json::json!({ "starredAt": 1_700_000_000_i64 }),
+        )
+        .unwrap();
+        let count: i64 = store
             .with_conn("misc", |c| {
                 c.query_row(
-                    "SELECT starred_at FROM artist WHERE server_id = 's1' AND id = 'ar_new'",
+                    "SELECT COUNT(*) FROM album WHERE server_id = 's1' AND id = 'al_missing'",
                     [],
                     |r| r.get(0),
                 )
             })
             .unwrap();
-        assert_eq!(starred_at, Some(1_700_000_111));
+        assert_eq!(count, 0);
     }
 
     #[test]
-    fn apply_album_patch_inserts_stub_when_missing() {
+    fn reconcile_album_stars_clears_stale_local_stars() {
         let store = Arc::new(LibraryStore::open_in_memory());
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'al_old', 'Old', 1, 1, '{}'), \
+                            ('s1', 'al_keep', 'Keep', 1, 1, '{}')",
+                    [],
+                )
+            })
+            .unwrap();
         let rt = runtime(store.clone());
-        let patch = serde_json::json!({
-            "starredAt": 1_700_000_000_i64,
-            "name": "My Album",
-            "artist": "Artist",
-        });
-        apply_album_patch(&rt, "s1", "al_new", &patch).unwrap();
-        let starred_at: Option<i64> = store
+        reconcile_album_stars(&rt, "s1", &["al_keep".to_string()]).unwrap();
+        let old: Option<i64> = store
             .with_conn("misc", |c| {
                 c.query_row(
-                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'al_new'",
+                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'al_old'",
                     [],
                     |r| r.get(0),
                 )
             })
             .unwrap();
-        assert_eq!(starred_at, Some(1_700_000_000));
-        let name: String = store
+        let keep: Option<i64> = store
             .with_conn("misc", |c| {
                 c.query_row(
-                    "SELECT name FROM album WHERE server_id = 's1' AND id = 'al_new'",
+                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'al_keep'",
                     [],
                     |r| r.get(0),
                 )
             })
             .unwrap();
-        assert_eq!(name, "My Album");
+        assert!(old.is_none());
+        assert!(keep.is_some());
     }
 
     #[test]

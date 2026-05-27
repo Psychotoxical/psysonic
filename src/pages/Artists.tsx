@@ -27,11 +27,8 @@ import { useBrowseArtistTextSearch } from '../hooks/useBrowseArtistTextSearch';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import {
-  fetchNetworkStarredArtists,
-  runLocalBrowseAllArtists,
-  runLocalBrowseStarredArtists,
-} from '../utils/library/browseTextSearch';
+import { fetchNetworkStarredArtists, runLocalBrowseAllArtists } from '../utils/library/browseTextSearch';
+import { reconcileArtistStarsFromServer } from '../utils/library/starredReconcile';
 import { ArtistsGridView } from '../components/artists/ArtistsGridView';
 import { ArtistsListView } from '../components/artists/ArtistsListView';
 
@@ -103,11 +100,7 @@ export default function Artists() {
       try {
         if (starredOnly) {
           if (indexEnabled && serverId) {
-            const local = await runLocalBrowseStarredArtists(serverId);
-            if (!cancelled && local != null && local.length > 0) {
-              setCatalogArtists(local);
-              return;
-            }
+            await reconcileArtistStarsFromServer(serverId).catch(() => {});
           }
           if (!cancelled) setCatalogArtists(await fetchNetworkStarredArtists());
           return;
