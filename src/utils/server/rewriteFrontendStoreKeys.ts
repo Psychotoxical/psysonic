@@ -4,8 +4,15 @@ import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import { useHotCacheStore } from '../../store/hotCacheStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { useOfflineStore } from '../../store/offlineStore';
+import { usePlayerStore } from '../../store/playerStore';
 import { serverIndexKeyFromUrl } from './serverIndexKey';
 
+/**
+ * One `legacyId → indexKey` rewrite step. `legacyId` is whatever the keys
+ * used to be tagged with — the historical name reflects the very first
+ * migration (UUID → index key), but the same plumbing now also covers the
+ * URL-change remigration (oldKey → newKey).
+ */
 type Mapping = { legacyId: string; indexKey: string };
 
 function buildMappings(servers: ServerProfile[]): Mapping[] {
@@ -109,5 +116,62 @@ export async function rewriteFrontendStoreKeys(servers: ServerProfile[]): Promis
   // Keep migration explicit: Zustand persist writes the current state snapshot.
   useAnalysisStrategyStore.getState().migrateServerOverrides(servers);
   useCoverStrategyStore.getState().migrateServerOverrides(servers);
+  useLibraryIndexStore.setState(state => ({ masterEnabled: state.masterEnabled }));
+}
+
+/**
+ * URL-change remigration entry point: rewrites every front-end keyed store
+ * for one or more explicit `oldKey → newKey` index-key remaps. Used after
+ * `migration_run` has re-tagged the SQLite tables (library + analysis) and
+ * `cover_cache_rename_server_bucket` has moved the disk bucket — without
+ * this step the in-memory zustand state would still point at the old keys.
+ *
+ * Player queue `queueServerId` is included here: if the queue is currently
+ * bound to a remapped index key, it gets re-pointed at the new one so the
+ * queue keeps playing through the rename instead of looking unbound.
+ */
+export async function rewriteFrontendStoreKeysForRemap(
+  remaps: ReadonlyArray<{ oldKey: string; newKey: string }>,
+): Promise<void> {
+  const mappings: Mapping[] = remaps
+    .map(r => ({ legacyId: r.oldKey.trim(), indexKey: r.newKey.trim() }))
+    .filter(m => m.legacyId.length > 0 && m.indexKey.length > 0 && m.legacyId !== m.indexKey);
+  if (mappings.length === 0) return;
+
+  rewriteOfflineStoreKeys(mappings);
+  rewriteHotCacheStoreKeys(mappings);
+  rewriteAnalysisStrategyStoreKeys(mappings);
+
+  // Player queue: queueServerId is a single string, not a keyed map.
+  const queueRemap = new Map(mappings.map(m => [m.legacyId, m.indexKey]));
+  usePlayerStore.setState(state => {
+    if (!state.queueServerId) return state;
+    const next = queueRemap.get(state.queueServerId);
+    if (!next) return state;
+    return { ...state, queueServerId: next };
+  });
+
+  // The analysis/cover strategy stores carry per-server-id maps that the
+  // `migrateServerOverrides` helpers already handle for the UUID→indexKey
+  // case; for index-key→index-key we run the same map-remap path inline.
+  useAnalysisStrategyStore.setState(state => {
+    const strategyByServer = { ...state.strategyByServer };
+    const advancedParallelismByServer = { ...state.advancedParallelismByServer };
+    for (const { legacyId, indexKey } of mappings) {
+      if (strategyByServer[legacyId] !== undefined && strategyByServer[indexKey] === undefined) {
+        strategyByServer[indexKey] = strategyByServer[legacyId];
+      }
+      delete strategyByServer[legacyId];
+      if (
+        advancedParallelismByServer[legacyId] !== undefined &&
+        advancedParallelismByServer[indexKey] === undefined
+      ) {
+        advancedParallelismByServer[indexKey] = advancedParallelismByServer[legacyId];
+      }
+      delete advancedParallelismByServer[legacyId];
+    }
+    return { strategyByServer, advancedParallelismByServer };
+  });
+
   useLibraryIndexStore.setState(state => ({ masterEnabled: state.masterEnabled }));
 }
