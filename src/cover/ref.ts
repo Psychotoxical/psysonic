@@ -3,23 +3,28 @@ import { useAuthStore } from '../store/authStore';
 import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import type { CoverArtId, CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
-import { resolveSubsonicSongCoverArtId } from './resolveCoverArtId';
+import {
+  albumHasDistinctDiscCovers,
+  coverEntryToRef,
+  resolveAlbumCoverEntry,
+  resolveArtistCoverEntry,
+  resolveTrackCoverEntry,
+} from './resolveEntry';
 
-/**
- * Logical cache identity for the UI — must match Rust `psysonic_core::cover_cache_layout`
- * inputs (`cache_kind` + `cache_entity_id`). On-disk path shape is owned only in Rust.
- */
+export type { CoverEntry } from './resolveEntry';
+export { albumHasDistinctDiscCovers } from './resolveEntry';
 
 export type AlbumCoverRefOptions = {
   serverScope?: CoverServerScope;
-  /** Per-disc disk dirs — only for multi-CD albums with different art (see {@link albumHasDistinctDiscCovers}). */
   distinctDiscCovers?: boolean;
 };
 
 const albumDistinctDiscCoversByAlbumId = new Map<string, boolean>();
 
-/** Remember result of {@link albumHasDistinctDiscCovers} while an album page is open (playback). */
-export function rememberAlbumDistinctDiscCovers(albumId: string, songs: ReadonlyArray<Pick<SubsonicSong, 'discNumber' | 'coverArt' | 'id' | 'albumId'>>): void {
+export function rememberAlbumDistinctDiscCovers(
+  albumId: string,
+  songs: ReadonlyArray<Pick<SubsonicSong, 'discNumber' | 'coverArt' | 'id' | 'albumId'>>,
+): void {
   const id = albumId.trim();
   if (!id) return;
   albumDistinctDiscCoversByAlbumId.set(id, albumHasDistinctDiscCovers(songs));
@@ -41,38 +46,13 @@ function resolveAlbumCoverRefOptions(
   };
 }
 
-/** True when the album has 2+ discs and at least two discs use different cover art ids. */
-export function albumHasDistinctDiscCovers(
-  songs: ReadonlyArray<Pick<SubsonicSong, 'discNumber' | 'coverArt' | 'id' | 'albumId'>>,
-): boolean {
-  const artByDisc = new Map<number, string>();
-  for (const song of songs) {
-    const disc = song.discNumber ?? 1;
-    const artId = resolveSubsonicSongCoverArtId(song);
-    if (!artId) continue;
-    const prev = artByDisc.get(disc);
-    if (prev !== undefined && prev !== artId) return true;
-    artByDisc.set(disc, artId);
-  }
-  if (artByDisc.size <= 1) return false;
-  return new Set(artByDisc.values()).size > 1;
-}
-
-/**
- * Disk cache entity for album-scoped art. Default: `albumId` only (one folder per album).
- * Use `distinctDiscCovers` when {@link albumHasDistinctDiscCovers} is true.
- */
+/** @deprecated Use {@link resolveAlbumCoverEntry}. */
 export function resolveAlbumCoverCacheEntityId(
   albumId: string,
   fetchCoverArtId?: string | null,
   distinctDiscCovers = false,
 ): string {
-  const album = albumId.trim();
-  const fetch = (fetchCoverArtId ?? album).trim();
-  if (!album) return fetch;
-  if (!fetch || fetch === album) return album;
-  if (distinctDiscCovers) return fetch;
-  return album;
+  return resolveAlbumCoverEntry(albumId, fetchCoverArtId, distinctDiscCovers)?.cacheEntityId ?? '';
 }
 
 export function albumCoverRef(
@@ -81,27 +61,26 @@ export function albumCoverRef(
   scopeOrOpts: CoverServerScope | AlbumCoverRefOptions = { kind: 'active' },
 ): CoverArtRef {
   const { serverScope, distinctDiscCovers } = resolveAlbumCoverRefOptions(scopeOrOpts);
-  const fetch = (fetchCoverArtId ?? albumId).trim();
-  return {
-    cacheKind: 'album',
-    cacheEntityId: resolveAlbumCoverCacheEntityId(albumId, fetchCoverArtId, distinctDiscCovers),
-    fetchCoverArtId: fetch,
-    serverScope,
-  };
+  const entry = resolveAlbumCoverEntry(albumId, fetchCoverArtId, distinctDiscCovers);
+  if (!entry) {
+    const id = (fetchCoverArtId ?? albumId).trim();
+    return coverEntryToRef(
+      { cacheKind: 'album', cacheEntityId: id, fetchCoverArtId: id },
+      serverScope,
+    );
+  }
+  return coverEntryToRef(entry, serverScope);
 }
 
-/** Song row / search — album bucket unless caller passes `distinctDiscCovers`. */
 export function albumCoverRefForSong(
   song: Pick<SubsonicSong, 'albumId' | 'coverArt' | 'id' | 'discNumber'>,
   distinctDiscCovers = false,
   serverScope: CoverServerScope = { kind: 'active' },
 ): CoverArtRef | undefined {
-  const albumId = song.albumId?.trim();
-  if (!albumId) return undefined;
-  return albumCoverRef(albumId, song.coverArt, { serverScope, distinctDiscCovers });
+  const entry = resolveTrackCoverEntry(song, distinctDiscCovers);
+  return entry ? coverEntryToRef(entry, serverScope) : undefined;
 }
 
-/** Player / queue — uses album-page memory when available; else CD≥2 + distinct cover id. */
 export function albumCoverRefForPlayback(
   track: Pick<SubsonicSong, 'coverArt' | 'id' | 'discNumber'> & { albumId?: string | null },
   serverScope: CoverServerScope = resolvePlaybackCoverScope(),
@@ -113,7 +92,11 @@ export function albumCoverRefForPlayback(
   const fallbackDisc =
     (track.discNumber ?? 1) > 1 && Boolean(cover && cover !== albumId);
   const distinctDiscCovers = known === true || (known === undefined && fallbackDisc);
-  return albumCoverRef(albumId, track.coverArt, { serverScope, distinctDiscCovers });
+  return albumCoverRefForSong(
+    { ...track, albumId } as Pick<SubsonicSong, 'albumId' | 'coverArt' | 'id' | 'discNumber'>,
+    distinctDiscCovers,
+    serverScope,
+  );
 }
 
 export function artistCoverRef(
@@ -121,29 +104,38 @@ export function artistCoverRef(
   fetchCoverArtId?: string | null,
   serverScope: CoverServerScope = { kind: 'active' },
 ): CoverArtRef {
-  const entityId = artistId.trim();
-  const fetch = (fetchCoverArtId ?? artistId).trim();
-  return {
-    cacheKind: 'artist',
-    cacheEntityId: entityId,
-    fetchCoverArtId: fetch,
-    serverScope,
-  };
+  const entry = resolveArtistCoverEntry(artistId, fetchCoverArtId);
+  if (!entry) {
+    const id = (fetchCoverArtId ?? artistId).trim();
+    return coverEntryToRef(
+      { cacheKind: 'artist', cacheEntityId: id, fetchCoverArtId: id },
+      serverScope,
+    );
+  }
+  return coverEntryToRef(entry, serverScope);
 }
 
-/** Build a cover ref from grid/row props (album by default). */
 export function coverRefFromEntity(
   cacheKind: CoverCacheKind,
   cacheEntityId: string,
   fetchCoverArtId?: string | null,
   serverScope: CoverServerScope = { kind: 'active' },
 ): CoverArtRef {
-  return cacheKind === 'artist'
-    ? artistCoverRef(cacheEntityId, fetchCoverArtId, serverScope)
-    : albumCoverRef(cacheEntityId, fetchCoverArtId, serverScope);
+  const entry =
+    cacheKind === 'artist'
+      ? resolveArtistCoverEntry(cacheEntityId, fetchCoverArtId)
+      : resolveAlbumCoverEntry(cacheEntityId, fetchCoverArtId);
+  if (!entry) {
+    const id = (fetchCoverArtId ?? cacheEntityId).trim();
+    return coverEntryToRef(
+      { cacheKind, cacheEntityId: id, fetchCoverArtId: id },
+      serverScope,
+    );
+  }
+  return coverEntryToRef(entry, serverScope);
 }
 
-/** @deprecated Prefer {@link albumCoverRef} / {@link artistCoverRef}. */
+/** @deprecated Prefer entity helpers in {@link resolveEntry}. */
 export function coverArtRef(
   coverArtId: CoverArtId,
   serverScope: CoverServerScope = { kind: 'active' },

@@ -69,6 +69,57 @@ pub fn cover_dir(
     root.join(server_index_key).join(cover_entity_relative_dir(cache_kind, cache_entity_id))
 }
 
+/// Resolved cover identity — keep in sync with TS `src/cover/resolveEntry.ts`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoverEntry {
+    pub cache_kind: &'static str,
+    pub cache_entity_id: String,
+    pub fetch_cover_art_id: String,
+}
+
+/// Album — one disk slot per album; per-disc ids only when `distinct_disc_covers`.
+pub fn resolve_album_cover(
+    album_id: &str,
+    cover_art_id: Option<&str>,
+    distinct_disc_covers: bool,
+) -> Option<CoverEntry> {
+    let album = album_id.trim();
+    if album.is_empty() {
+        return None;
+    }
+    let fetch = cover_art_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(album);
+    let cache_entity_id = if distinct_disc_covers && fetch != album {
+        fetch.to_string()
+    } else {
+        album.to_string()
+    };
+    Some(CoverEntry {
+        cache_kind: "album",
+        cache_entity_id,
+        fetch_cover_art_id: fetch.to_string(),
+    })
+}
+
+/// Artist — one disk slot per artist id.
+pub fn resolve_artist_cover(artist_id: &str, cover_art_id: Option<&str>) -> Option<CoverEntry> {
+    let artist = artist_id.trim();
+    if artist.is_empty() {
+        return None;
+    }
+    let fetch = cover_art_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(artist);
+    Some(CoverEntry {
+        cache_kind: "artist",
+        cache_entity_id: artist.to_string(),
+        fetch_cover_art_id: fetch.to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +142,18 @@ mod tests {
     fn per_disc_mf_entity_gets_own_dir() {
         let d = cover_entity_relative_dir("album", "mf-disc2_abc");
         assert_eq!(d, PathBuf::from("album").join("mf-disc2_abc"));
+    }
+
+    #[test]
+    fn resolve_album_bare_navidrome_id() {
+        let e = resolve_album_cover("0DurV2S7arIOBQVEknOPWX", Some("al-0Dur_abc"), false).unwrap();
+        assert_eq!(e.cache_entity_id, "0DurV2S7arIOBQVEknOPWX");
+        assert_eq!(e.fetch_cover_art_id, "al-0Dur_abc");
+    }
+
+    #[test]
+    fn resolve_album_per_disc_changes_cache_entity() {
+        let e = resolve_album_cover("al-box", Some("mf-d2"), true).unwrap();
+        assert_eq!(e.cache_entity_id, "mf-d2");
     }
 }

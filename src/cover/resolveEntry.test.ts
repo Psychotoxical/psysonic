@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+import {
+  albumHasDistinctDiscCovers,
+  resolveAlbumCoverEntry,
+  resolveArtistCoverEntry,
+  resolveSongFetchCoverArtId,
+  resolveTrackCoverEntry,
+} from './resolveEntry';
+
+describe('resolveAlbumCoverEntry', () => {
+  it('uses bare Navidrome album id on disk', () => {
+    const e = resolveAlbumCoverEntry('0DurV2S7arIOBQVEknOPWX', 'al-0Dur_abc');
+    expect(e?.cacheEntityId).toBe('0DurV2S7arIOBQVEknOPWX');
+    expect(e?.fetchCoverArtId).toBe('al-0Dur_abc');
+  });
+
+  it('ignores mf fetch unless distinctDiscCovers', () => {
+    expect(resolveAlbumCoverEntry('al-box', 'mf-d2')?.cacheEntityId).toBe('al-box');
+    expect(resolveAlbumCoverEntry('al-box', 'mf-d2', true)?.cacheEntityId).toBe('mf-d2');
+  });
+});
+
+describe('resolveArtistCoverEntry', () => {
+  it('keys by artist id', () => {
+    const e = resolveArtistCoverEntry('03b645ef2100dfc4', 'ar-03b645ef');
+    expect(e?.cacheKind).toBe('artist');
+    expect(e?.cacheEntityId).toBe('03b645ef2100dfc4');
+    expect(e?.fetchCoverArtId).toBe('ar-03b645ef');
+  });
+});
+
+describe('resolveTrackCoverEntry', () => {
+  it('defaults to album bucket', () => {
+    const e = resolveTrackCoverEntry({
+      id: 't1',
+      albumId: 'al-1',
+      coverArt: 'mf-a',
+    });
+    expect(e?.cacheEntityId).toBe('al-1');
+    expect(e?.fetchCoverArtId).toBe('mf-a');
+  });
+});
+
+describe('resolveSongFetchCoverArtId', () => {
+  it('falls back to albumId when coverArt echoes track id', () => {
+    expect(
+      resolveSongFetchCoverArtId({ id: 'tr-1', coverArt: 'tr-1', albumId: 'al-42' }),
+    ).toBe('al-42');
+  });
+});
+
+describe('albumHasDistinctDiscCovers', () => {
+  it('true when discs differ', () => {
+    expect(
+      albumHasDistinctDiscCovers([
+        { id: 't1', albumId: 'al-1', coverArt: 'mf-a', discNumber: 1 },
+        { id: 't2', albumId: 'al-1', coverArt: 'mf-b', discNumber: 2 },
+      ]),
+    ).toBe(true);
+  });
+});

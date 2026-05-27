@@ -7,6 +7,7 @@ export * from './ids';
 export * from './storageKeys';
 export * from './reachability';
 export * from './layoutSizes';
+export * from './resolveEntry';
 export * from './ref';
 export { useCoverArt } from './useCoverArt';
 export { CoverArtImage } from './CoverArtImage';
@@ -18,6 +19,14 @@ export {
   rememberDiskSrc,
 } from './diskSrcCache';
 export { usePlaybackCoverArt } from './usePlaybackCoverArt';
+export {
+  resolveAlbumCoverEntry,
+  resolveArtistCoverEntry,
+  resolveArtistPageSongFetchCoverArtId,
+  resolveTrackCoverEntry,
+  resolveSongFetchCoverArtId,
+  coverEntryToRef,
+} from './resolveEntry';
 export {
   resolveArtistPageSongCoverArtId,
   resolvePlaybackTrackCoverArtId,
