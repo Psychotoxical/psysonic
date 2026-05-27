@@ -34,11 +34,14 @@ import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useAlbumBrowseFilters } from '../hooks/useAlbumBrowseFilters';
+import { useAlbumCatalogYearBounds } from '../hooks/useAlbumCatalogYearBounds';
 import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
 import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
+  fetchAlbumBrowseGenreOptions,
   fetchAlbumBrowsePage,
+  filterAlbumsByCompilation,
   filterAlbumsByStarred,
   type AlbumBrowseQuery,
 } from '../utils/library/albumBrowseLoad';
@@ -61,6 +64,7 @@ export default function Albums() {
   const auth = useAuthStore();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const catalogYears = useAlbumCatalogYearBounds(serverId, indexEnabled, musicLibraryFilterVersion);
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
 
@@ -105,9 +109,7 @@ export default function Albums() {
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const compFilterActive = compFilter !== 'all';
   const visibleAlbums = useMemo(() => {
-    let out = albums;
-    if (compFilter === 'only') out = out.filter(a => a.isCompilation);
-    else if (compFilter === 'hide') out = out.filter(a => !a.isCompilation);
+    let out = filterAlbumsByCompilation(albums, compFilter);
     if (starredOnly) out = filterAlbumsByStarred(out, starredOverrides);
     return out;
   }, [albums, compFilter, starredOnly, starredOverrides]);
@@ -199,6 +201,17 @@ export default function Albums() {
     starredOnly,
   }), [sort, selectedGenres, yearActive, yearBounds, losslessOnly, starredOnly]);
 
+  const browseQueryWithoutGenre = useMemo<AlbumBrowseQuery>(() => ({
+    sort,
+    genres: [],
+    year: yearActive ? yearBounds : undefined,
+    losslessOnly,
+    starredOnly,
+  }), [sort, yearActive, yearBounds, losslessOnly, starredOnly]);
+
+  const narrowGenreList = yearActive || losslessOnly || starredOnly || compFilterActive;
+  const [genreCatalogOptions, setGenreCatalogOptions] = useState<string[] | null>(null);
+
   const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
   const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
 
@@ -246,6 +259,32 @@ export default function Albums() {
     losslessOnly,
     selectionMode,
     selectedGenres,
+  ]);
+
+  useEffect(() => {
+    if (!narrowGenreList) {
+      setGenreCatalogOptions(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchAlbumBrowseGenreOptions(
+      serverId,
+      indexEnabled,
+      browseQueryWithoutGenre,
+      compFilter,
+    ).then(options => {
+      if (!cancelled) setGenreCatalogOptions(options);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    narrowGenreList,
+    serverId,
+    indexEnabled,
+    browseQueryWithoutGenre,
+    compFilter,
+    musicLibraryFilterVersion,
   ]);
 
   const loadGenerationRef = useRef(0);
@@ -362,11 +401,14 @@ export default function Albums() {
                   <YearFilterButton
                     from={yearFrom}
                     to={yearTo}
+                    catalogMinYear={catalogYears.min}
+                    catalogMaxYear={catalogYears.max}
                     onChange={(from, to) => { setYearFrom(from); setYearTo(to); }}
                   />
 
                   <GenreFilterBar
                     selected={selectedGenres}
+                    catalogGenres={narrowGenreList ? genreCatalogOptions : null}
                     onSelectionChange={setSelectedGenres}
                   />
 

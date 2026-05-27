@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   albumYearFilterClauses,
   albumYearSubsonicParams,
+  clampAlbumYearFieldInput,
   formatAlbumYearFilterLabel,
+  normalizeAlbumYearToFieldChange,
   resolveAlbumYearBounds,
+  stepAlbumYearField,
 } from './albumYearFilter';
 
 describe('resolveAlbumYearBounds', () => {
@@ -59,5 +62,30 @@ describe('albumYearSubsonicParams', () => {
   it('omits unset bounds', () => {
     expect(albumYearSubsonicParams({ from: 1995 })).toEqual({ fromYear: 1995 });
     expect(albumYearSubsonicParams({ to: 2010 })).toEqual({ toYear: 2010 });
+  });
+});
+
+describe('album year spinner helpers', () => {
+  const min = 1975;
+  const max = 2020;
+
+  it('steps from field from catalog min when empty', () => {
+    expect(stepAlbumYearField('', 1, min, max, 'min')).toBe('1976');
+    expect(stepAlbumYearField('', 0, min, max, 'min')).toBe('1975');
+  });
+
+  it('steps to field from catalog max when empty', () => {
+    expect(stepAlbumYearField('', -1, min, max, 'max')).toBe('2019');
+    expect(stepAlbumYearField('', 0, min, max, 'max')).toBe('2020');
+  });
+
+  it('clamps typed values to catalog bounds', () => {
+    expect(clampAlbumYearFieldInput('1960', min, max)).toBe('1975');
+    expect(clampAlbumYearFieldInput('2030', min, max)).toBe('2020');
+  });
+
+  it('maps first native spinner tick on empty to field to max', () => {
+    expect(normalizeAlbumYearToFieldChange('', '1975', min, max)).toBe('2020');
+    expect(normalizeAlbumYearToFieldChange('2010', '1975', min, max)).toBe('1975');
   });
 });

@@ -3,6 +3,49 @@ import type { LibraryFilterClause } from '../../api/library';
 export const ALBUM_YEAR_MIN = 1900;
 export const ALBUM_YEAR_MAX = new Date().getFullYear();
 
+export type AlbumCatalogYearRange = { min: number; max: number };
+
+export function clampAlbumYear(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+/** Spinner / wheel step; empty field starts at `startEdge` of the catalog range. */
+export function stepAlbumYearField(
+  raw: string,
+  delta: number,
+  min: number,
+  max: number,
+  startEdge: 'min' | 'max',
+): string {
+  const start = startEdge === 'min' ? min : max;
+  const current = raw.trim() ? (parseAlbumYearField(raw) ?? start) : start;
+  return String(clampAlbumYear(current + delta, min, max));
+}
+
+export function clampAlbumYearFieldInput(
+  raw: string,
+  min: number,
+  max: number,
+): string {
+  if (!raw.trim()) return '';
+  const n = parseAlbumYearField(raw);
+  if (n == null) return '';
+  return String(clampAlbumYear(n, min, max));
+}
+
+/** Native number spinners jump to `min` from empty — map the "to" field to catalog max. */
+export function normalizeAlbumYearToFieldChange(
+  prevTo: string,
+  nextRaw: string,
+  catalogMin: number,
+  catalogMax: number,
+): string {
+  if (!prevTo.trim() && nextRaw === String(catalogMin) && catalogMin !== catalogMax) {
+    return String(catalogMax);
+  }
+  return clampAlbumYearFieldInput(nextRaw, catalogMin, catalogMax);
+}
+
 export type AlbumYearBounds = { from?: number; to?: number };
 
 export function parseAlbumYearField(raw: string): number | null {

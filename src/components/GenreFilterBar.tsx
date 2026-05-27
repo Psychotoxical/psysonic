@@ -8,9 +8,18 @@ import FilterQuickClear from './FilterQuickClear';
 interface GenreFilterBarProps {
   selected: string[];
   onSelectionChange: (selected: string[]) => void;
+  /**
+   * When set, only these genres are listed (e.g. from the current non-genre filters).
+   * `undefined` = full server genre list from `getGenres`.
+   */
+  catalogGenres?: string[] | null;
 }
 
-export default function GenreFilterBar({ selected, onSelectionChange }: GenreFilterBarProps) {
+export default function GenreFilterBar({
+  selected,
+  onSelectionChange,
+  catalogGenres,
+}: GenreFilterBarProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [genres, setGenres] = useState<string[]>([]);
@@ -22,10 +31,22 @@ export default function GenreFilterBar({ selected, onSelectionChange }: GenreFil
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getGenres().then(data =>
-      setGenres(data.map(g => g.value).sort((a, b) => a.localeCompare(b)))
-    );
-  }, []);
+    if (catalogGenres != null) {
+      const merged = new Set(catalogGenres);
+      for (const s of selected) merged.add(s);
+      setGenres([...merged].sort((a, b) => a.localeCompare(b)));
+      return;
+    }
+    let cancelled = false;
+    getGenres().then(data => {
+      if (!cancelled) {
+        setGenres(data.map(g => g.value).sort((a, b) => a.localeCompare(b)));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogGenres, selected]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 

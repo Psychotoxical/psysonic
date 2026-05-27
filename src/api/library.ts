@@ -701,6 +701,18 @@ export type PlaySessionYearBounds = {
   maxYear: number | null;
 };
 
+export type CatalogYearBounds = {
+  minYear: number | null;
+  maxYear: number | null;
+};
+
+export function libraryGetCatalogYearBounds(args: { serverId: string }): Promise<CatalogYearBounds> {
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<CatalogYearBounds>('library_get_catalog_year_bounds', {
+    serverId: indexKey,
+  });
+}
+
 export type PlaySessionRecentDay = {
   date: string;
   totalListenedSec: number;

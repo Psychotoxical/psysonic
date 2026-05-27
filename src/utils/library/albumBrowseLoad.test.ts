@@ -4,6 +4,7 @@ import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
   albumBrowseStarredNeedsLocalIntersect,
+  extractGenresFromAlbums,
   filterAlbumsByGenres,
   filterAlbumsByStarred,
   filterAlbumsByYearBounds,
@@ -81,6 +82,27 @@ describe('filterAlbumsByStarred', () => {
     expect(filterAlbumsByStarred([{ ...album, starred: '2020-01-01' }], {})).toHaveLength(1);
     expect(filterAlbumsByStarred([album], { a1: true })).toHaveLength(1);
     expect(filterAlbumsByStarred([{ ...album, starred: '2020-01-01' }], { a1: false })).toHaveLength(0);
+  });
+});
+
+describe('extractGenresFromAlbums', () => {
+  const album = (genre?: string): SubsonicAlbum => ({
+    id: '1',
+    name: 'A',
+    artist: 'X',
+    artistId: 'a',
+    songCount: 1,
+    duration: 1,
+    genre,
+  });
+
+  it('returns sorted unique genres', () => {
+    expect(extractGenresFromAlbums([
+      album('Rock'),
+      album('Jazz'),
+      album('Rock'),
+      album(),
+    ])).toEqual(['Jazz', 'Rock']);
   });
 });
 

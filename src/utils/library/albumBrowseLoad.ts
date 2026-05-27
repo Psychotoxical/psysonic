@@ -99,6 +99,27 @@ export function filterAlbumsByYearBounds(
   });
 }
 
+export type AlbumCompFilter = 'all' | 'only' | 'hide';
+
+export function filterAlbumsByCompilation(
+  albums: SubsonicAlbum[],
+  compFilter: AlbumCompFilter,
+): SubsonicAlbum[] {
+  if (compFilter === 'only') return albums.filter(a => a.isCompilation);
+  if (compFilter === 'hide') return albums.filter(a => !a.isCompilation);
+  return albums;
+}
+
+/** Unique non-empty `genre` values from album rows (sorted). */
+export function extractGenresFromAlbums(albums: SubsonicAlbum[]): string[] {
+  const set = new Set<string>();
+  for (const a of albums) {
+    const g = (a.genre ?? '').trim();
+    if (g) set.add(g);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
 /** OR match against album `genre` (same spirit as genre-filtered browse). */
 export function filterAlbumsByGenres(albums: SubsonicAlbum[], genres: string[]): SubsonicAlbum[] {
   if (genres.length === 0) return albums;
@@ -289,6 +310,27 @@ async function fetchStarredAlbumBrowse(
  * One entry point for Albums browse: local advanced search when possible, else Subsonic.
  * Favorites: reconciled cache (`onPartial`), then `getStarred2` → DB reconcile → final list.
  */
+/**
+ * Genres present in albums matching all filters except genre (for combined-filter UI).
+ * Returns `null` when the caller should use the full server genre list.
+ */
+export async function fetchAlbumBrowseGenreOptions(
+  serverId: string,
+  indexEnabled: boolean,
+  query: AlbumBrowseQuery,
+  compFilter: AlbumCompFilter,
+): Promise<string[]> {
+  const withoutGenre: AlbumBrowseQuery = { ...query, genres: [] };
+  const page = await fetchAlbumBrowsePage(
+    serverId,
+    indexEnabled,
+    withoutGenre,
+    0,
+    GENRE_ALBUM_FETCH_LIMIT,
+  );
+  return extractGenresFromAlbums(filterAlbumsByCompilation(page.albums, compFilter));
+}
+
 export async function fetchAlbumBrowsePage(
   serverId: string,
   indexEnabled: boolean,

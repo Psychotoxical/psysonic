@@ -19,7 +19,7 @@ use crate::analysis_backfill::{self, LibraryAnalysisBackfillBatchDto, LibraryAna
 use crate::cross_server;
 use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
-    FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
+    CatalogYearBoundsDto, FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
     LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse, LibraryTrackDto,
     LibraryTracksEnvelope, OfflinePathDto, PlaySessionDayDetailDto, PlaySessionHeatmapDayDto,
     PlaySessionInputDto, PlaySessionRecentDayDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto, SyncStateDto,
@@ -1166,6 +1166,40 @@ pub fn library_get_player_stats_year_bounds(
     PlaySessionRepository::new(&runtime.store).year_bounds()
 }
 
+pub(crate) fn catalog_year_bounds_for_server(
+    store: &LibraryStore,
+    server_id: &str,
+) -> Result<CatalogYearBoundsDto, String> {
+    store
+        .with_read_conn(|conn| {
+            let min_year: Option<i64> = conn.query_row(
+                "SELECT MIN(year) FROM track \
+                 WHERE server_id = ?1 AND deleted = 0 AND year IS NOT NULL AND year > 0",
+                params![server_id],
+                |r| r.get(0),
+            )?;
+            let max_year: Option<i64> = conn.query_row(
+                "SELECT MAX(year) FROM track \
+                 WHERE server_id = ?1 AND deleted = 0 AND year IS NOT NULL AND year > 0",
+                params![server_id],
+                |r| r.get(0),
+            )?;
+            let min_year = min_year.map(|y| y as i32);
+            let max_year = max_year.map(|y| y as i32);
+            Ok(CatalogYearBoundsDto { min_year, max_year })
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Min/max album years from the local track catalog (for Albums browse filter spinners).
+#[tauri::command]
+pub fn library_get_catalog_year_bounds(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+) -> Result<CatalogYearBoundsDto, String> {
+    catalog_year_bounds_for_server(&runtime.store, &server_id)
+}
+
 #[tauri::command]
 pub fn library_get_player_stats_recent_days(
     runtime: State<'_, LibraryRuntime>,
@@ -1621,6 +1655,21 @@ mod tests {
         assert!(old.is_none());
         assert_eq!(keep, Some(99));
         assert!(new.is_none());
+    }
+
+    #[test]
+    fn catalog_year_bounds_from_indexed_tracks() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let mut old = make_row("s1", "t1", "al1", 1);
+        old.year = Some(1985);
+        let mut recent = make_row("s1", "t2", "al2", 1);
+        recent.year = Some(2018);
+        TrackRepository::new(&store)
+            .upsert_batch(&[old, recent])
+            .unwrap();
+        let bounds = catalog_year_bounds_for_server(&store, "s1").unwrap();
+        assert_eq!(bounds.min_year, Some(1985));
+        assert_eq!(bounds.max_year, Some(2018));
     }
 
     #[test]
