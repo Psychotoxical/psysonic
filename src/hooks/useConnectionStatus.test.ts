@@ -130,6 +130,6 @@ describe('useConnectionStatus online event', () => {
 
     await waitFor(() => expect(result.current.isLan).toBe(false));
     // Both endpoints were probed (LAN refused, public answered).
-    expect(pingWithCredentials.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(vi.mocked(pingWithCredentials).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
