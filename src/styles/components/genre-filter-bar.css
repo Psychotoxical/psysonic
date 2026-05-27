@@ -64,6 +64,23 @@
   user-select: none;
 }
 
+.genre-filter-popover__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.genre-filter-popover__album-count {
+  flex-shrink: 0;
+  min-width: 1.5rem;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .genre-filter-popover__option:hover {
   background: var(--bg-hover);
 }

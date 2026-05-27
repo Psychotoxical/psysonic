@@ -110,14 +110,27 @@ export function filterAlbumsByCompilation(
   return albums;
 }
 
-/** Unique non-empty `genre` values from album rows (sorted). */
-export function extractGenresFromAlbums(albums: SubsonicAlbum[]): string[] {
-  const set = new Set<string>();
+export type GenreFilterOption = {
+  genre: string;
+  count: number;
+};
+
+/** Album counts per non-empty `genre`, highest count first. */
+export function countGenresFromAlbums(albums: SubsonicAlbum[]): GenreFilterOption[] {
+  const counts = new Map<string, number>();
   for (const a of albums) {
     const g = (a.genre ?? '').trim();
-    if (g) set.add(g);
+    if (!g) continue;
+    counts.set(g, (counts.get(g) ?? 0) + 1);
   }
-  return [...set].sort((a, b) => a.localeCompare(b));
+  return [...counts.entries()]
+    .map(([genre, count]) => ({ genre, count }))
+    .sort((a, b) => b.count - a.count || a.genre.localeCompare(b.genre));
+}
+
+/** Unique non-empty `genre` values from album rows (sorted by count, then name). */
+export function extractGenresFromAlbums(albums: SubsonicAlbum[]): string[] {
+  return countGenresFromAlbums(albums).map(o => o.genre);
 }
 
 /** OR match against album `genre` (same spirit as genre-filtered browse). */
@@ -319,7 +332,7 @@ export async function fetchAlbumBrowseGenreOptions(
   indexEnabled: boolean,
   query: AlbumBrowseQuery,
   compFilter: AlbumCompFilter,
-): Promise<string[]> {
+): Promise<GenreFilterOption[]> {
   const withoutGenre: AlbumBrowseQuery = { ...query, genres: [] };
   const page = await fetchAlbumBrowsePage(
     serverId,
@@ -328,7 +341,7 @@ export async function fetchAlbumBrowseGenreOptions(
     0,
     GENRE_ALBUM_FETCH_LIMIT,
   );
-  return extractGenresFromAlbums(filterAlbumsByCompilation(page.albums, compFilter));
+  return countGenresFromAlbums(filterAlbumsByCompilation(page.albums, compFilter));
 }
 
 export async function fetchAlbumBrowsePage(

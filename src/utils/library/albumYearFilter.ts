@@ -2,6 +2,8 @@ import type { LibraryFilterClause } from '../../api/library';
 
 export const ALBUM_YEAR_MIN = 1900;
 export const ALBUM_YEAR_MAX = new Date().getFullYear();
+/** Delay before year filter triggers album browse reload. */
+export const ALBUM_YEAR_FILTER_DEBOUNCE_MS = 350;
 
 export type AlbumCatalogYearRange = { min: number; max: number };
 

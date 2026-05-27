@@ -35,6 +35,7 @@ import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useAlbumBrowseFilters } from '../hooks/useAlbumBrowseFilters';
 import { useAlbumCatalogYearBounds } from '../hooks/useAlbumCatalogYearBounds';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
 import {
   albumBrowseHasGenreFilter,
@@ -44,9 +45,13 @@ import {
   filterAlbumsByCompilation,
   filterAlbumsByStarred,
   type AlbumBrowseQuery,
+  type GenreFilterOption,
 } from '../utils/library/albumBrowseLoad';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
-import { resolveAlbumYearBounds } from '../utils/library/albumYearFilter';
+import {
+  ALBUM_YEAR_FILTER_DEBOUNCE_MS,
+  resolveAlbumYearBounds,
+} from '../utils/library/albumYearFilter';
 
 type SortType = AlbumBrowseSort;
 type CompFilter = 'all' | 'only' | 'hide';
@@ -188,29 +193,32 @@ export default function Albums() {
   };
 
   // ── Data loading ─────────────────────────────────────────────────────────
-  const { active: yearActive, bounds: yearBounds } = useMemo(
-    () => resolveAlbumYearBounds(yearFrom, yearTo),
-    [yearFrom, yearTo],
+  const yearFields = useMemo(() => ({ from: yearFrom, to: yearTo }), [yearFrom, yearTo]);
+  const debouncedYearFields = useDebouncedValue(yearFields, ALBUM_YEAR_FILTER_DEBOUNCE_MS);
+
+  const { active: yearFilterActive, bounds: yearFilterBounds } = useMemo(
+    () => resolveAlbumYearBounds(debouncedYearFields.from, debouncedYearFields.to),
+    [debouncedYearFields.from, debouncedYearFields.to],
   );
 
   const browseQuery = useMemo<AlbumBrowseQuery>(() => ({
     sort,
     genres: selectedGenres,
-    year: yearActive ? yearBounds : undefined,
+    year: yearFilterActive ? yearFilterBounds : undefined,
     losslessOnly,
     starredOnly,
-  }), [sort, selectedGenres, yearActive, yearBounds, losslessOnly, starredOnly]);
+  }), [sort, selectedGenres, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly]);
 
   const browseQueryWithoutGenre = useMemo<AlbumBrowseQuery>(() => ({
     sort,
     genres: [],
-    year: yearActive ? yearBounds : undefined,
+    year: yearFilterActive ? yearFilterBounds : undefined,
     losslessOnly,
     starredOnly,
-  }), [sort, yearActive, yearBounds, losslessOnly, starredOnly]);
+  }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly]);
 
-  const narrowGenreList = yearActive || losslessOnly || starredOnly || compFilterActive;
-  const [genreCatalogOptions, setGenreCatalogOptions] = useState<string[] | null>(null);
+  const narrowGenreList = yearFilterActive || losslessOnly || starredOnly || compFilterActive;
+  const [genreCatalogOptions, setGenreCatalogOptions] = useState<GenreFilterOption[] | null>(null);
 
   const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
   const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
@@ -251,9 +259,9 @@ export default function Albums() {
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
     sort,
     genreFiltered,
-    yearActive,
-    yearFrom,
-    yearTo,
+    yearFilterActive,
+    debouncedYearFields.from,
+    debouncedYearFields.to,
     compFilter,
     starredOnly,
     losslessOnly,

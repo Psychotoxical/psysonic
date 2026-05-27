@@ -4,6 +4,7 @@ import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
   albumBrowseStarredNeedsLocalIntersect,
+  countGenresFromAlbums,
   extractGenresFromAlbums,
   filterAlbumsByGenres,
   filterAlbumsByStarred,
@@ -85,9 +86,9 @@ describe('filterAlbumsByStarred', () => {
   });
 });
 
-describe('extractGenresFromAlbums', () => {
-  const album = (genre?: string): SubsonicAlbum => ({
-    id: '1',
+describe('countGenresFromAlbums', () => {
+  const album = (id: string, genre?: string): SubsonicAlbum => ({
+    id,
     name: 'A',
     artist: 'X',
     artistId: 'a',
@@ -96,13 +97,24 @@ describe('extractGenresFromAlbums', () => {
     genre,
   });
 
-  it('returns sorted unique genres', () => {
+  it('returns genres sorted by album count descending', () => {
+    expect(countGenresFromAlbums([
+      album('1', 'Rock'),
+      album('2', 'Jazz'),
+      album('3', 'Rock'),
+      album('4'),
+    ])).toEqual([
+      { genre: 'Rock', count: 2 },
+      { genre: 'Jazz', count: 1 },
+    ]);
+  });
+
+  it('extractGenresFromAlbums preserves count order', () => {
     expect(extractGenresFromAlbums([
-      album('Rock'),
-      album('Jazz'),
-      album('Rock'),
-      album(),
-    ])).toEqual(['Jazz', 'Rock']);
+      album('1', 'Rock'),
+      album('2', 'Jazz'),
+      album('3', 'Rock'),
+    ])).toEqual(['Rock', 'Jazz']);
   });
 });
 
