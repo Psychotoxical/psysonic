@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
+import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import { useHotCacheStore } from '../../store/hotCacheStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { usePlayerStore } from '../../store/playerStore';
@@ -13,6 +14,7 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
       strategyByServer: {},
       advancedParallelismByServer: {},
     });
+    useCoverStrategyStore.setState({ strategyByServer: {} });
     usePlayerStore.setState({ queueServerId: null });
   });
 
@@ -68,6 +70,16 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
     expect(s.strategyByServer).not.toHaveProperty('old');
     expect(s.advancedParallelismByServer.new).toBe(3);
     expect(s.advancedParallelismByServer.old).toBeUndefined();
+  });
+
+  it('moves cover strategy entries to the new key', async () => {
+    useCoverStrategyStore.setState({
+      strategyByServer: { old: 'aggressive' as never },
+    });
+    await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
+    const s = useCoverStrategyStore.getState();
+    expect(s.strategyByServer).toHaveProperty('new');
+    expect(s.strategyByServer).not.toHaveProperty('old');
   });
 
   it('repoints player queueServerId when it matches the old key', async () => {

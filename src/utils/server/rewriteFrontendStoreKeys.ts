@@ -173,5 +173,19 @@ export async function rewriteFrontendStoreKeysForRemap(
     return { strategyByServer, advancedParallelismByServer };
   });
 
+  // Cover strategy overrides are keyed by the same index key — spec §8.2
+  // lists "analysis/cover strategy maps", so remap both. Without this a
+  // user-set cover strategy on the old key drops silently on URL edit.
+  useCoverStrategyStore.setState(state => {
+    const strategyByServer = { ...state.strategyByServer };
+    for (const { legacyId, indexKey } of mappings) {
+      if (strategyByServer[legacyId] !== undefined && strategyByServer[indexKey] === undefined) {
+        strategyByServer[indexKey] = strategyByServer[legacyId];
+      }
+      delete strategyByServer[legacyId];
+    }
+    return { strategyByServer };
+  });
+
   useLibraryIndexStore.setState(state => ({ masterEnabled: state.masterEnabled }));
 }
