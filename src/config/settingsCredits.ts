@@ -132,7 +132,6 @@ const CONTRIBUTOR_ENTRIES = [
       'Live Search: server-scoped local FTS, multi-server hit fix, and local vs search3 race merge (PR #868)',
       'Cover art pipeline: tier ladder, WebP disk cache, dense-grid prefetch, Settings cover cache budget (PR #869)',
       'Lossless: local index browse, Advanced Search and All Albums filters, artist/album drill-down mode, conserved sidebar page (PR #871)',
-      'Home: Discover Songs cover art — albumId fallback when local index omits coverArtId (PR #874)',
     ],
   },
   {
@@ -330,7 +329,6 @@ const CONTRIBUTOR_ENTRIES = [
       'Interface Scale: scales the entire window — sidebar, queue, player bar, modals and the fullscreen player follow the main content (PR #781)',
       'Local library index (preview): SQLite per-server track store, background initial and delta sync, live and Advanced Search against the local index, integrity verify and auto-reconcile on count drop (PR #846)',
       'Server index-key rebuild: safe dual-DB migration flow, per-server analysis strategy controls, and playback/index scope hardening (PR #864)',
-      'Home: Discover Songs — mainstage cover prefetch bucket and warmup for the song rail (PR #874)',
     ],
   },
 ] as const;
