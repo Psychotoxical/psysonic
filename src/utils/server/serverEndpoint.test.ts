@@ -28,8 +28,14 @@ function makeProfile(overrides: Partial<ServerProfile> = {}): ServerProfile {
   };
 }
 
-function pingOk() {
-  return { ok: true as const };
+function pingOk(overrides: Partial<{ type: string; serverVersion: string; openSubsonic: boolean }> = {}) {
+  return {
+    ok: true as const,
+    type: 'navidrome',
+    serverVersion: '0.55.0',
+    openSubsonic: true,
+    ...overrides,
+  };
 }
 function pingFail() {
   return { ok: false as const };
@@ -200,11 +206,13 @@ describe('pickReachableBaseUrl', () => {
   it('returns the single endpoint when it pings ok and caches it', async () => {
     vi.mocked(pingWithCredentials).mockResolvedValue(pingOk());
     const result = await pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
-    expect(result).toEqual({
-      ok: true,
-      baseUrl: 'https://music.example.com',
-      endpoint: { url: 'https://music.example.com', kind: 'public' },
-    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.baseUrl).toBe('https://music.example.com');
+      expect(result.endpoint).toEqual({ url: 'https://music.example.com', kind: 'public' });
+      expect(result.ping.ok).toBe(true);
+      expect(result.ping.type).toBe('navidrome');
+    }
     expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
     expect(pingWithCredentials).toHaveBeenCalledTimes(1);
   });

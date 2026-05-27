@@ -1,4 +1,5 @@
 import { pingWithCredentials } from '../../api/subsonic';
+import type { PingWithCredentialsResult } from '../../api/subsonicTypes';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { serverProfileBaseUrl } from './serverBaseUrl';
 
@@ -11,7 +12,17 @@ export type ServerEndpoint = {
 };
 
 export type PickReachableResult =
-  | { ok: true; baseUrl: string; endpoint: ServerEndpoint }
+  | {
+      ok: true;
+      baseUrl: string;
+      endpoint: ServerEndpoint;
+      /**
+       * The successful ping response — exposed so callers like
+       * `switchActiveServer` don't need to issue a second `pingWithCredentials`
+       * just to read `type` / `serverVersion` / `openSubsonic`.
+       */
+      ping: PingWithCredentialsResult;
+    }
   | { ok: false; reason: 'unreachable' };
 
 /**
@@ -140,6 +151,21 @@ export function getCachedConnectBaseUrl(profileId: string): string | null {
 }
 
 /**
+ * Synchronous connect URL for any saved profile (active or not). Reads the
+ * cached probe result; falls back to the normalized primary `url` when no
+ * probe has run yet for that profile. **Use this** everywhere HTTP traffic
+ * is built against an explicit `server.url` — never read the raw `url`
+ * straight for HTTP.
+ */
+export function connectBaseUrlForServer(
+  server: Pick<ServerProfile, 'id' | 'url'>,
+): string {
+  const cached = connectCache.get(server.id);
+  if (cached) return cached;
+  return serverProfileBaseUrl({ url: server.url });
+}
+
+/**
  * Drop one or all cached connect URLs. Call when:
  * - profile was edited (url / alternateUrl / credentials changed)
  * - network went online (re-check sticky)
@@ -181,7 +207,7 @@ export async function pickReachableBaseUrl(
     const ping = await pingWithCredentials(endpoint.url, profile.username, profile.password);
     if (ping.ok) {
       connectCache.set(profile.id, endpoint.url);
-      return { ok: true, baseUrl: endpoint.url, endpoint };
+      return { ok: true, baseUrl: endpoint.url, endpoint, ping };
     }
   }
 
