@@ -37,6 +37,7 @@ import { useAlbumBrowseFilters } from '../hooks/useAlbumBrowseFilters';
 import { useAlbumCatalogYearBounds } from '../hooks/useAlbumCatalogYearBounds';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
+import { albumBrowseCompScanComplete } from '../utils/library/albumCompilation';
 import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
@@ -224,8 +225,14 @@ export default function Albums() {
   const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
 
   // Compilations are client-only — paginate until matches appear or catalog ends.
+  const compScanExhausted = useMemo(
+    () => compFilterActive && !genreFiltered
+      && albumBrowseCompScanComplete(albums, compFilter, hasMore),
+    [compFilterActive, genreFiltered, albums, compFilter, hasMore],
+  );
+
   const pendingClientFilterMatch =
-    compFilterActive && visibleAlbums.length === 0 && hasMore && !genreFiltered;
+    compFilterActive && visibleAlbums.length === 0 && hasMore && !genreFiltered && !compScanExhausted;
 
   const visibleEmptyMessage = useMemo(() => {
     if (starredOnly) return t('albums.noFavorites');
@@ -338,10 +345,25 @@ export default function Albums() {
 
   const loadMore = useCallback(() => {
     if (loading || !hasMore || genreFiltered) return;
+    if (compFilterActive && visibleAlbums.length === 0
+      && albumBrowseCompScanComplete(albums, compFilter, hasMore)) {
+      return;
+    }
     const next = page + 1;
     setPage(next);
     loadBrowse(browseQuery, next * PAGE_SIZE, true);
-  }, [loading, hasMore, page, browseQuery, loadBrowse, genreFiltered]);
+  }, [
+    loading,
+    hasMore,
+    page,
+    browseQuery,
+    loadBrowse,
+    genreFiltered,
+    compFilterActive,
+    visibleAlbums.length,
+    albums,
+    compFilter,
+  ]);
 
   useEffect(() => {
     if (!indexEnabled && losslessOnly) setLosslessOnly(false);
@@ -483,7 +505,7 @@ export default function Albums() {
           perfFlags.disableMainstageVirtualLists,
         ]}
       >
-        {(loading && albums.length === 0) || pendingClientFilterMatch ? (
+        {loading && albums.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <div className="spinner" />
           </div>
@@ -494,6 +516,10 @@ export default function Albums() {
         ) : !loading && albums.length === 0 && losslessOnly ? (
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {t('losslessAlbums.empty')}
+          </div>
+        ) : !loading && visibleAlbums.length === 0 && pendingClientFilterMatch ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+            <div className="spinner" />
           </div>
         ) : !loading && visibleAlbums.length === 0 && (starredOnly || compFilterActive) ? (
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>

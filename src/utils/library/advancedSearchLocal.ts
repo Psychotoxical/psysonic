@@ -26,6 +26,7 @@ import { libraryScopeForServer } from '../../api/subsonicClient';
 import { libraryIsReady } from './libraryReady';
 import { logLibrarySearch, timed } from './libraryDevLog';
 import { isLosslessSuffix } from './losslessFormats';
+import { albumIsCompilation } from './albumCompilation';
 import { OXIMEDIA_MOOD_SEARCH_ENABLED } from './trackEnrichment';
 
 export type AdvancedResultType = 'all' | 'artists' | 'albums' | 'songs';
@@ -214,7 +215,9 @@ export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
     coverArt: a.coverArtId ?? a.id,
     starred: a.starredAt != null ? new Date(a.starredAt).toISOString() : undefined,
   };
-  return mergeAlbumRawJson(base, raw as Partial<SubsonicAlbum>);
+  const merged = mergeAlbumRawJson(base, raw as Partial<SubsonicAlbum>);
+  if (albumIsCompilation(merged)) merged.isCompilation = true;
+  return merged;
 }
 
 export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {

@@ -12,7 +12,10 @@ import {
 } from './albumYearFilter';
 import { peekStarredAlbumBrowseCache } from './albumBrowseStarredCache';
 import { refreshStarredAlbumIndexFromServer } from './starredAlbumIndexSync';
+import { albumIsCompilation, type AlbumCompFilter } from './albumCompilation';
 import { albumToAlbum } from './advancedSearchLocal';
+
+export type { AlbumCompFilter } from './albumCompilation';
 import { libraryIsReady } from './libraryReady';
 import { albumSortClauses, sortSubsonicAlbums, type AlbumBrowseSort } from './albumBrowseSort';
 
@@ -99,14 +102,12 @@ export function filterAlbumsByYearBounds(
   });
 }
 
-export type AlbumCompFilter = 'all' | 'only' | 'hide';
-
 export function filterAlbumsByCompilation(
   albums: SubsonicAlbum[],
   compFilter: AlbumCompFilter,
 ): SubsonicAlbum[] {
-  if (compFilter === 'only') return albums.filter(a => a.isCompilation);
-  if (compFilter === 'hide') return albums.filter(a => !a.isCompilation);
+  if (compFilter === 'only') return albums.filter(albumIsCompilation);
+  if (compFilter === 'hide') return albums.filter(a => !albumIsCompilation(a));
   return albums;
 }
 
