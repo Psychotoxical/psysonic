@@ -103,6 +103,134 @@ pub fn resolve_album_cover(
     })
 }
 
+/// Segment roots under `{server_index_key}/` (canonical layout).
+pub const SEGMENT_KINDS: [&str; 2] = ["album", "artist"];
+
+/// Progress / backfill “done” heuristic — matches `LIBRARY_COVER_CANONICAL_TIER` in the library crate.
+pub const CANONICAL_PROGRESS_TIER: u32 = 800;
+
+fn tier_webp_ready(path: &Path) -> bool {
+    path.is_file() && path.metadata().map(|m| m.len() > 0).unwrap_or(false)
+}
+
+/// True when `{entity_dir}/{CANONICAL_PROGRESS_TIER}.webp` exists and is non-empty.
+pub fn entity_dir_has_canonical_tier(entity_dir: &Path) -> bool {
+    tier_webp_ready(&entity_dir.join(format!("{CANONICAL_PROGRESS_TIER}.webp")))
+}
+
+/// Distinct album/artist entity dirs with canonical tier (segment layout only).
+pub fn count_entities_with_canonical_tier(server_dir: &Path) -> i64 {
+    let mut n = 0i64;
+    for kind in SEGMENT_KINDS {
+        let kind_dir = server_dir.join(kind);
+        let Ok(entries) = std::fs::read_dir(&kind_dir) else {
+            continue;
+        };
+        for ent in entries.flatten() {
+            if ent.path().is_dir() && entity_dir_has_canonical_tier(&ent.path()) {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+fn sum_webp_bytes_rec(dir: &Path) -> u64 {
+    let mut bytes = 0u64;
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return bytes;
+    };
+    for ent in entries.flatten() {
+        let p = ent.path();
+        if p.is_dir() {
+            bytes += sum_webp_bytes_rec(&p);
+        } else if p.extension().and_then(|s| s.to_str()) == Some("webp") {
+            if let Ok(meta) = ent.metadata() {
+                bytes += meta.len();
+            }
+        }
+    }
+    bytes
+}
+
+/// All `.webp` bytes under one server bucket + entity count (canonical tier, segment dirs).
+pub fn server_cover_disk_usage(server_dir: &Path) -> (u64, u64) {
+    (
+        sum_webp_bytes_rec(server_dir),
+        count_entities_with_canonical_tier(server_dir) as u64,
+    )
+}
+
+/// Sum usage across every server subdirectory under `cover_root`.
+pub fn cover_root_disk_usage(cover_root: &Path) -> (u64, u64) {
+    let mut bytes = 0u64;
+    let mut count = 0u64;
+    let Ok(entries) = std::fs::read_dir(cover_root) else {
+        return (0, 0);
+    };
+    for ent in entries.flatten() {
+        let fname = ent.file_name();
+        let name = fname.to_string_lossy();
+        if name == ".storage-layout" || !ent.path().is_dir() {
+            continue;
+        }
+        let (b, c) = server_cover_disk_usage(&ent.path());
+        bytes += b;
+        count += c;
+    }
+    (bytes, count)
+}
+
+fn legacy_flat_cover_dir(dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    entries.flatten().any(|e| {
+        e.path().is_file() && e.path().extension().and_then(|s| s.to_str()) == Some("webp")
+    })
+}
+
+/// Remove pre-segment-v3 flat dirs (`server/al-*`, bare hashes) that sit beside `album/` / `artist/`.
+pub fn prune_legacy_flat_server_dirs(server_dir: &Path) -> u32 {
+    let Ok(entries) = std::fs::read_dir(server_dir) else {
+        return 0;
+    };
+    let mut removed = 0u32;
+    for ent in entries.flatten() {
+        if !ent.path().is_dir() {
+            continue;
+        }
+        let fname = ent.file_name();
+        let name = fname.to_string_lossy();
+        if SEGMENT_KINDS.iter().any(|k| *k == name.as_ref()) {
+            continue;
+        }
+        if legacy_flat_cover_dir(&ent.path()) {
+            if std::fs::remove_dir_all(ent.path()).is_ok() {
+                removed += 1;
+            }
+        }
+    }
+    removed
+}
+
+/// Prune legacy flat dirs under every server bucket (safe when layout stamp already matches).
+pub fn prune_all_legacy_flat_dirs(cover_root: &Path) -> u32 {
+    let Ok(entries) = std::fs::read_dir(cover_root) else {
+        return 0;
+    };
+    let mut total = 0u32;
+    for ent in entries.flatten() {
+        let fname = ent.file_name();
+        let name = fname.to_string_lossy();
+        if name == ".storage-layout" || !ent.path().is_dir() {
+            continue;
+        }
+        total += prune_legacy_flat_server_dirs(&ent.path());
+    }
+    total
+}
+
 /// Artist — one disk slot per artist id.
 pub fn resolve_artist_cover(artist_id: &str, cover_art_id: Option<&str>) -> Option<CoverEntry> {
     let artist = artist_id.trim();
@@ -155,5 +283,41 @@ mod tests {
     fn resolve_album_per_disc_changes_cache_entity() {
         let e = resolve_album_cover("al-box", Some("mf-d2"), true).unwrap();
         assert_eq!(e.cache_entity_id, "mf-d2");
+    }
+
+    fn test_server_dir(label: &str) -> std::path::PathBuf {
+        let base = std::env::temp_dir().join(format!("psysonic-cover-layout-{label}"));
+        let _ = std::fs::remove_dir_all(&base);
+        base
+    }
+
+    #[test]
+    fn segment_disk_usage_counts_canonical_only() {
+        let server = test_server_dir("usage");
+        let entity = server.join("album").join("al-1");
+        std::fs::create_dir_all(&entity).unwrap();
+        std::fs::write(entity.join("128.webp"), b"x").unwrap();
+        assert_eq!(count_entities_with_canonical_tier(&server), 0);
+        std::fs::write(entity.join("800.webp"), b"yy").unwrap();
+        assert_eq!(count_entities_with_canonical_tier(&server), 1);
+        let (bytes, count) = server_cover_disk_usage(&server);
+        assert_eq!(count, 1);
+        assert!(bytes >= 3);
+        let _ = std::fs::remove_dir_all(&server);
+    }
+
+    #[test]
+    fn prune_removes_flat_legacy_not_segment_dirs() {
+        let server = test_server_dir("prune");
+        let legacy = server.join("al-legacy");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("800.webp"), b"z").unwrap();
+        let canonical = server.join("album").join("al-ok");
+        std::fs::create_dir_all(&canonical).unwrap();
+        std::fs::write(canonical.join("800.webp"), b"z").unwrap();
+        assert_eq!(prune_legacy_flat_server_dirs(&server), 1);
+        assert!(!legacy.exists());
+        assert!(canonical.join("800.webp").is_file());
+        let _ = std::fs::remove_dir_all(&server);
     }
 }

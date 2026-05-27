@@ -17,8 +17,8 @@ use tokio::sync::{Mutex, Semaphore};
 
 use super::{count_cached_cover_ids, dir_usage_for_server};
 
-/// Concurrent library downloads (encode runs on blocking pool; no webview tier events).
-const LIBRARY_BACKFILL_PARALLEL: usize = 4;
+/// Concurrent library downloads + encodes (hard cap — avoids saturating all CPU cores).
+const LIBRARY_BACKFILL_PARALLEL: usize = 2;
 const BATCH_SIZE: u32 = 24;
 const PENDING_RESTART_THRESHOLD: i64 = 32;
 const SYNC_WAIT_MS: u64 = 5000;
@@ -214,6 +214,12 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
     let http_sem = worker.backfill_http.clone();
     let mut batch_count = 0u32;
 
+    let server_dir = root.join(&session.server_index_key);
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        psysonic_core::cover_cache_layout::prune_legacy_flat_server_dirs(&server_dir)
+    })
+    .await;
+
     loop {
         if !session_still_focused(&worker, &session).await {
             break;
@@ -262,6 +268,7 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
         }
         let items = batch.items.clone();
         let mut paused_for_ui_priority = false;
+        let batch_slots = Arc::new(Semaphore::new(LIBRARY_BACKFILL_PARALLEL));
         let mut set = tokio::task::JoinSet::new();
         for item in items {
             if worker.ui_priority_hold.load(Ordering::Relaxed) {
@@ -273,7 +280,11 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
             let app = app.clone();
             let session = session.clone();
             let worker_arc = worker.clone();
+            let batch_slots = batch_slots.clone();
             set.spawn(async move {
+                let Ok(_slot) = batch_slots.acquire().await else {
+                    return;
+                };
                 ensure_one(worker_arc.as_ref(), st, http_sem, app, session, item).await;
             });
         }

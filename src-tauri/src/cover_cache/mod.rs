@@ -7,8 +7,11 @@ mod fetch;
 
 use disk::{cover_dir, tier_exists, tier_path, DERIVE_TIERS};
 use encode::write_webp_tier;
-use fetch::{build_cover_art_url, fetch_cover_bytes};
+use fetch::build_cover_art_url;
 use image::{DynamicImage, ImageReader};
+use psysonic_core::cover_cache_layout::{
+    count_entities_with_canonical_tier, cover_root_disk_usage, server_cover_disk_usage,
+};
 use psysonic_library::cover_backfill::{
     clear_cover_fetch_failures, collect_cover_backfill_batch, collect_cover_progress,
     count_distinct_cover_ids, cover_fetch_recently_failed, LibraryCoverBackfillBatchDto,
@@ -67,8 +70,10 @@ fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
 
 pub(crate) use psysonic_core::cover_cache_layout::cover_cache_catalog_entry as cache_kind_entity_for_id;
 
-/// Cap concurrent cover HTTP fetches (library backfill + UI share this pool).
+/// Cap concurrent cover HTTP fetches for visible UI routes (library backfill uses its own pool).
 const COVER_HTTP_CONCURRENCY: usize = 16;
+/// Max concurrent CPU-heavy cover steps (JPEG decode + WebP encode) — all paths share this.
+const COVER_CPU_CONCURRENCY: usize = 2;
 
 pub struct CoverCacheState {
     pub root: PathBuf,
@@ -77,6 +82,7 @@ pub struct CoverCacheState {
     pub high_watermark_pct: u64,
     pub resume_watermark_pct: u64,
     pub http_sem: Arc<Semaphore>,
+    pub cover_cpu_sem: Arc<Semaphore>,
 }
 
 impl CoverCacheState {
@@ -94,6 +100,7 @@ impl CoverCacheState {
             high_watermark_pct: 90,
             resume_watermark_pct: 85,
             http_sem: Arc::new(Semaphore::new(COVER_HTTP_CONCURRENCY)),
+            cover_cpu_sem: Arc::new(Semaphore::new(COVER_CPU_CONCURRENCY)),
         })
     }
 
@@ -134,6 +141,7 @@ impl CoverCacheState {
         let client = this.client.clone();
         let root = this.root.clone();
         let http_sem = http_sem_override.unwrap_or_else(|| this.http_sem.clone());
+        let cover_cpu_sem = this.cover_cpu_sem.clone();
         drop(this);
 
         if cover_fetch_recently_failed(&dir) {
@@ -143,20 +151,6 @@ impl CoverCacheState {
                 tier: args.tier,
             });
         }
-
-        let img = match load_cover_source(&dir, &client, &http_sem, args).await {
-            Ok(img) => img,
-            Err(_) => {
-                let _ = std::fs::create_dir_all(&dir);
-                let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
-                return Ok(CoverCacheEnsureResult {
-                    hit: false,
-                    path: String::new(),
-                    tier: args.tier,
-                });
-            }
-        };
-        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
         let requested = args.tier;
         let quiet = args.library_bulk;
@@ -176,32 +170,72 @@ impl CoverCacheState {
                 .collect()
         };
 
-        let mut wrote_requested = false;
-        if quiet {
-            let dir_bg = dir.clone();
-            let img_bg = img.clone();
-            let max_tier = requested;
-            let wrote = tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
-                disk::write_derived_webp_tiers(&dir_bg, &img_bg, max_tier)?;
-                Ok(tier_exists(&dir_bg, max_tier).is_some())
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            wrote_requested = wrote;
+        enum CoverSource {
+            Image(DynamicImage),
+            Bytes(Vec<u8>),
+        }
+
+        let source = if let Some(img) = load_image_from_disk(&dir) {
+            CoverSource::Image(img)
         } else {
-            for tier in tiers_now {
-                if tier_exists(&dir, tier).is_some() {
-                    if tier == requested {
-                        wrote_requested = true;
+            match download_cover_payload(&dir, &client, &http_sem, args).await {
+                Ok(bytes) => CoverSource::Bytes(bytes),
+                Err(_) => {
+                    let _ = std::fs::create_dir_all(&dir);
+                    let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
+                    return Ok(CoverCacheEnsureResult {
+                        hit: false,
+                        path: String::new(),
+                        tier: args.tier,
+                    });
+                }
+            }
+        };
+
+        let dir_bg = dir.clone();
+        let cover_cpu_sem_bg = cover_cpu_sem.clone();
+        let tiers_bg = tiers_now.clone();
+        let (mut wrote_requested, fresh_tiers) = tauri::async_runtime::spawn_blocking(
+            move || -> Result<(bool, Vec<(u32, PathBuf)>), String> {
+                let rt = tokio::runtime::Handle::current();
+                let _permit = rt
+                    .block_on(cover_cpu_sem_bg.acquire())
+                    .map_err(|e| e.to_string())?;
+                let img = match source {
+                    CoverSource::Image(i) => i,
+                    CoverSource::Bytes(b) => decode_image_bytes(&b)?,
+                };
+                std::fs::create_dir_all(&dir_bg).map_err(|e| e.to_string())?;
+                let mut wrote_requested = false;
+                let mut fresh = Vec::new();
+                if quiet {
+                    disk::write_derived_webp_tiers(&dir_bg, &img, requested)?;
+                    wrote_requested = tier_exists(&dir_bg, requested).is_some();
+                } else {
+                    for tier in tiers_bg {
+                        if tier_exists(&dir_bg, tier).is_some() {
+                            if tier == requested {
+                                wrote_requested = true;
+                            }
+                            continue;
+                        }
+                        let path = tier_path(&dir_bg, tier);
+                        write_webp_tier(&img, tier, &path)?;
+                        fresh.push((tier, path));
+                        if tier == requested {
+                            wrote_requested = true;
+                        }
                     }
-                    continue;
                 }
-                let path = tier_path(&dir, tier);
-                write_webp_tier(&img, tier, &path)?;
+                Ok((wrote_requested, fresh))
+            },
+        )
+        .await
+        .map_err(|e| e.to_string())??;
+
+        if !quiet {
+            for (tier, path) in fresh_tiers {
                 emit_tier_ready(app, args, tier, &path);
-                if tier == requested {
-                    wrote_requested = true;
-                }
             }
         }
 
@@ -212,14 +246,16 @@ impl CoverCacheState {
         let out_path = tier_path(&dir, requested);
         if wrote_requested || out_path.is_file() {
             if !quiet {
-                spawn_derive_remaining_tiers(
-                    app.clone(),
-                    state.clone(),
-                    root,
-                    args.clone(),
-                    img,
-                    requested,
-                );
+                if let Some(img) = load_image_from_disk(&dir) {
+                    spawn_derive_remaining_tiers(
+                        app.clone(),
+                        state.clone(),
+                        root,
+                        args.clone(),
+                        img,
+                        requested,
+                    );
+                }
             }
             return Ok(CoverCacheEnsureResult {
                 hit: true,
@@ -274,15 +310,12 @@ fn load_image_from_disk(dir: &Path) -> Option<DynamicImage> {
     None
 }
 
-async fn load_cover_source(
-    dir: &Path,
+async fn download_cover_payload(
+    _dir: &Path,
     client: &Client,
     http_sem: &Semaphore,
     args: &CoverCacheEnsureArgs,
-) -> Result<DynamicImage, String> {
-    if let Some(img) = load_image_from_disk(dir) {
-        return Ok(img);
-    }
+) -> Result<Vec<u8>, String> {
     let _permit = http_sem
         .acquire()
         .await
@@ -299,8 +332,7 @@ async fn load_cover_source(
         &args.cover_art_id,
         fetch_size,
     );
-    let bytes = fetch_cover_bytes(client, &url).await?;
-    decode_image_bytes(&bytes)
+    fetch::fetch_cover_bytes(client, &url).await
 }
 
 fn spawn_derive_remaining_tiers(
@@ -324,130 +356,64 @@ fn spawn_derive_remaining_tiers(
         return;
     }
     tauri::async_runtime::spawn(async move {
-        let dir = {
+        let (dir, cover_cpu_sem) = {
             let guard = state.lock().await;
-            cover_dir_for_args(&guard.root, &args)
+            (
+                cover_dir_for_args(&guard.root, &args),
+                guard.cover_cpu_sem.clone(),
+            )
         };
-        let _ = tauri::async_runtime::spawn_blocking(move || {
+        let written = tauri::async_runtime::spawn_blocking(move || -> Vec<(u32, PathBuf)> {
+            let rt = tokio::runtime::Handle::current();
+            let Ok(_permit) = rt.block_on(cover_cpu_sem.acquire()) else {
+                return Vec::new();
+            };
+            let mut fresh = Vec::new();
             for tier in tiers_bg {
                 if tier_exists(&dir, tier).is_some() {
                     continue;
                 }
                 let path = tier_path(&dir, tier);
                 if write_webp_tier(&img, tier, &path).is_ok() {
-                    emit_tier_ready(&app, &args, tier, &path);
+                    fresh.push((tier, path));
                 }
             }
+            fresh
         })
-        .await;
+        .await
+        .unwrap_or_default();
+        for (tier, path) in written {
+            emit_tier_ready(&app, &args, tier, &path);
+        }
     });
 }
 
-fn dir_has_any_cached_tier(dir: &Path) -> bool {
-    if tier_exists(dir, 800).is_some() {
-        return true;
-    }
-    for tier in DERIVE_TIERS {
-        if tier != 800 && tier_exists(dir, tier).is_some() {
-            return true;
-        }
-    }
-    tier_exists(dir, 2000).is_some()
-}
-
-fn count_cached_in_server_dir(server_dir: &Path) -> i64 {
-    let Ok(entries) = std::fs::read_dir(server_dir) else {
-        return 0;
-    };
-    entries
-        .flatten()
-        .filter(|e| e.path().is_dir())
-        .filter(|e| dir_has_any_cached_tier(&e.path()))
-        .count() as i64
-}
-
-/// Count cover ID dirs with any cached tier (UI progress — matches visible disk cache).
+/// Entity dirs with canonical `800.webp` under `album/` and `artist/` (segment layout).
 pub(crate) fn count_cached_cover_ids(root: &Path, server_index_key: &str) -> i64 {
-    let keyed = count_cached_in_server_dir(&root.join(server_index_key));
+    let keyed = count_entities_with_canonical_tier(&root.join(server_index_key));
     if keyed > 0 {
         return keyed;
     }
-    // Legacy profile-uuid bucket or host alias — don't show 0 when files exist elsewhere.
+    // Host alias / legacy bucket name — pick the best segment count among siblings.
     let Ok(entries) = std::fs::read_dir(root) else {
         return 0;
     };
     entries
         .flatten()
         .filter(|e| {
-            e.path().is_dir()
-                && e.file_name().to_string_lossy() != ".storage-layout"
+            e.path().is_dir() && e.file_name().to_string_lossy() != ".storage-layout"
         })
-        .map(|e| count_cached_in_server_dir(&e.path()))
+        .map(|e| count_entities_with_canonical_tier(&e.path()))
         .max()
         .unwrap_or(0)
 }
 
-/// Disk usage for one server bucket only (cheaper than scanning all hosts).
 pub(crate) fn dir_usage_for_server(root: &Path, server_index_key: &str) -> (u64, u64) {
-    let mut bytes = 0u64;
-    let mut count = 0u64;
-    let server_dir = root.join(server_index_key);
-    let Ok(ids) = std::fs::read_dir(&server_dir) else {
-        return (0, 0);
-    };
-    for id_dir in ids.flatten() {
-        if !id_dir.path().is_dir() {
-            continue;
-        }
-        if dir_has_any_cached_tier(&id_dir.path()) {
-            count += 1;
-        }
-        let Ok(files) = std::fs::read_dir(id_dir.path()) else {
-            continue;
-        };
-        for f in files.flatten() {
-            if let Ok(meta) = f.metadata() {
-                bytes += meta.len();
-            }
-        }
-    }
-    (bytes, count)
+    server_cover_disk_usage(&root.join(server_index_key))
 }
 
 pub(crate) fn dir_usage_at_root(root: &Path) -> (u64, u64) {
-    let mut bytes = 0u64;
-    let mut count = 0u64;
-    let Ok(entries) = std::fs::read_dir(root) else {
-        return (0, 0);
-    };
-    for server in entries.flatten() {
-        if server.file_name().to_string_lossy() == ".storage-layout" {
-            continue;
-        }
-        if !server.path().is_dir() {
-            continue;
-        }
-        let Ok(ids) = std::fs::read_dir(server.path()) else {
-            continue;
-        };
-        for id_dir in ids.flatten() {
-            if !id_dir.path().is_dir() {
-                continue;
-            }
-            if dir_has_any_cached_tier(&id_dir.path()) {
-                count += 1;
-            }
-            let Ok(files) = std::fs::read_dir(id_dir.path()) else {
-                continue;
-            };
-            for f in files.flatten() {
-                if let Ok(meta) = f.metadata() {
-                    bytes += meta.len();
-                }
-            }
-        }
-    }
-    (bytes, count)
+    cover_root_disk_usage(root)
 }
 
 fn state(app: &AppHandle) -> Result<Arc<Mutex<CoverCacheState>>, String> {
@@ -464,6 +430,7 @@ fn reset_cover_cache_for_index_key_layout(root: &Path) -> Result<(), String> {
     if stamp.is_file() {
         if let Ok(s) = std::fs::read_to_string(&stamp) {
             if s.trim() == COVER_CACHE_LAYOUT_STAMP {
+                let _ = psysonic_core::cover_cache_layout::prune_all_legacy_flat_dirs(root);
                 return Ok(());
             }
         }
