@@ -123,6 +123,25 @@ export function forgetDiskSrcPrefix(ref: {
   if (changed) bumpDiskSrcCache();
 }
 
+/**
+ * Drop every cached disk-src under a server index key (all cover ids, all
+ * tiers). Used by the URL-change remigration `cover:bucket-renamed` listener
+ * so entries pointing at the now-renamed `{root}/{oldKey}/…` path stop
+ * serving stale URLs.
+ */
+export function forgetDiskSrcForServer(serverIndexKey: string): void {
+  if (!serverIndexKey) return;
+  const prefix = `${serverIndexKey}:cover:`;
+  let changed = false;
+  for (const key of diskSrcByStorageKey.keys()) {
+    if (key.startsWith(prefix)) {
+      diskSrcByStorageKey.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) bumpDiskSrcCache();
+}
+
 export function clearAllDiskSrcCache(): void {
   if (diskSrcByStorageKey.size === 0) return;
   diskSrcByStorageKey.clear();

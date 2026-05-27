@@ -6,7 +6,14 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { clearAllDiskSrcCache, coverDiskUrl, getDiskSrc, rememberDiskSrc } from './diskSrcCache';
+import {
+  clearAllDiskSrcCache,
+  coverDiskUrl,
+  forgetDiskSrcForServer,
+  forgetDiskSrcPrefix,
+  getDiskSrc,
+  rememberDiskSrc,
+} from './diskSrcCache';
 
 describe('coverDiskUrl', () => {
   beforeEach(() => {
@@ -54,5 +61,59 @@ describe('rememberDiskSrc', () => {
     vi.mocked(convertFileSrc).mockReturnValue(fsPath);
     expect(rememberDiskSrc('srv:cover:al-1:128', fsPath)).toBe('');
     expect(getDiskSrc('srv:cover:al-1:128')).toBe('');
+  });
+});
+
+describe('forgetDiskSrcForServer', () => {
+  beforeEach(() => {
+    vi.mocked(convertFileSrc).mockImplementation((p: string) =>
+      `asset://localhost/${encodeURIComponent(p)}`,
+    );
+    clearAllDiskSrcCache();
+  });
+
+  it('drops every cached entry under the given server index key', () => {
+    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
+    rememberDiskSrc('srv-a:cover:al-1:512', '/disk/a/al-1/512.webp');
+    rememberDiskSrc('srv-a:cover:al-2:128', '/disk/a/al-2/128.webp');
+    rememberDiskSrc('srv-b:cover:al-1:128', '/disk/b/al-1/128.webp');
+
+    forgetDiskSrcForServer('srv-a');
+
+    expect(getDiskSrc('srv-a:cover:al-1:128')).toBe('');
+    expect(getDiskSrc('srv-a:cover:al-1:512')).toBe('');
+    expect(getDiskSrc('srv-a:cover:al-2:128')).toBe('');
+    // Other servers untouched — this is the URL-change remigration path,
+    // not a global purge.
+    expect(getDiskSrc('srv-b:cover:al-1:128')).not.toBe('');
+  });
+
+  it('is a no-op on an empty key (defensive)', () => {
+    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
+    forgetDiskSrcForServer('');
+    expect(getDiskSrc('srv-a:cover:al-1:128')).not.toBe('');
+  });
+
+  it('is a no-op when nothing matches the prefix', () => {
+    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
+    forgetDiskSrcForServer('srv-missing');
+    expect(getDiskSrc('srv-a:cover:al-1:128')).not.toBe('');
+  });
+});
+
+describe('forgetDiskSrcPrefix (regression — must not be confused with forgetDiskSrcForServer)', () => {
+  beforeEach(() => {
+    vi.mocked(convertFileSrc).mockImplementation((p: string) =>
+      `asset://localhost/${encodeURIComponent(p)}`,
+    );
+    clearAllDiskSrcCache();
+  });
+
+  it('only clears the (server, coverArt) tuple', () => {
+    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
+    rememberDiskSrc('srv-a:cover:al-2:128', '/disk/a/al-2/128.webp');
+    forgetDiskSrcPrefix('srv-a', 'al-1');
+    expect(getDiskSrc('srv-a:cover:al-1:128')).toBe('');
+    expect(getDiskSrc('srv-a:cover:al-2:128')).not.toBe('');
   });
 });

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import {
   clearAllDiskSrcCache,
+  forgetDiskSrcForServer,
   forgetDiskSrcPrefix,
 } from '../../cover/diskSrcCache';
 import { rememberDiskSrcLadder } from '../../cover/diskSrcLookup';
@@ -22,6 +23,11 @@ type CoverEvictedPayload = {
   serverIndexKey: string;
   cacheKind: CoverCacheKind;
   cacheEntityId: string;
+};
+
+type CoverBucketRenamedPayload = {
+  oldKey: string;
+  newKey: string;
 };
 
 /** Rust → UI: disk `.webp` ready — do not invalidate IDB (that caused webview refetch storms). */
@@ -55,6 +61,17 @@ export function useCoverArtBridge(): void {
           for (const tier of COVER_ART_TIERS) {
             notifyCoverDiskReady(`${serverIndexKey}:cover:${cacheKind}:${cacheEntityId}:${tier}`, '');
           }
+        }),
+      );
+      unsubs.push(
+        await listen<CoverBucketRenamedPayload>('cover:bucket-renamed', ev => {
+          // URL-change remigration moved the disk bucket from oldKey to newKey
+          // (cover_cache_rename_server_bucket). Every in-memory disk-src cache
+          // entry tagged under oldKey now points at a path that no longer
+          // exists — drop them so the next read re-resolves under newKey via
+          // the normal getDiskSrcForGrid path.
+          if (!ev.payload?.oldKey) return;
+          forgetDiskSrcForServer(ev.payload.oldKey);
         }),
       );
     })();
