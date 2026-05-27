@@ -114,15 +114,16 @@ export default function Albums() {
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const compFilterActive = compFilter !== 'all';
+  // Local index filters in SQL when possible; client pass covers network + stale rows.
   const compFilterClientOnly = compFilterActive && !indexEnabled;
 
   const visibleAlbums = useMemo(() => {
-    let out = compFilterClientOnly
+    let out = compFilterActive
       ? filterAlbumsByCompilation(albums, compFilter)
       : albums;
     if (starredOnly) out = filterAlbumsByStarred(out, starredOverrides);
     return out;
-  }, [albums, compFilter, compFilterClientOnly, starredOnly, starredOverrides]);
+  }, [albums, compFilter, compFilterActive, starredOnly, starredOverrides]);
 
   const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(visibleAlbums);
 

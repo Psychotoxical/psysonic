@@ -860,27 +860,10 @@ fn resolve_clause(
             }));
         }
         ("compilation", EntityKind::Album) => {
-            let comp_sql = crate::album_compilation_filter::album_is_compilation_sql("a");
-            return match c.op {
-                FilterOp::IsTrue => Ok(Some(SqlFragment {
-                    sql: comp_sql,
-                    params: vec![],
-                })),
-                FilterOp::Eq => {
-                    let want_comp = json_to_bool(&c.field, c.value.as_ref())?;
-                    let sql = if want_comp {
-                        comp_sql
-                    } else {
-                        format!("NOT ({comp_sql})")
-                    };
-                    Ok(Some(SqlFragment { sql, params: vec![] }))
-                }
-                _ => Err(filter::FilterError::UnsupportedOp {
-                    field: c.field.clone(),
-                    op: c.op.as_str(),
-                }
-                .to_string()),
-            };
+            return compilation_filter_fragment(&c.field, c.op, c.value.as_ref(), "a");
+        }
+        ("compilation", EntityKind::Track) => {
+            return compilation_filter_fragment(&c.field, c.op, c.value.as_ref(), "t");
         }
         ("compilation", _) => return Ok(None),
         // `text` is handled by the entity builder (FTS / LIKE), never here.
@@ -1256,6 +1239,35 @@ fn sort_column(field: &str, entity: EntityKind) -> Option<&'static str> {
         // no index scan needed beyond the row-id range. Direction is ignored.
         ("random", _) => Some("RANDOM()"),
         _ => None,
+    }
+}
+
+fn compilation_filter_fragment(
+    field: &str,
+    op: FilterOp,
+    value: Option<&Value>,
+    table_alias: &str,
+) -> Result<Option<SqlFragment>, String> {
+    let comp_sql = crate::album_compilation_filter::compilation_raw_json_sql(table_alias);
+    match op {
+        FilterOp::IsTrue => Ok(Some(SqlFragment {
+            sql: comp_sql,
+            params: vec![],
+        })),
+        FilterOp::Eq => {
+            let want_comp = json_to_bool(field, value)?;
+            let sql = if want_comp {
+                comp_sql
+            } else {
+                format!("NOT ({comp_sql})")
+            };
+            Ok(Some(SqlFragment { sql, params: vec![] }))
+        }
+        _ => Err(filter::FilterError::UnsupportedOp {
+            field: field.to_string(),
+            op: op.as_str(),
+        }
+        .to_string()),
     }
 }
 
@@ -1972,6 +1984,26 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al_comp");
+    }
+
+    #[test]
+    fn compilation_filter_on_track_grouped_album_browse() {
+        let store = LibraryStore::open_in_memory();
+        let mut comp = track("s1", "t_comp", "Hit", "VA", "Comp Album");
+        comp.album_id = Some("al_comp".into());
+        comp.raw_json = r#"{"compilation":true}"#.into();
+        let mut reg = track("s1", "t_reg", "Song", "Band", "Studio");
+        reg.album_id = Some("al_reg".into());
+        reg.raw_json = "{}".into();
+        TrackRepository::new(&store)
+            .upsert_batch(&[comp, reg])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![clause("compilation", FilterOp::IsTrue, None, None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al_comp");
+        assert!(resp.applied_filters.contains(&"compilation".to_string()));
     }
 
     #[test]

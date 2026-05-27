@@ -130,7 +130,7 @@ pub const FILTER_FIELD_REGISTRY: &[FilterField] = &[
     },
     FilterField {
         id: "compilation",
-        entities: &[EntityKind::Album],
+        entities: &[EntityKind::Track, EntityKind::Album],
         ops: &[FilterOp::IsTrue, FilterOp::Eq],
         status: FilterStatus::V1,
     },

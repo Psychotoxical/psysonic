@@ -25,7 +25,9 @@ use super::ingest_parallel::{
     check_cancel_flag, fetch_albums_parallel, linear_prefetch_depth, retry_fetch,
     sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue, ParallelAlbumFetchOpts,
 };
-use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
+use super::mapping::{
+    merge_album_open_subsonic_track_raw, navidrome_song_to_track_row, subsonic_song_to_track_row,
+};
 use super::progress::{IngestBatchMetrics, NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
 use crate::bulk_ingest::{restore_track_secondary_indexes, suspend_track_secondary_indexes};
@@ -1124,10 +1126,11 @@ impl<'a> InitialSyncRunner<'a> {
                     .unwrap_or_default();
                 let mut rows: Vec<TrackRow> = Vec::with_capacity(album.song.len());
                 for (i, song) in album.song.iter().enumerate() {
-                    let raw = raw_songs
+                    let mut raw = raw_songs
                         .get(i)
                         .cloned()
                         .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
+                    merge_album_open_subsonic_track_raw(&raw_album, &mut raw);
                     rows.push(subsonic_song_to_track_row(
                         &self.server_id,
                         song,

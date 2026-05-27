@@ -9,6 +9,24 @@ use psysonic_integration::subsonic::Song;
 /// Project a Subsonic `Song` plus its raw JSON sub-tree into a
 /// `TrackRow`. `raw_value` is what `track.raw_json` stores verbatim so
 /// OpenSubsonic extensions survive (spec §5.1 / ADR-7).
+/// Copy album-level OpenSubsonic fields onto each track `raw_json` during S2/getAlbum
+/// ingest so track-grouped album browse can filter compilations.
+pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
+    let Some(obj) = raw_song.as_object_mut() else {
+        return;
+    };
+    for key in ["compilation", "isCompilation", "releaseTypes"] {
+        if obj.contains_key(key) {
+            continue;
+        }
+        if let Some(v) = raw_album.get(key) {
+            if !v.is_null() {
+                obj.insert(key.to_string(), v.clone());
+            }
+        }
+    }
+}
+
 pub fn subsonic_song_to_track_row(
     server_id: &str,
     song: &Song,
@@ -218,6 +236,15 @@ mod tests {
         assert!(parse_iso_ms_str("").is_none());
         assert!(parse_iso_ms_str("not-a-date").is_none());
         assert!(parse_iso_ms_str("9999-99-99").is_none());
+    }
+
+    #[test]
+    fn merge_album_open_subsonic_track_raw_copies_album_flags() {
+        let album = json!({ "compilation": true, "releaseTypes": ["Compilation"] });
+        let mut song = json!({ "id": "tr_1", "title": "A" });
+        merge_album_open_subsonic_track_raw(&album, &mut song);
+        assert_eq!(song.get("compilation"), Some(&json!(true)));
+        assert_eq!(song.get("releaseTypes"), Some(&json!(["Compilation"])));
     }
 
     #[test]

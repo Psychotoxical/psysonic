@@ -27,7 +27,9 @@ use serde_json::Value;
 use super::backoff::{jitter_salt, with_jitter, Backoff};
 use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::error::SyncError;
-use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
+use super::mapping::{
+    merge_album_open_subsonic_track_raw, navidrome_song_to_track_row, subsonic_song_to_track_row,
+};
 use super::progress::{NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
 use super::tombstone::TombstoneReconciler;
@@ -488,10 +490,11 @@ impl<'a> DeltaSyncRunner<'a> {
                         .unwrap_or_default();
                     let mut rows: Vec<TrackRow> = Vec::with_capacity(album.song.len());
                     for (i, song) in album.song.iter().enumerate() {
-                        let raw = raw_songs
+                        let mut raw = raw_songs
                             .get(i)
                             .cloned()
                             .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
+                        merge_album_open_subsonic_track_raw(&raw_album, &mut raw);
                         rows.push(subsonic_song_to_track_row(
                             &self.server_id,
                             song,

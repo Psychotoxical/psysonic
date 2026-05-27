@@ -18,10 +18,11 @@ const album = (overrides: Partial<SubsonicAlbum> = {}): SubsonicAlbum => ({
 });
 
 describe('albumIsCompilation', () => {
-  it('reads isCompilation, compilation, and releaseTypes', () => {
+  it('reads isCompilation, compilation, releaseTypes, and VA artist', () => {
     expect(albumIsCompilation(album({ isCompilation: true }))).toBe(true);
     expect(albumIsCompilation(album({ compilation: true } as SubsonicAlbum))).toBe(true);
     expect(albumIsCompilation(album({ releaseTypes: ['Live', 'Compilation'] }))).toBe(true);
+    expect(albumIsCompilation(album({ artist: 'Various Artists' }))).toBe(true);
     expect(albumIsCompilation(album())).toBe(false);
   });
 });

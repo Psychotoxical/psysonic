@@ -1,9 +1,9 @@
-//! OpenSubsonic compilation flag on album `raw_json` (Navidrome: `compilation`,
+//! OpenSubsonic compilation flag in entity `raw_json` (Navidrome: `compilation`,
 //! `isCompilation`, or `releaseTypes` containing `Compilation`).
 
-/// SQL predicate: album row is a compilation (parameter-free).
-pub fn album_is_compilation_sql(album_table_alias: &str) -> String {
-    let a = album_table_alias;
+/// SQL predicate on any row with a `raw_json` column (album or track).
+pub fn compilation_raw_json_sql(table_alias: &str) -> String {
+    let a = table_alias;
     // `NULL IN (...)` is unknown in SQL — wrap each probe in EXISTS so non-comp rows stay false.
     format!(
         "(EXISTS ( \
@@ -17,13 +17,18 @@ pub fn album_is_compilation_sql(album_table_alias: &str) -> String {
     )
 }
 
+/// Album-table alias helper (same SQL as track).
+pub fn album_is_compilation_sql(album_table_alias: &str) -> String {
+    compilation_raw_json_sql(album_table_alias)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn sql_mentions_json_paths() {
-        let sql = album_is_compilation_sql("a");
+        let sql = compilation_raw_json_sql("t");
         assert!(sql.contains("$.compilation"));
         assert!(sql.contains("$.releaseTypes"));
     }
