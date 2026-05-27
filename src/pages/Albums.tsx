@@ -33,11 +33,7 @@ import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import {
-  albumBrowseGenresForServer,
-  albumBrowseSortForServer,
-  useAlbumBrowseSessionStore,
-} from '../store/albumBrowseSessionStore';
+import { useAlbumBrowseFilters } from '../hooks/useAlbumBrowseFilters';
 import {
   runLocalAlbumBrowsePage,
   runLocalAlbumsByGenres,
@@ -70,19 +66,27 @@ export default function Albums() {
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
 
+  const {
+    sort,
+    onSortChange,
+    selectedGenres,
+    setSelectedGenres,
+    yearFrom,
+    setYearFrom,
+    yearTo,
+    setYearTo,
+    compFilter,
+    setCompFilter,
+    starredOnly,
+    setStarredOnly,
+    losslessOnly,
+    setLosslessOnly,
+  } = useAlbumBrowseFilters(serverId);
+
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
-  const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.byServer, serverId));
-  const selectedGenres = useAlbumBrowseSessionStore(s => albumBrowseGenresForServer(s.byServer, serverId));
-  const setBrowseSort = useAlbumBrowseSessionStore(s => s.setSort);
-  const setBrowseGenres = useAlbumBrowseSessionStore(s => s.setSelectedGenres);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  const [yearFrom, setYearFrom] = useState('');
-  const [yearTo, setYearTo] = useState('');
-  const [compFilter, setCompFilter] = useState<CompFilter>('all');
-  const [starredOnly, setStarredOnly] = useState(false);
-  const [losslessOnly, setLosslessOnly] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
   const gridMeasureRef = useRef<HTMLDivElement>(null);
   const maxGridCols = useAuthStore(s => clampLibraryGridMaxColumns(s.libraryGridMaxColumns));
@@ -435,7 +439,7 @@ export default function Albums() {
                     <SortDropdown
                       value={sort}
                       options={sortOptions}
-                      onChange={value => setBrowseSort(serverId, value)}
+                      onChange={onSortChange}
                     />
                   )}
 
@@ -447,7 +451,7 @@ export default function Albums() {
 
                   <GenreFilterBar
                     selected={selectedGenres}
-                    onSelectionChange={genres => setBrowseGenres(serverId, genres)}
+                    onSelectionChange={setSelectedGenres}
                   />
 
                   <StarFilterButton active={starredOnly} onChange={setStarredOnly} />

@@ -1,53 +1,70 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
+  DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
   DEFAULT_ALBUM_BROWSE_SORT,
-  albumBrowseGenresForServer,
   albumBrowseSortForServer,
+  isAlbumDetailPath,
   useAlbumBrowseSessionStore,
 } from './albumBrowseSessionStore';
 
 describe('albumBrowseSessionStore', () => {
   beforeEach(() => {
-    useAlbumBrowseSessionStore.setState({ byServer: {} });
+    useAlbumBrowseSessionStore.setState({ sortByServer: {}, returnStashByServer: {} });
   });
 
-  it('keeps sort and genre filter for a server across updates', () => {
-    const { setSort, setSelectedGenres } = useAlbumBrowseSessionStore.getState();
+  it('keeps sort per server for the session', () => {
+    const { setSort } = useAlbumBrowseSessionStore.getState();
     setSort('srv-a', 'alphabeticalByArtist');
-    setSelectedGenres('srv-a', ['Rock', 'Jazz']);
-
-    const { byServer } = useAlbumBrowseSessionStore.getState();
-    expect(albumBrowseSortForServer(byServer, 'srv-a')).toBe('alphabeticalByArtist');
-    expect(albumBrowseGenresForServer(byServer, 'srv-a')).toEqual(['Rock', 'Jazz']);
-  });
-
-  it('scopes browse state per server', () => {
-    const { setSort, setSelectedGenres } = useAlbumBrowseSessionStore.getState();
-    setSort('srv-a', 'alphabeticalByArtist');
-    setSelectedGenres('srv-a', ['Rock']);
     setSort('srv-b', 'alphabeticalByName');
-    setSelectedGenres('srv-b', ['Classical']);
 
-    const { byServer } = useAlbumBrowseSessionStore.getState();
-    expect(albumBrowseSortForServer(byServer, 'srv-a')).toBe('alphabeticalByArtist');
-    expect(albumBrowseGenresForServer(byServer, 'srv-a')).toEqual(['Rock']);
-    expect(albumBrowseSortForServer(byServer, 'srv-b')).toBe('alphabeticalByName');
-    expect(albumBrowseGenresForServer(byServer, 'srv-b')).toEqual(['Classical']);
+    const { sortByServer } = useAlbumBrowseSessionStore.getState();
+    expect(albumBrowseSortForServer(sortByServer, 'srv-a')).toBe('alphabeticalByArtist');
+    expect(albumBrowseSortForServer(sortByServer, 'srv-b')).toBe('alphabeticalByName');
   });
 
-  it('updates sort without clearing genres', () => {
-    const { setSort, setSelectedGenres } = useAlbumBrowseSessionStore.getState();
-    setSelectedGenres('srv-a', ['Ambient']);
-    setSort('srv-a', 'alphabeticalByArtist');
+  it('stashes and peeks return filters', () => {
+    const { stashReturnFilters, peekReturnStash } = useAlbumBrowseSessionStore.getState();
+    stashReturnFilters('srv-a', {
+      ...DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
+      selectedGenres: ['Rock'],
+      yearFrom: '1990',
+      yearTo: '2000',
+      starredOnly: true,
+    });
 
-    const { byServer } = useAlbumBrowseSessionStore.getState();
-    expect(albumBrowseSortForServer(byServer, 'srv-a')).toBe('alphabeticalByArtist');
-    expect(albumBrowseGenresForServer(byServer, 'srv-a')).toEqual(['Ambient']);
+    expect(peekReturnStash('srv-a')).toEqual({
+      selectedGenres: ['Rock'],
+      yearFrom: '1990',
+      yearTo: '2000',
+      compFilter: 'all',
+      starredOnly: true,
+      losslessOnly: false,
+    });
+    expect(peekReturnStash('srv-a')).not.toBeNull();
   });
 
-  it('defaults when server has no entry', () => {
-    const { byServer } = useAlbumBrowseSessionStore.getState();
-    expect(albumBrowseSortForServer(byServer, 'unknown')).toBe(DEFAULT_ALBUM_BROWSE_SORT);
-    expect(albumBrowseGenresForServer(byServer, 'unknown')).toEqual([]);
+  it('clears return stash', () => {
+    const { stashReturnFilters, clearReturnStash, peekReturnStash } = useAlbumBrowseSessionStore.getState();
+    stashReturnFilters('srv-a', {
+      ...DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
+      selectedGenres: ['Jazz'],
+    });
+    clearReturnStash('srv-a');
+    expect(peekReturnStash('srv-a')).toBeNull();
+  });
+
+  it('defaults sort when server has no entry', () => {
+    const { sortByServer } = useAlbumBrowseSessionStore.getState();
+    expect(albumBrowseSortForServer(sortByServer, 'unknown')).toBe(DEFAULT_ALBUM_BROWSE_SORT);
+  });
+});
+
+describe('isAlbumDetailPath', () => {
+  it('matches album detail routes only', () => {
+    expect(isAlbumDetailPath('/album/abc')).toBe(true);
+    expect(isAlbumDetailPath('/album/abc/')).toBe(true);
+    expect(isAlbumDetailPath('/albums')).toBe(false);
+    expect(isAlbumDetailPath('/artist/abc')).toBe(false);
+    expect(isAlbumDetailPath('/album/abc/tracks')).toBe(false);
   });
 });
