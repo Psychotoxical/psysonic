@@ -134,6 +134,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Lossless: local index browse, Advanced Search and All Albums filters, artist/album drill-down mode, conserved sidebar page (PR #871)',
       'Albums: combined browse filters (genre/year/favorites/lossless/compilations), session restore from album detail, favorites reconcile via local index (PR #876)',
       'Artist detail: sort albums by year (newest/oldest) in the Albums section (PR #877)',
+      'Cover art: Windows thumbnails, tier fallback, PNG decode, Subsonic coverArt id resolution (PR #878)',
     ],
   },
   {

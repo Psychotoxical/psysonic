@@ -401,6 +401,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Cover art — Windows thumbnails, PNG decode, and Subsonic cover ids
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#878](https://github.com/Psychotoxical/psysonic/pull/878)**
+
+* Small cover surfaces on Windows (player bar, queue, artist top tracks) no longer stay empty while large album art loads — tier ladder disk lookup, valid `asset://` URLs only, and broader Tauri asset scope.
+* Fixes a startup/UI freeze when disk paths were applied via `rememberGridDiskSrc` (notify loop); seeds cache without waking subscribers.
+* Resolves Subsonic `coverArt` when it equals the track id — prefers `albumId` and warmed album-grid art on playback and artist pages.
+* `CoverArtImage` shows a placeholder until a loadable disk URL exists (no broken-image flash).
+* Rust cover pipeline decodes **PNG** bytes from the server (previously JPEG/WebP only); failed decode no longer leaves albums stuck with `.fetch-failed`.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
