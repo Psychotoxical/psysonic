@@ -258,6 +258,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Discord Rich Presence — track title in the member list
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#885](https://github.com/Psychotoxical/psysonic/pull/885)**
+
+* The Discord member list and the collapsed presence card now show the playing track next to the music icon instead of the static "Psysonic" label — matches how comparable players appear in the user list.
+* New **User list line (name)** template under **Settings → Integrations → Discord Rich Presence**, default `{title}`. Same placeholders as the other templates: `{title}`, `{artist}`, `{album}`. Leaving it empty restores the previous "Psysonic" display.
+
+
+
 ## Fixed
 
 ### Analytics — Opus waveform and loudness analysis

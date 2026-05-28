@@ -337,6 +337,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Local library index (preview): SQLite per-server track store, background initial and delta sync, live and Advanced Search against the local index, integrity verify and auto-reconcile on count drop (PR #846)',
       'Server index-key rebuild: safe dual-DB migration flow, per-server analysis strategy controls, and playback/index scope hardening (PR #864)',
       'Settings: opt-in Linux input-focus repaint — workaround for the WebKitGTK 2.50.x text-field freeze (PR #884)',
+      'Discord Rich Presence: configurable activity-name template — member list shows the playing track instead of "Psysonic" (PR #885)',
     ],
   },
 ] as const;
