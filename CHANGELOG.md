@@ -423,6 +423,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Analytics — advanced backfill scan no longer replays the first chunk
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#882](https://github.com/Psychotoxical/psysonic/pull/882)**
+
+* **Settings → Library → Analytics → Advanced** on large libraries no longer stalls mid-pass when most early tracks are already analyzed: the native coordinator keeps hash/BPM gap scan phase and cursor across ticks instead of restarting from the first ids every cycle.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.

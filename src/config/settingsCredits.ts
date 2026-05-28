@@ -136,6 +136,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Artist detail: sort albums by year (newest/oldest) in the Albums section (PR #877)',
       'Cover art: Windows thumbnails, tier fallback, PNG decode, Subsonic coverArt id resolution (PR #878)',
       'Analytics: native advanced library backfill coordinator — UI stays responsive on large libraries (PR #881)',
+      'Analytics: library backfill scan phase/cursor persistence so advanced indexing can finish large libraries (PR #882)',
     ],
   },
   {
