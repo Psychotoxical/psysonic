@@ -13,7 +13,7 @@ import {
   coverTrafficBeginNavigation,
   coverTrafficEndGridPagination,
   coverTrafficEndNavigation,
-  coverTrafficGridPaginationPaused,
+  coverTrafficGridPaginationDepth,
 } from './coverTraffic';
 
 describe('coverTraffic navigation hold', () => {
@@ -52,9 +52,18 @@ describe('coverTraffic grid pagination hold', () => {
   it('pauses middle/low cover work while album pages fetch', () => {
     coverTrafficBeginGridPagination();
     expect(coverTrafficBackgroundPaused()).toBe(true);
-    expect(coverTrafficGridPaginationPaused()).toBe(true);
+    expect(coverTrafficGridPaginationDepth()).toBe(1);
     coverTrafficEndGridPagination();
     expect(coverTrafficBackgroundPaused()).toBe(false);
-    expect(coverTrafficGridPaginationPaused()).toBe(false);
+    expect(coverTrafficGridPaginationDepth()).toBe(0);
+  });
+
+  it('does not leak hold depth when overlapping browse fetches end out of order', () => {
+    coverTrafficBeginGridPagination();
+    coverTrafficBeginGridPagination();
+    coverTrafficEndGridPagination();
+    expect(coverTrafficGridPaginationDepth()).toBe(1);
+    coverTrafficEndGridPagination();
+    expect(coverTrafficGridPaginationDepth()).toBe(0);
   });
 });

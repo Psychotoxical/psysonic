@@ -16,7 +16,6 @@ type EnsureJob = {
 
 import {
   coverTrafficBackgroundPaused,
-  coverTrafficGridPaginationPaused,
   coverTrafficServerSwitchPaused,
 } from './coverTraffic';
 
@@ -30,6 +29,13 @@ let inflight = 0;
 let queue: EnsureJob[] = [];
 let nextOrderKey = 0;
 const inflightStorageKeys = new Set<string>();
+const backlogDrainListeners = new Set<() => void>();
+
+function notifyBacklogDrain(): void {
+  for (const listener of backlogDrainListeners) {
+    listener();
+  }
+}
 
 function priorityRank(p: CoverPrefetchPriority): number {
   return p === 'high' ? 0 : p === 'middle' ? 1 : 2;
@@ -103,7 +109,6 @@ function bumpJob(job: EnsureJob, priority?: CoverPrefetchPriority): void {
 
 function pump(): void {
   if (coverTrafficServerSwitchPaused()) return;
-  if (coverTrafficGridPaginationPaused()) return;
   while (inflight < MAX_INFLIGHT && queue.length > 0) {
     const next = queue[0]!;
     if (coverTrafficBackgroundPaused() && next.priority !== 'high') {
@@ -119,6 +124,7 @@ function pump(): void {
         inflight -= 1;
         inflightStorageKeys.delete(job.storageKey);
         pump();
+        notifyBacklogDrain();
       });
   }
 }
@@ -161,6 +167,15 @@ export function coverEnsureRelease(storageKey: string): void {
 /** Resume ensure pump after a grid-pagination hold ends. */
 export function coverEnsureResumePump(): void {
   pump();
+  notifyBacklogDrain();
+}
+
+/** Retry pagination / prefetch when the ensure backlog drops (sentinel may still be visible). */
+export function coverEnsureSubscribeBacklogDrain(listener: () => void): () => void {
+  backlogDrainListeners.add(listener);
+  return () => {
+    backlogDrainListeners.delete(listener);
+  };
 }
 
 /** Queued + active ensure jobs (for library backfill watermark). */
@@ -203,6 +218,7 @@ export function __test_resetCoverEnsureQueue(): void {
   inflightStorageKeys.clear();
   ensureInflight.clear();
   coverDownloadTail.clear();
+  backlogDrainListeners.clear();
 }
 
 /** @internal Vitest-only — queued cover art IDs front-to-back. */

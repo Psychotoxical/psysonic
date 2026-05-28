@@ -41,6 +41,17 @@ use crate::sync::initial::InitialSyncRunner;
 use crate::sync::progress::{ChannelProgress, Progress, ProgressEvent};
 use crate::sync::tombstone::should_auto_reconcile;
 
+/// Run synchronous SQLite / library read work off the async runtime worker.
+async fn library_spawn_blocking<F, R>(f: F) -> Result<R, String>
+where
+    F: FnOnce() -> Result<R, String> + Send + 'static,
+    R: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| format!("library blocking worker failed: {e}"))?
+}
+
 /// Cap for `library_get_tracks_batch` per spec §7.1 ("max 100 refs/call").
 const TRACKS_BATCH_LIMIT: usize = 100;
 const ANALYSIS_PROGRESS_CACHE_TTL: Duration = Duration::from_secs(30);
@@ -458,7 +469,8 @@ pub async fn library_advanced_search(
     runtime: State<'_, LibraryRuntime>,
     request: LibraryAdvancedSearchRequest,
 ) -> Result<LibraryAdvancedSearchResponse, String> {
-    advanced_search::run_advanced_search(&runtime.store, &request)
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || advanced_search::run_advanced_search(&store, &request)).await
 }
 
 #[tauri::command]
@@ -466,7 +478,8 @@ pub async fn library_list_lossless_albums(
     runtime: State<'_, LibraryRuntime>,
     request: crate::dto::LibraryLosslessAlbumsRequest,
 ) -> Result<crate::dto::LibraryLosslessAlbumsResponse, String> {
-    crate::lossless_albums::list_lossless_albums(&runtime.store, &request)
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || crate::lossless_albums::list_lossless_albums(&store, &request)).await
 }
 
 #[tauri::command]

@@ -9,8 +9,9 @@ import type { SubsonicAlbum } from '../api/subsonicTypes';
 import {
   coverTrafficBeginGridPagination,
   coverTrafficEndGridPagination,
+  coverTrafficGridPaginationDepth,
 } from '../cover/coverTraffic';
-import { coverEnsureQueueBacklog, coverEnsureResumePump } from '../cover/ensureQueue';
+import { coverEnsureQueueBacklog, coverEnsureResumePump, coverEnsureSubscribeBacklogDrain } from '../cover/ensureQueue';
 import { dedupeById } from '../utils/dedupeById';
 import { albumBrowseCompScanComplete } from '../utils/library/albumCompilation';
 import type { AlbumCompFilter } from '../utils/library/albumCompilation';
@@ -33,7 +34,7 @@ import { useInpageScrollSentinel } from './useInpageScrollSentinel';
 
 const PAGE_SIZE = 30;
 /** Wait for visible-row cover ensures to drain before fetching the next SQL page. */
-const LOAD_MORE_COVER_BACKLOG_MAX = 48;
+const LOAD_MORE_COVER_BACKLOG_MAX = 12;
 
 export type UseAlbumBrowseDataArgs = {
   serverId: string;
@@ -142,6 +143,23 @@ export function useAlbumBrowseData({
   /** Blocks overlapping sentinel callbacks until the current page fetch settles. */
   const loadPendingRef = useRef(false);
   const loadMoreRef = useRef<() => void>(() => {});
+  const sentinelIntersectingRef = useRef(false);
+
+  useEffect(() => {
+    while (coverTrafficGridPaginationDepth() > 0) {
+      coverTrafficEndGridPagination();
+    }
+    coverEnsureResumePump();
+  }, []);
+
+  useEffect(() => {
+    return coverEnsureSubscribeBacklogDrain(() => {
+      if (!sentinelIntersectingRef.current) return;
+      if (loadingRef.current || loadPendingRef.current) return;
+      if (coverEnsureQueueBacklog() > LOAD_MORE_COVER_BACKLOG_MAX) return;
+      loadMoreRef.current();
+    });
+  }, []);
 
   useEffect(() => {
     pageRef.current = page;
@@ -190,11 +208,12 @@ export function useAlbumBrowseData({
       );
       applyPage(pageResult);
     } finally {
+      // Always pair begin/end — stale generations must not leak the grid hold.
+      coverTrafficEndGridPagination();
+      coverEnsureResumePump();
       if (generation === loadGenerationRef.current) {
         loadingRef.current = false;
         loadPendingRef.current = false;
-        coverTrafficEndGridPagination();
-        coverEnsureResumePump();
         if (append) setLoadingMore(false);
         else setLoading(false);
       }
@@ -263,6 +282,7 @@ export function useAlbumBrowseData({
     scrollRootEl,
     onIntersect: () => loadMoreRef.current(),
     drainSignal: loadingMore,
+    intersectingRef: sentinelIntersectingRef,
   });
 
   return {

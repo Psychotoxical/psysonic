@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type RefCallback } from 'react';
+import { useCallback, useEffect, useRef, type MutableRefObject, type RefCallback } from 'react';
 
 const DEFAULT_ROOT_MARGIN = '400px';
 
@@ -12,6 +12,8 @@ export type UseInpageScrollSentinelArgs = {
   rootMargin?: string;
   /** Re-fire `onIntersect` when this changes and the sentinel is still visible. */
   drainSignal?: unknown;
+  /** Updated when the sentinel enters/leaves the scroll root viewport. */
+  intersectingRef?: MutableRefObject<boolean>;
 };
 
 /**
@@ -26,20 +28,35 @@ export function useInpageScrollSentinel({
   onIntersect,
   rootMargin = DEFAULT_ROOT_MARGIN,
   drainSignal,
+  intersectingRef,
 }: UseInpageScrollSentinelArgs): RefCallback<HTMLDivElement | null> {
   const onIntersectRef = useRef(onIntersect);
   onIntersectRef.current = onIntersect;
+
+  const setIntersecting = useCallback((hit: boolean) => {
+    if (intersectingRef) intersectingRef.current = hit;
+  }, [intersectingRef]);
+
   const observerInst = useRef<IntersectionObserver | null>(null);
 
   const bindSentinel = useCallback((node: HTMLDivElement | null) => {
     observerInst.current?.disconnect();
     observerInst.current = null;
-    if (!node || !active) return;
+    if (!node) {
+      setIntersecting(false);
+      return;
+    }
+    if (!active) {
+      setIntersecting(false);
+      return;
+    }
 
     const rootEl = getScrollRoot?.() ?? null;
     const observer = new IntersectionObserver(
       entries => {
-        if (entries[0]?.isIntersecting) onIntersectRef.current();
+        const hit = Boolean(entries[0]?.isIntersecting);
+        setIntersecting(hit);
+        if (hit) onIntersectRef.current();
       },
       {
         root: rootEl instanceof HTMLElement ? rootEl : null,
@@ -48,15 +65,17 @@ export function useInpageScrollSentinel({
     );
     observer.observe(node);
     observerInst.current = observer;
-  }, [active, getScrollRoot, scrollRootEl, rootMargin]);
+  }, [active, getScrollRoot, scrollRootEl, rootMargin, setIntersecting]);
 
   useEffect(() => {
     const observer = observerInst.current;
     if (!observer || !active) return;
     for (const entry of observer.takeRecords()) {
-      if (entry.isIntersecting) onIntersectRef.current();
+      const hit = entry.isIntersecting;
+      setIntersecting(hit);
+      if (hit) onIntersectRef.current();
     }
-  }, [active, drainSignal]);
+  }, [active, drainSignal, setIntersecting]);
 
   useEffect(() => () => {
     observerInst.current?.disconnect();
