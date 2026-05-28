@@ -450,6 +450,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Settings — Linux text-input freeze workaround
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#884](https://github.com/Psychotoxical/psysonic/pull/884)**
+
+* **Settings → System → Behavior** (Linux only): optional toggle for users on WebKitGTK 2.50.x where text fields freeze when clicked (issues #342, #782) — turning it on forces the input to repaint on focus. Default off; enabling it adds a brief flicker on search icons.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.

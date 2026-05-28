@@ -336,6 +336,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Interface Scale: scales the entire window — sidebar, queue, player bar, modals and the fullscreen player follow the main content (PR #781)',
       'Local library index (preview): SQLite per-server track store, background initial and delta sync, live and Advanced Search against the local index, integrity verify and auto-reconcile on count drop (PR #846)',
       'Server index-key rebuild: safe dual-DB migration flow, per-server analysis strategy controls, and playback/index scope hardening (PR #864)',
+      'Settings: opt-in Linux input-focus repaint — workaround for the WebKitGTK 2.50.x text-field freeze (PR #884)',
     ],
   },
 ] as const;
