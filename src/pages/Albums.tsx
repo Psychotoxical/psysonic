@@ -84,6 +84,7 @@ export default function Albums() {
     loading,
     loadingMore,
     hasMore,
+    displayAlbums,
     visibleAlbums,
     genreFiltered,
     serverFilterActive,
@@ -116,11 +117,10 @@ export default function Albums() {
   const [albumGridCols, setAlbumGridCols] = useState(4);
 
   // ── Multi-selection ──────────────────────────────────────────────────────
-  // selectedIds + toggleSelect come from useRangeSelection (declared after
-  // `visibleAlbums` so Shift-click range expansion follows the visible order).
+  // `displayAlbums` — visible grid slice (local index) or loaded SQL pages (network).
   const [selectionMode, setSelectionMode] = useState(false);
 
-  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(visibleAlbums);
+  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(displayAlbums);
 
   const toggleSelectionMode = () => {
     setSelectionMode(v => !v);
@@ -132,7 +132,7 @@ export default function Albums() {
     resetSelection();
   };
 
-  const selectedAlbums = visibleAlbums.filter(a => selectedIds.has(a.id));
+  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(a.id));
   const enqueue = usePlayerStore(state => state.enqueue);
 
   const handleEnqueueSelected = async () => {
@@ -212,16 +212,16 @@ export default function Albums() {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [maxGridCols, visibleAlbums.length]);
+  }, [maxGridCols, displayAlbums.length]);
 
   const prefetchLimit = Math.max(albumGridCols * 3, albumGridCols);
   const prefetchKey = useMemo(
-    () => visibleAlbums.slice(0, prefetchLimit).map(a => a.id).join('\u0001'),
-    [visibleAlbums, prefetchLimit],
+    () => displayAlbums.slice(0, prefetchLimit).map(a => a.id).join('\u0001'),
+    [displayAlbums, prefetchLimit],
   );
   const prefetchAlbums = useMemo(
-    () => visibleAlbums.slice(0, prefetchLimit),
-    [visibleAlbums, prefetchLimit],
+    () => displayAlbums.slice(0, prefetchLimit),
+    [displayAlbums, prefetchLimit],
   );
 
   useLibraryCoverPrefetch(
@@ -358,7 +358,7 @@ export default function Albums() {
         railInset="panel"
         measureDeps={[
           loading,
-          visibleAlbums.length,
+          displayAlbums.length,
           genreFiltered,
           hasMore,
           selectionMode,
@@ -392,15 +392,15 @@ export default function Albums() {
             {!perfFlags.disableMainstageGridCards && (
               <div ref={gridMeasureRef}>
                 <VirtualCardGrid
-                  items={visibleAlbums}
+                  items={displayAlbums}
                   itemKey={(a, _i) => a.id}
                   rowVariant="album"
                   disableVirtualization={perfFlags.disableMainstageVirtualLists}
-                  layoutSignal={visibleAlbums.length}
+                  layoutSignal={displayAlbums.length}
                   scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                   warmGridCovers={albumGridWarmCovers(
                     albumCellDisplayCssPx,
-                    Math.min(visibleAlbums.length, Math.max(albumGridCols * 6, 48)),
+                    Math.min(displayAlbums.length, Math.max(albumGridCols * 6, 48)),
                   )}
                   renderItem={a => (
                     <AlbumCard
@@ -416,7 +416,7 @@ export default function Albums() {
                 />
               </div>
             )}
-            {!genreFiltered && hasMore && (
+            {hasMore && (
               <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loadingMore} />
             )}
           </>

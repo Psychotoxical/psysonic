@@ -17,6 +17,7 @@ export {
 } from './albumBrowseFilters';
 export { runLocalAlbumBrowse } from './albumBrowseLocal';
 
+import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import { countGenresFromAlbums, filterAlbumsByCompilation } from './albumBrowseFilters';
 import { runLocalAlbumBrowse } from './albumBrowseLocal';
 import { fetchAlbumBrowseNetwork } from './albumBrowseNetwork';
@@ -28,6 +29,17 @@ import type {
   GenreFilterOption,
 } from './albumBrowseTypes';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
+
+/** Full catalog for local-index All Albums (client-slice scroll, like Artists). */
+export async function runLocalBrowseAllAlbums(
+  serverId: string,
+  query: AlbumBrowseQuery,
+  limit = 50_000,
+): Promise<SubsonicAlbum[] | null> {
+  const fetchLimit = query.genres.length > 0 ? GENRE_ALBUM_FETCH_LIMIT : limit;
+  const page = await runLocalAlbumBrowse(serverId, query, 0, fetchLimit);
+  return page?.albums ?? null;
+}
 
 /** Genres in albums matching all filters except genre (for combined-filter UI). */
 export async function fetchAlbumBrowseGenreOptions(

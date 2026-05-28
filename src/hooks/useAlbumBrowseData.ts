@@ -22,6 +22,7 @@ import {
   fetchAlbumBrowsePage,
   filterAlbumsByCompilation,
   filterAlbumsByStarred,
+  runLocalBrowseAllAlbums,
   type AlbumBrowseQuery,
   type GenreFilterOption,
 } from '../utils/library/albumBrowseLoad';
@@ -29,12 +30,16 @@ import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
 } from '../utils/library/albumYearFilter';
+import { useClientSliceInfiniteScroll } from './useClientSliceInfiniteScroll';
 import { useDebouncedValue } from './useDebouncedValue';
 import { useInpageScrollSentinel } from './useInpageScrollSentinel';
 
 const PAGE_SIZE = 30;
-/** Wait for visible-row cover ensures to drain before fetching the next SQL page. */
+const CLIENT_SLICE_PAGE_SIZE = 60;
+/** Wait for visible-row cover ensures to drain before fetching the next SQL page (network mode). */
 const LOAD_MORE_COVER_BACKLOG_MAX = 12;
+
+type AlbumBrowseMode = 'slice' | 'page';
 
 export type UseAlbumBrowseDataArgs = {
   serverId: string;
@@ -85,6 +90,7 @@ export function useAlbumBrowseData({
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [browseMode, setBrowseMode] = useState<AlbumBrowseMode>('page');
   const [genreCatalogOptions, setGenreCatalogOptions] = useState<GenreFilterOption[] | null>(null);
 
   const yearFields = useMemo(() => ({ from: yearFrom, to: yearTo }), [yearFrom, yearTo]);
@@ -124,6 +130,33 @@ export function useAlbumBrowseData({
     return out;
   }, [albums, compFilter, compFilterActive, starredOnly, starredOverrides]);
 
+  const {
+    visibleCount,
+    loadingMore: sliceLoadingMore,
+    bindSentinel: bindSliceSentinel,
+  } = useClientSliceInfiniteScroll({
+    pageSize: CLIENT_SLICE_PAGE_SIZE,
+    resetDeps: [
+      browseMode,
+      sort,
+      selectedGenres,
+      yearFilterActive,
+      yearFilterBounds,
+      losslessOnly,
+      starredOnly,
+      compFilter,
+      musicLibraryFilterVersion,
+      serverId,
+    ],
+    getScrollRoot,
+    scrollRootEl,
+  });
+
+  const displayAlbums = useMemo(() => {
+    if (browseMode !== 'slice') return visibleAlbums;
+    return visibleAlbums.slice(0, visibleCount);
+  }, [browseMode, visibleAlbums, visibleCount]);
+
   const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
   const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
   const narrowGenreList = yearFilterActive || losslessOnly || starredOnly || compFilterActive;
@@ -137,13 +170,20 @@ export function useAlbumBrowseData({
   const pendingClientFilterMatch =
     compFilterClientOnly && visibleAlbums.length === 0 && hasMore && !genreFiltered && !compScanExhausted;
 
+  const gridHasMore = browseMode === 'slice'
+    ? visibleCount < visibleAlbums.length
+    : hasMore && !genreFiltered;
+
+  const gridLoadingMore = browseMode === 'slice' ? sliceLoadingMore : loadingMore;
+
   const loadGenerationRef = useRef(0);
   const pageRef = useRef(0);
   const loadingRef = useRef(false);
-  /** Blocks overlapping sentinel callbacks until the current page fetch settles. */
   const loadPendingRef = useRef(false);
   const loadMoreRef = useRef<() => void>(() => {});
   const sentinelIntersectingRef = useRef(false);
+  const browseModeRef = useRef(browseMode);
+  browseModeRef.current = browseMode;
 
   useEffect(() => {
     while (coverTrafficGridPaginationDepth() > 0) {
@@ -154,6 +194,7 @@ export function useAlbumBrowseData({
 
   useEffect(() => {
     return coverEnsureSubscribeBacklogDrain(() => {
+      if (browseModeRef.current !== 'page') return;
       if (!sentinelIntersectingRef.current) return;
       if (loadingRef.current || loadPendingRef.current) return;
       if (coverEnsureQueueBacklog() > LOAD_MORE_COVER_BACKLOG_MAX) return;
@@ -208,7 +249,6 @@ export function useAlbumBrowseData({
       );
       applyPage(pageResult);
     } finally {
-      // Always pair begin/end — stale generations must not leak the grid hold.
       coverTrafficEndGridPagination();
       coverEnsureResumePump();
       if (generation === loadGenerationRef.current) {
@@ -221,11 +261,42 @@ export function useAlbumBrowseData({
   }, [indexEnabled, serverId]);
 
   useEffect(() => {
+    let cancelled = false;
     pageRef.current = 0;
     loadPendingRef.current = false;
     setPage(0);
-    loadBrowse(browseQuery, 0, false);
-  }, [browseQuery, loadBrowse, musicLibraryFilterVersion]);
+    setAlbums([]);
+    setHasMore(true);
+    setLoading(true);
+
+    void (async () => {
+      if (indexEnabled && serverId) {
+        const generation = ++loadGenerationRef.current;
+        coverTrafficBeginGridPagination();
+        try {
+          const catalog = await runLocalBrowseAllAlbums(serverId, browseQuery);
+          if (cancelled || generation !== loadGenerationRef.current) return;
+          if (catalog != null) {
+            setBrowseMode('slice');
+            setAlbums(catalog);
+            setHasMore(false);
+            setLoading(false);
+            return;
+          }
+        } finally {
+          coverTrafficEndGridPagination();
+          coverEnsureResumePump();
+        }
+      }
+      if (cancelled) return;
+      setBrowseMode('page');
+      await loadBrowse(browseQuery, 0, false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [browseQuery, indexEnabled, serverId, loadBrowse, musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!narrowGenreList) {
@@ -248,6 +319,7 @@ export function useAlbumBrowseData({
   ]);
 
   const loadMore = useCallback(() => {
+    if (browseMode !== 'page') return;
     if (loadingRef.current || loadPendingRef.current || !hasMore || genreFiltered) return;
     if (coverEnsureQueueBacklog() > LOAD_MORE_COVER_BACKLOG_MAX) return;
     if (compFilterClientOnly && visibleAlbums.length === 0
@@ -259,6 +331,7 @@ export function useAlbumBrowseData({
     setPage(next);
     void loadBrowse(browseQuery, next * PAGE_SIZE, true);
   }, [
+    browseMode,
     hasMore,
     browseQuery,
     loadBrowse,
@@ -272,12 +345,13 @@ export function useAlbumBrowseData({
   loadMoreRef.current = loadMore;
 
   useEffect(() => {
+    if (browseMode !== 'page') return;
     if (!pendingClientFilterMatch || loadingRef.current || loadPendingRef.current) return;
     loadMore();
-  }, [pendingClientFilterMatch, loading, loadMore]);
+  }, [browseMode, pendingClientFilterMatch, loading, loadMore]);
 
-  const bindLoadMoreSentinel = useInpageScrollSentinel({
-    active: !genreFiltered && hasMore,
+  const bindPageSentinel = useInpageScrollSentinel({
+    active: browseMode === 'page' && gridHasMore,
     getScrollRoot,
     scrollRootEl,
     onIntersect: () => loadMoreRef.current(),
@@ -285,11 +359,15 @@ export function useAlbumBrowseData({
     intersectingRef: sentinelIntersectingRef,
   });
 
+  const bindLoadMoreSentinel = browseMode === 'slice' ? bindSliceSentinel : bindPageSentinel;
+
   return {
     albums,
     loading,
-    loadingMore,
-    hasMore,
+    loadingMore: gridLoadingMore,
+    hasMore: gridHasMore,
+    displayAlbums,
+    browseMode,
     PAGE_SIZE,
     browseQuery,
     browseQueryWithoutGenre,
