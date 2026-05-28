@@ -61,6 +61,8 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
       username: server.username,
       password: server.password,
       workers: advancedParallelism,
+    }).catch(() => {
+      /* coordinator optional; avoid unhandled rejection noise in release */
     });
 
     return disable;

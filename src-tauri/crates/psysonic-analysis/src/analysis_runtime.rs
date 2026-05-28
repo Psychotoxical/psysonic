@@ -457,14 +457,7 @@ async fn enqueue_track_analysis_with_fetch(
             return Err("track enrichment failed".to_string());
         }
         let bpm_ms = bpm_started.elapsed().as_millis() as u64;
-        emit_analysis_track_perf(
-            app,
-            track_id,
-            fetch_ms,
-            0,
-            bpm_ms,
-            analysis_emits_ui_events(priority),
-        );
+        emit_analysis_track_perf(app, track_id, fetch_ms, 0, bpm_ms);
         return Ok(EnqueueTrackAnalysisOutcome::RanEnrichmentOnly);
     }
     Ok(EnqueueTrackAnalysisOutcome::Complete)
@@ -811,7 +804,7 @@ pub fn analysis_backfill_resolve_priority(
     AnalysisBackfillPriority::Low
 }
 
-/// Library backfill uses `Low` — skip probe / waveform refresh IPC for throughput.
+/// Library backfill uses `Low` — skip waveform / enrichment refresh IPC (not `analysis:track-perf`).
 pub fn analysis_emits_ui_events(priority: AnalysisBackfillPriority) -> bool {
     !matches!(priority, AnalysisBackfillPriority::Low)
 }
@@ -1308,7 +1301,6 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                         fetch_ms,
                         timings.seed_ms,
                         timings.bpm_ms,
-                        notify_ui,
                     );
                     crate::app_deprintln!(
                         "[analysis] cpu-seed worker={}/{}: done track_id={} upserted={}",

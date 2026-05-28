@@ -24,11 +24,7 @@ pub fn emit_analysis_track_perf(
     fetch_ms: u64,
     seed_ms: u64,
     bpm_ms: u64,
-    emit_ui: bool,
 ) {
-    if !emit_ui {
-        return;
-    }
     let total_ms = fetch_ms.saturating_add(seed_ms).saturating_add(bpm_ms);
     if total_ms == 0 {
         return;

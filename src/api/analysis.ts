@@ -172,5 +172,6 @@ export type LibraryAnalysisBackfillConfigureArgs = {
 export function libraryAnalysisBackfillConfigure(
   args: LibraryAnalysisBackfillConfigureArgs,
 ): Promise<void> {
-  return invoke('library_analysis_backfill_configure', { args });
+  // Flat payload — same as `library_cover_backfill_configure` (not `{ args: … }`).
+  return invoke('library_analysis_backfill_configure', args);
 }
