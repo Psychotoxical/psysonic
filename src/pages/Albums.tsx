@@ -82,6 +82,7 @@ export default function Albums() {
   const {
     albums,
     loading,
+    loadingMore,
     hasMore,
     visibleAlbums,
     genreFiltered,
@@ -416,7 +417,7 @@ export default function Albums() {
               </div>
             )}
             {!genreFiltered && hasMore && (
-              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loading} />
+              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loadingMore} />
             )}
           </>
         )}

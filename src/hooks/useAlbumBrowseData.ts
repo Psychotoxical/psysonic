@@ -10,6 +10,7 @@ import {
   coverTrafficBeginGridPagination,
   coverTrafficEndGridPagination,
 } from '../cover/coverTraffic';
+import { coverEnsureQueueBacklog, coverEnsureResumePump } from '../cover/ensureQueue';
 import { dedupeById } from '../utils/dedupeById';
 import { albumBrowseCompScanComplete } from '../utils/library/albumCompilation';
 import type { AlbumCompFilter } from '../utils/library/albumCompilation';
@@ -31,6 +32,8 @@ import { useDebouncedValue } from './useDebouncedValue';
 import { useInpageScrollSentinel } from './useInpageScrollSentinel';
 
 const PAGE_SIZE = 30;
+/** Wait for visible-row cover ensures to drain before fetching the next SQL page. */
+const LOAD_MORE_COVER_BACKLOG_MAX = 48;
 
 export type UseAlbumBrowseDataArgs = {
   serverId: string;
@@ -78,6 +81,7 @@ export function useAlbumBrowseData({
 }: UseAlbumBrowseDataArgs) {
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [genreCatalogOptions, setGenreCatalogOptions] = useState<GenreFilterOption[] | null>(null);
@@ -152,7 +156,8 @@ export function useAlbumBrowseData({
     loadingRef.current = true;
     loadPendingRef.current = true;
     coverTrafficBeginGridPagination();
-    setLoading(true);
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     const applyPage = (pageResult: { albums: SubsonicAlbum[]; hasMore: boolean }) => {
       if (generation !== loadGenerationRef.current) return;
       if (append) {
@@ -178,7 +183,8 @@ export function useAlbumBrowseData({
             if (generation !== loadGenerationRef.current) return;
             applyPage(partial);
             loadingRef.current = false;
-            setLoading(false);
+            if (append) setLoadingMore(false);
+            else setLoading(false);
           },
         },
       );
@@ -188,7 +194,9 @@ export function useAlbumBrowseData({
         loadingRef.current = false;
         loadPendingRef.current = false;
         coverTrafficEndGridPagination();
-        setLoading(false);
+        coverEnsureResumePump();
+        if (append) setLoadingMore(false);
+        else setLoading(false);
       }
     }
   }, [indexEnabled, serverId]);
@@ -222,6 +230,7 @@ export function useAlbumBrowseData({
 
   const loadMore = useCallback(() => {
     if (loadingRef.current || loadPendingRef.current || !hasMore || genreFiltered) return;
+    if (coverEnsureQueueBacklog() > LOAD_MORE_COVER_BACKLOG_MAX) return;
     if (compFilterClientOnly && visibleAlbums.length === 0
       && albumBrowseCompScanComplete(albums, compFilter, hasMore)) {
       return;
@@ -253,11 +262,13 @@ export function useAlbumBrowseData({
     getScrollRoot,
     scrollRootEl,
     onIntersect: () => loadMoreRef.current(),
+    drainSignal: loadingMore,
   });
 
   return {
     albums,
     loading,
+    loadingMore,
     hasMore,
     PAGE_SIZE,
     browseQuery,

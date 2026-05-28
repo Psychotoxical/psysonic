@@ -13,6 +13,7 @@ import {
   coverTrafficBeginNavigation,
   coverTrafficEndGridPagination,
   coverTrafficEndNavigation,
+  coverTrafficGridPaginationPaused,
 } from './coverTraffic';
 
 describe('coverTraffic navigation hold', () => {
@@ -51,7 +52,9 @@ describe('coverTraffic grid pagination hold', () => {
   it('pauses middle/low cover work while album pages fetch', () => {
     coverTrafficBeginGridPagination();
     expect(coverTrafficBackgroundPaused()).toBe(true);
+    expect(coverTrafficGridPaginationPaused()).toBe(true);
     coverTrafficEndGridPagination();
     expect(coverTrafficBackgroundPaused()).toBe(false);
+    expect(coverTrafficGridPaginationPaused()).toBe(false);
   });
 });

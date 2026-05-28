@@ -84,6 +84,11 @@ export function coverTrafficBackgroundPaused(): boolean {
   return navigationHoldDepth > 0 || gridPaginationHoldDepth > 0 || serverSwitchHold;
 }
 
+/** Album grid SQL page fetch — block the entire webview ensure pump. */
+export function coverTrafficGridPaginationPaused(): boolean {
+  return gridPaginationHoldDepth > 0;
+}
+
 /** Hard stop for ensure/peek pumps (includes visible `high` grid jobs). */
 export function coverTrafficServerSwitchPaused(): boolean {
   return serverSwitchHold;

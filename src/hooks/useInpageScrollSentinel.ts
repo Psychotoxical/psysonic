@@ -10,6 +10,8 @@ export type UseInpageScrollSentinelArgs = {
   scrollRootEl?: HTMLElement | null;
   onIntersect: () => void;
   rootMargin?: string;
+  /** Re-fire `onIntersect` when this changes and the sentinel is still visible. */
+  drainSignal?: unknown;
 };
 
 /**
@@ -23,6 +25,7 @@ export function useInpageScrollSentinel({
   scrollRootEl,
   onIntersect,
   rootMargin = DEFAULT_ROOT_MARGIN,
+  drainSignal,
 }: UseInpageScrollSentinelArgs): RefCallback<HTMLDivElement | null> {
   const onIntersectRef = useRef(onIntersect);
   onIntersectRef.current = onIntersect;
@@ -46,6 +49,14 @@ export function useInpageScrollSentinel({
     observer.observe(node);
     observerInst.current = observer;
   }, [active, getScrollRoot, scrollRootEl, rootMargin]);
+
+  useEffect(() => {
+    const observer = observerInst.current;
+    if (!observer || !active) return;
+    for (const entry of observer.takeRecords()) {
+      if (entry.isIntersecting) onIntersectRef.current();
+    }
+  }, [active, drainSignal]);
 
   useEffect(() => () => {
     observerInst.current?.disconnect();

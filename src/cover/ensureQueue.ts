@@ -16,6 +16,7 @@ type EnsureJob = {
 
 import {
   coverTrafficBackgroundPaused,
+  coverTrafficGridPaginationPaused,
   coverTrafficServerSwitchPaused,
 } from './coverTraffic';
 
@@ -102,6 +103,7 @@ function bumpJob(job: EnsureJob, priority?: CoverPrefetchPriority): void {
 
 function pump(): void {
   if (coverTrafficServerSwitchPaused()) return;
+  if (coverTrafficGridPaginationPaused()) return;
   while (inflight < MAX_INFLIGHT && queue.length > 0) {
     const next = queue[0]!;
     if (coverTrafficBackgroundPaused() && next.priority !== 'high') {
@@ -154,6 +156,11 @@ export function coverEnsureRelease(storageKey: string): void {
   } else if (!inflightStorageKeys.has(storageKey)) {
     ensureInflight.delete(storageKey);
   }
+}
+
+/** Resume ensure pump after a grid-pagination hold ends. */
+export function coverEnsureResumePump(): void {
+  pump();
 }
 
 /** Queued + active ensure jobs (for library backfill watermark). */
