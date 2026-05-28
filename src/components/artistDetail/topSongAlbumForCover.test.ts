@@ -49,8 +49,8 @@ describe('artistDetailCoverWarmAlbums', () => {
       artistDetailCoverWarmAlbums(
         [{ albumId: 'al-top', album: 'Hit', coverArt: 'c-top' }],
         [
-          { id: 'al-a', coverArt: 'cov-a' },
-          { id: 'al-b', coverArt: 'cov-b' },
+          { id: 'al-a', name: 'A', coverArt: 'cov-a' },
+          { id: 'al-b', name: 'B', coverArt: 'cov-b' },
         ],
         2,
       ),

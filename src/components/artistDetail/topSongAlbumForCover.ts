@@ -13,7 +13,7 @@ function pushAlbumWarmRow(
   const id = row?.id?.trim();
   if (!id || seen.has(id) || out.length >= limit) return;
   seen.add(id);
-  out.push({ id, coverArt: row.coverArt });
+  out.push({ id, coverArt: row?.coverArt });
 }
 
 /**
@@ -58,7 +58,7 @@ export function topSongAlbumsForCoverWarm(
  */
 export function artistDetailCoverWarmAlbums(
   topSongs: ReadonlyArray<Pick<SubsonicSong, 'albumId' | 'album' | 'coverArt'>>,
-  albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'coverArt'>>,
+  albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'name' | 'coverArt'>>,
   limit: number,
 ): AlbumCoverWarmRow[] {
   const seen = new Set<string>();
