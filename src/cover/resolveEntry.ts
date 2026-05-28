@@ -98,10 +98,10 @@ export function coverEntryToRef(
   };
 }
 
-/** Artist top tracks: prefer album row `coverArt` when the grid already has it. */
 /** @deprecated Alias for {@link resolveSongFetchCoverArtId}. */
 export const resolveSubsonicSongCoverArtId = resolveSongFetchCoverArtId;
 
+/** @deprecated Top tracks use album row `id` + `coverArt` like AlbumCard. */
 export function resolveArtistPageSongFetchCoverArtId(
   song: Pick<SubsonicSong, 'id' | 'coverArt' | 'albumId' | 'album' | 'discNumber'>,
   albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'name' | 'coverArt'>>,

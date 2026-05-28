@@ -2,13 +2,13 @@ import React, { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, Play, Square } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
-import { resolveArtistPageSongCoverArtId } from '../../cover/resolveCoverArtId';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import ArtistTopTrackCover from './ArtistTopTrackCover';
+import { topSongAlbumForCover } from './topSongAlbumForCover';
 
 interface Props {
   topSongs: SubsonicSong[];
@@ -95,17 +95,8 @@ export default function ArtistDetailTopTracks({
               : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
           </button>
           {(() => {
-            const albumRow = song.albumId
-              ? albums.find(a => a.id === song.albumId)
-              : albums.find(a => a.name === song.album);
-            const coverId = resolveArtistPageSongCoverArtId(song, albums);
-            return coverId && song.albumId ? (
-              <ArtistTopTrackCover
-                albumId={song.albumId}
-                coverArt={coverId}
-                album={song.album}
-              />
-            ) : null;
+            const albumForCover = topSongAlbumForCover(song, albums);
+            return albumForCover ? <ArtistTopTrackCover album={albumForCover} /> : null;
           })()}
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <div className="track-title">{song.title}</div>
