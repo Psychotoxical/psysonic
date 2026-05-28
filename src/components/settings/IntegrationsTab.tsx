@@ -203,6 +203,16 @@ export function IntegrationsTab() {
                 <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>{t('settings.discordTemplates')}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{t('settings.discordTemplatesDesc')}</div>
                 <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label style={{ fontSize: 12 }}>{t('settings.discordTemplateName')}</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={auth.discordTemplateName}
+                    onChange={e => auth.setDiscordTemplateName(e.target.value)}
+                    placeholder="{title}"
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                   <label style={{ fontSize: 12 }}>{t('settings.discordTemplateDetails')}</label>
                   <input
                     className="input"

@@ -262,12 +262,13 @@ fn apply_template(template: &str, title: &str, artist: &str, album: Option<&str>
 
 /// Bundled output of [`compute_discord_text_fields`].
 pub(crate) struct DiscordTextFields {
+    pub name: String,
     pub details: String,
     pub state: String,
     pub large_text: String,
 }
 
-/// Pure helper: resolve all three configurable Discord text fields, applying
+/// Pure helper: resolve all four configurable Discord text fields, applying
 /// the supplied templates (or falling back to documented defaults).
 pub(crate) fn compute_discord_text_fields(
     title: &str,
@@ -276,7 +277,9 @@ pub(crate) fn compute_discord_text_fields(
     details_template: Option<&str>,
     state_template: Option<&str>,
     large_text_template: Option<&str>,
+    name_template: Option<&str>,
 ) -> DiscordTextFields {
+    let name = apply_template(name_template.unwrap_or("{title}"), title, artist, album);
     let details = apply_template(
         details_template.unwrap_or("{artist} - {title}"),
         title,
@@ -291,6 +294,7 @@ pub(crate) fn compute_discord_text_fields(
         album,
     );
     DiscordTextFields {
+        name,
         details,
         state,
         large_text,
@@ -318,6 +322,10 @@ pub(crate) fn compute_discord_start_timestamp(elapsed_secs: f64, now_unix_secs: 
 ///   Supported placeholders: {title}, {artist}, {album}
 /// - `large_text_template`: template string for the large image tooltip. Default: "{album}".
 ///   Supported placeholders: {title}, {artist}, {album}
+/// - `name_template`: template string overriding Discord's default application name in the
+///   user list (e.g. "🎵 Bohemian Rhapsody" instead of "🎵 Psysonic"). Default: "{title}".
+///   Empty string falls back to the registered Discord application name.
+///   Supported placeholders: {title}, {artist}, {album}
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn discord_update_presence(
@@ -332,6 +340,7 @@ pub async fn discord_update_presence(
     details_template: Option<String>,
     state_template: Option<String>,
     large_text_template: Option<String>,
+    name_template: Option<String>,
 ) -> Result<(), String> {
     // Resolve artwork on a dedicated blocking thread — reqwest::blocking must not
     // run on the Tokio async executor directly.
@@ -377,6 +386,7 @@ pub async fn discord_update_presence(
         details_template.as_deref(),
         state_template.as_deref(),
         large_text_template.as_deref(),
+        name_template.as_deref(),
     );
 
     let assets = if let Some(ref url) = artwork_url {
@@ -402,8 +412,11 @@ pub async fn discord_update_presence(
     }
 
     // Only reach here when playing
-    let activity = Activity::new()
-        .activity_type(ActivityType::Listening)
+    let mut activity = Activity::new().activity_type(ActivityType::Listening);
+    if !texts.name.is_empty() {
+        activity = activity.name(texts.name.as_str());
+    }
+    let activity = activity
         .details(&texts.details)
         .state(&texts.state)
         .assets(assets)
@@ -545,7 +558,9 @@ mod tests {
 
     #[test]
     fn text_fields_use_documented_defaults_when_templates_are_none() {
-        let f = compute_discord_text_fields("Song", "Artist", Some("Album"), None, None, None);
+        let f =
+            compute_discord_text_fields("Song", "Artist", Some("Album"), None, None, None, None);
+        assert_eq!(f.name, "Song");
         assert_eq!(f.details, "Artist - Song");
         assert_eq!(f.state, "Album");
         assert_eq!(f.large_text, "Album");
@@ -560,7 +575,9 @@ mod tests {
             Some("{title} | {album}"),
             Some("by {artist}"),
             Some("{album} ({artist})"),
+            Some("{title} ({artist})"),
         );
+        assert_eq!(f.name, "Song (Artist)");
         assert_eq!(f.details, "Song | Album");
         assert_eq!(f.state, "by Artist");
         assert_eq!(f.large_text, "Album (Artist)");
@@ -568,8 +585,9 @@ mod tests {
 
     #[test]
     fn text_fields_substitute_empty_for_missing_album() {
-        let f = compute_discord_text_fields("Song", "Artist", None, None, None, None);
+        let f = compute_discord_text_fields("Song", "Artist", None, None, None, None, None);
         // {album} placeholder → empty, but the surrounding template stays.
+        assert_eq!(f.name, "Song");
         assert_eq!(f.details, "Artist - Song");
         assert_eq!(f.state, "");
         assert_eq!(f.large_text, "");
@@ -584,7 +602,9 @@ mod tests {
             Some("{artist} – {title}"),
             None,
             None,
+            None,
         );
+        assert_eq!(f.name, "Bohemian Rhapsody");
         assert_eq!(f.details, "Queen – Bohemian Rhapsody");
     }
 

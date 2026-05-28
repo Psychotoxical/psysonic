@@ -12,6 +12,7 @@ export function createDiscordSettingsActions(set: SetState): Pick<
   | 'setDiscordTemplateDetails'
   | 'setDiscordTemplateState'
   | 'setDiscordTemplateLargeText'
+  | 'setDiscordTemplateName'
 > {
   return {
     setDiscordRichPresence: (v) => set({ discordRichPresence: v }),
@@ -20,5 +21,6 @@ export function createDiscordSettingsActions(set: SetState): Pick<
     setDiscordTemplateDetails: (v) => set({ discordTemplateDetails: v }),
     setDiscordTemplateState: (v) => set({ discordTemplateState: v }),
     setDiscordTemplateLargeText: (v) => set({ discordTemplateLargeText: v }),
+    setDiscordTemplateName: (v) => set({ discordTemplateName: v }),
   };
 }

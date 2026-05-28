@@ -128,6 +128,10 @@ export interface AuthState {
   discordTemplateDetails: string;
   discordTemplateState: string;
   discordTemplateLargeText: string;
+  /** Template for Discord activity name (overrides the registered application
+   *  name in the user list / collapsed presence). Default "{title}".
+   *  Empty string falls back to "Psysonic". */
+  discordTemplateName: string;
   useCustomTitlebar: boolean;
   /** Pre-build the mini-player webview at app start on Linux/macOS so content is available instantly
    *  on first open. Ignored on Windows — that platform always pre-creates as a hang workaround. */
@@ -311,6 +315,7 @@ export interface AuthState {
   setDiscordTemplateDetails: (v: string) => void;
   setDiscordTemplateState: (v: string) => void;
   setDiscordTemplateLargeText: (v: string) => void;
+  setDiscordTemplateName: (v: string) => void;
   setUseCustomTitlebar: (v: boolean) => void;
   setPreloadMiniPlayer: (v: boolean) => void;
   setLinuxWebkitKineticScroll: (v: boolean) => void;

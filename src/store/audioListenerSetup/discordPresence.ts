@@ -18,6 +18,7 @@ export function setupDiscordPresence(): () => void {
   let discordPrevTemplateDetails: string | null = null;
   let discordPrevTemplateState: string | null = null;
   let discordPrevTemplateLargeText: string | null = null;
+  let discordPrevTemplateName: string | null = null;
   let discordPrevCoverSource: string | null = null;
   const discordServerCoverCache = new Map<string, string | null>();
 
@@ -30,6 +31,7 @@ export function setupDiscordPresence(): () => void {
       discordTemplateDetails,
       discordTemplateState,
       discordTemplateLargeText,
+      discordTemplateName,
     } = useAuthStore.getState();
 
     if (!discordRichPresence || !currentTrack) {
@@ -41,6 +43,7 @@ export function setupDiscordPresence(): () => void {
         discordPrevTemplateDetails = null;
         discordPrevTemplateState = null;
         discordPrevTemplateLargeText = null;
+        discordPrevTemplateName = null;
         invoke('discord_clear_presence').catch(() => {});
       }
       return;
@@ -52,7 +55,8 @@ export function setupDiscordPresence(): () => void {
     const detailsTemplateChanged = discordTemplateDetails !== discordPrevTemplateDetails;
     const stateTemplateChanged = discordTemplateState !== discordPrevTemplateState;
     const largeTextTemplateChanged = discordTemplateLargeText !== discordPrevTemplateLargeText;
-    if (!trackChanged && !playingChanged && !coverSourceChanged && !detailsTemplateChanged && !stateTemplateChanged && !largeTextTemplateChanged) return;
+    const nameTemplateChanged = discordTemplateName !== discordPrevTemplateName;
+    if (!trackChanged && !playingChanged && !coverSourceChanged && !detailsTemplateChanged && !stateTemplateChanged && !largeTextTemplateChanged && !nameTemplateChanged) return;
 
     discordPrevTrackId = currentTrack.id;
     discordPrevIsPlaying = isPlaying;
@@ -61,6 +65,7 @@ export function setupDiscordPresence(): () => void {
     discordPrevTemplateDetails = discordTemplateDetails;
     discordPrevTemplateState = discordTemplateState;
     discordPrevTemplateLargeText = discordTemplateLargeText;
+    discordPrevTemplateName = discordTemplateName;
 
     const sendPresence = (coverArtUrl: string | null) => {
       invoke('discord_update_presence', {
@@ -74,6 +79,7 @@ export function setupDiscordPresence(): () => void {
         detailsTemplate: discordTemplateDetails,
         stateTemplate: discordTemplateState,
         largeTextTemplate: discordTemplateLargeText,
+        nameTemplate: discordTemplateName,
       }).catch(() => {});
     };
 

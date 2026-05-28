@@ -98,6 +98,7 @@ describe('trivial pass-through setters', () => {
     ['setDiscordTemplateDetails', 'discordTemplateDetails', '{artist} — {title}'],
     ['setDiscordTemplateState', 'discordTemplateState', '{album}'],
     ['setDiscordTemplateLargeText', 'discordTemplateLargeText', 'Hi'],
+    ['setDiscordTemplateName', 'discordTemplateName', '{title} — {artist}'],
   ])('%s stores a string value', (setter, key, value) => {
     (useAuthStore.getState() as unknown as Record<string, (v: unknown) => void>)[setter](value);
     expect((useAuthStore.getState() as unknown as Record<string, unknown>)[key]).toBe(value);
