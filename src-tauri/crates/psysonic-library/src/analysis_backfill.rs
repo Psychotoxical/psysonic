@@ -169,32 +169,6 @@ pub fn collect_analysis_backfill_batch(
     Ok((dto, ScanMode::into(mode)))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_candidate_page_with_cursor_keeps_id_walk() {
-        let (mode, after) = advance_after_empty_candidate_page(Some("track-z".to_string()));
-        assert!(matches!(mode, ScanMode::HashBpmGaps));
-        assert_eq!(after.as_deref(), Some("track-z"));
-    }
-
-    #[test]
-    fn empty_candidate_page_without_cursor_starts_gap_scan_at_beginning() {
-        let (mode, after) = advance_after_empty_candidate_page(None);
-        assert!(matches!(mode, ScanMode::HashBpmGaps));
-        assert!(after.is_none());
-    }
-
-    #[test]
-    fn finished_candidate_phase_resets_gap_scan_cursor() {
-        let (mode, after) = begin_hash_bpm_gap_scan_from_start();
-        assert!(matches!(mode, ScanMode::HashBpmGaps));
-        assert!(after.is_none());
-    }
-}
-
 pub fn collect_analysis_progress(
     app: &AppHandle,
     runtime: &LibraryRuntime,
@@ -239,4 +213,30 @@ pub fn collect_analysis_progress(
         pending_tracks: pending,
         done_tracks: done,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_candidate_page_with_cursor_keeps_id_walk() {
+        let (mode, after) = advance_after_empty_candidate_page(Some("track-z".to_string()));
+        assert!(matches!(mode, ScanMode::HashBpmGaps));
+        assert_eq!(after.as_deref(), Some("track-z"));
+    }
+
+    #[test]
+    fn empty_candidate_page_without_cursor_starts_gap_scan_at_beginning() {
+        let (mode, after) = advance_after_empty_candidate_page(None);
+        assert!(matches!(mode, ScanMode::HashBpmGaps));
+        assert!(after.is_none());
+    }
+
+    #[test]
+    fn finished_candidate_phase_resets_gap_scan_cursor() {
+        let (mode, after) = begin_hash_bpm_gap_scan_from_start();
+        assert!(matches!(mode, ScanMode::HashBpmGaps));
+        assert!(after.is_none());
+    }
 }
