@@ -338,6 +338,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Server index-key rebuild: safe dual-DB migration flow, per-server analysis strategy controls, and playback/index scope hardening (PR #864)',
     ],
   },
+  {
+    github: 'ImAsra',
+    since: '1.47.0',
+    contributions: [
+      'Long-press album Play to shuffle with hold progress animation (PR #888)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the

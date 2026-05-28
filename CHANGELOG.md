@@ -142,6 +142,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Album play — hold to shuffle
+
+**By [@ImAsra](https://github.com/ImAsra), PR [#888](https://github.com/Psychotoxical/psysonic/pull/888)**
+
+* Hold an album **Play** button (~1 s) for a filling wave animation, then the album starts in shuffled order; a short click still plays in track order.
+* Album cards, hero, Because-you-like rail, and Most Played; tooltip in all locales.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
