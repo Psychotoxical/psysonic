@@ -406,6 +406,8 @@ export default function Albums() {
                     <AlbumCard
                       album={a}
                       displayCssPx={albumCellDisplayCssPx}
+                      observeScrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                      ensurePriority="high"
                       linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
                       selectionMode={selectionMode}
                       selected={selectedIds.has(a.id)}

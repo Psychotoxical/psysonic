@@ -223,7 +223,6 @@ export function useAlbumBrowseData({
     const generation = loadGenerationRef.current;
     catalogLoadingRef.current = true;
     setCatalogLoadingMore(true);
-    coverTrafficBeginGridPagination();
     try {
       const chunk = await fetchLocalAlbumCatalogChunk(serverId, query, offset, CATALOG_CHUNK_SIZE);
       if (generation !== loadGenerationRef.current || chunk == null) return;
@@ -239,8 +238,6 @@ export function useAlbumBrowseData({
       }
       setCatalogHasMore(chunk.hasMore);
     } finally {
-      coverTrafficEndGridPagination();
-      coverEnsureResumePump();
       catalogLoadingRef.current = false;
       if (generation === loadGenerationRef.current) {
         setCatalogLoadingMore(false);

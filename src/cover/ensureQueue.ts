@@ -51,16 +51,22 @@ function sortQueue(): void {
 
 function trimQueue(): void {
   while (queue.length > MAX_QUEUE) {
-    let worstIdx = 0;
-    for (let i = 1; i < queue.length; i += 1) {
-      const a = queue[worstIdx]!;
-      const b = queue[i]!;
-      const rankA = priorityRank(a.priority);
-      const rankB = priorityRank(b.priority);
-      if (rankB > rankA || (rankB === rankA && b.orderKey < a.orderKey)) {
+    let worstIdx = -1;
+    for (let i = 0; i < queue.length; i += 1) {
+      const job = queue[i]!;
+      if (job.priority === 'high') continue;
+      if (worstIdx < 0) {
+        worstIdx = i;
+        continue;
+      }
+      const worst = queue[worstIdx]!;
+      const rank = priorityRank(job.priority);
+      const worstRank = priorityRank(worst.priority);
+      if (rank > worstRank || (rank === worstRank && job.orderKey < worst.orderKey)) {
         worstIdx = i;
       }
     }
+    if (worstIdx < 0) break;
     const [job] = queue.splice(worstIdx, 1);
     job.resolve({ hit: false, path: '' });
     ensureInflight.delete(job.storageKey);
