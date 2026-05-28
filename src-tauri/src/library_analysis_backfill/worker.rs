@@ -13,7 +13,8 @@ use psysonic_analysis::analysis_runtime::{
 };
 use psysonic_integration::subsonic::build_stream_view_url;
 use psysonic_library::analysis_backfill::{
-    collect_analysis_backfill_batch, collect_analysis_progress, LibraryAnalysisBackfillBatchDto,
+    collect_analysis_backfill_batch, collect_analysis_progress, AnalysisBackfillScanPhase,
+    LibraryAnalysisBackfillBatchDto,
 };
 use psysonic_library::analysis_backfill_policy::{
     library_backfill_needs_top_up, library_backfill_top_up_limit, PipelineBacklogCounts,
@@ -49,6 +50,7 @@ pub struct LibraryAnalysisBackfillWorker {
     pub enabled: AtomicBool,
     session: Mutex<Option<LibraryAnalysisBackfillSession>>,
     cursor: Mutex<Option<String>>,
+    scan_phase: Mutex<AnalysisBackfillScanPhase>,
     completed_total: Mutex<Option<i64>>,
     exhausted_streak: Mutex<u32>,
 }
@@ -59,6 +61,7 @@ impl LibraryAnalysisBackfillWorker {
             enabled: AtomicBool::new(false),
             session: Mutex::new(None),
             cursor: Mutex::new(None),
+            scan_phase: Mutex::new(AnalysisBackfillScanPhase::Candidates),
             completed_total: Mutex::new(None),
             exhausted_streak: Mutex::new(0),
         }
@@ -69,6 +72,7 @@ impl LibraryAnalysisBackfillWorker {
         *self.session.lock().await = session;
         if !enabled {
             *self.cursor.lock().await = None;
+            *self.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
             *self.completed_total.lock().await = None;
             *self.exhausted_streak.lock().await = 0;
         }
@@ -157,6 +161,7 @@ async fn coordinator_tick(
         }
         *worker.completed_total.lock().await = None;
         *worker.cursor.lock().await = None;
+        *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
         *worker.exhausted_streak.lock().await = 0;
     }
 
@@ -196,10 +201,11 @@ async fn coordinator_tick(
     }
 
     let cursor = worker.cursor.lock().await.clone();
+    let phase = *worker.scan_phase.lock().await;
     let app_for_batch = app.clone();
     let lib_id = session.library_server_id.clone();
-    let batch: Option<LibraryAnalysisBackfillBatchDto> = tauri::async_runtime::spawn_blocking(
-        move || {
+    let batch: Option<(LibraryAnalysisBackfillBatchDto, AnalysisBackfillScanPhase)> =
+        tauri::async_runtime::spawn_blocking(move || {
             let runtime = app_for_batch
                 .try_state::<LibraryRuntime>()
                 .ok_or_else(|| "LibraryRuntime not available".to_string())?;
@@ -207,20 +213,21 @@ async fn coordinator_tick(
                 &app_for_batch,
                 &runtime,
                 lib_id.trim(),
+                phase,
                 cursor.as_deref().filter(|s| !s.is_empty()),
                 Some(fetch_limit),
             )
-        },
-    )
-    .await
-    .ok()
-    .and_then(|r| r.ok());
+        })
+        .await
+        .ok()
+        .and_then(|r| r.ok());
 
-    let Some(batch) = batch else {
+    let Some((batch, next_phase)) = batch else {
         return CoordinatorTick { sleep_ms: TOP_UP_POLL_MS };
     };
 
     *worker.cursor.lock().await = batch.next_cursor.clone();
+    *worker.scan_phase.lock().await = next_phase;
 
     let enqueued_count = batch.track_ids.len();
     let track_ids = batch.track_ids.clone();
@@ -271,6 +278,7 @@ async fn coordinator_tick(
                     *worker.completed_total.lock().await = Some(p.total_tracks);
                 }
                 *worker.cursor.lock().await = None;
+                *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
                 return CoordinatorTick {
                     sleep_ms: COMPLETED_RECHECK_MS,
                 };
@@ -280,11 +288,13 @@ async fn coordinator_tick(
         }
         if pending > 0 {
             *worker.cursor.lock().await = None;
+            *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
             return CoordinatorTick {
                 sleep_ms: EXHAUSTED_PENDING_RESCAN_MS,
             };
         }
         *worker.cursor.lock().await = None;
+        *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
         return CoordinatorTick {
             sleep_ms: EXHAUSTED_PAUSE_MS,
         };
@@ -321,6 +331,7 @@ fn on_sync_idle(app: &AppHandle, payload: SyncIdlePayload) {
             return;
         }
         *worker.cursor.lock().await = None;
+        *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
         *worker.exhausted_streak.lock().await = 0;
     });
 }

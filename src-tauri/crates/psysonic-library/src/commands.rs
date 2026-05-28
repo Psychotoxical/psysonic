@@ -82,13 +82,15 @@ pub fn library_analysis_backfill_batch(
     cursor: Option<String>,
     limit: Option<u32>,
 ) -> Result<LibraryAnalysisBackfillBatchDto, String> {
-    analysis_backfill::collect_analysis_backfill_batch(
+    let (dto, _) = analysis_backfill::collect_analysis_backfill_batch(
         &app,
         &runtime,
         server_id.trim(),
+        analysis_backfill::AnalysisBackfillScanPhase::Candidates,
         cursor.as_deref().filter(|s| !s.is_empty()),
         limit,
-    )
+    )?;
+    Ok(dto)
 }
 
 #[tauri::command]
