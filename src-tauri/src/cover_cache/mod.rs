@@ -47,6 +47,49 @@ pub struct CoverCacheStatsDto {
     pub entry_count: u64,
 }
 
+/// Live cover HTTP / WebP-encode slots — mirrors analysis pipeline probe shape.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverPipelineQueueStatsDto {
+    pub http_max: u32,
+    pub http_active: u32,
+    pub cpu_ui_max: u32,
+    pub cpu_ui_active: u32,
+    pub cpu_backfill_max: u32,
+    pub cpu_backfill_active: u32,
+    pub library_backfill_http_max: u32,
+    pub library_backfill_http_active: u32,
+    pub library_backfill_pass_running: bool,
+}
+
+fn sem_active(sem: &Semaphore, max: u32) -> u32 {
+    max.saturating_sub(sem.available_permits() as u32)
+}
+
+pub(crate) fn cover_pipeline_queue_stats(
+    cache: &CoverCacheState,
+    backfill: Option<&backfill_worker::CoverBackfillWorker>,
+) -> CoverPipelineQueueStatsDto {
+    let (library_backfill_http_max, library_backfill_http_active, library_backfill_pass_running) =
+        backfill
+            .map(backfill_worker::CoverBackfillWorker::pipeline_http_stats)
+            .unwrap_or((0, 0, false));
+    CoverPipelineQueueStatsDto {
+        http_max: COVER_HTTP_CONCURRENCY as u32,
+        http_active: sem_active(&cache.http_sem, COVER_HTTP_CONCURRENCY as u32),
+        cpu_ui_max: COVER_CPU_UI_CONCURRENCY as u32,
+        cpu_ui_active: sem_active(&cache.cover_cpu_ui_sem, COVER_CPU_UI_CONCURRENCY as u32),
+        cpu_backfill_max: COVER_CPU_BACKFILL_CONCURRENCY as u32,
+        cpu_backfill_active: sem_active(
+            &cache.cover_cpu_backfill_sem,
+            COVER_CPU_BACKFILL_CONCURRENCY as u32,
+        ),
+        library_backfill_http_max,
+        library_backfill_http_active,
+        library_backfill_pass_running,
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverCacheEnsureArgs {
@@ -400,23 +443,9 @@ fn spawn_derive_remaining_tiers(
 }
 
 /// Entity dirs with canonical `800.webp` under `album/` and `artist/` (segment layout).
+/// Per-server only — must not borrow counts from sibling buckets (multi-server UI stats).
 pub(crate) fn count_cached_cover_ids(root: &Path, server_index_key: &str) -> i64 {
-    let keyed = count_entities_with_canonical_tier(&cover_server_dir(root, server_index_key));
-    if keyed > 0 {
-        return keyed;
-    }
-    // Host alias / legacy bucket name — pick the best segment count among siblings.
-    let Ok(entries) = std::fs::read_dir(root) else {
-        return 0;
-    };
-    entries
-        .flatten()
-        .filter(|e| {
-            e.path().is_dir() && e.file_name().to_string_lossy() != ".storage-layout"
-        })
-        .map(|e| count_entities_with_canonical_tier(&e.path()))
-        .max()
-        .unwrap_or(0)
+    count_entities_with_canonical_tier(&cover_server_dir(root, server_index_key))
 }
 
 pub(crate) fn dir_usage_for_server(root: &Path, server_index_key: &str) -> (u64, u64) {
@@ -685,6 +714,19 @@ pub async fn cover_cache_stats_server(
         auto_download_enabled,
         entry_count,
     })
+}
+
+#[tauri::command]
+pub async fn cover_cache_get_pipeline_queue_stats(
+    app: AppHandle,
+) -> Result<CoverPipelineQueueStatsDto, String> {
+    let st = state(&app)?;
+    let guard = st.lock().await;
+    let backfill = app.try_state::<Arc<backfill_worker::CoverBackfillWorker>>();
+    Ok(cover_pipeline_queue_stats(
+        &guard,
+        backfill.as_ref().map(|w| w.as_ref()),
+    ))
 }
 
 #[tauri::command]
@@ -979,9 +1021,25 @@ mod tests {
 
     use super::decode_image_bytes;
     use super::disk::{cover_dir, tier_path};
-    use super::{is_safe_index_key, merge_cover_bucket, rename_bucket_inner};
+    use super::{count_cached_cover_ids, is_safe_index_key, merge_cover_bucket, rename_bucket_inner};
+    use psysonic_core::cover_cache_layout::CANONICAL_PROGRESS_TIER;
     use std::fs;
     use std::path::PathBuf;
+
+    #[test]
+    fn count_cached_cover_ids_is_per_server_bucket() {
+        let root = fresh_tmpdir("count-per-server");
+        let home = cover_dir(&root, "music.home.example", "album", "al-home");
+        fs::create_dir_all(&home).unwrap();
+        fs::write(
+            home.join(format!("{CANONICAL_PROGRESS_TIER}.webp")),
+            b"x",
+        )
+        .unwrap();
+        assert_eq!(count_cached_cover_ids(&root, "music.home.example"), 1);
+        assert_eq!(count_cached_cover_ids(&root, "music.other.example"), 0);
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn disk_layout_paths() {

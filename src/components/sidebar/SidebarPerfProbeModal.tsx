@@ -73,6 +73,14 @@ export default function SidebarPerfProbeModal({
               />
               <span>Show analysis throughput overlay (tpm + last track timings)</span>
             </label>
+            <label className="sidebar-perf-modal__item">
+              <input
+                type="checkbox"
+                checked={perfFlags.showCoverPerfOverlay}
+                onChange={e => setPerfProbeFlag('showCoverPerfOverlay', e.target.checked)}
+              />
+              <span>Show cover pipeline overlay (ui ensure / ui vs lib http+enc)</span>
+            </label>
             <div className="sidebar-perf-modal__cpu">
               <div className="sidebar-perf-modal__cpu-title">Live CPU (approx)</div>
               {perfCpu == null ? (

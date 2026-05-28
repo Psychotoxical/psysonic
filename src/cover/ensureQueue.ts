@@ -152,6 +152,33 @@ export function coverEnsureQueueBacklog(): number {
   return queue.length + inflight;
 }
 
+export type CoverEnsureQueueStats = {
+  queuedHigh: number;
+  queuedMiddle: number;
+  queuedLow: number;
+  inflight: number;
+  maxInflight: number;
+};
+
+/** Webview ensure queue — tier breakdown for perf probe overlay. */
+export function coverEnsureQueueStats(): CoverEnsureQueueStats {
+  let queuedHigh = 0;
+  let queuedMiddle = 0;
+  let queuedLow = 0;
+  for (const job of queue) {
+    if (job.priority === 'high') queuedHigh += 1;
+    else if (job.priority === 'middle') queuedMiddle += 1;
+    else queuedLow += 1;
+  }
+  return {
+    queuedHigh,
+    queuedMiddle,
+    queuedLow,
+    inflight,
+    maxInflight: MAX_INFLIGHT,
+  };
+}
+
 /** @internal Vitest-only — module singleton queue. */
 export function __test_resetCoverEnsureQueue(): void {
   queue = [];

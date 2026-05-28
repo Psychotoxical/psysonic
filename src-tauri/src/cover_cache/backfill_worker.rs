@@ -94,6 +94,14 @@ impl CoverBackfillWorker {
     pub async fn reset_cursor(&self) {
         *self.cursor.lock().await = String::new();
     }
+
+    /// Semaphore-backed library backfill HTTP slots (perf probe).
+    pub fn pipeline_http_stats(&self) -> (u32, u32, bool) {
+        let max = LIBRARY_BACKFILL_PARALLEL as u32;
+        let active = max.saturating_sub(self.backfill_http.available_permits() as u32);
+        let pass_running = self.pass_running.load(Ordering::Relaxed);
+        (max, active, pass_running)
+    }
 }
 
 fn sync_allows_cover_backfill(store: &psysonic_library::store::LibraryStore, server_id: &str) -> bool {

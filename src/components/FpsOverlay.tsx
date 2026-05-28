@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { analysisGetPipelineQueueStats, type AnalysisPipelineQueueStatsDto } from '../api/analysis';
+import { coverGetPipelineQueueStats, type CoverPipelineQueueStatsDto } from '../api/coverCache';
+import { coverEnsureQueueStats } from '../cover/ensureQueue';
+import { coverPeekQueueStats } from '../cover/peekQueue';
 import { usePerfProbeFlag } from '../utils/perf/perfFlags';
 import {
   formatPerfMs,
@@ -8,19 +11,22 @@ import {
   useAnalysisPerfLast,
 } from '../utils/perf/analysisPerfStore';
 import { formatAnalysisPipelineQueueOverlay } from '../utils/perf/formatAnalysisQueueStats';
+import { formatCoverPipelineQueueOverlay } from '../utils/perf/formatCoverPipelineQueueOverlay';
 import { useAnalysisPerfListener } from '../hooks/useAnalysisPerfListener';
 
 const SAMPLE_MS = 500;
 const TPM_REFRESH_MS = 500;
 const QUEUE_STATS_MS = 750;
 
-/** FPS + analysis throughput overlay (Performance Probe). */
+/** FPS + analysis / cover throughput overlay (Performance Probe). */
 export default function FpsOverlay() {
   const showFpsOverlay = usePerfProbeFlag('showFpsOverlay');
   const showAnalysisPerfOverlay = usePerfProbeFlag('showAnalysisPerfOverlay');
+  const showCoverPerfOverlay = usePerfProbeFlag('showCoverPerfOverlay');
   const [fps, setFps] = useState(0);
   const [tpm, setTpm] = useState(0);
   const [queueStats, setQueueStats] = useState<AnalysisPipelineQueueStatsDto | null>(null);
+  const [coverQueueLines, setCoverQueueLines] = useState<string[]>([]);
   const last = useAnalysisPerfLast();
 
   useAnalysisPerfListener(showAnalysisPerfOverlay);
@@ -60,6 +66,36 @@ export default function FpsOverlay() {
   }, [showAnalysisPerfOverlay]);
 
   useEffect(() => {
+    if (!showCoverPerfOverlay) {
+      setCoverQueueLines([]);
+      return;
+    }
+    let cancelled = false;
+    const refresh = () => {
+      void coverGetPipelineQueueStats()
+        .then((rust: CoverPipelineQueueStatsDto) => {
+          if (cancelled) return;
+          setCoverQueueLines(
+            formatCoverPipelineQueueOverlay({
+              rust,
+              ensure: coverEnsureQueueStats(),
+              peek: coverPeekQueueStats(),
+            }),
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setCoverQueueLines([]);
+        });
+    };
+    refresh();
+    const id = window.setInterval(refresh, QUEUE_STATS_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [showCoverPerfOverlay]);
+
+  useEffect(() => {
     if (!showFpsOverlay) {
       setFps(0);
       return;
@@ -85,7 +121,7 @@ export default function FpsOverlay() {
     return () => cancelAnimationFrame(rafId);
   }, [showFpsOverlay]);
 
-  if (!showFpsOverlay && !showAnalysisPerfOverlay) return null;
+  if (!showFpsOverlay && !showAnalysisPerfOverlay && !showCoverPerfOverlay) return null;
 
   return createPortal(
     <div className="fps-overlay" aria-hidden="true">
@@ -129,6 +165,11 @@ export default function FpsOverlay() {
           ))}
         </>
       )}
+      {showCoverPerfOverlay && coverQueueLines.map(line => (
+        <div key={line} className="fps-overlay__row fps-overlay__row--steps">
+          {line}
+        </div>
+      ))}
     </div>,
     document.body,
   );

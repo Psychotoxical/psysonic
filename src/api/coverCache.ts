@@ -33,6 +33,18 @@ export type CoverCacheStats = {
   entryCount: number;
 };
 
+export type CoverPipelineQueueStatsDto = {
+  httpMax: number;
+  httpActive: number;
+  cpuUiMax: number;
+  cpuUiActive: number;
+  cpuBackfillMax: number;
+  cpuBackfillActive: number;
+  libraryBackfillHttpMax: number;
+  libraryBackfillHttpActive: number;
+  libraryBackfillPassRunning: boolean;
+};
+
 let coverAutoDownloadEnabled = true;
 
 export function setCoverCacheAutoDownloadEnabled(enabled: boolean): void {
@@ -148,6 +160,10 @@ export async function coverCacheStatsServer(
 ): Promise<Pick<CoverCacheStats, 'bytes' | 'entryCount'>> {
   const stats = await invoke<CoverCacheStats>('cover_cache_stats_server', { serverIndexKey });
   return { bytes: stats.bytes, entryCount: stats.entryCount };
+}
+
+export function coverGetPipelineQueueStats(): Promise<CoverPipelineQueueStatsDto> {
+  return invoke<CoverPipelineQueueStatsDto>('cover_cache_get_pipeline_queue_stats');
 }
 
 export async function libraryCoverBackfillBatch(

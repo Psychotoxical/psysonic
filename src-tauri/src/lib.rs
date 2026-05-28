@@ -751,6 +751,7 @@ pub fn run() {
             cover_cache::cover_cache_clear_server,
             cover_cache::cover_cache_rename_server_bucket,
             cover_cache::cover_cache_stats_server,
+            cover_cache::cover_cache_get_pipeline_queue_stats,
             cover_cache::library_cover_backfill_batch,
             cover_cache::library_cover_progress,
             cover_cache::library_cover_catalog_size,

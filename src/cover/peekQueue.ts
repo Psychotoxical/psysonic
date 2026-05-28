@@ -114,3 +114,13 @@ export function coverPeekCancelPending(): void {
     inflight.delete(job.storageKey);
   }
 }
+
+export type CoverPeekQueueStats = {
+  pending: number;
+  inflight: number;
+};
+
+/** Batched disk peek backlog — perf probe overlay. */
+export function coverPeekQueueStats(): CoverPeekQueueStats {
+  return { pending: pending.size, inflight: inflight.size };
+}
