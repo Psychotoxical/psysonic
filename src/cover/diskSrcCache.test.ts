@@ -64,6 +64,14 @@ describe('rememberDiskSrc', () => {
   });
 });
 
+const serverScopeA = {
+  kind: 'server' as const,
+  serverId: 'profile-a',
+  url: 'http://srv-a',
+  username: 'u',
+  password: 'p',
+};
+
 describe('forgetDiskSrcForServer', () => {
   beforeEach(() => {
     vi.mocked(convertFileSrc).mockImplementation((p: string) =>
@@ -73,31 +81,31 @@ describe('forgetDiskSrcForServer', () => {
   });
 
   it('drops every cached entry under the given server index key', () => {
-    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
-    rememberDiskSrc('srv-a:cover:al-1:512', '/disk/a/al-1/512.webp');
-    rememberDiskSrc('srv-a:cover:al-2:128', '/disk/a/al-2/128.webp');
-    rememberDiskSrc('srv-b:cover:al-1:128', '/disk/b/al-1/128.webp');
+    rememberDiskSrc('srv-a:cover:album:al-1:128', '/disk/a/al-1/128.webp');
+    rememberDiskSrc('srv-a:cover:album:al-1:512', '/disk/a/al-1/512.webp');
+    rememberDiskSrc('srv-a:cover:album:al-2:128', '/disk/a/al-2/128.webp');
+    rememberDiskSrc('srv-b:cover:album:al-1:128', '/disk/b/al-1/128.webp');
 
     forgetDiskSrcForServer('srv-a');
 
-    expect(getDiskSrc('srv-a:cover:al-1:128')).toBe('');
-    expect(getDiskSrc('srv-a:cover:al-1:512')).toBe('');
-    expect(getDiskSrc('srv-a:cover:al-2:128')).toBe('');
+    expect(getDiskSrc('srv-a:cover:album:al-1:128')).toBe('');
+    expect(getDiskSrc('srv-a:cover:album:al-1:512')).toBe('');
+    expect(getDiskSrc('srv-a:cover:album:al-2:128')).toBe('');
     // Other servers untouched — this is the URL-change remigration path,
     // not a global purge.
-    expect(getDiskSrc('srv-b:cover:al-1:128')).not.toBe('');
+    expect(getDiskSrc('srv-b:cover:album:al-1:128')).not.toBe('');
   });
 
   it('is a no-op on an empty key (defensive)', () => {
-    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
+    rememberDiskSrc('srv-a:cover:album:al-1:128', '/disk/a/al-1/128.webp');
     forgetDiskSrcForServer('');
-    expect(getDiskSrc('srv-a:cover:al-1:128')).not.toBe('');
+    expect(getDiskSrc('srv-a:cover:album:al-1:128')).not.toBe('');
   });
 
   it('is a no-op when nothing matches the prefix', () => {
-    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
+    rememberDiskSrc('srv-a:cover:album:al-1:128', '/disk/a/al-1/128.webp');
     forgetDiskSrcForServer('srv-missing');
-    expect(getDiskSrc('srv-a:cover:al-1:128')).not.toBe('');
+    expect(getDiskSrc('srv-a:cover:album:al-1:128')).not.toBe('');
   });
 });
 
@@ -109,11 +117,15 @@ describe('forgetDiskSrcPrefix (regression — must not be confused with forgetDi
     clearAllDiskSrcCache();
   });
 
-  it('only clears the (server, coverArt) tuple', () => {
-    rememberDiskSrc('srv-a:cover:al-1:128', '/disk/a/al-1/128.webp');
-    rememberDiskSrc('srv-a:cover:al-2:128', '/disk/a/al-2/128.webp');
-    forgetDiskSrcPrefix('srv-a', 'al-1');
-    expect(getDiskSrc('srv-a:cover:al-1:128')).toBe('');
-    expect(getDiskSrc('srv-a:cover:al-2:128')).not.toBe('');
+  it('only clears the (server, cache entity) tuple', () => {
+    rememberDiskSrc('srv-a:cover:album:al-1:128', '/disk/a/al-1/128.webp');
+    rememberDiskSrc('srv-a:cover:album:al-2:128', '/disk/a/al-2/128.webp');
+    forgetDiskSrcPrefix({
+      serverScope: serverScopeA,
+      cacheKind: 'album',
+      cacheEntityId: 'al-1',
+    });
+    expect(getDiskSrc('srv-a:cover:album:al-1:128')).toBe('');
+    expect(getDiskSrc('srv-a:cover:album:al-2:128')).not.toBe('');
   });
 });
