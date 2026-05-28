@@ -15,6 +15,7 @@ import {
   hasStableLoudness,
   setCachedLoudnessGain,
 } from '../loudnessGainCache';
+import { isTrackInsideLoudnessBackfillWindow } from '../loudnessBackfillWindow';
 import { refreshLoudnessForTrack } from '../loudnessRefresh';
 import { emitNormalizationDebug } from '../normalizationDebug';
 import {
@@ -96,8 +97,19 @@ export function setupAudioEngineListeners(): () => void {
         emitNormalizationDebug('backfill:applied', { trackId: currentId });
         return;
       }
-      // Backfill finished for another id (e.g. next in queue): refresh loudness cache only
-      // so the cached gain is ready before `audio_play` / gapless chain.
+      // Library aggressive backfill completes thousands of tracks — only warm loudness
+      // for the playback window (current + next N). Skip IPC for the rest.
+      const live = usePlayerStore.getState();
+      if (
+        !isTrackInsideLoudnessBackfillWindow(
+          payloadTrackId,
+          live.queueItems,
+          live.queueIndex,
+          live.currentTrack,
+        )
+      ) {
+        return;
+      }
       void refreshLoudnessForTrack(payloadTrackId, { syncPlayingEngine: false });
       emitNormalizationDebug('backfill:applied', { trackId: payloadTrackId });
     }),

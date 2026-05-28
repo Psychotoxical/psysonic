@@ -157,3 +157,20 @@ export function analysisEnqueueSeedFromUrl(
   const indexKey = serverIndexKeyForId(serverId);
   return invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId: indexKey, priority });
 }
+
+export type LibraryAnalysisBackfillConfigureArgs = {
+  enabled: boolean;
+  serverIndexKey: string;
+  libraryServerId: string;
+  serverUrl: string;
+  username: string;
+  password: string;
+  workers: number;
+};
+
+/** Start/stop native library analysis backfill (advanced strategy only). */
+export function libraryAnalysisBackfillConfigure(
+  args: LibraryAnalysisBackfillConfigureArgs,
+): Promise<void> {
+  return invoke('library_analysis_backfill_configure', { args });
+}

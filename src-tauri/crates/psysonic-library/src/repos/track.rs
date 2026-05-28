@@ -292,6 +292,37 @@ impl<'a> TrackRepository<'a> {
         })
     }
 
+    /// Tracks with `content_hash` and an analysis BPM fact — may still lack waveform/LUFS.
+    /// Confirmed per id via [`TrackAnalysisNeedsWorkQuery`].
+    pub fn list_analysis_hash_bpm_ids_after(
+        &self,
+        server_id: &str,
+        after_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, String> {
+        if limit == 0 {
+            return Ok(vec![]);
+        }
+        let limit = i64::try_from(limit).map_err(|e| e.to_string())?;
+        self.store.with_read_conn(|conn| {
+            let sql = "SELECT t.id FROM track t \
+                       WHERE t.server_id = ?1 AND t.deleted = 0 \
+                         AND (?2 IS NULL OR t.id > ?2) \
+                         AND t.content_hash IS NOT NULL \
+                         AND EXISTS ( \
+                           SELECT 1 FROM track_fact f \
+                           WHERE f.server_id = t.server_id \
+                             AND f.track_id = t.id \
+                             AND f.fact_kind = 'bpm' \
+                             AND f.source_kind = 'analysis' \
+                         ) \
+                       ORDER BY t.id ASC LIMIT ?3";
+            let mut stmt = conn.prepare(sql)?;
+            let rows = stmt.query_map(params![server_id, after_id, limit], |row| row.get(0))?;
+            rows.collect::<rusqlite::Result<Vec<String>>>()
+        })
+    }
+
     /// Cheap SQL prefilter: tracks that never received a playback hash and/or
     /// lack an oximedia BPM fact. Full analysis gaps are confirmed per id via
     /// [`TrackAnalysisNeedsWorkQuery`] in the shell crate.

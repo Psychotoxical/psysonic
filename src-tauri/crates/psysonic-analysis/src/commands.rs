@@ -5,16 +5,10 @@
 
 use std::collections::HashSet;
 
-use tauri::Manager;
-
-use psysonic_core::ports::PlaybackQueryHandle;
-
 use crate::analysis_cache;
 use crate::analysis_runtime::{
-    analysis_backfill_queue_stats, analysis_backfill_resolve_priority, analysis_backfill_shared,
-    analysis_pipeline_queue_stats, prune_analysis_queues, track_analysis_needs_work,
-    AnalysisBackfillEnqueueKind,
-    AnalysisBackfillPriority, PlaybackPriorityHints,
+    analysis_backfill_queue_stats, analysis_pipeline_queue_stats, enqueue_seed_from_url,
+    prune_analysis_queues, AnalysisBackfillPriority, PlaybackPriorityHints,
 };
 
 #[derive(serde::Serialize)]
@@ -313,105 +307,15 @@ pub fn analysis_enqueue_seed_from_url(
     priority: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    if track_id.trim().is_empty() || url.trim().is_empty() {
-        return Ok(());
-    }
-    let server_id = if let Ok(parsed) = reqwest::Url::parse(&url) {
-        if parsed.scheme() == "http" || parsed.scheme() == "https" {
-            let host = parsed.host_str().unwrap_or_default();
-            let mut base_path = parsed.path().to_string();
-            if let Some(idx) = base_path.find("/rest") {
-                base_path.truncate(idx);
-            }
-            while base_path.ends_with('/') {
-                base_path.pop();
-            }
-            if host.is_empty() {
-                server_id.unwrap_or_default()
-            } else {
-                let mut base = host.to_string();
-                if let Some(port) = parsed.port() {
-                    base.push_str(&format!(":{port}"));
-                }
-                if !base_path.is_empty() {
-                    base.push_str(&base_path);
-                }
-                base
-            }
-        } else {
-            server_id.unwrap_or_default()
-        }
-    } else {
-        server_id.unwrap_or_default()
-    };
-    let force = force.unwrap_or(false);
-    if !force {
-        if let Some(playback) = app.try_state::<PlaybackQueryHandle>() {
-            if playback.ranged_loudness_backfill_should_defer(&track_id) {
-                crate::app_deprintln!(
-                    "[analysis] backfill skip track_id={} reason=ranged_playback_will_seed",
-                    track_id
-                );
-                return Ok(());
-            }
-        }
-    }
-    if !force {
-        if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
-            if cache.cpu_seed_redundant_for_track(&server_id, &track_id)? {
-                if server_id.is_empty() {
-                    crate::app_deprintln!(
-                        "[analysis] backfill skip (no server scope): {}",
-                        track_id
-                    );
-                    return Ok(());
-                }
-                if !track_analysis_needs_work(&app, &server_id, &track_id)? {
-                    crate::app_deprintln!(
-                        "[analysis] backfill skip (analysis complete): {}",
-                        track_id
-                    );
-                    return Ok(());
-                }
-                crate::app_deprintln!(
-                    "[analysis] backfill enqueue (analysis pending) track_id={}",
-                    track_id
-                );
-            }
-        }
-    }
-    let tid_log = track_id.clone();
     let explicit = AnalysisBackfillPriority::from_optional_str(priority.as_deref());
-    let resolved =
-        analysis_backfill_resolve_priority(&app, &server_id, &track_id, explicit);
-    let shared = analysis_backfill_shared(&app);
-    let kind = {
-        let mut st = shared
-            .state
-            .lock()
-            .map_err(|_| "analysis backfill lock poisoned".to_string())?;
-        st.enqueue(server_id, track_id, url, resolved)
-    };
-    match kind {
-        AnalysisBackfillEnqueueKind::NewLow
-        | AnalysisBackfillEnqueueKind::NewMiddle
-        | AnalysisBackfillEnqueueKind::NewHigh => {
-            shared.ping_worker();
-            crate::app_deprintln!(
-                "[analysis] backfill enqueued: track_id={} priority={resolved:?}",
-                tid_log,
-            );
-        }
-        AnalysisBackfillEnqueueKind::ReorderedHigher => {
-            shared.ping_worker();
-            crate::app_deprintln!(
-                "[analysis] backfill bumped tier track_id={} priority={resolved:?}",
-                tid_log,
-            );
-        }
-        AnalysisBackfillEnqueueKind::DuplicateSkipped | AnalysisBackfillEnqueueKind::RunningSkipped => {}
-    }
-    Ok(())
+    enqueue_seed_from_url(
+        &app,
+        &track_id,
+        &url,
+        server_id.as_deref(),
+        explicit,
+        force.unwrap_or(false),
+    )
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]

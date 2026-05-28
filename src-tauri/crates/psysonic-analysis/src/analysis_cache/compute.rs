@@ -47,6 +47,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
+    notify_ui: bool,
 ) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
     let seed_started = Instant::now();
     let Some(cache) = app.try_state::<AnalysisCache>() else {
@@ -84,6 +85,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
             server_id,
             track_id,
             bytes,
+            notify_ui,
         );
         if matches!(enrichment_outcome, TrackEnrichmentOutcome::Failed) {
             let key = TrackKey {
@@ -1233,7 +1235,7 @@ mod tests {
         let app = tauri::test::mock_app();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 0.25), 44_100);
         let handle = app.handle().clone();
-        let (outcome, timings) = seed_from_bytes_execute(&handle, "s", "t", &wav)
+        let (outcome, timings) = seed_from_bytes_execute(&handle, "s", "t", &wav, true)
             .expect("seed execute should return a graceful skip");
         assert_eq!(outcome, SeedFromBytesOutcome::SkippedNoAnalysisCache);
         assert_eq!(timings.seed_ms, 0);
@@ -1248,12 +1250,12 @@ mod tests {
         let handle = app.handle().clone();
 
         let (first, timings_first) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, true).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
         assert!(timings_first.seed_ms <= 30_000);
 
         let (second, timings_second) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, true).unwrap();
         assert_eq!(second, SeedFromBytesOutcome::SkippedWaveformCacheHit);
         assert!(timings_second.seed_ms <= 30_000);
     }

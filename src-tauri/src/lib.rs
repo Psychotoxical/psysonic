@@ -3,6 +3,7 @@
 
 pub mod cli;
 mod cover_cache;
+mod library_analysis_backfill;
 mod lib_commands;
 
 pub use psysonic_integration::discord;
@@ -122,6 +123,9 @@ pub fn run() {
 
             cover_cache::init_cover_cache(app.handle())
                 .map_err(|e| format!("cover cache init failed: {e}"))?;
+
+            library_analysis_backfill::init_library_analysis_backfill(app.handle())
+                .map_err(|e| format!("library analysis backfill init failed: {e}"))?;
 
             // ── Library track store (psysonic-library, PR-5a + PR-5b) ─────
             // PR-5a brought up the read-only Tauri surface + LibraryRuntime.
@@ -734,6 +738,7 @@ pub fn run() {
             psysonic_library::commands::library_migrate_server_index_keys,
             psysonic_library::commands::library_delete_server_data,
             psysonic_library::commands::library_analysis_backfill_batch,
+            library_analysis_backfill::library_analysis_backfill_configure,
             psysonic_library::commands::library_resolve_cover_entry,
             cover_cache::cover_cache_peek_batch,
             cover_cache::cover_cache_ensure,

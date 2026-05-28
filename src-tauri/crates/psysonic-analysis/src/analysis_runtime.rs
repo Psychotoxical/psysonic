@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::{Emitter, Manager};
 
+use psysonic_core::ports::PlaybackQueryHandle;
 use psysonic_core::user_agent::subsonic_wire_user_agent;
 use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 
@@ -436,7 +437,14 @@ async fn enqueue_track_analysis_with_fetch(
             content_hash
         );
         let bpm_started = std::time::Instant::now();
-        let outcome = run_track_enrichment_from_bytes(app, server_id, track_id, bytes).await;
+        let outcome = run_track_enrichment_from_bytes(
+            app,
+            server_id,
+            track_id,
+            bytes,
+            analysis_emits_ui_events(priority),
+        )
+        .await;
         if matches!(outcome, TrackEnrichmentOutcome::Failed) {
             if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
                 let key = analysis_cache::TrackKey {
@@ -449,7 +457,14 @@ async fn enqueue_track_analysis_with_fetch(
             return Err("track enrichment failed".to_string());
         }
         let bpm_ms = bpm_started.elapsed().as_millis() as u64;
-        emit_analysis_track_perf(app, track_id, fetch_ms, 0, bpm_ms);
+        emit_analysis_track_perf(
+            app,
+            track_id,
+            fetch_ms,
+            0,
+            bpm_ms,
+            analysis_emits_ui_events(priority),
+        );
         return Ok(EnqueueTrackAnalysisOutcome::RanEnrichmentOnly);
     }
     Ok(EnqueueTrackAnalysisOutcome::Complete)
@@ -464,6 +479,7 @@ pub async fn run_track_enrichment_from_bytes(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
+    notify_ui: bool,
 ) -> TrackEnrichmentOutcome {
     if server_id.is_empty() {
         return TrackEnrichmentOutcome::SkippedNoServer;
@@ -473,7 +489,7 @@ pub async fn run_track_enrichment_from_bytes(
     let tid = track_id.to_string();
     let data = bytes.to_vec();
     match tokio::task::spawn_blocking(move || {
-        crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data)
+        crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data, notify_ui)
     })
     .await
     {
@@ -793,6 +809,118 @@ pub fn analysis_backfill_resolve_priority(
         return AnalysisBackfillPriority::Middle;
     }
     AnalysisBackfillPriority::Low
+}
+
+/// Library backfill uses `Low` — skip probe / waveform refresh IPC for throughput.
+pub fn analysis_emits_ui_events(priority: AnalysisBackfillPriority) -> bool {
+    !matches!(priority, AnalysisBackfillPriority::Low)
+}
+
+/// Enqueue HTTP download + analysis seed (native coordinator + optional UI invoke).
+pub fn enqueue_seed_from_url(
+    app: &tauri::AppHandle,
+    track_id: &str,
+    url: &str,
+    server_id_hint: Option<&str>,
+    explicit_priority: Option<AnalysisBackfillPriority>,
+    force: bool,
+) -> Result<(), String> {
+    if track_id.trim().is_empty() || url.trim().is_empty() {
+        return Ok(());
+    }
+    let server_id = if let Ok(parsed) = reqwest::Url::parse(url) {
+        if parsed.scheme() == "http" || parsed.scheme() == "https" {
+            let host = parsed.host_str().unwrap_or_default();
+            let mut base_path = parsed.path().to_string();
+            if let Some(idx) = base_path.find("/rest") {
+                base_path.truncate(idx);
+            }
+            while base_path.ends_with('/') {
+                base_path.pop();
+            }
+            if host.is_empty() {
+                server_id_hint.unwrap_or("").to_string()
+            } else {
+                let mut base = host.to_string();
+                if let Some(port) = parsed.port() {
+                    base.push_str(&format!(":{port}"));
+                }
+                if !base_path.is_empty() {
+                    base.push_str(&base_path);
+                }
+                base
+            }
+        } else {
+            server_id_hint.unwrap_or("").to_string()
+        }
+    } else {
+        server_id_hint.unwrap_or("").to_string()
+    };
+    if !force {
+        if let Some(playback) = app.try_state::<PlaybackQueryHandle>() {
+            if playback.ranged_loudness_backfill_should_defer(track_id) {
+                crate::app_deprintln!(
+                    "[analysis] backfill skip track_id={} reason=ranged_playback_will_seed",
+                    track_id
+                );
+                return Ok(());
+            }
+        }
+    }
+    if !force {
+        if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+            if cache.cpu_seed_redundant_for_track(&server_id, track_id)? {
+                if server_id.is_empty() {
+                    crate::app_deprintln!(
+                        "[analysis] backfill skip (no server scope): {}",
+                        track_id
+                    );
+                    return Ok(());
+                }
+                if !track_analysis_needs_work(app, &server_id, track_id)? {
+                    crate::app_deprintln!(
+                        "[analysis] backfill skip (analysis complete): {}",
+                        track_id
+                    );
+                    return Ok(());
+                }
+                crate::app_deprintln!(
+                    "[analysis] backfill enqueue (analysis pending) track_id={}",
+                    track_id
+                );
+            }
+        }
+    }
+    let tid_log = track_id.to_string();
+    let resolved = analysis_backfill_resolve_priority(app, &server_id, track_id, explicit_priority);
+    let shared = analysis_backfill_shared(app);
+    let kind = {
+        let mut st = shared
+            .state
+            .lock()
+            .map_err(|_| "analysis backfill lock poisoned".to_string())?;
+        st.enqueue(server_id, track_id.to_string(), url.to_string(), resolved)
+    };
+    match kind {
+        AnalysisBackfillEnqueueKind::NewLow
+        | AnalysisBackfillEnqueueKind::NewMiddle
+        | AnalysisBackfillEnqueueKind::NewHigh => {
+            shared.ping_worker();
+            crate::app_deprintln!(
+                "[analysis] backfill enqueued: track_id={} priority={resolved:?}",
+                tid_log,
+            );
+        }
+        AnalysisBackfillEnqueueKind::ReorderedHigher => {
+            shared.ping_worker();
+            crate::app_deprintln!(
+                "[analysis] backfill bumped tier track_id={} priority={resolved:?}",
+                tid_log,
+            );
+        }
+        AnalysisBackfillEnqueueKind::DuplicateSkipped | AnalysisBackfillEnqueueKind::RunningSkipped => {}
+    }
+    Ok(())
 }
 
 // ─── Full-track waveform + loudness: CPU seed queue (parallel decode workers) ─
@@ -1131,12 +1259,19 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
         let app_for_decode = app.clone();
         let app_for_events = app.clone();
         let shared = shared.clone();
+        let notify_ui = analysis_emits_ui_events(job.priority);
         tauri::async_runtime::spawn(async move {
             let sid = job.server_id.clone();
             let tid = job.track_id.clone();
             let bytes = job.bytes;
             let seed_result = tokio::task::spawn_blocking(move || {
-                analysis_cache::seed_from_bytes_execute(&app_for_decode, &sid, &tid, &bytes)
+                analysis_cache::seed_from_bytes_execute(
+                    &app_for_decode,
+                    &sid,
+                    &tid,
+                    &bytes,
+                    notify_ui,
+                )
             })
             .await
             .unwrap_or_else(|e| Err(format!("cpu-seed spawn_blocking: {e}")));
@@ -1173,6 +1308,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                         fetch_ms,
                         timings.seed_ms,
                         timings.bpm_ms,
+                        notify_ui,
                     );
                     crate::app_deprintln!(
                         "[analysis] cpu-seed worker={}/{}: done track_id={} upserted={}",
@@ -1181,7 +1317,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                         tid_log,
                         ok
                     );
-                    if ok {
+                    if ok && notify_ui {
                         let _ = app_for_events.emit(
                             "analysis:waveform-updated",
                             WaveformUpdatedPayload {

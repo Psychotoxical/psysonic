@@ -35,6 +35,7 @@ pub fn run_track_enrichment_if_needed<R: Runtime>(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
+    notify_ui: bool,
 ) -> TrackEnrichmentOutcome {
     if server_id.is_empty() {
         return TrackEnrichmentOutcome::SkippedNoServer;
@@ -56,7 +57,9 @@ pub fn run_track_enrichment_if_needed<R: Runtime>(
                 server_id,
                 content_hash
             );
-            emit_enrichment_updated(app, server_id, track_id);
+            if notify_ui {
+                emit_enrichment_updated(app, server_id, track_id);
+            }
             TrackEnrichmentOutcome::Applied
         }
         Err(e) => {

@@ -31,14 +31,12 @@ pub struct LibraryAnalysisProgressDto {
 
 enum ScanMode {
     Candidates,
-    Full,
+    /// Tracks with hash + BPM that may still need waveform/LUFS/enrichment gaps.
+    HashBpmGaps,
 }
 
-/// Candidate SQL skips tracks that already have `content_hash` and an analysis BPM
-/// fact. Those rows can still need waveform/LUFS — the full-table pass must start
-/// from the first id, not from the last candidate cursor.
-fn begin_full_library_scan() -> (ScanMode, Option<String>) {
-    (ScanMode::Full, None)
+fn begin_hash_bpm_gap_scan() -> (ScanMode, Option<String>) {
+    (ScanMode::HashBpmGaps, None)
 }
 
 pub fn collect_analysis_backfill_batch(
@@ -64,16 +62,18 @@ pub fn collect_analysis_backfill_batch(
             ScanMode::Candidates => {
                 repo.list_analysis_candidate_ids_after(server_id, after.as_deref(), SCAN_CHUNK)?
             }
-            ScanMode::Full => repo.list_track_ids_after(server_id, after.as_deref(), SCAN_CHUNK)?,
+            ScanMode::HashBpmGaps => {
+                repo.list_analysis_hash_bpm_ids_after(server_id, after.as_deref(), SCAN_CHUNK)?
+            }
         };
 
         if page.is_empty() {
             match mode {
                 ScanMode::Candidates => {
-                    (mode, after) = begin_full_library_scan();
+                    (mode, after) = begin_hash_bpm_gap_scan();
                     continue;
                 }
-                ScanMode::Full => {
+                ScanMode::HashBpmGaps => {
                     return Ok(LibraryAnalysisBackfillBatchDto {
                         track_ids: found,
                         next_cursor: after,
@@ -105,9 +105,9 @@ pub fn collect_analysis_backfill_batch(
         if page_len < SCAN_CHUNK {
             match mode {
                 ScanMode::Candidates => {
-                    (mode, after) = begin_full_library_scan();
+                    (mode, after) = begin_hash_bpm_gap_scan();
                 }
-                ScanMode::Full => {
+                ScanMode::HashBpmGaps => {
                     return Ok(LibraryAnalysisBackfillBatchDto {
                         track_ids: found,
                         next_cursor: after,
