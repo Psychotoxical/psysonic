@@ -17,7 +17,9 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { useVirtualizerScrollMargin } from '../hooks/useVirtualizerScrollMargin';
-import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
+import { useClientSliceInfiniteScroll } from '../hooks/useClientSliceInfiniteScroll';
+import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
+import InpageScrollSentinel from '../components/InpageScrollSentinel';
 
 const ALL_SENTINEL = 'ALL';
 const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
@@ -81,12 +83,12 @@ export default function Composers() {
 
   // Compact tiles + initial-letter only → 200 per page is comfortable.
   const PAGE_SIZE = 200;
-  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
-  const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
-  const bindComposersScrollBody = useCallback((el: HTMLDivElement | null) => {
-    scrollBodyRef.current = el;
-    setScrollBodyEl(el);
-  }, []);
+  const {
+    scrollBodyRef,
+    scrollBodyEl,
+    bindScrollBody: bindComposersScrollBody,
+    getScrollRoot,
+  } = useInpageScrollViewport();
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
@@ -103,11 +105,11 @@ export default function Composers() {
   const {
     visibleCount,
     loadingMore,
-    observerTarget,
-  } = useArtistsInfiniteScroll({
+    bindSentinel,
+  } = useClientSliceInfiniteScroll({
     pageSize: PAGE_SIZE,
     resetDeps: [letterFilter, effectiveFilter, starredOnly, viewMode, composerSource],
-    getScrollRoot: () => scrollBodyRef.current,
+    getScrollRoot,
     scrollRootEl: scrollBodyEl,
   });
 
@@ -464,9 +466,7 @@ export default function Composers() {
         )}
 
         {!loading && hasMore && (
-          <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-            {loadingMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
-          </div>
+          <InpageScrollSentinel bindSentinel={bindSentinel} loading={loadingMore} />
         )}
 
         {!loading && filtered.length === 0 && (

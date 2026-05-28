@@ -24,6 +24,8 @@ import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useInpageScrollSentinel } from '../hooks/useInpageScrollSentinel';
+import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
+import InpageScrollSentinel from '../components/InpageScrollSentinel';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import SortDropdown from '../components/SortDropdown';
 import {
@@ -85,12 +87,11 @@ export default function LosslessAlbums() {
   const seenIds = useRef<Set<string>>(new Set());
   const localOffset = useRef(0);
   const inFlight = useRef(false);
-  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
-  const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
-  const bindLosslessScrollBody = useCallback((el: HTMLDivElement | null) => {
-    scrollBodyRef.current = el;
-    setScrollBodyEl(el);
-  }, []);
+  const {
+    scrollBodyEl,
+    bindScrollBody: bindLosslessScrollBody,
+    getScrollRoot,
+  } = useInpageScrollViewport();
 
   const sortOptions: { value: AlbumBrowseSort; label: string }[] = [
     { value: 'alphabeticalByName', label: t('albums.sortByName') },
@@ -222,7 +223,7 @@ export default function LosslessAlbums() {
 
   const bindLoadMoreSentinel = useInpageScrollSentinel({
     active: hasMore && useLocalIndex !== null,
-    getScrollRoot: () => scrollBodyRef.current,
+    getScrollRoot,
     scrollRootEl: scrollBodyEl,
     onIntersect: () => { void loadMore(); },
     rootMargin: '200px',
@@ -388,9 +389,7 @@ export default function LosslessAlbums() {
               )}
             />
             {hasMore && useLocalIndex !== null && (
-              <div ref={bindLoadMoreSentinel} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-                {loading && <div className="spinner" style={{ width: 20, height: 20 }} />}
-              </div>
+              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loading} />
             )}
           </>
         )}

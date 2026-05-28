@@ -2,6 +2,7 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useRef } from 'react';
 import SongRow, { SongListHeader } from './SongRow';
 import { useInpageScrollSentinel } from '../hooks/useInpageScrollSentinel';
+import InpageScrollSentinel from './InpageScrollSentinel';
 
 interface Props {
   songs: SubsonicSong[];
@@ -39,9 +40,11 @@ export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore,
         <SongRow key={song.id} song={song} showBpm={showBpm} />
       ))}
       {hasMore && (
-        <div ref={bindSentinel} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
-          {loadingMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
-        </div>
+        <InpageScrollSentinel
+          bindSentinel={bindSentinel}
+          loading={loadingMore}
+          style={{ padding: '1rem', height: 'auto', margin: 0 }}
+        />
       )}
     </>
   );

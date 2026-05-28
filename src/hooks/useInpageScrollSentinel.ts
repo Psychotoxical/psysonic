@@ -14,7 +14,7 @@ export type UseInpageScrollSentinelArgs = {
 
 /**
  * Stable IntersectionObserver callback ref for in-page infinite scroll.
- * Matches {@link useArtistsInfiniteScroll} — avoids reconnect storms when
+ * Matches {@link useClientSliceInfiniteScroll} — avoids reconnect storms when
  * `onIntersect` / `loadMore` identities change every render.
  */
 export function useInpageScrollSentinel({

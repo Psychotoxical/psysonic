@@ -26,6 +26,8 @@ import FilterQuickClear from '../components/FilterQuickClear';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
+import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
+import InpageScrollSentinel from '../components/InpageScrollSentinel';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
@@ -70,12 +72,11 @@ export default function Albums() {
     setLosslessOnly,
   } = useAlbumBrowseFilters(serverId);
 
-  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
-  const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
-  const bindAlbumsScrollBody = useCallback((el: HTMLDivElement | null) => {
-    scrollBodyRef.current = el;
-    setScrollBodyEl(el);
-  }, []);
+  const {
+    scrollBodyEl,
+    bindScrollBody: bindAlbumsScrollBody,
+    getScrollRoot,
+  } = useInpageScrollViewport();
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const {
@@ -104,7 +105,7 @@ export default function Albums() {
     starredOnly,
     compFilter,
     starredOverrides,
-    getScrollRoot: () => scrollBodyRef.current,
+    getScrollRoot,
     scrollRootEl: scrollBodyEl,
   });
 
@@ -415,12 +416,7 @@ export default function Albums() {
               </div>
             )}
             {!genreFiltered && hasMore && (
-              <div
-                ref={bindLoadMoreSentinel}
-                style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}
-              >
-                {loading && <div className="spinner" style={{ width: 20, height: 20 }} />}
-              </div>
+              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loading} />
             )}
           </>
         )}

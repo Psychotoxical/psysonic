@@ -25,7 +25,9 @@ import {
 import { useArtistsFiltering } from '../hooks/useArtistsFiltering';
 import { useBrowseArtistTextSearch } from '../hooks/useBrowseArtistTextSearch';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
-import { useArtistsInfiniteScroll } from '../hooks/useArtistsInfiniteScroll';
+import { useClientSliceInfiniteScroll } from '../hooks/useClientSliceInfiniteScroll';
+import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
+import InpageScrollSentinel from '../components/InpageScrollSentinel';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { fetchNetworkStarredArtists, runLocalBrowseAllArtists } from '../utils/library/browseTextSearch';
 import { ArtistsGridView } from '../components/artists/ArtistsGridView';
@@ -41,21 +43,19 @@ export default function Artists() {
   const [starredOnly, setStarredOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const artistsScrollBodyRef = useRef<HTMLDivElement | null>(null);
-  const [artistsScrollBodyEl, setArtistsScrollBodyEl] = useState<HTMLDivElement | null>(null);
-  const bindArtistsScrollBody = useCallback((el: HTMLDivElement | null) => {
-    artistsScrollBodyRef.current = el;
-    setArtistsScrollBodyEl(el);
-  }, []);
-  const getArtistsScrollRoot = useCallback(() => artistsScrollBodyRef.current, []);
+  const {
+    scrollBodyEl: artistsScrollBodyEl,
+    bindScrollBody: bindArtistsScrollBody,
+    getScrollRoot: getArtistsScrollRoot,
+  } = useInpageScrollViewport();
 
   const showArtistImages = useAuthStore(s => s.showArtistImages);
   const PAGE_SIZE = showArtistImages ? 50 : 100; // Smaller with images to reduce I/O
   const {
     visibleCount,
     loadingMore,
-    observerTarget,
-  } = useArtistsInfiniteScroll({
+    bindSentinel,
+  } = useClientSliceInfiniteScroll({
     pageSize: PAGE_SIZE,
     resetDeps: [filter, letterFilter, starredOnly, viewMode],
     getScrollRoot: getArtistsScrollRoot,
@@ -140,9 +140,9 @@ export default function Artists() {
 
   const getInpageScrollElement = useCallback(
     () =>
-      artistsScrollBodyRef.current
+      getArtistsScrollRoot()
       ?? (document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as HTMLElement | null),
-    [],
+    [getArtistsScrollRoot],
   );
 
   const artistGridMeasureRef = useRef<HTMLDivElement>(null);
@@ -365,9 +365,7 @@ export default function Artists() {
         )}
 
         {!loading && hasMore && (
-          <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-            {loadingMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
-          </div>
+          <InpageScrollSentinel bindSentinel={bindSentinel} loading={loadingMore} />
         )}
 
         {!loading && filtered.length === 0 && (
