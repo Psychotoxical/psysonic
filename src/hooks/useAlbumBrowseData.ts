@@ -20,9 +20,9 @@ import {
   albumBrowseHasServerFilters,
   fetchAlbumBrowseGenreOptions,
   fetchAlbumBrowsePage,
+  fetchLocalAlbumCatalogChunk,
   filterAlbumsByCompilation,
   filterAlbumsByStarred,
-  runLocalBrowseAllAlbums,
   type AlbumBrowseQuery,
   type GenreFilterOption,
 } from '../utils/library/albumBrowseLoad';
@@ -36,6 +36,8 @@ import { useInpageScrollSentinel } from './useInpageScrollSentinel';
 
 const PAGE_SIZE = 30;
 const CLIENT_SLICE_PAGE_SIZE = 60;
+/** Local-index catalog buffer grows by this many albums per background SQL chunk. */
+const CATALOG_CHUNK_SIZE = 200;
 /** Wait for visible-row cover ensures to drain before fetching the next SQL page (network mode). */
 const LOAD_MORE_COVER_BACKLOG_MAX = 12;
 
@@ -88,6 +90,8 @@ export function useAlbumBrowseData({
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [catalogLoadingMore, setCatalogLoadingMore] = useState(false);
+  const [catalogHasMore, setCatalogHasMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [browseMode, setBrowseMode] = useState<AlbumBrowseMode>('page');
@@ -133,7 +137,7 @@ export function useAlbumBrowseData({
   const {
     visibleCount,
     loadingMore: sliceLoadingMore,
-    bindSentinel: bindSliceSentinel,
+    loadMore: sliceLoadMore,
   } = useClientSliceInfiniteScroll({
     pageSize: CLIENT_SLICE_PAGE_SIZE,
     resetDeps: [
@@ -171,13 +175,17 @@ export function useAlbumBrowseData({
     compFilterClientOnly && visibleAlbums.length === 0 && hasMore && !genreFiltered && !compScanExhausted;
 
   const gridHasMore = browseMode === 'slice'
-    ? visibleCount < visibleAlbums.length
+    ? visibleCount < visibleAlbums.length || catalogHasMore
     : hasMore && !genreFiltered;
 
-  const gridLoadingMore = browseMode === 'slice' ? sliceLoadingMore : loadingMore;
+  const gridLoadingMore = browseMode === 'slice'
+    ? sliceLoadingMore || catalogLoadingMore
+    : loadingMore;
 
   const loadGenerationRef = useRef(0);
   const pageRef = useRef(0);
+  const catalogOffsetRef = useRef(0);
+  const catalogLoadingRef = useRef(false);
   const loadingRef = useRef(false);
   const loadPendingRef = useRef(false);
   const loadMoreRef = useRef<() => void>(() => {});
@@ -205,6 +213,40 @@ export function useAlbumBrowseData({
   useEffect(() => {
     pageRef.current = page;
   }, [page]);
+
+  const loadCatalogChunk = useCallback(async (
+    query: AlbumBrowseQuery,
+    offset: number,
+    append: boolean,
+  ) => {
+    if (catalogLoadingRef.current) return;
+    const generation = loadGenerationRef.current;
+    catalogLoadingRef.current = true;
+    setCatalogLoadingMore(true);
+    coverTrafficBeginGridPagination();
+    try {
+      const chunk = await fetchLocalAlbumCatalogChunk(serverId, query, offset, CATALOG_CHUNK_SIZE);
+      if (generation !== loadGenerationRef.current || chunk == null) return;
+      if (append) {
+        setAlbums(prev => {
+          const merged = dedupeById([...prev, ...chunk.albums]);
+          catalogOffsetRef.current = merged.length;
+          return merged;
+        });
+      } else {
+        setAlbums(chunk.albums);
+        catalogOffsetRef.current = chunk.albums.length;
+      }
+      setCatalogHasMore(chunk.hasMore);
+    } finally {
+      coverTrafficEndGridPagination();
+      coverEnsureResumePump();
+      catalogLoadingRef.current = false;
+      if (generation === loadGenerationRef.current) {
+        setCatalogLoadingMore(false);
+      }
+    }
+  }, [serverId]);
 
   const loadBrowse = useCallback(async (
     query: AlbumBrowseQuery,
@@ -263,10 +305,14 @@ export function useAlbumBrowseData({
   useEffect(() => {
     let cancelled = false;
     pageRef.current = 0;
+    catalogOffsetRef.current = 0;
     loadPendingRef.current = false;
+    catalogLoadingRef.current = false;
     setPage(0);
     setAlbums([]);
     setHasMore(true);
+    setCatalogHasMore(false);
+    setCatalogLoadingMore(false);
     setLoading(true);
 
     void (async () => {
@@ -274,12 +320,18 @@ export function useAlbumBrowseData({
         const generation = ++loadGenerationRef.current;
         coverTrafficBeginGridPagination();
         try {
-          const catalog = await runLocalBrowseAllAlbums(serverId, browseQuery);
+          const first = await fetchLocalAlbumCatalogChunk(
+            serverId,
+            browseQuery,
+            0,
+            CATALOG_CHUNK_SIZE,
+          );
           if (cancelled || generation !== loadGenerationRef.current) return;
-          if (catalog != null) {
+          if (first != null) {
             setBrowseMode('slice');
-            setAlbums(catalog);
-            setHasMore(false);
+            setAlbums(first.albums);
+            catalogOffsetRef.current = first.albums.length;
+            setCatalogHasMore(first.hasMore);
             setLoading(false);
             return;
           }
@@ -318,8 +370,7 @@ export function useAlbumBrowseData({
     musicLibraryFilterVersion,
   ]);
 
-  const loadMore = useCallback(() => {
-    if (browseMode !== 'page') return;
+  const loadMorePage = useCallback(() => {
     if (loadingRef.current || loadPendingRef.current || !hasMore || genreFiltered) return;
     if (coverEnsureQueueBacklog() > LOAD_MORE_COVER_BACKLOG_MAX) return;
     if (compFilterClientOnly && visibleAlbums.length === 0
@@ -331,7 +382,6 @@ export function useAlbumBrowseData({
     setPage(next);
     void loadBrowse(browseQuery, next * PAGE_SIZE, true);
   }, [
-    browseMode,
     hasMore,
     browseQuery,
     loadBrowse,
@@ -342,24 +392,64 @@ export function useAlbumBrowseData({
     compFilter,
   ]);
 
+  const loadMoreGrid = useCallback(() => {
+    if (visibleCount < visibleAlbums.length) {
+      sliceLoadMore();
+      return;
+    }
+    if (catalogHasMore && !catalogLoadingRef.current) {
+      void loadCatalogChunk(browseQuery, catalogOffsetRef.current, true);
+    }
+  }, [
+    visibleCount,
+    visibleAlbums.length,
+    catalogHasMore,
+    sliceLoadMore,
+    loadCatalogChunk,
+    browseQuery,
+  ]);
+
+  const loadMore = useCallback(() => {
+    if (browseMode === 'slice') {
+      loadMoreGrid();
+      return;
+    }
+    loadMorePage();
+  }, [browseMode, loadMoreGrid, loadMorePage]);
+
   loadMoreRef.current = loadMore;
 
   useEffect(() => {
     if (browseMode !== 'page') return;
     if (!pendingClientFilterMatch || loadingRef.current || loadPendingRef.current) return;
-    loadMore();
-  }, [browseMode, pendingClientFilterMatch, loading, loadMore]);
+    loadMorePage();
+  }, [browseMode, pendingClientFilterMatch, loading, loadMorePage]);
 
-  const bindPageSentinel = useInpageScrollSentinel({
-    active: browseMode === 'page' && gridHasMore,
+  useEffect(() => {
+    if (browseMode !== 'slice') return;
+    if (!sentinelIntersectingRef.current) return;
+    if (visibleCount >= visibleAlbums.length - CLIENT_SLICE_PAGE_SIZE
+      && catalogHasMore
+      && !catalogLoadingRef.current) {
+      void loadCatalogChunk(browseQuery, catalogOffsetRef.current, true);
+    }
+  }, [
+    browseMode,
+    visibleCount,
+    visibleAlbums.length,
+    catalogHasMore,
+    loadCatalogChunk,
+    browseQuery,
+  ]);
+
+  const bindLoadMoreSentinel = useInpageScrollSentinel({
+    active: gridHasMore,
     getScrollRoot,
     scrollRootEl,
     onIntersect: () => loadMoreRef.current(),
-    drainSignal: loadingMore,
+    drainSignal: gridLoadingMore,
     intersectingRef: sentinelIntersectingRef,
   });
-
-  const bindLoadMoreSentinel = browseMode === 'slice' ? bindSliceSentinel : bindPageSentinel;
 
   return {
     albums,
