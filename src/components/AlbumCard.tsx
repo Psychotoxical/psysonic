@@ -16,7 +16,7 @@ import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 import { resolveCoverDisplayTier } from '../cover/tiers';
 import { acquireUrl } from '../utils/imageCache/urlPool';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
-import { playAlbum } from '../utils/playback/playAlbum';
+import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
@@ -59,6 +59,9 @@ function AlbumCard({
   libraryResolve = false,
 }: AlbumCardProps) {
   const { t } = useTranslation();
+  const longPressTriggered = React.useRef(false);
+  const [isHolding, setIsHolding] = React.useState(false);
+  const [ripplePos, setRipplePos] = React.useState({ x: 0, y: 0 });
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -157,15 +160,86 @@ function AlbumCard({
         )}
         {!selectionMode && (
           <div className="album-card-play-overlay">
-            <button
-              className="album-card-details-btn"
-              onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
-              aria-label={`${album.name} abspielen`}
-              data-tooltip={t('hero.playAlbum')}
-              data-tooltip-pos="top"
-            >
-              <Play size={15} fill="currentColor" />
-            </button>
+            <>
+              <style>{`
+                @keyframes slosh {
+                   0% { transform: translateX(0); }
+                   100% { transform: translateX(-50%); }
+               }
+             `}</style>
+              <button
+                className="album-card-details-btn"
+                style={{ position: 'relative', overflow: 'hidden' }}
+                onClick={e => {
+                  e.stopPropagation()
+                  if (longPressTriggered.current) {
+                    longPressTriggered.current = false
+                    return
+                  }
+                  playAlbum(album.id)
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                  longPressTriggered.current = false
+
+                  const animTimer = setTimeout(() => {
+                    setIsHolding(true)
+                  }, 100)
+
+                  const timer = setTimeout(() => {
+                    longPressTriggered.current = true
+                    playAlbumShuffled(album.id)
+                    setIsHolding(false)
+                  }, 1000)
+
+                  const clear = () => {
+                    clearTimeout(timer)
+                    clearTimeout(animTimer)
+                    setIsHolding(false)
+                  }
+                  document.addEventListener('mouseup', clear, { once: true })
+                  document.addEventListener('mouseleave', clear, { once: true })
+                }}
+                aria-label={`${album.name} abspielen`}
+                data-tooltip={t('hero.playAlbumTooltip')}
+                data-tooltip-pos="top"
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    color: 'currentColor',
+                    opacity: isHolding ? 0.25 : 0,
+                    transform: isHolding ? 'translateY(0)' : 'translateY(calc(100% + 15px))',
+                    transition: isHolding ? 'transform 900ms linear' : 'none',
+                    pointerEvents: 'none',
+                    zIndex: 0
+                  }}
+                >
+                  <svg
+                    viewBox="0 0 200 20"
+                    preserveAspectRatio="none"
+                    style={{
+                      position: 'absolute',
+                      top: '-10px',
+                      left: 0,
+                      width: '200%',
+                      height: '12px',
+                      animation: isHolding ? 'slosh 1.2s linear infinite' : 'none'
+                    }}
+                  >
+                    <path d="M0,10 Q25,18 50,10 T100,10 Q125,18 150,10 T200,10 L200,20 L0,20 Z" fill="currentColor" />
+                  </svg>
+                  <div style={{ position: 'absolute', top: '2px', left: 0, width: '100%', height: '100%', backgroundColor: 'currentColor' }} />
+                </div>
+
+                <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex' }}>
+                  <Play size={15} fill="currentColor" />
+                </span>
+              </button>
             <button
               className="album-card-details-btn"
               onClick={async e => {
@@ -182,7 +256,8 @@ function AlbumCard({
               data-tooltip-pos="top"
             >
               <ListPlus size={15} />
-            </button>
+            </button> 
+            </>
           </div>
         )}
       </div>
