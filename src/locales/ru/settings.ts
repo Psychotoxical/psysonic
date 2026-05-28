@@ -229,6 +229,8 @@ export const settings = {
     'Заменить системную строку заголовка встроенной, в стиле темы приложения. Отключите, чтобы использовать родную строку GNOME/GTK и т.д.',
   linuxWebkitSmoothScroll: 'Плавное колесо (Linux)',
   linuxWebkitSmoothScrollDesc: 'Вкл — инерция. Выкл — по шагам, как в GTK.',
+  linuxWebkitInputForceRepaint: 'Перерисовывать поля ввода при фокусе (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Обход проблемы WebKitGTK 2.50.x, когда текстовые поля зависают при клике. Иконки поиска кратко мигают при фокусе.',
   linuxWaylandTextRender: 'Рендеринг текста Wayland (Linux)',
   linuxWaylandTextRenderDesc:
     'Сглаживание в интерфейсе меняется сразу. Политику ускорения WebKit (чёткий / GPU) сохраняем и применяем при следующем запуске — переключение на лету на части сборок зависает в WebKitGTK.',

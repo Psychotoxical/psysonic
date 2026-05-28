@@ -200,6 +200,8 @@ export const settings = {
   preloadMiniPlayerDesc: 'Bouwt het venster van de mini-speler op de achtergrond bij het opstarten van de app, zodat het bij de eerste opening direct inhoud toont. Gebruikt iets meer geheugen.',
   linuxWebkitSmoothScroll: 'Vloeiend muiswiel (Linux)',
   linuxWebkitSmoothScrollDesc: 'Aan: traag naloop. Uit: regel voor regel, GTK-stijl.',
+  linuxWebkitInputForceRepaint: 'Tekstvelden bij focus opnieuw tekenen (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Tijdelijke oplossing voor WebKitGTK 2.50.x waar tekstvelden bij klikken bevriezen. Zoekicoontjes flikkeren kort bij focus.',
   linuxWaylandTextRender: 'Wayland-tekstweergave (Linux)',
   linuxWaylandTextRenderDesc:
     'Vloeiendheid in de UI werkt meteen. WebKit-hardwareversnelling (scherp/GPU) wordt bewaard en toegepast bij de volgende app-start — live schakelen kan WebKitGTK laten vastlopen.',

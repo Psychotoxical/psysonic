@@ -228,6 +228,8 @@ export const settings = {
   useCustomTitlebarDesc: 'Replace the system title bar with a built-in one that matches the app theme. Disable to use the native GNOME/GTK title bar.',
   linuxWebkitSmoothScroll: 'Smooth wheel (Linux)',
   linuxWebkitSmoothScrollDesc: 'On: inertial scroll. Off: line-by-line, GTK-style.',
+  linuxWebkitInputForceRepaint: 'Repaint inputs on focus (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Workaround for WebKitGTK 2.50.x where text fields freeze when clicked. Search icons flicker briefly on focus.',
   linuxWaylandTextRender: 'Wayland text rendering (Linux)',
   linuxWaylandTextRenderDesc:
     'Font smoothing in the UI updates immediately. WebKit hardware acceleration (sharp / GPU presets) is saved and applied on the next app start — changing it live can freeze WebKitGTK on some setups.',

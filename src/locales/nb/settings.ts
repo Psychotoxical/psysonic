@@ -199,6 +199,8 @@ export const settings = {
   preloadMiniPlayerDesc: 'Bygger miniavspiller-vinduet i bakgrunnen ved appstart slik at det viser innhold umiddelbart ved første åpning. Bruker litt mer minne.',
   linuxWebkitSmoothScroll: 'Mykt musehjul (Linux)',
   linuxWebkitSmoothScrollDesc: 'På: treg rull med etterslep. Av: trinnvis som i GTK.',
+  linuxWebkitInputForceRepaint: 'Tegne om tekstfelt ved fokus (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Omgår WebKitGTK 2.50.x der tekstfelt fryser ved klikk. Søkeikoner blinker kort ved fokus.',
   linuxWaylandTextRender: 'Wayland-tekstgjengivelse (Linux)',
   linuxWaylandTextRenderDesc:
     'Utjevning i grensesnittet skjer med én gang. WebKit-maskinvareakselerasjon (skarp/GPU) lagres og brukes ved neste appstart — live bytte kan fryse WebKitGTK.',

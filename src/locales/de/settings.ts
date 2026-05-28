@@ -205,6 +205,8 @@ export const settings = {
   useCustomTitlebarDesc: 'Ersetzt die System-Titelleiste durch eine eingebaute, die zum App-Theme passt. Deaktivieren, um die native GNOME/GTK-Titelleiste zu verwenden.',
   linuxWebkitSmoothScroll: 'Sanftes Mausrad (Linux)',
   linuxWebkitSmoothScrollDesc: 'An: mit Nachlauf. Aus: zeilenweise wie in GTK-Apps.',
+  linuxWebkitInputForceRepaint: 'Eingabefelder beim Fokus neu zeichnen (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Behelf für WebKitGTK 2.50.x, wo Textfelder beim Klick einfrieren. Such-Icons flackern beim Fokus kurz.',
   linuxWaylandTextRender: 'Wayland-Textdarstellung (Linux)',
   linuxWaylandTextRenderDesc:
     'Kantenglättung in der Oberfläche wirkt sofort. Die WebKit-Beschleunigungsrichtlinie (scharf/GPU) wird gespeichert und beim nächsten App-Start angewendet — ein Live-Umschalten kann WebKitGTK einfrieren.',

@@ -200,6 +200,8 @@ export const settings = {
   preloadMiniPlayerDesc: '在应用启动时于后台构建迷你播放器窗口，使其首次打开即可立即显示内容。会占用少量额外内存。',
   linuxWebkitSmoothScroll: '滚轮平滑（Linux）',
   linuxWebkitSmoothScrollDesc: '开：惯性滚动。关：逐行，类似 GTK。',
+  linuxWebkitInputForceRepaint: '获得焦点时重绘输入框（Linux）',
+  linuxWebkitInputForceRepaintDesc: '针对 WebKitGTK 2.50.x 文本框点击后冻结的临时方案。聚焦时搜索图标会短暂闪烁。',
   linuxWaylandTextRender: 'Wayland 文本渲染（Linux）',
   linuxWaylandTextRenderDesc: '界面字体平滑立即生效。WebKit 硬件加速策略（锐利 / GPU）会保存并在下次启动应用时应用；运行中反复切换可能导致 WebKitGTK 卡死。',
   linuxWaylandTextRenderBalanced: '平衡',

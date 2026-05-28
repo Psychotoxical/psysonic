@@ -207,6 +207,8 @@ export const settings = {
   useCustomTitlebarDesc: 'Înlocuiește bara de titlu a sistemului cu una care corespunde cu tema aplicației. Dezactivează pentru a folosi bara de titlu nativ GNOME/GTK.',
   linuxWebkitSmoothScroll: 'Rotiță lină (Linux)',
   linuxWebkitSmoothScrollDesc: 'Pornit: scroll inert. Oprit: linie cu linie, în stil GTK.',
+  linuxWebkitInputForceRepaint: 'Redesenare câmpuri la focus (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Soluție pentru WebKitGTK 2.50.x unde câmpurile text îngheață la clic. Pictogramele lupă pâlpâie scurt la focus.',
   linuxWaylandTextRender: 'Randare text Wayland (Linux)',
   linuxWaylandTextRenderDesc:
     'Netezirea în interfață se aplică imediat. Accelerația hardware WebKit (ascuțit/GPU) este salvată și aplicată la următoarea pornire a aplicației — comutarea în timpul rulării poate îngheța WebKitGTK.',

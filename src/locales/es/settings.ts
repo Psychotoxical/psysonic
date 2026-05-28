@@ -204,6 +204,8 @@ export const settings = {
   useCustomTitlebarDesc: 'Reemplaza la barra de título del sistema con una integrada que coincide con el tema de la app. Desactiva para usar la barra nativa de GNOME/GTK.',
   linuxWebkitSmoothScroll: 'Rueda suave (Linux)',
   linuxWebkitSmoothScrollDesc: 'Activado: inercia. Desactivado: pasos por línea (estilo GTK).',
+  linuxWebkitInputForceRepaint: 'Repintar los campos al enfocar (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Solución para WebKitGTK 2.50.x donde los campos de texto se congelan al pulsar. Las lupas parpadean brevemente al enfocar.',
   linuxWaylandTextRender: 'Renderizado de texto Wayland (Linux)',
   linuxWaylandTextRenderDesc:
     'El suavizado en la interfaz se aplica al instante. La aceleración de hardware de WebKit (nítido/GPU) se guarda y aplica al reiniciar la app; cambiarla en vivo puede congelar WebKitGTK.',

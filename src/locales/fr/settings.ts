@@ -200,6 +200,8 @@ export const settings = {
   preloadMiniPlayerDesc: 'Construit la fenêtre du mini-lecteur en arrière-plan au démarrage de l\'application afin qu\'elle affiche son contenu instantanément à la première ouverture. Utilise un peu plus de mémoire.',
   linuxWebkitSmoothScroll: 'Molette fluide (Linux)',
   linuxWebkitSmoothScrollDesc: 'Activé : inertie. Désactivé : pas à la ligne, style GTK.',
+  linuxWebkitInputForceRepaint: 'Repeindre les champs au focus (Linux)',
+  linuxWebkitInputForceRepaintDesc: 'Contournement pour WebKitGTK 2.50.x où les champs texte gèlent au clic. Les loupes scintillent brièvement au focus.',
   linuxWaylandTextRender: 'Rendu du texte Wayland (Linux)',
   linuxWaylandTextRenderDesc:
     'Le lissage dans l’interface est immédiat. L’accélération matérielle WebKit (net / GPU) est enregistrée et appliquée au prochain lancement — la modifier en direct peut figer WebKitGTK.',
