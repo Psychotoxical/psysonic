@@ -200,6 +200,7 @@ pub(crate) async fn dispatch_track_analysis_bytes(
         server_id,
         track_id,
         &bytes,
+        None,
         priority,
     )
     .await

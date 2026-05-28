@@ -14,6 +14,7 @@ use tauri::{Manager, Runtime};
 use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 
 use crate::analysis_perf::AnalysisSeedTimings;
+use crate::codec::make_decoder;
 
 use super::store::{now_unix_ts, AnalysisCache, LoudnessEntry, TrackKey, WaveformEntry};
 
@@ -47,6 +48,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
+    format_hint: Option<&str>,
     notify_ui: bool,
 ) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
     let seed_started = Instant::now();
@@ -61,7 +63,8 @@ pub fn seed_from_bytes_execute<R: Runtime>(
             AnalysisSeedTimings::default(),
         ));
     };
-    let (outcome, md5_16kb) = seed_from_bytes_into_cache(&cache, server_id, track_id, bytes)?;
+    let (outcome, md5_16kb) =
+        seed_from_bytes_into_cache(&cache, server_id, track_id, bytes, format_hint)?;
     let seed_ms = seed_started.elapsed().as_millis() as u64;
     // E2 bridge (analysis → library content_hash): once the playback-derived
     // md5_16kb is known — whether freshly written or already cached — record it
@@ -129,6 +132,7 @@ pub fn seed_from_bytes_into_cache(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
+    format_hint: Option<&str>,
 ) -> Result<(SeedFromBytesOutcome, String), String> {
     let started = Instant::now();
     // Write under the playback server's scope.
@@ -168,7 +172,8 @@ pub fn seed_from_bytes_into_cache(
     let build = (|| -> Result<(bool, usize), String> {
         cache.touch_track_status(&key, "queued")?;
 
-        let (wf_bins, loudness_opt, used_pcm_decode) = match analyze_loudness_and_waveform(bytes, -16.0, 500) {
+        let (wf_bins, loudness_opt, used_pcm_decode) =
+            match analyze_loudness_and_waveform(bytes, -16.0, 500, format_hint) {
             Some((integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins)) => {
                 (
                     bins,
@@ -275,15 +280,16 @@ fn analyze_loudness_and_waveform(
     bytes: &[u8],
     target_lufs: f64,
     bin_count: usize,
+    format_hint: Option<&str>,
 ) -> Option<(f64, f64, f64, f64, Vec<u8>)> {
     if bytes.is_empty() || bin_count == 0 {
         return None;
     }
-    let (decoded_frames, timeline_hint) = count_mono_frames_from_audio_bytes(bytes)?;
+    let (decoded_frames, timeline_hint) = count_mono_frames_from_audio_bytes(bytes, format_hint)?;
     if decoded_frames == 0 {
         return None;
     }
-    let scanned = decode_scan_pcm(bytes, bin_count, decoded_frames, timeline_hint, Some(target_lufs))?;
+    let scanned = decode_scan_pcm(bytes, bin_count, decoded_frames, timeline_hint, Some(target_lufs), format_hint)?;
     let (i, t, r, tgt) = scanned.loudness?;
     Some((i, t, r, tgt, scanned.bins))
 }
@@ -298,10 +304,36 @@ struct DecodeSession {
     timeline_hint: Option<u64>,
 }
 
-fn open_decode_session(bytes: &[u8]) -> Option<DecodeSession> {
+fn format_hint_from_bytes(bytes: &[u8]) -> Option<String> {
+    if bytes.len() < 4 {
+        return None;
+    }
+    if bytes[0..4] == *b"OggS" {
+        return Some("ogg".into());
+    }
+    if bytes.len() >= 4 && bytes[0..4] == *b"fLaC" {
+        return Some("flac".into());
+    }
+    if bytes.len() >= 12 && bytes[0..4] == *b"RIFF" && bytes[8..12] == *b"WAVE" {
+        return Some("wav".into());
+    }
+    let scan = bytes.len().min(4096).saturating_sub(4);
+    for i in 0..=scan {
+        if bytes[i..i + 4] == *b"ftyp" {
+            return Some("m4a".into());
+        }
+    }
+    None
+}
+
+fn open_decode_session(bytes: &[u8], format_hint: Option<&str>) -> Option<DecodeSession> {
     let source = Box::new(Cursor::new(bytes.to_vec()));
     let mss = MediaSourceStream::new(source, Default::default());
-    let hint = Hint::new();
+    let sniffed = format_hint_from_bytes(bytes);
+    let mut hint = Hint::new();
+    if let Some(ext) = format_hint.or(sniffed.as_deref()) {
+        hint.with_extension(ext);
+    }
     let probed = symphonia::default::get_probe()
         .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
         .ok()?;
@@ -320,7 +352,7 @@ fn open_decode_session(bytes: &[u8]) -> Option<DecodeSession> {
     let track_id = track.id;
     let timeline_hint = track.codec_params.n_frames.filter(|&n| n > 0);
     let codec_params = track.codec_params.clone();
-    let decoder = match symphonia::default::get_codecs().make(&codec_params, &DecoderOptions::default()) {
+    let decoder = match make_decoder(&codec_params, &DecoderOptions::default()) {
         Ok(v) => v,
         Err(e) => {
             crate::app_deprintln!("[analysis] decoder make failed: {}", e);
@@ -334,9 +366,9 @@ fn open_decode_session(bytes: &[u8]) -> Option<DecodeSession> {
 /// `codec_params.n_frames` when the container reports total track length — used
 /// as a **fixed** waveform time axis so partial decodes do not remap every bin
 /// when the buffer grows.
-fn count_mono_frames_from_audio_bytes(bytes: &[u8]) -> Option<(u64, Option<u64>)> {
+fn count_mono_frames_from_audio_bytes(bytes: &[u8], format_hint: Option<&str>) -> Option<(u64, Option<u64>)> {
     let DecodeSession { mut format, mut decoder, track_id, timeline_hint } =
-        open_decode_session(bytes)?;
+        open_decode_session(bytes, format_hint)?;
 
     let mut total: u64 = 0;
     let mut loop_i: u32 = 0;
@@ -399,8 +431,9 @@ fn decode_scan_pcm(
     decoded_frames: u64,
     timeline_hint: Option<u64>,
     loudness_target_lufs: Option<f64>,
+    format_hint: Option<&str>,
 ) -> Option<PcmScanResult> {
-    let DecodeSession { mut format, mut decoder, track_id, .. } = open_decode_session(bytes)?;
+    let DecodeSession { mut format, mut decoder, track_id, .. } = open_decode_session(bytes, format_hint)?;
 
     let mut bin_max = vec![0.0f32; bin_count];
     let mut bin_sum = vec![0.0f32; bin_count];
@@ -598,7 +631,7 @@ pub fn analysis_pcm_window(total_duration_sec: f64, window_sec: f64) -> PcmAnaly
 
 /// Best-effort container duration from codec metadata (seconds).
 pub fn audio_duration_from_bytes(bytes: &[u8]) -> Option<f64> {
-    let session = open_decode_session(bytes)?;
+    let session = open_decode_session(bytes, None)?;
     let sample_rate = session
         .format
         .default_track()
@@ -623,7 +656,7 @@ pub fn decode_mono_pcm_window(
         mut decoder,
         track_id,
         ..
-    } = open_decode_session(bytes).ok_or_else(|| "failed to open audio decode session".to_string())?;
+    } = open_decode_session(bytes, None).ok_or_else(|| "failed to open audio decode session".to_string())?;
 
     if start_sec.is_finite() && start_sec > 0.0 {
         let time: Time = start_sec.max(0.0).into();
@@ -654,7 +687,7 @@ pub fn decode_mono_pcm_limited(
         mut decoder,
         track_id,
         ..
-    } = open_decode_session(bytes).ok_or_else(|| "failed to open audio decode session".to_string())?;
+    } = open_decode_session(bytes, None).ok_or_else(|| "failed to open audio decode session".to_string())?;
     decode_mono_pcm_from_session(&mut format, &mut decoder, track_id, max_seconds)
 }
 
@@ -927,7 +960,7 @@ mod tests {
     #[test]
     fn count_mono_frames_returns_decoded_length_for_synthetic_wav() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, _hint) = count_mono_frames_from_audio_bytes(&wav)
+        let (frames, _hint) = count_mono_frames_from_audio_bytes(&wav, None)
             .expect("WAV decode must succeed");
         // 1 second × 44.1 kHz mono = 44 100 frames; allow ±1 packet tolerance.
         assert!(
@@ -938,18 +971,18 @@ mod tests {
 
     #[test]
     fn count_mono_frames_returns_none_for_garbage_bytes() {
-        assert!(count_mono_frames_from_audio_bytes(b"not an audio file").is_none());
+        assert!(count_mono_frames_from_audio_bytes(b"not an audio file", None).is_none());
     }
 
     #[test]
     fn count_mono_frames_returns_none_for_empty_bytes() {
-        assert!(count_mono_frames_from_audio_bytes(&[]).is_none());
+        assert!(count_mono_frames_from_audio_bytes(&[], None).is_none());
     }
 
     #[test]
     fn analyze_loudness_and_waveform_returns_loudness_for_synthetic_sine() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let result = analyze_loudness_and_waveform(&wav, -14.0, 100)
+        let result = analyze_loudness_and_waveform(&wav, -14.0, 100, None)
             .expect("WAV decode must succeed");
         let (integrated_lufs, true_peak, recommended_gain_db, target_lufs, bins) = result;
         assert_eq!(bins.len(), 200, "bins layout is peak_u8 + mean_u8 = 2 * bin_count");
@@ -974,19 +1007,19 @@ mod tests {
     #[test]
     fn analyze_loudness_returns_none_for_zero_bin_count() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 0.5), 44_100);
-        assert!(analyze_loudness_and_waveform(&wav, -14.0, 0).is_none());
+        assert!(analyze_loudness_and_waveform(&wav, -14.0, 0, None).is_none());
     }
 
     #[test]
     fn analyze_loudness_returns_none_for_empty_bytes() {
-        assert!(analyze_loudness_and_waveform(&[], -14.0, 100).is_none());
+        assert!(analyze_loudness_and_waveform(&[], -14.0, 100, None).is_none());
     }
 
     #[test]
     fn seed_from_bytes_into_cache_upserts_waveform_and_loudness_for_wav() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track", &wav).unwrap();
+        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track", &wav, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
         assert_eq!(md5, md5_first_16kb(&wav), "outcome carries the content fingerprint");
 
@@ -1007,7 +1040,7 @@ mod tests {
     fn seed_from_bytes_into_cache_writes_under_the_given_server_scope() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        seed_from_bytes_into_cache(&cache, "server-x", "scoped-track", &wav).unwrap();
+        seed_from_bytes_into_cache(&cache, "server-x", "scoped-track", &wav, None).unwrap();
 
         let md5 = md5_first_16kb(&wav);
         let scoped = TrackKey {
@@ -1028,9 +1061,9 @@ mod tests {
     fn seed_from_bytes_into_cache_returns_skipped_on_second_call() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (first, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav).unwrap();
+        let (first, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
-        let (second, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav).unwrap();
+        let (second, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None).unwrap();
         assert_eq!(
             second,
             SeedFromBytesOutcome::SkippedWaveformCacheHit,
@@ -1044,7 +1077,7 @@ mod tests {
         // Garbage bytes — Symphonia probe fails, the pipeline falls back to
         // `derive_waveform_bins` (no loudness row gets cached).
         let bytes = vec![0xAAu8; 8 * 1024];
-        let (outcome, _) = seed_from_bytes_into_cache(&cache, "server-a", "garbage", &bytes).unwrap();
+        let (outcome, _) = seed_from_bytes_into_cache(&cache, "server-a", "garbage", &bytes, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         let key = TrackKey {
@@ -1126,8 +1159,8 @@ mod tests {
     #[test]
     fn decode_scan_pcm_supports_waveform_only_mode_without_loudness() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, hint) = count_mono_frames_from_audio_bytes(&wav).expect("frame counting");
-        let scanned = decode_scan_pcm(&wav, 64, frames, hint, None).expect("scan must succeed");
+        let (frames, hint) = count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
+        let scanned = decode_scan_pcm(&wav, 64, frames, hint, None, None).expect("scan must succeed");
         assert_eq!(scanned.bins.len(), 128);
         assert!(scanned.loudness.is_none());
     }
@@ -1135,8 +1168,8 @@ mod tests {
     #[test]
     fn decode_scan_pcm_with_loudness_target_returns_loudness_tuple() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, hint) = count_mono_frames_from_audio_bytes(&wav).expect("frame counting");
-        let scanned = decode_scan_pcm(&wav, 64, frames, hint, Some(-14.0)).expect("scan must succeed");
+        let (frames, hint) = count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
+        let scanned = decode_scan_pcm(&wav, 64, frames, hint, Some(-14.0), None).expect("scan must succeed");
         assert_eq!(scanned.bins.len(), 128);
         let (integrated_lufs, true_peak, recommended_gain_db, target_lufs) =
             scanned.loudness.expect("loudness tuple must be present");
@@ -1148,7 +1181,7 @@ mod tests {
 
     #[test]
     fn decode_scan_pcm_returns_none_for_non_audio_input() {
-        assert!(decode_scan_pcm(b"nope", 32, 10, None, Some(-14.0)).is_none());
+        assert!(decode_scan_pcm(b"nope", 32, 10, None, Some(-14.0), None).is_none());
     }
 
     #[test]
@@ -1178,7 +1211,7 @@ mod tests {
         assert!(!cache.loudness_row_exists_for_key(&key).unwrap());
 
         let (outcome, _) =
-            seed_from_bytes_into_cache(&cache, "server-a", "track-reseed", &wav).unwrap();
+            seed_from_bytes_into_cache(&cache, "server-a", "track-reseed", &wav, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
         assert!(cache.loudness_row_exists_for_key(&key).unwrap());
     }
@@ -1219,14 +1252,14 @@ mod tests {
     #[test]
     fn decode_scan_pcm_returns_none_when_no_frames_decoded() {
         let wav = build_mono_pcm16_wav(&[], 44_100);
-        assert!(analyze_loudness_and_waveform(&wav, -14.0, 64).is_none());
+        assert!(analyze_loudness_and_waveform(&wav, -14.0, 64, None).is_none());
     }
 
     #[test]
     fn decode_scan_pcm_ignores_oversized_timeline_hint() {
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (frames, _hint) = count_mono_frames_from_audio_bytes(&wav).expect("frame counting");
-        let scanned = decode_scan_pcm(&wav, 64, frames, Some(frames * 10), None).unwrap();
+        let (frames, _hint) = count_mono_frames_from_audio_bytes(&wav, None).expect("frame counting");
+        let scanned = decode_scan_pcm(&wav, 64, frames, Some(frames * 10), None, None).unwrap();
         assert_eq!(scanned.bins.len(), 128);
     }
 
@@ -1235,7 +1268,7 @@ mod tests {
         let app = tauri::test::mock_app();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 0.25), 44_100);
         let handle = app.handle().clone();
-        let (outcome, timings) = seed_from_bytes_execute(&handle, "s", "t", &wav, true)
+        let (outcome, timings) = seed_from_bytes_execute(&handle, "s", "t", &wav, None, true)
             .expect("seed execute should return a graceful skip");
         assert_eq!(outcome, SeedFromBytesOutcome::SkippedNoAnalysisCache);
         assert_eq!(timings.seed_ms, 0);
@@ -1250,12 +1283,12 @@ mod tests {
         let handle = app.handle().clone();
 
         let (first, timings_first) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, true).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, true).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
         assert!(timings_first.seed_ms <= 30_000);
 
         let (second, timings_second) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, true).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, true).unwrap();
         assert_eq!(second, SeedFromBytesOutcome::SkippedWaveformCacheHit);
         assert!(timings_second.seed_ms <= 30_000);
     }

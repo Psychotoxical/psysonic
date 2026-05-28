@@ -174,7 +174,16 @@ pub async fn promote_stream_cache_to_hot_cache(
             &track_id,
             None,
         );
-        let _ = enqueue_track_analysis(&app, &server_id, &track_id, &bytes, priority).await;
+        let format_hint = Some(suffix.to_ascii_lowercase());
+        let _ = enqueue_track_analysis(
+            &app,
+            &server_id,
+            &track_id,
+            &bytes,
+            format_hint.as_deref(),
+            priority,
+        )
+        .await;
 
         let size = tokio::fs::metadata(&file_path)
             .await

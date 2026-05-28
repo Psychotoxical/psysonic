@@ -8,6 +8,7 @@
 pub mod analysis_cache;
 pub mod analysis_perf;
 pub mod analysis_runtime;
+mod codec;
 pub mod commands;
 pub mod track_analysis_plan;
 pub mod track_enrichment;

@@ -4099,6 +4099,7 @@ dependencies = [
  "serde",
  "serde_json",
  "symphonia",
+ "symphonia-adapter-libopus",
  "tauri",
  "tokio",
 ]
