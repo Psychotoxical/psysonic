@@ -23,6 +23,7 @@ import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useInpageScrollSentinel } from '../hooks/useInpageScrollSentinel';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import SortDropdown from '../components/SortDropdown';
 import {
@@ -84,7 +85,6 @@ export default function LosslessAlbums() {
   const seenIds = useRef<Set<string>>(new Set());
   const localOffset = useRef(0);
   const inFlight = useRef(false);
-  const observerTarget = useRef<HTMLDivElement>(null);
   const scrollBodyRef = useRef<HTMLDivElement | null>(null);
   const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
   const bindLosslessScrollBody = useCallback((el: HTMLDivElement | null) => {
@@ -220,21 +220,13 @@ export default function LosslessAlbums() {
     return () => { cancelled = true; };
   }, [activeServerId, indexEnabled, loadMoreNetwork, serverId, sort]);
 
-  useEffect(() => {
-    if (!hasMore || useLocalIndex === null) return;
-    const node = observerTarget.current;
-    if (!node) return;
-    const root = scrollBodyRef.current;
-    const obs = new IntersectionObserver(
-      entries => { if (entries[0].isIntersecting) loadMore(); },
-      {
-        root: root instanceof HTMLElement ? root : null,
-        rootMargin: '200px',
-      },
-    );
-    obs.observe(node);
-    return () => obs.disconnect();
-  }, [hasMore, loadMore, loading, albums.length, scrollBodyEl, useLocalIndex]);
+  const bindLoadMoreSentinel = useInpageScrollSentinel({
+    active: hasMore && useLocalIndex !== null,
+    getScrollRoot: () => scrollBodyRef.current,
+    scrollRootEl: scrollBodyEl,
+    onIntersect: () => { void loadMore(); },
+    rootMargin: '200px',
+  });
 
   const handleEnqueueSelected = async () => {
     if (selectedAlbums.length === 0) return;
@@ -395,9 +387,11 @@ export default function LosslessAlbums() {
                 />
               )}
             />
-            <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-              {loading && hasMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
-            </div>
+            {hasMore && useLocalIndex !== null && (
+              <div ref={bindLoadMoreSentinel} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+                {loading && <div className="spinner" style={{ width: 20, height: 20 }} />}
+              </div>
+            )}
           </>
         )}
       </OverlayScrollArea>

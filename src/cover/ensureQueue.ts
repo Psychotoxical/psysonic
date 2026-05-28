@@ -66,6 +66,7 @@ function coverInflightKey(ref: CoverArtRef): string {
 
 /** Serialize ensures per cover ID so we do not re-download for every tier. */
 const coverDownloadTail = new Map<string, Promise<unknown>>();
+const MAX_COVER_DOWNLOAD_TAILS = 512;
 
 function ensureForCover(
   ref: CoverArtRef,
@@ -75,7 +76,15 @@ function ensureForCover(
   const key = coverInflightKey(ref);
   const tail = coverDownloadTail.get(key) ?? Promise.resolve();
   const run = tail.then(() => coverCacheEnsure(ref, tier, priority));
-  coverDownloadTail.set(key, run.catch(() => {}));
+  let settled: Promise<unknown>;
+  settled = run.finally(() => {
+    if (coverDownloadTail.get(key) === settled) coverDownloadTail.delete(key);
+  }).catch(() => {});
+  coverDownloadTail.set(key, settled);
+  if (coverDownloadTail.size > MAX_COVER_DOWNLOAD_TAILS) {
+    const oldest = coverDownloadTail.keys().next().value;
+    if (oldest !== undefined && oldest !== key) coverDownloadTail.delete(oldest);
+  }
   return run;
 }
 

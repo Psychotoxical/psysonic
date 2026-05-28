@@ -13,6 +13,8 @@ function cancelVisibleCoverWork(): void {
 }
 
 let navigationHoldDepth = 0;
+/** Album grid SQL page fetch — pause middle/low cover work until rows settle. */
+let gridPaginationHoldDepth = 0;
 let serverSwitchHold = false;
 let resumeTimer: ReturnType<typeof setTimeout> | null = null;
 let serverSwitchEndTimer: ReturnType<typeof setTimeout> | null = null;
@@ -48,6 +50,15 @@ export function coverTrafficEndNavigation(): void {
   scheduleNavigationResume();
 }
 
+/** Local album browse page fetch — avoid middle-priority cover storms during SQL pagination. */
+export function coverTrafficBeginGridPagination(): void {
+  gridPaginationHoldDepth += 1;
+}
+
+export function coverTrafficEndGridPagination(): void {
+  gridPaginationHoldDepth = Math.max(0, gridPaginationHoldDepth - 1);
+}
+
 /** Active server change — stop all cover IPC so ping + menu stay responsive. */
 export function coverTrafficBeginServerSwitch(): void {
   serverSwitchHold = true;
@@ -70,7 +81,7 @@ export function coverTrafficEndServerSwitch(): void {
 }
 
 export function coverTrafficBackgroundPaused(): boolean {
-  return navigationHoldDepth > 0 || serverSwitchHold;
+  return navigationHoldDepth > 0 || gridPaginationHoldDepth > 0 || serverSwitchHold;
 }
 
 /** Hard stop for ensure/peek pumps (includes visible `high` grid jobs). */
@@ -89,6 +100,7 @@ function scheduleNavigationResume(): void {
 /** Test-only — reset module hold state between cases. */
 export function __test_resetCoverTraffic(): void {
   navigationHoldDepth = 0;
+  gridPaginationHoldDepth = 0;
   serverSwitchHold = false;
   if (resumeTimer) clearTimeout(resumeTimer);
   if (serverSwitchEndTimer) clearTimeout(serverSwitchEndTimer);

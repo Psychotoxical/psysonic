@@ -1,5 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
+import {
+  coverTrafficBeginGridPagination,
+  coverTrafficEndGridPagination,
+} from '../cover/coverTraffic';
 import { dedupeById } from '../utils/dedupeById';
 import { albumBrowseCompScanComplete } from '../utils/library/albumCompilation';
 import type { AlbumCompFilter } from '../utils/library/albumCompilation';
@@ -18,6 +28,7 @@ import {
   resolveAlbumYearBounds,
 } from '../utils/library/albumYearFilter';
 import { useDebouncedValue } from './useDebouncedValue';
+import { useInpageScrollSentinel } from './useInpageScrollSentinel';
 
 const PAGE_SIZE = 30;
 
@@ -33,7 +44,22 @@ export type UseAlbumBrowseDataArgs = {
   starredOnly: boolean;
   compFilter: AlbumCompFilter;
   starredOverrides: Record<string, boolean>;
+  /** IntersectionObserver scroll root (Albums in-page viewport). */
+  getScrollRoot?: () => HTMLElement | null;
+  /** Bumps when the scroll root mounts so the sentinel observer can rebind. */
+  scrollRootEl?: HTMLElement | null;
 };
+
+function resolveHasMoreAfterPage(
+  page: { albums: SubsonicAlbum[]; hasMore: boolean },
+  append: boolean,
+  prevCount: number,
+  mergedCount: number,
+): boolean {
+  if (page.albums.length === 0) return false;
+  if (append && mergedCount === prevCount) return false;
+  return page.hasMore;
+}
 
 export function useAlbumBrowseData({
   serverId,
@@ -47,6 +73,8 @@ export function useAlbumBrowseData({
   starredOnly,
   compFilter,
   starredOverrides,
+  getScrollRoot,
+  scrollRootEl,
 }: UseAlbumBrowseDataArgs) {
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +133,15 @@ export function useAlbumBrowseData({
     compFilterClientOnly && visibleAlbums.length === 0 && hasMore && !genreFiltered && !compScanExhausted;
 
   const loadGenerationRef = useRef(0);
+  const pageRef = useRef(0);
+  const loadingRef = useRef(false);
+  /** Blocks overlapping sentinel callbacks until the current page fetch settles. */
+  const loadPendingRef = useRef(false);
+  const loadMoreRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   const loadBrowse = useCallback(async (
     query: AlbumBrowseQuery,
@@ -112,15 +149,25 @@ export function useAlbumBrowseData({
     append = false,
   ) => {
     const generation = ++loadGenerationRef.current;
+    loadingRef.current = true;
+    loadPendingRef.current = true;
+    coverTrafficBeginGridPagination();
     setLoading(true);
-    const applyPage = (page: { albums: SubsonicAlbum[]; hasMore: boolean }) => {
+    const applyPage = (pageResult: { albums: SubsonicAlbum[]; hasMore: boolean }) => {
       if (generation !== loadGenerationRef.current) return;
-      if (append) setAlbums(prev => dedupeById([...prev, ...page.albums]));
-      else setAlbums(page.albums);
-      setHasMore(page.hasMore);
+      if (append) {
+        setAlbums(prev => {
+          const merged = dedupeById([...prev, ...pageResult.albums]);
+          setHasMore(resolveHasMoreAfterPage(pageResult, true, prev.length, merged.length));
+          return merged;
+        });
+      } else {
+        setAlbums(pageResult.albums);
+        setHasMore(resolveHasMoreAfterPage(pageResult, false, 0, pageResult.albums.length));
+      }
     };
     try {
-      const page = await fetchAlbumBrowsePage(
+      const pageResult = await fetchAlbumBrowsePage(
         serverId,
         indexEnabled,
         query,
@@ -130,17 +177,25 @@ export function useAlbumBrowseData({
           onPartial: partial => {
             if (generation !== loadGenerationRef.current) return;
             applyPage(partial);
+            loadingRef.current = false;
             setLoading(false);
           },
         },
       );
-      applyPage(page);
+      applyPage(pageResult);
     } finally {
-      if (generation === loadGenerationRef.current) setLoading(false);
+      if (generation === loadGenerationRef.current) {
+        loadingRef.current = false;
+        loadPendingRef.current = false;
+        coverTrafficEndGridPagination();
+        setLoading(false);
+      }
     }
   }, [indexEnabled, serverId]);
 
   useEffect(() => {
+    pageRef.current = 0;
+    loadPendingRef.current = false;
     setPage(0);
     loadBrowse(browseQuery, 0, false);
   }, [browseQuery, loadBrowse, musicLibraryFilterVersion]);
@@ -166,18 +221,17 @@ export function useAlbumBrowseData({
   ]);
 
   const loadMore = useCallback(() => {
-    if (loading || !hasMore || genreFiltered) return;
+    if (loadingRef.current || loadPendingRef.current || !hasMore || genreFiltered) return;
     if (compFilterClientOnly && visibleAlbums.length === 0
       && albumBrowseCompScanComplete(albums, compFilter, hasMore)) {
       return;
     }
-    const next = page + 1;
+    const next = pageRef.current + 1;
+    pageRef.current = next;
     setPage(next);
-    loadBrowse(browseQuery, next * PAGE_SIZE, true);
+    void loadBrowse(browseQuery, next * PAGE_SIZE, true);
   }, [
-    loading,
     hasMore,
-    page,
     browseQuery,
     loadBrowse,
     genreFiltered,
@@ -187,10 +241,19 @@ export function useAlbumBrowseData({
     compFilter,
   ]);
 
+  loadMoreRef.current = loadMore;
+
   useEffect(() => {
-    if (!pendingClientFilterMatch || loading) return;
+    if (!pendingClientFilterMatch || loadingRef.current || loadPendingRef.current) return;
     loadMore();
   }, [pendingClientFilterMatch, loading, loadMore]);
+
+  const bindLoadMoreSentinel = useInpageScrollSentinel({
+    active: !genreFiltered && hasMore,
+    getScrollRoot,
+    scrollRootEl,
+    onIntersect: () => loadMoreRef.current(),
+  });
 
   return {
     albums,
@@ -211,5 +274,6 @@ export function useAlbumBrowseData({
     compScanExhausted,
     pendingClientFilterMatch,
     loadMore,
+    bindLoadMoreSentinel,
   };
 }

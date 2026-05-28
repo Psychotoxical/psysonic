@@ -4,6 +4,8 @@ import type { CoverServerScope } from './types';
 
 /** Stable asset URLs for disk `.webp` tiers — survives route unmount. */
 const diskSrcByStorageKey = new Map<string, string>();
+/** Bound webview memory when scrolling large grids with a cold cover cache. */
+const MAX_DISK_SRC_CACHE_ENTRIES = 4096;
 
 let cacheGeneration = 0;
 const cacheListeners = new Set<() => void>();
@@ -93,13 +95,22 @@ export function rememberDiskSrc(storageKey: string, fsPath: string): string {
   if (!src) return '';
   const prev = diskSrcByStorageKey.get(storageKey);
   if (prev === src) return src;
+  if (diskSrcByStorageKey.size >= MAX_DISK_SRC_CACHE_ENTRIES) {
+    const oldest = diskSrcByStorageKey.keys().next().value;
+    if (oldest !== undefined) diskSrcByStorageKey.delete(oldest);
+  }
   diskSrcByStorageKey.set(storageKey, src);
   bumpDiskSrcCache();
   return src;
 }
 
 export function getDiskSrc(storageKey: string): string {
-  return diskSrcByStorageKey.get(storageKey) ?? '';
+  const src = diskSrcByStorageKey.get(storageKey) ?? '';
+  if (src && diskSrcByStorageKey.has(storageKey)) {
+    diskSrcByStorageKey.delete(storageKey);
+    diskSrcByStorageKey.set(storageKey, src);
+  }
+  return src;
 }
 
 export function forgetDiskSrc(storageKey: string): void {

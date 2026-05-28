@@ -54,6 +54,15 @@ function libraryResolveCacheKey(
 
 const resolvedEntryCache = new Map<string, CoverEntry | null>();
 const inflightResolves = new Map<string, Promise<CoverEntry | null>>();
+const MAX_RESOLVED_ENTRY_CACHE = 4096;
+
+function trimResolvedEntryCache(): void {
+  while (resolvedEntryCache.size > MAX_RESOLVED_ENTRY_CACHE) {
+    const oldest = resolvedEntryCache.keys().next().value;
+    if (oldest === undefined) break;
+    resolvedEntryCache.delete(oldest);
+  }
+}
 
 const LIBRARY_RESOLVE_MAX_INFLIGHT = 4;
 let libraryResolveActive = 0;
@@ -99,9 +108,11 @@ export async function libraryResolveCoverEntry(
       });
       const entry = dto ? dtoToEntry(dto) : null;
       resolvedEntryCache.set(key, entry);
+      trimResolvedEntryCache();
       return entry;
     } catch {
       resolvedEntryCache.set(key, null);
+      trimResolvedEntryCache();
       return null;
     } finally {
       inflightResolves.delete(key);

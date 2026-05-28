@@ -6,6 +6,9 @@ interface UseArtistsInfiniteScrollArgs {
   resetDeps: ReadonlyArray<unknown>;
   /** IntersectionObserver root (e.g. Artists in-page overlay viewport). */
   getScrollRoot?: () => HTMLElement | null;
+  /** Rebind when the scroll root mounts. */
+  scrollRootEl?: HTMLElement | null;
+  rootMargin?: string;
 }
 
 interface UseArtistsInfiniteScrollResult {
@@ -35,6 +38,8 @@ export function useArtistsInfiniteScroll({
   pageSize,
   resetDeps,
   getScrollRoot,
+  scrollRootEl,
+  rootMargin = '200px',
 }: UseArtistsInfiniteScrollArgs): UseArtistsInfiniteScrollResult {
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -75,12 +80,12 @@ export function useArtistsInfiniteScroll({
       },
       {
         root: rootEl instanceof HTMLElement ? rootEl : null,
-        rootMargin: '200px',
+        rootMargin,
       },
     );
     observer.observe(node);
     observerInst.current = observer;
-  }, [getScrollRoot]);
+  }, [getScrollRoot, scrollRootEl, rootMargin]);
 
   useEffect(() => () => {
     observerInst.current?.disconnect();

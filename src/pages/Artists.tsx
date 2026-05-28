@@ -59,6 +59,7 @@ export default function Artists() {
     pageSize: PAGE_SIZE,
     resetDeps: [filter, letterFilter, starredOnly, viewMode],
     getScrollRoot: getArtistsScrollRoot,
+    scrollRootEl: artistsScrollBodyEl,
   });
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);

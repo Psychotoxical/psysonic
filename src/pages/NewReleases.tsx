@@ -22,6 +22,7 @@ import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useInpageScrollSentinel } from '../hooks/useInpageScrollSentinel';
 
 const PAGE_SIZE = 30;
 
@@ -48,13 +49,15 @@ export default function NewReleases() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const observerTarget = useRef<HTMLDivElement>(null);
   const scrollBodyRef = useRef<HTMLDivElement | null>(null);
   const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
   const bindNewReleasesScrollBody = useCallback((el: HTMLDivElement | null) => {
     scrollBodyRef.current = el;
     setScrollBodyEl(el);
   }, []);
+  const loadingRef = useRef(false);
+  const loadPendingRef = useRef(false);
+  const pageRef = useRef(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const filtered = selectedGenres.length > 0;
 
@@ -110,6 +113,8 @@ export default function NewReleases() {
   };
 
   const load = useCallback(async (offset: number, append = false) => {
+    loadingRef.current = true;
+    loadPendingRef.current = true;
     setLoading(true);
     try {
       const data = await getAlbumList('newest', PAGE_SIZE, offset);
@@ -117,6 +122,8 @@ export default function NewReleases() {
       else setAlbums(data);
       setHasMore(data.length === PAGE_SIZE);
     } finally {
+      loadingRef.current = false;
+      loadPendingRef.current = false;
       setLoading(false);
     }
   }, []);
@@ -132,31 +139,33 @@ export default function NewReleases() {
   }, [musicLibraryFilterVersion]);
 
   useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
     if (filtered) loadFiltered(selectedGenres);
-    else { setPage(0); load(0); }
+    else {
+      pageRef.current = 0;
+      loadPendingRef.current = false;
+      setPage(0);
+      load(0);
+    }
   }, [filtered, selectedGenres, load, loadFiltered]);
 
   const loadMore = useCallback(() => {
-    if (loading || !hasMore || filtered) return;
-    const next = page + 1;
+    if (loadingRef.current || loadPendingRef.current || !hasMore || filtered) return;
+    const next = pageRef.current + 1;
+    pageRef.current = next;
     setPage(next);
-    load(next * PAGE_SIZE, true);
-  }, [loading, hasMore, page, load, filtered]);
+    void load(next * PAGE_SIZE, true);
+  }, [hasMore, load, filtered]);
 
-  useEffect(() => {
-    const node = observerTarget.current;
-    if (!node) return;
-    const root = scrollBodyRef.current;
-    const observer = new IntersectionObserver(
-      entries => { if (entries[0]?.isIntersecting) loadMore(); },
-      {
-        root: root instanceof HTMLElement ? root : null,
-        rootMargin: '200px',
-      },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [loadMore, scrollBodyEl]);
+  const bindLoadMoreSentinel = useInpageScrollSentinel({
+    active: !filtered && hasMore,
+    getScrollRoot: () => scrollBodyRef.current,
+    scrollRootEl: scrollBodyEl,
+    onIntersect: loadMore,
+  });
 
   return (
     <div className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}>
@@ -239,9 +248,9 @@ export default function NewReleases() {
                 />
               )}
             />
-            {!filtered && (
-              <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-                {loading && hasMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
+            {!filtered && hasMore && (
+              <div ref={bindLoadMoreSentinel} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+                {loading && <div className="spinner" style={{ width: 20, height: 20 }} />}
               </div>
             )}
           </>

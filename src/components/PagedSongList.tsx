@@ -1,6 +1,7 @@
 import type { SubsonicSong } from '../api/subsonicTypes';
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import SongRow, { SongListHeader } from './SongRow';
+import { useInpageScrollSentinel } from '../hooks/useInpageScrollSentinel';
 
 interface Props {
   songs: SubsonicSong[];
@@ -22,19 +23,14 @@ interface Props {
  * is never painted over — issue #841).
  */
 export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore, showBpm }: Props) {
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
 
-  // Re-observe whenever `onLoadMore` changes identity (callers rebuild it after
-  // each page), so a sentinel still in view keeps loading the next page.
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting) onLoadMore();
-    }, { rootMargin: '600px' });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [onLoadMore]);
+  const bindSentinel = useInpageScrollSentinel({
+    active: hasMore,
+    onIntersect: () => onLoadMoreRef.current(),
+    rootMargin: '600px',
+  });
 
   return (
     <>
@@ -43,7 +39,7 @@ export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore,
         <SongRow key={song.id} song={song} showBpm={showBpm} />
       ))}
       {hasMore && (
-        <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
+        <div ref={bindSentinel} style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
           {loadingMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
         </div>
       )}

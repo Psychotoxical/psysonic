@@ -9,7 +9,9 @@ import { libraryCoverBackfillSetUiPriority } from '../api/coverCache';
 import {
   __test_resetCoverTraffic,
   coverTrafficBackgroundPaused,
+  coverTrafficBeginGridPagination,
   coverTrafficBeginNavigation,
+  coverTrafficEndGridPagination,
   coverTrafficEndNavigation,
 } from './coverTraffic';
 
@@ -37,6 +39,19 @@ describe('coverTraffic navigation hold', () => {
     coverTrafficBeginNavigation();
     coverTrafficEndNavigation();
     coverTrafficEndNavigation();
+    expect(coverTrafficBackgroundPaused()).toBe(false);
+  });
+});
+
+describe('coverTraffic grid pagination hold', () => {
+  beforeEach(() => {
+    __test_resetCoverTraffic();
+  });
+
+  it('pauses middle/low cover work while album pages fetch', () => {
+    coverTrafficBeginGridPagination();
+    expect(coverTrafficBackgroundPaused()).toBe(true);
+    coverTrafficEndGridPagination();
     expect(coverTrafficBackgroundPaused()).toBe(false);
   });
 });

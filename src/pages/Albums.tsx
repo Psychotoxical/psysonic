@@ -70,6 +70,13 @@ export default function Albums() {
     setLosslessOnly,
   } = useAlbumBrowseFilters(serverId);
 
+  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
+  const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
+  const bindAlbumsScrollBody = useCallback((el: HTMLDivElement | null) => {
+    scrollBodyRef.current = el;
+    setScrollBodyEl(el);
+  }, []);
+
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const {
     albums,
@@ -84,7 +91,7 @@ export default function Albums() {
     debouncedYearFields,
     compFilterActive,
     pendingClientFilterMatch,
-    loadMore,
+    bindLoadMoreSentinel,
   } = useAlbumBrowseData({
     serverId,
     indexEnabled,
@@ -97,19 +104,14 @@ export default function Albums() {
     starredOnly,
     compFilter,
     starredOverrides,
+    getScrollRoot: () => scrollBodyRef.current,
+    scrollRootEl: scrollBodyEl,
   });
 
-  const observerTarget = useRef<HTMLDivElement>(null);
   const gridMeasureRef = useRef<HTMLDivElement>(null);
   const maxGridCols = useAuthStore(s => clampLibraryGridMaxColumns(s.libraryGridMaxColumns));
   const [albumCellDisplayCssPx, setAlbumCellDisplayCssPx] = useState(140);
   const [albumGridCols, setAlbumGridCols] = useState(4);
-  const scrollBodyRef = useRef<HTMLDivElement | null>(null);
-  const [scrollBodyEl, setScrollBodyEl] = useState<HTMLDivElement | null>(null);
-  const bindAlbumsScrollBody = useCallback((el: HTMLDivElement | null) => {
-    scrollBodyRef.current = el;
-    setScrollBodyEl(el);
-  }, []);
 
   // ── Multi-selection ──────────────────────────────────────────────────────
   // selectedIds + toggleSelect come from useRangeSelection (declared after
@@ -210,14 +212,24 @@ export default function Albums() {
     return () => ro.disconnect();
   }, [maxGridCols, visibleAlbums.length]);
 
+  const prefetchLimit = Math.max(albumGridCols * 3, albumGridCols);
+  const prefetchKey = useMemo(
+    () => visibleAlbums.slice(0, prefetchLimit).map(a => a.id).join('\u0001'),
+    [visibleAlbums, prefetchLimit],
+  );
+  const prefetchAlbums = useMemo(
+    () => visibleAlbums.slice(0, prefetchLimit),
+    [visibleAlbums, prefetchLimit],
+  );
+
   useLibraryCoverPrefetch(
     [
       {
-        albums: visibleAlbums.slice(0, Math.max(albumGridCols * 3, albumGridCols)),
+        albums: prefetchAlbums,
         priority: 'high',
       },
     ],
-    [visibleAlbums, albumGridCols],
+    [prefetchKey, albumGridCols],
   );
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
@@ -236,21 +248,6 @@ export default function Albums() {
   useEffect(() => {
     if (!indexEnabled && losslessOnly) setLosslessOnly(false);
   }, [indexEnabled, losslessOnly]);
-
-  useEffect(() => {
-    const node = observerTarget.current;
-    if (!node) return;
-    const root = scrollBodyRef.current;
-    const observer = new IntersectionObserver(
-      entries => { if (entries[0]?.isIntersecting) loadMore(); },
-      {
-        root: root instanceof HTMLElement ? root : null,
-        rootMargin: '1500px',
-      },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [loadMore, scrollBodyEl]);
 
   const sortOptions: { value: SortType; label: string }[] = [
     { value: 'alphabeticalByName',   label: t('albums.sortByName') },
@@ -417,9 +414,12 @@ export default function Albums() {
                 />
               </div>
             )}
-            {!genreFiltered && (
-              <div ref={observerTarget} style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}>
-                {loading && hasMore && <div className="spinner" style={{ width: 20, height: 20 }} />}
+            {!genreFiltered && hasMore && (
+              <div
+                ref={bindLoadMoreSentinel}
+                style={{ height: '20px', margin: '2rem 0', display: 'flex', justifyContent: 'center' }}
+              >
+                {loading && <div className="spinner" style={{ width: 20, height: 20 }} />}
               </div>
             )}
           </>
