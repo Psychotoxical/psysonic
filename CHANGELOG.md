@@ -467,6 +467,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Artist page — top track thumbnails
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#886](https://github.com/Psychotoxical/psysonic/pull/886)**
+
+* **Top Tracks** on the artist page now load cover art through the same album `id` + `coverArt` path and disk warm batch as the albums grid below — fixes slow or missing 32px thumbs that used a separate sparse resolver.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.

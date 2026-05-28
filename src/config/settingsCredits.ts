@@ -139,6 +139,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Analytics: native advanced library backfill coordinator — UI stays responsive on large libraries (PR #881)',
       'Analytics: library backfill scan phase/cursor persistence so advanced indexing can finish large libraries (PR #882)',
       'Analytics: Opus waveform/LUFS/enrichment decode via symphonia-adapter-libopus in the analysis pipeline (PR #883)',
+      'Artist page: top-track thumbnails use the same album cover path and warm batch as the albums grid (PR #886)',
     ],
   },
   {
