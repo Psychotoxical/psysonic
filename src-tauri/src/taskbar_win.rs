@@ -3,6 +3,14 @@
 //! Adds Prev / Play-Pause / Next buttons to the taskbar thumbnail preview.
 //! Button clicks are intercepted via SetWindowSubclass and routed to the same
 //! `media:prev`, `media:play-pause`, `media:next` events as souvlaki / tray.
+//!
+//! `init` is only called in release builds (lib.rs gates it on
+//! `not(debug_assertions)` so a `tauri dev` run does not fight an installed
+//! release instance for the taskbar subclass — see PR #866). In debug builds
+//! the init-only helpers therefore look unused; the file-level cfg_attr
+//! suppresses dead-code warnings just for that profile and keeps release
+//! strict.
+#![cfg_attr(debug_assertions, allow(dead_code))]
 
 use std::sync::atomic::{AtomicIsize, Ordering};
 
