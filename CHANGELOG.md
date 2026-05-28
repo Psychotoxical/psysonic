@@ -413,6 +413,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Analytics — advanced library backfill without webview jank
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#881](https://github.com/Psychotoxical/psysonic/pull/881)**
+
+* **Settings → Library → Analytics → Advanced** on large libraries no longer stalls the whole UI (~4 FPS): catalog scheduling runs in a native background worker like cover backfill, not a webview polling loop.
+* Partially analyzed tracks (hash + BPM but missing waveform/loudness) are picked up via a targeted second scan with a reset cursor so the library is not skipped mid-pass.
+* Performance Probe analysis stats still update during background backfill; waveform/enrichment refresh events stay quiet for low-priority work.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
