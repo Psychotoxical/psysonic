@@ -249,6 +249,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Analytics — Opus waveform and loudness analysis
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#883](https://github.com/Psychotoxical/psysonic/pull/883)**
+
+* **Opus tracks:** waveform, LUFS, and enrichment analysis now use the same `symphonia-adapter-libopus` registry as playback — previously Symphonia could demux Ogg Opus but failed at decoder creation, leaving `.opus` libraries without analysis data.
+
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
