@@ -22,6 +22,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setPreloadMiniPlayer'
   | 'setLinuxWebkitKineticScroll'
   | 'setLinuxWaylandTextRenderProfile'
+  | 'setLinuxWebkitInputForceRepaint'
   | 'setSeekbarStyle'
   | 'setQueueNowPlayingCollapsed'
   | 'setQueueDurationDisplayMode'
@@ -45,6 +46,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setPreloadMiniPlayer: (v) => set({ preloadMiniPlayer: v }),
     setLinuxWebkitKineticScroll: (v) => set({ linuxWebkitKineticScroll: v }),
     setLinuxWaylandTextRenderProfile: (v) => set({ linuxWaylandTextRenderProfile: v }),
+    setLinuxWebkitInputForceRepaint: (v) => set({ linuxWebkitInputForceRepaint: v }),
     setSeekbarStyle: (v) => set({ seekbarStyle: v }),
     setQueueNowPlayingCollapsed: (v) => set({ queueNowPlayingCollapsed: v }),
     setQueueDurationDisplayMode: (v) => set({ queueDurationDisplayMode: v }),

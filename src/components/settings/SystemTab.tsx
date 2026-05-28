@@ -119,6 +119,21 @@ export function SystemTab() {
                   <span className="toggle-track" />
                 </label>
               </div>
+              <div className="settings-section-divider" />
+              <div className="settings-toggle-row">
+                <div>
+                  <div style={{ fontWeight: 500 }}>{t('settings.linuxWebkitInputForceRepaint')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.linuxWebkitInputForceRepaintDesc')}</div>
+                </div>
+                <label className="toggle-switch" aria-label={t('settings.linuxWebkitInputForceRepaint')}>
+                  <input
+                    type="checkbox"
+                    checked={auth.linuxWebkitInputForceRepaint}
+                    onChange={e => auth.setLinuxWebkitInputForceRepaint(e.target.checked)}
+                  />
+                  <span className="toggle-track" />
+                </label>
+              </div>
               {waylandTextRenderAvailable && (
                 <>
                   <div className="settings-section-divider" />

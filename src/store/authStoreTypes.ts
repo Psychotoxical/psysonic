@@ -136,6 +136,11 @@ export interface AuthState {
   linuxWebkitKineticScroll: boolean;
   /** Linux Wayland + GPU compositing: WebKit text rasterisation profile (live, no restart). */
   linuxWaylandTextRenderProfile: LinuxWaylandTextRenderProfile;
+  /** Linux WebKitGTK 2.50.x text-input repaint hang workaround (issues #342, #782).
+   *  When true, toggles a one-frame transform on the focused input's parent so WebKit
+   *  re-evaluates the layer tree. Off by default — the side-effect is a brief flicker
+   *  on focus, accepted trade-off for the affected users. */
+  linuxWebkitInputForceRepaint: boolean;
   /** Runtime backend logging level. */
   loggingMode: LoggingMode;
   nowPlayingEnabled: boolean;
@@ -310,6 +315,7 @@ export interface AuthState {
   setPreloadMiniPlayer: (v: boolean) => void;
   setLinuxWebkitKineticScroll: (v: boolean) => void;
   setLinuxWaylandTextRenderProfile: (v: LinuxWaylandTextRenderProfile) => void;
+  setLinuxWebkitInputForceRepaint: (v: boolean) => void;
   setLoggingMode: (v: LoggingMode) => void;
   setNowPlayingEnabled: (v: boolean) => void;
   setLyricsServerFirst: (v: boolean) => void;

@@ -164,6 +164,32 @@ export function AppShell() {
     return () => window.removeEventListener('psy:toggle-sidebar', onToggleSidebar);
   }, [isSidebarCollapsed, setSidebarCollapsed]);
 
+  // Workaround for WebKitGTK 2.50.x text-input repaint hang on
+  // Linux Mint / Ubuntu 24.04 (issues #342, #782). When opted in,
+  // nudge WebKit awake on every input/textarea focus via a sync
+  // reflow read plus a one-frame translateZ(0) toggle on the input's
+  // parent so the rendering pipeline re-evaluates the layer tree.
+  // Side-effect: search magnifier flickers briefly on focus.
+  const linuxWebkitInputForceRepaint = useAuthStore(s => s.linuxWebkitInputForceRepaint);
+  useEffect(() => {
+    if (!linuxWebkitInputForceRepaint) return;
+    const handler = (e: FocusEvent) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      const tag = target.tagName;
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+      const layerHost = (target.parentElement as HTMLElement | null) ?? target;
+      void layerHost.offsetHeight;
+      const previous = layerHost.style.transform;
+      layerHost.style.transform = 'translateZ(0)';
+      requestAnimationFrame(() => {
+        layerHost.style.transform = previous;
+      });
+    };
+    document.addEventListener('focusin', handler, true);
+    return () => document.removeEventListener('focusin', handler, true);
+  }, [linuxWebkitInputForceRepaint]);
+
   const {
     queueWidth,
     isDraggingQueue,
