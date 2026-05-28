@@ -10,7 +10,8 @@ use encode::write_webp_tier;
 use fetch::build_cover_art_url;
 use image::{DynamicImage, ImageReader};
 use psysonic_core::cover_cache_layout::{
-    count_entities_with_canonical_tier, cover_root_disk_usage, server_cover_disk_usage,
+    count_entities_with_canonical_tier, cover_root_disk_usage, cover_server_dir,
+    server_cover_disk_usage,
 };
 use psysonic_library::cover_backfill::{
     clear_cover_fetch_failures, collect_cover_backfill_batch, collect_cover_progress,
@@ -400,7 +401,7 @@ fn spawn_derive_remaining_tiers(
 
 /// Entity dirs with canonical `800.webp` under `album/` and `artist/` (segment layout).
 pub(crate) fn count_cached_cover_ids(root: &Path, server_index_key: &str) -> i64 {
-    let keyed = count_entities_with_canonical_tier(&root.join(server_index_key));
+    let keyed = count_entities_with_canonical_tier(&cover_server_dir(root, server_index_key));
     if keyed > 0 {
         return keyed;
     }
@@ -419,7 +420,7 @@ pub(crate) fn count_cached_cover_ids(root: &Path, server_index_key: &str) -> i64
 }
 
 pub(crate) fn dir_usage_for_server(root: &Path, server_index_key: &str) -> (u64, u64) {
-    server_cover_disk_usage(&root.join(server_index_key))
+    server_cover_disk_usage(&cover_server_dir(root, server_index_key))
 }
 
 pub(crate) fn dir_usage_at_root(root: &Path) -> (u64, u64) {
@@ -693,7 +694,7 @@ pub async fn cover_cache_clear_server(
 ) -> Result<(), String> {
     let st = state(&app)?;
     let guard = st.lock().await;
-    let path = guard.root.join(&server_index_key);
+    let path = cover_server_dir(&guard.root, &server_index_key);
     if path.is_dir() {
         std::fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
     }

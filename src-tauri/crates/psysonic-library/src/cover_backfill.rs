@@ -161,7 +161,7 @@ pub fn cover_fetch_recently_failed(cover_dir: &Path) -> bool {
 
 /// Remove `.fetch-failed` markers so the next library pass retries HTTP.
 pub fn clear_cover_fetch_failures(cover_root: &Path, server_index_key: &str) -> u32 {
-    let server_dir = cover_root.join(server_index_key);
+    let server_dir = cover_cache_layout::cover_server_dir(cover_root, server_index_key);
     let mut cleared = 0u32;
     for kind in cover_cache_layout::SEGMENT_KINDS {
         let kind_dir = server_dir.join(kind);

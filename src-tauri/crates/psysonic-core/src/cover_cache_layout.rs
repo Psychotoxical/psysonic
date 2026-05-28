@@ -4,14 +4,20 @@
 //! Navidrome `album.id` is often a bare hash/snowflake; `coverArt` may use `al-*`.
 //! Rarely `mf-*` / `dc-*` on disk when UI enables per-disc art. Path shape:
 //!
-//! `{root}/{server_index_key}/{kind}/{entity_id}/128.webp`
+//! `{root}/{server_segment}/{kind}/{entity_id}/128.webp`
+//!
+//! `server_segment` is derived from the frontend's `serverIndexKeyFromUrl` (host + path,
+//! no scheme). On Windows that key would otherwise drop a `:` straight into the filesystem
+//! whenever the user runs Navidrome on a `:port` URL — `CreateDirectory` then rejects the
+//! whole path with `ERROR_INVALID_NAME`. [`cover_server_dir`] sanitizes the key before it
+//! hits disk; every caller that wants a server-scoped cover directory goes through it.
 //!
 //! Bump [`LAYOUT_STAMP`] when the on-disk format changes (app wipes legacy dirs on startup).
 
 use std::path::{Path, PathBuf};
 
 /// Written to `{cover_root}/.storage-layout` — mismatch triggers cache reset.
-pub const LAYOUT_STAMP: &str = "canonical-segment-v3";
+pub const LAYOUT_STAMP: &str = "canonical-segment-v4";
 
 /// True for ids that are only valid as `getCoverArt` targets, not library entity keys.
 pub fn is_fetch_only_cover_id(id: &str) -> bool {
@@ -36,11 +42,18 @@ pub fn sanitize_path_segment(segment: &str) -> String {
         .collect()
 }
 
-/// Relative path under `{root}/{server_index_key}/` — change format here only.
+/// Relative path under `{root}/{server_segment}/` — change format here only.
 pub fn cover_entity_relative_dir(cache_kind: &str, cache_entity_id: &str) -> PathBuf {
     let kind = sanitize_path_segment(cache_kind);
     let entity = sanitize_path_segment(cache_entity_id);
     PathBuf::from(kind).join(entity)
+}
+
+/// Per-server cache root (`{root}/{server_segment}/`). Sanitizes the index key so
+/// `host:port` and embedded URL paths survive on Windows. Every caller that wants the
+/// server bucket — list/count/clear/backfill — must go through this helper.
+pub fn cover_server_dir(root: &Path, server_index_key: &str) -> PathBuf {
+    root.join(sanitize_path_segment(server_index_key))
 }
 
 /// Absolute directory for one cover entity (`…/album/al-…/` or `…/artist/ar-…/`).
@@ -50,7 +63,8 @@ pub fn cover_dir(
     cache_kind: &str,
     cache_entity_id: &str,
 ) -> PathBuf {
-    root.join(server_index_key).join(cover_entity_relative_dir(cache_kind, cache_entity_id))
+    cover_server_dir(root, server_index_key)
+        .join(cover_entity_relative_dir(cache_kind, cache_entity_id))
 }
 
 /// Resolved cover identity — keep in sync with TS `src/cover/resolveEntry.ts`.
@@ -191,6 +205,23 @@ mod tests {
         let root = Path::new("/tmp/cover");
         let dir = cover_dir(root, "srv", "album", "al-1");
         assert_eq!(dir, root.join("srv").join("album").join("al-1"));
+    }
+
+    #[test]
+    fn server_segment_sanitizes_port_colon_and_url_path() {
+        let root = Path::new("/tmp/cover");
+        // Typical LAN URL key from `serverIndexKeyFromUrl`: `host:port/path`.
+        // The `:` is invalid on Windows; the `/` would otherwise create a
+        // nested directory rather than one bucket per server.
+        let dir = cover_server_dir(root, "192.168.1.10:4533/music");
+        assert_eq!(dir, root.join("192.168.1.10_4533_music"));
+    }
+
+    #[test]
+    fn cover_dir_passes_server_key_through_sanitizer() {
+        let root = Path::new("/tmp/cover");
+        let dir = cover_dir(root, "host:4533", "album", "al-1");
+        assert_eq!(dir, root.join("host_4533").join("album").join("al-1"));
     }
 
     #[test]
