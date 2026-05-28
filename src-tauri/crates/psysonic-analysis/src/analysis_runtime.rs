@@ -804,7 +804,7 @@ pub fn analysis_backfill_resolve_priority(
     AnalysisBackfillPriority::Low
 }
 
-/// Library backfill uses `Low` — skip waveform / enrichment refresh IPC (not `analysis:track-perf`).
+/// Library backfill uses `Low` — skip waveform / enrichment refresh IPC (`analysis:track-perf` still emits for probes).
 pub fn analysis_emits_ui_events(priority: AnalysisBackfillPriority) -> bool {
     !matches!(priority, AnalysisBackfillPriority::Low)
 }
