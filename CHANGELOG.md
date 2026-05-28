@@ -472,6 +472,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#886](https://github.com/Psychotoxical/psysonic/pull/886)**
 
 * **Top Tracks** on the artist page now load cover art through the same album `id` + `coverArt` path and disk warm batch as the albums grid below — fixes slow or missing 32px thumbs that used a separate sparse resolver.
+* Warm/peek uses the album-grid tier (not 32px), top-track rows ensure at high priority, and the page registers the same dense prefetch as All Albums.
 
 
 

@@ -44,8 +44,9 @@ import ArtistDetailSimilarArtists from '../components/artistDetail/ArtistDetailS
 import ArtistCard from '../components/nowPlaying/ArtistCard';
 import LosslessModeBanner from '../components/LosslessModeBanner';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
-import { albumGridWarmCovers, COVER_ARTIST_TOP_TRACK_CSS_PX } from '../cover/layoutSizes';
-import { topSongAlbumsForCoverWarm } from '../components/artistDetail/topSongAlbumForCover';
+import { albumGridWarmCovers, COVER_DENSE_GRID_MIN_CELL_CSS_PX, GRID_COVER_WARM_LIMIT } from '../cover/layoutSizes';
+import { artistDetailCoverWarmAlbums } from '../components/artistDetail/topSongAlbumForCover';
+import { useLibraryCoverPrefetch } from '../cover/useLibraryCoverPrefetch';
 import { useWarmGridCovers } from '../hooks/useWarmGridCovers';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -216,15 +217,26 @@ export default function ArtistDetail() {
     setHeaderCoverFailed(false);
   }, [coverId, coverRevision, id]);
 
-  const topTrackCoverAlbums = useMemo(
-    () => topSongAlbumsForCoverWarm(topSongs, albums),
+  const artistCoverWarmAlbums = useMemo(
+    () => artistDetailCoverWarmAlbums(topSongs, albums, GRID_COVER_WARM_LIMIT),
     [topSongs, albums],
   );
-  useWarmGridCovers(topTrackCoverAlbums, COVER_ARTIST_TOP_TRACK_CSS_PX, {
-    enabled: topTrackCoverAlbums.length > 0,
-    limit: topTrackCoverAlbums.length,
+  useWarmGridCovers(artistCoverWarmAlbums, COVER_DENSE_GRID_MIN_CELL_CSS_PX, {
+    enabled: artistCoverWarmAlbums.length > 0,
+    limit: GRID_COVER_WARM_LIMIT,
     surface: 'dense',
   });
+  useLibraryCoverPrefetch(
+    [
+      {
+        albums: artistCoverWarmAlbums.slice(0, 24),
+        limit: 24,
+        priority: 'high',
+        surface: 'dense',
+      },
+    ],
+    [artistCoverWarmAlbums],
+  );
 
   if (loading) {
     return (

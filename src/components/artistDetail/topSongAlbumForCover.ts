@@ -2,6 +2,20 @@ import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
 
 export type TopSongAlbumCoverSource = Pick<SubsonicAlbum, 'id' | 'coverArt' | 'name'>;
 
+export type AlbumCoverWarmRow = { id: string; coverArt?: string | null };
+
+function pushAlbumWarmRow(
+  out: AlbumCoverWarmRow[],
+  seen: Set<string>,
+  row: { id?: string | null; coverArt?: string | null } | null | undefined,
+  limit: number,
+): void {
+  const id = row?.id?.trim();
+  if (!id || seen.has(id) || out.length >= limit) return;
+  seen.add(id);
+  out.push({ id, coverArt: row.coverArt });
+}
+
 /**
  * Album row for cover loading on artist top tracks — same `id` + `coverArt` as
  * {@link AlbumCard} when the album is in the artist discography; otherwise the
@@ -26,18 +40,36 @@ export function topSongAlbumForCover(
   };
 }
 
-/** Deduped album rows for top-track cover warm (matches album grid warm inputs). */
 export function topSongAlbumsForCoverWarm(
   songs: ReadonlyArray<Pick<SubsonicSong, 'albumId' | 'album' | 'coverArt'>>,
   albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'name' | 'coverArt'>>,
-): Array<{ id: string; coverArt?: string | null }> {
+): AlbumCoverWarmRow[] {
   const seen = new Set<string>();
-  const out: Array<{ id: string; coverArt?: string | null }> = [];
+  const out: AlbumCoverWarmRow[] = [];
   for (const song of songs) {
-    const row = topSongAlbumForCover(song, albums);
-    if (!row?.id || seen.has(row.id)) continue;
-    seen.add(row.id);
-    out.push({ id: row.id, coverArt: row.coverArt });
+    pushAlbumWarmRow(out, seen, topSongAlbumForCover(song, albums), songs.length);
+  }
+  return out;
+}
+
+/**
+ * Top-track albums first, then discography — same warm list shape as All Albums grids.
+ * Use {@link COVER_DENSE_GRID_MIN_CELL_CSS_PX} for peek/ensure tier (not the 32px thumb size).
+ */
+export function artistDetailCoverWarmAlbums(
+  topSongs: ReadonlyArray<Pick<SubsonicSong, 'albumId' | 'album' | 'coverArt'>>,
+  albums: ReadonlyArray<Pick<SubsonicAlbum, 'id' | 'coverArt'>>,
+  limit: number,
+): AlbumCoverWarmRow[] {
+  const seen = new Set<string>();
+  const out: AlbumCoverWarmRow[] = [];
+  for (const song of topSongs) {
+    if (out.length >= limit) break;
+    pushAlbumWarmRow(out, seen, topSongAlbumForCover(song, albums), limit);
+  }
+  for (const album of albums) {
+    if (out.length >= limit) break;
+    pushAlbumWarmRow(out, seen, album, limit);
   }
   return out;
 }

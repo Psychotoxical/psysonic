@@ -14,6 +14,7 @@ export default function ArtistTopTrackCover({ album }: { album: TopSongAlbumCove
       coverRef={coverRef}
       displayCssPx={COVER_ARTIST_TOP_TRACK_CSS_PX}
       surface="dense"
+      ensurePriority="high"
       alt={`${album.name} Cover`}
       loading="eager"
       decoding="async"

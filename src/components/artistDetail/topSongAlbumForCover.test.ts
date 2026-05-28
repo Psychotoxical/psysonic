@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { topSongAlbumForCover, topSongAlbumsForCoverWarm } from './topSongAlbumForCover';
+import { topSongAlbumForCover, topSongAlbumsForCoverWarm, artistDetailCoverWarmAlbums } from './topSongAlbumForCover';
 
 describe('topSongAlbumForCover', () => {
   it('uses the artist album row when albumId matches', () => {
@@ -39,6 +39,24 @@ describe('topSongAlbumsForCoverWarm', () => {
     ).toEqual([
       { id: 'al-1', coverArt: 'cov-a' },
       { id: 'al-2', coverArt: 'c2' },
+    ]);
+  });
+});
+
+describe('artistDetailCoverWarmAlbums', () => {
+  it('lists top-track albums before discography and respects limit', () => {
+    expect(
+      artistDetailCoverWarmAlbums(
+        [{ albumId: 'al-top', album: 'Hit', coverArt: 'c-top' }],
+        [
+          { id: 'al-a', coverArt: 'cov-a' },
+          { id: 'al-b', coverArt: 'cov-b' },
+        ],
+        2,
+      ),
+    ).toEqual([
+      { id: 'al-top', coverArt: 'c-top' },
+      { id: 'al-a', coverArt: 'cov-a' },
     ]);
   });
 });
