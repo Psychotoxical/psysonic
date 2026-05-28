@@ -8,7 +8,9 @@ import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
 import { ArtistCoverArtImage } from '../cover/ArtistCoverArtImage';
-import { playAlbum } from '../utils/playback/playAlbum';
+import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
+import { useLongPressAction } from '../hooks/useLongPressAction';
+import { LongPressWaveOverlay } from '../components/LongPressWaveOverlay';
 import { useTranslation } from 'react-i18next';
 
 const PAGE_SIZE = 50;
@@ -55,6 +57,30 @@ function formatPlays(n: number, t: ReturnType<typeof import('react-i18next').use
 
 /** Most-played list row cover layout px. */
 const MOST_PLAYED_COVER_CSS_PX = 80;
+
+function MostPlayedPlayButton({ albumId }: { albumId: string }) {
+  const { t } = useTranslation();
+  const { isHolding, pressBind } = useLongPressAction({
+    onShortPress: () => playAlbum(albumId),
+    onLongPress: () => playAlbumShuffled(albumId),
+  });
+
+  return (
+    <button
+      type="button"
+      className="mp-album-action-btn long-press-play-btn"
+      {...pressBind}
+      data-tooltip={t('hero.playAlbumTooltip')}
+      data-tooltip-pos="top"
+      aria-label={t('hero.playAlbumTooltip')}
+    >
+      <LongPressWaveOverlay active={isHolding} size="compact" />
+      <span className="long-press-play-btn__icon">
+        <Play size={14} fill="currentColor" />
+      </span>
+    </button>
+  );
+}
 
 
 export default function MostPlayed() {
@@ -230,15 +256,7 @@ export default function MostPlayed() {
                     </span>
                   </div>
                   <div className="mp-album-actions">
-                    <button
-                      className="mp-album-action-btn"
-                      onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
-                      data-tooltip={t('hero.playAlbum')}
-                      data-tooltip-pos="top"
-                      aria-label={t('hero.playAlbum')}
-                    >
-                      <Play size={14} fill="currentColor" />
-                    </button>
+                    <MostPlayedPlayButton albumId={album.id} />
                     <button
                       className="mp-album-action-btn"
                       onClick={e => { e.stopPropagation(); void handleEnqueueAlbum(album.id); }}

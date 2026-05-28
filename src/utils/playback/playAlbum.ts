@@ -38,17 +38,3 @@ export async function playAlbum(albumId: string): Promise<void> {
 
   usePlayerStore.getState().playTrack(tracks[0], tracks);
 }
-
-export async function playAlbumShuffled(albumId: string): Promise<void> {
-  const albumData = await getAlbum(albumId);
-  const tracks = albumData.songs.map(s => songToTrack(s));
-  
-  // simple fisher-yates shuffle
-  for (let i = tracks.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
-  }
-  
-  if (!tracks.length) return;
-  usePlayerStore.getState().playTrack(tracks[0], tracks);
-}

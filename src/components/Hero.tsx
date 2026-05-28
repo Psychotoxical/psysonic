@@ -9,13 +9,13 @@ import { useCoverArt } from '../cover/useCoverArt';
 import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
+import { playAlbum } from '../utils/playback/playAlbum';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useWindowVisibility } from '../hooks/useWindowVisibility';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mix/mixRatingFilter';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
-import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
 
 const INTERVAL_MS = 10000;
 const HERO_ALBUM_COUNT = 8;
@@ -68,8 +68,6 @@ interface HeroProps {
 export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
-  const longPressTriggered = useRef(false);
-  const [isHolding, setIsHolding] = useState(false);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
@@ -343,88 +341,15 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <>
-                  <style>{`
-                     @keyframes slosh {
-                       0% { transform: translateX(0); }
-                      100% { transform: translateX(-50%); }
-                   } 
-                `}</style>
-                  <button
-                    className="hero-play-btn"
-                    id="hero-play-btn"
-                    style={{ position: 'relative', overflow: 'hidden' }}
-                    onClick={e => {
-                      e.stopPropagation()
-                      if (longPressTriggered.current) {
-                        longPressTriggered.current = false
-                        return
-                      }
-                      playAlbum(album.id)
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      longPressTriggered.current = false
-
-                      const animTimer = setTimeout(() => {
-                        setIsHolding(true)
-                      }, 100)
-
-                      const timer = setTimeout(() => {
-                        longPressTriggered.current = true
-                        playAlbumShuffled(album.id)
-                        setIsHolding(false)
-                      }, 1000)
-
-                      const clear = () => {
-                        clearTimeout(timer)
-                        clearTimeout(animTimer)
-                        setIsHolding(false)
-                      }
-                      document.addEventListener('mouseup', clear, { once: true })
-                      document.addEventListener('mouseleave', clear, { once: true })
-                    }}
-                    aria-label={`${t('hero.playAlbum')} ${album.name}`}
-                    data-tooltip={t('hero.playAlbumTooltip')}
-                  >
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        color: 'currentColor',
-                        opacity: isHolding ? 0.25 : 0,
-                        transform: isHolding ? 'translateY(0)' : 'translateY(calc(100% + 15px))',
-                        transition: isHolding ? 'transform 900ms linear' : 'none',
-                        pointerEvents: 'none',
-                        zIndex: 0
-                      }}
-                    >
-                      <svg
-                        viewBox="0 0 200 20"
-                        preserveAspectRatio="none"
-                        style={{
-                          position: 'absolute',
-                          top: '-10px',
-                          left: 0,
-                          width: '200%',
-                          height: '12px',
-                          animation: isHolding ? 'slosh 1.2s linear infinite' : 'none'
-                        }}
-                      >
-                        <path d="M0,10 Q25,18 50,10 T100,10 Q125,18 150,10 T200,10 L200,20 L0,20 Z" fill="currentColor" />
-                      </svg>
-                      <div style={{ position: 'absolute', top: '2px', left: 0, width: '100%', height: '100%', backgroundColor: 'currentColor' }} />
-                    </div>
-
-                    <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                      <Play size={18} fill="currentColor" />
-                      {t('hero.playAlbum')}
-                    </span>
-                  </button>
-                </>
+              <button
+                className="hero-play-btn"
+                id="hero-play-btn"
+                onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
+                aria-label={`${t('hero.playAlbum')} ${album.name}`}
+              >
+                <Play size={18} fill="currentColor" />
+                {t('hero.playAlbum')}
+              </button>
               <button
                 className="btn btn-surface"
                 onClick={async (e) => {
