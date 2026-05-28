@@ -19,7 +19,7 @@ import {
 } from '../store/becauseYouLikeCache';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
-import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
+import { playAlbum } from '../utils/playback/playAlbum';
 import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import AlbumRow from './AlbumRow';
 
@@ -559,8 +559,6 @@ interface CardProps {
 
 const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, enter }: CardProps) {
   const { t } = useTranslation();
-  const longPressTriggered = useRef(false);
-  const [isHolding, setIsHolding] = useState(false);
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
   const coverRef = useAlbumCoverRef(album.id, album.coverArt, undefined, { libraryResolve: false });
@@ -627,76 +625,12 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
           <button
             type="button"
             className="album-card-details-btn"
-            style={{ position: 'relative', overflow: 'hidden' }}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (longPressTriggered.current) {
-                longPressTriggered.current = false
-                return
-              }
-              playAlbum(album.id)
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation()
-              longPressTriggered.current = false
-
-              const animTimer = setTimeout(() => {
-                setIsHolding(true)
-              }, 100)
-
-              const timer = setTimeout(() => {
-                longPressTriggered.current = true
-                playAlbumShuffled(album.id)
-                setIsHolding(false)
-              }, 1000)
-
-              const clear = () => {
-                clearTimeout(timer)
-                clearTimeout(animTimer)
-                setIsHolding(false)
-              }
-              document.addEventListener('mouseup', clear, { once: true })
-              document.addEventListener('mouseleave', clear, { once: true })
-            }}
+            onClick={handlePlay}
             aria-label={t('hero.playAlbum')}
-            data-tooltip={t('hero.playAlbumTooltip')}
+            data-tooltip={t('hero.playAlbum')}
             data-tooltip-pos="top"
           >
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                color: 'currentColor',
-                opacity: isHolding ? 0.35 : 0,
-                transform: isHolding ? 'translateY(0)' : 'translateY(calc(100% + 10px))',
-                transition: isHolding ? 'transform 900ms linear' : 'none',
-                pointerEvents: 'none',
-                zIndex: 0
-              }}
-            >
-              <svg
-                viewBox="0 0 200 20"
-                preserveAspectRatio="none"
-                style={{
-                  position: 'absolute',
-                  top: '-6px',
-                  left: 0,
-                  width: '200%',
-                  height: '8px',
-                  animation: isHolding ? 'slosh 1.2s linear infinite' : 'none'
-                }}
-              >
-                <path d="M0,10 Q25,18 50,10 T100,10 Q125,18 150,10 T200,10 L200,20 L0,20 Z" fill="currentColor" />
-              </svg>
-              <div style={{ position: 'absolute', top: '2px', left: 0, width: '100%', height: '100%', backgroundColor: 'currentColor' }} />
-            </div>
-
-            <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Play size={15} fill="currentColor" />
-            </span>
+            <Play size={15} fill="currentColor" />
           </button>
           <button
             type="button"
