@@ -9,13 +9,15 @@ import { useCoverArt } from '../cover/useCoverArt';
 import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
-import { playAlbum } from '../utils/playback/playAlbum';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useWindowVisibility } from '../hooks/useWindowVisibility';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mix/mixRatingFilter';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
+import { useLongPressAction } from '../hooks/useLongPressAction';
+import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 
 const INTERVAL_MS = 10000;
 const HERO_ALBUM_COUNT = 8;
@@ -275,6 +277,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   // transition (which would cause the background to flash empty before fading in).
   const stableBgUrl = useRef('');
   const albumId = album?.id;
+  const { isHolding, pressBind } = useLongPressAction({
+    onShortPress: () => { if (albumId) playAlbum(albumId); },
+    onLongPress: () => { if (albumId) playAlbumShuffled(albumId); },
+  });
   useEffect(() => {
     if (bgHandle.src) stableBgUrl.current = bgHandle.src;
   }, [bgHandle.src, albumId]);
@@ -318,11 +324,15 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
           {isMobile ? (
             <div className="hero-actions-mobile" onClick={e => e.stopPropagation()}>
               <button
-                className="album-icon-btn album-icon-btn--play"
-                onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
+                className="album-icon-btn album-icon-btn--play long-press-play-btn"
+                {...pressBind}
                 aria-label={`${t('hero.playAlbum')} ${album.name}`}
+                data-tooltip={t('hero.playAlbumTooltip')}
               >
-                <Play size={22} fill="currentColor" />
+                <LongPressWaveOverlay active={isHolding} size="compact" />
+                <span className="long-press-play-btn__icon">
+                  <Play size={22} fill="currentColor" />
+                </span>
               </button>
               <button
                 className="album-icon-btn album-icon-btn--queue"
@@ -341,15 +351,19 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <button
-                className="hero-play-btn"
-                id="hero-play-btn"
-                onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
-                aria-label={`${t('hero.playAlbum')} ${album.name}`}
-              >
-                <Play size={18} fill="currentColor" />
-                {t('hero.playAlbum')}
-              </button>
+                  <button
+                    className="hero-play-btn long-press-play-btn"
+                    id="hero-play-btn"
+                    {...pressBind}
+                    aria-label={`${t('hero.playAlbum')} ${album.name}`}
+                    data-tooltip={t('hero.playAlbumTooltip')}
+                  >
+                    <LongPressWaveOverlay active={isHolding} />
+                    <span className="long-press-play-btn__icon" style={{ gap: '8px' }}>
+                      <Play size={18} fill="currentColor" />
+                      {t('hero.playAlbum')}
+                    </span>
+                  </button>
               <button
                 className="btn btn-surface"
                 onClick={async (e) => {

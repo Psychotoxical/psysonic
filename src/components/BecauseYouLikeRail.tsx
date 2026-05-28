@@ -19,7 +19,9 @@ import {
 } from '../store/becauseYouLikeCache';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
-import { playAlbum } from '../utils/playback/playAlbum';
+import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
+import { useLongPressAction } from '../hooks/useLongPressAction';
+import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import AlbumRow from './AlbumRow';
 
@@ -559,6 +561,10 @@ interface CardProps {
 
 const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, enter }: CardProps) {
   const { t } = useTranslation();
+  const { isHolding, pressBind } = useLongPressAction({
+    onShortPress: () => playAlbum(album.id),
+    onLongPress: () => playAlbumShuffled(album.id),
+  });
   const navigate = useNavigate();
   const enqueue = usePlayerStore(s => s.enqueue);
   const coverRef = useAlbumCoverRef(album.id, album.coverArt, undefined, { libraryResolve: false });
@@ -569,10 +575,6 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   const imgSrc = coverImgSrc(coverHandle.src);
   const bgResolved = coverHandle.src;
   const handleOpen = () => navigate(`/album/${album.id}`);
-  const handlePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    playAlbum(album.id);
-  };
   const handleEnqueue = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -624,13 +626,16 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
         <div className="album-card-play-overlay">
           <button
             type="button"
-            className="album-card-details-btn"
-            onClick={handlePlay}
+            className="album-card-details-btn long-press-play-btn"
+            {...pressBind}
             aria-label={t('hero.playAlbum')}
-            data-tooltip={t('hero.playAlbum')}
+            data-tooltip={t('hero.playAlbumTooltip')}
             data-tooltip-pos="top"
           >
-            <Play size={15} fill="currentColor" />
+            <LongPressWaveOverlay active={isHolding} size="compact" />
+            <span className="long-press-play-btn__icon">
+              <Play size={15} fill="currentColor" />
+            </span>
           </button>
           <button
             type="button"

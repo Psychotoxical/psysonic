@@ -16,7 +16,9 @@ import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 import { resolveCoverDisplayTier } from '../cover/tiers';
 import { acquireUrl } from '../utils/imageCache/urlPool';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
-import { playAlbum } from '../utils/playback/playAlbum';
+import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
+import { useLongPressAction } from '../hooks/useLongPressAction';
+import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
@@ -59,6 +61,10 @@ function AlbumCard({
   libraryResolve = false,
 }: AlbumCardProps) {
   const { t } = useTranslation();
+  const { isHolding, pressBind } = useLongPressAction({
+    onShortPress: () => playAlbum(album.id),
+    onLongPress: () => playAlbumShuffled(album.id),
+  });
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -157,15 +163,18 @@ function AlbumCard({
         )}
         {!selectionMode && (
           <div className="album-card-play-overlay">
-            <button
-              className="album-card-details-btn"
-              onClick={e => { e.stopPropagation(); playAlbum(album.id); }}
-              aria-label={`${album.name} abspielen`}
-              data-tooltip={t('hero.playAlbum')}
-              data-tooltip-pos="top"
-            >
-              <Play size={15} fill="currentColor" />
-            </button>
+              <button
+                className="album-card-details-btn long-press-play-btn"
+                {...pressBind}
+                aria-label={`${t('hero.playAlbumTooltip')} — ${album.name}`}
+                data-tooltip={t('hero.playAlbumTooltip')}
+                data-tooltip-pos="top"
+              >
+                <LongPressWaveOverlay active={isHolding} />
+                <span className="long-press-play-btn__icon">
+                  <Play size={15} fill="currentColor" />
+                </span>
+              </button>
             <button
               className="album-card-details-btn"
               onClick={async e => {

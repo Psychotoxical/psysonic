@@ -3,15 +3,20 @@ import { usePlayerStore } from '../../store/playerStore';
 import { songToTrack } from './songToTrack';
 import { useOrbitStore } from '../../store/orbitStore';
 import { fadeOut } from './fadeOut';
+import type { Track } from '../../store/playerStoreTypes';
+import { shuffleArray } from './shuffleArray';
 
-export async function playAlbum(albumId: string): Promise<void> {
+async function fetchAlbumTracks(albumId: string): Promise<Track[]> {
   const albumData = await getAlbum(albumId);
   const albumGenre = albumData.album.genre;
-  const tracks = albumData.songs.map(s => {
+  return albumData.songs.map(s => {
     const track = songToTrack(s);
     if (!track.genre && albumGenre) track.genre = albumGenre;
     return track;
   });
+}
+
+async function startAlbumPlayback(tracks: Track[]): Promise<void> {
   if (!tracks.length) return;
 
   // In Orbit sessions, playAlbum is effectively an append operation (the
@@ -37,4 +42,12 @@ export async function playAlbum(albumId: string): Promise<void> {
   }
 
   usePlayerStore.getState().playTrack(tracks[0], tracks);
+}
+
+export async function playAlbum(albumId: string): Promise<void> {
+  await startAlbumPlayback(await fetchAlbumTracks(albumId));
+}
+
+export async function playAlbumShuffled(albumId: string): Promise<void> {
+  await startAlbumPlayback(shuffleArray(await fetchAlbumTracks(albumId)));
 }
