@@ -221,6 +221,7 @@ export const settings = {
   discordTemplateDetails: '主行 (details)',
   discordTemplateState: '副行 (state)',
   discordTemplateLargeText: '专辑提示 (largeText)',
+  discordTemplateName: '用户列表行 (name)',
   nowPlayingEnabled: '在实时窗口中显示',
   nowPlayingEnabledDesc: '将当前播放的曲目广播到服务器的实时听众视图。禁用以停止发送播放数据。',
   enableBandsintown: 'Bandsintown 巡演日期',

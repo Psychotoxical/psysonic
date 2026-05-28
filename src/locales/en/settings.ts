@@ -248,6 +248,7 @@ export const settings = {
   discordTemplateDetails: 'Primary line (details)',
   discordTemplateState: 'Secondary line (state)',
   discordTemplateLargeText: 'Album tooltip (largeText)',
+  discordTemplateName: 'User list line (name)',
   nowPlayingEnabled: 'Show in Now Playing',
   nowPlayingEnabledDesc: 'Broadcast your currently playing track to the server\'s live listener view. Disable to stop sending playback data.',
   enableBandsintown: 'Bandsintown tour dates',

@@ -224,6 +224,7 @@ export const settings = {
   discordTemplateDetails: 'Línea principal (details)',
   discordTemplateState: 'Línea secundaria (state)',
   discordTemplateLargeText: 'Tooltip del álbum (largeText)',
+  discordTemplateName: 'Línea de la lista (name)',
   nowPlayingEnabled: 'Mostrar en Reproduciendo Ahora',
   nowPlayingEnabledDesc: 'Transmite tu pista actual a la vista de oyentes en vivo del servidor. Desactiva para dejar de enviar datos de reproducción.',
   enableBandsintown: 'Fechas de gira de Bandsintown',

@@ -222,6 +222,7 @@ export const settings = {
   discordTemplateDetails: 'Ligne principale (details)',
   discordTemplateState: 'Ligne secondaire (state)',
   discordTemplateLargeText: 'Info-bulle album (largeText)',
+  discordTemplateName: 'Ligne de la liste (name)',
   nowPlayingEnabled: 'Afficher dans la fenêtre live',
   nowPlayingEnabledDesc: 'Diffuse le titre en cours de lecture vers la vue des auditeurs en direct du serveur. Désactiver pour ne pas envoyer de données de lecture.',
   enableBandsintown: 'Dates de tournée Bandsintown',

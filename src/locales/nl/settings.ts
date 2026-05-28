@@ -222,6 +222,7 @@ export const settings = {
   discordTemplateDetails: 'Primaire regel (details)',
   discordTemplateState: 'Secundaire regel (state)',
   discordTemplateLargeText: 'Album-tooltip (largeText)',
+  discordTemplateName: 'Gebruikerslijst-regel (name)',
   nowPlayingEnabled: 'Weergeven in live-venster',
   nowPlayingEnabledDesc: 'Stuurt het huidige nummer naar de live-luisteraarsweergave van de server. Uitschakelen om geen afspeelgegevens te verzenden.',
   enableBandsintown: 'Bandsintown-tourdata',

@@ -227,6 +227,7 @@ export const settings = {
   discordTemplateDetails: 'Linia principală (detalii)',
   discordTemplateState: 'Linia secundară (status)',
   discordTemplateLargeText: 'Tooltip album (largeText)',
+  discordTemplateName: 'Linia din listă (name)',
   nowPlayingEnabled: 'Se afișează în Now Playing',
   nowPlayingEnabledDesc: 'Difuzează piesa redată curent către vizualizatorul de ascultare live a serverului. Dezactivează pentru a opri trimiterea datelor de redare.',
   enableBandsintown: 'Date de turneu Bandsintown',

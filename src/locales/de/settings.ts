@@ -225,6 +225,7 @@ export const settings = {
   discordTemplateDetails: 'Primäre Zeile (details)',
   discordTemplateState: 'Sekundäre Zeile (state)',
   discordTemplateLargeText: 'Album-Tooltip (largeText)',
+  discordTemplateName: 'Userliste-Zeile (name)',
   nowPlayingEnabled: 'Im Livefenster anzeigen',
   nowPlayingEnabledDesc: 'Überträgt den aktuell gespielten Titel an die Livehörer-Ansicht des Servers. Deaktivieren, um keine Wiedergabedaten zu senden.',
   enableBandsintown: 'Bandsintown-Tourdaten',

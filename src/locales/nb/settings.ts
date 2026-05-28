@@ -221,6 +221,7 @@ export const settings = {
   discordTemplateDetails: 'Primær linje (details)',
   discordTemplateState: 'Sekundær linje (state)',
   discordTemplateLargeText: 'Album-verktøytips (largeText)',
+  discordTemplateName: 'Brukerliste-linje (name)',
   nowPlayingEnabled: 'Vis i "Nå spiller"',
   nowPlayingEnabledDesc: 'Send sporet som spilles av til tjenerens live-lyttervisning. Deaktiver for å stoppe sending av avspillingsdata.',
   enableBandsintown: 'Bandsintown-turnédatoer',

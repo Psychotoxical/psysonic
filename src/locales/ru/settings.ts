@@ -252,6 +252,7 @@ export const settings = {
   discordTemplateDetails: 'Основная строка (details)',
   discordTemplateState: 'Вторичная строка (state)',
   discordTemplateLargeText: 'Подсказка альбома (largeText)',
+  discordTemplateName: 'Строка в списке пользователей (name)',
   nowPlayingEnabled: 'Показывать в «Сейчас играет»',
   nowPlayingEnabledDesc:
     'Отправлять на сервер, что вы сейчас слушаете. Отключите, чтобы не делиться этим.',
