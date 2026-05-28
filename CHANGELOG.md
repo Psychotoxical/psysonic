@@ -476,6 +476,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Covers — load on Windows when the server URL has a `:port`
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#889](https://github.com/Psychotoxical/psysonic/pull/889)**
+
+* Album, now-playing, mainstage, and lightbox covers no longer stay blank on Windows when the active server URL has a `:port` (typical Navidrome LAN setup on `:4533`). The colon used to land in a Windows filesystem segment, so the OS rejected the whole cache path with `ERROR_INVALID_NAME` and every cover load failed silently.
+* Existing cache buckets on disk are wiped once on the next launch (layout-stamp bump) and rebuild lazily as users browse. Library, offline, and hot caches are untouched.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
