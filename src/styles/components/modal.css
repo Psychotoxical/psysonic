@@ -151,6 +151,11 @@
   line-height: 1.45;
 }
 
+.sidebar-perf-modal__cpu-row--indent {
+  padding-left: 0.75rem;
+  color: var(--text-muted);
+}
+
 .sidebar-perf-modal__subhead {
   margin-top: 10px;
   margin-bottom: 2px;

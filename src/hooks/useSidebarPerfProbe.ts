@@ -7,10 +7,23 @@ import {
 } from '../utils/perf/analysisPerfStore';
 import { useAnalysisPerfListener } from './useAnalysisPerfListener';
 
+interface PerfProcessMemory {
+  label: string;
+  rss_kb: number;
+}
+
+interface PerfThreadCpuGroup {
+  label: string;
+  thread_count: number;
+  jiffies: number;
+}
+
 interface PerfCpu {
   app: number;
   webkit: number;
   supported: boolean;
+  memory: PerfProcessMemory[];
+  threadCpu: Array<{ label: string; threadCount: number; pct: number }>;
 }
 
 interface PerfDiagRates {
@@ -68,6 +81,8 @@ export function useSidebarPerfProbe(): Result {
       app_jiffies: number;
       webkit_jiffies: number;
       logical_cpus: number;
+      memory: PerfProcessMemory[];
+      thread_cpu_groups: PerfThreadCpuGroup[];
     };
     let cancelled = false;
     let prev: Snapshot | null = null;
@@ -79,9 +94,21 @@ export function useSidebarPerfProbe(): Result {
         const snap = await invoke<Snapshot>('performance_cpu_snapshot');
         if (cancelled) return;
         if (!snap.supported) {
-          setPerfCpu({ app: 0, webkit: 0, supported: false });
+          setPerfCpu({ app: 0, webkit: 0, supported: false, memory: [], threadCpu: [] });
           return;
         }
+        const memory = snap.memory;
+        let nextCpu: PerfCpu = {
+          app: 0,
+          webkit: 0,
+          supported: true,
+          memory,
+          threadCpu: snap.thread_cpu_groups.map(g => ({
+            label: g.label,
+            threadCount: g.thread_count,
+            pct: 0,
+          })),
+        };
         if (prev) {
           const totalDelta = snap.total_jiffies - prev.total_jiffies;
           const appDelta = snap.app_jiffies - prev.app_jiffies;
@@ -90,13 +117,28 @@ export function useSidebarPerfProbe(): Result {
             const cpuScale = Math.max(1, snap.logical_cpus || 1) * 100;
             const appPct = Math.max(0, Math.min(1000, (appDelta / totalDelta) * cpuScale));
             const webkitPct = Math.max(0, Math.min(1000, (webkitDelta / totalDelta) * cpuScale));
-            setPerfCpu({
+            const prevThreadByLabel = new Map(
+              prev.thread_cpu_groups.map(g => [g.label, g.jiffies]),
+            );
+            nextCpu = {
               app: Number.isFinite(appPct) ? appPct : 0,
               webkit: Number.isFinite(webkitPct) ? webkitPct : 0,
               supported: true,
-            });
+              memory,
+              threadCpu: snap.thread_cpu_groups.map(g => {
+                const prevJiffies = prevThreadByLabel.get(g.label) ?? g.jiffies;
+                const delta = g.jiffies - prevJiffies;
+                const pct = Math.max(0, Math.min(1000, (delta / totalDelta) * cpuScale));
+                return {
+                  label: g.label,
+                  threadCount: g.thread_count,
+                  pct: Number.isFinite(pct) ? pct : 0,
+                };
+              }),
+            };
           }
         }
+        setPerfCpu(nextCpu);
         const now = Date.now();
         const root = globalThis as unknown as { __psyPerfCounters?: Record<string, number> };
         const counters = root.__psyPerfCounters ?? {};
@@ -117,7 +159,7 @@ export function useSidebarPerfProbe(): Result {
         prevCountersAt = now;
         prev = snap;
       } catch {
-        if (!cancelled) setPerfCpu({ app: 0, webkit: 0, supported: false });
+        if (!cancelled) setPerfCpu({ app: 0, webkit: 0, supported: false, memory: [], threadCpu: [] });
       } finally {
         if (!cancelled) timer = window.setTimeout(poll, 2000);
       }

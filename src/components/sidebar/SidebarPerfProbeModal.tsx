@@ -3,10 +3,23 @@ import { X } from 'lucide-react';
 import SidebarPerfProbePhase2 from './SidebarPerfProbePhase2';
 import { resetPerfProbeFlags, setPerfProbeFlag, type PerfProbeFlags } from '../../utils/perf/perfFlags';
 
+interface PerfProcessMemory {
+  label: string;
+  rss_kb: number;
+}
+
+interface PerfThreadCpu {
+  label: string;
+  threadCount: number;
+  pct: number;
+}
+
 interface PerfCpu {
   app: number;
   webkit: number;
   supported: boolean;
+  memory: PerfProcessMemory[];
+  threadCpu: PerfThreadCpu[];
 }
 
 interface PerfDiagRates {
@@ -87,8 +100,20 @@ export default function SidebarPerfProbeModal({
                 <div className="sidebar-perf-modal__cpu-row">Collecting samples…</div>
               ) : perfCpu.supported ? (
                 <>
-                  <div className="sidebar-perf-modal__cpu-row">psysonic: {perfCpu.app.toFixed(1)}%</div>
+                  <div className="sidebar-perf-modal__cpu-row">psysonic (process): {perfCpu.app.toFixed(1)}%</div>
                   <div className="sidebar-perf-modal__cpu-row">WebKitWebProcess: {perfCpu.webkit.toFixed(1)}%</div>
+                  {perfCpu.threadCpu.length > 0 && (
+                    <>
+                      <div className="sidebar-perf-modal__subhead">psysonic threads</div>
+                      {perfCpu.threadCpu.map(row => (
+                        <div key={row.label} className="sidebar-perf-modal__cpu-row sidebar-perf-modal__cpu-row--indent">
+                          {row.label}
+                          {row.threadCount > 1 ? ` (${row.threadCount})` : ''}
+                          : {row.pct.toFixed(1)}%
+                        </div>
+                      ))}
+                    </>
+                  )}
                   {perfDiagRates && (
                     <>
                       <div className="sidebar-perf-modal__cpu-row">audio:progress rate: {perfDiagRates.progress.toFixed(1)}/s</div>
@@ -109,6 +134,22 @@ export default function SidebarPerfProbeModal({
                     </>
                   )}
                 </>
+              ) : (
+                <div className="sidebar-perf-modal__cpu-row">Unavailable on this platform/build.</div>
+              )}
+            </div>
+            <div className="sidebar-perf-modal__cpu">
+              <div className="sidebar-perf-modal__cpu-title">Live memory (RSS)</div>
+              {perfCpu == null ? (
+                <div className="sidebar-perf-modal__cpu-row">Collecting samples…</div>
+              ) : perfCpu.supported && perfCpu.memory.length > 0 ? (
+                perfCpu.memory.map(row => (
+                  <div key={row.label} className="sidebar-perf-modal__cpu-row">
+                    {row.label}: {(row.rss_kb / 1024).toFixed(1)} MB
+                  </div>
+                ))
+              ) : perfCpu.supported ? (
+                <div className="sidebar-perf-modal__cpu-row">No process memory samples.</div>
               ) : (
                 <div className="sidebar-perf-modal__cpu-row">Unavailable on this platform/build.</div>
               )}
