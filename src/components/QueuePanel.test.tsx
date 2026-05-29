@@ -74,6 +74,9 @@ describe('QueuePanel — render surface', () => {
       .mockImplementation(function (this: HTMLElement) {
         return this.classList.contains('queue-list') ? 600 : 52;
       });
+    // These characterize the full-queue rendering (one row per track), which is
+    // playlist mode. The default mode is 'queue' (upcoming-only), so pin it.
+    useAuthStore.getState().setQueueDisplayMode('playlist');
   });
   afterEach(() => offsetSpy.mockRestore());
 
@@ -103,6 +106,66 @@ describe('QueuePanel — render surface', () => {
     // assert at least one match. Title B only lives in its row.
     expect(getAllByText('Test Song A').length).toBeGreaterThan(0);
     expect(getByText('Test Song B')).toBeInTheDocument();
+  });
+});
+
+describe('QueuePanel — display mode', () => {
+  // Same virtualizer layout shim as the render-surface block: jsdom has no
+  // layout, so give the scroll viewport a height and rows a fixed height.
+  let offsetSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    offsetSpy = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains('queue-list') ? 600 : 52;
+      });
+  });
+  afterEach(() => offsetSpy.mockRestore());
+
+  it('playlist mode: header reads "Playlist", full queue renders, no "Next Tracks" divider', () => {
+    const tracks = makeTracks(4);
+    useAuthStore.getState().setQueueDisplayMode('playlist');
+    seedQueue(tracks, { index: 1, currentTrack: tracks[1] });
+    const { container } = renderWithProviders(<QueuePanel />);
+    expect(container.querySelector('.queue-header h2')?.textContent).toBe('Playlist');
+    const idxs = [...container.querySelectorAll('[data-queue-idx]')].map(r => r.getAttribute('data-queue-idx'));
+    expect(idxs).toEqual(['0', '1', '2', '3']);
+    expect(container.textContent).not.toContain('Next Tracks');
+  });
+
+  it('queue mode: header reads "Queue", only upcoming rows render with absolute indices + titles', () => {
+    const tracks = makeTracks(5);
+    useAuthStore.getState().setQueueDisplayMode('queue');
+    seedQueue(tracks, { index: 1, currentTrack: tracks[1] });
+    const { container } = renderWithProviders(<QueuePanel />);
+    expect(container.querySelector('.queue-header h2')?.textContent).toBe('Queue');
+    const rows = [...container.querySelectorAll<HTMLElement>('[data-queue-idx]')];
+    // Played (0) + current (1) are gone; only 2,3,4 remain, with absolute idx.
+    expect(rows.map(r => r.getAttribute('data-queue-idx'))).toEqual(['2', '3', '4']);
+    // The first displayed row maps to the absolute track at index 2, not 0.
+    expect(rows[0]?.textContent).toContain(tracks[2].title);
+    expect(container.textContent).toContain('Next Tracks');
+  });
+
+  it('queue mode with the current track last: shows the "no upcoming" empty state, no rows', () => {
+    const tracks = makeTracks(3);
+    useAuthStore.getState().setQueueDisplayMode('queue');
+    seedQueue(tracks, { index: 2, currentTrack: tracks[2] });
+    const { container } = renderWithProviders(<QueuePanel />);
+    expect(container.querySelectorAll('[data-queue-idx]').length).toBe(0);
+    expect(container.textContent).toContain('No upcoming tracks');
+  });
+
+  it('header mode-toggle button flips queueDisplayMode (default queue → playlist)', () => {
+    seedQueue(makeTracks(3), { index: 0, currentTrack: makeTrack() });
+    const { container } = renderWithProviders(<QueuePanel />);
+    // The mode toggle is the first .queue-action-btn in the header (the
+    // collapse chevron is the second). The default mode is 'queue', so the
+    // toggle's label names its target ("Playlist").
+    const toggle = container.querySelector<HTMLButtonElement>('.queue-header .queue-action-btn');
+    expect(toggle?.getAttribute('aria-label')).toBe('Playlist');
+    toggle!.click();
+    expect(useAuthStore.getState().queueDisplayMode).toBe('playlist');
   });
 });
 
