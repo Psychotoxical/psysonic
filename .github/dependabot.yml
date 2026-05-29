@@ -20,3 +20,10 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    ignore:
+      # Symphonia 0.6 is a coordinated migration (API break + isomp4 patch port).
+      # See workdocs: internal/collaboration/tasks/2026-05-symphonia-0.6-migration/
+      - dependency-name: symphonia
+        versions: [">= 0.6"]
+      - dependency-name: symphonia-adapter-libopus
+        versions: [">= 0.3"]
