@@ -140,6 +140,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Analytics: library backfill scan phase/cursor persistence so advanced indexing can finish large libraries (PR #882)',
       'Analytics: Opus waveform/LUFS/enrichment decode via symphonia-adapter-libopus in the analysis pipeline (PR #883)',
       'Artist page: top-track thumbnails use the same album cover path and warm batch as the albums grid (PR #886)',
+      'Security: bump transitive tar to 0.4.46 for GHSA-3pv8-6f4r-ffg2 (macOS updater bundle extraction) (PR #923)',
     ],
   },
   {
