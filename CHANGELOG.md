@@ -305,16 +305,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-### Library SQLite — pre-RC migration baseline
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#919](https://github.com/Psychotoxical/psysonic/pull/919)**
-
-* Squash dev migrations 002–008 into a single `001_initial.sql` baseline (`LIBRARY_DB_SCHEMA_VERSION` = 1) before the library index ships in RC — `play_session`, remap/title/genre/year indexes, `resync_gen`, and related columns included.
-* Drop dev-only mood-facts purge migration (009); analysis cache migrations (`001_baseline` + `002_server_id`) unchanged.
-* **Dev installs** with an existing `library.sqlite` at schema v2–v9: delete the file and re-sync.
-
-
-
 ## Fixed
 
 ### Analytics — Opus waveform and loudness analysis
