@@ -17,6 +17,7 @@ import type {
   DiscordCoverSource,
   DurationMode,
   LyricsSourceConfig,
+  QueueDisplayMode,
   SeekbarStyle,
 } from './authStoreTypes';
 
@@ -103,6 +104,15 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ? {}
     : { queueDurationDisplayMode: 'total' as DurationMode };
 
+  // Missing key (pre-feature persist) / garbage maps to 'queue' — the default
+  // mode, which lists only upcoming tracks.
+  const VALID_QUEUE_DISPLAY_MODES = new Set<string>(['playlist', 'queue']);
+  const queueDisplayModeMigrated = VALID_QUEUE_DISPLAY_MODES.has(
+    (state as { queueDisplayMode?: unknown }).queueDisplayMode as string,
+  )
+    ? {}
+    : { queueDisplayMode: 'queue' as QueueDisplayMode };
+
   const VALID_WAYLAND_TEXT_PROFILE = new Set<string>(['balanced', 'sharp', 'gpu', 'minimal']);
   const rawWaylandProfile = (state as { linuxWaylandTextRenderProfile?: unknown }).linuxWaylandTextRenderProfile;
   const linuxWaylandTextRenderProfileMigrated = VALID_WAYLAND_TEXT_PROFILE.has(rawWaylandProfile as string)
@@ -162,6 +172,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...wheelSmoothOneTime,
     ...seekbarStyleMigrated,
     ...queueDurationDisplayModeMigrated,
+    ...queueDisplayModeMigrated,
     ...linuxWaylandTextRenderProfileMigrated,
     ...discordCoverSourceMigrated,
   };

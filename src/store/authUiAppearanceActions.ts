@@ -26,6 +26,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setSeekbarStyle'
   | 'setQueueNowPlayingCollapsed'
   | 'setQueueDurationDisplayMode'
+  | 'setQueueDisplayMode'
   | 'setShowFullscreenLyrics'
   | 'setFsLyricsStyle'
   | 'setSidebarLyricsStyle'
@@ -50,6 +51,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setSeekbarStyle: (v) => set({ seekbarStyle: v }),
     setQueueNowPlayingCollapsed: (v) => set({ queueNowPlayingCollapsed: v }),
     setQueueDurationDisplayMode: (v) => set({ queueDurationDisplayMode: v }),
+    setQueueDisplayMode: (v) => set({ queueDisplayMode: v }),
     setShowFullscreenLyrics: (v) => set({ showFullscreenLyrics: v }),
     setFsLyricsStyle: (v) => set({ fsLyricsStyle: v }),
     setSidebarLyricsStyle: (v) => set({ sidebarLyricsStyle: v }),

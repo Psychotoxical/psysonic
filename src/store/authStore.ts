@@ -99,6 +99,7 @@ export const useAuthStore = create<AuthState>()(
       seekbarStyle: 'truewave',
       queueNowPlayingCollapsed: false,
       queueDurationDisplayMode: 'total',
+      queueDisplayMode: 'queue',
       enableHiRes: false,
       audioOutputDevice: null,
       hotCacheEnabled: false,

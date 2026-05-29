@@ -33,6 +33,16 @@ export interface ServerProfile {
 export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thick' | 'segmented' | 'neon' | 'pulsewave' | 'particletrail' | 'liquidfill' | 'retrotape';
 /** Queue header duration chip: total duration / time left / ETA finish clock. */
 export type DurationMode = 'total' | 'remaining' | 'eta';
+
+/**
+ * Queue panel render mode.
+ * - `playlist`: the full queue stays visible; the now-playing row sits at the
+ *   top of the list, the highlight wanders down as tracks play, and the list
+ *   only re-pins the current track once it scrolls out of view.
+ * - `queue`: the list shows upcoming tracks only — the current track lives in
+ *   the header and drops out of the list once it has played.
+ */
+export type QueueDisplayMode = 'playlist' | 'queue';
 export type LoggingMode = 'off' | 'normal' | 'debug';
 /**
  * Wall-clock format for ETA / sleep-timer labels. `'auto'` follows the user's
@@ -181,6 +191,8 @@ export interface AuthState {
   queueNowPlayingCollapsed: boolean;
   /** Queue header duration chip mode (cycle: total → remaining → ETA). */
   queueDurationDisplayMode: DurationMode;
+  /** Queue panel render mode: full timeline (`playlist`) vs. upcoming-only (`queue`). */
+  queueDisplayMode: QueueDisplayMode;
 
   /** Alpha: native hi-res sample rate output (disabled = safe 44.1 kHz mode) */
   enableHiRes: boolean;
@@ -339,6 +351,7 @@ export interface AuthState {
   setSeekbarStyle: (v: SeekbarStyle) => void;
   setQueueNowPlayingCollapsed: (v: boolean) => void;
   setQueueDurationDisplayMode: (v: DurationMode) => void;
+  setQueueDisplayMode: (v: QueueDisplayMode) => void;
   setEnableHiRes: (v: boolean) => void;
   setAudioOutputDevice: (v: string | null) => void;
   setHotCacheEnabled: (v: boolean) => void;
