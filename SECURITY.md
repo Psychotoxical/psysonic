@@ -25,4 +25,4 @@ Include what you can: affected version, platform (Windows / macOS / Linux), step
 
 ## Secure development
 
-Pull requests are reviewed on `main`. Dependency updates are tracked via Dependabot. For general contribution expectations, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Pull requests are reviewed on `main`. **Dependency security updates** are tracked via Dependabot (PRs only for reported vulnerabilities and their fix paths—not routine version bumps). For general contribution expectations, see [CONTRIBUTING.md](CONTRIBUTING.md).

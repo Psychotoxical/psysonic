@@ -1,5 +1,10 @@
-# Weekly dependency update PRs for npm (frontend) and Cargo (src-tauri workspace).
-# Review and merge like any other PR; run CI before merging.
+# Dependabot: security updates only (no scheduled version bumps).
+#
+# Version updates are disabled via open-pull-requests-limit: 0. GitHub still opens
+# PRs when Dependabot/npm/cargo audit reports a vulnerability (and related
+# transitive fixes in the same bump). Routine minor/patch upgrades are manual.
+#
+# Requires "Dependabot security updates" enabled in repo Settings → Code security.
 
 version: 2
 updates:
@@ -8,18 +13,30 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - dependencies
+      - security
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: cargo
     directory: /src-tauri
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels:
       - dependencies
+      - security
+    groups:
+      cargo-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     ignore:
       # Symphonia 0.6 is a coordinated migration (API break + isomp4 patch port).
       # See workdocs: internal/collaboration/tasks/2026-05-symphonia-0.6-migration/
