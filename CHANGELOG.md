@@ -324,14 +324,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
-### Security — tar-rs PAX header desync (GHSA-3pv8-6f4r-ffg2)
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#923](https://github.com/Psychotoxical/psysonic/pull/923)**
-
-* Bumped transitive `tar` **0.4.45 → 0.4.46** for [GHSA-3pv8-6f4r-ffg2](https://github.com/advisories/GHSA-3pv8-6f4r-ffg2) — PAX header desynchronization in tar-rs (severity **medium**). Dependency path: `tauri-plugin-updater` → `tar` (macOS signed update bundle extraction).
-
-
-
 ### Analytics — Opus waveform and loudness analysis
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#883](https://github.com/Psychotoxical/psysonic/pull/883)**
