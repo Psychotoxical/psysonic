@@ -41,7 +41,7 @@ Open pull requests against `main`. `next` and `release` are maintainer-driven pr
 - **AUR packaging problems** — follow the AUR links in [README](README.md); those packages are maintained separately from this repository.
 - **Large features or UX overhauls** — consider discussing in chat or opening an issue early so effort aligns with product direction.
 - **Changes to the Tauri boundary** — read [The Rust ↔ frontend (Tauri) contract](#the-rust--frontend-tauri-contract) before opening a PR; reviewers will ask for a clear justification.
-- **Security issues** — please do **not** open a public issue. Reach a maintainer privately via Discord or Telegram first; we'll coordinate disclosure from there.
+- **Security issues** — please do **not** open a public issue. See [SECURITY.md](SECURITY.md) for how to report vulnerabilities privately (Discord or Telegram).
 
 ---
 
