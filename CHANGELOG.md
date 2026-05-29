@@ -162,6 +162,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Performance Probe — thread-group CPU toggle
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#891](https://github.com/Psychotoxical/psysonic/pull/891)**
+
+* Monitor live poll: explicit opt-in checkbox for Linux `/proc` thread-group CPU (off by default); fixes camelCase IPC so thread rows populate instead of staying on “Collecting…”.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text

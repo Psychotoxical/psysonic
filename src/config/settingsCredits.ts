@@ -341,6 +341,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Discord Rich Presence: configurable activity-name template — member list shows the playing track instead of "Psysonic" (PR #885)',
       'Library browse: lazy 200-row local catalog chunks, unified in-page scroll, cover priority during scroll (PR #890)',
       'Performance Probe: Monitor/Toggles redesign, live CPU/RSS/thread metrics, overlay pins and sparklines, macOS snapshots (PR #890)',
+      'Performance Probe: opt-in thread-group CPU poll toggle and includeThreadGroups IPC fix (PR #891)',
     ],
   },
   {
