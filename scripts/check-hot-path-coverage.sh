@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Hot-path file coverage gate — soft mode.
+# Hot-path file coverage gate.
 #
 # For each source file listed in `.github/hot-path-files.txt`, verifies
 # that line coverage is at least $THRESHOLD %. Emits GitHub Actions
-# warning annotations for files below the floor; never sets a non-zero
-# exit code (soft gate).
+# warning annotations for files below the floor and exits 1 when any
+# file is below.
 #
 # Why files instead of per-function: cargo-llvm-cov's per-function
 # region data is unreliable for async state-machines (most regions live
@@ -104,14 +104,6 @@ echo "Checked: $TOTAL hot-path file(s)"
 echo "Below threshold: $BELOW"
 echo "Not found: $NOT_FOUND"
 
-# Two-layer gate:
-#   - This script exits 1 when any hot-path file regresses below the
-#     threshold. That gives an unambiguous CI signal in the workflow log.
-#   - The `coverage` job in `.github/workflows/rust-tests.yml` carries
-#     `continue-on-error: true`, so the failing exit is visible in the
-#     PR's checks panel but does NOT block merges yet.
-#   - Flip to a hard PR-blocker by removing `continue-on-error` from the
-#     workflow once we've watched a few PRs run cleanly.
 if [[ "$BELOW" -gt 0 ]]; then
     exit 1
 fi

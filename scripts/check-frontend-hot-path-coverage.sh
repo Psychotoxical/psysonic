@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 #
-# Hot-path file coverage gate — frontend, soft mode.
+# Hot-path file coverage gate — frontend.
 #
 # Mirrors `scripts/check-hot-path-coverage.sh` for the Rust workspace. For
 # each source file listed in `.github/frontend-hot-path-files.txt`, verifies
 # that line coverage is at least $THRESHOLD %. Emits GitHub Actions warning
-# annotations for files below the floor; exits 1 when any file is below, but
-# the wrapping CI job carries `continue-on-error: true` so it doesn't block
-# merges yet (drop that flag once we've watched a few PRs run cleanly).
+# annotations for files below the floor and exits 1 when any file is below.
 #
 # Why files instead of per-function: v8 coverage's per-function data is
 # fragile under React Compiler / Vite minification — file-level line

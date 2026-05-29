@@ -207,9 +207,9 @@ wrappers when the hook reads from a provider.
   hot-path gate consumes.
 - `.github/frontend-hot-path-files.txt` lists the files held to ≥70% line
   coverage by `scripts/check-frontend-hot-path-coverage.sh`.
-- CI runs both. The gate is soft today (`continue-on-error: true`) —
-  it flips to a hard PR-blocker at the start of M4 in the pre-refactor
-  testing plan. Mirrors the backend rust-tests rollout.
+- CI runs both. The gate is a **required PR check** — the `coverage` job in
+  `frontend-tests` fails when any listed file drops below the floor. Mirrors
+  the backend rust-tests rollout.
 
 ## Process isolation
 

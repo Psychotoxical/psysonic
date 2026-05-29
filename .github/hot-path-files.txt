@@ -20,8 +20,7 @@
 #
 # Each line is a path relative to the workspace root (so `src-tauri/...`).
 # `#` for comments. CI runs cargo-llvm-cov + this gate; PRs that drop
-# any listed file below the threshold get a warning annotation today
-# and (after watching it run cleanly) eventually a hard fail.
+# any listed file below the threshold fail the rust-tests coverage job.
 
 # ── psysonic-syncfs ──────────────────────────────────────────────────
 src-tauri/crates/psysonic-syncfs/src/cache/fs_utils.rs

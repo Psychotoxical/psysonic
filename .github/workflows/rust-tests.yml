@@ -59,13 +59,7 @@ jobs:
 
   coverage:
     name: cargo llvm-cov (baseline + hot-path file gate)
-    # Layered: the gate script exits 1 when any hot-path file drops below
-    # threshold (see scripts/check-hot-path-coverage.sh) — the failure is
-    # visible in the PR's checks panel. `continue-on-error: true` keeps it
-    # from BLOCKING merges. Drop continue-on-error to flip the gate to a
-    # PR-blocker once we've watched a few PRs run cleanly.
     runs-on: ubuntu-24.04
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - name: install Linux build dependencies
@@ -89,7 +83,7 @@ jobs:
           mkdir -p target/llvm-cov
           cargo llvm-cov --workspace --lcov --output-path lcov.info
           cargo llvm-cov --workspace --json --output-path target/llvm-cov/cov.json
-      - name: hot-path function coverage soft gate
+      - name: hot-path file coverage gate
         run: bash scripts/check-hot-path-coverage.sh
       - uses: actions/upload-artifact@v4
         with:

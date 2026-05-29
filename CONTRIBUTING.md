@@ -117,7 +117,7 @@ Workflows are path-filtered (see the YAML for exact `paths` / `paths-ignore`):
 - **Frontend** (`src/**`, lockfile, Vitest/Vite/tsconfig, etc.): `npm test` (Vitest), `npx tsc --noEmit`, then a coverage run.
 - **Rust** (`src-tauri/**`): `cargo test --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`, then coverage.
 
-Hot-path coverage gates are currently **soft** (warnings only — the workflow carries `continue-on-error: true`). They will be flipped to required when the floors stabilise; see the headers in [`frontend-hot-path-files.txt`](.github/frontend-hot-path-files.txt) and [`hot-path-files.txt`](.github/hot-path-files.txt) for the current state of each list.
+Hot-path coverage gates are **required** on pull requests: the `coverage` jobs in [`frontend-tests.yml`](.github/workflows/frontend-tests.yml) and [`rust-tests.yml`](.github/workflows/rust-tests.yml) fail when any listed file drops below the floor. See the headers in [`frontend-hot-path-files.txt`](.github/frontend-hot-path-files.txt) and [`hot-path-files.txt`](.github/hot-path-files.txt) for curation rules and thresholds.
 
 ---
 
