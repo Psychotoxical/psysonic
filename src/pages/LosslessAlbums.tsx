@@ -380,6 +380,7 @@ export default function LosslessAlbums() {
               renderItem={a => (
                 <AlbumCard
                   album={a}
+                  observeScrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                   linkQuery={LOSSLESS_MODE_QUERY}
                   selectionMode={selectionMode}
                   selected={selectedIds.has(a.id)}

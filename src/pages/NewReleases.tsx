@@ -230,6 +230,7 @@ export default function NewReleases() {
               renderItem={a => (
                 <AlbumCard
                   album={a}
+                  observeScrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
                   selectionMode={selectionMode}
                   selected={selectedIds.has(a.id)}
                   onToggleSelect={toggleSelect}
