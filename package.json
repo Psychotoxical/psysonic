@@ -46,7 +46,7 @@
     "md5": "^2.3.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react-dom": "^19.2.6",
     "react-i18next": "^17.0.6",
     "react-router-dom": "^7.15.0",
     "zustand": "^5.0.13"
