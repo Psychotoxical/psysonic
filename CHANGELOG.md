@@ -172,6 +172,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 
+### CI — hot-path coverage gates block merges
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#921](https://github.com/Psychotoxical/psysonic/pull/921)**
+
+* Frontend and Rust `coverage` jobs no longer carry `continue-on-error`; listed hot-path files must stay at ≥70% line coverage or the PR fails.
+
+
+
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
