@@ -11,6 +11,7 @@ use std::sync::Mutex;
 #[cfg(target_os = "linux")]
 use std::fs;
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 const CHILD_RESCAN_EVERY: u8 = 8;
 
 #[derive(Debug, Clone, Serialize)]
