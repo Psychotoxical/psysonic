@@ -525,6 +525,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — new tracks no longer render as blank placeholders
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#892](https://github.com/Psychotoxical/psysonic/pull/892)**
+
+* Adding tracks to the queue from Advanced Search results, song rows, or song cards right after launch could show every new entry as `…` / `0:00` instead of the real title and duration, until something else triggered a queue-replacing playback.
+* Root cause: the queue's owning server was not pinned yet, so the resolver cache skipped seeding the incoming tracks. Add-to-queue mutations now pin the active server up-front.
+
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
