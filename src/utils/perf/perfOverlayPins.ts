@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { clearPerfLiveHistory } from './perfLiveHistory';
+import { getPerfOverlayMode } from './perfOverlayMode';
 import { getPerfProbeFlags, setPerfProbeFlag, subscribePerfProbeFlags } from './perfFlags';
 
 const STORAGE_KEY = 'psysonic_perf_overlay_pins_v1';
@@ -113,6 +114,9 @@ export function usePipelineOverlayPinned(id: PerfPipelineOverlayPinId): boolean 
 }
 
 export function hasAnyPerfOverlayVisible(): boolean {
+  const overlayMode = getPerfOverlayMode();
+  if (overlayMode === 'off') return false;
+  if (overlayMode === 'fps') return true;
   const flags = getPerfProbeFlags();
   return (
     flags.showFpsOverlay
@@ -123,5 +127,6 @@ export function hasAnyPerfOverlayVisible(): boolean {
 }
 
 export function hasAnyLiveMetricPollNeed(): boolean {
+  if (getPerfOverlayMode() !== 'pinned') return false;
   return livePins.size > 0;
 }

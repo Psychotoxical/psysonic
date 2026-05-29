@@ -5,7 +5,7 @@ import { coverGetPipelineQueueStats, type CoverPipelineQueueStatsDto } from '../
 import { coverEnsureQueueStats } from '../cover/ensureQueue';
 import { coverPeekQueueStats } from '../cover/peekQueue';
 import PerfOverlaySparkline from './perf/PerfOverlaySparkline';
-import { usePerfProbeFlag } from '../utils/perf/perfFlags';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
   formatPerfMs,
   getAnalysisTracksPerMinute,
@@ -28,6 +28,10 @@ import {
   perfOverlayCornerClass,
   usePerfOverlayAppearance,
 } from '../utils/perf/perfOverlayAppearance';
+import {
+  resolveOverlayVisibility,
+  usePerfOverlayMode,
+} from '../utils/perf/perfOverlayMode';
 import { useAnalysisPerfListener } from '../hooks/useAnalysisPerfListener';
 
 const SAMPLE_MS = 500;
@@ -56,9 +60,8 @@ function LiveOverlayPinnedMetric({
 
 /** FPS + pipeline + pinned live metrics overlay (Performance Probe). */
 export default function FpsOverlay() {
-  const showFpsOverlay = usePerfProbeFlag('showFpsOverlay');
-  const showAnalysisPerfOverlay = usePerfProbeFlag('showAnalysisPerfOverlay');
-  const showCoverPerfOverlay = usePerfProbeFlag('showCoverPerfOverlay');
+  const overlayMode = usePerfOverlayMode();
+  const perfFlags = usePerfProbeFlags();
   const livePins = usePerfLiveOverlayPins();
   const live = usePerfLiveSnapshot();
   const overlayAppearance = usePerfOverlayAppearance();
@@ -74,7 +77,21 @@ export default function FpsOverlay() {
     [livePins, live],
   );
 
-  lastHistoryAt.current = syncPerfLiveHistoryFromPoll(livePins, live, lastHistoryAt.current);
+  const visibility = useMemo(
+    () => resolveOverlayVisibility(overlayMode, perfFlags, liveOverlayItems.length),
+    [overlayMode, perfFlags, liveOverlayItems.length],
+  );
+
+  const {
+    showFps: showFpsOverlay,
+    showAnalysis: showAnalysisPerfOverlay,
+    showCover: showCoverPerfOverlay,
+    showLive,
+  } = visibility;
+
+  lastHistoryAt.current = overlayMode === 'pinned'
+    ? syncPerfLiveHistoryFromPoll(livePins, live, lastHistoryAt.current)
+    : lastHistoryAt.current;
 
   const sparklineNow = useMemo(() => {
     const clock = getPerfLiveHistoryClock(
@@ -86,9 +103,9 @@ export default function FpsOverlay() {
   useAnalysisPerfListener(showAnalysisPerfOverlay || livePins.has('analysis:tpm') || livePins.has('analysis:last'));
 
   useEffect(() => {
-    if (!hasAnyLiveMetricPollNeed()) return;
+    if (overlayMode !== 'pinned' || !hasAnyLiveMetricPollNeed()) return;
     return acquirePerfLivePoll('overlay-pins');
-  }, [livePins.size]);
+  }, [overlayMode, livePins.size]);
 
   useEffect(() => {
     if (!showAnalysisPerfOverlay) {
@@ -180,10 +197,8 @@ export default function FpsOverlay() {
     return () => cancelAnimationFrame(rafId);
   }, [showFpsOverlay]);
 
-  const showPipeline = showFpsOverlay || showAnalysisPerfOverlay || showCoverPerfOverlay;
-  const showLive = liveOverlayItems.length > 0;
-
-  if (!showPipeline && !showLive) return null;
+  if (overlayMode === 'off') return null;
+  if (!showFpsOverlay && !showAnalysisPerfOverlay && !showCoverPerfOverlay && !showLive) return null;
 
   const analysisQueueLines = queueStats ? formatAnalysisPipelineQueueOverlay(queueStats) : [];
 

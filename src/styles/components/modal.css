@@ -460,6 +460,59 @@
   border-top: 1px solid color-mix(in srgb, var(--text-muted) 16%, transparent);
 }
 
+.perf-overlay-mode {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 82%, transparent);
+}
+
+.perf-overlay-mode__title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-muted) 92%, transparent);
+  margin-bottom: 8px;
+}
+
+.perf-overlay-mode__segments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.perf-overlay-mode__segment {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 70%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.perf-overlay-mode__segment:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text-primary);
+}
+
+.perf-overlay-mode__segment--active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card, var(--ctp-base)));
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.perf-overlay-mode__hint {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--text-muted) 92%, transparent);
+}
+
 .perf-overlay-appearance {
   margin-bottom: 12px;
   padding: 10px 12px;

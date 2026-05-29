@@ -6,6 +6,7 @@ import SidebarPerfProbeTogglesTab from './perfProbe/SidebarPerfProbeTogglesTab';
 import { resetPerfProbeFlags, type PerfProbeFlags } from '../../utils/perf/perfFlags';
 import { clearPerfLiveOverlayPins } from '../../utils/perf/perfOverlayPins';
 import { resetPerfOverlayAppearance } from '../../utils/perf/perfOverlayAppearance';
+import { resetPerfOverlayMode } from '../../utils/perf/perfOverlayMode';
 
 type TabId = 'monitor' | 'toggles';
 
@@ -40,6 +41,7 @@ export default function SidebarPerfProbeModal({
     resetPerfProbeFlags();
     clearPerfLiveOverlayPins();
     resetPerfOverlayAppearance();
+    resetPerfOverlayMode();
   };
 
   return createPortal(

@@ -12,6 +12,7 @@ import {
 } from '../../../utils/perf/perfOverlayPins';
 import PerfProbeMetricCard, { PerfProbeMetricSection } from './PerfProbeMetricCard';
 import PerfOverlayAppearanceControls from './PerfOverlayAppearanceControls';
+import PerfOverlayModeControls from './PerfOverlayModeControls';
 import PerfLivePollControls from './PerfLivePollControls';
 
 function memoryBarPct(rssKb: number, maxKb: number): number {
@@ -69,6 +70,7 @@ export default function SidebarPerfProbeMonitorTab() {
 
   return (
     <div className="perf-monitor">
+      <PerfOverlayModeControls />
       <PerfOverlayAppearanceControls />
       <PerfLivePollControls />
       <PerfProbeMetricSection title="Pipeline overlays" hint="Rust / UI queues">

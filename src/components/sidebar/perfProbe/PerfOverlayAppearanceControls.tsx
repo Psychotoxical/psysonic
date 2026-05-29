@@ -9,8 +9,8 @@ export default function PerfOverlayAppearanceControls() {
   const { corner, opacity } = usePerfOverlayAppearance();
 
   return (
-    <section className="perf-overlay-appearance" aria-label="Overlay appearance">
-      <div className="perf-overlay-appearance__title">On-screen overlay</div>
+    <section className="perf-overlay-appearance" aria-label="Overlay layout">
+      <div className="perf-overlay-appearance__title">Layout</div>
       <div className="perf-overlay-appearance__row">
         <span className="perf-overlay-appearance__label">Corner</span>
         <div className="perf-overlay-appearance__corners" role="group" aria-label="Overlay corner">
