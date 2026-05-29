@@ -170,6 +170,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — choose between Queue and Playlist view
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#922](https://github.com/Psychotoxical/psysonic/pull/922)**
+
+* **Settings → Personalisation → Queue Display Mode:** *Queue* shows only upcoming tracks — the current one stays in the header and leaves the list once played; *Playlist* keeps the full queue with the current track highlighted at the top. A small icon in the queue header flips the mode, and the title follows it.
+* New default is *Queue* — switch to *Playlist* in settings if you prefer the full list with the playing track shown in place.
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text

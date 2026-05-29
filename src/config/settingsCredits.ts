@@ -342,6 +342,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Library browse: lazy 200-row local catalog chunks, unified in-page scroll, cover priority during scroll (PR #890)',
       'Performance Probe: Monitor/Toggles redesign, live CPU/RSS/thread metrics, overlay pins and sparklines, macOS snapshots (PR #890)',
       'Performance Probe: opt-in thread-group CPU poll toggle and includeThreadGroups IPC fix (PR #891)',
+      'Queue: switchable display mode — Queue (upcoming only) vs Playlist (full list), with header toggle and settings entry (PR #922)',
     ],
   },
   {
