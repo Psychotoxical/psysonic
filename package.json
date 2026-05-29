@@ -42,7 +42,7 @@
     "@tauri-apps/plugin-window-state": "^2.4.1",
     "axios": "^1.16.0",
     "i18next": "^26.0.8",
-    "lucide-react": "^1.14.0",
+    "lucide-react": "^1.17.0",
     "md5": "^2.3.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.5",
