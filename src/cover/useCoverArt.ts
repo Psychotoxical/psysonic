@@ -31,6 +31,8 @@ export function useCoverArt(
     observeRootMargin?: string;
     alt?: string;
     ensurePriority?: CoverPrefetchPriority;
+    /** Dense grid: true after first viewport intersection — allows middle-tier scroll-ahead. */
+    seenViewport?: boolean;
   },
 ): CoverArtHandle {
   const ref = coverRef ?? null;
@@ -55,7 +57,9 @@ export function useCoverArt(
 
   const ensurePriority: CoverPrefetchPriority = opts?.ensurePriority ?? 'middle';
 
-  const deferEnsureUntilVisible = surface === 'dense' && ensurePriority !== 'high';
+  const seenViewport = opts?.seenViewport ?? false;
+  const deferEnsureUntilVisible =
+    surface === 'dense' && !seenViewport && ensurePriority !== 'high';
 
   const readCachedSrc = useCallback(() => {
     if (!ref) return '';
@@ -83,9 +87,9 @@ export function useCoverArt(
     let cancelled = false;
 
     void (async () => {
-      const peekHit = await coverPeekQueued(storageKey, ref, tier);
+      await coverPeekQueued(storageKey, ref, tier);
       if (cancelled) return;
-      if (peekHit || readCachedSrc()) return;
+      if (readCachedSrc()) return;
 
       if (reachable && !deferEnsureUntilVisible) {
         const result = await coverEnsureQueued(storageKey, ref, tier, ensurePriority);
@@ -103,7 +107,6 @@ export function useCoverArt(
     return () => {
       cancelled = true;
       unsubDisk();
-      coverEnsureRelease(storageKey);
     };
   }, [
     ref,
@@ -115,6 +118,11 @@ export function useCoverArt(
     applyDiskPath,
     readCachedSrc,
   ]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    return () => coverEnsureRelease(storageKey);
+  }, [storageKey]);
 
   const src = cachedSrc;
   const provisional = Boolean(ref && storageKey && !src);

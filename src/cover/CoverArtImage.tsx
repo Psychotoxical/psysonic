@@ -1,10 +1,11 @@
 import type { ImgHTMLAttributes } from 'react';
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '../components/CachedImage';
 import { resolveIntersectionScrollRoot } from '../utils/ui/resolveIntersectionScrollRoot';
-import { coverEnsureBump } from './ensureQueue';
+import { coverEnsureQueued, coverEnsureReprioritize } from './ensureQueue';
 import { coverPrefetchBumpPriority } from './prefetchRegistry';
+import { coverServerReachable } from './reachability';
 import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import { coverImgSrc } from './imgSrc';
@@ -38,9 +39,12 @@ export function CoverArtImage({
   onError: restOnError,
   ...rest
 }: CoverArtImageProps) {
+  const pinnedHigh = ensurePriorityProp === 'high';
   const [ensurePriority, setEnsurePriority] = useState<CoverPrefetchPriority>(
     ensurePriorityProp ?? 'middle',
   );
+  const [seenViewport, setSeenViewport] = useState(false);
+  const seenViewportRef = useRef(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgLoadFailed, setImgLoadFailed] = useState(false);
 
@@ -49,10 +53,14 @@ export function CoverArtImage({
   }, [ensurePriorityProp]);
 
   useEffect(() => {
+    seenViewportRef.current = seenViewport;
+  }, [seenViewport]);
+
+  useEffect(() => {
     setImgLoadFailed(false);
   }, [coverRef.cacheEntityId, coverRef.cacheKind, coverRef.fetchCoverArtId, displayCssPx, surface, fullRes]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = imgRef.current;
     if (!el) return;
 
@@ -63,15 +71,37 @@ export function CoverArtImage({
 
     const tier = resolveCoverDisplayTier(displayCssPx, { surface, fullRes });
     const storageKey = coverStorageKeyFromRef(coverRef, tier);
+    const reachable = coverServerReachable(coverRef.serverScope);
+
+    const queueEnsure = (priority: CoverPrefetchPriority) => {
+      if (!reachable) return;
+      void coverEnsureQueued(storageKey, coverRef, tier, priority);
+    };
+
+    const applyIntersecting = () => {
+      seenViewportRef.current = true;
+      setSeenViewport(true);
+      setEnsurePriority('high');
+      coverPrefetchBumpPriority(coverRef, 'high');
+      coverEnsureReprioritize(storageKey, 'high');
+      queueEnsure('high');
+    };
+
+    const applyLeftViewport = () => {
+      if (!seenViewportRef.current || pinnedHigh) return;
+      setEnsurePriority('middle');
+      coverEnsureReprioritize(storageKey, 'middle');
+      queueEnsure('middle');
+    };
+
+    const applyEntry = (entry: IntersectionObserverEntry) => {
+      if (entry.isIntersecting) applyIntersecting();
+      else applyLeftViewport();
+    };
+
     const observer = new IntersectionObserver(
       entries => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setEnsurePriority('high');
-            coverPrefetchBumpPriority(coverRef, 'high');
-            coverEnsureBump(storageKey, 'high');
-          }
-        }
+        for (const entry of entries) applyEntry(entry);
       },
       {
         root: root ?? undefined,
@@ -80,13 +110,42 @@ export function CoverArtImage({
       },
     );
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [coverRef, displayCssPx, surface, fullRes, observeRootMargin, observeScrollRootId]);
+
+    const drainRecords = () => {
+      for (const entry of observer.takeRecords()) applyEntry(entry);
+    };
+    drainRecords();
+
+    let cancelled = false;
+    const raf1 = requestAnimationFrame(() => {
+      if (cancelled) return;
+      drainRecords();
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        drainRecords();
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+      observer.disconnect();
+    };
+  }, [
+    coverRef,
+    displayCssPx,
+    surface,
+    fullRes,
+    observeRootMargin,
+    observeScrollRootId,
+    pinnedHigh,
+  ]);
 
   const { src, provisional, onImgError } = useCoverArt(coverRef, displayCssPx, {
     surface,
     fullRes,
     ensurePriority,
+    seenViewport,
     alt,
   });
 

@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from 'react';
-import { GRID_COVER_PRIME_ALL_MAX } from '../cover/layoutSizes';
 import {
   collectAlbumCoverWarmItems,
   ensureAlbumCoverMisses,
@@ -10,7 +9,7 @@ import type { CoverSurfaceKind } from '../cover/types';
 const DEFAULT_LIMIT = 120;
 
 /**
- * Peek after mount (non-blocking); for small grids (≤48) queue ensures only for disk misses.
+ * Peek after mount (non-blocking); ensure disk misses for the warmed viewport slice.
  */
 export function useWarmGridCovers(
   items: ReadonlyArray<{ coverArt?: string | null }>,
@@ -35,8 +34,6 @@ export function useWarmGridCovers(
     return `${displayCssPx}:${slice.map(a => a.coverArt ?? '').join('\u0001')}`;
   }, [items, displayCssPx, limit, opts?.warmKey]);
 
-  const primeAllMisses = items.length > 0 && items.length <= GRID_COVER_PRIME_ALL_MAX;
-
   useEffect(() => {
     if (!enabled || displayCssPx <= 0) return;
 
@@ -46,13 +43,12 @@ export function useWarmGridCovers(
       if (cancelled || batch.length === 0) return;
       await warmCoverDiskSrcBatch(batch);
       if (cancelled) return;
-      if (primeAllMisses) {
-        await ensureAlbumCoverMisses(items, displayCssPx, { surface, limit });
-      }
+      // Prime disk misses for the warmed viewport slice (not only tiny grids).
+      await ensureAlbumCoverMisses(items, displayCssPx, { surface, limit });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [enabled, warmKey, items, displayCssPx, limit, surface, primeAllMisses]);
+  }, [enabled, warmKey, items, displayCssPx, limit, surface]);
 }

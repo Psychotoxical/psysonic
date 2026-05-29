@@ -247,14 +247,15 @@ impl CoverCacheState {
         };
 
         let dir_bg = dir.clone();
-        let cover_cpu_sem_bg = cover_cpu_sem.clone();
         let tiers_bg = tiers_now.clone();
+        let cpu_permit = cover_cpu_sem
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| e.to_string())?;
         let (mut wrote_requested, fresh_tiers) = tauri::async_runtime::spawn_blocking(
             move || -> Result<(bool, Vec<(u32, PathBuf)>), String> {
-                let rt = tokio::runtime::Handle::current();
-                let _permit = rt
-                    .block_on(cover_cpu_sem_bg.acquire())
-                    .map_err(|e| e.to_string())?;
+                let _cpu_permit = cpu_permit;
                 let img = match source {
                     CoverSource::Image(i) => i,
                     CoverSource::Bytes(b) => decode_image_bytes(&b)?,
@@ -417,11 +418,11 @@ fn spawn_derive_remaining_tiers(
                 guard.cpu_sem_for(args.library_bulk),
             )
         };
+        let Ok(cpu_permit) = cover_cpu_sem.clone().acquire_owned().await else {
+            return;
+        };
         let written = tauri::async_runtime::spawn_blocking(move || -> Vec<(u32, PathBuf)> {
-            let rt = tokio::runtime::Handle::current();
-            let Ok(_permit) = rt.block_on(cover_cpu_sem.acquire()) else {
-                return Vec::new();
-            };
+            let _cpu_permit = cpu_permit;
             let mut fresh = Vec::new();
             for tier in tiers_bg {
                 if tier_exists(&dir, tier).is_some() {

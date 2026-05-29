@@ -16,19 +16,32 @@ vi.mock('../api/coverCache', () => ({
 }));
 
 import { coverArtRef } from './ref';
-import { coverTrafficBeginServerSwitch, coverTrafficEndServerSwitch } from './coverTraffic';
+import {
+  __test_resetCoverTraffic,
+  coverTrafficBeginServerSwitch,
+  coverTrafficEndServerSwitch,
+} from './coverTraffic';
 import {
   __test_queuedCoverIds,
   __test_resetCoverEnsureQueue,
   coverEnsureBump,
   coverEnsureQueued,
   coverEnsureRelease,
+  coverEnsureReprioritize,
+  coverEnsureQueueStats,
 } from './ensureQueue';
 
 describe('coverEnsureQueued', () => {
   beforeEach(() => {
     __test_resetCoverEnsureQueue();
+    __test_resetCoverTraffic();
     ensureImpl.mockClear();
+    ensureImpl.mockImplementation(
+      async (ref: { fetchCoverArtId: string }, _tier: number, _priority: string) => {
+        await new Promise(r => setTimeout(r, 2));
+        return { hit: true, path: `/tmp/${ref.fetchCoverArtId}.webp`, tier: 128 };
+      },
+    );
   });
 
   it('dedupes concurrent ensures for the same storage key', async () => {
@@ -55,6 +68,45 @@ describe('coverEnsureQueued', () => {
 
     expect(__test_queuedCoverIds()[0]).toBe('al-c');
     coverTrafficEndServerSwitch();
+  });
+
+  it('reprioritize downgrades viewport-leavers to middle with LIFO order', () => {
+    coverTrafficBeginServerSwitch();
+    const refNear = coverArtRef('al-near');
+    const refFar = coverArtRef('al-far');
+
+    void coverEnsureQueued('s:cover:al-near:128', refNear, 128, 'high');
+    void coverEnsureQueued('s:cover:al-far:128', refFar, 128, 'high');
+    coverEnsureReprioritize('s:cover:al-near:128', 'middle');
+    coverEnsureReprioritize('s:cover:al-far:128', 'middle');
+
+    const stats = coverEnsureQueueStats();
+    expect(stats.queuedHigh).toBe(0);
+    expect(stats.queuedMiddle).toBe(2);
+    expect(__test_queuedCoverIds()[0]).toBe('al-far');
+    coverTrafficEndServerSwitch();
+  });
+
+  it('shares one invoke slot per cover art id while duplicate jobs wait', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    ensureImpl.mockImplementationOnce(async () => {
+      await gate;
+      return { hit: true, path: '/tmp/al-shared.webp', tier: 128 };
+    });
+
+    const ref = coverArtRef('al-shared');
+    void coverEnsureQueued('s:cover:al-shared:128', ref, 128, 'high');
+    void coverEnsureQueued('s:cover:al-shared:256', ref, 256, 'high');
+
+    await new Promise(r => setTimeout(r, 10));
+    expect(ensureImpl).toHaveBeenCalledTimes(1);
+    expect(coverEnsureQueueStats().inflight).toBe(1);
+
+    release();
+    await new Promise(r => setTimeout(r, 10));
   });
 
   it('release drops a pending job so a remount can re-queue', async () => {

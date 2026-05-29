@@ -110,13 +110,14 @@ export async function ensureAlbumCoverMisses(
   const tier = resolveCoverDisplayTier(displayCssPx, { surface });
   const slice = albums.slice(0, limit);
 
-  const needEnsure: Array<{ entityId: string; coverArt: string; ref: CoverArtRef }> = [];
+  const needEnsure: Array<{ ref: CoverArtRef }> = [];
   for (const album of slice) {
     const entityId = album.id ?? album.coverArt;
-    if (!entityId || !album.coverArt) continue;
-    const ref = albumCoverRef(entityId, album.coverArt);
+    if (!entityId) continue;
+    const coverArt = album.coverArt ?? entityId;
+    const ref = albumCoverRef(entityId, coverArt);
     if (!getDiskSrcForGrid(ref, tier)) {
-      needEnsure.push({ entityId, coverArt: album.coverArt, ref });
+      needEnsure.push({ ref });
     }
   }
   if (needEnsure.length === 0) return;
@@ -127,7 +128,7 @@ export async function ensureAlbumCoverMisses(
     await Promise.all(
       chunk.map(async ({ ref }) => {
         const key = coverStorageKeyFromRef(ref, tier);
-        const result = await coverEnsureQueued(key, ref, tier, 'high');
+        const result = await coverEnsureQueued(key, ref, tier, 'middle');
         if (result.hit && result.path) {
           rememberGridDiskSrc(ref, tier, result.path);
         }
