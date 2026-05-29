@@ -306,3 +306,79 @@ describe('B1 — queue sync emits track ids only, server identity flows out-of-b
   });
 });
 
+// ── Add-to-queue mutations pin the active server when queueServerId is null ─
+//
+// Regression for the queue-blanking bug: the first user action after launch is
+// often a single-track enqueue (e.g. clicking the + button on a search result
+// row), not a queue-replacing playTrack. Before the pin, `queueServerId`
+// stayed null, `seedIncoming` was a no-op, the refs landed with empty server
+// keys, and every new queue row rendered as the resolver placeholder ("…" +
+// 0:00) until the user happened to trigger a path that did call
+// `bindQueueServerForPlayback`.
+
+describe('B1+ — add-to-queue mutations pin queueServerId when it is null', () => {
+  it('enqueue seeds the cache so refs resolve to the real track instead of the placeholder', () => {
+    expect(usePlayerStore.getState().queueServerId).toBeNull();
+
+    const t = track('t1', 'Real Title');
+    usePlayerStore.getState().enqueue([t], true);
+
+    expect(usePlayerStore.getState().queueServerId).toBe(KEY_A);
+    const refs = usePlayerStore.getState().queueItems;
+    expect(refs).toEqual([{ serverId: KEY_A, trackId: 't1' }]);
+    expect(getCachedTrack(refs[0])).toEqual(expect.objectContaining({
+      id: 't1',
+      title: 'Real Title',
+    }));
+  });
+
+  it('enqueueAt pins and seeds when queueServerId is null', () => {
+    expect(usePlayerStore.getState().queueServerId).toBeNull();
+
+    const t = track('t1', 'Inserted');
+    usePlayerStore.getState().enqueueAt([t], 0, true);
+
+    expect(usePlayerStore.getState().queueServerId).toBe(KEY_A);
+    const refs = usePlayerStore.getState().queueItems;
+    expect(refs[0]).toEqual({ serverId: KEY_A, trackId: 't1' });
+    expect(getCachedTrack(refs[0])?.title).toBe('Inserted');
+  });
+
+  it('enqueueRadio pins and seeds when queueServerId is null', () => {
+    expect(usePlayerStore.getState().queueServerId).toBeNull();
+
+    const t = track('r1', 'Radio Track');
+    usePlayerStore.getState().enqueueRadio([t], 'artist-x');
+
+    expect(usePlayerStore.getState().queueServerId).toBe(KEY_A);
+    const refs = usePlayerStore.getState().queueItems;
+    expect(refs[0]).toEqual(expect.objectContaining({ serverId: KEY_A, trackId: 'r1' }));
+    expect(getCachedTrack(refs[0])?.title).toBe('Radio Track');
+  });
+
+  it('does not crash or pin when no active server is available', () => {
+    useAuthStore.setState({ activeServerId: null });
+    expect(usePlayerStore.getState().queueServerId).toBeNull();
+
+    usePlayerStore.getState().enqueue([track('t1', 'X')], true);
+
+    // No active server → bindQueueServerForPlayback is a no-op. The mutation
+    // still runs (matches the pre-fix baseline behaviour) — placeholder UI is
+    // the expected fallback when no server can be pinned.
+    expect(usePlayerStore.getState().queueServerId).toBeNull();
+    expect(usePlayerStore.getState().queueItems).toHaveLength(1);
+  });
+
+  it('does not overwrite an already-pinned queueServerId', () => {
+    useAuthStore.setState({ activeServerId: SERVER_B.id });
+    usePlayerStore.setState({ queueServerId: KEY_A });
+
+    usePlayerStore.getState().enqueue([track('t1', 'Y')], true);
+
+    // Already pinned → ensureQueueServerPinned is a no-op even though the
+    // active server has since switched (cross-server enqueue is blocked
+    // elsewhere via `blockCrossServerEnqueue`, not here).
+    expect(usePlayerStore.getState().queueServerId).toBe(KEY_A);
+  });
+});
+

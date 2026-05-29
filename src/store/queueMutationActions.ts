@@ -21,7 +21,11 @@ import { clearSeekFallbackRetry } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
 import i18n from '../i18n';
 import { playListenSessionFinalize } from './playListenSession';
-import { playbackServerDiffersFromActive, clearQueueServerForPlayback } from '../utils/playback/playbackServer';
+import {
+  bindQueueServerForPlayback,
+  clearQueueServerForPlayback,
+  playbackServerDiffersFromActive,
+} from '../utils/playback/playbackServer';
 import { useLuckyMixStore } from './luckyMixStore';
 import { showToast } from '../utils/ui/toast';
 
@@ -51,6 +55,17 @@ const itemsOf = (state: PlayerState): QueueItemRef[] => [...state.queueItems];
 function seedIncoming(state: PlayerState, tracks: Track[]): void {
   const serverId = state.queueServerId ?? '';
   if (serverId) seedQueueResolver(serverId, tracks);
+}
+
+/** Pin the active server before a mutation adds new tracks. Without this an
+ *  enqueue against a still-null `queueServerId` (e.g. the user's first action
+ *  is a single-track enqueue rather than a queue-replacing playTrack) leaves
+ *  `seedIncoming` as a no-op — the refs land with the empty server key, the
+ *  cache stays cold, and every new row renders as the resolver placeholder
+ *  in the queue panel. No-op when already pinned, or when no active server
+ *  is available (e.g. unit tests without an authed auth store). */
+function ensureQueueServerPinned(state: PlayerState): void {
+  if (state.queueServerId == null) bindQueueServerForPlayback();
 }
 
 /**
@@ -84,6 +99,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         return;
       }
       if (!skipQueueUndo) pushQueueUndoFromGetter(get);
+      ensureQueueServerPinned(get());
       set(state => {
         seedIncoming(state, tracks);
         const items = itemsOf(state);
@@ -115,6 +131,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         setCurrentRadioArtistId(artistId);
       }
       pushQueueUndoFromGetter(get);
+      ensureQueueServerPinned(get());
       set(state => {
         const items = itemsOf(state);
         // Drop all upcoming (not yet played) radio tracks — clicking "Start Radio"
@@ -166,6 +183,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         return;
       }
       pushQueueUndoFromGetter(get);
+      ensureQueueServerPinned(get());
       set(state => {
         seedIncoming(state, tracks);
         const items = itemsOf(state);
@@ -184,6 +202,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
     playNext: (tracks) => {
       if (tracks.length === 0) return;
       if (blockCrossServerEnqueue()) return;
+      ensureQueueServerPinned(get());
       const state = get();
       const tagged = tracks.map(t => ({ ...t, playNextAdded: true as const }));
       if (!state.currentTrack) {
