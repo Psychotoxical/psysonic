@@ -12,7 +12,7 @@ psysonic-integration = { path = "../psysonic-integration" }
 tauri = { version = "2" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.39", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "gzip", "brotli"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
 
