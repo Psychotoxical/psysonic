@@ -2,6 +2,11 @@ import { useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { clearPerfLiveHistory } from './perfLiveHistory';
 import { getAnalysisTracksPerMinute } from './analysisPerfStore';
+import {
+  buildPerfCpuSnapshotRequest,
+  getPerfLivePollIntervalMs,
+  registerPerfLivePollScheduleBump,
+} from './perfLivePollSettings';
 
 export type PerfProcessMemory = {
   label: string;
@@ -95,7 +100,7 @@ async function pollOnce(): Promise<void> {
   const generation = pollGeneration;
   const now = Date.now();
   try {
-    const snap = await invoke<ProcSnapshot>('performance_cpu_snapshot');
+    const snap = await invoke<ProcSnapshot>('performance_cpu_snapshot', buildPerfCpuSnapshotRequest());
     if (generation !== pollGeneration) return;
 
     if (!snap.supported) {
@@ -201,21 +206,35 @@ function clampPct(value: number): number {
 function schedulePoll(): void {
   if (pollTimer != null) return;
   setSnapshot({ ...snapshot, collecting: snapshot.cpu == null });
+  const intervalMs = getPerfLivePollIntervalMs();
   const tick = () => {
     pollTimer = null;
     if (pollRefCount === 0) return;
     void pollOnce().finally(() => {
       if (pollRefCount > 0) {
-        pollTimer = window.setTimeout(tick, 2000);
+        pollTimer = window.setTimeout(tick, getPerfLivePollIntervalMs());
       }
     });
   };
   void pollOnce().finally(() => {
     if (pollRefCount > 0) {
-      pollTimer = window.setTimeout(tick, 2000);
+      pollTimer = window.setTimeout(tick, intervalMs);
     }
   });
 }
+
+/** Restart the poll loop after interval / snapshot options change. */
+export function bumpPerfLivePollSchedule(): void {
+  if (pollRefCount === 0) return;
+  pollGeneration += 1;
+  if (pollTimer != null) {
+    window.clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+  schedulePoll();
+}
+
+registerPerfLivePollScheduleBump(bumpPerfLivePollSchedule);
 
 function stopPoll(): void {
   pollGeneration += 1;

@@ -1,5 +1,8 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePerfLiveSnapshot } from '../../../utils/perf/perfLiveStore';
+import {
+  syncPerfLiveThreadGroupsNeed,
+} from '../../../utils/perf/perfLivePollSettings';
 import {
   togglePerfLiveOverlayPin,
   togglePipelineOverlayPin,
@@ -9,6 +12,7 @@ import {
 } from '../../../utils/perf/perfOverlayPins';
 import PerfProbeMetricCard, { PerfProbeMetricSection } from './PerfProbeMetricCard';
 import PerfOverlayAppearanceControls from './PerfOverlayAppearanceControls';
+import PerfLivePollControls from './PerfLivePollControls';
 
 function memoryBarPct(rssKb: number, maxKb: number): number {
   if (maxKb <= 0) return 0;
@@ -25,6 +29,11 @@ export default function SidebarPerfProbeMonitorTab() {
   const collecting = live.collecting && cpu == null;
   const peakMemoryKbRef = useRef(1);
   const peakThreadCpuRef = useRef(1);
+  const [threadSectionOpen, setThreadSectionOpen] = useState(false);
+
+  useEffect(() => {
+    syncPerfLiveThreadGroupsNeed(threadSectionOpen, livePins);
+  }, [threadSectionOpen, livePins]);
 
   const maxMemoryKb = useMemo(() => {
     const current = Math.max(1, ...(cpu?.memory.map(m => m.rss_kb) ?? [1]));
@@ -61,6 +70,7 @@ export default function SidebarPerfProbeMonitorTab() {
   return (
     <div className="perf-monitor">
       <PerfOverlayAppearanceControls />
+      <PerfLivePollControls />
       <PerfProbeMetricSection title="Pipeline overlays" hint="Rust / UI queues">
         <PerfProbeMetricCard
           label="FPS"
@@ -111,9 +121,13 @@ export default function SidebarPerfProbeMonitorTab() {
             />
           </PerfProbeMetricSection>
 
-          {cpu.threadCpu.length > 0 && (
-            <PerfProbeMetricSection title="CPU — psysonic threads" defaultOpen={false}>
-              {cpu.threadCpu.map(row => {
+          {(cpu.threadCpu.length > 0 || threadSectionOpen) && (
+            <PerfProbeMetricSection
+              title="CPU — psysonic threads"
+              defaultOpen={false}
+              onOpenChange={setThreadSectionOpen}
+            >
+              {cpu.threadCpu.length > 0 ? cpu.threadCpu.map(row => {
                 const pinId = `cpu:thread:${row.label}` as PerfLiveOverlayPinId;
                 return (
                   <PerfProbeMetricCard
@@ -128,7 +142,9 @@ export default function SidebarPerfProbeMonitorTab() {
                     onTogglePin={toggleLive(pinId)}
                   />
                 );
-              })}
+              }) : (
+                <div className="perf-monitor-empty perf-monitor-empty--inline">Collecting thread samples…</div>
+              )}
             </PerfProbeMetricSection>
           )}
 

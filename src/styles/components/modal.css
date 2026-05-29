@@ -150,6 +150,48 @@
   text-align: center;
 }
 
+.perf-monitor-empty--inline {
+  padding: 0.75rem 0.5rem;
+  font-size: 11px;
+}
+
+.perf-live-poll {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 82%, transparent);
+}
+
+.perf-live-poll__title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-muted) 92%, transparent);
+  margin-bottom: 8px;
+}
+
+.perf-live-poll__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.perf-live-poll__label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.perf-live-poll__value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.perf-live-poll__row input[type='range'] {
+  width: 100%;
+}
+
 .perf-metric-section {
   margin-bottom: 10px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);

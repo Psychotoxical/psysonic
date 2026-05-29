@@ -71,6 +71,7 @@ interface SectionProps {
   hint?: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function PerfProbeMetricSection({
@@ -78,9 +79,14 @@ export function PerfProbeMetricSection({
   hint,
   children,
   defaultOpen = true,
+  onOpenChange,
 }: SectionProps) {
   return (
-    <details className="perf-metric-section" open={defaultOpen}>
+    <details
+      className="perf-metric-section"
+      open={defaultOpen}
+      onToggle={e => onOpenChange?.((e.currentTarget as HTMLDetailsElement).open)}
+    >
       <summary className="perf-metric-section__title">
         <ChevronRight size={14} className="perf-metric-section__chevron" />
         <span>{title}</span>
