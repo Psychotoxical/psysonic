@@ -1,5 +1,6 @@
 //! Performance telemetry: process-level CPU + RSS and in-process thread CPU
-//! groups for the Linux `/proc` parser. Other platforms return `supported: false`.
+//! groups. Linux uses `/proc`; macOS uses `sysinfo`. Other platforms return
+//! `supported: false`.
 
 use serde::Serialize;
 
@@ -99,16 +100,17 @@ fn collect_proc_stats() -> Vec<(i32, String, i32, u64)> {
     rows
 }
 
-/// Map a child `comm` (15-char Linux cap) to a stable perf-probe label.
-#[cfg(target_os = "linux")]
-fn child_process_memory_label(comm: &str) -> &'static str {
-    if comm.starts_with("WebKitWebProces") {
+/// Map a child process name to a stable perf-probe label (Linux `comm` or macOS name).
+#[cfg(any(test, target_os = "linux", target_os = "macos"))]
+fn child_process_memory_label(name: &str) -> &'static str {
+    let lower = name.to_ascii_lowercase();
+    if lower.contains("webkitwebproces") || lower.contains("web content") || lower.contains("webcontent") {
         "WebKit web"
-    } else if comm.starts_with("WebKitNetworkP") {
+    } else if lower.contains("webkitnetwork") || (lower.contains("webkit") && lower.contains("network")) {
         "WebKit network"
-    } else if comm.starts_with("WebKitWebGP") || comm.starts_with("WebKitGPUProc") {
+    } else if lower.contains("webkitwebgp") || lower.contains("webkitgpuproc") || (lower.contains("webkit") && lower.contains("gpu")) {
         "WebKit GPU"
-    } else if comm.starts_with("WebKit") {
+    } else if lower.contains("webkit") {
         "WebKit other"
     } else {
         "other child"
@@ -228,7 +230,7 @@ fn collect_process_memory(pid: i32, rows: &[(i32, String, i32, u64)], self_pid: 
     out
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn empty_snapshot() -> PerformanceCpuSnapshot {
     PerformanceCpuSnapshot {
         supported: false,
@@ -238,6 +240,111 @@ fn empty_snapshot() -> PerformanceCpuSnapshot {
         logical_cpus: 1,
         memory: Vec::new(),
         thread_cpu_groups: Vec::new(),
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use super::{
+        child_process_memory_label, PerformanceCpuSnapshot, PerfProcessMemory,
+    };
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+
+    static SYSTEM: Mutex<Option<System>> = Mutex::new(None);
+
+    fn with_system<R>(f: impl FnOnce(&mut System) -> R) -> R {
+        let mut guard = SYSTEM.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if guard.is_none() {
+            *guard = Some(System::new());
+        }
+        let sys = guard.as_mut().unwrap();
+        sys.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing().with_cpu().with_memory(),
+        );
+        f(sys)
+    }
+
+    fn is_webkit_web_cpu_process(name: &str) -> bool {
+        child_process_memory_label(name) == "WebKit web"
+    }
+
+    fn collect_process_memory(sys: &System, self_pid: Pid) -> Vec<PerfProcessMemory> {
+        let mut groups: HashMap<&'static str, u64> = HashMap::new();
+        if let Some(process) = sys.process(self_pid) {
+            groups.insert("psysonic", process.memory() / 1024);
+        }
+        for (pid, process) in sys.processes() {
+            if *pid == self_pid || process.parent() != Some(self_pid) {
+                continue;
+            }
+            let name = process.name().to_string_lossy();
+            let label = child_process_memory_label(&name);
+            let entry = groups.entry(label).or_insert(0);
+            *entry = entry.saturating_add(process.memory() / 1024);
+        }
+        let order = [
+            "psysonic",
+            "WebKit web",
+            "WebKit network",
+            "WebKit GPU",
+            "WebKit other",
+            "other child",
+        ];
+        let mut out: Vec<PerfProcessMemory> = groups
+            .into_iter()
+            .map(|(label, rss_kb)| PerfProcessMemory {
+                label: label.to_string(),
+                rss_kb,
+            })
+            .collect();
+        out.sort_by(|a, b| {
+            let ai = order.iter().position(|&x| x == a.label).unwrap_or(order.len());
+            let bi = order.iter().position(|&x| x == b.label).unwrap_or(order.len());
+            ai.cmp(&bi).then_with(|| b.rss_kb.cmp(&a.rss_kb))
+        });
+        out
+    }
+
+    pub(super) fn performance_cpu_snapshot() -> PerformanceCpuSnapshot {
+        with_system(|sys| {
+            let self_pid = Pid::from_u32(std::process::id());
+            let logical_cpus = std::thread::available_parallelism()
+                .map(|n| n.get() as u32)
+                .unwrap_or(1);
+            let total_jiffies: u64 = sys
+                .processes()
+                .values()
+                .map(|process| process.accumulated_cpu_time())
+                .sum();
+            let app_jiffies = sys
+                .process(self_pid)
+                .map(|process| process.accumulated_cpu_time())
+                .unwrap_or(0);
+            let webkit_jiffies: u64 = sys
+                .processes()
+                .iter()
+                .filter(|(pid, process)| {
+                    **pid != self_pid
+                        && process.parent() == Some(self_pid)
+                        && is_webkit_web_cpu_process(&process.name().to_string_lossy())
+                })
+                .map(|(_, process)| process.accumulated_cpu_time())
+                .sum();
+            PerformanceCpuSnapshot {
+                supported: true,
+                total_jiffies,
+                app_jiffies,
+                webkit_jiffies,
+                logical_cpus,
+                memory: collect_process_memory(sys, self_pid),
+                // Thread names/CPU are Linux-only today (`/proc/.../task`).
+                thread_cpu_groups: Vec::new(),
+            }
+        })
     }
 }
 
@@ -273,7 +380,11 @@ pub(crate) fn performance_cpu_snapshot() -> PerformanceCpuSnapshot {
             thread_cpu_groups: collect_task_cpu_groups(self_pid),
         }
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::performance_cpu_snapshot()
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         empty_snapshot()
     }
@@ -301,15 +412,23 @@ mod tests {
         assert_eq!(thread_cpu_group_label("rustc"), "other");
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
-    fn child_process_memory_label_webkit_truncation() {
+    fn child_process_memory_label_webkit_names() {
         assert_eq!(
             child_process_memory_label("WebKitWebProces"),
             "WebKit web"
         );
         assert_eq!(
             child_process_memory_label("WebKitNetworkP"),
+            "WebKit network"
+        );
+        assert_eq!(
+            child_process_memory_label("com.apple.WebKit.WebContent.xpc"),
+            "WebKit web"
+        );
+        assert_eq!(
+            child_process_memory_label("WebKit Networking"),
             "WebKit network"
         );
     }

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { clearPerfLiveHistory } from './perfLiveHistory';
 import { getAnalysisTracksPerMinute } from './analysisPerfStore';
 
 export type PerfProcessMemory = {
@@ -40,6 +41,8 @@ export type PerfLiveSnapshot = {
   diagRates: PerfDiagRates | null;
   analysis: PerfAnalysisDiag | null;
   collecting: boolean;
+  /** Wall time of the last CPU poll; shared clock for overlay sparklines. */
+  updatedAt: number;
 };
 
 type ProcSnapshot = {
@@ -57,6 +60,7 @@ const EMPTY: PerfLiveSnapshot = {
   diagRates: null,
   analysis: null,
   collecting: false,
+  updatedAt: 0,
 };
 
 let snapshot: PerfLiveSnapshot = { ...EMPTY };
@@ -89,6 +93,7 @@ function readUiCounters(): { progress: number; waveform: number; home: number } 
 
 async function pollOnce(): Promise<void> {
   const generation = pollGeneration;
+  const now = Date.now();
   try {
     const snap = await invoke<ProcSnapshot>('performance_cpu_snapshot');
     if (generation !== pollGeneration) return;
@@ -105,6 +110,7 @@ async function pollOnce(): Promise<void> {
           lastBpmMs: snapshot.analysis?.lastBpmMs ?? null,
         },
         collecting: false,
+        updatedAt: now,
       });
       return;
     }
@@ -149,7 +155,6 @@ async function pollOnce(): Promise<void> {
       }
     }
 
-    const now = Date.now();
     const nextCounters = readUiCounters();
     let diagRates = snapshot.diagRates;
     if (prevCounters && prevCountersAt > 0) {
@@ -175,6 +180,7 @@ async function pollOnce(): Promise<void> {
         lastBpmMs: snapshot.analysis?.lastBpmMs ?? null,
       },
       collecting: false,
+      updatedAt: now,
     });
   } catch {
     if (generation !== pollGeneration) return;
@@ -182,6 +188,7 @@ async function pollOnce(): Promise<void> {
       ...snapshot,
       cpu: { app: 0, webkit: 0, supported: false, memory: [], threadCpu: [] },
       collecting: false,
+      updatedAt: Date.now(),
     });
   }
 }
@@ -219,6 +226,7 @@ function stopPoll(): void {
   prevProc = null;
   prevCounters = null;
   prevCountersAt = 0;
+  clearPerfLiveHistory();
   setSnapshot({ ...EMPTY });
 }
 

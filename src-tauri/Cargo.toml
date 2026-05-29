@@ -67,7 +67,7 @@ discord-rich-presence = "1.1"
 url = "2"
 thread-priority = "3"
 lofty = "0.24"
-sysinfo = { version = "0.38", default-features = false, features = ["disk"] }
+sysinfo = { version = "0.38", default-features = false, features = ["disk", "system"] }
 id3 = "1.16.4"
 symphonia-adapter-libopus = "0.2.9"
 rusqlite = { version = "0.39", features = ["bundled"] }

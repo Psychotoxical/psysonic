@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { clearPerfLiveHistory } from './perfLiveHistory';
 import { getPerfProbeFlags, setPerfProbeFlag, subscribePerfProbeFlags } from './perfFlags';
 
 const STORAGE_KEY = 'psysonic_perf_overlay_pins_v1';
@@ -76,14 +77,19 @@ export function isPerfLiveOverlayPinned(id: string): boolean {
 }
 
 export function togglePerfLiveOverlayPin(id: PerfLiveOverlayPinId): void {
-  if (livePins.has(id)) livePins.delete(id);
-  else livePins.add(id);
+  if (livePins.has(id)) {
+    livePins.delete(id);
+    clearPerfLiveHistory(id);
+  } else {
+    livePins.add(id);
+  }
   persistLivePins();
   emitLive();
 }
 
 export function clearPerfLiveOverlayPins(): void {
   livePins.clear();
+  clearPerfLiveHistory();
   persistLivePins();
   emitLive();
 }

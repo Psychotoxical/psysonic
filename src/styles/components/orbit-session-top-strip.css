@@ -1569,6 +1569,11 @@
   border-top: 1px solid color-mix(in srgb, var(--border-subtle, #444) 55%, transparent);
 }
 
+.fps-overlay__row--fps + .fps-overlay__block {
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle, #444) 55%, transparent);
+}
+
 .fps-overlay__block-title {
   font-size: 9px;
   font-weight: 700;
@@ -1581,6 +1586,52 @@
 .fps-overlay__row--live {
   font-size: 11px;
   color: color-mix(in srgb, var(--accent) 78%, var(--text-primary));
+}
+
+.fps-overlay__live-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fps-overlay__live-metric + .fps-overlay__live-metric {
+  margin-top: 4px;
+}
+
+.perf-overlay-sparkline {
+  display: block;
+  overflow: visible;
+}
+
+.perf-overlay-sparkline__track {
+  fill: color-mix(in srgb, var(--text-primary, #fff) 5%, transparent);
+  stroke: color-mix(in srgb, var(--border-subtle, #444) 45%, transparent);
+  stroke-width: 0.75;
+}
+
+.perf-overlay-sparkline__fill {
+  opacity: 0.22;
+}
+
+.perf-overlay-sparkline__line {
+  fill: none;
+  stroke-width: 1.25;
+}
+
+.perf-overlay-sparkline--cpu .perf-overlay-sparkline__fill {
+  fill: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.perf-overlay-sparkline--cpu .perf-overlay-sparkline__line {
+  stroke: color-mix(in srgb, var(--accent) 88%, white);
+}
+
+.perf-overlay-sparkline--memory .perf-overlay-sparkline__fill {
+  fill: color-mix(in srgb, #9ece6a 45%, transparent);
+}
+
+.perf-overlay-sparkline--memory .perf-overlay-sparkline__line {
+  stroke: color-mix(in srgb, #9ece6a 92%, white);
 }
 
 .fps-overlay__row--detail {

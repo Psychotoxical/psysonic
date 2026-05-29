@@ -1,9 +1,10 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { analysisGetPipelineQueueStats, type AnalysisPipelineQueueStatsDto } from '../api/analysis';
 import { coverGetPipelineQueueStats, type CoverPipelineQueueStatsDto } from '../api/coverCache';
 import { coverEnsureQueueStats } from '../cover/ensureQueue';
 import { coverPeekQueueStats } from '../cover/peekQueue';
+import PerfOverlaySparkline from './perf/PerfOverlaySparkline';
 import { usePerfProbeFlag } from '../utils/perf/perfFlags';
 import {
   formatPerfMs,
@@ -12,7 +13,15 @@ import {
 } from '../utils/perf/analysisPerfStore';
 import { formatAnalysisPipelineQueueOverlay } from '../utils/perf/formatAnalysisQueueStats';
 import { formatCoverPipelineQueueOverlay } from '../utils/perf/formatCoverPipelineQueueOverlay';
-import { formatLiveOverlayLines } from '../utils/perf/formatLiveOverlayLines';
+import {
+  buildLiveOverlayItems,
+  type LiveOverlayItem,
+} from '../utils/perf/formatLiveOverlayItems';
+import {
+  getPerfLiveHistoryClock,
+  syncPerfLiveHistoryFromPoll,
+  usePerfLiveHistorySamples,
+} from '../utils/perf/perfLiveHistory';
 import { acquirePerfLivePoll, usePerfLiveSnapshot } from '../utils/perf/perfLiveStore';
 import { hasAnyLiveMetricPollNeed, usePerfLiveOverlayPins } from '../utils/perf/perfOverlayPins';
 import {
@@ -24,6 +33,26 @@ import { useAnalysisPerfListener } from '../hooks/useAnalysisPerfListener';
 const SAMPLE_MS = 500;
 const TPM_REFRESH_MS = 500;
 const QUEUE_STATS_MS = 750;
+
+function LiveOverlayPinnedMetric({
+  item,
+  now,
+}: {
+  item: LiveOverlayItem;
+  now: number;
+}) {
+  const history = usePerfLiveHistorySamples(item.id);
+  const sparklineKind = item.kind === 'memory' ? 'memory' : 'cpu';
+
+  return (
+    <div className="fps-overlay__live-metric">
+      <div className="fps-overlay__row fps-overlay__row--live">{item.line}</div>
+      {item.sparkline && (
+        <PerfOverlaySparkline samples={history} kind={sparklineKind} now={now} />
+      )}
+    </div>
+  );
+}
 
 /** FPS + pipeline + pinned live metrics overlay (Performance Probe). */
 export default function FpsOverlay() {
@@ -38,8 +67,21 @@ export default function FpsOverlay() {
   const [queueStats, setQueueStats] = useState<AnalysisPipelineQueueStatsDto | null>(null);
   const [coverQueueLines, setCoverQueueLines] = useState<string[]>([]);
   const last = useAnalysisPerfLast();
+  const lastHistoryAt = useRef(0);
 
-  const liveOverlayLines = formatLiveOverlayLines(livePins, live);
+  const liveOverlayItems = useMemo(
+    () => buildLiveOverlayItems(livePins, live),
+    [livePins, live],
+  );
+
+  lastHistoryAt.current = syncPerfLiveHistoryFromPoll(livePins, live, lastHistoryAt.current);
+
+  const sparklineNow = useMemo(() => {
+    const clock = getPerfLiveHistoryClock(
+      liveOverlayItems.filter(item => item.sparkline).map(item => item.id),
+    );
+    return clock > 0 ? clock : Date.now();
+  }, [liveOverlayItems, live.updatedAt]);
 
   useAnalysisPerfListener(showAnalysisPerfOverlay || livePins.has('analysis:tpm') || livePins.has('analysis:last'));
 
@@ -139,7 +181,7 @@ export default function FpsOverlay() {
   }, [showFpsOverlay]);
 
   const showPipeline = showFpsOverlay || showAnalysisPerfOverlay || showCoverPerfOverlay;
-  const showLive = liveOverlayLines.length > 0;
+  const showLive = liveOverlayItems.length > 0;
 
   if (!showPipeline && !showLive) return null;
 
@@ -151,21 +193,19 @@ export default function FpsOverlay() {
       style={{ '--fps-overlay-opacity': overlayAppearance.opacity } as CSSProperties}
       aria-hidden="true"
     >
-      {showLive && (
-        <div className="fps-overlay__block">
-          <div className="fps-overlay__block-title">Live</div>
-          {liveOverlayLines.map(line => (
-            <div key={line} className="fps-overlay__row fps-overlay__row--live">
-              {line}
-            </div>
-          ))}
-        </div>
-      )}
       {showFpsOverlay && (
         <div className="fps-overlay__row fps-overlay__row--fps">
           {fps}
           {' '}
           <span className="fps-overlay__unit">FPS</span>
+        </div>
+      )}
+      {showLive && (
+        <div className="fps-overlay__block">
+          <div className="fps-overlay__block-title">Live</div>
+          {liveOverlayItems.map(item => (
+            <LiveOverlayPinnedMetric key={item.id} item={item} now={sparklineNow} />
+          ))}
         </div>
       )}
       {showAnalysisPerfOverlay && (

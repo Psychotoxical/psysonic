@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { usePerfLiveSnapshot } from '../../../utils/perf/perfLiveStore';
 import {
   togglePerfLiveOverlayPin,
@@ -23,16 +23,20 @@ export default function SidebarPerfProbeMonitorTab() {
   const coverPinned = usePipelineOverlayPinned('pipeline:cover');
   const cpu = live.cpu;
   const collecting = live.collecting && cpu == null;
+  const peakMemoryKbRef = useRef(1);
+  const peakThreadCpuRef = useRef(1);
 
-  const maxMemoryKb = useMemo(
-    () => Math.max(1, ...(cpu?.memory.map(m => m.rss_kb) ?? [1])),
-    [cpu?.memory],
-  );
+  const maxMemoryKb = useMemo(() => {
+    const current = Math.max(1, ...(cpu?.memory.map(m => m.rss_kb) ?? [1]));
+    if (current > peakMemoryKbRef.current) peakMemoryKbRef.current = current;
+    return peakMemoryKbRef.current;
+  }, [cpu?.memory]);
 
-  const maxThreadCpu = useMemo(
-    () => Math.max(1, ...(cpu?.threadCpu.map(t => t.pct) ?? [1])),
-    [cpu?.threadCpu],
-  );
+  const maxThreadCpu = useMemo(() => {
+    const current = Math.max(1, ...(cpu?.threadCpu.map(t => t.pct) ?? [1]));
+    if (current > peakThreadCpuRef.current) peakThreadCpuRef.current = current;
+    return peakThreadCpuRef.current;
+  }, [cpu?.threadCpu]);
 
   if (collecting) {
     return (
