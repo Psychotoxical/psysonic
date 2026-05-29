@@ -1,5 +1,7 @@
 export const queue = {
   title: 'Kø',
+  modePlaylist: 'Spilleliste',
+  noUpcoming: 'Ingen kommende spor.',
   savePlaylist: 'Lagre spilleliste',
   updatePlaylist: 'Oppdater spilleliste',
   filterPlaylists: 'Filtrer spillelister…',

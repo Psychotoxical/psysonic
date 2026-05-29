@@ -1,5 +1,7 @@
 export const queue = {
   title: 'Cola',
+  modePlaylist: 'Lista',
+  noUpcoming: 'No hay próximas pistas.',
   savePlaylist: 'Guardar Lista',
   updatePlaylist: 'Actualizar Lista',
   filterPlaylists: 'Filtrar listas…',

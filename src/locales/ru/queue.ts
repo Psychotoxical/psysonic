@@ -1,5 +1,7 @@
 export const queue = {
   title: 'Очередь',
+  modePlaylist: 'Плейлист',
+  noUpcoming: 'Нет следующих треков.',
   savePlaylist: 'Сохранить как плейлист',
   updatePlaylist: 'Обновить плейлист',
   filterPlaylists: 'Фильтр плейлистов…',

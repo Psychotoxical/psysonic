@@ -1,5 +1,7 @@
 export const queue = {
   title: 'File d\'attente',
+  modePlaylist: 'Liste de lecture',
+  noUpcoming: 'Aucune piste à venir.',
   savePlaylist: 'Enregistrer la liste',
   updatePlaylist: 'Mettre à jour la liste',
   filterPlaylists: 'Filtrer les listes…',

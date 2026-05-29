@@ -1,5 +1,7 @@
 export const queue = {
   title: 'Coadă',
+  modePlaylist: 'Playlist',
+  noUpcoming: 'Nicio piesă în continuare.',
   savePlaylist: 'Salvează Playlist',
   updatePlaylist: 'Actualizează Playlist',
   filterPlaylists: 'Filtrează playlisturi…',

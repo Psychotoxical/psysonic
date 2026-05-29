@@ -1,5 +1,7 @@
 export const queue = {
   title: '队列',
+  modePlaylist: '播放列表',
+  noUpcoming: '没有后续曲目。',
   savePlaylist: '保存为播放列表',
   updatePlaylist: '更新播放列表',
   filterPlaylists: '筛选播放列表…',
