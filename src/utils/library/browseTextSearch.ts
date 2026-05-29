@@ -499,6 +499,36 @@ export async function runLocalBrowseAllArtists(
   }
 }
 
+export type ArtistCatalogChunkResult = {
+  artists: SubsonicArtist[];
+  hasMore: boolean;
+};
+
+/** One local-index chunk for lazy artist catalog loading (Artists browse slice mode). */
+export async function fetchLocalArtistCatalogChunk(
+  serverId: string,
+  offset: number,
+  chunkSize: number,
+): Promise<ArtistCatalogChunkResult | null> {
+  if (!serverId || !(await libraryIsReady(serverId))) return null;
+  try {
+    const resp = await libraryAdvancedSearch({
+      serverId,
+      libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      entityTypes: ['artist'],
+      sort: [{ field: 'name', dir: 'asc' }],
+      limit: chunkSize,
+      offset,
+      skipTotals: true,
+    });
+    if (resp.source !== 'local') return null;
+    const artists = resp.artists.map(artistToArtist);
+    return { artists, hasMore: artists.length === chunkSize };
+  } catch {
+    return null;
+  }
+}
+
 /** Starred artists from `getStarred2` (artist-level only; server is source of truth). */
 export async function fetchNetworkStarredArtists(): Promise<SubsonicArtist[]> {
   const { artists } = await getStarred();

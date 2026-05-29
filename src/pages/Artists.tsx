@@ -1,5 +1,4 @@
 import { getArtists } from '../api/subsonicArtists';
-import type { SubsonicArtist } from '../api/subsonicTypes';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Images, CheckSquare2 } from 'lucide-react';
@@ -23,21 +22,20 @@ import {
   ARTIST_LIST_ROW_EST,
 } from '../utils/componentHelpers/artistsHelpers';
 import { useArtistsFiltering } from '../hooks/useArtistsFiltering';
+import { useArtistsBrowseCatalog } from '../hooks/useArtistsBrowseCatalog';
 import { useBrowseArtistTextSearch } from '../hooks/useBrowseArtistTextSearch';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { useClientSliceInfiniteScroll } from '../hooks/useClientSliceInfiniteScroll';
+import { useInpageScrollSentinel } from '../hooks/useInpageScrollSentinel';
 import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
-import InpageScrollSentinel from '../components/InpageScrollSentinel';
-import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import { fetchNetworkStarredArtists, runLocalBrowseAllArtists } from '../utils/library/browseTextSearch';
 import { ArtistsGridView } from '../components/artists/ArtistsGridView';
 import { ArtistsListView } from '../components/artists/ArtistsListView';
+import InpageScrollSentinel from '../components/InpageScrollSentinel';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
-  const [catalogArtists, setCatalogArtists] = useState<SubsonicArtist[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [letterFilter, setLetterFilter] = useState(ALL_SENTINEL);
   const [starredOnly, setStarredOnly] = useState(false);
@@ -51,28 +49,47 @@ export default function Artists() {
 
   const showArtistImages = useAuthStore(s => s.showArtistImages);
   const PAGE_SIZE = showArtistImages ? 50 : 100; // Smaller with images to reduce I/O
-  const {
-    visibleCount,
-    loadingMore,
-    bindSentinel,
-  } = useClientSliceInfiniteScroll({
-    pageSize: PAGE_SIZE,
-    resetDeps: [filter, letterFilter, starredOnly, viewMode],
-    getScrollRoot: getArtistsScrollRoot,
-    scrollRootEl: artistsScrollBodyEl,
-  });
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+
+  const {
+    catalogArtists,
+    loading: catalogLoading,
+    catalogHasMore,
+    catalogLoadingMore,
+    browseMode,
+    loadCatalogChunk,
+    catalogLoadingRef,
+  } = useArtistsBrowseCatalog({
+    serverId,
+    indexEnabled,
+    starredOnly,
+    musicLibraryFilterVersion,
+  });
+
   const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
     filter,
     indexEnabled,
     serverId,
   );
   const artists = textSearchArtists ?? catalogArtists;
+  const loading = catalogLoading || textSearchLoading;
+  const textSearchActive = textSearchArtists != null;
+
+  const {
+    visibleCount,
+    loadingMore: sliceLoadingMore,
+    loadMore: sliceLoadMore,
+  } = useClientSliceInfiniteScroll({
+    pageSize: PAGE_SIZE,
+    resetDeps: [filter, letterFilter, starredOnly, viewMode, musicLibraryFilterVersion, serverId],
+    getScrollRoot: getArtistsScrollRoot,
+    scrollRootEl: artistsScrollBodyEl,
+  });
 
   // ── Multi-selection ──────────────────────────────────────────────────────
   const [selectionMode, setSelectionMode] = useState(false);
@@ -93,37 +110,78 @@ export default function Artists() {
 
   const selectedArtists = artists.filter(a => selectedIds.has(a.id));
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void (async () => {
-      try {
-        if (starredOnly) {
-          if (!cancelled) setCatalogArtists(await fetchNetworkStarredArtists());
-          return;
-        }
-        if (indexEnabled && serverId) {
-          const local = await runLocalBrowseAllArtists(serverId);
-          if (!cancelled && local != null) {
-            setCatalogArtists(local);
-            return;
-          }
-        }
-        if (!cancelled) setCatalogArtists(await getArtists());
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [musicLibraryFilterVersion, indexEnabled, serverId, starredOnly]);
-
   const {
     filtered, visible, hasMore, groups, letters, artistListFlatRows,
   } = useArtistsFiltering({ artists, filter: effectiveFilter, letterFilter, starredOnly, visibleCount, viewMode });
+
+  const pendingLetterMatch =
+    browseMode === 'slice'
+    && !textSearchActive
+    && !starredOnly
+    && letterFilter !== ALL_SENTINEL
+    && filtered.length === 0
+    && catalogHasMore;
+
+  const gridHasMore =
+    hasMore
+    || (browseMode === 'slice' && !textSearchActive && !starredOnly && catalogHasMore);
+  const gridLoadingMore = sliceLoadingMore || catalogLoadingMore;
+
+  const loadMoreRef = useRef<() => void>(() => {});
+  const sentinelIntersectingRef = useRef(false);
+
+  const loadMoreGrid = useCallback(() => {
+    if (hasMore) {
+      sliceLoadMore();
+      return;
+    }
+    if (browseMode === 'slice' && !textSearchActive && !starredOnly && catalogHasMore && !catalogLoadingRef.current) {
+      void loadCatalogChunk(true);
+    }
+  }, [
+    hasMore,
+    sliceLoadMore,
+    browseMode,
+    textSearchActive,
+    starredOnly,
+    catalogHasMore,
+    loadCatalogChunk,
+    catalogLoadingRef,
+  ]);
+
+  loadMoreRef.current = loadMoreGrid;
+
+  useEffect(() => {
+    if (!pendingLetterMatch || catalogLoadingRef.current) return;
+    void loadCatalogChunk(true);
+  }, [pendingLetterMatch, loadCatalogChunk, catalogLoadingRef]);
+
+  useEffect(() => {
+    if (browseMode !== 'slice' || textSearchActive || starredOnly) return;
+    if (!sentinelIntersectingRef.current) return;
+    if (visibleCount < filtered.length - PAGE_SIZE) return;
+    if (!catalogHasMore || catalogLoadingRef.current) return;
+    void loadCatalogChunk(true);
+  }, [
+    browseMode,
+    textSearchActive,
+    starredOnly,
+    visibleCount,
+    filtered.length,
+    catalogHasMore,
+    loadCatalogChunk,
+    catalogLoadingRef,
+    PAGE_SIZE,
+  ]);
+
+  const bindLoadMoreSentinel = useInpageScrollSentinel({
+    active: gridHasMore,
+    getScrollRoot: getArtistsScrollRoot,
+    scrollRootEl: artistsScrollBodyEl,
+    onIntersect: () => loadMoreRef.current(),
+    drainSignal: gridLoadingMore,
+    intersectingRef: sentinelIntersectingRef,
+  });
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(artistsScrollBodyEl, [
     filter,
@@ -317,13 +375,19 @@ export default function Artists() {
           visible.length,
           artistListFlatRows.length,
           filtered.length,
-          hasMore,
+          gridHasMore,
           selectionMode,
         ]}
       >
         {loading && <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>}
 
-        {!loading && viewMode === 'grid' && (
+        {!loading && pendingLetterMatch && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+            <div className="spinner" />
+          </div>
+        )}
+
+        {!loading && !pendingLetterMatch && viewMode === 'grid' && (
           <ArtistsGridView
             visible={visible}
             gridCols={artistGridCols}
@@ -344,7 +408,7 @@ export default function Artists() {
           />
         )}
 
-        {!loading && viewMode === 'list' && (
+        {!loading && !pendingLetterMatch && viewMode === 'list' && (
           <ArtistsListView
             virtualized={!perfFlags.disableMainstageVirtualLists}
             groups={groups}
@@ -364,11 +428,11 @@ export default function Artists() {
           />
         )}
 
-        {!loading && hasMore && (
-          <InpageScrollSentinel bindSentinel={bindSentinel} loading={loadingMore} />
+        {!loading && gridHasMore && (
+          <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={gridLoadingMore} />
         )}
 
-        {!loading && filtered.length === 0 && (
+        {!loading && !pendingLetterMatch && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
             {t('artists.notFound')}
           </div>
