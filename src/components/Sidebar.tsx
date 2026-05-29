@@ -132,7 +132,7 @@ export default function Sidebar({
     isLoggedIn,
     pathname: location.pathname,
   });
-  const { perfProbeOpen, setPerfProbeOpen, perfCpu, perfDiagRates, analysisPerf } = useSidebarPerfProbe();
+  const { perfProbeOpen, setPerfProbeOpen } = useSidebarPerfProbe();
   const perfFlags = usePerfProbeFlags();
 
 
@@ -258,9 +258,6 @@ export default function Sidebar({
       open={perfProbeOpen}
       onClose={() => setPerfProbeOpen(false)}
       perfFlags={perfFlags}
-      perfCpu={perfCpu}
-      perfDiagRates={perfDiagRates}
-      analysisPerf={analysisPerf}
       hotCacheEnabled={hotCacheEnabled}
       setHotCacheEnabled={setHotCacheEnabled}
       normalizationEngine={normalizationEngine}

@@ -1,48 +1,18 @@
+import { useState } from 'react';
+import { Activity, SlidersHorizontal, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
-import SidebarPerfProbePhase2 from './SidebarPerfProbePhase2';
-import { resetPerfProbeFlags, setPerfProbeFlag, type PerfProbeFlags } from '../../utils/perf/perfFlags';
+import SidebarPerfProbeMonitorTab from './perfProbe/SidebarPerfProbeMonitorTab';
+import SidebarPerfProbeTogglesTab from './perfProbe/SidebarPerfProbeTogglesTab';
+import { resetPerfProbeFlags, type PerfProbeFlags } from '../../utils/perf/perfFlags';
+import { clearPerfLiveOverlayPins } from '../../utils/perf/perfOverlayPins';
+import { resetPerfOverlayAppearance } from '../../utils/perf/perfOverlayAppearance';
 
-interface PerfProcessMemory {
-  label: string;
-  rss_kb: number;
-}
-
-interface PerfThreadCpu {
-  label: string;
-  threadCount: number;
-  pct: number;
-}
-
-interface PerfCpu {
-  app: number;
-  webkit: number;
-  supported: boolean;
-  memory: PerfProcessMemory[];
-  threadCpu: PerfThreadCpu[];
-}
-
-interface PerfDiagRates {
-  progress: number;
-  waveform: number;
-  home: number;
-}
-
-interface AnalysisPerfDiag {
-  tracksPerMinute: number;
-  lastTotalMs: number | null;
-  lastFetchMs: number | null;
-  lastSeedMs: number | null;
-  lastBpmMs: number | null;
-}
+type TabId = 'monitor' | 'toggles';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   perfFlags: PerfProbeFlags;
-  perfCpu: PerfCpu | null;
-  perfDiagRates: PerfDiagRates | null;
-  analysisPerf: AnalysisPerfDiag | null;
   hotCacheEnabled: boolean;
   setHotCacheEnabled: (v: boolean) => void;
   normalizationEngine: string;
@@ -52,286 +22,98 @@ interface Props {
 }
 
 export default function SidebarPerfProbeModal({
-  open, onClose, perfFlags, perfCpu, perfDiagRates, analysisPerf,
-  hotCacheEnabled, setHotCacheEnabled,
-  normalizationEngine, setNormalizationEngine,
-  loggingMode, setLoggingMode,
+  open,
+  onClose,
+  perfFlags,
+  hotCacheEnabled,
+  setHotCacheEnabled,
+  normalizationEngine,
+  setNormalizationEngine,
+  loggingMode,
+  setLoggingMode,
 }: Props) {
+  const [tab, setTab] = useState<TabId>('monitor');
+
   if (!open) return null;
+
+  const resetAll = () => {
+    resetPerfProbeFlags();
+    clearPerfLiveOverlayPins();
+    resetPerfOverlayAppearance();
+  };
+
   return createPortal(
-        <div className="modal-overlay modal-overlay--perf-probe" onClick={() => onClose()} role="dialog" aria-modal="true">
-          <div
-            className="modal-content sidebar-perf-modal"
-            onClick={e => e.stopPropagation()}
-            style={{ maxWidth: 560 }}
+    <div
+      className="modal-overlay modal-overlay--perf-probe"
+      onClick={() => onClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="perf-probe-title"
+    >
+      <div
+        className="modal-content sidebar-perf-modal"
+        onClick={e => e.stopPropagation()}
+      >
+        <button type="button" className="modal-close" onClick={() => onClose()} aria-label="Close">
+          <X size={18} />
+        </button>
+
+        <header className="sidebar-perf-modal__header">
+          <h3 id="perf-probe-title" className="modal-title">Performance Probe</h3>
+          <p className="sidebar-perf-modal__hint">
+            Live metrics with optional on-screen overlays, plus diagnostic disable toggles.
+          </p>
+        </header>
+
+        <div className="sidebar-perf-modal__tabs" role="tablist" aria-label="Performance probe sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'monitor'}
+            className={`sidebar-perf-modal__tab${tab === 'monitor' ? ' sidebar-perf-modal__tab--active' : ''}`}
+            onClick={() => setTab('monitor')}
           >
-            <button className="modal-close" onClick={() => onClose()}><X size={18} /></button>
-            <h3 className="modal-title">Performance Probe</h3>
-            <p className="sidebar-perf-modal__hint">
-              Temporary runtime switches to estimate UI effect cost.
-            </p>
-            <label className="sidebar-perf-modal__item">
-              <input
-                type="checkbox"
-                checked={perfFlags.showFpsOverlay}
-                onChange={e => setPerfProbeFlag('showFpsOverlay', e.target.checked)}
-              />
-              <span>Show FPS overlay (requestAnimationFrame rate)</span>
-            </label>
-            <label className="sidebar-perf-modal__item">
-              <input
-                type="checkbox"
-                checked={perfFlags.showAnalysisPerfOverlay}
-                onChange={e => setPerfProbeFlag('showAnalysisPerfOverlay', e.target.checked)}
-              />
-              <span>Show analysis throughput overlay (tpm + last track timings)</span>
-            </label>
-            <label className="sidebar-perf-modal__item">
-              <input
-                type="checkbox"
-                checked={perfFlags.showCoverPerfOverlay}
-                onChange={e => setPerfProbeFlag('showCoverPerfOverlay', e.target.checked)}
-              />
-              <span>Show cover pipeline overlay (ui ensure / ui vs lib http+enc)</span>
-            </label>
-            <div className="sidebar-perf-modal__cpu">
-              <div className="sidebar-perf-modal__cpu-title">Live CPU (approx)</div>
-              {perfCpu == null ? (
-                <div className="sidebar-perf-modal__cpu-row">Collecting samples…</div>
-              ) : perfCpu.supported ? (
-                <>
-                  <div className="sidebar-perf-modal__cpu-row">psysonic (process): {perfCpu.app.toFixed(1)}%</div>
-                  <div className="sidebar-perf-modal__cpu-row">WebKitWebProcess: {perfCpu.webkit.toFixed(1)}%</div>
-                  {perfCpu.threadCpu.length > 0 && (
-                    <>
-                      <div className="sidebar-perf-modal__subhead">psysonic threads</div>
-                      {perfCpu.threadCpu.map(row => (
-                        <div key={row.label} className="sidebar-perf-modal__cpu-row sidebar-perf-modal__cpu-row--indent">
-                          {row.label}
-                          {row.threadCount > 1 ? ` (${row.threadCount})` : ''}
-                          : {row.pct.toFixed(1)}%
-                        </div>
-                      ))}
-                    </>
-                  )}
-                  {perfDiagRates && (
-                    <>
-                      <div className="sidebar-perf-modal__cpu-row">audio:progress rate: {perfDiagRates.progress.toFixed(1)}/s</div>
-                      <div className="sidebar-perf-modal__cpu-row">waveform draws rate: {perfDiagRates.waveform.toFixed(1)}/s</div>
-                      <div className="sidebar-perf-modal__cpu-row">Home commits rate: {perfDiagRates.home.toFixed(1)}/s</div>
-                    </>
-                  )}
-                  {analysisPerf && (
-                    <>
-                      <div className="sidebar-perf-modal__cpu-row">analysis tpm (1m avg): {analysisPerf.tracksPerMinute.toFixed(1)}</div>
-                      {analysisPerf.lastTotalMs != null && (
-                        <div className="sidebar-perf-modal__cpu-row">
-                          last track: {(analysisPerf.lastTotalMs / 1000).toFixed(1)}s
-                          {' '}
-                          (fetch {(analysisPerf.lastFetchMs ?? 0) / 1000}s · seed {(analysisPerf.lastSeedMs ?? 0) / 1000}s · bpm {(analysisPerf.lastBpmMs ?? 0) / 1000}s)
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              ) : (
-                <div className="sidebar-perf-modal__cpu-row">Unavailable on this platform/build.</div>
-              )}
-            </div>
-            <div className="sidebar-perf-modal__cpu">
-              <div className="sidebar-perf-modal__cpu-title">Live memory (RSS)</div>
-              {perfCpu == null ? (
-                <div className="sidebar-perf-modal__cpu-row">Collecting samples…</div>
-              ) : perfCpu.supported && perfCpu.memory.length > 0 ? (
-                perfCpu.memory.map(row => (
-                  <div key={row.label} className="sidebar-perf-modal__cpu-row">
-                    {row.label}: {(row.rss_kb / 1024).toFixed(1)} MB
-                  </div>
-                ))
-              ) : perfCpu.supported ? (
-                <div className="sidebar-perf-modal__cpu-row">No process memory samples.</div>
-              ) : (
-                <div className="sidebar-perf-modal__cpu-row">Unavailable on this platform/build.</div>
-              )}
-            </div>
-            <details className="sidebar-perf-modal__phase">
-              <summary className="sidebar-perf-modal__phase-title">Phase 1 — Global / Shell / Network</summary>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableWaveformCanvas}
-                  onChange={e => setPerfProbeFlag('disableWaveformCanvas', e.target.checked)}
-                />
-                <span>Disable only PlayerBar waveform (`WaveformSeek`)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disablePlayerProgressUi}
-                  onChange={e => setPerfProbeFlag('disablePlayerProgressUi', e.target.checked)}
-                />
-                <span>Disable player live progress UI updates (time + seek/progress bindings)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableMarqueeScroll}
-                  onChange={e => setPerfProbeFlag('disableMarqueeScroll', e.target.checked)}
-                />
-                <span>Disable marquee text scrolling</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableBackdropBlur}
-                  onChange={e => setPerfProbeFlag('disableBackdropBlur', e.target.checked)}
-                />
-                <span>Disable backdrop blur effects</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableCssAnimations}
-                  onChange={e => setPerfProbeFlag('disableCssAnimations', e.target.checked)}
-                />
-                <span>Disable CSS animations and transitions</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableOverlayScrollbars}
-                  onChange={e => setPerfProbeFlag('disableOverlayScrollbars', e.target.checked)}
-                />
-                <span>Disable overlay scrollbar engine (JS + rail)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableTooltipPortal}
-                  onChange={e => setPerfProbeFlag('disableTooltipPortal', e.target.checked)}
-                />
-                <span>Disable global tooltip portal/listeners</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableQueuePanelMount}
-                  onChange={e => setPerfProbeFlag('disableQueuePanelMount', e.target.checked)}
-                />
-                <span>Disable QueuePanel mount (desktop right column)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableBackgroundPolling}
-                  onChange={e => setPerfProbeFlag('disableBackgroundPolling', e.target.checked)}
-                />
-                <span>Disable background polling (connection + radio metadata)</span>
-              </label>
-              <div className="sidebar-perf-modal__subhead">Engine/network toggles</div>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={!hotCacheEnabled}
-                  onChange={e => setHotCacheEnabled(!e.target.checked)}
-                />
-                <span>Disable hot-cache prefetch downloads</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={normalizationEngine === 'off'}
-                  onChange={e => setNormalizationEngine(e.target.checked ? 'off' : 'loudness')}
-                />
-                <span>Disable normalization engine (set to Off)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={loggingMode === 'off'}
-                  onChange={e => setLoggingMode(e.target.checked ? 'off' : 'normal')}
-                />
-                <span>Set runtime logging mode to Off</span>
-              </label>
-            </details>
-            <SidebarPerfProbePhase2 perfFlags={perfFlags} />
-            <details className="sidebar-perf-modal__phase">
-              <summary className="sidebar-perf-modal__phase-title">Phase 3 — Active diagnostics (quick access)</summary>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disablePlayerProgressUi}
-                  onChange={e => setPerfProbeFlag('disablePlayerProgressUi', e.target.checked)}
-                />
-                <span>Disable player live progress UI updates (time + seek/progress bindings)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableWaveformCanvas}
-                  onChange={e => setPerfProbeFlag('disableWaveformCanvas', e.target.checked)}
-                />
-                <span>Disable only PlayerBar waveform (`WaveformSeek`)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableHomeRailArtwork}
-                  onChange={e => setPerfProbeFlag('disableHomeRailArtwork', e.target.checked)}
-                />
-                <span>Disable artwork inside Home rows/rails only</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableMainstageRailArtwork}
-                  onChange={e => setPerfProbeFlag('disableMainstageRailArtwork', e.target.checked)}
-                />
-                <span>Disable artwork inside Home rows/rails</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableMainstageRails}
-                  onChange={e => setPerfProbeFlag('disableMainstageRails', e.target.checked)}
-                />
-                <span>Disable Home rows/rails (`AlbumRow` + `SongRail`)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableMainstageHeroBackdrop}
-                  onChange={e => setPerfProbeFlag('disableMainstageHeroBackdrop', e.target.checked)}
-                />
-                <span>Disable Hero backdrop/crossfade only</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableHomeArtworkFx}
-                  onChange={e => setPerfProbeFlag('disableHomeArtworkFx', e.target.checked)}
-                />
-                <span>Keep artwork, disable Home card visual effects (hover/overlay/shadows)</span>
-              </label>
-              <label className="sidebar-perf-modal__item">
-                <input
-                  type="checkbox"
-                  checked={perfFlags.disableHomeArtworkClip}
-                  onChange={e => setPerfProbeFlag('disableHomeArtworkClip', e.target.checked)}
-                />
-                <span>Diagnostic: flatten Home artwork clipping (no rounded corners/masks)</span>
-              </label>
-            </details>
-            <div className="sidebar-perf-modal__actions">
-              <button type="button" className="btn btn-ghost" onClick={() => resetPerfProbeFlags()}>
-                Reset
-              </button>
-              <button type="button" className="btn btn-primary" onClick={() => onClose()}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>,
+            <Activity size={15} />
+            Monitor
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'toggles'}
+            className={`sidebar-perf-modal__tab${tab === 'toggles' ? ' sidebar-perf-modal__tab--active' : ''}`}
+            onClick={() => setTab('toggles')}
+          >
+            <SlidersHorizontal size={15} />
+            Toggles
+          </button>
+        </div>
+
+        <div className="sidebar-perf-modal__body">
+          {tab === 'monitor' ? (
+            <SidebarPerfProbeMonitorTab />
+          ) : (
+            <SidebarPerfProbeTogglesTab
+              perfFlags={perfFlags}
+              hotCacheEnabled={hotCacheEnabled}
+              setHotCacheEnabled={setHotCacheEnabled}
+              normalizationEngine={normalizationEngine}
+              setNormalizationEngine={setNormalizationEngine}
+              loggingMode={loggingMode}
+              setLoggingMode={setLoggingMode}
+            />
+          )}
+        </div>
+
+        <div className="sidebar-perf-modal__actions">
+          <button type="button" className="btn btn-ghost" onClick={resetAll}>
+            Reset all
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => onClose()}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
     document.body,
   );
 }

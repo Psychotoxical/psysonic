@@ -1511,23 +1511,76 @@
 /* FPS overlay (Performance Probe → Show FPS overlay) */
 .fps-overlay {
   position: fixed;
-  top: 10px;
-  right: 10px;
   z-index: 100003;
   pointer-events: none;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
   font-family: var(--font-mono, ui-monospace, 'Courier New', monospace);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary, #fff);
-  background: color-mix(in srgb, var(--ctp-crust, #111) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-subtle, #444) 70%, transparent);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --fps-overlay-opacity: 0.82;
+  background: color-mix(
+    in srgb,
+    var(--ctp-crust, #111) calc(var(--fps-overlay-opacity) * 100%),
+    transparent
+  );
+  border: 1px solid color-mix(
+    in srgb,
+    var(--border-subtle, #444) calc(var(--fps-overlay-opacity) * 70%),
+    transparent
+  );
+  box-shadow: 0 2px 10px color-mix(in srgb, #000 calc(var(--fps-overlay-opacity) * 35%), transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.25;
+  max-width: min(92vw, 320px);
+}
+
+.fps-overlay--top-right {
+  top: 10px;
+  right: 10px;
+}
+
+.fps-overlay--top-left {
+  top: 10px;
+  left: 10px;
+}
+
+.fps-overlay--bottom-right {
+  bottom: 10px;
+  right: 10px;
+}
+
+.fps-overlay--bottom-left {
+  bottom: 10px;
+  left: 10px;
+}
+
+.fps-overlay__block {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  line-height: 1.25;
+}
+
+.fps-overlay__block + .fps-overlay__block {
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle, #444) 55%, transparent);
+}
+
+.fps-overlay__block-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-muted, #888) 92%, transparent);
+  margin-bottom: 2px;
+}
+
+.fps-overlay__row--live {
+  font-size: 11px;
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-primary));
 }
 
 .fps-overlay__row--detail {
