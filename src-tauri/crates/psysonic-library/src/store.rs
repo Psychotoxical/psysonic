@@ -9,7 +9,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 9;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 1;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -22,33 +22,10 @@ pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 9;
 pub const LIBRARY_DB_MIN_COMPATIBLE_VERSION: i64 = 1;
 
 pub(crate) const INITIAL_SQL: &str = include_str!("../migrations/001_initial.sql");
-const MIGRATION_002_N1_BULK_UNRELIABLE: &str =
-    include_str!("../migrations/002_n1_bulk_unreliable.sql");
-const MIGRATION_003_TRACK_REMAP_INDEXES: &str =
-    include_str!("../migrations/003_track_remap_indexes.sql");
-const MIGRATION_004_TRACK_TITLE_INDEX: &str =
-    include_str!("../migrations/004_track_title_index.sql");
-const MIGRATION_005_TRACK_GENRE_YEAR_INDEXES: &str =
-    include_str!("../migrations/005_track_genre_year_indexes.sql");
-const MIGRATION_006_PLAY_SESSION: &str = include_str!("../migrations/006_play_session.sql");
-const MIGRATION_007_RESYNC_GEN: &str = include_str!("../migrations/007_resync_gen.sql");
-const MIGRATION_008_MOOD_TAG_INDEX: &str = include_str!("../migrations/008_mood_tag_index.sql");
-const MIGRATION_009_PURGE_MOOD_FACTS: &str =
-    include_str!("../migrations/009_purge_mood_facts.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
-const MIGRATIONS: &[(i64, &str)] = &[
-    (1, INITIAL_SQL),
-    (2, MIGRATION_002_N1_BULK_UNRELIABLE),
-    (3, MIGRATION_003_TRACK_REMAP_INDEXES),
-    (4, MIGRATION_004_TRACK_TITLE_INDEX),
-    (5, MIGRATION_005_TRACK_GENRE_YEAR_INDEXES),
-    (6, MIGRATION_006_PLAY_SESSION),
-    (7, MIGRATION_007_RESYNC_GEN),
-    (8, MIGRATION_008_MOOD_TAG_INDEX),
-    (9, MIGRATION_009_PURGE_MOOD_FACTS),
-];
+const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL)];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MigrationOutcome {
@@ -553,6 +530,7 @@ mod tests {
             "track_fact",
             "track_id_history",
             "track_offline",
+            "play_session",
         ] {
             assert!(
                 tables.iter().any(|t| t == expected),

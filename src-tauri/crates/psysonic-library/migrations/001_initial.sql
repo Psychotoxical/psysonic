@@ -45,6 +45,7 @@ CREATE TABLE sync_state (
   initial_sync_cursor_json TEXT NOT NULL DEFAULT '{}',
   sync_phase               TEXT NOT NULL DEFAULT 'idle',
   last_error               TEXT,
+  n1_bulk_unreliable       INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (server_id, library_scope)
 );
 
@@ -108,6 +109,7 @@ CREATE TABLE track (
   content_hash         TEXT,
   server_updated_at    INTEGER,
   server_created_at    INTEGER,
+  resync_gen           INTEGER NOT NULL DEFAULT 0,
   deleted              INTEGER NOT NULL DEFAULT 0,
   synced_at            INTEGER NOT NULL,
   raw_json             TEXT NOT NULL,
@@ -233,6 +235,19 @@ CREATE TABLE canonical_enrichment_link (
   FOREIGN KEY (canonical_id) REFERENCES canonical_track(id)
 );
 
+CREATE TABLE play_session (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  server_id        TEXT NOT NULL,
+  track_id         TEXT NOT NULL,
+  started_at_ms    INTEGER NOT NULL,
+  listened_sec     REAL NOT NULL,
+  position_max_sec REAL NOT NULL,
+  completion       TEXT NOT NULL,
+  end_reason       TEXT NOT NULL,
+  FOREIGN KEY (server_id, track_id) REFERENCES track(server_id, id),
+  CHECK (completion IN ('partial', 'full'))
+);
+
 CREATE INDEX idx_track_album   ON track(server_id, album_id)               WHERE deleted = 0;
 CREATE INDEX idx_track_artist  ON track(server_id, artist_id)              WHERE deleted = 0;
 CREATE INDEX idx_track_updated ON track(server_id, server_updated_at DESC) WHERE deleted = 0;
@@ -245,3 +260,36 @@ CREATE INDEX idx_track_artifact_lookup ON track_artifact(server_id, track_id, ar
 CREATE INDEX idx_track_offline_hash    ON track_offline(server_id, content_hash);
 CREATE INDEX idx_track_id_history_new  ON track_id_history(server_id, new_id);
 CREATE INDEX idx_canonical_identity_lookup ON canonical_identity(kind, value);
+
+CREATE INDEX idx_track_remap_path
+  ON track(server_id, server_path)
+  WHERE deleted = 0 AND server_path IS NOT NULL AND server_path != '';
+
+CREATE INDEX idx_track_remap_hash
+  ON track(server_id, content_hash)
+  WHERE deleted = 0 AND content_hash IS NOT NULL AND content_hash != '';
+
+CREATE INDEX idx_track_title
+  ON track(server_id, title COLLATE NOCASE)
+  WHERE deleted = 0;
+
+CREATE INDEX idx_track_genre
+  ON track(server_id, genre COLLATE NOCASE)
+  WHERE deleted = 0 AND genre IS NOT NULL;
+
+CREATE INDEX idx_track_year
+  ON track(server_id, year)
+  WHERE deleted = 0 AND year IS NOT NULL;
+
+CREATE INDEX idx_play_session_server_time
+  ON play_session(server_id, started_at_ms DESC);
+
+CREATE INDEX idx_play_session_track
+  ON play_session(server_id, track_id, started_at_ms DESC);
+
+CREATE INDEX idx_play_session_started
+  ON play_session(started_at_ms DESC);
+
+CREATE INDEX idx_track_fact_mood_tag
+  ON track_fact(server_id, fact_kind, value_text, track_id)
+  WHERE fact_kind = 'mood_tag';
