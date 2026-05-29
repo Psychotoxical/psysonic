@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 const LIBRARY_ARCHIVE_ENTRY: &str = "library.sqlite";
@@ -212,7 +212,8 @@ fn write_databases_archive(
 ) -> Result<(), String> {
     let file = fs::File::create(destination_archive).map_err(|e| e.to_string())?;
     let mut zip = ZipWriter::new(file);
-    let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
+    let options =
+        SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     zip.start_file(LIBRARY_ARCHIVE_ENTRY, options)
         .map_err(|e| e.to_string())?;
     let mut src = fs::File::open(library_snapshot).map_err(|e| e.to_string())?;
@@ -233,7 +234,8 @@ fn write_full_archive(
 ) -> Result<(), String> {
     let file = fs::File::create(destination_archive).map_err(|e| e.to_string())?;
     let mut zip = ZipWriter::new(file);
-    let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
+    let options =
+        SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
 
     zip.start_file(FULL_ARCHIVE_SETTINGS_ENTRY, options)
         .map_err(|e| e.to_string())?;
