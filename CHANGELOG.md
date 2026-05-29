@@ -151,6 +151,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Performance Probe — monitor UI, overlay pins, and live metrics
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psychotoxical/psysonic/pull/890)**
+
+* **Ctrl+Shift+D** modal: **Monitor** tab (metric cards with pin-to-overlay) and **Toggles** tab (tree of probe flags/phases).
+* Live CPU/memory polling: process CPU, RSS by group, thread CPU groups (Linux `/proc`); **macOS** process CPU + RSS via `sysinfo`.
+* HUD overlay: FPS always on top; pinned live metrics with **1-minute sparklines**; Analysis/Cover pipeline blocks; corner + opacity controls.
+* Cover pipeline stats in the probe (per-server cache, ensure/peek queues).
+
+
+
 ## Changed
 
 ### Linux — session GDK, WebKitGTK mitigations, and Wayland text
@@ -273,6 +284,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The Discord member list and the collapsed presence card now show the playing track next to the music icon instead of the static "Psysonic" label — matches how comparable players appear in the user list.
 * New **User list line (name)** template under **Settings → Integrations → Discord Rich Presence**, default `{title}`. Same placeholders as the other templates: `{title}`, `{artist}`, `{album}`. Leaving it empty restores the previous "Psysonic" display.
+
+
+
+### Library browse — chunked local catalogs and unified in-page scroll
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psychotoxical/psysonic/pull/890)**
+
+* **Albums / Artists**: local index loaded in **200-row SQL chunks** instead of a single ~50k-row fetch; filters preserved.
+* **All Albums**: client-slice infinite scroll on the local index (Artists-style).
+* Shared in-page scroll hooks and sentinel UI across browse routes; album SQL pagination prioritized over cover ensures.
 
 
 
@@ -491,6 +512,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Album, now-playing, mainstage, and lightbox covers no longer stay blank on Windows when the active server URL has a `:port` (typical Navidrome LAN setup on `:4533`). The colon used to land in a Windows filesystem segment, so the OS rejected the whole cache path with `ERROR_INVALID_NAME` and every cover load failed silently.
 * Existing cache buckets on disk are wiped once on the next launch (layout-stamp bump) and rebuild lazily as users browse. Library, offline, and hot caches are untouched.
+
+
+
+### Library browse & covers — scroll stability and cover loading
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#890](https://github.com/Psychotoxical/psysonic/pull/890)**
+
+* In-page infinite scroll stabilized; cover memory caches capped; covers keep loading during active grid scroll.
+* **New Releases** and **Lossless** grids use the correct in-page scroll root; cover ensure invoke pump no longer sticks; viewport priority tiers for ensure/peek.
+* Performance Probe overlay: fixed blank page from unstable sparkline history; synchronized poll clock and bar/sparkline tick jitter.
 
 
 

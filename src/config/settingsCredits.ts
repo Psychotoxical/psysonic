@@ -339,6 +339,8 @@ const CONTRIBUTOR_ENTRIES = [
       'Server index-key rebuild: safe dual-DB migration flow, per-server analysis strategy controls, and playback/index scope hardening (PR #864)',
       'Settings: opt-in Linux input-focus repaint — workaround for the WebKitGTK 2.50.x text-field freeze (PR #884)',
       'Discord Rich Presence: configurable activity-name template — member list shows the playing track instead of "Psysonic" (PR #885)',
+      'Library browse: lazy 200-row local catalog chunks, unified in-page scroll, cover priority during scroll (PR #890)',
+      'Performance Probe: Monitor/Toggles redesign, live CPU/RSS/thread metrics, overlay pins and sparklines, macOS snapshots (PR #890)',
     ],
   },
   {
