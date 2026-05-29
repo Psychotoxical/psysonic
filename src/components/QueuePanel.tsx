@@ -1,3 +1,4 @@
+import { Play } from 'lucide-react';
 import { getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
 import { songToTrack } from '../utils/playback/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
@@ -117,6 +118,8 @@ function QueuePanelHostOrSolo() {
 
   const isNowPlayingCollapsed = useAuthStore(s => s.queueNowPlayingCollapsed);
   const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
+  const queueDisplayMode = useAuthStore(s => s.queueDisplayMode);
+  const setQueueDisplayMode = useAuthStore(s => s.setQueueDisplayMode);
   const toolbarButtons = useQueueToolbarStore(s => s.buttons);
   const durationMode = useAuthStore(s => s.queueDurationDisplayMode);
   const setDurationMode = useAuthStore(s => s.setQueueDurationDisplayMode);
@@ -210,6 +213,19 @@ function QueuePanelHostOrSolo() {
     else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
   };
 
+  // Queue mode shows upcoming tracks only — the current track lives in the
+  // header and drops out of the list once played. Playlist mode keeps the full
+  // timeline. `queueItems` stays the canonical list either way; the slice is a
+  // view. `displayBaseIndex` maps a displayed row back to its absolute queue
+  // index for every index-based handler (play / remove / reorder / drag).
+  const displayBaseIndex = queueDisplayMode === 'queue' ? Math.max(0, queueIndex + 1) : 0;
+  const displayItems = displayBaseIndex > 0 ? queueItems.slice(displayBaseIndex) : queueItems;
+  // In queue mode the list can be empty while the queue still holds the
+  // now-playing (last) track — say "no upcoming" rather than "queue is empty".
+  const queueEmptyLabel = queueDisplayMode === 'queue' && queueItems.length > 0
+    ? t('queue.noUpcoming')
+    : t('queue.emptyQueue');
+
   return (
     <aside
       ref={asideRef}
@@ -253,6 +269,8 @@ function QueuePanelHostOrSolo() {
         setIsNowPlayingCollapsed={setIsNowPlayingCollapsed}
         durationMode={durationMode}
         setDurationMode={setDurationMode}
+        queueDisplayMode={queueDisplayMode}
+        setQueueDisplayMode={setQueueDisplayMode}
         t={t}
       />
 
@@ -282,6 +300,25 @@ function QueuePanelHostOrSolo() {
         />
       )}
 
+      {/* Queue mode hides the current track from the list, so a collapsed
+          now-playing card would leave nothing showing what's playing. This
+          slim strip fills that gap; clicking it re-expands the full card. */}
+      {currentTrack && isNowPlayingCollapsed && queueDisplayMode === 'queue' && (
+        <button
+          type="button"
+          className="queue-now-playing-mini"
+          onClick={() => setIsNowPlayingCollapsed(false)}
+          data-tooltip={t('queue.showNowPlaying')}
+          aria-label={t('queue.showNowPlaying')}
+        >
+          <Play size={11} fill="currentColor" style={{ flexShrink: 0 }} />
+          <span className="truncate" style={{ minWidth: 0 }}>
+            <span style={{ fontWeight: 600 }}>{currentTrack.title}</span>
+            <span style={{ color: 'var(--text-muted)' }}> · {currentTrack.artist}</span>
+          </span>
+        </button>
+      )}
+
       {activeTab === 'queue' ? (<>
         {!isNowPlayingCollapsed && toolbarButtons.some(b => b.visible && b.id !== 'separator') && (
           <QueueToolbar
@@ -306,11 +343,17 @@ function QueuePanelHostOrSolo() {
           />
         )}
 
-      {currentTrack && queueItems.length > 0 && <div className="queue-divider"><span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.nextTracks')}</span></div>}
+      {/* "Next Tracks" only labels the upcoming-only list in queue mode. In
+          playlist mode the list also holds the current + played rows, so the
+          divider would be misleading — hide it. */}
+      {queueDisplayMode === 'queue' && displayItems.length > 0 && <div className="queue-divider"><span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.nextTracks')}</span></div>}
 
       <QueueList
-        queue={queueItems}
+        queue={displayItems}
         queueIndex={queueIndex}
+        displayBaseIndex={displayBaseIndex}
+        queueDisplayMode={queueDisplayMode}
+        emptyLabel={queueEmptyLabel}
         contextMenu={contextMenu}
         playTrack={playTrack}
         activeTab={activeTab}

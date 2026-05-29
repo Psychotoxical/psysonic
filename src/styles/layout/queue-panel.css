@@ -27,6 +27,28 @@
   flex-shrink: 0;
 }
 
+/* Slim now-playing indicator shown only in queue mode when the now-playing
+   card is collapsed — keeps the current track visible (it is not in the list
+   in queue mode). Click re-expands the full card. */
+.queue-now-playing-mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px var(--space-4);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.queue-now-playing-mini:hover {
+  background: var(--bg-hover);
+}
+
 .queue-action-btn {
   display: flex;
   align-items: center;

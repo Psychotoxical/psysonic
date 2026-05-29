@@ -6,6 +6,7 @@ import OverlayScrollArea from '../OverlayScrollArea';
 import { usePlayerStore } from '../../store/playerStore';
 import { useLuckyMixStore } from '../../store/luckyMixStore';
 import type { QueueItemRef, PlayerState } from '../../store/playerStoreTypes';
+import type { QueueDisplayMode } from '../../store/authStoreTypes';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import { resolveQueueTrack } from '../../utils/library/queueTrackView';
 import {
@@ -20,8 +21,19 @@ type StartDrag = (
 ) => void;
 
 interface Props {
+  /** The rows to render. In queue mode this is the upcoming-only slice of the
+   *  canonical queue; in playlist mode it is the full queue. */
   queue: QueueItemRef[];
+  /** Absolute index of the currently playing track in the canonical queue. */
   queueIndex: number;
+  /** Absolute index of `queue[0]` in the canonical queue (0 in playlist mode,
+   *  `queueIndex + 1` in queue mode). Added to a row's local index to recover
+   *  its absolute index for play / context-menu / drag / reorder. */
+  displayBaseIndex: number;
+  queueDisplayMode: QueueDisplayMode;
+  /** Label for the empty list (differs between "queue is empty" and "no
+   *  upcoming tracks"). */
+  emptyLabel: string;
   contextMenu: PlayerState['contextMenu'];
   playTrack: PlayerState['playTrack'];
   activeTab: string;
@@ -42,7 +54,8 @@ interface Props {
 const INITIAL_RECT = { width: 0, height: 600 };
 
 export function QueueList({
-  queue, queueIndex, contextMenu, playTrack, activeTab, queueListRef,
+  queue, queueIndex, displayBaseIndex, queueDisplayMode, emptyLabel,
+  contextMenu, playTrack, activeTab, queueListRef,
   suppressNextAutoScrollRef, isQueueDrag, psyDragFromIdxRef, externalDropTarget,
   startDrag, orbitAttributionLabel, luckyRolling, t,
 }: Props) {
@@ -69,28 +82,47 @@ export function QueueList({
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
 
-  // Auto-scroll the upcoming track into view on track change. Replaces the
-  // scrollIntoView path in useQueueAutoScroll, which relied on every row being
-  // in the DOM. Honours the suppression flag (row click / undo restore).
+  // Auto-scroll on track change (and on mode toggle). Honours the suppression
+  // flag (row click / undo restore). Two-step where it scrolls: the virtualizer
+  // brings the target row into the rendered range (estimate-based, can land a
+  // few px off), then scrollIntoView snaps it flush at the top (exact).
   useEffect(() => {
     if (suppressNextAutoScrollRef.current) {
       suppressNextAutoScrollRef.current = false;
       return;
     }
     if (activeTab !== 'queue' || queueIndex < 0 || queue.length === 0) return;
-    const target = Math.min(queueIndex + 1, queue.length - 1);
-    // First bring the target row into the rendered range via the virtualizer
-    // (estimate-based, so it can land a few px off). Then snap to the real DOM
-    // element so it sits flush at the top — no sliver of the now-playing row,
-    // which already shows in the header. scrollIntoView is exact (no estimate).
-    rowVirtualizer.scrollToIndex(target, { align: 'start' });
-    const id = requestAnimationFrame(() => {
-      const el = queueListRef.current?.querySelector<HTMLElement>(`[data-queue-idx="${target}"]`);
-      el?.scrollIntoView({ block: 'start', behavior: 'instant' });
-    });
-    return () => cancelAnimationFrame(id);
+
+    const pinToTop = (localIndex: number, absIndex: number) => {
+      rowVirtualizer.scrollToIndex(localIndex, { align: 'start' });
+      const id = requestAnimationFrame(() => {
+        const el = queueListRef.current?.querySelector<HTMLElement>(`[data-queue-idx="${absIndex}"]`);
+        el?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      });
+      return () => cancelAnimationFrame(id);
+    };
+
+    if (queueDisplayMode === 'queue') {
+      // Upcoming-only: the next track is the first row — keep it pinned at the
+      // top. The played track already dropped out of the slice.
+      return pinToTop(0, displayBaseIndex);
+    }
+
+    // Playlist: lazy. Let the highlight wander while the now-playing row stays
+    // visible; only re-pin it to the top once it has scrolled out of view.
+    const viewport = queueListRef.current;
+    if (viewport) {
+      const rowEl = viewport.querySelector<HTMLElement>(`[data-queue-idx="${queueIndex}"]`);
+      if (rowEl) {
+        const rowRect = rowEl.getBoundingClientRect();
+        const viewRect = viewport.getBoundingClientRect();
+        const fullyVisible = rowRect.top >= viewRect.top && rowRect.bottom <= viewRect.bottom;
+        if (fullyVisible) return; // highlight just moved within view — don't yank
+      }
+    }
+    return pinToTop(queueIndex, queueIndex);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queueIndex, activeTab]);
+  }, [queueIndex, activeTab, queueDisplayMode]);
 
   return (
     <OverlayScrollArea
@@ -103,22 +135,26 @@ export function QueueList({
     >
       {queue.length === 0 ? (
         <div className="queue-empty">
-          {t('queue.emptyQueue')}
+          {emptyLabel}
         </div>
       ) : (
         <div style={{ height: totalSize, width: '100%', position: 'relative' }}>
         {virtualItems.map(vi => {
           const idx = vi.index;
+          // Local index addresses `queue` (the displayed slice); the absolute
+          // index addresses the canonical queue and drives every handler that
+          // mutates / selects (play, context menu, drag, reorder, drop target).
+          const absIdx = displayBaseIndex + idx;
           const base = queue[idx];
           const track = resolveQueueTrack(base);
-          const isPlaying = idx === queueIndex;
+          const isPlaying = absIdx === queueIndex;
           const isFirstAutoAdded = base.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
           const isFirstRadioAdded = base.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
 
           let dragStyle: React.CSSProperties = {};
-          if (isQueueDrag && psyDragFromIdxRef.current === idx) {
+          if (isQueueDrag && psyDragFromIdxRef.current === absIdx) {
             dragStyle = { opacity: 0.4, background: 'var(--bg-hover)' };
-          } else if (isQueueDrag && externalDropTarget?.idx === idx) {
+          } else if (isQueueDrag && externalDropTarget?.idx === absIdx) {
             if (externalDropTarget.before) {
               dragStyle = { borderTop: '2px solid var(--accent)', paddingTop: '6px', marginTop: '-2px' };
             } else {
@@ -144,18 +180,18 @@ export function QueueList({
               </div>
             )}
             <div
-              data-queue-idx={idx}
-              className={`queue-item ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === 'queue-item' && contextMenu.queueIndex === idx ? 'context-active' : ''}`}
+              data-queue-idx={absIdx}
+              className={`queue-item ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === 'queue-item' && contextMenu.queueIndex === absIdx ? 'context-active' : ''}`}
               onClick={() => {
                 suppressNextAutoScrollRef.current = true;
                 // Same-queue jump: undefined keeps the canonical refs; the row
                 // index lands a click on a duplicate track on *this* slot, not
                 // the first occurrence (issue #500).
-                playTrack(track, undefined, undefined, undefined, idx);
+                playTrack(track, undefined, undefined, undefined, absIdx);
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                usePlayerStore.getState().openContextMenu(e.clientX, e.clientY, track, 'queue-item', idx);
+                usePlayerStore.getState().openContextMenu(e.clientX, e.clientY, track, 'queue-item', absIdx);
               }}
               onMouseDown={(e) => {
                 if (e.button !== 0) return;
@@ -166,8 +202,8 @@ export function QueueList({
                   if (Math.abs(me.clientX - startX) > 5 || Math.abs(me.clientY - startY) > 5) {
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
-                    psyDragFromIdxRef.current = idx;
-                    startDrag({ data: JSON.stringify({ type: 'queue_reorder', index: idx }), label: track.title }, me.clientX, me.clientY);
+                    psyDragFromIdxRef.current = absIdx;
+                    startDrag({ data: JSON.stringify({ type: 'queue_reorder', index: absIdx }), label: track.title }, me.clientX, me.clientY);
                   }
                 };
                 const onUp = () => {

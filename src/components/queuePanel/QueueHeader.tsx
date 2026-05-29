@@ -1,10 +1,11 @@
 import { useDeferredValue, useMemo, useSyncExternalStore } from 'react';
-import { ChevronDown, ListMusic } from 'lucide-react';
+import { ChevronDown, ListMusic, ListOrdered } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import { useAuthStore } from '../../store/authStore';
 import type { QueueItemRef } from '../../store/playerStoreTypes';
+import type { QueueDisplayMode } from '../../store/authStoreTypes';
 import type { DurationMode } from '../../utils/componentHelpers/queuePanelHelpers';
 import { formatLongDuration } from '../../utils/format/formatDuration';
 import { formatClockTime } from '../../utils/format/formatClockTime';
@@ -22,12 +23,15 @@ interface Props {
   setIsNowPlayingCollapsed: (v: boolean) => void;
   durationMode: DurationMode;
   setDurationMode: (m: DurationMode) => void;
+  queueDisplayMode: QueueDisplayMode;
+  setQueueDisplayMode: (v: QueueDisplayMode) => void;
   t: TFunction;
 }
 
 export function QueueHeader({
   queue, queueIndex, activePlaylist, isNowPlayingCollapsed,
-  setIsNowPlayingCollapsed, durationMode, setDurationMode, t,
+  setIsNowPlayingCollapsed, durationMode, setDurationMode,
+  queueDisplayMode, setQueueDisplayMode, t,
 }: Props) {
   const currentTime = usePlayerStore((s) => Math.floor(s.currentTime / 30) * 30);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -81,7 +85,24 @@ export function QueueHeader({
     <div className="queue-header">
       <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: "8px", minWidth: 0 }}>
-          <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, flexShrink: 0 }}>{t("queue.title")}</h2>
+          {/* Small icon button to flip the display mode without leaving the
+              panel. Icon reflects the active mode; the title (next to it) and
+              the tooltip name the modes. Mirrors the Settings toggle. */}
+          <button
+            type="button"
+            className="queue-action-btn"
+            onClick={() => setQueueDisplayMode(queueDisplayMode === 'playlist' ? 'queue' : 'playlist')}
+            data-tooltip={queueDisplayMode === 'playlist' ? t('queue.title') : t('queue.modePlaylist')}
+            aria-label={queueDisplayMode === 'playlist' ? t('queue.title') : t('queue.modePlaylist')}
+            style={{ width: 24, height: 24, alignSelf: 'center', flexShrink: 0 }}
+          >
+            {queueDisplayMode === 'playlist' ? <ListMusic size={15} /> : <ListOrdered size={15} />}
+          </button>
+          {/* Title doubles as the mode indicator so the panel reads "Playlist"
+              in playlist mode rather than the misleading "Queue". */}
+          <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, flexShrink: 0 }}>
+            {queueDisplayMode === 'playlist' ? t('queue.modePlaylist') : t('queue.title')}
+          </h2>
           {queue.length > 0 && (
             <span style={{ fontSize: "13px", color: "var(--text-muted)", whiteSpace: "nowrap", userSelect: "none" }}>
               ({queueIndex + 1}/{queue.length})
