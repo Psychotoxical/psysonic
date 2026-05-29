@@ -192,6 +192,27 @@
   width: 100%;
 }
 
+.perf-live-poll__row--check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.perf-live-poll__check-label {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.perf-live-poll__hint {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+}
+
 .perf-metric-section {
   margin-bottom: 10px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);

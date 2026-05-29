@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { usePerfLiveSnapshot } from '../../../utils/perf/perfLiveStore';
-import {
-  syncPerfLiveThreadGroupsNeed,
-} from '../../../utils/perf/perfLivePollSettings';
+import { usePerfLiveIncludeThreadGroups } from '../../../utils/perf/perfLivePollSettings';
 import {
   togglePerfLiveOverlayPin,
   togglePipelineOverlayPin,
@@ -28,13 +26,9 @@ export default function SidebarPerfProbeMonitorTab() {
   const coverPinned = usePipelineOverlayPinned('pipeline:cover');
   const cpu = live.cpu;
   const collecting = live.collecting && cpu == null;
+  const includeThreadGroups = usePerfLiveIncludeThreadGroups();
   const peakMemoryKbRef = useRef(1);
   const peakThreadCpuRef = useRef(1);
-  const [threadSectionOpen, setThreadSectionOpen] = useState(false);
-
-  useEffect(() => {
-    syncPerfLiveThreadGroupsNeed(threadSectionOpen, livePins);
-  }, [threadSectionOpen, livePins]);
 
   const maxMemoryKb = useMemo(() => {
     const current = Math.max(1, ...(cpu?.memory.map(m => m.rss_kb) ?? [1]));
@@ -123,11 +117,10 @@ export default function SidebarPerfProbeMonitorTab() {
             />
           </PerfProbeMetricSection>
 
-          {(cpu.threadCpu.length > 0 || threadSectionOpen) && (
+          {includeThreadGroups && (
             <PerfProbeMetricSection
               title="CPU — psysonic threads"
-              defaultOpen={false}
-              onOpenChange={setThreadSectionOpen}
+              defaultOpen
             >
               {cpu.threadCpu.length > 0 ? cpu.threadCpu.map(row => {
                 const pinId = `cpu:thread:${row.label}` as PerfLiveOverlayPinId;
@@ -145,7 +138,9 @@ export default function SidebarPerfProbeMonitorTab() {
                   />
                 );
               }) : (
-                <div className="perf-monitor-empty perf-monitor-empty--inline">Collecting thread samples…</div>
+                <div className="perf-monitor-empty perf-monitor-empty--inline">
+                  No named psysonic threads yet — wait for the next poll or load audio/analysis work.
+                </div>
               )}
             </PerfProbeMetricSection>
           )}

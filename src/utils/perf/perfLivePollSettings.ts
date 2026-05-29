@@ -6,8 +6,10 @@ export const PERF_LIVE_POLL_MS_MAX = 10_000;
 export const PERF_LIVE_POLL_MS_STEP = 500;
 
 const STORAGE_KEY = 'psysonic_perf_live_poll_ms_v1';
+const THREAD_GROUPS_STORAGE_KEY = 'psysonic_perf_live_thread_groups_v1';
 
 const listeners = new Set<() => void>();
+const threadGroupListeners = new Set<() => void>();
 let pollIntervalMs = PERF_LIVE_POLL_MS_DEFAULT;
 let includeThreadGroups = false;
 let scheduleBump: (() => void) | null = null;
@@ -37,7 +39,23 @@ function initPollInterval(): void {
   }
 }
 
+function initThreadGroups(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.localStorage.getItem(THREAD_GROUPS_STORAGE_KEY);
+    if (raw == null) return;
+    includeThreadGroups = raw === '1' || raw === 'true';
+  } catch {
+    /* ignore */
+  }
+}
+
 initPollInterval();
+initThreadGroups();
+
+function emitThreadGroups(): void {
+  threadGroupListeners.forEach(fn => fn());
+}
 
 export function getPerfLivePollIntervalMs(): number {
   return pollIntervalMs;
@@ -78,22 +96,34 @@ export function getPerfLiveIncludeThreadGroups(): boolean {
 export function setPerfLiveIncludeThreadGroups(next: boolean): void {
   if (next === includeThreadGroups) return;
   includeThreadGroups = next;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(THREAD_GROUPS_STORAGE_KEY, next ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }
+  emitThreadGroups();
   requestScheduleBump();
 }
 
-/** Thread groups when the Monitor section is open or a thread metric is pinned. */
-export function syncPerfLiveThreadGroupsNeed(
-  sectionOpen: boolean,
-  pins: ReadonlySet<string>,
-): void {
-  const pinnedThread = [...pins].some(pin => pin.startsWith('cpu:thread:'));
-  setPerfLiveIncludeThreadGroups(sectionOpen || pinnedThread);
+export function subscribePerfLiveIncludeThreadGroups(cb: () => void): () => void {
+  threadGroupListeners.add(cb);
+  return () => threadGroupListeners.delete(cb);
+}
+
+export function usePerfLiveIncludeThreadGroups(): boolean {
+  return useSyncExternalStore(
+    subscribePerfLiveIncludeThreadGroups,
+    getPerfLiveIncludeThreadGroups,
+    () => false,
+  );
 }
 
 export type PerfCpuSnapshotRequest = {
-  include_thread_groups: boolean;
+  includeThreadGroups: boolean;
 };
 
 export function buildPerfCpuSnapshotRequest(): PerfCpuSnapshotRequest {
-  return { include_thread_groups: includeThreadGroups };
+  return { includeThreadGroups };
 }

@@ -231,6 +231,8 @@ export function bumpPerfLivePollSchedule(): void {
     window.clearTimeout(pollTimer);
     pollTimer = null;
   }
+  // Fresh baseline after interval / thread-group option changes.
+  prevProc = null;
   schedulePoll();
 }
 

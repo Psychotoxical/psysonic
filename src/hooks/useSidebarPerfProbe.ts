@@ -8,7 +8,6 @@ import {
   subscribePerfProbeFlags,
 } from '../utils/perf/perfFlags';
 import { hasAnyLiveMetricPollNeed, usePerfLiveOverlayPins } from '../utils/perf/perfOverlayPins';
-import { syncPerfLiveThreadGroupsNeed } from '../utils/perf/perfLivePollSettings';
 import { useSyncExternalStore } from 'react';
 
 interface Result {
@@ -40,11 +39,6 @@ export function useSidebarPerfProbe(): Result {
   const needAnalysis = useNeedAnalysisTelemetry(perfProbeOpen, livePins);
 
   useAnalysisPerfListener(needAnalysis);
-
-  useEffect(() => {
-    if (perfProbeOpen) return;
-    syncPerfLiveThreadGroupsNeed(false, livePins);
-  }, [perfProbeOpen, livePins]);
 
   useEffect(() => {
     setPerfProbeTelemetryActive(perfProbeOpen);
