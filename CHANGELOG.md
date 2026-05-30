@@ -324,6 +324,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Advanced Search — centered button label
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#925](https://github.com/Psychotoxical/psysonic/pull/925)**
+
+* The **Search** button's label is now centered. Buttons wider than their text (the Search button has a fixed minimum width) previously rendered the label left-aligned.
+
+
+
 ### Radio — track info in OS media controls
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79 on GitHub, PR [#924](https://github.com/Psychotoxical/psysonic/pull/924)**
