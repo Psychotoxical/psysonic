@@ -369,17 +369,23 @@ mod macos {
     }
 
     fn read_host_total_cpu_ticks() -> u64 {
+        use mach2::kern_return::KERN_SUCCESS;
+        use mach2::mach_init::mach_host_self;
+        use mach2::traps::mach_task_self;
+        use mach2::vm::mach_vm_deallocate;
+        use mach2::vm_types::{mach_vm_address_t, mach_vm_size_t};
+
         let mut num_cpus: u32 = 0;
         let mut cpu_info: *mut i32 = std::ptr::null_mut();
         let mut num_cpu_info: u32 = 0;
         let ok = unsafe {
             libc::host_processor_info(
-                libc::mach_host_self(),
+                mach_host_self(),
                 libc::PROCESSOR_CPU_LOAD_INFO,
                 &mut num_cpus,
                 &mut cpu_info,
                 &mut num_cpu_info,
-            ) == libc::KERN_SUCCESS
+            ) == KERN_SUCCESS
         };
         if !ok || cpu_info.is_null() {
             return 0;
@@ -392,8 +398,11 @@ mod macos {
         };
         unsafe {
             let size = num_cpu_info as usize * mem::size_of::<i32>();
-            #[allow(deprecated)]
-            libc::vm_deallocate(libc::mach_task_self(), cpu_info as _, size);
+            mach_vm_deallocate(
+                mach_task_self(),
+                cpu_info as mach_vm_address_t,
+                size as mach_vm_size_t,
+            );
         }
         total
     }

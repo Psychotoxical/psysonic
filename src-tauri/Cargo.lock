@@ -4064,6 +4064,7 @@ dependencies = [
  "image",
  "libc",
  "lofty",
+ "mach2",
  "md5",
  "psysonic-analysis",
  "psysonic-audio",
