@@ -35,7 +35,70 @@ on:
         type: boolean
 
 jobs:
+  # Refresh npmDepsHash + flake.lock on the channel branch *before* tagging.
+  # Promote workflows push with GITHUB_TOKEN (no downstream workflow runs), and the
+  # old post-tag verify-nix PR landed after app-v* tags were already cut.
+  prepare-nix-sources:
+    if: ${{ inputs.verify_nix }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      source_commit_sha: ${{ steps.final-sha.outputs.value }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.target_branch }}
+      - name: install Nix
+        uses: DeterminateSystems/nix-installer-action@v15
+      - name: configure Cachix (managed signing)
+        uses: cachix/cachix-action@v15
+        with:
+          name: psysonic
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: compute npmDepsHash from package-lock.json
+        id: npm-hash
+        run: |
+          set -euo pipefail
+          HASH="$(nix run nixpkgs/nixos-unstable#prefetch-npm-deps -- package-lock.json)"
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "Computed npmDepsHash: $HASH"
+      - name: write npmDepsHash into nix/upstream-sources.json
+        run: |
+          set -euo pipefail
+          HASH='${{ steps.npm-hash.outputs.hash }}'
+          jq --arg h "$HASH" '.npmDepsHash = $h' nix/upstream-sources.json > nix/upstream-sources.json.new
+          mv nix/upstream-sources.json.new nix/upstream-sources.json
+      - name: refresh flake.lock (nixpkgs pin)
+        run: nix flake update --accept-flake-config
+      - name: verify nix build + push to Cachix
+        run: |
+          set -euo pipefail
+          nix build .#psysonic --accept-flake-config --no-link --print-build-logs
+          nix path-info --recursive .#psysonic | cachix push psysonic
+      - name: commit and push refreshed lock and hash (if changed)
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flake.lock nix/upstream-sources.json
+          if git diff --cached --quiet; then
+            echo "flake.lock / nix/upstream-sources.json unchanged — nothing to commit."
+            exit 0
+          fi
+          VERSION="$(node -p 'require("./package.json").version')"
+          git commit -m "chore(nix): refresh lock + npmDepsHash for v${VERSION}"
+          git push origin "HEAD:${{ inputs.target_branch }}"
+      - name: capture source commit sha
+        id: final-sha
+        run: |
+          set -euo pipefail
+          echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   create-release:
+    needs: prepare-nix-sources
+    if: ${{ !cancelled() && !failure() && (needs.prepare-nix-sources.result == 'success' || needs.prepare-nix-sources.result == 'skipped') }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -47,7 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ inputs.verify_nix && needs.prepare-nix-sources.outputs.source_commit_sha || inputs.source_ref }}
       - name: setup node
         uses: actions/setup-node@v5
         with:
@@ -194,7 +257,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ needs.create-release.outputs.source_commit_sha }}
       - name: setup node
         uses: actions/setup-node@v5
         with:
@@ -268,7 +331,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ needs.create-release.outputs.source_commit_sha }}
       - name: generate latest.json
         env:
           VERSION: ${{ needs.create-release.outputs.package_version }}
@@ -290,7 +353,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ needs.create-release.outputs.source_commit_sha }}
       - name: install dependencies
         run: |
           sudo apt-get update
@@ -324,68 +387,6 @@ jobs:
           find src-tauri/target/release/bundle \
             \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) \
             | xargs gh release upload "$RELEASE_TAG" --clobber
-
-  verify-nix:
-    if: ${{ inputs.verify_nix }}
-    needs: create-release
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.target_branch }}
-      - name: install Nix
-        uses: DeterminateSystems/nix-installer-action@v15
-      - name: configure Cachix (managed signing)
-        uses: cachix/cachix-action@v15
-        with:
-          name: psysonic
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      - name: compute npmDepsHash from package-lock.json
-        id: npm-hash
-        run: |
-          set -euo pipefail
-          HASH="$(nix run nixpkgs/nixos-unstable#prefetch-npm-deps -- package-lock.json)"
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
-          echo "Computed npmDepsHash: $HASH"
-      - name: write npmDepsHash into nix/upstream-sources.json
-        run: |
-          set -euo pipefail
-          HASH='${{ steps.npm-hash.outputs.hash }}'
-          jq --arg h "$HASH" '.npmDepsHash = $h' nix/upstream-sources.json > nix/upstream-sources.json.new
-          mv nix/upstream-sources.json.new nix/upstream-sources.json
-      - name: refresh flake.lock (nixpkgs pin)
-        run: nix flake update --accept-flake-config
-      - name: verify nix build + push to Cachix
-        run: |
-          set -euo pipefail
-          nix build .#psysonic --accept-flake-config --no-link --print-build-logs
-          nix path-info --recursive .#psysonic | cachix push psysonic
-      - name: open + auto-merge PR with refreshed lock and hash (if changed)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add flake.lock nix/upstream-sources.json
-          if git diff --cached --quiet; then
-            echo "flake.lock / nix/upstream-sources.json unchanged — nothing to commit."
-            exit 0
-          fi
-          VERSION="${{ needs.create-release.outputs.package_version }}"
-          BRANCH="chore/nix-lock-refresh-${{ inputs.target_branch }}-v${VERSION}"
-          git checkout -b "$BRANCH"
-          git commit -m "chore(nix): refresh lock + npmDepsHash for v${VERSION}"
-          git push origin "$BRANCH"
-          gh pr create \
-            --base "${{ inputs.target_branch }}" \
-            --head "$BRANCH" \
-            --title "chore(nix): refresh lock + npmDepsHash for v${VERSION}" \
-            --body "Auto-generated for the \`${{ inputs.channel }}\` channel after v${VERSION}: refreshes \`flake.lock\` and \`nix/upstream-sources.json\`."
 
   bump-main-to-next-dev:
     if: ${{ inputs.channel == 'release' }}
