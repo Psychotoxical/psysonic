@@ -332,6 +332,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### CI — npmDepsHash on app-v* tags
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#927](https://github.com/Psychotoxical/psysonic/pull/927)**
+
+* Channel publish now refreshes `nix/upstream-sources.json` and `flake.lock` on the channel branch **before** cutting `app-v*` tags, so Nix builds from release tags no longer fail with stale `npmDepsHash` (e.g. after promote finalizes `package-lock.json` version).
+
 ### Advanced Search — centered button label
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#925](https://github.com/Psychotoxical/psysonic/pull/925)**
