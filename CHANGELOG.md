@@ -339,6 +339,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Channel publish now refreshes `nix/upstream-sources.json` and `flake.lock` on the channel branch **before** cutting `app-v*` tags, so Nix builds from release tags no longer fail with stale `npmDepsHash` (e.g. after promote finalizes `package-lock.json` version).
 
+### Queue — Infinite Queue and Smart Radio top-ups no longer show `…` / `0:00`
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#930](https://github.com/Psychotoxical/psysonic/pull/930)**
+
+* Tracks added automatically by **Infinite Queue** or by **Smart Radio** could render as `…` / `0:00` instead of their real title and duration when the queue was filled without a queue-replacing playback (single-track enqueue from a song row, search result, etc).
+* Same root cause as PR #892 — just on the auto-add paths the earlier fix did not cover. The owning server is now pinned before each auto-top-up so the resolver cache sees the fresh tracks.
+
 ### Advanced Search — centered button label
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#925](https://github.com/Psychotoxical/psysonic/pull/925)**
