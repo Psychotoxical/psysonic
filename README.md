@@ -153,6 +153,8 @@ curl -fsSL https://raw.githubusercontent.com/Psychotoxical/psysonic/main/scripts
 
 Linux builds are also available through GitHub Releases, AUR and Cachix/Nix.
 
+> **AppImage runs under X11/XWayland** — it pins `GDK_BACKEND=x11` for a stable WebKitGTK stack. For a native-Wayland launch, use the `.deb`, `.rpm`, AUR, or Nix packages, which follow your session's display server.
+
 ## Windows
 
 Download the latest installer from the [GitHub Releases](https://github.com/Psychotoxical/psysonic/releases/latest).

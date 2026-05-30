@@ -202,6 +202,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#731](https://github.com/Psychotoxical/psysonic/pull/731)**
 
 * **Nix / AUR** default installs follow the session GDK backend instead of pinning `GDK_BACKEND=x11`; startup applies **`webkit2gtk-nvidia-quirk`** only (skip with **`PSYSONIC_WEBKIT_GPU_ACCEL`**). **`nix run .#psysonic-x11-legacy`** keeps the old explicit X11 launcher.
+* **AppImage stays on X11/XWayland**: unlike the `.deb` / `.rpm` / Nix packages it still pins `GDK_BACKEND=x11` (set by the bundle's AppRun hook), so it doubles as the legacy channel. Use `.deb`, `.rpm`, AUR, or the Nix default for a native-Wayland launch.
 * **NVIDIA + forced X11** on a Wayland user session no longer greys out the webview — the quirk uses the DMABUF renderer path instead of Wayland explicit-sync disable.
 * **Wayland + GPU compositing:** clearer UI text via on-demand hardware acceleration on main and mini webviews; **Settings → System** adds **Wayland text rendering** presets (Balanced / Sharp / GPU / Minimal). Opt out with **`PSYSONIC_SKIP_WAYLAND_FONT_TUNING`**.
 
