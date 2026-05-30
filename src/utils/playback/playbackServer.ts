@@ -57,6 +57,27 @@ export function bindQueueServerForPlayback(): void {
   usePlayerStore.setState({ queueServerId: canonical });
 }
 
+/**
+ * Bind `queueServerId` via {@link bindQueueServerForPlayback} when it is still
+ * null, then return the (now-bound) server identifier. Call this synchronously
+ * before any state mutation that adds new tracks to the queue.
+ *
+ * Without the pin, refs land with an empty server key, {@link seedQueueResolver}
+ * skips its store-write, and queue rows render as the resolver placeholder
+ * (`…` / 0:00) until something else binds the server (see PR #892). Affects
+ * both the manual enqueue mutations and the auto-add paths (infinite-queue
+ * top-up, radio top-up).
+ *
+ * Idempotent: no-op when already pinned. Returns `''` when no active server is
+ * available to pin (e.g. unit tests without an authed store).
+ */
+export function ensureQueueServerPinned(): string {
+  if (usePlayerStore.getState().queueServerId == null) {
+    bindQueueServerForPlayback();
+  }
+  return usePlayerStore.getState().queueServerId ?? '';
+}
+
 export function clearQueueServerForPlayback(): void {
   usePlayerStore.setState({ queueServerId: null });
 }

@@ -2,6 +2,7 @@ import { getSimilarSongs2, getTopSongs } from '../api/subsonicArtists';
 import { invoke } from '@tauri-apps/api/core';
 import { buildInfiniteQueueCandidates } from '../utils/playback/buildInfiniteQueueCandidates';
 import { songToTrack } from '../utils/playback/songToTrack';
+import { ensureQueueServerPinned } from '../utils/playback/playbackServer';
 import { useAuthStore } from './authStore';
 import { setIsAudioPaused } from './engineState';
 import {
@@ -35,8 +36,11 @@ type GetState = () => PlayerState;
  */
 function appendTracksAndPlayFirst(set: SetState, get: GetState, fresh: Track[]): void {
   if (fresh.length === 0) return;
+  // Pin the server *before* reading state so the appended refs (and the
+  // resolver seed) carry the canonical server key — otherwise queue rows for
+  // the appended tracks render as the resolver placeholder. See PR #892.
+  const serverId = ensureQueueServerPinned();
   const state = get();
-  const serverId = state.queueServerId ?? '';
   if (serverId) seedQueueResolver(serverId, fresh);
   const incoming: QueueItemRef[] = toQueueItemRefs(serverId, fresh);
   const playAt = state.queueItems.length;
@@ -93,8 +97,12 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
           // an Orbit session between scheduling and resolving.
           if (isInOrbitSession()) return;
           if (newTracks.length > 0) {
+            // Pin before set so the appended refs carry the canonical server
+            // key; without this the auto-added rows render as '…' / 0:00
+            // when the queue was populated without a queue-replacing playTrack
+            // (see PR #892).
+            const serverId = ensureQueueServerPinned();
             set(state => {
-              const serverId = state.queueServerId ?? '';
               if (serverId) seedQueueResolver(serverId, newTracks);
               const newItems = [...state.queueItems, ...toQueueItemRefs(serverId, newTracks)];
               return { queueItems: newItems };
@@ -146,8 +154,9 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
                 // Keep the last HISTORY_KEEP played tracks so the user can still
                 // navigate backwards a few songs. Trimmed ids stay in the seen-set.
                 const HISTORY_KEEP = 5;
+                // Pin before set; same reasoning as the infinite top-up above.
+                const serverId = ensureQueueServerPinned();
                 set(state => {
-                  const serverId = state.queueServerId ?? '';
                   if (serverId) seedQueueResolver(serverId, fresh);
                   const trimStart = Math.max(0, state.queueIndex - HISTORY_KEEP);
                   const newItems = [
