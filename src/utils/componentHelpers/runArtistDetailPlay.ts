@@ -4,6 +4,7 @@ import { getSimilarSongs2, getTopSongs } from '../../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtist } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
+import { runBulkPlayAll, runBulkShuffle } from '../playback/runBulkPlay';
 
 async function fetchAllTracks(albums: SubsonicAlbum[]): Promise<Track[]> {
   const results = await Promise.all(albums.map(a => getAlbum(a.id)));
@@ -20,28 +21,13 @@ export interface RunArtistDetailPlayDeps {
 export async function runArtistDetailPlayAll(deps: RunArtistDetailPlayDeps): Promise<void> {
   const { albums, setPlayAllLoading, playTrack } = deps;
   if (albums.length === 0) return;
-  setPlayAllLoading(true);
-  try {
-    const tracks = await fetchAllTracks(albums);
-    if (tracks.length > 0) playTrack(tracks[0], tracks);
-  } finally {
-    setPlayAllLoading(false);
-  }
+  await runBulkPlayAll({ fetchTracks: () => fetchAllTracks(albums), setLoading: setPlayAllLoading, playTrack });
 }
 
 export async function runArtistDetailShuffle(deps: RunArtistDetailPlayDeps): Promise<void> {
   const { albums, setPlayAllLoading, playTrack } = deps;
   if (albums.length === 0) return;
-  setPlayAllLoading(true);
-  try {
-    const tracks = await fetchAllTracks(albums);
-    if (tracks.length > 0) {
-      const shuffled = [...tracks].sort(() => Math.random() - 0.5);
-      playTrack(shuffled[0], shuffled);
-    }
-  } finally {
-    setPlayAllLoading(false);
-  }
+  await runBulkShuffle({ fetchTracks: () => fetchAllTracks(albums), setLoading: setPlayAllLoading, playTrack });
 }
 
 export interface RunArtistDetailStartRadioDeps {
