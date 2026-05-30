@@ -6,7 +6,7 @@ use serde::Serialize;
 
 #[cfg(target_os = "linux")]
 use std::collections::HashMap;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(target_os = "linux")]
 use std::sync::Mutex;
 #[cfg(target_os = "linux")]
 use std::fs;
@@ -369,24 +369,33 @@ mod macos {
     }
 
     fn read_host_total_cpu_ticks() -> u64 {
-        let mut mib = [libc::CTL_KERN, libc::KERN_CP_TIME];
-        let mut cp_time = [0_u64; libc::CPUSTATES as usize];
-        let mut size = mem::size_of_val(&cp_time);
+        let mut num_cpus: u32 = 0;
+        let mut cpu_info: *mut i32 = std::ptr::null_mut();
+        let mut num_cpu_info: u32 = 0;
         let ok = unsafe {
-            libc::sysctl(
-                mib.as_mut_ptr(),
-                mib.len() as _,
-                cp_time.as_mut_ptr() as *mut _,
-                &mut size,
-                std::ptr::null_mut(),
-                0,
-            ) == 0
+            libc::host_processor_info(
+                libc::mach_host_self(),
+                libc::PROCESSOR_CPU_LOAD_INFO,
+                &mut num_cpus,
+                &mut cpu_info,
+                &mut num_cpu_info,
+            ) == libc::KERN_SUCCESS
         };
-        if ok {
-            cp_time.iter().sum()
-        } else {
-            0
+        if !ok || cpu_info.is_null() {
+            return 0;
         }
+        let total: u64 = unsafe {
+            std::slice::from_raw_parts(cpu_info, num_cpu_info as usize)
+                .iter()
+                .map(|&ticks| ticks as u64)
+                .sum()
+        };
+        unsafe {
+            let size = num_cpu_info as usize * mem::size_of::<i32>();
+            #[allow(deprecated)]
+            libc::vm_deallocate(libc::mach_task_self(), cpu_info as _, size);
+        }
+        total
     }
 
     fn refresh_target_processes(sys: &mut System, self_pid: Pid) -> Vec<Pid> {
