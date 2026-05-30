@@ -333,12 +333,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
-### macOS CI — performance CPU snapshot build
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#931](https://github.com/Psychotoxical/psysonic/pull/931)**
-
-* `aarch64-apple-darwin` builds no longer fail in `perf.rs`: host total CPU ticks on macOS use Mach `host_processor_info` instead of BSD-only `sysctl` constants missing from `libc` on Darwin.
-
 ### CI — npmDepsHash on app-v* tags
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#927](https://github.com/Psychotoxical/psysonic/pull/927)**
