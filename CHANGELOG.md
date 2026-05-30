@@ -324,6 +324,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Radio — track info in OS media controls
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79 on GitHub, PR [#924](https://github.com/Psychotoxical/psysonic/pull/924)**
+
+* The Linux media overlay (MPRIS) now shows the current **radio track and artist** instead of just "Psysonic", and updates as the stream changes songs. Internet radio plays through the WebView audio element, which exposes its own OS media player — that player is now fed the live ICY/AzuraCast metadata. Streams that send no metadata still fall back to the station name.
+
+
+
 ### Analytics — Opus waveform and loudness analysis
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#883](https://github.com/Psychotoxical/psysonic/pull/883)**
