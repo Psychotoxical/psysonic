@@ -11,4 +11,6 @@ export const genres = {
   albumsEmpty: 'В этом жанре альбомов нет.',
   loadMore: 'Ещё',
   back: 'Назад',
+  shuffle: 'Перемешать',
+  addToQueue: 'В очередь',
 };

@@ -9,4 +9,6 @@ export const genres = {
   albumsEmpty: 'No se encontraron álbumes para este género.',
   loadMore: 'Cargar más',
   back: 'Volver',
+  shuffle: 'Aleatorio',
+  addToQueue: 'Agregar a la cola',
 };

@@ -1,16 +1,24 @@
-import { getAlbumsByGenre } from '../api/subsonicGenres';
+import { getAlbumsByGenre, fetchAllSongsByGenre } from '../api/subsonicGenres';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Disc3 } from 'lucide-react';
+import { ArrowLeft, Disc3, Play, Shuffle, ListPlus, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { usePlayerStore } from '../store/playerStore';
 import AlbumCard from '../components/AlbumCard';
+import { songToTrack } from '../utils/playback/songToTrack';
+import { runBulkPlayAll, runBulkShuffle, runBulkEnqueue } from '../utils/playback/runBulkPlay';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 
 const PAGE_SIZE = 50;
+// Bulk play/shuffle pulls a bounded slice of the genre. The queue resolver
+// (queueTrackResolver) holds a 500-entry LRU; seeding a larger queue evicts the
+// earliest tracks, which then render as "…"/0:00 placeholders until lazily
+// re-resolved. Keep the slice within that budget so the whole queue stays warm.
+const GENRE_QUEUE_CAP = 500;
 
 export default function GenreDetail() {
   const { name } = useParams<{ name: string }>();
@@ -23,7 +31,27 @@ export default function GenreDetail() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const playTrack = usePlayerStore(s => s.playTrack);
+  const enqueue = usePlayerStore(s => s.enqueue);
+
+  const fetchGenreTracks = useCallback(
+    () => fetchAllSongsByGenre(genre, GENRE_QUEUE_CAP).then(songs => songs.map(songToTrack)),
+    [genre],
+  );
+  const handlePlayAll = useCallback(
+    () => runBulkPlayAll({ fetchTracks: fetchGenreTracks, setLoading: setBulkLoading, playTrack }),
+    [fetchGenreTracks, playTrack],
+  );
+  const handleShuffleAll = useCallback(
+    () => runBulkShuffle({ fetchTracks: fetchGenreTracks, setLoading: setBulkLoading, playTrack }),
+    [fetchGenreTracks, playTrack],
+  );
+  const handleEnqueueAll = useCallback(
+    () => runBulkEnqueue({ fetchTracks: fetchGenreTracks, setLoading: setBulkLoading, enqueue }),
+    [fetchGenreTracks, enqueue],
+  );
 
   useEffect(() => {
     setAlbums([]);
@@ -69,6 +97,29 @@ export default function GenreDetail() {
             <Disc3 size={14} style={{ color: 'var(--accent)' }} />
             {t('genres.albumCount', { count: albums.length })}{hasMore ? '+' : ''}
           </span>
+        )}
+        {!loading && albums.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+            <button className="btn btn-primary" onClick={handlePlayAll} disabled={bulkLoading}>
+              {bulkLoading ? <Loader2 size={15} className="spin" /> : <Play size={15} />} {t('common.play')}
+            </button>
+            <button
+              className="btn btn-surface"
+              onClick={handleShuffleAll}
+              disabled={bulkLoading}
+              data-tooltip={t('genres.shuffle')}
+            >
+              <Shuffle size={16} />
+            </button>
+            <button
+              className="btn btn-surface"
+              onClick={handleEnqueueAll}
+              disabled={bulkLoading}
+              data-tooltip={t('genres.addToQueue')}
+            >
+              <ListPlus size={16} />
+            </button>
+          </div>
         )}
       </div>
 

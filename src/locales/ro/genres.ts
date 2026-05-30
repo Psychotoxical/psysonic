@@ -9,4 +9,6 @@ export const genres = {
   albumsEmpty: 'Niciun album găsit pentru acest gen.',
   loadMore: 'Încarcă mai mult',
   back: 'Înapoi',
+  shuffle: 'Amestecă',
+  addToQueue: 'Adaugă la coadă',
 };

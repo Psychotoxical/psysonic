@@ -9,4 +9,6 @@ export const genres = {
   albumsEmpty: 'Geen albums gevonden voor dit genre.',
   loadMore: 'Meer laden',
   back: 'Terug',
+  shuffle: 'Willekeurig',
+  addToQueue: 'Aan wachtrij toevoegen',
 };
