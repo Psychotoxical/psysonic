@@ -22,6 +22,7 @@ import { useLyricsStore } from '../store/lyricsStore';
 import MarqueeText from './MarqueeText';
 import LastfmIcon from './LastfmIcon';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
+import { useRadioMprisSync } from '../hooks/useRadioMprisSync';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
 import PlaybackScheduleBadge from './PlaybackScheduleBadge';
@@ -125,6 +126,9 @@ export default function PlayerBar() {
 
   // Radio metadata (ICY or AzuraCast) — only active while a radio station is playing.
   const radioMeta = useRadioMetadata(currentRadio ?? null);
+  // Mirror resolved radio track metadata to the OS media controls (issue #816).
+  // PlayerBar is the single always-mounted consumer, so push from here only.
+  useRadioMprisSync(radioMeta, currentRadio);
 
 
   const isStarred = currentTrack
