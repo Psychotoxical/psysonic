@@ -179,6 +179,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Genre detail — play or shuffle a whole genre
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#926](https://github.com/Psychotoxical/psysonic/pull/926)**
+
+* Play, Shuffle and Add-to-queue buttons on a genre page start the whole genre in one click — in order or randomized — instead of adding each album by hand. Suggested by Apollosport.
+
+
+
 ## Changed
 
 ### CI — hot-path coverage gates block merges
