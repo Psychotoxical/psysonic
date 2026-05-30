@@ -25,6 +25,7 @@ export default function SidebarPerfProbeMonitorTab() {
   const analysisPinned = usePipelineOverlayPinned('pipeline:analysis');
   const coverPinned = usePipelineOverlayPinned('pipeline:cover');
   const cpu = live.cpu;
+  const cpuSupported = cpu?.supported === true;
   const collecting = live.collecting && cpu == null;
   const includeThreadGroups = usePerfLiveIncludeThreadGroups();
   const peakMemoryKbRef = useRef(1);
@@ -47,14 +48,6 @@ export default function SidebarPerfProbeMonitorTab() {
       <div className="perf-monitor-empty">
         <div className="spinner" style={{ width: 22, height: 22 }} />
         <span>Collecting live samples…</span>
-      </div>
-    );
-  }
-
-  if (cpu && !cpu.supported) {
-    return (
-      <div className="perf-monitor-empty">
-        Live CPU/memory monitoring is unavailable on this platform or build.
       </div>
     );
   }
@@ -94,7 +87,13 @@ export default function SidebarPerfProbeMonitorTab() {
         />
       </PerfProbeMetricSection>
 
-      {cpu && (
+      {cpu && !cpuSupported && (
+        <div className="perf-monitor-empty perf-monitor-empty--inline">
+          Live CPU and RSS sampling is unavailable on this platform. Pipeline, UI rate, and analysis metrics below still work.
+        </div>
+      )}
+
+      {cpuSupported && cpu && (
         <>
           <PerfProbeMetricSection title="CPU — processes">
             <PerfProbeMetricCard

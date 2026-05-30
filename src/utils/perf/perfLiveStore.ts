@@ -96,6 +96,29 @@ function readUiCounters(): { progress: number; waveform: number; home: number } 
   };
 }
 
+function buildAnalysisDiag(): PerfAnalysisDiag {
+  return {
+    tracksPerMinute: getAnalysisTracksPerMinute(),
+    lastTotalMs: snapshot.analysis?.lastTotalMs ?? null,
+    lastFetchMs: snapshot.analysis?.lastFetchMs ?? null,
+    lastSeedMs: snapshot.analysis?.lastSeedMs ?? null,
+    lastBpmMs: snapshot.analysis?.lastBpmMs ?? null,
+  };
+}
+
+function nextDiagRates(
+  nextCounters: { progress: number; waveform: number; home: number },
+  now: number,
+): PerfDiagRates | null {
+  if (!prevCounters || prevCountersAt <= 0) return snapshot.diagRates;
+  const dt = Math.max(0.25, (now - prevCountersAt) / 1000);
+  return {
+    progress: (nextCounters.progress - prevCounters.progress) / dt,
+    waveform: (nextCounters.waveform - prevCounters.waveform) / dt,
+    home: (nextCounters.home - prevCounters.home) / dt,
+  };
+}
+
 async function pollOnce(): Promise<void> {
   const generation = pollGeneration;
   const now = Date.now();
@@ -103,17 +126,16 @@ async function pollOnce(): Promise<void> {
     const snap = await invoke<ProcSnapshot>('performance_cpu_snapshot', buildPerfCpuSnapshotRequest());
     if (generation !== pollGeneration) return;
 
+    const nextCounters = readUiCounters();
+    const diagRates = nextDiagRates(nextCounters, now);
+    prevCounters = nextCounters;
+    prevCountersAt = now;
+
     if (!snap.supported) {
       setSnapshot({
         cpu: { app: 0, webkit: 0, supported: false, memory: [], threadCpu: [] },
-        diagRates: snapshot.diagRates,
-        analysis: {
-          tracksPerMinute: getAnalysisTracksPerMinute(),
-          lastTotalMs: snapshot.analysis?.lastTotalMs ?? null,
-          lastFetchMs: snapshot.analysis?.lastFetchMs ?? null,
-          lastSeedMs: snapshot.analysis?.lastSeedMs ?? null,
-          lastBpmMs: snapshot.analysis?.lastBpmMs ?? null,
-        },
+        diagRates,
+        analysis: buildAnalysisDiag(),
         collecting: false,
         updatedAt: now,
       });
@@ -160,30 +182,12 @@ async function pollOnce(): Promise<void> {
       }
     }
 
-    const nextCounters = readUiCounters();
-    let diagRates = snapshot.diagRates;
-    if (prevCounters && prevCountersAt > 0) {
-      const dt = Math.max(0.25, (now - prevCountersAt) / 1000);
-      diagRates = {
-        progress: (nextCounters.progress - prevCounters.progress) / dt,
-        waveform: (nextCounters.waveform - prevCounters.waveform) / dt,
-        home: (nextCounters.home - prevCounters.home) / dt,
-      };
-    }
-    prevCounters = nextCounters;
-    prevCountersAt = now;
     prevProc = snap;
 
     setSnapshot({
       cpu,
       diagRates,
-      analysis: {
-        tracksPerMinute: getAnalysisTracksPerMinute(),
-        lastTotalMs: snapshot.analysis?.lastTotalMs ?? null,
-        lastFetchMs: snapshot.analysis?.lastFetchMs ?? null,
-        lastSeedMs: snapshot.analysis?.lastSeedMs ?? null,
-        lastBpmMs: snapshot.analysis?.lastBpmMs ?? null,
-      },
+      analysis: buildAnalysisDiag(),
       collecting: false,
       updatedAt: now,
     });
