@@ -1,7 +1,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ensurePlaybackServerActive } from '../utils/playback/playbackServer';
-import { navigatePathWithAlbumReturnTo } from '../utils/navigation/albumDetailNavigation';
+import { navigatePathWithAlbumReturnTo, shouldSkipMainScrollResetOnRouteChange } from '../utils/navigation/albumDetailNavigation';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { PanelRight } from 'lucide-react';
@@ -123,8 +123,9 @@ export function AppShell() {
 
   // Reset scroll position on route change (main viewport is overlay scroll)
   useEffect(() => {
+    if (shouldSkipMainScrollResetOnRouteChange(location.pathname, location.state)) return;
     document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTo({ top: 0 });
-  }, [location.pathname]);
+  }, [location.pathname, location.state]);
 
   useOfflineAutoNav(connStatus, hasOfflineContent, location.pathname, navigate);
 

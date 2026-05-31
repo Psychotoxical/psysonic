@@ -1,5 +1,7 @@
 import type { Location, NavigateFunction, NavigationType } from 'react-router-dom';
+import { isAdvancedSearchPath } from '../../store/advancedSearchSessionStore';
 import { isAlbumDetailPath } from '../../store/albumBrowseSessionStore';
+import { saveAdvancedSearchAlbumRowScrollOnLeave } from './advancedSearchScrollSnapshot';
 
 export type AlbumDetailLocationState = {
   returnTo?: string;
@@ -53,6 +55,15 @@ export function shouldRestoreAlbumBrowseSession(
   return navigationType === 'POP' || readAlbumBrowseRestore(locationState);
 }
 
+/** Skip AppShell main scroll reset when a child route will restore scroll itself. */
+export function shouldSkipMainScrollResetOnRouteChange(
+  _pathname: string,
+  locationState: unknown,
+): boolean {
+  if (readAlbumBrowseRestore(locationState)) return true;
+  return false;
+}
+
 function isAlbumsBrowseReturnPath(path: string): boolean {
   return path === '/albums' || path.startsWith('/albums?');
 }
@@ -80,6 +91,9 @@ export function navigateToAlbumDetail(
     : buildReturnToFromLocation(location);
   const raw = opts?.search ?? '';
   const qs = raw ? (raw.startsWith('?') ? raw : `?${raw}`) : '';
+  if (isAdvancedSearchPath(location.pathname)) {
+    saveAdvancedSearchAlbumRowScrollOnLeave();
+  }
   navigate(`/album/${albumId}${qs}`, { state: { returnTo } satisfies AlbumDetailLocationState });
 }
 

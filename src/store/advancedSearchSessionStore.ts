@@ -33,17 +33,23 @@ export type AdvancedSearchSessionStash = AdvancedSearchFormStash & {
   songsServerOffset: number;
   songsHasMore: boolean;
   genreNote: boolean;
+  albumRowScrollLeft?: number;
 };
 
 interface AdvancedSearchSessionStore {
   returnStash: AdvancedSearchSessionStash | null;
+  leaveAlbumRowScrollLeft: number | null;
   stashReturnSession: (stash: AdvancedSearchSessionStash) => void;
   peekReturnStash: () => AdvancedSearchSessionStash | null;
   clearReturnStash: () => void;
+  setLeaveAlbumRowScrollLeft: (scrollLeft: number) => void;
+  peekLeaveAlbumRowScrollLeft: () => number | null;
+  clearLeaveAlbumRowScrollLeft: () => void;
 }
 
 export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>((set, get) => ({
   returnStash: null,
+  leaveAlbumRowScrollLeft: null,
 
   stashReturnSession: (stash) => {
     set({
@@ -57,11 +63,20 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
             }
           : null,
         activeSearch: stash.activeSearch ? { ...stash.activeSearch } : null,
+        ...(typeof stash.albumRowScrollLeft === 'number'
+          ? { albumRowScrollLeft: stash.albumRowScrollLeft }
+          : {}),
       },
     });
   },
 
   clearReturnStash: () => set({ returnStash: null }),
+
+  setLeaveAlbumRowScrollLeft: (scrollLeft) => set({ leaveAlbumRowScrollLeft: scrollLeft }),
+
+  clearLeaveAlbumRowScrollLeft: () => set({ leaveAlbumRowScrollLeft: null }),
+
+  peekLeaveAlbumRowScrollLeft: () => get().leaveAlbumRowScrollLeft,
 
   peekReturnStash: () => {
     const stash = get().returnStash;
@@ -76,6 +91,9 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
           }
         : null,
       activeSearch: stash.activeSearch ? { ...stash.activeSearch } : null,
+      ...(typeof stash.albumRowScrollLeft === 'number'
+        ? { albumRowScrollLeft: stash.albumRowScrollLeft }
+        : {}),
     };
   },
 }));

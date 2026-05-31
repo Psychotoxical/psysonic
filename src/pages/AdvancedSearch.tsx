@@ -23,6 +23,14 @@ import {
   readAdvancedSearchRestore,
   shouldRestoreAdvancedSearchSession,
 } from '../utils/navigation/albumDetailNavigation';
+import {
+  clearAdvancedSearchAlbumRowScrollSnapshots,
+  consumeAdvancedSearchLeavingForAlbum,
+  persistAdvancedSearchAlbumRowScrollLeft,
+  readAdvancedSearchAlbumRowScrollLeft,
+  registerAdvancedSearchAlbumRowScrollProvider,
+  resolveAdvancedSearchAlbumRowScrollLeft,
+} from '../utils/navigation/advancedSearchScrollSnapshot';
 import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearch } from '../utils/library/advancedSearchLocal';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -126,6 +134,32 @@ export default function AdvancedSearch() {
   const [songsHasMore, setSongsHasMore] = useState(() => restoreStash?.songsHasMore ?? false);
   const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
 
+  const restoringSession =
+    shouldRestoreAdvancedSearchSession(navigationType, location.state) || restoreStash != null;
+  const albumRowScrollLeftRestoreRef = useRef<number | null>(
+    restoringSession ? resolveAdvancedSearchAlbumRowScrollLeft(restoreStash) : null,
+  );
+  const albumRowScrollLeftRef = useRef(0);
+  const skipSearchAutoFocusRef = useRef(restoreStash != null);
+  const [isAlbumRowScrollRestorePending, setIsAlbumRowScrollRestorePending] = useState(
+    () => albumRowScrollLeftRestoreRef.current != null,
+  );
+
+  const handleAlbumRowScrollRestoreComplete = useCallback(() => {
+    clearAdvancedSearchAlbumRowScrollSnapshots();
+    albumRowScrollLeftRestoreRef.current = null;
+    setIsAlbumRowScrollRestorePending(false);
+    if (hadRestoreOnMountRef.current) {
+      useAdvancedSearchSessionStore.getState().clearReturnStash();
+    }
+  }, []);
+
+  const albumRowScrollLeftTarget = albumRowScrollLeftRestoreRef.current;
+
+  useEffect(() => {
+    return registerAdvancedSearchAlbumRowScrollProvider(() => albumRowScrollLeftRef.current);
+  }, []);
+
   const sessionRef = useRef<AdvancedSearchSessionStash>({
     query: '',
     genre: '',
@@ -194,7 +228,6 @@ export default function AdvancedSearch() {
     setActiveSearch(opts);
     setSongsServerOffset(0);
     setSongsHasMore(false);
-
     const q = opts.query.trim();
     const searchT0 = performance.now();
     const moodFilterActive = MOOD_UI_ENABLED && !!opts.moodGroup;
@@ -368,10 +401,19 @@ export default function AdvancedSearch() {
   useEffect(() => {
     return () => {
       const path = window.location.pathname;
-      if (isAlbumDetailPath(path)) {
-        useAdvancedSearchSessionStore.getState().stashReturnSession(sessionRef.current);
+      if (isAlbumDetailPath(path) || consumeAdvancedSearchLeavingForAlbum()) {
+        const scrollLeft =
+          useAdvancedSearchSessionStore.getState().peekLeaveAlbumRowScrollLeft()
+          ?? readAdvancedSearchAlbumRowScrollLeft();
+        persistAdvancedSearchAlbumRowScrollLeft(scrollLeft);
+        useAdvancedSearchSessionStore.getState().setLeaveAlbumRowScrollLeft(scrollLeft);
+        useAdvancedSearchSessionStore.getState().stashReturnSession({
+          ...sessionRef.current,
+          albumRowScrollLeft: scrollLeft,
+        });
       } else if (!isAdvancedSearchPath(path)) {
         useAdvancedSearchSessionStore.getState().clearReturnStash();
+        clearAdvancedSearchAlbumRowScrollSnapshots();
       }
     };
   }, []);
@@ -406,14 +448,22 @@ export default function AdvancedSearch() {
   }, [navigationType, location.state]);
 
   useEffect(() => {
-    if (!hadRestoreOnMountRef.current) return;
-    useAdvancedSearchSessionStore.getState().clearReturnStash();
-  }, []);
+    if (isAlbumRowScrollRestorePending || !readAdvancedSearchRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [isAlbumRowScrollRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
 
   useEffect(() => {
-    if (!readAdvancedSearchRestore(location.state)) return;
-    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
-  }, [location.pathname, location.search, location.hash, location.state, navigate]);
+    if (!isAlbumRowScrollRestorePending) return;
+    if (!hasSearched || loading) return;
+    if ((filteredResults?.albums.length ?? 0) > 0) return;
+    handleAlbumRowScrollRestoreComplete();
+  }, [
+    isAlbumRowScrollRestorePending,
+    hasSearched,
+    loading,
+    filteredResults?.albums.length,
+    handleAlbumRowScrollRestoreComplete,
+  ]);
 
   useEffect(() => {
     getGenres().then(data =>
@@ -535,7 +585,8 @@ export default function AdvancedSearch() {
   );
 
   return (
-    <div className="content-body animate-fade-in">
+    <div className="content-body animate-fade-in" style={{ position: 'relative' }} data-advanced-search-root>
+      <div>
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <SlidersVertical size={22} style={{ color: 'var(--accent)', flexShrink: 0 }} />
@@ -560,7 +611,7 @@ export default function AdvancedSearch() {
                 onChange={e => setQuery(e.target.value)}
                 placeholder={t('search.advancedSearchPlaceholder')}
                 style={{ flex: 1 }}
-                autoFocus
+                autoFocus={!skipSearchAutoFocusRef.current}
               />
             </div>
 
@@ -761,13 +812,24 @@ export default function AdvancedSearch() {
           )}
 
           {filteredResults && filteredResults.albums.length > 0 && (
+            <div data-advanced-search-album-row>
             <AlbumRow
               title={`${t('search.albums')} (${filteredResults.albums.length})`}
               albums={filteredResults.albums}
               albumLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
               windowArtworkByViewport
               initialArtworkBudget={12}
+              restoreScrollLeft={
+                albumRowScrollLeftTarget && albumRowScrollLeftTarget > 0
+                  ? albumRowScrollLeftTarget
+                  : undefined
+              }
+              onScrollLeftSnapshot={(left) => {
+                albumRowScrollLeftRef.current = left;
+              }}
+              onScrollRestoreComplete={handleAlbumRowScrollRestoreComplete}
             />
+            </div>
           )}
 
           {filteredResults && filteredResults.songs.length > 0 && (
@@ -791,6 +853,7 @@ export default function AdvancedSearch() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

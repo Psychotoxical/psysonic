@@ -7,6 +7,7 @@ import {
   navigateToAlbumDetail,
   readAlbumDetailReturnTo,
   shouldRestoreAlbumBrowseSession,
+  shouldSkipMainScrollResetOnRouteChange,
 } from './albumDetailNavigation';
 
 describe('albumDetailNavigation', () => {
@@ -71,6 +72,12 @@ describe('albumDetailNavigation', () => {
     expect(navigate).toHaveBeenCalledWith('/search/advanced?q=rock', {
       state: { advancedSearchRestore: true },
     });
+  });
+
+  it('skips main scroll reset when All Albums browse restore is pending', () => {
+    expect(shouldSkipMainScrollResetOnRouteChange('/albums', { albumBrowseRestore: true })).toBe(true);
+    expect(shouldSkipMainScrollResetOnRouteChange('/search/advanced', { advancedSearchRestore: true })).toBe(false);
+    expect(shouldSkipMainScrollResetOnRouteChange('/tracks', null)).toBe(false);
   });
 
   it('builds return path with search and hash', () => {

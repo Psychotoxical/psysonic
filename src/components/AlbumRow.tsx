@@ -1,5 +1,5 @@
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import AlbumCard from './AlbumCard';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -14,6 +14,12 @@ interface Props {
   moreLink?: string;
   moreText?: string;
   onLoadMore?: () => Promise<void>;
+  /** Restored horizontal scroll (e.g. Advanced Search session return). */
+  restoreScrollLeft?: number;
+  /** Parent stashes horizontal scroll when leaving the page. */
+  onScrollLeftSnapshot?: (scrollLeft: number) => void;
+  /** Fired once when `restoreScrollLeft` has been applied (or skipped). */
+  onScrollRestoreComplete?: () => void;
   showRating?: boolean;
   /** Optional content rendered in the row header, left of the scroll-nav. */
   headerExtra?: React.ReactNode;
@@ -44,6 +50,9 @@ export default function AlbumRow({
   initialArtworkBudget = 8,
   albumLinkQuery,
   libraryResolve = false,
+  restoreScrollLeft,
+  onScrollLeftSnapshot,
+  onScrollRestoreComplete,
 }: Props) {
   const perfFlags = usePerfProbeFlags();
   const artworkDisabled = perfFlags.disableMainstageRailArtwork || disableArtwork;
@@ -57,6 +66,8 @@ export default function AlbumRow({
   const [artworkBudget, setArtworkBudget] = useState(initialArtworkBudget);
 
   const loadingRef = useRef(false);
+  const scrollRestoreTargetRef = useRef(restoreScrollLeft);
+  const scrollRestoreDoneRef = useRef(false);
   const uniqueAlbums = useMemo(() => dedupeById(albums), [albums]);
 
   const recomputeArtworkBudget = () => {
@@ -85,6 +96,8 @@ export default function AlbumRow({
       setShowLeft(scrollLeft > 0);
       setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
     }
+
+    onScrollLeftSnapshot?.(scrollLeft);
 
     // Auto-load trigger (native horizontal scroll still works when rail buttons are perf-disabled)
     if (onLoadMore && !loadingRef.current && scrollLeft > 0 && scrollLeft + clientWidth >= scrollWidth - 300) {
@@ -124,6 +137,74 @@ export default function AlbumRow({
   useEffect(() => {
     setArtworkBudget(initialArtworkBudget);
   }, [initialArtworkBudget, rowArtworkResetKey]);
+
+  const notifyRestoreCompletePendingRef = useRef(false);
+  const [restoreCompleteTick, setRestoreCompleteTick] = useState(0);
+
+  useEffect(() => {
+    if (restoreScrollLeft == null || restoreScrollLeft <= 0) return;
+    scrollRestoreTargetRef.current = restoreScrollLeft;
+    scrollRestoreDoneRef.current = false;
+    notifyRestoreCompletePendingRef.current = false;
+  }, [restoreScrollLeft]);
+
+  useLayoutEffect(() => {
+    if (scrollRestoreDoneRef.current) return;
+    const target = scrollRestoreTargetRef.current;
+    if (target == null || target <= 0) {
+      scrollRestoreDoneRef.current = true;
+      onScrollRestoreComplete?.();
+      return;
+    }
+
+    let attempts = 0;
+    let cancelled = false;
+
+    const finish = () => {
+      scrollRestoreDoneRef.current = true;
+      if (windowArtworkByViewport) {
+        notifyRestoreCompletePendingRef.current = true;
+        setRestoreCompleteTick(t => t + 1);
+        return;
+      }
+      onScrollRestoreComplete?.();
+    };
+
+    const attempt = () => {
+      if (cancelled || scrollRestoreDoneRef.current) return;
+      const el = scrollRef.current;
+      if (!el) {
+        if (++attempts < 12) requestAnimationFrame(attempt);
+        else finish();
+        return;
+      }
+
+      const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+      const desired = Math.min(Math.max(0, target), maxScroll);
+      el.scrollLeft = desired;
+      if (windowArtworkByViewport) recomputeArtworkBudget();
+      handleScroll();
+
+      const stuck = Math.abs(el.scrollLeft - desired) <= 1;
+      const layoutStillGrowing = desired > el.scrollLeft + 1 && maxScroll < target;
+      if ((!stuck || layoutStillGrowing) && ++attempts < 12) {
+        requestAnimationFrame(attempt);
+        return;
+      }
+      finish();
+    };
+
+    attempt();
+    return () => {
+      cancelled = true;
+    };
+  }, [rowArtworkResetKey, windowArtworkByViewport, initialArtworkBudget, uniqueAlbums.length]);
+
+  useLayoutEffect(() => {
+    if (!notifyRestoreCompletePendingRef.current) return;
+    notifyRestoreCompletePendingRef.current = false;
+    onScrollRestoreComplete?.();
+  }, [artworkBudget, restoreCompleteTick, onScrollRestoreComplete]);
 
   const scroll = (dir: 'left' | 'right') => {
     if (!scrollRef.current) return;
