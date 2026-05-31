@@ -1,5 +1,4 @@
 import React from 'react';
-import type { NavigateFunction } from 'react-router-dom';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { Check } from 'lucide-react';
 import type { TFunction } from 'i18next';
@@ -19,7 +18,7 @@ interface TileProps {
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
   toggleSelect: (id: string) => void;
-  navigate: NavigateFunction;
+  onOpenArtist: (id: string) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -34,7 +33,7 @@ function ArtistGridTile({ artist, ...rest }: TileProps) {
         if (rest.selectionMode) {
           rest.toggleSelect(artist.id);
         } else {
-          rest.navigate(`/artist/${artist.id}`);
+          rest.onOpenArtist(artist.id);
         }
       }}
       onContextMenu={(e) => {
@@ -79,7 +78,7 @@ interface Props {
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
   toggleSelect: (id: string) => void;
-  navigate: NavigateFunction;
+  onOpenArtist: (id: string) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -98,7 +97,7 @@ export function ArtistsGridView({
   selectedArtists,
   showArtistImages,
   toggleSelect,
-  navigate,
+  onOpenArtist,
   openContextMenu,
   t,
 }: Props) {
@@ -108,7 +107,7 @@ export function ArtistsGridView({
     selectedArtists,
     showArtistImages,
     toggleSelect,
-    navigate,
+    onOpenArtist,
     openContextMenu,
     t,
   };

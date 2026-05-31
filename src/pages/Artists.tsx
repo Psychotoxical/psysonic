@@ -1,6 +1,5 @@
-import { getArtists } from '../api/subsonicArtists';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Images, CheckSquare2 } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';
 import OverlayScrollArea from '../components/OverlayScrollArea';
@@ -31,15 +30,36 @@ import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
 import { ArtistsGridView } from '../components/artists/ArtistsGridView';
 import { ArtistsListView } from '../components/artists/ArtistsListView';
 import InpageScrollSentinel from '../components/InpageScrollSentinel';
+import { useArtistsBrowseFilters, type ArtistBrowseScrollSnapshot } from '../hooks/useArtistsBrowseFilters';
+import { useArtistsBrowseScrollRestore } from '../hooks/useArtistsBrowseScrollRestore';
+import { useNavigateToArtist } from '../hooks/useNavigateToArtist';
+import { peekArtistBrowseScrollRestore } from '../store/artistBrowseSessionStore';
+import { readArtistBrowseRestore } from '../utils/navigation/albumDetailNavigation';
+
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
-  const [filter, setFilter] = useState('');
-  const [letterFilter, setLetterFilter] = useState(ALL_SENTINEL);
-  const [starredOnly, setStarredOnly] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+
+  const scrollSnapshotRef = useRef<ArtistBrowseScrollSnapshot>({ scrollTop: 0, visibleCount: 0 });
+  const restoreVisibleCountRef = useRef<number | undefined>(
+    peekArtistBrowseScrollRestore(serverId)?.visibleCount,
+  );
+
+  const {
+    filter,
+    setFilter,
+    letterFilter,
+    setLetterFilter,
+    starredOnly,
+    setStarredOnly,
+    viewMode,
+    setViewMode,
+  } = useArtistsBrowseFilters(serverId, scrollSnapshotRef);
 
   const {
     scrollBodyEl: artistsScrollBodyEl,
@@ -49,12 +69,11 @@ export default function Artists() {
 
   const showArtistImages = useAuthStore(s => s.showArtistImages);
   const PAGE_SIZE = showArtistImages ? 50 : 100; // Smaller with images to reduce I/O
+  const navigateToArtist = useNavigateToArtist();
+  const location = useLocation();
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
-  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const serverId = useAuthStore(s => s.activeServerId);
-  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
 
   const {
     catalogArtists,
@@ -89,6 +108,7 @@ export default function Artists() {
     resetDeps: [filter, letterFilter, starredOnly, viewMode, musicLibraryFilterVersion, serverId],
     getScrollRoot: getArtistsScrollRoot,
     scrollRootEl: artistsScrollBodyEl,
+    restoreDisplayCount: restoreVisibleCountRef.current,
   });
 
   // ── Multi-selection ──────────────────────────────────────────────────────
@@ -150,6 +170,26 @@ export default function Artists() {
   ]);
 
   loadMoreRef.current = loadMoreGrid;
+
+  scrollSnapshotRef.current = {
+    scrollTop: artistsScrollBodyEl?.scrollTop ?? 0,
+    visibleCount,
+  };
+
+  const { isScrollRestorePending } = useArtistsBrowseScrollRestore({
+    serverId,
+    scrollBodyEl: artistsScrollBodyEl,
+    visibleCount,
+    loading: loading || pendingLetterMatch,
+    loadingMore: gridLoadingMore,
+    hasMore: gridHasMore,
+    loadMore: loadMoreGrid,
+  });
+
+  useEffect(() => {
+    if (isScrollRestorePending || !readArtistBrowseRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [isScrollRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
 
   useEffect(() => {
     if (!pendingLetterMatch || catalogLoadingRef.current) return;
@@ -379,6 +419,8 @@ export default function Artists() {
           selectionMode,
         ]}
       >
+        <div style={{ position: 'relative' }}>
+        <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
         {loading && <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>}
 
         {!loading && pendingLetterMatch && (
@@ -402,7 +444,7 @@ export default function Artists() {
             selectedArtists={selectedArtists}
             showArtistImages={showArtistImages}
             toggleSelect={toggleSelect}
-            navigate={navigate}
+            onOpenArtist={navigateToArtist}
             openContextMenu={openContextMenu}
             t={t}
           />
@@ -422,7 +464,7 @@ export default function Artists() {
             selectedArtists={selectedArtists}
             showArtistImages={showArtistImages}
             toggleSelect={toggleSelect}
-            navigate={navigate}
+            onOpenArtist={navigateToArtist}
             openContextMenu={openContextMenu}
             t={t}
           />
@@ -437,6 +479,22 @@ export default function Artists() {
             {t('artists.notFound')}
           </div>
         )}
+        </div>
+        {isScrollRestorePending && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            <div className="spinner" />
+          </div>
+        )}
+        </div>
       </OverlayScrollArea>
     </div>
   );

@@ -1,5 +1,4 @@
 import React from 'react';
-import type { NavigateFunction } from 'react-router-dom';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { TFunction } from 'i18next';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
@@ -14,7 +13,7 @@ interface RowProps {
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
   toggleSelect: (id: string) => void;
-  navigate: NavigateFunction;
+  onOpenArtist: (id: string) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -26,7 +25,7 @@ function ArtistListRow({
   selectedArtists,
   showArtistImages,
   toggleSelect,
-  navigate,
+  onOpenArtist,
   openContextMenu,
   t,
 }: RowProps) {
@@ -38,7 +37,7 @@ function ArtistListRow({
         if (selectionMode) {
           toggleSelect(artist.id);
         } else {
-          navigate(`/artist/${artist.id}`);
+          onOpenArtist(artist.id);
         }
       }}
       onContextMenu={(e) => {
@@ -79,7 +78,7 @@ interface Props {
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
   toggleSelect: (id: string) => void;
-  navigate: NavigateFunction;
+  onOpenArtist: (id: string) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -110,13 +109,13 @@ export function ArtistsListView({
   selectedArtists,
   showArtistImages,
   toggleSelect,
-  navigate,
+  onOpenArtist,
   openContextMenu,
   t,
 }: Props) {
   const rowCommonProps = {
     selectionMode, selectedIds, selectedArtists, showArtistImages,
-    toggleSelect, navigate, openContextMenu, t,
+    toggleSelect, onOpenArtist, openContextMenu, t,
   };
 
   if (!virtualized) {

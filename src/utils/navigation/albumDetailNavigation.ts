@@ -18,6 +18,7 @@ export type AlbumDetailLocationState = {
 
 export type AlbumsBrowseRestoreLocationState = {
   albumBrowseRestore?: boolean;
+  artistBrowseRestore?: boolean;
   advancedSearchRestore?: boolean;
 };
 
@@ -32,6 +33,10 @@ export function readAlbumBrowseRestore(state: unknown): boolean {
   return (state as AlbumsBrowseRestoreLocationState | null)?.albumBrowseRestore === true;
 }
 
+export function readArtistBrowseRestore(state: unknown): boolean {
+  return (state as AlbumsBrowseRestoreLocationState | null)?.artistBrowseRestore === true;
+}
+
 export function readAdvancedSearchRestore(state: unknown): boolean {
   return (state as AlbumsBrowseRestoreLocationState | null)?.advancedSearchRestore === true;
 }
@@ -44,6 +49,10 @@ export function buildReturnToFromLocation(
 
 export function albumBrowseRestoreNavigationState(): AlbumsBrowseRestoreLocationState {
   return { albumBrowseRestore: true };
+}
+
+export function artistBrowseRestoreNavigationState(): AlbumsBrowseRestoreLocationState {
+  return { artistBrowseRestore: true };
 }
 
 export function advancedSearchRestoreNavigationState(): AlbumsBrowseRestoreLocationState {
@@ -64,12 +73,20 @@ export function shouldRestoreAlbumBrowseSession(
   return navigationType === 'POP' || readAlbumBrowseRestore(locationState);
 }
 
+export function shouldRestoreArtistBrowseSession(
+  navigationType: NavigationType,
+  locationState: unknown,
+): boolean {
+  return navigationType === 'POP' || readArtistBrowseRestore(locationState);
+}
+
 /** Skip AppShell main scroll reset when a child route will restore scroll itself. */
 export function shouldSkipMainScrollResetOnRouteChange(
   pathname: string,
   locationState: unknown,
 ): boolean {
   if (readAlbumBrowseRestore(locationState)) return true;
+  if (readArtistBrowseRestore(locationState)) return true;
   if (readAdvancedSearchRestore(locationState)) return true;
   const leave = useAdvancedSearchSessionStore.getState().peekLeaveScrollSnapshot();
   if ((leave?.scrollTop ?? 0) > 0) return true;
@@ -88,8 +105,13 @@ function isAdvancedSearchReturnPath(path: string): boolean {
   return path === '/search/advanced' || path.startsWith('/search/advanced?');
 }
 
+function isArtistsBrowseReturnPath(path: string): boolean {
+  return path === '/artists' || path.startsWith('/artists?');
+}
+
 function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocationState | undefined {
   if (isAlbumsBrowseReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
+  if (isArtistsBrowseReturnPath(returnTo)) return artistBrowseRestoreNavigationState();
   if (isAdvancedSearchReturnPath(returnTo)) return advancedSearchRestoreNavigationState();
   return undefined;
 }

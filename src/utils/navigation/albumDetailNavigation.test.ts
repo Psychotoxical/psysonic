@@ -8,6 +8,7 @@ import {
   navigateToArtistDetail,
   readAlbumDetailReturnTo,
   shouldRestoreAlbumBrowseSession,
+  shouldRestoreArtistBrowseSession,
   shouldSkipMainScrollResetOnRouteChange,
 } from './albumDetailNavigation';
 import { useAdvancedSearchSessionStore } from '../../store/advancedSearchSessionStore';
@@ -72,6 +73,18 @@ describe('albumDetailNavigation', () => {
     expect(navigate).toHaveBeenCalledWith('/albums', { state: { albumBrowseRestore: true } });
   });
 
+  it('flags Artists browse return for session restore', () => {
+    const navigate = vi.fn();
+    navigateAlbumDetailBack(navigate, { state: { returnTo: '/artists' } });
+    expect(navigate).toHaveBeenCalledWith('/artists', { state: { artistBrowseRestore: true } });
+  });
+
+  it('detects artist browse restore navigation', () => {
+    expect(shouldRestoreArtistBrowseSession('POP' as NavigationType, null)).toBe(true);
+    expect(shouldRestoreArtistBrowseSession('PUSH' as NavigationType, { artistBrowseRestore: true })).toBe(true);
+    expect(shouldRestoreArtistBrowseSession('PUSH' as NavigationType, null)).toBe(false);
+  });
+
   it('flags Advanced Search return for session restore', () => {
     const navigate = vi.fn();
     navigateAlbumDetailBack(navigate, { state: { returnTo: '/search/advanced?q=rock' } });
@@ -95,6 +108,10 @@ describe('albumDetailNavigation', () => {
   it('skips main scroll reset when All Albums browse restore is pending', () => {
     expect(shouldSkipMainScrollResetOnRouteChange('/albums', { albumBrowseRestore: true })).toBe(true);
     expect(shouldSkipMainScrollResetOnRouteChange('/tracks', null)).toBe(false);
+  });
+
+  it('skips main scroll reset when Artists browse restore is pending', () => {
+    expect(shouldSkipMainScrollResetOnRouteChange('/artists', { artistBrowseRestore: true })).toBe(true);
   });
 
   it('skips main scroll reset when Advanced Search session restore is pending', () => {
