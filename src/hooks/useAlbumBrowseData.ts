@@ -59,6 +59,8 @@ export type UseAlbumBrowseDataArgs = {
   getScrollRoot?: () => HTMLElement | null;
   /** Bumps when the scroll root mounts so the sentinel observer can rebind. */
   scrollRootEl?: HTMLElement | null;
+  /** Bootstrap visible slice size when restoring scroll after album-detail back. */
+  restoreDisplayCount?: number;
 };
 
 function resolveHasMoreAfterPage(
@@ -86,6 +88,7 @@ export function useAlbumBrowseData({
   starredOverrides,
   getScrollRoot,
   scrollRootEl,
+  restoreDisplayCount,
 }: UseAlbumBrowseDataArgs) {
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,6 +157,7 @@ export function useAlbumBrowseData({
     ],
     getScrollRoot,
     scrollRootEl,
+    restoreDisplayCount,
   });
 
   const displayAlbums = useMemo(() => {

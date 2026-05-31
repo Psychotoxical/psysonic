@@ -8,7 +8,14 @@ export type UseClientSliceInfiniteScrollArgs = {
   getScrollRoot?: () => HTMLElement | null;
   scrollRootEl?: HTMLElement | null;
   rootMargin?: string;
+  /** One-shot bootstrap when restoring browse scroll (All Albums back navigation). */
+  restoreDisplayCount?: number;
 };
+
+function sliceVisibleCount(pageSize: number, restoreDisplayCount?: number): number {
+  if (restoreDisplayCount == null || restoreDisplayCount <= 0) return pageSize;
+  return Math.max(pageSize, restoreDisplayCount);
+}
 
 export type UseClientSliceInfiniteScrollResult = {
   visibleCount: number;
@@ -29,8 +36,11 @@ export function useClientSliceInfiniteScroll({
   getScrollRoot,
   scrollRootEl,
   rootMargin = '200px',
+  restoreDisplayCount,
 }: UseClientSliceInfiniteScrollArgs): UseClientSliceInfiniteScrollResult {
-  const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [visibleCount, setVisibleCount] = useState(() =>
+    sliceVisibleCount(pageSize, restoreDisplayCount),
+  );
   const [loadingMore, setLoadingMore] = useState(false);
   const loadPendingRef = useRef(false);
 
@@ -47,10 +57,10 @@ export function useClientSliceInfiniteScroll({
   }, [visibleCount]);
 
   useEffect(() => {
-    setVisibleCount(pageSize);
+    setVisibleCount(sliceVisibleCount(pageSize, restoreDisplayCount));
     // resetDeps is intentionally spread into the dep array.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageSize, ...resetDeps]);
+  }, [pageSize, restoreDisplayCount, ...resetDeps]);
 
   const bindSentinel = useInpageScrollSentinel({
     active: true,

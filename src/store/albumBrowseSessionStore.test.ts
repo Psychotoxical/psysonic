@@ -4,6 +4,7 @@ import {
   DEFAULT_ALBUM_BROWSE_SORT,
   albumBrowseSortForServer,
   isAlbumDetailPath,
+  peekAlbumBrowseScrollRestore,
   useAlbumBrowseSessionStore,
 } from './albumBrowseSessionStore';
 
@@ -22,7 +23,7 @@ describe('albumBrowseSessionStore', () => {
     expect(albumBrowseSortForServer(sortByServer, 'srv-b')).toBe('alphabeticalByName');
   });
 
-  it('stashes and peeks return filters', () => {
+  it('stashes and peeks return filters with scroll snapshot', () => {
     const { stashReturnFilters, peekReturnStash } = useAlbumBrowseSessionStore.getState();
     stashReturnFilters('srv-a', {
       ...DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
@@ -30,6 +31,8 @@ describe('albumBrowseSessionStore', () => {
       yearFrom: '1990',
       yearTo: '2000',
       starredOnly: true,
+      scrollTop: 840,
+      displayCount: 120,
     });
 
     expect(peekReturnStash('srv-a')).toEqual({
@@ -39,8 +42,24 @@ describe('albumBrowseSessionStore', () => {
       compFilter: 'all',
       starredOnly: true,
       losslessOnly: false,
+      scrollTop: 840,
+      displayCount: 120,
     });
     expect(peekReturnStash('srv-a')).not.toBeNull();
+  });
+
+  it('peeks scroll restore target', () => {
+    const { stashReturnFilters } = useAlbumBrowseSessionStore.getState();
+    stashReturnFilters('srv-a', {
+      ...DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
+      scrollTop: 420,
+      displayCount: 180,
+    });
+    expect(peekAlbumBrowseScrollRestore('srv-a')).toEqual({
+      scrollTop: 420,
+      displayCount: 180,
+    });
+    expect(peekAlbumBrowseScrollRestore('srv-b')).toBeNull();
   });
 
   it('clears return stash', () => {

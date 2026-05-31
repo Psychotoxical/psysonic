@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useNavigationType, type NavigationType } from 'react-router-dom';
 import {
   DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
@@ -21,7 +21,15 @@ function returnFiltersForNavigation(
   );
 }
 
-export function useAlbumBrowseFilters(serverId: string) {
+export type AlbumBrowseScrollSnapshot = {
+  scrollTop: number;
+  displayCount: number;
+};
+
+export function useAlbumBrowseFilters(
+  serverId: string,
+  scrollSnapshotRef?: RefObject<AlbumBrowseScrollSnapshot>,
+) {
   const navigationType = useNavigationType();
   const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.sortByServer, serverId));
   const setBrowseSort = useAlbumBrowseSessionStore(s => s.setSort);
@@ -67,7 +75,6 @@ export function useAlbumBrowseFilters(serverId: string) {
         setCompFilter(restored.compFilter);
         setStarredOnly(restored.starredOnly);
         setLosslessOnly(restored.losslessOnly);
-        useAlbumBrowseSessionStore.getState().clearReturnStash(serverId);
       }
       return;
     }
@@ -86,12 +93,17 @@ export function useAlbumBrowseFilters(serverId: string) {
       if (!serverId) return;
       const path = window.location.pathname;
       if (isAlbumDetailPath(path)) {
-        useAlbumBrowseSessionStore.getState().stashReturnFilters(serverId, filtersRef.current);
+        const snapshot = scrollSnapshotRef?.current;
+        useAlbumBrowseSessionStore.getState().stashReturnFilters(serverId, {
+          ...filtersRef.current,
+          scrollTop: snapshot?.scrollTop,
+          displayCount: snapshot?.displayCount,
+        });
       } else if (path !== '/albums') {
         useAlbumBrowseSessionStore.getState().clearReturnStash(serverId);
       }
     };
-  }, [serverId]);
+  }, [serverId, scrollSnapshotRef]);
 
   const onSortChange = (value: AlbumBrowseSort) => setBrowseSort(serverId, value);
 
