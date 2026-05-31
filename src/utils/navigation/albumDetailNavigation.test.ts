@@ -73,6 +73,15 @@ describe('albumDetailNavigation', () => {
     expect(navigate).toHaveBeenCalledWith('/albums', { state: { albumBrowseRestore: true } });
   });
 
+  it('flags New Releases and Random Albums return for browse restore', () => {
+    const navigate = vi.fn();
+    navigateAlbumDetailBack(navigate, { state: { returnTo: '/new-releases' } });
+    expect(navigate).toHaveBeenCalledWith('/new-releases', { state: { albumBrowseRestore: true } });
+    navigate.mockClear();
+    navigateAlbumDetailBack(navigate, { state: { returnTo: '/random/albums' } });
+    expect(navigate).toHaveBeenCalledWith('/random/albums', { state: { albumBrowseRestore: true } });
+  });
+
   it('flags Artists browse return for session restore', () => {
     const navigate = vi.fn();
     navigateAlbumDetailBack(navigate, { state: { returnTo: '/artists' } });
@@ -125,6 +134,8 @@ describe('albumDetailNavigation', () => {
 
   it('skips main scroll reset when All Albums browse restore is pending', () => {
     expect(shouldSkipMainScrollResetOnRouteChange('/albums', { albumBrowseRestore: true })).toBe(true);
+    expect(shouldSkipMainScrollResetOnRouteChange('/new-releases', { albumBrowseRestore: true })).toBe(true);
+    expect(shouldSkipMainScrollResetOnRouteChange('/random/albums', { albumBrowseRestore: true })).toBe(true);
     expect(shouldSkipMainScrollResetOnRouteChange('/tracks', null)).toBe(false);
   });
 

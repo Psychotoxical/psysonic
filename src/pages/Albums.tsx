@@ -33,7 +33,7 @@ import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import { useAlbumBrowseFilters, type AlbumBrowseScrollSnapshot } from '../hooks/useAlbumBrowseFilters';
+import { useAlbumBrowseFilters, useAlbumBrowseScrollSnapshotSync, type AlbumBrowseScrollSnapshot } from '../hooks/useAlbumBrowseFilters';
 import { useAlbumBrowseData } from '../hooks/useAlbumBrowseData';
 import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
 import { peekAlbumBrowseScrollRestore } from '../store/albumBrowseSessionStore';
@@ -61,7 +61,7 @@ export default function Albums() {
 
   const scrollSnapshotRef = useRef<AlbumBrowseScrollSnapshot>({ scrollTop: 0, displayCount: 0 });
   const restoreDisplayCountRef = useRef<number | undefined>(
-    peekAlbumBrowseScrollRestore(serverId)?.displayCount,
+    peekAlbumBrowseScrollRestore(serverId, 'albums')?.displayCount,
   );
 
   const {
@@ -122,13 +122,11 @@ export default function Albums() {
     restoreDisplayCount: restoreDisplayCountRef.current,
   });
 
-  scrollSnapshotRef.current = {
-    scrollTop: scrollBodyEl?.scrollTop ?? 0,
-    displayCount: displayAlbums.length,
-  };
+  useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, displayAlbums.length);
 
   const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
     serverId,
+    surface: 'albums',
     scrollBodyEl,
     displayAlbumsLength: displayAlbums.length,
     loading,

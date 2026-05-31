@@ -3,11 +3,12 @@ import { getAlbumsByGenre } from '../api/subsonicGenres';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { dedupeById } from '../utils/dedupeById';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { CheckSquare2, Download, HardDriveDownload } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
@@ -26,6 +27,10 @@ import { useAsyncInpagePagination } from '../hooks/useAsyncInpagePagination';
 import { useInpageScrollSentinel } from '../hooks/useInpageScrollSentinel';
 import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
 import InpageScrollSentinel from '../components/InpageScrollSentinel';
+import { useAlbumGridBrowseFilters, type AlbumGridBrowseSnapshot } from '../hooks/useAlbumGridBrowseFilters';
+import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
+import { useAlbumBrowseScrollSnapshotSync, type AlbumBrowseScrollSnapshot } from '../hooks/useAlbumBrowseFilters';
+import { readAlbumBrowseRestore } from '../utils/navigation/albumDetailNavigation';
 
 const PAGE_SIZE = 30;
 
@@ -46,10 +51,21 @@ export default function NewReleases() {
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const scrollSnapshotRef = useRef<AlbumBrowseScrollSnapshot>({ scrollTop: 0, displayCount: 0 });
+  const gridSnapshotRef = useRef<AlbumGridBrowseSnapshot>({ albums: [], hasMore: true });
+  const {
+    selectedGenres,
+    setSelectedGenres,
+    initialAlbums,
+    initialHasMore,
+  } = useAlbumGridBrowseFilters(serverId, 'new-releases', scrollSnapshotRef, gridSnapshotRef);
+  const restoringSessionRef = useRef(initialAlbums != null);
+
+  const [albums, setAlbums] = useState<SubsonicAlbum[]>(() => initialAlbums ?? []);
+  const [hasMore, setHasMore] = useState(() => initialHasMore ?? true);
   const {
     scrollBodyEl,
     bindScrollBody: bindNewReleasesScrollBody,
@@ -62,9 +78,12 @@ export default function NewReleases() {
     runLoad,
     requestNextPage,
     isBlocked,
-  } = useAsyncInpagePagination(PAGE_SIZE, { initialLoading: true });
+  } = useAsyncInpagePagination(PAGE_SIZE, { initialLoading: initialAlbums == null });
   const [selectionMode, setSelectionMode] = useState(false);
   const filtered = selectedGenres.length > 0;
+
+  gridSnapshotRef.current = { albums, hasMore };
+  useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, albums.length);
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
     filtered,
@@ -137,6 +156,7 @@ export default function NewReleases() {
   }, [musicLibraryFilterVersion]);
 
   useEffect(() => {
+    if (restoringSessionRef.current) return;
     if (filtered) loadFiltered(selectedGenres);
     else {
       resetPage();
@@ -155,6 +175,28 @@ export default function NewReleases() {
     scrollRootEl: scrollBodyEl,
     onIntersect: loadMore,
   });
+
+  const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
+    serverId,
+    surface: 'new-releases',
+    scrollBodyEl,
+    displayAlbumsLength: albums.length,
+    loading,
+    loadingMore: loading,
+    hasMore,
+    loadMore,
+  });
+
+  useLayoutEffect(() => {
+    if (!isScrollRestorePending && restoringSessionRef.current) {
+      restoringSessionRef.current = false;
+    }
+  }, [isScrollRestorePending]);
+
+  useEffect(() => {
+    if (isScrollRestorePending || !readAlbumBrowseRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [isScrollRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
 
   return (
     <div className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}>
@@ -218,7 +260,8 @@ export default function NewReleases() {
             {t('common.libraryEmpty')}
           </div>
         ) : (
-          <>
+          <div style={{ position: 'relative' }}>
+            <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
             <VirtualCardGrid
               items={albums}
               itemKey={(a, _i) => a.id}
@@ -241,7 +284,22 @@ export default function NewReleases() {
             {!filtered && hasMore && (
               <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loading} />
             )}
-          </>
+            </div>
+            {isScrollRestorePending && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  paddingTop: '3rem',
+                  background: 'var(--ctp-base)',
+                }}
+              >
+                <div className="spinner" />
+              </div>
+            )}
+          </div>
         )}
       </OverlayScrollArea>
     </div>

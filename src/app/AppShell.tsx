@@ -25,7 +25,7 @@ import TooltipPortal from '../components/TooltipPortal';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import {
   APP_MAIN_SCROLL_VIEWPORT_ID,
-  MAIN_ROUTE_INPAGE_SCROLL_VIEWPORT_ID_BY_PATH,
+  mainRouteInpageScrollViewportId,
 } from '../constants/appScroll';
 import ConnectionIndicator from '../components/ConnectionIndicator';
 import LastfmIndicator from '../components/LastfmIndicator';
@@ -263,7 +263,7 @@ export function AppShell() {
           <OverlayScrollArea
             className="app-shell-route-scroll"
             viewportClassName={
-              MAIN_ROUTE_INPAGE_SCROLL_VIEWPORT_ID_BY_PATH[location.pathname]
+              mainRouteInpageScrollViewportId(location.pathname)
                 ? 'app-shell-route-scroll__viewport app-shell-route-scroll__viewport--inpage-split'
                 : 'app-shell-route-scroll__viewport'
             }

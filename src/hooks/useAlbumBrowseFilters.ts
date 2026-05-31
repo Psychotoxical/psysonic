@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
 import {
+  ALBUMS_INPAGE_SCROLL_VIEWPORT_ID,
+  readInpageScrollTop,
+} from '../constants/appScroll';
+import {
   DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
   type AlbumBrowseCompFilter,
   type AlbumBrowseReturnFilters,
+  type AlbumBrowseSurface,
   albumBrowseSortForServer,
+  albumBrowseSurfaceForPath,
   isAlbumDetailPath,
   useAlbumBrowseSessionStore,
 } from '../store/albumBrowseSessionStore';
 import type { AlbumBrowseSort } from '../utils/library/browseTextSearch';
 import { shouldRestoreAlbumBrowseSession } from '../utils/navigation/albumDetailNavigation';
+
+const ALBUMS_SURFACE: AlbumBrowseSurface = 'albums';
 
 function returnFiltersForNavigation(
   serverId: string,
@@ -20,7 +28,7 @@ function returnFiltersForNavigation(
     return DEFAULT_ALBUM_BROWSE_RETURN_FILTERS;
   }
   return (
-    useAlbumBrowseSessionStore.getState().peekReturnStash(serverId)
+    useAlbumBrowseSessionStore.getState().peekReturnStash(serverId, ALBUMS_SURFACE)
     ?? DEFAULT_ALBUM_BROWSE_RETURN_FILTERS
   );
 }
@@ -29,6 +37,36 @@ export type AlbumBrowseScrollSnapshot = {
   scrollTop: number;
   displayCount: number;
 };
+
+/** Keep scroll snapshot in sync with the in-page viewport (not only on React re-renders). */
+export function useAlbumBrowseScrollSnapshotSync(
+  snapshotRef: RefObject<AlbumBrowseScrollSnapshot>,
+  scrollBodyEl: HTMLElement | null,
+  displayCount: number,
+): void {
+  useEffect(() => {
+    snapshotRef.current.displayCount = displayCount;
+  }, [displayCount, snapshotRef]);
+
+  useEffect(() => {
+    if (!scrollBodyEl) return;
+    const syncScrollTop = () => {
+      snapshotRef.current.scrollTop = scrollBodyEl.scrollTop;
+    };
+    syncScrollTop();
+    scrollBodyEl.addEventListener('scroll', syncScrollTop, { passive: true });
+    return () => scrollBodyEl.removeEventListener('scroll', syncScrollTop);
+  }, [scrollBodyEl, snapshotRef]);
+}
+
+export function useAlbumBrowseScrollSnapshotRef(
+  scrollBodyEl: HTMLElement | null,
+  displayCount: number,
+): RefObject<AlbumBrowseScrollSnapshot> {
+  const snapshotRef = useRef<AlbumBrowseScrollSnapshot>({ scrollTop: 0, displayCount: 0 });
+  useAlbumBrowseScrollSnapshotSync(snapshotRef, scrollBodyEl, displayCount);
+  return snapshotRef;
+}
 
 export function useAlbumBrowseFilters(
   serverId: string,
@@ -79,7 +117,7 @@ export function useAlbumBrowseFilters(
 
     if (shouldRestoreAlbumBrowseSession(navigationType, location.state)) {
       restoredFromStashRef.current = true;
-      const restored = useAlbumBrowseSessionStore.getState().peekReturnStash(serverId);
+      const restored = useAlbumBrowseSessionStore.getState().peekReturnStash(serverId, ALBUMS_SURFACE);
       if (restored) {
         setSelectedGenres(restored.selectedGenres);
         setYearFrom(restored.yearFrom);
@@ -93,7 +131,7 @@ export function useAlbumBrowseFilters(
 
     if (restoredFromStashRef.current) return;
 
-    useAlbumBrowseSessionStore.getState().clearReturnStash(serverId);
+    useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, ALBUMS_SURFACE);
     setSelectedGenres([]);
     setYearFrom('');
     setYearTo('');
@@ -108,13 +146,17 @@ export function useAlbumBrowseFilters(
       const path = window.location.pathname;
       if (isAlbumDetailPath(path)) {
         const snapshot = scrollSnapshotRef?.current;
-        useAlbumBrowseSessionStore.getState().stashReturnFilters(serverId, {
+        const scrollTop = Math.max(
+          readInpageScrollTop(ALBUMS_INPAGE_SCROLL_VIEWPORT_ID),
+          snapshot?.scrollTop ?? 0,
+        );
+        useAlbumBrowseSessionStore.getState().stashReturnFilters(serverId, ALBUMS_SURFACE, {
           ...filtersRef.current,
-          scrollTop: snapshot?.scrollTop,
+          scrollTop,
           displayCount: snapshot?.displayCount,
         });
-      } else if (path !== '/albums') {
-        useAlbumBrowseSessionStore.getState().clearReturnStash(serverId);
+      } else if (albumBrowseSurfaceForPath(path) !== ALBUMS_SURFACE) {
+        useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, ALBUMS_SURFACE);
       }
     };
   }, [serverId, scrollSnapshotRef]);

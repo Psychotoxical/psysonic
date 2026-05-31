@@ -1,11 +1,15 @@
 import { create } from 'zustand';
+import type { SubsonicAlbum } from '../api/subsonicTypes';
 import type { AlbumBrowseSort } from '../utils/library/browseTextSearch';
 
 export const DEFAULT_ALBUM_BROWSE_SORT: AlbumBrowseSort = 'alphabeticalByName';
 
 export type AlbumBrowseCompFilter = 'all' | 'only' | 'hide';
 
-/** Browse state restored when returning to Albums via browser/app back from album detail. */
+/** Album grid browse surfaces that share leave-restore session behavior. */
+export type AlbumBrowseSurface = 'albums' | 'new-releases' | 'random-albums';
+
+/** Browse state restored when returning via browser/app back from album detail. */
 export interface AlbumBrowseReturnFilters {
   selectedGenres: string[];
   yearFrom: string;
@@ -13,10 +17,13 @@ export interface AlbumBrowseReturnFilters {
   compFilter: AlbumBrowseCompFilter;
   starredOnly: boolean;
   losslessOnly: boolean;
-  /** In-page grid scroll position when leaving All Albums. */
+  /** In-page grid scroll position when leaving the browse surface. */
   scrollTop?: number;
-  /** `displayAlbums.length` at leave time — preload at least this many rows before scroll. */
+  /** Row count at leave time — preload at least this many rows before scroll. */
   displayCount?: number;
+  /** Cached grid rows (New Releases / Random Albums). */
+  albums?: SubsonicAlbum[];
+  hasMore?: boolean;
 }
 
 export const DEFAULT_ALBUM_BROWSE_RETURN_FILTERS: AlbumBrowseReturnFilters = {
@@ -35,12 +42,20 @@ interface ServerAlbumBrowseSession {
 interface AlbumBrowseSessionStore {
   /** Session-lifetime sort per server (sidebar ↔ album detail). */
   sortByServer: Record<string, AlbumBrowseSort>;
-  /** Stashed when leaving Albums → album detail; consumed after POP scroll restore. */
-  returnStashByServer: Record<string, AlbumBrowseReturnFilters>;
+  /** Stashed when leaving a browse surface → album detail; consumed after scroll restore. */
+  returnStashByKey: Record<string, AlbumBrowseReturnFilters>;
   setSort: (serverId: string, sort: AlbumBrowseSort) => void;
-  stashReturnFilters: (serverId: string, filters: AlbumBrowseReturnFilters) => void;
-  clearReturnStash: (serverId: string) => void;
-  peekReturnStash: (serverId: string) => AlbumBrowseReturnFilters | null;
+  stashReturnFilters: (
+    serverId: string,
+    surface: AlbumBrowseSurface,
+    filters: AlbumBrowseReturnFilters,
+  ) => void;
+  clearReturnStash: (serverId: string, surface: AlbumBrowseSurface) => void;
+  peekReturnStash: (serverId: string, surface: AlbumBrowseSurface) => AlbumBrowseReturnFilters | null;
+}
+
+function returnStashKey(serverId: string, surface: AlbumBrowseSurface): string {
+  return `${serverId}:${surface}`;
 }
 
 function sortEntryFor(
@@ -50,9 +65,24 @@ function sortEntryFor(
   return sortByServer[serverId] ?? DEFAULT_ALBUM_BROWSE_SORT;
 }
 
+function cloneReturnFilters(filters: AlbumBrowseReturnFilters): AlbumBrowseReturnFilters {
+  return {
+    selectedGenres: [...filters.selectedGenres],
+    yearFrom: filters.yearFrom,
+    yearTo: filters.yearTo,
+    compFilter: filters.compFilter,
+    starredOnly: filters.starredOnly,
+    losslessOnly: filters.losslessOnly,
+    ...(typeof filters.scrollTop === 'number' ? { scrollTop: filters.scrollTop } : {}),
+    ...(typeof filters.displayCount === 'number' ? { displayCount: filters.displayCount } : {}),
+    ...(filters.albums ? { albums: [...filters.albums] } : {}),
+    ...(typeof filters.hasMore === 'boolean' ? { hasMore: filters.hasMore } : {}),
+  };
+}
+
 export const useAlbumBrowseSessionStore = create<AlbumBrowseSessionStore>((set, get) => ({
   sortByServer: {},
-  returnStashByServer: {},
+  returnStashByKey: {},
 
   setSort: (serverId, sort) => {
     if (!serverId) return;
@@ -61,58 +91,39 @@ export const useAlbumBrowseSessionStore = create<AlbumBrowseSessionStore>((set, 
     }));
   },
 
-  stashReturnFilters: (serverId, filters) => {
+  stashReturnFilters: (serverId, surface, filters) => {
     if (!serverId) return;
+    const key = returnStashKey(serverId, surface);
     set((s) => ({
-      returnStashByServer: {
-        ...s.returnStashByServer,
-        [serverId]: {
-          selectedGenres: [...filters.selectedGenres],
-          yearFrom: filters.yearFrom,
-          yearTo: filters.yearTo,
-          compFilter: filters.compFilter,
-          starredOnly: filters.starredOnly,
-          losslessOnly: filters.losslessOnly,
-          ...(typeof filters.scrollTop === 'number'
-            ? { scrollTop: filters.scrollTop }
-            : {}),
-          ...(typeof filters.displayCount === 'number'
-            ? { displayCount: filters.displayCount }
-            : {}),
-        },
+      returnStashByKey: {
+        ...s.returnStashByKey,
+        [key]: cloneReturnFilters(filters),
       },
     }));
   },
 
-  clearReturnStash: (serverId) => {
+  clearReturnStash: (serverId, surface) => {
     if (!serverId) return;
-    const next = { ...get().returnStashByServer };
-    delete next[serverId];
-    set({ returnStashByServer: next });
+    const key = returnStashKey(serverId, surface);
+    const next = { ...get().returnStashByKey };
+    delete next[key];
+    set({ returnStashByKey: next });
   },
 
-  peekReturnStash: (serverId) => {
+  peekReturnStash: (serverId, surface) => {
     if (!serverId) return null;
-    const stash = get().returnStashByServer[serverId];
+    const stash = get().returnStashByKey[returnStashKey(serverId, surface)];
     if (!stash) return null;
-    return {
-      selectedGenres: [...stash.selectedGenres],
-      yearFrom: stash.yearFrom,
-      yearTo: stash.yearTo,
-      compFilter: stash.compFilter,
-      starredOnly: stash.starredOnly,
-      losslessOnly: stash.losslessOnly,
-      ...(typeof stash.scrollTop === 'number' ? { scrollTop: stash.scrollTop } : {}),
-      ...(typeof stash.displayCount === 'number' ? { displayCount: stash.displayCount } : {}),
-    };
+    return cloneReturnFilters(stash);
   },
 }));
 
-/** Scroll-restore target saved when leaving All Albums for album detail. */
+/** Scroll-restore target saved when leaving a browse surface for album detail. */
 export function peekAlbumBrowseScrollRestore(
   serverId: string,
+  surface: AlbumBrowseSurface,
 ): { scrollTop: number; displayCount: number } | null {
-  const stash = useAlbumBrowseSessionStore.getState().peekReturnStash(serverId);
+  const stash = useAlbumBrowseSessionStore.getState().peekReturnStash(serverId, surface);
   if (!stash) return null;
   if (typeof stash.scrollTop !== 'number' || typeof stash.displayCount !== 'number') return null;
   return {
@@ -127,6 +138,15 @@ export function albumBrowseSortForServer(
 ): AlbumBrowseSort {
   if (!serverId) return DEFAULT_ALBUM_BROWSE_SORT;
   return sortEntryFor(sortByServer, serverId);
+}
+
+/** Map pathname to album grid browse surface, if any. */
+export function albumBrowseSurfaceForPath(pathname: string): AlbumBrowseSurface | null {
+  const path = pathname.split('?')[0]?.replace(/\/$/, '') || pathname;
+  if (path === '/albums') return 'albums';
+  if (path === '/new-releases') return 'new-releases';
+  if (path === '/random/albums') return 'random-albums';
+  return null;
 }
 
 /** True when pathname is a single album detail route (`/album/:id`). */

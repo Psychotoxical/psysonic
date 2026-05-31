@@ -4,11 +4,12 @@ import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { dedupeById } from '../utils/dedupeById';
 import { shuffleArray } from '../utils/playback/shuffleArray';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { RefreshCw, CheckSquare2, Download, HardDriveDownload } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '../utils/mix/mixRatingFilter';
@@ -26,6 +27,14 @@ import {
   primeAlbumCoversForDisplay,
 } from '../cover/warmDiskPeek';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import OverlayScrollArea from '../components/OverlayScrollArea';
+import { RANDOM_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
+import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
+import { useAlbumGridBrowseFilters, type AlbumGridBrowseSnapshot } from '../hooks/useAlbumGridBrowseFilters';
+import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
+import { useAlbumBrowseScrollSnapshotSync, type AlbumBrowseScrollSnapshot } from '../hooks/useAlbumBrowseFilters';
+import { readAlbumBrowseRestore } from '../utils/navigation/albumDetailNavigation';
 
 const ALBUM_COUNT = 30;
 /** Extra pool when mix rating filter is on so we can still fill the grid after filtering. */
@@ -134,11 +143,26 @@ export default function RandomAlbums() {
   const serverId = auth.activeServerId ?? '';
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const scrollSnapshotRef = useRef<AlbumBrowseScrollSnapshot>({ scrollTop: 0, displayCount: 0 });
+  const gridSnapshotRef = useRef<AlbumGridBrowseSnapshot>({ albums: [], hasMore: false });
+  const {
+    selectedGenres,
+    setSelectedGenres,
+    initialAlbums,
+  } = useAlbumGridBrowseFilters(serverId, 'random-albums', scrollSnapshotRef, gridSnapshotRef);
+  const restoringSessionRef = useRef(initialAlbums != null);
+
+  const [albums, setAlbums] = useState<SubsonicAlbum[]>(() => initialAlbums ?? []);
+  const [loading, setLoading] = useState(() => initialAlbums == null);
   const loadingRef = useRef(false);
   const filtered = selectedGenres.length > 0;
+  const {
+    scrollBodyEl,
+    bindScrollBody: bindRandomAlbumsScrollBody,
+  } = useInpageScrollViewport();
 
   const [selectionMode, setSelectionMode] = useState(false);
   const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(albums);
@@ -219,90 +243,165 @@ export default function RandomAlbums() {
     mixMinRatingArtist,
   ]);
 
-  // Keep a ref so the effect closure is always fresh without re-triggering the
-  // effect on every `load` reference change. The effect must NOT list `load` as a
-  // dep — Zustand rehydration changes deps (e.g. mixMinRatingFilterEnabled) and
-  // recreates `load`, which would otherwise double-fire on every page visit and
-  // show a different random batch ~1.5 s after the first one.
   const loadRef = useRef(load);
   loadRef.current = load;
-  useEffect(() => { loadRef.current(selectedGenres); }, [selectedGenres]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (restoringSessionRef.current) return;
+    loadRef.current(selectedGenres);
+  }, [selectedGenres]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRefresh = useCallback(() => {
+    if (scrollBodyEl) {
+      scrollBodyEl.scrollTop = 0;
+      scrollBodyEl.dispatchEvent(new Event('scroll', { bubbles: false }));
+    }
+    scrollSnapshotRef.current.scrollTop = 0;
+    load(selectedGenres);
+  }, [scrollBodyEl, load, selectedGenres]);
+
+  gridSnapshotRef.current = { albums, hasMore: false };
+  useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, albums.length);
+
+  const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
+    serverId,
+    surface: 'random-albums',
+    scrollBodyEl,
+    displayAlbumsLength: albums.length,
+    loading,
+    loadingMore: false,
+    hasMore: false,
+    loadMore: () => {},
+  });
+
+  useLayoutEffect(() => {
+    if (!isScrollRestorePending && restoringSessionRef.current) {
+      restoringSessionRef.current = false;
+    }
+  }, [isScrollRestorePending]);
+
+  useEffect(() => {
+    if (isScrollRestorePending || !readAlbumBrowseRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [isScrollRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
+
+  const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
+    filtered,
+    selectionMode,
+    selectedGenres,
+  ]);
 
   return (
-    <div className="content-body animate-fade-in">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>
-          {selectionMode && selectedIds.size > 0
-            ? t('albums.selectionCount', { count: selectedIds.size })
-            : t('randomAlbums.title')}
-        </h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {selectionMode && selectedIds.size > 0 ? (
-            <>
-              <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
-                <HardDriveDownload size={15} />
-                {t('albums.addOffline')}
-              </button>
-              <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
-                <Download size={15} />
-                {t('albums.downloadZips')}
-              </button>
-            </>
-          ) : (
-            <>
-              <GenreFilterBar selected={selectedGenres} onSelectionChange={setSelectedGenres} />
-              <button
-                className="btn btn-surface"
-                onClick={() => load(selectedGenres)}
-                disabled={loading}
-                data-tooltip={t('randomAlbums.refresh')}
-              >
-                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-                {t('randomAlbums.refresh')}
-              </button>
-            </>
-          )}
-          <button
-            className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-            onClick={toggleSelectionMode}
-            data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
-            data-tooltip-pos="bottom"
-            style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
-          >
-            <CheckSquare2 size={15} />
-            {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
-          </button>
+    <div className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}>
+      <div className="mainstage-inpage-toolbar">
+        <div className="page-sticky-header mainstage-inpage-toolbar-row">
+          <h1 className="page-title" style={{ marginBottom: 0 }}>
+            {selectionMode && selectedIds.size > 0
+              ? t('albums.selectionCount', { count: selectedIds.size })
+              : t('randomAlbums.title')}
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {selectionMode && selectedIds.size > 0 ? (
+              <>
+                <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
+                  <HardDriveDownload size={15} />
+                  {t('albums.addOffline')}
+                </button>
+                <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
+                  <Download size={15} />
+                  {t('albums.downloadZips')}
+                </button>
+              </>
+            ) : (
+              <>
+                <GenreFilterBar selected={selectedGenres} onSelectionChange={setSelectedGenres} />
+                <button
+                  className="btn btn-surface"
+                  onClick={handleRefresh}
+                  disabled={loading}
+                  data-tooltip={t('randomAlbums.refresh')}
+                >
+                  <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+                  {t('randomAlbums.refresh')}
+                </button>
+              </>
+            )}
+            <button
+              className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
+              onClick={toggleSelectionMode}
+              data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
+              data-tooltip-pos="bottom"
+              style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+            >
+              <CheckSquare2 size={15} />
+              {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
+            </button>
+          </div>
         </div>
       </div>
 
-      {loading && albums.length === 0 ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-          <div className="spinner" />
-        </div>
-      ) : !loading && albums.length === 0 ? (
-        <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
-          {t('common.libraryEmpty')}
-        </div>
-      ) : (
-        <VirtualCardGrid
-          items={albums}
-          itemKey={(a, _i) => a.id}
-          rowVariant="album"
-          disableVirtualization={perfFlags.disableMainstageVirtualLists}
-          layoutSignal={albums.length}
-          warmGridCovers={albumGridWarmCovers()}
-          renderItem={a => (
-            <AlbumCard
-              album={a}
-              selectionMode={selectionMode}
-              selected={selectedIds.has(a.id)}
-              onToggleSelect={toggleSelect}
-              selectedAlbums={selectedAlbums}
-              ensurePriority="high"
-            />
-          )}
-        />
-      )}
+      <OverlayScrollArea
+        className="mainstage-inpage-scroll"
+        viewportClassName="mainstage-inpage-scroll__viewport"
+        viewportId={RANDOM_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+        viewportRef={bindRandomAlbumsScrollBody}
+        railInset="panel"
+        measureDeps={[
+          loading,
+          albums.length,
+          filtered,
+          selectionMode,
+          perfFlags.disableMainstageVirtualLists,
+        ]}
+      >
+        {loading && albums.length === 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+            <div className="spinner" />
+          </div>
+        ) : !loading && albums.length === 0 ? (
+          <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+            {t('common.libraryEmpty')}
+          </div>
+        ) : (
+          <div style={{ position: 'relative' }}>
+            <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
+              <VirtualCardGrid
+                items={albums}
+                itemKey={(a, _i) => a.id}
+                rowVariant="album"
+                disableVirtualization={perfFlags.disableMainstageVirtualLists}
+                layoutSignal={albums.length}
+                scrollRootId={RANDOM_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                warmGridCovers={albumGridWarmCovers()}
+                renderItem={a => (
+                  <AlbumCard
+                    album={a}
+                    observeScrollRootId={RANDOM_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
+                    selectionMode={selectionMode}
+                    selected={selectedIds.has(a.id)}
+                    onToggleSelect={toggleSelect}
+                    selectedAlbums={selectedAlbums}
+                    ensurePriority="high"
+                  />
+                )}
+              />
+            </div>
+            {isScrollRestorePending && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  paddingTop: '3rem',
+                  background: 'var(--ctp-base)',
+                }}
+              >
+                <div className="spinner" />
+              </div>
+            )}
+          </div>
+        )}
+      </OverlayScrollArea>
     </div>
   );
 }

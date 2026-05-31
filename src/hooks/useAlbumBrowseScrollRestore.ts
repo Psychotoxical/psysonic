@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
 import {
   peekAlbumBrowseScrollRestore,
+  type AlbumBrowseSurface,
   useAlbumBrowseSessionStore,
 } from '../store/albumBrowseSessionStore';
 import { shouldRestoreAlbumBrowseSession } from '../utils/navigation/albumDetailNavigation';
@@ -13,6 +14,7 @@ type PendingScroll = {
 
 export type UseAlbumBrowseScrollRestoreArgs = {
   serverId: string;
+  surface: AlbumBrowseSurface;
   scrollBodyEl: HTMLElement | null;
   displayAlbumsLength: number;
   loading: boolean;
@@ -28,19 +30,21 @@ export type UseAlbumBrowseScrollRestoreResult = {
 
 function readPendingScrollRestore(
   serverId: string,
+  surface: AlbumBrowseSurface,
   navigationType: NavigationType,
   locationState: unknown,
 ): PendingScroll | null {
   if (!shouldRestoreAlbumBrowseSession(navigationType, locationState) || !serverId) return null;
-  return peekAlbumBrowseScrollRestore(serverId);
+  return peekAlbumBrowseScrollRestore(serverId, surface);
 }
 
 /**
- * When returning to All Albums via browser/app back from album detail, restore
- * the in-page grid scroll position saved in `albumBrowseSessionStore`.
+ * When returning to an album grid browse surface via browser/app back from album
+ * detail, restore the in-page grid scroll position saved in `albumBrowseSessionStore`.
  */
 export function useAlbumBrowseScrollRestore({
   serverId,
+  surface,
   scrollBodyEl,
   displayAlbumsLength,
   loading,
@@ -56,11 +60,11 @@ export function useAlbumBrowseScrollRestore({
 
   if (!initRef.current) {
     initRef.current = true;
-    pendingRef.current = readPendingScrollRestore(serverId, navigationType, location.state);
+    pendingRef.current = readPendingScrollRestore(serverId, surface, navigationType, location.state);
   }
 
   const [isScrollRestorePending, setIsScrollRestorePending] = useState(
-    () => readPendingScrollRestore(serverId, navigationType, location.state) !== null,
+    () => readPendingScrollRestore(serverId, surface, navigationType, location.state) !== null,
   );
 
   useLayoutEffect(() => {
@@ -80,7 +84,7 @@ export function useAlbumBrowseScrollRestore({
     pendingRef.current = null;
     doneRef.current = true;
     setIsScrollRestorePending(false);
-    useAlbumBrowseSessionStore.getState().clearReturnStash(serverId);
+    useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, surface);
   }, [
     scrollBodyEl,
     displayAlbumsLength,
@@ -89,6 +93,7 @@ export function useAlbumBrowseScrollRestore({
     hasMore,
     loadMore,
     serverId,
+    surface,
   ]);
 
   return { isScrollRestorePending };

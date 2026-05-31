@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   APP_MAIN_SCROLL_VIEWPORT_ID,
-  MAIN_ROUTE_INPAGE_SCROLL_VIEWPORT_ID_BY_PATH,
+  mainRouteInpageScrollViewportId,
 } from '../constants/appScroll';
 
 const SCROLL_IDLE_MS = 180;
@@ -25,7 +25,7 @@ export function useMainScrollingIndicator(pathname: string): boolean {
     if (appViewport) viewports.add(appViewport);
     const nowPlayingViewport = document.querySelector<HTMLElement>('.np-main__viewport');
     if (nowPlayingViewport) viewports.add(nowPlayingViewport);
-    const inpageId = MAIN_ROUTE_INPAGE_SCROLL_VIEWPORT_ID_BY_PATH[pathname];
+    const inpageId = mainRouteInpageScrollViewportId(pathname);
     if (inpageId) {
       const inpageVp = document.getElementById(inpageId);
       if (inpageVp) viewports.add(inpageVp);

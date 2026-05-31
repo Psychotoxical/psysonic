@@ -97,8 +97,10 @@ export function shouldSkipMainScrollResetOnRouteChange(
   return false;
 }
 
-function isAlbumsBrowseReturnPath(path: string): boolean {
-  return path === '/albums' || path.startsWith('/albums?');
+function isAlbumGridBrowseReturnPath(path: string): boolean {
+  return path === '/albums' || path.startsWith('/albums?')
+    || path === '/new-releases' || path.startsWith('/new-releases?')
+    || path === '/random/albums' || path.startsWith('/random/albums?');
 }
 
 function isSearchReturnPath(path: string): boolean {
@@ -112,7 +114,7 @@ function isArtistsBrowseReturnPath(path: string): boolean {
 }
 
 function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocationState | undefined {
-  if (isAlbumsBrowseReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
+  if (isAlbumGridBrowseReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
   if (isArtistsBrowseReturnPath(returnTo)) return artistBrowseRestoreNavigationState();
   if (isSearchReturnPath(returnTo)) return advancedSearchRestoreNavigationState();
   return undefined;
