@@ -1,30 +1,44 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import {
-  clearAdvancedSearchAlbumRowScrollSnapshots,
-  peekPersistedAdvancedSearchAlbumRowScrollLeft,
-  persistAdvancedSearchAlbumRowScrollLeft,
-  readAdvancedSearchAlbumRowScrollLeft,
-  registerAdvancedSearchAlbumRowScrollProvider,
-  resolveAdvancedSearchAlbumRowScrollLeft,
-  saveAdvancedSearchAlbumRowScrollOnLeave,
+  clearAdvancedSearchLeaveSnapshots,
+  peekPersistedAdvancedSearchLeaveSnapshot,
+  readAdvancedSearchLeaveSnapshot,
+  registerAdvancedSearchLeaveScrollProvider,
+  registerAdvancedSearchSessionProvider,
+  resolveAdvancedSearchLeaveSnapshot,
+  saveAdvancedSearchLeaveSnapshot,
 } from './advancedSearchScrollSnapshot';
 import { useAdvancedSearchSessionStore } from '../../store/advancedSearchSessionStore';
 
 describe('advancedSearchScrollSnapshot', () => {
   afterEach(() => {
-    clearAdvancedSearchAlbumRowScrollSnapshots();
+    clearAdvancedSearchLeaveSnapshots();
     useAdvancedSearchSessionStore.getState().clearReturnStash();
     sessionStorage.clear();
     document.body.innerHTML = '';
   });
 
-  it('persists and peeks album-row scrollLeft in sessionStorage', () => {
-    persistAdvancedSearchAlbumRowScrollLeft(120);
-    expect(peekPersistedAdvancedSearchAlbumRowScrollLeft()).toBe(120);
+  it('persists and peeks leave snapshot in sessionStorage', () => {
+    const viewport = document.createElement('div');
+    viewport.id = APP_MAIN_SCROLL_VIEWPORT_ID;
+    Object.defineProperty(viewport, 'scrollTop', { value: 640, writable: true });
+    document.body.appendChild(viewport);
+
+    saveAdvancedSearchLeaveSnapshot();
+    expect(peekPersistedAdvancedSearchLeaveSnapshot()).toEqual({
+      scrollTop: 640,
+      albumRowScrollLeft: 0,
+    });
   });
 
-  it('reads leave snapshot from registered provider merged with DOM', () => {
+  it('reads leave snapshot from provider merged with DOM', () => {
+    const viewport = document.createElement('div');
+    viewport.id = APP_MAIN_SCROLL_VIEWPORT_ID;
+    Object.defineProperty(viewport, 'scrollTop', { value: 512, writable: true });
+    document.body.appendChild(viewport);
+
     const albumGrid = document.createElement('div');
     albumGrid.className = 'album-grid';
     Object.defineProperty(albumGrid, 'scrollLeft', { value: 80, writable: true });
@@ -33,15 +47,27 @@ describe('advancedSearchScrollSnapshot', () => {
     row.appendChild(albumGrid);
     document.body.appendChild(row);
 
-    const unregister = registerAdvancedSearchAlbumRowScrollProvider(() => 45);
-    expect(readAdvancedSearchAlbumRowScrollLeft()).toBe(80);
+    const unregister = registerAdvancedSearchLeaveScrollProvider(() => ({
+      scrollTop: 100,
+      albumRowScrollLeft: 45,
+    }));
+    expect(readAdvancedSearchLeaveSnapshot()).toEqual({
+      scrollTop: 512,
+      albumRowScrollLeft: 80,
+    });
     unregister();
   });
 
-  it('merges leave value, sessionStorage, and stash scrollLeft', () => {
-    useAdvancedSearchSessionStore.getState().setLeaveAlbumRowScrollLeft(300);
-    persistAdvancedSearchAlbumRowScrollLeft(80);
-    expect(resolveAdvancedSearchAlbumRowScrollLeft({
+  it('merges leave snapshot, sessionStorage, and stash scroll fields', () => {
+    useAdvancedSearchSessionStore.getState().setLeaveScrollSnapshot({
+      scrollTop: 300,
+      albumRowScrollLeft: 0,
+    });
+    sessionStorage.setItem(
+      'psysonic:advanced-search-leave-v1',
+      JSON.stringify({ scrollTop: 100, albumRowScrollLeft: 80 }),
+    );
+    expect(resolveAdvancedSearchLeaveSnapshot({
       query: '',
       genre: '',
       yearFrom: '',
@@ -59,21 +85,41 @@ describe('advancedSearchScrollSnapshot', () => {
       songsServerOffset: 0,
       songsHasMore: false,
       genreNote: false,
+      scrollTop: 50,
       albumRowScrollLeft: 20,
-    })).toBe(300);
+    })).toEqual({ scrollTop: 300, albumRowScrollLeft: 80 });
   });
 
-  it('saves album-row scrollLeft to zustand and sessionStorage on leave', () => {
-    const albumGrid = document.createElement('div');
-    albumGrid.className = 'album-grid';
-    Object.defineProperty(albumGrid, 'scrollLeft', { value: 160, writable: true });
-    const row = document.createElement('div');
-    row.setAttribute('data-advanced-search-album-row', '');
-    row.appendChild(albumGrid);
-    document.body.appendChild(row);
+  it('saves session stash together with leave snapshot on navigate away', () => {
+    const viewport = document.createElement('div');
+    viewport.id = APP_MAIN_SCROLL_VIEWPORT_ID;
+    Object.defineProperty(viewport, 'scrollTop', { value: 640, writable: true });
+    document.body.appendChild(viewport);
 
-    expect(saveAdvancedSearchAlbumRowScrollOnLeave()).toBe(160);
-    expect(useAdvancedSearchSessionStore.getState().peekLeaveAlbumRowScrollLeft()).toBe(160);
-    expect(peekPersistedAdvancedSearchAlbumRowScrollLeft()).toBe(160);
+    const unregister = registerAdvancedSearchSessionProvider(() => ({
+      query: 'rock',
+      genre: 'Jazz',
+      yearFrom: '',
+      yearTo: '',
+      bpmFrom: '',
+      bpmTo: '',
+      moodGroup: '',
+      losslessOnly: false,
+      resultType: 'all',
+      starredOnly: false,
+      results: null,
+      hasSearched: true,
+      activeSearch: null,
+      localMode: false,
+      songsServerOffset: 0,
+      songsHasMore: false,
+      genreNote: false,
+    }));
+
+    saveAdvancedSearchLeaveSnapshot();
+    expect(useAdvancedSearchSessionStore.getState().peekReturnStash()?.query).toBe('rock');
+    expect(useAdvancedSearchSessionStore.getState().peekReturnStash()?.genre).toBe('Jazz');
+    expect(useAdvancedSearchSessionStore.getState().peekReturnStash()?.scrollTop).toBe(640);
+    unregister();
   });
 });

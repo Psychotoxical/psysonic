@@ -2,7 +2,7 @@ import { getGenres, getAlbumsByGenre } from '../api/subsonicGenres';
 import { search, searchSongsPaged } from '../api/subsonicSearch';
 import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicGenre, SubsonicArtist, SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
 import { SlidersVertical, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -11,9 +11,10 @@ import ArtistRow from '../components/ArtistRow';
 import PagedSongList from '../components/PagedSongList';
 import CustomSelect from '../components/CustomSelect';
 import StarFilterButton from '../components/StarFilterButton';
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { isAlbumDetailPath } from '../store/albumBrowseSessionStore';
+import { isAdvancedSearchLeaveTargetPath } from '../store/albumBrowseSessionStore';
 import {
   isAdvancedSearchPath,
   useAdvancedSearchSessionStore,
@@ -24,13 +25,15 @@ import {
   shouldRestoreAdvancedSearchSession,
 } from '../utils/navigation/albumDetailNavigation';
 import {
-  clearAdvancedSearchAlbumRowScrollSnapshots,
-  consumeAdvancedSearchLeavingForAlbum,
-  persistAdvancedSearchAlbumRowScrollLeft,
-  readAdvancedSearchAlbumRowScrollLeft,
-  registerAdvancedSearchAlbumRowScrollProvider,
-  resolveAdvancedSearchAlbumRowScrollLeft,
+  clearAdvancedSearchLeaveSnapshots,
+  consumeAdvancedSearchLeavingForDetail,
+  readAdvancedSearchLeaveSnapshot,
+  registerAdvancedSearchLeaveScrollProvider,
+  registerAdvancedSearchSessionProvider,
+  resolveAdvancedSearchLeaveSnapshot,
+  type AdvancedSearchLeaveSnapshot,
 } from '../utils/navigation/advancedSearchScrollSnapshot';
+import { restoreMainViewportScroll } from '../utils/navigation/restoreMainViewportScroll';
 import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearch } from '../utils/library/advancedSearchLocal';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -136,29 +139,38 @@ export default function AdvancedSearch() {
 
   const restoringSession =
     shouldRestoreAdvancedSearchSession(navigationType, location.state) || restoreStash != null;
-  const albumRowScrollLeftRestoreRef = useRef<number | null>(
-    restoringSession ? resolveAdvancedSearchAlbumRowScrollLeft(restoreStash) : null,
+  const leaveSnapshotRef = useRef<AdvancedSearchLeaveSnapshot | null>(
+    restoringSession ? resolveAdvancedSearchLeaveSnapshot(restoreStash) : null,
   );
+  const scrollTopRestoreTargetRef = useRef(leaveSnapshotRef.current?.scrollTop ?? 0);
+  const mainScrollTopRef = useRef(0);
   const albumRowScrollLeftRef = useRef(0);
+  const mainScrollRestoreDoneRef = useRef(!(leaveSnapshotRef.current?.scrollTop ?? 0));
+  const albumRowRestoreDoneRef = useRef(!(leaveSnapshotRef.current?.albumRowScrollLeft ?? 0));
   const skipSearchAutoFocusRef = useRef(restoreStash != null);
-  const [isAlbumRowScrollRestorePending, setIsAlbumRowScrollRestorePending] = useState(
-    () => albumRowScrollLeftRestoreRef.current != null,
+  const [isLeaveRestorePending, setIsLeaveRestorePending] = useState(
+    () => leaveSnapshotRef.current != null,
   );
 
-  const handleAlbumRowScrollRestoreComplete = useCallback(() => {
-    clearAdvancedSearchAlbumRowScrollSnapshots();
-    albumRowScrollLeftRestoreRef.current = null;
-    setIsAlbumRowScrollRestorePending(false);
+  const tryFinishLeaveRestore = useCallback(() => {
+    const snap = leaveSnapshotRef.current;
+    if (!snap) return;
+    if (snap.scrollTop > 0 && !mainScrollRestoreDoneRef.current) return;
+    if (snap.albumRowScrollLeft > 0 && !albumRowRestoreDoneRef.current) return;
+    clearAdvancedSearchLeaveSnapshots();
+    leaveSnapshotRef.current = null;
+    setIsLeaveRestorePending(false);
     if (hadRestoreOnMountRef.current) {
       useAdvancedSearchSessionStore.getState().clearReturnStash();
     }
   }, []);
 
-  const albumRowScrollLeftTarget = albumRowScrollLeftRestoreRef.current;
+  const handleAlbumRowScrollRestoreComplete = useCallback(() => {
+    albumRowRestoreDoneRef.current = true;
+    tryFinishLeaveRestore();
+  }, [tryFinishLeaveRestore]);
 
-  useEffect(() => {
-    return registerAdvancedSearchAlbumRowScrollProvider(() => albumRowScrollLeftRef.current);
-  }, []);
+  const albumRowScrollLeftTarget = leaveSnapshotRef.current?.albumRowScrollLeft;
 
   const sessionRef = useRef<AdvancedSearchSessionStash>({
     query: '',
@@ -198,6 +210,29 @@ export default function AdvancedSearch() {
     songsHasMore,
     genreNote,
   };
+
+  useEffect(() => {
+    const unregisterScroll = registerAdvancedSearchLeaveScrollProvider(() => ({
+      scrollTop: mainScrollTopRef.current,
+      albumRowScrollLeft: albumRowScrollLeftRef.current,
+    }));
+    const unregisterSession = registerAdvancedSearchSessionProvider(() => sessionRef.current);
+    return () => {
+      unregisterScroll();
+      unregisterSession();
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    if (!el) return;
+    const syncScroll = () => {
+      mainScrollTopRef.current = el.scrollTop;
+    };
+    syncScroll();
+    el.addEventListener('scroll', syncScroll, { passive: true });
+    return () => el.removeEventListener('scroll', syncScroll);
+  }, []);
 
   const applySongFilters = (
     list: SubsonicSong[],
@@ -401,19 +436,19 @@ export default function AdvancedSearch() {
   useEffect(() => {
     return () => {
       const path = window.location.pathname;
-      if (isAlbumDetailPath(path) || consumeAdvancedSearchLeavingForAlbum()) {
-        const scrollLeft =
-          useAdvancedSearchSessionStore.getState().peekLeaveAlbumRowScrollLeft()
-          ?? readAdvancedSearchAlbumRowScrollLeft();
-        persistAdvancedSearchAlbumRowScrollLeft(scrollLeft);
-        useAdvancedSearchSessionStore.getState().setLeaveAlbumRowScrollLeft(scrollLeft);
+      const leaving = consumeAdvancedSearchLeavingForDetail();
+      const existingLeave = useAdvancedSearchSessionStore.getState().peekLeaveScrollSnapshot();
+      if (isAdvancedSearchLeaveTargetPath(path) || leaving || existingLeave) {
+        const snapshot = existingLeave ?? readAdvancedSearchLeaveSnapshot();
+        useAdvancedSearchSessionStore.getState().setLeaveScrollSnapshot(snapshot);
         useAdvancedSearchSessionStore.getState().stashReturnSession({
           ...sessionRef.current,
-          albumRowScrollLeft: scrollLeft,
+          scrollTop: snapshot.scrollTop,
+          albumRowScrollLeft: snapshot.albumRowScrollLeft,
         });
       } else if (!isAdvancedSearchPath(path)) {
         useAdvancedSearchSessionStore.getState().clearReturnStash();
-        clearAdvancedSearchAlbumRowScrollSnapshots();
+        clearAdvancedSearchLeaveSnapshots();
       }
     };
   }, []);
@@ -441,28 +476,54 @@ export default function AdvancedSearch() {
         setSongsHasMore(stash.songsHasMore);
         setGenreNote(stash.genreNote);
       }
+      if (!leaveSnapshotRef.current) {
+        useAdvancedSearchSessionStore.getState().clearReturnStash();
+      }
       return;
     }
     if (restoredFromStashRef.current) return;
     useAdvancedSearchSessionStore.getState().clearReturnStash();
   }, [navigationType, location.state]);
 
-  useEffect(() => {
-    if (isAlbumRowScrollRestorePending || !readAdvancedSearchRestore(location.state)) return;
-    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
-  }, [isAlbumRowScrollRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
+  const scrollRestoreReady = hasSearched && !loading;
+
+  useLayoutEffect(() => {
+    if (!scrollRestoreReady) return;
+    const target = scrollTopRestoreTargetRef.current;
+    if (target <= 0) {
+      mainScrollRestoreDoneRef.current = true;
+      tryFinishLeaveRestore();
+      return;
+    }
+    const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
+    if (el) {
+      const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+      el.scrollTop = Math.min(Math.max(0, target), maxScroll);
+    }
+    mainScrollRestoreDoneRef.current = false;
+    return restoreMainViewportScroll(target, () => {
+      mainScrollRestoreDoneRef.current = true;
+      tryFinishLeaveRestore();
+    });
+  }, [scrollRestoreReady, tryFinishLeaveRestore, total, filteredResults?.songs.length]);
 
   useEffect(() => {
-    if (!isAlbumRowScrollRestorePending) return;
+    if (isLeaveRestorePending || !readAdvancedSearchRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [isLeaveRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
+
+  useEffect(() => {
+    if (!isLeaveRestorePending) return;
     if (!hasSearched || loading) return;
     if ((filteredResults?.albums.length ?? 0) > 0) return;
-    handleAlbumRowScrollRestoreComplete();
+    albumRowRestoreDoneRef.current = true;
+    tryFinishLeaveRestore();
   }, [
-    isAlbumRowScrollRestorePending,
+    isLeaveRestorePending,
     hasSearched,
     loading,
     filteredResults?.albums.length,
-    handleAlbumRowScrollRestoreComplete,
+    tryFinishLeaveRestore,
   ]);
 
   useEffect(() => {
@@ -586,6 +647,7 @@ export default function AdvancedSearch() {
 
   return (
     <div className="content-body animate-fade-in" style={{ position: 'relative' }} data-advanced-search-root>
+      <div style={{ visibility: isLeaveRestorePending ? 'hidden' : 'visible' }}>
       <div>
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -854,6 +916,21 @@ export default function AdvancedSearch() {
         </div>
       )}
       </div>
+      </div>
+      {isLeaveRestorePending && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <div className="spinner" />
+        </div>
+      )}
     </div>
   );
 }

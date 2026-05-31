@@ -1,7 +1,16 @@
 import type { Location, NavigateFunction, NavigationType } from 'react-router-dom';
-import { isAdvancedSearchPath } from '../../store/advancedSearchSessionStore';
-import { isAlbumDetailPath } from '../../store/albumBrowseSessionStore';
-import { saveAdvancedSearchAlbumRowScrollOnLeave } from './advancedSearchScrollSnapshot';
+import {
+  isAdvancedSearchPath,
+  useAdvancedSearchSessionStore,
+} from '../../store/advancedSearchSessionStore';
+import {
+  isAlbumDetailPath,
+  isArtistDetailPath,
+} from '../../store/albumBrowseSessionStore';
+import {
+  peekPersistedAdvancedSearchLeaveSnapshot,
+  saveAdvancedSearchLeaveSnapshot,
+} from './advancedSearchScrollSnapshot';
 
 export type AlbumDetailLocationState = {
   returnTo?: string;
@@ -57,10 +66,17 @@ export function shouldRestoreAlbumBrowseSession(
 
 /** Skip AppShell main scroll reset when a child route will restore scroll itself. */
 export function shouldSkipMainScrollResetOnRouteChange(
-  _pathname: string,
+  pathname: string,
   locationState: unknown,
 ): boolean {
   if (readAlbumBrowseRestore(locationState)) return true;
+  if (readAdvancedSearchRestore(locationState)) return true;
+  const leave = useAdvancedSearchSessionStore.getState().peekLeaveScrollSnapshot();
+  if ((leave?.scrollTop ?? 0) > 0) return true;
+  if (isAdvancedSearchPath(pathname)) {
+    const persisted = peekPersistedAdvancedSearchLeaveSnapshot();
+    if ((persisted?.scrollTop ?? 0) > 0) return true;
+  }
   return false;
 }
 
@@ -78,23 +94,43 @@ function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocation
   return undefined;
 }
 
+function buildReturnTo(
+  location: Pick<Location, 'pathname' | 'search' | 'hash' | 'state'>,
+): string {
+  const existing = readAlbumDetailReturnTo(location.state);
+  const onDetail = isAlbumDetailPath(location.pathname) || isArtistDetailPath(location.pathname);
+  return onDetail && existing ? existing : buildReturnToFromLocation(location);
+}
+
+function saveAdvancedSearchLeaveIfNeeded(
+  location: Pick<Location, 'pathname' | 'search' | 'hash'>,
+): void {
+  if (isAdvancedSearchPath(location.pathname)) {
+    saveAdvancedSearchLeaveSnapshot();
+  }
+}
+
 export function navigateToAlbumDetail(
   navigate: NavigateFunction,
   location: Pick<Location, 'pathname' | 'search' | 'hash' | 'state'>,
   albumId: string,
   opts?: { search?: string },
 ): void {
-  const existing = readAlbumDetailReturnTo(location.state);
-  const onAlbumDetail = isAlbumDetailPath(location.pathname);
-  const returnTo = onAlbumDetail && existing
-    ? existing
-    : buildReturnToFromLocation(location);
+  saveAdvancedSearchLeaveIfNeeded(location);
+  const returnTo = buildReturnTo(location);
   const raw = opts?.search ?? '';
   const qs = raw ? (raw.startsWith('?') ? raw : `?${raw}`) : '';
-  if (isAdvancedSearchPath(location.pathname)) {
-    saveAdvancedSearchAlbumRowScrollOnLeave();
-  }
   navigate(`/album/${albumId}${qs}`, { state: { returnTo } satisfies AlbumDetailLocationState });
+}
+
+export function navigateToArtistDetail(
+  navigate: NavigateFunction,
+  location: Pick<Location, 'pathname' | 'search' | 'hash' | 'state'>,
+  artistId: string,
+): void {
+  saveAdvancedSearchLeaveIfNeeded(location);
+  const returnTo = buildReturnTo(location);
+  navigate(`/artist/${artistId}`, { state: { returnTo } satisfies AlbumDetailLocationState });
 }
 
 /** Route any path; album detail links get a `returnTo` snapshot in location state. */

@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ensurePlaybackServerActive } from '../utils/playback/playbackServer';
 import { navigatePathWithAlbumReturnTo, shouldSkipMainScrollResetOnRouteChange } from '../utils/navigation/albumDetailNavigation';
@@ -99,6 +99,7 @@ export function AppShell() {
   const { status: connStatus, isRetrying: connRetrying, retry: connRetry, isLan, serverName } = useConnectionStatus();
   const navigate = useNavigate();
   const location = useLocation();
+  const prevPathnameRef = useRef(location.pathname);
   useCoverNavigationPriority();
   useNowPlayingPrewarm();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
@@ -121,8 +122,12 @@ export function AppShell() {
     return () => window.removeEventListener('psy:navigate', onPsyNavigate);
   }, [navigate, location]);
 
-  // Reset scroll position on route change (main viewport is overlay scroll)
+  // Reset scroll on route change only — not when the same path gets a new location.state
+  // (Advanced Search strips `advancedSearchRestore` after applying saved scroll).
   useEffect(() => {
+    const pathnameChanged = prevPathnameRef.current !== location.pathname;
+    prevPathnameRef.current = location.pathname;
+    if (!pathnameChanged) return;
     if (shouldSkipMainScrollResetOnRouteChange(location.pathname, location.state)) return;
     document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTo({ top: 0 });
   }, [location.pathname, location.state]);

@@ -1,6 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useAlbumDetailBack } from '../../hooks/useAlbumDetailBack';
 import {
   ArrowLeft, Camera, Check, ExternalLink, HardDriveDownload, Heart,
   Loader2, Play, Radio, Share2, Shuffle, Users,
@@ -50,7 +50,7 @@ export default function ArtistDetailHero({
   coverId, coverRef, coverRevision, headerCoverFailed, setHeaderCoverFailed,
 }: Props) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const goBack = useAlbumDetailBack();
   const isMobile = useIsMobile();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const downloadArtist = useOfflineStore(s => s.downloadArtist);
@@ -67,7 +67,7 @@ export default function ArtistDetailHero({
     <>
       <button
         className="btn btn-ghost"
-        onClick={() => navigate(-1)}
+        onClick={() => goBack()}
         style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
       >
         <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>

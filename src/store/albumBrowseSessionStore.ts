@@ -133,3 +133,12 @@ export function albumBrowseSortForServer(
 export function isAlbumDetailPath(pathname: string): boolean {
   return /^\/album\/[^/]+\/?$/.test(pathname);
 }
+
+/** True when pathname is a single artist detail route (`/artist/:id`). */
+export function isArtistDetailPath(pathname: string): boolean {
+  return /^\/artist\/[^/]+\/?$/.test(pathname);
+}
+
+export function isAdvancedSearchLeaveTargetPath(pathname: string): boolean {
+  return isAlbumDetailPath(pathname) || isArtistDetailPath(pathname);
+}

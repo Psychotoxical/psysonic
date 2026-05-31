@@ -1,5 +1,6 @@
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../api/subsonicTypes';
 import { create } from 'zustand';
+import type { AdvancedSearchLeaveSnapshot } from '../utils/navigation/advancedSearchScrollSnapshot';
 
 export type AdvancedSearchResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -24,7 +25,7 @@ export type AdvancedSearchResultsStash = {
   songs: SubsonicSong[];
 };
 
-/** Session snapshot when leaving Advanced Search → album detail. */
+/** Session snapshot when leaving Advanced Search → album/artist detail. */
 export type AdvancedSearchSessionStash = AdvancedSearchFormStash & {
   results: AdvancedSearchResultsStash | null;
   hasSearched: boolean;
@@ -33,23 +34,24 @@ export type AdvancedSearchSessionStash = AdvancedSearchFormStash & {
   songsServerOffset: number;
   songsHasMore: boolean;
   genreNote: boolean;
+  scrollTop?: number;
   albumRowScrollLeft?: number;
 };
 
 interface AdvancedSearchSessionStore {
   returnStash: AdvancedSearchSessionStash | null;
-  leaveAlbumRowScrollLeft: number | null;
+  leaveScrollSnapshot: AdvancedSearchLeaveSnapshot | null;
   stashReturnSession: (stash: AdvancedSearchSessionStash) => void;
   peekReturnStash: () => AdvancedSearchSessionStash | null;
   clearReturnStash: () => void;
-  setLeaveAlbumRowScrollLeft: (scrollLeft: number) => void;
-  peekLeaveAlbumRowScrollLeft: () => number | null;
-  clearLeaveAlbumRowScrollLeft: () => void;
+  setLeaveScrollSnapshot: (snapshot: AdvancedSearchLeaveSnapshot) => void;
+  peekLeaveScrollSnapshot: () => AdvancedSearchLeaveSnapshot | null;
+  clearLeaveScrollSnapshot: () => void;
 }
 
 export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>((set, get) => ({
   returnStash: null,
-  leaveAlbumRowScrollLeft: null,
+  leaveScrollSnapshot: null,
 
   stashReturnSession: (stash) => {
     set({
@@ -63,6 +65,7 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
             }
           : null,
         activeSearch: stash.activeSearch ? { ...stash.activeSearch } : null,
+        ...(typeof stash.scrollTop === 'number' ? { scrollTop: stash.scrollTop } : {}),
         ...(typeof stash.albumRowScrollLeft === 'number'
           ? { albumRowScrollLeft: stash.albumRowScrollLeft }
           : {}),
@@ -72,11 +75,14 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
 
   clearReturnStash: () => set({ returnStash: null }),
 
-  setLeaveAlbumRowScrollLeft: (scrollLeft) => set({ leaveAlbumRowScrollLeft: scrollLeft }),
+  setLeaveScrollSnapshot: (snapshot) => set({ leaveScrollSnapshot: { ...snapshot } }),
 
-  clearLeaveAlbumRowScrollLeft: () => set({ leaveAlbumRowScrollLeft: null }),
+  clearLeaveScrollSnapshot: () => set({ leaveScrollSnapshot: null }),
 
-  peekLeaveAlbumRowScrollLeft: () => get().leaveAlbumRowScrollLeft,
+  peekLeaveScrollSnapshot: () => {
+    const snapshot = get().leaveScrollSnapshot;
+    return snapshot ? { ...snapshot } : null;
+  },
 
   peekReturnStash: () => {
     const stash = get().returnStash;
@@ -91,6 +97,7 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
           }
         : null,
       activeSearch: stash.activeSearch ? { ...stash.activeSearch } : null,
+      ...(typeof stash.scrollTop === 'number' ? { scrollTop: stash.scrollTop } : {}),
       ...(typeof stash.albumRowScrollLeft === 'number'
         ? { albumRowScrollLeft: stash.albumRowScrollLeft }
         : {}),

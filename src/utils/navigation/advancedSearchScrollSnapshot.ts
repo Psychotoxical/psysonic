@@ -1,31 +1,48 @@
+import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import {
   useAdvancedSearchSessionStore,
   type AdvancedSearchSessionStash,
 } from '../../store/advancedSearchSessionStore';
 
-const STORAGE_KEY = 'psysonic:advanced-search-album-row-scroll-v1';
+export type AdvancedSearchLeaveSnapshot = {
+  scrollTop: number;
+  albumRowScrollLeft: number;
+};
 
-type AlbumRowScrollProvider = () => number;
+const STORAGE_KEY = 'psysonic:advanced-search-leave-v1';
 
-let albumRowScrollProvider: AlbumRowScrollProvider | null = null;
-let leavingAdvancedSearchForAlbum = false;
+type LeaveScrollProvider = () => AdvancedSearchLeaveSnapshot;
+type SessionProvider = () => AdvancedSearchSessionStash;
 
-export function registerAdvancedSearchAlbumRowScrollProvider(
-  provider: AlbumRowScrollProvider,
+let leaveScrollProvider: LeaveScrollProvider | null = null;
+let sessionProvider: SessionProvider | null = null;
+let leavingAdvancedSearchForDetail = false;
+
+export function registerAdvancedSearchLeaveScrollProvider(
+  provider: LeaveScrollProvider,
 ): () => void {
-  albumRowScrollProvider = provider;
+  leaveScrollProvider = provider;
   return () => {
-    if (albumRowScrollProvider === provider) albumRowScrollProvider = null;
+    if (leaveScrollProvider === provider) leaveScrollProvider = null;
   };
 }
 
-export function markAdvancedSearchLeavingForAlbum(): void {
-  leavingAdvancedSearchForAlbum = true;
+export function registerAdvancedSearchSessionProvider(
+  provider: SessionProvider,
+): () => void {
+  sessionProvider = provider;
+  return () => {
+    if (sessionProvider === provider) sessionProvider = null;
+  };
 }
 
-export function consumeAdvancedSearchLeavingForAlbum(): boolean {
-  const value = leavingAdvancedSearchForAlbum;
-  leavingAdvancedSearchForAlbum = false;
+export function markAdvancedSearchLeavingForDetail(): void {
+  leavingAdvancedSearchForDetail = true;
+}
+
+export function consumeAdvancedSearchLeavingForDetail(): boolean {
+  const value = leavingAdvancedSearchForDetail;
+  leavingAdvancedSearchForDetail = false;
   return value;
 }
 
@@ -34,39 +51,46 @@ function readAlbumRowScrollLeftFromDom(): number {
   return albumGrid?.scrollLeft ?? 0;
 }
 
-/** Read album-row horizontal scroll when leaving Advanced Search. */
-export function readAdvancedSearchAlbumRowScrollLeft(): number {
-  const domLeft = readAlbumRowScrollLeftFromDom();
-  const providerLeft = albumRowScrollProvider?.() ?? 0;
-  return Math.max(domLeft, providerLeft);
+function readMainScrollTopFromDom(): number {
+  return document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTop ?? 0;
 }
 
-function persistAlbumRowScrollLeft(scrollLeft: number): void {
+export function readAdvancedSearchLeaveSnapshot(): AdvancedSearchLeaveSnapshot {
+  const providerSnap = leaveScrollProvider?.();
+  return {
+    scrollTop: Math.max(readMainScrollTopFromDom(), providerSnap?.scrollTop ?? 0),
+    albumRowScrollLeft: Math.max(
+      readAlbumRowScrollLeftFromDom(),
+      providerSnap?.albumRowScrollLeft ?? 0,
+    ),
+  };
+}
+
+function persistLeaveSnapshot(snapshot: AdvancedSearchLeaveSnapshot): void {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ albumRowScrollLeft: scrollLeft }));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   } catch {
     /* quota / private mode */
   }
 }
 
-export function persistAdvancedSearchAlbumRowScrollLeft(scrollLeft: number): void {
-  persistAlbumRowScrollLeft(scrollLeft);
-}
-
-export function peekPersistedAdvancedSearchAlbumRowScrollLeft(): number | null {
+export function peekPersistedAdvancedSearchLeaveSnapshot(): AdvancedSearchLeaveSnapshot | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { albumRowScrollLeft?: number };
-    if (typeof parsed.albumRowScrollLeft !== 'number') return null;
-    const scrollLeft = Math.max(0, parsed.albumRowScrollLeft);
-    return scrollLeft > 0 ? scrollLeft : null;
+    const parsed = JSON.parse(raw) as Partial<AdvancedSearchLeaveSnapshot>;
+    const scrollTop = typeof parsed.scrollTop === 'number' ? Math.max(0, parsed.scrollTop) : 0;
+    const albumRowScrollLeft = typeof parsed.albumRowScrollLeft === 'number'
+      ? Math.max(0, parsed.albumRowScrollLeft)
+      : 0;
+    if (scrollTop <= 0 && albumRowScrollLeft <= 0) return null;
+    return { scrollTop, albumRowScrollLeft };
   } catch {
     return null;
   }
 }
 
-export function clearPersistedAdvancedSearchAlbumRowScrollLeft(): void {
+export function clearPersistedAdvancedSearchLeaveSnapshot(): void {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch {
@@ -74,26 +98,44 @@ export function clearPersistedAdvancedSearchAlbumRowScrollLeft(): void {
   }
 }
 
-export function saveAdvancedSearchAlbumRowScrollOnLeave(): number {
-  const scrollLeft = readAdvancedSearchAlbumRowScrollLeft();
-  persistAlbumRowScrollLeft(scrollLeft);
-  useAdvancedSearchSessionStore.getState().setLeaveAlbumRowScrollLeft(scrollLeft);
-  markAdvancedSearchLeavingForAlbum();
-  return scrollLeft;
+export function saveAdvancedSearchLeaveSnapshot(): AdvancedSearchLeaveSnapshot {
+  const snapshot = readAdvancedSearchLeaveSnapshot();
+  persistLeaveSnapshot(snapshot);
+  const store = useAdvancedSearchSessionStore.getState();
+  store.setLeaveScrollSnapshot(snapshot);
+  const session = sessionProvider?.();
+  if (session) {
+    store.stashReturnSession({
+      ...session,
+      scrollTop: snapshot.scrollTop,
+      albumRowScrollLeft: snapshot.albumRowScrollLeft,
+    });
+  }
+  markAdvancedSearchLeavingForDetail();
+  return snapshot;
 }
 
-export function clearAdvancedSearchAlbumRowScrollSnapshots(): void {
-  clearPersistedAdvancedSearchAlbumRowScrollLeft();
-  useAdvancedSearchSessionStore.getState().clearLeaveAlbumRowScrollLeft();
+export function clearAdvancedSearchLeaveSnapshots(): void {
+  clearPersistedAdvancedSearchLeaveSnapshot();
+  useAdvancedSearchSessionStore.getState().clearLeaveScrollSnapshot();
 }
 
-/** Merge zustand leave value, sessionStorage, and session stash. */
-export function resolveAdvancedSearchAlbumRowScrollLeft(
+/** Merge zustand leave snapshot, sessionStorage, and session stash scroll fields. */
+export function resolveAdvancedSearchLeaveSnapshot(
   stash: AdvancedSearchSessionStash | null,
-): number | null {
-  const leave = useAdvancedSearchSessionStore.getState().peekLeaveAlbumRowScrollLeft() ?? 0;
-  const persisted = peekPersistedAdvancedSearchAlbumRowScrollLeft() ?? 0;
-  const fromStash = stash?.albumRowScrollLeft ?? 0;
-  const scrollLeft = Math.max(leave, persisted, fromStash);
-  return scrollLeft > 0 ? scrollLeft : null;
+): AdvancedSearchLeaveSnapshot | null {
+  const leave = useAdvancedSearchSessionStore.getState().peekLeaveScrollSnapshot();
+  const persisted = peekPersistedAdvancedSearchLeaveSnapshot();
+  const scrollTop = Math.max(
+    leave?.scrollTop ?? 0,
+    persisted?.scrollTop ?? 0,
+    stash?.scrollTop ?? 0,
+  );
+  const albumRowScrollLeft = Math.max(
+    leave?.albumRowScrollLeft ?? 0,
+    persisted?.albumRowScrollLeft ?? 0,
+    stash?.albumRowScrollLeft ?? 0,
+  );
+  if (scrollTop <= 0 && albumRowScrollLeft <= 0) return null;
+  return { scrollTop, albumRowScrollLeft };
 }

@@ -1,16 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import type { NavigationType } from 'react-router-dom';
 import {
   buildReturnToFromLocation,
   navigateAlbumDetailBack,
   navigatePathWithAlbumReturnTo,
   navigateToAlbumDetail,
+  navigateToArtistDetail,
   readAlbumDetailReturnTo,
   shouldRestoreAlbumBrowseSession,
   shouldSkipMainScrollResetOnRouteChange,
 } from './albumDetailNavigation';
+import { useAdvancedSearchSessionStore } from '../../store/advancedSearchSessionStore';
 
 describe('albumDetailNavigation', () => {
+  afterEach(() => {
+    useAdvancedSearchSessionStore.getState().clearLeaveScrollSnapshot();
+  });
+
   it('reads returnTo from location state', () => {
     expect(readAlbumDetailReturnTo({ returnTo: '/artist/abc' })).toBe('/artist/abc');
     expect(readAlbumDetailReturnTo({ returnTo: 'bad' })).toBeNull();
@@ -74,10 +80,33 @@ describe('albumDetailNavigation', () => {
     });
   });
 
+  it('navigates to artist with returnTo snapshot from Advanced Search', () => {
+    const navigate = vi.fn();
+    navigateToArtistDetail(
+      navigate,
+      { pathname: '/search/advanced', search: '?q=rock', hash: '', state: null },
+      'art-1',
+    );
+    expect(navigate).toHaveBeenCalledWith('/artist/art-1', {
+      state: { returnTo: '/search/advanced?q=rock' },
+    });
+  });
+
   it('skips main scroll reset when All Albums browse restore is pending', () => {
     expect(shouldSkipMainScrollResetOnRouteChange('/albums', { albumBrowseRestore: true })).toBe(true);
-    expect(shouldSkipMainScrollResetOnRouteChange('/search/advanced', { advancedSearchRestore: true })).toBe(false);
     expect(shouldSkipMainScrollResetOnRouteChange('/tracks', null)).toBe(false);
+  });
+
+  it('skips main scroll reset when Advanced Search session restore is pending', () => {
+    expect(shouldSkipMainScrollResetOnRouteChange('/search/advanced', { advancedSearchRestore: true })).toBe(true);
+  });
+
+  it('skips main scroll reset when Advanced Search vertical scroll restore is pending', () => {
+    useAdvancedSearchSessionStore.getState().setLeaveScrollSnapshot({
+      scrollTop: 420,
+      albumRowScrollLeft: 0,
+    });
+    expect(shouldSkipMainScrollResetOnRouteChange('/search/advanced', null)).toBe(true);
   });
 
   it('builds return path with search and hash', () => {
