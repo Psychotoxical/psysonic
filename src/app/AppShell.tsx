@@ -1,6 +1,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ensurePlaybackServerActive } from '../utils/playback/playbackServer';
+import { navigatePathWithAlbumReturnTo } from '../utils/navigation/albumDetailNavigation';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { PanelRight } from 'lucide-react';
@@ -113,12 +114,12 @@ export function AppShell() {
       const detail = (e as CustomEvent).detail;
       if (!detail?.to) return;
       void ensurePlaybackServerActive().then(ok => {
-        if (ok) navigate(detail.to);
+        if (ok) navigatePathWithAlbumReturnTo(navigate, location, detail.to);
       });
     };
     window.addEventListener('psy:navigate', onPsyNavigate);
     return () => window.removeEventListener('psy:navigate', onPsyNavigate);
-  }, [navigate]);
+  }, [navigate, location]);
 
   // Reset scroll position on route change (main viewport is overlay scroll)
   useEffect(() => {

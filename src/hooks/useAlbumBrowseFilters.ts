@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { useNavigationType, type NavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
 import {
   DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
   type AlbumBrowseCompFilter,
@@ -9,12 +9,16 @@ import {
   useAlbumBrowseSessionStore,
 } from '../store/albumBrowseSessionStore';
 import type { AlbumBrowseSort } from '../utils/library/browseTextSearch';
+import { shouldRestoreAlbumBrowseSession } from '../utils/navigation/albumDetailNavigation';
 
 function returnFiltersForNavigation(
   serverId: string,
   navigationType: NavigationType,
+  locationState: unknown,
 ): AlbumBrowseReturnFilters {
-  if (navigationType !== 'POP' || !serverId) return DEFAULT_ALBUM_BROWSE_RETURN_FILTERS;
+  if (!shouldRestoreAlbumBrowseSession(navigationType, locationState) || !serverId) {
+    return DEFAULT_ALBUM_BROWSE_RETURN_FILTERS;
+  }
   return (
     useAlbumBrowseSessionStore.getState().peekReturnStash(serverId)
     ?? DEFAULT_ALBUM_BROWSE_RETURN_FILTERS
@@ -31,29 +35,32 @@ export function useAlbumBrowseFilters(
   scrollSnapshotRef?: RefObject<AlbumBrowseScrollSnapshot>,
 ) {
   const navigationType = useNavigationType();
+  const location = useLocation();
   const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.sortByServer, serverId));
   const setBrowseSort = useAlbumBrowseSessionStore(s => s.setSort);
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>(() =>
-    returnFiltersForNavigation(serverId, navigationType).selectedGenres,
+    returnFiltersForNavigation(serverId, navigationType, location.state).selectedGenres,
   );
   const [yearFrom, setYearFrom] = useState(() =>
-    returnFiltersForNavigation(serverId, navigationType).yearFrom,
+    returnFiltersForNavigation(serverId, navigationType, location.state).yearFrom,
   );
   const [yearTo, setYearTo] = useState(() =>
-    returnFiltersForNavigation(serverId, navigationType).yearTo,
+    returnFiltersForNavigation(serverId, navigationType, location.state).yearTo,
   );
   const [compFilter, setCompFilter] = useState<AlbumBrowseCompFilter>(() =>
-    returnFiltersForNavigation(serverId, navigationType).compFilter,
+    returnFiltersForNavigation(serverId, navigationType, location.state).compFilter,
   );
   const [starredOnly, setStarredOnly] = useState(() =>
-    returnFiltersForNavigation(serverId, navigationType).starredOnly,
+    returnFiltersForNavigation(serverId, navigationType, location.state).starredOnly,
   );
   const [losslessOnly, setLosslessOnly] = useState(() =>
-    returnFiltersForNavigation(serverId, navigationType).losslessOnly,
+    returnFiltersForNavigation(serverId, navigationType, location.state).losslessOnly,
   );
 
   const filtersRef = useRef<AlbumBrowseReturnFilters>(DEFAULT_ALBUM_BROWSE_RETURN_FILTERS);
+  /** Guards against re-reset when `albumBrowseRestore` is cleared from location state. */
+  const restoredFromStashRef = useRef(false);
   filtersRef.current = {
     selectedGenres,
     yearFrom,
@@ -64,9 +71,14 @@ export function useAlbumBrowseFilters(
   };
 
   useEffect(() => {
+    restoredFromStashRef.current = false;
+  }, [serverId]);
+
+  useEffect(() => {
     if (!serverId) return;
 
-    if (navigationType === 'POP') {
+    if (shouldRestoreAlbumBrowseSession(navigationType, location.state)) {
+      restoredFromStashRef.current = true;
       const restored = useAlbumBrowseSessionStore.getState().peekReturnStash(serverId);
       if (restored) {
         setSelectedGenres(restored.selectedGenres);
@@ -79,6 +91,8 @@ export function useAlbumBrowseFilters(
       return;
     }
 
+    if (restoredFromStashRef.current) return;
+
     useAlbumBrowseSessionStore.getState().clearReturnStash(serverId);
     setSelectedGenres([]);
     setYearFrom('');
@@ -86,7 +100,7 @@ export function useAlbumBrowseFilters(
     setCompFilter('all');
     setStarredOnly(false);
     setLosslessOnly(false);
-  }, [serverId, navigationType]);
+  }, [serverId, navigationType, location.state]);
 
   useEffect(() => {
     return () => {

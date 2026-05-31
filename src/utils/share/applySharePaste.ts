@@ -2,10 +2,11 @@ import { getArtist } from '../../api/subsonicArtists';
 import { getAlbum, getSong } from '../../api/subsonicLibrary';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { songToTrack } from '../playback/songToTrack';
-import type { NavigateFunction } from 'react-router-dom';
+import type { Location, NavigateFunction } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
+import { navigateToAlbumDetail } from '../navigation/albumDetailNavigation';
 import { findServerIdForShareUrl, type EntitySharePayloadV1 } from './shareLink';
 import { showToast } from '../ui/toast';
 
@@ -96,6 +97,7 @@ export async function applySharePastePayload(
   payload: EntitySharePayloadV1,
   navigate: NavigateFunction,
   t: TFunction,
+  location?: Pick<Location, 'pathname' | 'search' | 'hash' | 'state'>,
 ): Promise<void> {
   const { servers, isLoggedIn, setActiveServer } = useAuthStore.getState();
   if (!isLoggedIn) {
@@ -134,7 +136,11 @@ export async function applySharePastePayload(
         showToast(t('sharePaste.albumUnavailable'), 5000, 'error');
         return;
       }
-      navigate(`/album/${payload.id}`);
+      if (location) {
+        navigateToAlbumDetail(navigate, location, payload.id);
+      } else {
+        navigate(`/album/${payload.id}`);
+      }
       showToast(t('sharePaste.openedAlbum'), 3000, 'info');
       return;
     }

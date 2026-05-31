@@ -2,6 +2,7 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Play, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
@@ -17,6 +18,7 @@ interface Props {
 
 function SongRow({ song, showBpm }: Props) {
   const navigate = useNavigate();
+  const navigateToAlbum = useNavigateToAlbum();
   const { t } = useTranslation();
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
@@ -103,7 +105,7 @@ function SongRow({ song, showBpm }: Props) {
           <span
             className="track-artist-link"
             style={{ cursor: 'pointer' }}
-            onClick={(e) => { e.stopPropagation(); navigate(`/album/${song.albumId}`); }}
+            onClick={(e) => { e.stopPropagation(); navigateToAlbum(song.albumId!); }}
             title={song.album}
           >{song.album}</span>
         ) : <span title={song.album}>{song.album}</span>}

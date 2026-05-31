@@ -22,6 +22,7 @@ import {
 } from '../utils/library/libraryDevLog';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Search, Disc3, Users, Music, TextSearch, Database, Globe } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -108,6 +109,7 @@ export default function LiveSearch() {
   const localReadyRef = useRef(false);
   const liveSearchGenRef = useRef(0);
   const navigate = useNavigate();
+  const navigateToAlbum = useNavigateToAlbum();
   const enqueue = usePlayerStore(state => state.enqueue);
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const ctxIsOpen = usePlayerStore(state => state.contextMenu.isOpen);
@@ -459,7 +461,7 @@ export default function LiveSearch() {
     },
   ] : results ? [
     ...(results.artists.map(a => ({ id: a.id, action: () => { navigate(`/artist/${a.id}`); setOpen(false); setQuery(''); } }))),
-    ...(results.albums.map(a => ({ id: a.id, action: () => { navigate(`/album/${a.id}`); setOpen(false); setQuery(''); } }))),
+    ...(results.albums.map(a => ({ id: a.id, action: () => { navigateToAlbum(a.id); setOpen(false); setQuery(''); } }))),
    ...(results.songs.map(s => ({ id: s.id, action: () => {
        const track = songToTrack(s);
        enqueue([track]);
@@ -678,7 +680,7 @@ export default function LiveSearch() {
                     const isCtxActive = ctxIsOpen && ctxType === 'album' && ctxItemId === a.id;
                     return (
                       <button key={a.id} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
-                        onClick={() => { navigate(`/album/${a.id}`); setOpen(false); setQuery(''); }}
+                        onClick={() => { navigateToAlbum(a.id); setOpen(false); setQuery(''); }}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           openContextMenu(e.clientX, e.clientY, a, 'album');

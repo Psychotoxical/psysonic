@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import type { EntitySharePayloadV1 } from '../utils/share/shareLink';
@@ -38,6 +38,7 @@ type QueuePastePayload = Extract<EntitySharePayloadV1, { k: 'queue' }>;
 
 export default function PasteClipboardHandler() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const isLoggedIn = useAuthStore(s => s.isLoggedIn);
   const servers = useAuthStore(s => s.servers);
@@ -171,7 +172,7 @@ export default function PasteClipboardHandler() {
           return;
         }
         busy.current = true;
-        void applySharePastePayload(share, navigate, t).finally(() => {
+        void applySharePastePayload(share, navigate, t, location).finally(() => {
           busy.current = false;
         });
         return;

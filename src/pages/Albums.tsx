@@ -14,6 +14,7 @@ import StarFilterButton from '../components/StarFilterButton';
 import LosslessFilterButton from '../components/LosslessFilterButton';
 import SortDropdown from '../components/SortDropdown';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useOfflineStore } from '../store/offlineStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -36,6 +37,7 @@ import { useAlbumBrowseFilters, type AlbumBrowseScrollSnapshot } from '../hooks/
 import { useAlbumBrowseData } from '../hooks/useAlbumBrowseData';
 import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
 import { peekAlbumBrowseScrollRestore } from '../store/albumBrowseSessionStore';
+import { readAlbumBrowseRestore } from '../utils/navigation/albumDetailNavigation';
 import { useAlbumCatalogYearBounds } from '../hooks/useAlbumCatalogYearBounds';
 import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -134,6 +136,13 @@ export default function Albums() {
     hasMore,
     loadMore,
   });
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (isScrollRestorePending || !readAlbumBrowseRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [isScrollRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
 
   const gridMeasureRef = useRef<HTMLDivElement>(null);
   const maxGridCols = useAuthStore(s => clampLibraryGridMaxColumns(s.libraryGridMaxColumns));

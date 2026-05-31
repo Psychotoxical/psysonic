@@ -3,7 +3,8 @@ import type { SearchResults, SubsonicArtist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { navigatePathWithAlbumReturnTo } from '../utils/navigation/albumDetailNavigation';
 import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -89,6 +90,7 @@ function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id'
 export default function MobileSearchOverlay({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const enqueue = usePlayerStore(s => s.enqueue);
 
   const [query, setQuery] = useState('');
@@ -130,7 +132,11 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     if (q.trim()) setRecentSearches(prev => saveRecent(q, prev));
   };
 
-  const goTo = (path: string) => { commit(query); navigate(path); onClose(); };
+  const goTo = (path: string) => {
+    commit(query);
+    navigatePathWithAlbumReturnTo(navigate, location, path);
+    onClose();
+  };
   const goCategory = (path: string) => { navigate(path); onClose(); };
   const enqueueSong = (song: SearchResults['songs'][number]) => {
     commit(query);

@@ -8,6 +8,7 @@ import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { useCoverLightboxSrc } from '../cover/lightbox';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useAlbumDetailBack } from '../hooks/useAlbumDetailBack';
 import { useThemeStore } from '../store/themeStore';
 import StarRating from './StarRating';
 import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
@@ -118,6 +119,7 @@ export default function AlbumHeader({
 }: AlbumHeaderProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const goBack = useAlbumDetailBack();
   const isMobile = useIsMobile();
   const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
 
@@ -160,7 +162,7 @@ export default function AlbumHeader({
         )}
 
         <div className="album-detail-content">
-          <button className="btn btn-ghost album-detail-back" onClick={() => navigate(-1)}>
+          <button className="btn btn-ghost album-detail-back" onClick={goBack}>
             <ChevronLeft size={16} /> {t('albumDetail.back')}
           </button>
           <div className="album-detail-hero">

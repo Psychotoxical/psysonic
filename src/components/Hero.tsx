@@ -2,7 +2,7 @@ import { getRandomAlbums, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Play, ListPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useCoverArt } from '../cover/useCoverArt';
@@ -70,7 +70,7 @@ interface HeroProps {
 export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const navigateToAlbum = useNavigateToAlbum();
   const isMobile = useIsMobile();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const mixMinRatingFilterEnabled = useAuthStore(s => s.mixMinRatingFilterEnabled);
@@ -293,7 +293,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       className="hero"
       role="banner"
       aria-label={t('hero.eyebrow')}
-      onClick={() => navigate(`/album/${album.id}`)}
+      onClick={() => navigateToAlbum(album.id)}
       style={{ cursor: 'pointer' }}
     >
       {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <HeroBg url={stableBgUrl.current} />}

@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { useNavigationType, type NavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
 import {
   peekAlbumBrowseScrollRestore,
   useAlbumBrowseSessionStore,
 } from '../store/albumBrowseSessionStore';
+import { shouldRestoreAlbumBrowseSession } from '../utils/navigation/albumDetailNavigation';
 
 type PendingScroll = {
   scrollTop: number;
@@ -28,8 +29,9 @@ export type UseAlbumBrowseScrollRestoreResult = {
 function readPendingScrollRestore(
   serverId: string,
   navigationType: NavigationType,
+  locationState: unknown,
 ): PendingScroll | null {
-  if (navigationType !== 'POP' || !serverId) return null;
+  if (!shouldRestoreAlbumBrowseSession(navigationType, locationState) || !serverId) return null;
   return peekAlbumBrowseScrollRestore(serverId);
 }
 
@@ -47,17 +49,18 @@ export function useAlbumBrowseScrollRestore({
   loadMore,
 }: UseAlbumBrowseScrollRestoreArgs): UseAlbumBrowseScrollRestoreResult {
   const navigationType = useNavigationType();
+  const location = useLocation();
   const initRef = useRef(false);
   const pendingRef = useRef<PendingScroll | null>(null);
   const doneRef = useRef(false);
 
   if (!initRef.current) {
     initRef.current = true;
-    pendingRef.current = readPendingScrollRestore(serverId, navigationType);
+    pendingRef.current = readPendingScrollRestore(serverId, navigationType, location.state);
   }
 
   const [isScrollRestorePending, setIsScrollRestorePending] = useState(
-    () => readPendingScrollRestore(serverId, navigationType) !== null,
+    () => readPendingScrollRestore(serverId, navigationType, location.state) !== null,
   );
 
   useLayoutEffect(() => {

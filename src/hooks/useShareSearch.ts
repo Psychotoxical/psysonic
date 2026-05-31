@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNavigateToAlbum } from './useNavigateToAlbum';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -16,6 +17,7 @@ import { useShareSearchPreview } from './useShareSearchPreview';
 export function useShareSearch(query: string, onSuccess?: () => void) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const navigateToAlbum = useNavigateToAlbum();
   const servers = useAuthStore(s => s.servers);
   const activeServerId = useAuthStore(s => s.activeServerId);
   const shareMatch = useMemo(() => parseShareSearchText(query), [query]);
@@ -52,9 +54,9 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
   const openShareAlbum = useCallback(() => {
     if (shareMatch?.type !== 'album' || !preview.shareAlbum) return;
     if (!activateShareSearchServer(shareMatch.payload.srv, t)) return;
-    navigate(`/album/${preview.shareAlbum.id}`);
+    navigateToAlbum(preview.shareAlbum.id);
     onSuccess?.();
-  }, [shareMatch, preview.shareAlbum, navigate, t, onSuccess]);
+  }, [shareMatch, preview.shareAlbum, navigateToAlbum, t, onSuccess]);
 
   const openShareArtist = useCallback(() => {
     if (shareMatch?.type !== 'artist' || !preview.shareArtist) return;

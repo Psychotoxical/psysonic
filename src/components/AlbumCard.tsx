@@ -3,6 +3,7 @@ import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
@@ -66,6 +67,7 @@ function AlbumCard({
     onLongPress: () => playAlbumShuffled(album.id),
   });
   const navigate = useNavigate();
+  const navigateToAlbum = useNavigateToAlbum();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
@@ -86,7 +88,7 @@ function AlbumCard({
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
-    navigate(linkQuery ? `/album/${album.id}?${linkQuery}` : `/album/${album.id}`);
+    navigateToAlbum(album.id, { search: linkQuery });
   };
 
   return (
