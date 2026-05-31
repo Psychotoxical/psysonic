@@ -7,6 +7,7 @@ export type AlbumDetailLocationState = {
 
 export type AlbumsBrowseRestoreLocationState = {
   albumBrowseRestore?: boolean;
+  advancedSearchRestore?: boolean;
 };
 
 export function readAlbumDetailReturnTo(state: unknown): string | null {
@@ -20,6 +21,10 @@ export function readAlbumBrowseRestore(state: unknown): boolean {
   return (state as AlbumsBrowseRestoreLocationState | null)?.albumBrowseRestore === true;
 }
 
+export function readAdvancedSearchRestore(state: unknown): boolean {
+  return (state as AlbumsBrowseRestoreLocationState | null)?.advancedSearchRestore === true;
+}
+
 export function buildReturnToFromLocation(
   location: Pick<Location, 'pathname' | 'search' | 'hash'>,
 ): string {
@@ -28,6 +33,17 @@ export function buildReturnToFromLocation(
 
 export function albumBrowseRestoreNavigationState(): AlbumsBrowseRestoreLocationState {
   return { albumBrowseRestore: true };
+}
+
+export function advancedSearchRestoreNavigationState(): AlbumsBrowseRestoreLocationState {
+  return { advancedSearchRestore: true };
+}
+
+export function shouldRestoreAdvancedSearchSession(
+  navigationType: NavigationType,
+  locationState: unknown,
+): boolean {
+  return navigationType === 'POP' || readAdvancedSearchRestore(locationState);
 }
 
 export function shouldRestoreAlbumBrowseSession(
@@ -39,6 +55,16 @@ export function shouldRestoreAlbumBrowseSession(
 
 function isAlbumsBrowseReturnPath(path: string): boolean {
   return path === '/albums' || path.startsWith('/albums?');
+}
+
+function isAdvancedSearchReturnPath(path: string): boolean {
+  return path === '/search/advanced' || path.startsWith('/search/advanced?');
+}
+
+function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocationState | undefined {
+  if (isAlbumsBrowseReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
+  if (isAdvancedSearchReturnPath(returnTo)) return advancedSearchRestoreNavigationState();
+  return undefined;
 }
 
 export function navigateToAlbumDetail(
@@ -79,12 +105,8 @@ export function navigateAlbumDetailBack(
 ): void {
   const returnTo = readAlbumDetailReturnTo(location.state);
   if (returnTo) {
-    navigate(
-      returnTo,
-      isAlbumsBrowseReturnPath(returnTo)
-        ? { state: albumBrowseRestoreNavigationState() }
-        : undefined,
-    );
+    const restoreState = browseReturnRestoreState(returnTo);
+    navigate(returnTo, restoreState ? { state: restoreState } : undefined);
     return;
   }
   if (window.history.length > 1) navigate(-1);

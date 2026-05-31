@@ -3,7 +3,7 @@ import { search, searchSongsPaged } from '../api/subsonicSearch';
 import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicGenre, SubsonicArtist, SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
 import { SlidersVertical, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AlbumRow from '../components/AlbumRow';
@@ -13,6 +13,16 @@ import CustomSelect from '../components/CustomSelect';
 import StarFilterButton from '../components/StarFilterButton';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
+import { isAlbumDetailPath } from '../store/albumBrowseSessionStore';
+import {
+  isAdvancedSearchPath,
+  useAdvancedSearchSessionStore,
+  type AdvancedSearchSessionStash,
+} from '../store/advancedSearchSessionStore';
+import {
+  readAdvancedSearchRestore,
+  shouldRestoreAdvancedSearchSession,
+} from '../utils/navigation/albumDetailNavigation';
 import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearch } from '../utils/library/advancedSearchLocal';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -51,22 +61,37 @@ function parseBpmInput(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function peekAdvancedSearchRestoreStash(
+  navigationType: ReturnType<typeof useNavigationType>,
+  locationState: unknown,
+): AdvancedSearchSessionStash | null {
+  if (!shouldRestoreAdvancedSearchSession(navigationType, locationState)) return null;
+  return useAdvancedSearchSessionStore.getState().peekReturnStash();
+}
+
 export default function AdvancedSearch() {
   const { t } = useTranslation();
+  const navigationType = useNavigationType();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const qFromUrl = params.get('q') ?? '';
-  const [query, setQuery] = useState(params.get('q') ?? '');
-  const [genre, setGenre] = useState('');
-  const [yearFrom, setYearFrom] = useState('');
-  const [yearTo, setYearTo] = useState('');
-  const [bpmFrom, setBpmFrom] = useState('');
-  const [bpmTo, setBpmTo] = useState('');
-  const [moodGroup, setMoodGroup] = useState('');
-  const [losslessOnly, setLosslessOnly] = useState(false);
-  const [resultType, setResultType] = useState<ResultType>('all');
-  const [starredOnly, setStarredOnly] = useState(false);
+  const restoreStash = peekAdvancedSearchRestoreStash(navigationType, location.state);
+  const hadRestoreOnMountRef = useRef(restoreStash != null);
+  const restoredFromStashRef = useRef(restoreStash != null);
+
+  const [query, setQuery] = useState(() => restoreStash?.query ?? qFromUrl);
+  const [genre, setGenre] = useState(() => restoreStash?.genre ?? '');
+  const [yearFrom, setYearFrom] = useState(() => restoreStash?.yearFrom ?? '');
+  const [yearTo, setYearTo] = useState(() => restoreStash?.yearTo ?? '');
+  const [bpmFrom, setBpmFrom] = useState(() => restoreStash?.bpmFrom ?? '');
+  const [bpmTo, setBpmTo] = useState(() => restoreStash?.bpmTo ?? '');
+  const [moodGroup, setMoodGroup] = useState(() => restoreStash?.moodGroup ?? '');
+  const [losslessOnly, setLosslessOnly] = useState(() => restoreStash?.losslessOnly ?? false);
+  const [resultType, setResultType] = useState<ResultType>(() => restoreStash?.resultType ?? 'all');
+  const [starredOnly, setStarredOnly] = useState(() => restoreStash?.starredOnly ?? false);
   const [genres, setGenres] = useState<SubsonicGenre[]>([]);
-  const [results, setResults] = useState<Results | null>(null);
+  const [results, setResults] = useState<Results | null>(() => restoreStash?.results ?? null);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const filteredResults = useMemo<Results | null>(() => {
     if (!results) return null;
@@ -83,11 +108,11 @@ export default function AdvancedSearch() {
     ? filteredResults.artists.length + filteredResults.albums.length + filteredResults.songs.length
     : 0;
   const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [genreNote, setGenreNote] = useState(false);
+  const [hasSearched, setHasSearched] = useState(() => restoreStash?.hasSearched ?? false);
+  const [genreNote, setGenreNote] = useState(() => restoreStash?.genreNote ?? false);
   // True while the current results came from the local index (drives the
   // pagination branch — local pages every result type, network only free-text).
-  const [localMode, setLocalMode] = useState(false);
+  const [localMode, setLocalMode] = useState(() => restoreStash?.localMode ?? false);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
@@ -96,10 +121,49 @@ export default function AdvancedSearch() {
   // Pagination — only the free-text-query branch uses search3 with offset
   const SONGS_INITIAL = 100;
   const SONGS_PAGE_SIZE = 50;
-  const [activeSearch, setActiveSearch] = useState<SearchOpts | null>(null);
-  const [songsServerOffset, setSongsServerOffset] = useState(0);
-  const [songsHasMore, setSongsHasMore] = useState(false);
+  const [activeSearch, setActiveSearch] = useState<SearchOpts | null>(() => restoreStash?.activeSearch ?? null);
+  const [songsServerOffset, setSongsServerOffset] = useState(() => restoreStash?.songsServerOffset ?? 0);
+  const [songsHasMore, setSongsHasMore] = useState(() => restoreStash?.songsHasMore ?? false);
   const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
+
+  const sessionRef = useRef<AdvancedSearchSessionStash>({
+    query: '',
+    genre: '',
+    yearFrom: '',
+    yearTo: '',
+    bpmFrom: '',
+    bpmTo: '',
+    moodGroup: '',
+    losslessOnly: false,
+    resultType: 'all',
+    starredOnly: false,
+    results: null,
+    hasSearched: false,
+    activeSearch: null,
+    localMode: false,
+    songsServerOffset: 0,
+    songsHasMore: false,
+    genreNote: false,
+  });
+  sessionRef.current = {
+    query,
+    genre,
+    yearFrom,
+    yearTo,
+    bpmFrom,
+    bpmTo,
+    moodGroup,
+    losslessOnly,
+    resultType,
+    starredOnly,
+    results,
+    hasSearched,
+    activeSearch,
+    localMode,
+    songsServerOffset,
+    songsHasMore,
+    genreNote,
+  };
 
   const applySongFilters = (
     list: SubsonicSong[],
@@ -302,9 +366,60 @@ export default function AdvancedSearch() {
   };
 
   useEffect(() => {
+    return () => {
+      const path = window.location.pathname;
+      if (isAlbumDetailPath(path)) {
+        useAdvancedSearchSessionStore.getState().stashReturnSession(sessionRef.current);
+      } else if (!isAdvancedSearchPath(path)) {
+        useAdvancedSearchSessionStore.getState().clearReturnStash();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (shouldRestoreAdvancedSearchSession(navigationType, location.state)) {
+      restoredFromStashRef.current = true;
+      const stash = useAdvancedSearchSessionStore.getState().peekReturnStash();
+      if (stash) {
+        setQuery(stash.query);
+        setGenre(stash.genre);
+        setYearFrom(stash.yearFrom);
+        setYearTo(stash.yearTo);
+        setBpmFrom(stash.bpmFrom);
+        setBpmTo(stash.bpmTo);
+        setMoodGroup(stash.moodGroup);
+        setLosslessOnly(stash.losslessOnly);
+        setResultType(stash.resultType);
+        setStarredOnly(stash.starredOnly);
+        setResults(stash.results);
+        setHasSearched(stash.hasSearched);
+        setActiveSearch(stash.activeSearch);
+        setLocalMode(stash.localMode);
+        setSongsServerOffset(stash.songsServerOffset);
+        setSongsHasMore(stash.songsHasMore);
+        setGenreNote(stash.genreNote);
+      }
+      return;
+    }
+    if (restoredFromStashRef.current) return;
+    useAdvancedSearchSessionStore.getState().clearReturnStash();
+  }, [navigationType, location.state]);
+
+  useEffect(() => {
+    if (!hadRestoreOnMountRef.current) return;
+    useAdvancedSearchSessionStore.getState().clearReturnStash();
+  }, []);
+
+  useEffect(() => {
+    if (!readAdvancedSearchRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.hash, location.state, navigate]);
+
+  useEffect(() => {
     getGenres().then(data =>
       setGenres(data.sort((a, b) => a.value.localeCompare(b.value)))
     ).catch(() => {});
+    if (hadRestoreOnMountRef.current) return;
     if (qFromUrl) {
       runSearch({
         query: qFromUrl,

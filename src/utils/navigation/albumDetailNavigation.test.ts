@@ -65,6 +65,14 @@ describe('albumDetailNavigation', () => {
     expect(navigate).toHaveBeenCalledWith('/albums', { state: { albumBrowseRestore: true } });
   });
 
+  it('flags Advanced Search return for session restore', () => {
+    const navigate = vi.fn();
+    navigateAlbumDetailBack(navigate, { state: { returnTo: '/search/advanced?q=rock' } });
+    expect(navigate).toHaveBeenCalledWith('/search/advanced?q=rock', {
+      state: { advancedSearchRestore: true },
+    });
+  });
+
   it('builds return path with search and hash', () => {
     expect(buildReturnToFromLocation({
       pathname: '/tracks',
