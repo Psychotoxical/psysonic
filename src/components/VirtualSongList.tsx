@@ -7,7 +7,7 @@ interface Props {
   emptyBrowseText?: string;
 }
 
-/** @deprecated Use SongBrowseSection via the unified Search/Tracks page. */
+/** @deprecated Use SongBrowseSection via SearchBrowsePage (`/tracks`). */
 export default function VirtualSongList({ title, emptyBrowseText }: Props) {
   const browse = useSongBrowseList({ enabled: true });
 

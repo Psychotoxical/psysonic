@@ -183,7 +183,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Albums and playlist headers redesign with improved layout and theme integration (PR #186)',
       'Tracklist column picker overflow fix in AlbumTrackList (PR #188)',
       'Spotify CSV playlist import (PR #190)',
-      'Context menu for songs in AdvancedSearch and SearchResults (PR #191)',
+      'Context menu for songs in SearchBrowsePage (PR #191)',
       'Tracklist column picker alignment and toggle fix across Favorites and PlaylistDetail (PR #192)',
       'CSV import: dynamic match threshold, cleaned title search, score display in report (PR #199)',
       'Discord Rich Presence: configurable text templates for details, state and album tooltip (PR #198)',

@@ -1,4 +1,4 @@
-/* ─ Shared SongRow (used by Tracks Hub, SearchResults, AdvancedSearch) ─ */
+/* ─ Shared SongRow (used by Tracks hub, SearchBrowsePage) ─ */
 
 .song-list-row {
   display: grid;

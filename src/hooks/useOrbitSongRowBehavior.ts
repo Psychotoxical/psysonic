@@ -12,7 +12,7 @@ import { showToast } from '../utils/ui/toast';
 /**
  * Shared behaviour for song rows that in "normal mode" swallow a full list
  * into the queue on single-click (AlbumDetail, PlaylistDetail, Favorites,
- * ArtistDetail top-songs, SearchResults, RandomMix, AdvancedSearch).
+ * ArtistDetail top-songs, SearchBrowsePage, RandomMix).
  *
  * In an active Orbit session this is too destructive — the list would
  * propagate to every guest's player. Instead:

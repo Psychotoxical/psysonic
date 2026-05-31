@@ -98,7 +98,8 @@ function peekAdvancedSearchRestoreStash(
   return useAdvancedSearchSessionStore.getState().peekReturnStash();
 }
 
-export default function AdvancedSearch() {
+/** Shared shell for `/search`, `/search/advanced`, and `/tracks` (pathname picks chrome). */
+export default function SearchBrowsePage() {
   const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
   const navigationType = useNavigationType();

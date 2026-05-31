@@ -1,5 +1,5 @@
 //! Advanced Search SQL builder (spec §5.13). PR-5d ships the backend only —
-//! the `AdvancedSearch.tsx` UI wiring stays PR-7 (F2). Cross-server search
+//! the `SearchBrowsePage.tsx` UI wiring stays PR-7 (F2). Cross-server search
 //! (§5.5B) lives in the sibling `cross_server` module.
 //!
 //! The builder turns a `LibraryAdvancedSearchRequest` into one parameterised

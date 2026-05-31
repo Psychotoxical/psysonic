@@ -1,7 +1,7 @@
 /**
  * Advanced Search against the local library index (spec §5.13 / F2).
  *
- * Maps the AdvancedSearch UI inputs to a `library_advanced_search` request and
+ * Maps the SearchBrowsePage filter inputs to a `library_advanced_search` request and
  * the response back to the Subsonic shapes the existing rows render. The sync
  * engine stores each entity's original Subsonic JSON in `rawJson` (ADR-7), so
  * that's preferred verbatim; the flat hot columns are a fallback when a row's
@@ -243,7 +243,7 @@ export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
 }
 
 /**
- * Network search3 path for Advanced Search free-text (mirrors AdvancedSearch.tsx filters).
+ * Network search3 path for Advanced Search free-text (mirrors SearchBrowsePage.tsx filters).
  */
 export async function runNetworkAdvancedTextSearch(
   opts: LocalSearchOpts,

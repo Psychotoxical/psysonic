@@ -7,7 +7,7 @@ interface Props {
   onChange: (next: boolean) => void;
   /** 'default' = icon + label, regular padding (Albums toolbar).
    *  'compact' = icon-only, 0.5rem padding (Artists view-mode buttons).
-   *  'small'   = icon + label, 4px/14px padding + 12px text (AdvancedSearch tabs). */
+   *  'small'   = icon + label, 4px/14px padding + 12px text (SearchBrowsePage tabs). */
   size?: 'default' | 'compact' | 'small';
 }
 

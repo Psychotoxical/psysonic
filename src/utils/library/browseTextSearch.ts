@@ -1,5 +1,5 @@
 /**
- * Browse-page text search — local index vs network race (LiveSearch / AdvancedSearch pattern).
+ * Browse-page text search — local index vs network race (LiveSearch / SearchBrowsePage pattern).
  */
 import { getStarred } from '../../api/subsonicStarRating';
 import { search, searchSongsPaged } from '../../api/subsonicSearch';
