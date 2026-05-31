@@ -4,7 +4,7 @@ import { getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicGenre, SubsonicArtist, SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
-import { SlidersVertical, X } from 'lucide-react';
+import { SlidersVertical, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AlbumRow from '../components/AlbumRow';
 import ArtistRow from '../components/ArtistRow';
@@ -17,6 +17,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { isAdvancedSearchLeaveTargetPath } from '../store/albumBrowseSessionStore';
 import {
   isAdvancedSearchPath,
+  isAdvancedSearchPanelPath,
   useAdvancedSearchSessionStore,
   type AdvancedSearchSessionStash,
 } from '../store/advancedSearchSessionStore';
@@ -45,6 +46,13 @@ import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 import { OXIMEDIA_MOOD_SEARCH_ENABLED } from '../utils/library/trackEnrichment';
 import { raceSearchSources } from '../utils/library/searchRace';
 import { logLibrarySearch } from '../utils/library/libraryDevLog';
+import {
+  browseRaceCountsFullSearch,
+  loadMoreLocalBrowseSongs,
+  raceBrowseWithLocalFallback,
+  runLocalBrowseFullSearch,
+  runNetworkBrowseFullSearch,
+} from '../utils/library/browseTextSearch';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { MOOD_GROUP_IDS } from '../config/moodGroups';
 
@@ -92,6 +100,7 @@ export default function AdvancedSearch() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const qFromUrl = params.get('q') ?? '';
+  const showAdvancedPanel = isAdvancedSearchPanelPath(location.pathname);
   const restoreStash = peekAdvancedSearchRestoreStash(navigationType, location.state);
   const hadRestoreOnMountRef = useRef(restoreStash != null);
   const restoredFromStashRef = useRef(restoreStash != null);
@@ -129,12 +138,17 @@ export default function AdvancedSearch() {
   // True while the current results came from the local index (drives the
   // pagination branch — local pages every result type, network only free-text).
   const [localMode, setLocalMode] = useState(() => restoreStash?.localMode ?? false);
+  const [basicSearchMode, setBasicSearchMode] = useState(
+    () => restoreStash?.basicSearchMode ?? !showAdvancedPanel,
+  );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const searchRunRef = useRef(0);
 
-  // Pagination — only the free-text-query branch uses search3 with offset
+  // Pagination — basic quick search uses smaller pages than advanced form search.
+  const BASIC_SONGS_INITIAL = 50;
+  const BASIC_SONGS_PAGE_SIZE = 50;
   const SONGS_INITIAL = 100;
   const SONGS_PAGE_SIZE = 50;
   const [activeSearch, setActiveSearch] = useState<SearchOpts | null>(() => restoreStash?.activeSearch ?? null);
@@ -189,6 +203,7 @@ export default function AdvancedSearch() {
     songsServerOffset: 0,
     songsHasMore: false,
     genreNote: false,
+    basicSearchMode: false,
   });
   sessionRef.current = {
     query,
@@ -208,6 +223,7 @@ export default function AdvancedSearch() {
     songsServerOffset,
     songsHasMore,
     genreNote,
+    basicSearchMode,
   };
 
   useEffect(() => {
@@ -253,6 +269,76 @@ export default function AdvancedSearch() {
     return r;
   };
 
+  const runBasicSearch = async (rawQuery: string) => {
+    const q = rawQuery.trim();
+    const runId = ++searchRunRef.current;
+    const isStale = () => runId !== searchRunRef.current;
+
+    setLoading(true);
+    setHasSearched(true);
+    setGenreNote(false);
+    setBasicSearchMode(true);
+    setQuery(q);
+    setActiveSearch({
+      query: q,
+      genre: '',
+      yearFrom: '',
+      yearTo: '',
+      bpmFrom: '',
+      bpmTo: '',
+      moodGroup: '',
+      losslessOnly: false,
+      resultType: 'all',
+    });
+    setSongsServerOffset(0);
+    setSongsHasMore(false);
+    setLocalMode(false);
+
+    if (!q) {
+      setResults(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (serverId && indexEnabled) {
+        const outcome = await raceBrowseWithLocalFallback(
+          isStale,
+          () => runLocalBrowseFullSearch(serverId, q, BASIC_SONGS_INITIAL),
+          () => runNetworkBrowseFullSearch(q, BASIC_SONGS_INITIAL),
+          {
+            surface: 'search_results',
+            query: q,
+            indexEnabled,
+            counts: browseRaceCountsFullSearch,
+          },
+        );
+        if (isStale()) return;
+        if (outcome) {
+          setResults(outcome.result);
+          setSongsServerOffset(outcome.result.songs.length);
+          setSongsHasMore(outcome.result.songs.length >= BASIC_SONGS_INITIAL);
+          setLocalMode(outcome.source === 'local');
+          return;
+        }
+      }
+
+      const network = await runNetworkBrowseFullSearch(q, BASIC_SONGS_INITIAL);
+      if (isStale()) return;
+      if (network) {
+        setResults(network);
+        setSongsServerOffset(network.songs.length);
+        setSongsHasMore(network.songs.length >= BASIC_SONGS_INITIAL);
+      } else {
+        setResults({ artists: [], albums: [], songs: [] });
+      }
+    } catch {
+      if (!isStale()) setResults(null);
+    } finally {
+      if (!isStale()) setLoading(false);
+    }
+  };
+
   const runSearch = async (opts: SearchOpts) => {
     const runId = ++searchRunRef.current;
     const isStale = () => runId !== searchRunRef.current;
@@ -260,6 +346,7 @@ export default function AdvancedSearch() {
     setLoading(true);
     setHasSearched(true);
     setGenreNote(false);
+    setBasicSearchMode(false);
     setActiveSearch(opts);
     setSongsServerOffset(0);
     setSongsHasMore(false);
@@ -475,6 +562,7 @@ export default function AdvancedSearch() {
         setSongsServerOffset(stash.songsServerOffset);
         setSongsHasMore(stash.songsHasMore);
         setGenreNote(stash.genreNote);
+        setBasicSearchMode(stash.basicSearchMode);
       }
       if (!leaveSnapshotRef.current) {
         useAdvancedSearchSessionStore.getState().clearReturnStash();
@@ -513,10 +601,21 @@ export default function AdvancedSearch() {
     getGenres().then(data =>
       setGenres(data.sort((a, b) => a.value.localeCompare(b.value)))
     ).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (hadRestoreOnMountRef.current) return;
-    if (qFromUrl) {
+    const q = qFromUrl.trim();
+    if (!q) {
+      if (!showAdvancedPanel) {
+        setResults(null);
+        setHasSearched(false);
+      }
+      return;
+    }
+    if (showAdvancedPanel) {
       runSearch({
-        query: qFromUrl,
+        query: q,
         genre: '',
         yearFrom: '',
         yearTo: '',
@@ -526,11 +625,32 @@ export default function AdvancedSearch() {
         losslessOnly: false,
         resultType: 'all',
       });
+    } else {
+      void runBasicSearch(q);
     }
-  }, [musicLibraryFilterVersion, qFromUrl]);
+  }, [musicLibraryFilterVersion, qFromUrl, showAdvancedPanel, serverId, indexEnabled]);
 
   const loadMoreSongs = useCallback(async () => {
     if (loadingMoreSongs || !songsHasMore || !activeSearch) return;
+
+    if (basicSearchMode) {
+      const q = activeSearch.query.trim();
+      if (!q) return;
+      setLoadingMoreSongs(true);
+      try {
+        const page = localMode && serverId
+          ? await loadMoreLocalBrowseSongs(serverId, q, songsServerOffset, BASIC_SONGS_PAGE_SIZE)
+          : await searchSongsPaged(q, BASIC_SONGS_PAGE_SIZE, songsServerOffset);
+        setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...page] } : prev);
+        setSongsServerOffset(o => o + page.length);
+        if (page.length < BASIC_SONGS_PAGE_SIZE) setSongsHasMore(false);
+      } catch {
+        setSongsHasMore(false);
+      } finally {
+        setLoadingMoreSongs(false);
+      }
+      return;
+    }
 
     // Local mode pages every result type (genre/year too), not just free-text.
     if (localMode) {
@@ -577,7 +697,7 @@ export default function AdvancedSearch() {
     } finally {
       setLoadingMoreSongs(false);
     }
-  }, [loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset, localMode, serverId]);
+  }, [loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset, localMode, serverId, basicSearchMode]);
 
   const trackFilterActive =
     (MOOD_UI_ENABLED && !!moodGroup) || !!(bpmFrom || bpmTo);
@@ -638,11 +758,22 @@ export default function AdvancedSearch() {
       <div>
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <SlidersVertical size={22} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-          {t('search.advanced')}
+          {showAdvancedPanel ? (
+            <>
+              <SlidersVertical size={22} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              {t('search.advanced')}
+            </>
+          ) : (
+            <>
+              <Search size={22} />
+              {query.trim() ? t('search.resultsFor', { query }) : t('search.title')}
+            </>
+          )}
         </h1>
       </div>
 
+      {showAdvancedPanel && (
+      <>
       {/* ── Filter panel ──────────────────────────────────────── */}
       <form onSubmit={handleSubmit}>
         <div className="settings-card" style={{ padding: '1.25rem', marginBottom: '2rem' }}>
@@ -837,9 +968,11 @@ export default function AdvancedSearch() {
           </div>
         </div>
       </form>
+      </>
+      )}
 
       {/* ── Results ───────────────────────────────────────────── */}
-      {!hasSearched ? (
+      {showAdvancedPanel && !hasSearched ? (
         <div className="empty-state" style={{ opacity: 0.6 }}>
           {t('search.advancedEmpty')}
         </div>
@@ -848,14 +981,22 @@ export default function AdvancedSearch() {
           <div className="spinner" />
         </div>
       ) : total === 0 ? (
-        <div className="empty-state">{t('search.advancedNoResults')}</div>
+        <div className="empty-state">
+          {basicSearchMode && query.trim()
+            ? t('search.noResults', { query })
+            : t('search.advancedNoResults')}
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
 
           {filteredResults && filteredResults.artists.length > 0 && (
             <div data-advanced-search-artist-row>
             <ArtistRow
-              title={`${t('search.artists')} (${filteredResults.artists.length})`}
+              title={
+                basicSearchMode
+                  ? t('search.artists')
+                  : `${t('search.artists')} (${filteredResults.artists.length})`
+              }
               artists={filteredResults.artists}
               artistLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
               restoreScrollLeft={
@@ -873,7 +1014,11 @@ export default function AdvancedSearch() {
           {filteredResults && filteredResults.albums.length > 0 && (
             <div data-advanced-search-album-row>
             <AlbumRow
-              title={`${t('search.albums')} (${filteredResults.albums.length})`}
+              title={
+                basicSearchMode
+                  ? t('search.albums')
+                  : `${t('search.albums')} (${filteredResults.albums.length})`
+              }
               albums={filteredResults.albums}
               albumLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
               windowArtworkByViewport
@@ -913,6 +1058,20 @@ export default function AdvancedSearch() {
       )}
       </div>
       </div>
+      {isLeaveRestorePending && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <div className="spinner" />
+        </div>
+      )}
     </div>
   );
 }

@@ -20,7 +20,6 @@ const MostPlayed = lazy(() => import('../pages/MostPlayed'));
 const LosslessAlbums = lazy(() => import('../pages/LosslessAlbums'));
 const RandomAlbums = lazy(() => import('../pages/RandomAlbums'));
 const LuckyMixPage = lazy(() => import('../pages/LuckyMix'));
-const SearchResults = lazy(() => import('../pages/SearchResults'));
 const Playlists = lazy(() => import('../pages/Playlists'));
 const PlaylistDetail = lazy(() => import('../pages/PlaylistDetail'));
 const NowPlayingPage = lazy(() => import('../pages/NowPlaying'));
@@ -63,7 +62,7 @@ export default function AppRoutes() {
       <Route path="/random/mix" element={<RandomMix />} />
       <Route path="/lucky-mix" element={<LuckyMixPage />} />
       <Route path="/label/:name" element={<LabelAlbums />} />
-      <Route path="/search" element={<SearchResults />} />
+      <Route path="/search" element={<AdvancedSearch />} />
       <Route path="/search/advanced" element={<AdvancedSearch />} />
       <Route path="/statistics" element={<Statistics />} />
       <Route path="/player-stats" element={<Statistics />} />

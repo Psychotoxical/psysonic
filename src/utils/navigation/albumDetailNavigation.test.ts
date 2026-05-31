@@ -93,6 +93,19 @@ describe('albumDetailNavigation', () => {
     });
   });
 
+  it('flags Search return for session restore (basic and advanced paths)', () => {
+    const navigate = vi.fn();
+    navigateAlbumDetailBack(navigate, { state: { returnTo: '/search?q=rock' } });
+    expect(navigate).toHaveBeenCalledWith('/search?q=rock', {
+      state: { advancedSearchRestore: true },
+    });
+    navigate.mockClear();
+    navigateAlbumDetailBack(navigate, { state: { returnTo: '/search/advanced?q=rock' } });
+    expect(navigate).toHaveBeenCalledWith('/search/advanced?q=rock', {
+      state: { advancedSearchRestore: true },
+    });
+  });
+
   it('navigates to artist with returnTo snapshot from Advanced Search', () => {
     const navigate = vi.fn();
     navigateToArtistDetail(
@@ -116,6 +129,10 @@ describe('albumDetailNavigation', () => {
 
   it('skips main scroll reset when Advanced Search session restore is pending', () => {
     expect(shouldSkipMainScrollResetOnRouteChange('/search/advanced', { advancedSearchRestore: true })).toBe(true);
+  });
+
+  it('skips main scroll reset when Search session restore is pending', () => {
+    expect(shouldSkipMainScrollResetOnRouteChange('/search', { advancedSearchRestore: true })).toBe(true);
   });
 
   it('skips main scroll reset when Advanced Search vertical scroll restore is pending', () => {

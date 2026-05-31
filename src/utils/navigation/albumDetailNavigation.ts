@@ -101,8 +101,9 @@ function isAlbumsBrowseReturnPath(path: string): boolean {
   return path === '/albums' || path.startsWith('/albums?');
 }
 
-function isAdvancedSearchReturnPath(path: string): boolean {
-  return path === '/search/advanced' || path.startsWith('/search/advanced?');
+function isSearchReturnPath(path: string): boolean {
+  return path === '/search' || path.startsWith('/search?')
+    || path === '/search/advanced' || path.startsWith('/search/advanced?');
 }
 
 function isArtistsBrowseReturnPath(path: string): boolean {
@@ -112,7 +113,7 @@ function isArtistsBrowseReturnPath(path: string): boolean {
 function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocationState | undefined {
   if (isAlbumsBrowseReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
   if (isArtistsBrowseReturnPath(returnTo)) return artistBrowseRestoreNavigationState();
-  if (isAdvancedSearchReturnPath(returnTo)) return advancedSearchRestoreNavigationState();
+  if (isSearchReturnPath(returnTo)) return advancedSearchRestoreNavigationState();
   return undefined;
 }
 
@@ -124,7 +125,7 @@ function buildReturnTo(
   return onDetail && existing ? existing : buildReturnToFromLocation(location);
 }
 
-function saveAdvancedSearchLeaveIfNeeded(
+function saveSearchLeaveIfNeeded(
   location: Pick<Location, 'pathname' | 'search' | 'hash'>,
 ): void {
   if (isAdvancedSearchPath(location.pathname)) {
@@ -138,7 +139,7 @@ export function navigateToAlbumDetail(
   albumId: string,
   opts?: { search?: string },
 ): void {
-  saveAdvancedSearchLeaveIfNeeded(location);
+  saveSearchLeaveIfNeeded(location);
   const returnTo = buildReturnTo(location);
   const raw = opts?.search ?? '';
   const qs = raw ? (raw.startsWith('?') ? raw : `?${raw}`) : '';
@@ -151,7 +152,7 @@ export function navigateToArtistDetail(
   artistId: string,
   opts?: { search?: string },
 ): void {
-  saveAdvancedSearchLeaveIfNeeded(location);
+  saveSearchLeaveIfNeeded(location);
   const returnTo = buildReturnTo(location);
   const raw = opts?.search ?? '';
   const qs = raw ? (raw.startsWith('?') ? raw : `?${raw}`) : '';

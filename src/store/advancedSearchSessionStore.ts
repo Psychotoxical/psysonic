@@ -25,7 +25,7 @@ export type AdvancedSearchResultsStash = {
   songs: SubsonicSong[];
 };
 
-/** Session snapshot when leaving Advanced Search → album/artist detail. */
+/** Session snapshot when leaving Search → album/artist detail. */
 export type AdvancedSearchSessionStash = AdvancedSearchFormStash & {
   results: AdvancedSearchResultsStash | null;
   hasSearched: boolean;
@@ -34,6 +34,8 @@ export type AdvancedSearchSessionStash = AdvancedSearchFormStash & {
   songsServerOffset: number;
   songsHasMore: boolean;
   genreNote: boolean;
+  /** `/search?q=` quick results (no advanced filter panel). */
+  basicSearchMode: boolean;
   scrollTop?: number;
   albumRowScrollLeft?: number;
   artistRowScrollLeft?: number;
@@ -112,7 +114,12 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
   },
 }));
 
-/** True when pathname is Advanced Search (`/search/advanced`). */
+/** True when pathname is the unified search page (`/search` or `/search/advanced`). */
 export function isAdvancedSearchPath(pathname: string): boolean {
+  return pathname === '/search' || pathname === '/search/advanced';
+}
+
+/** True when the advanced filter panel should be shown. */
+export function isAdvancedSearchPanelPath(pathname: string): boolean {
   return pathname === '/search/advanced';
 }

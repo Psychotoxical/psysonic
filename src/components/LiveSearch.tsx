@@ -163,6 +163,20 @@ export default function LiveSearch() {
     setSearchSource(null);
   }, []);
 
+  /** Leave live search for a full-page route — cancel in-flight queries and reset overlay state. */
+  const leaveLiveSearchFor = useCallback((path: string) => {
+    liveSearchGenRef.current += 1;
+    setOpen(false);
+    setQuery('');
+    setResults(null);
+    setSearchSource(null);
+    setActiveIndex(-1);
+    setLoading(false);
+    setIsFocused(false);
+    inputRef.current?.blur();
+    navigate(path);
+  }, [navigate]);
+
   const share = useShareSearch(query, closeSearch);
 
   useEffect(() => {
@@ -488,7 +502,10 @@ export default function LiveSearch() {
       return;
     }
     if (!open || !flatItems.length) {
-      if (e.key === 'Enter' && query.trim()) { setOpen(false); navigate(`/search?q=${encodeURIComponent(query.trim())}`); }
+      if (e.key === 'Enter' && query.trim()) {
+        e.preventDefault();
+        leaveLiveSearchFor(`/search?q=${encodeURIComponent(query.trim())}`);
+      }
       return;
     }
     if (e.key === 'ArrowDown') {
@@ -504,7 +521,9 @@ export default function LiveSearch() {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (activeIndex >= 0) { flatItems[activeIndex].action(); setActiveIndex(-1); }
-      else if (query.trim()) { setOpen(false); navigate(`/search?q=${encodeURIComponent(query.trim())}`); }
+      else if (query.trim()) {
+        leaveLiveSearchFor(`/search?q=${encodeURIComponent(query.trim())}`);
+      }
     } else if (e.key === 'Escape') {
       setOpen(false); setActiveIndex(-1);
     }
@@ -576,7 +595,10 @@ export default function LiveSearch() {
             // remain active long enough for this button click to fire.
             e.preventDefault();
           }}
-          onClick={() => navigate(query.trim() ? `/search/advanced?q=${encodeURIComponent(query.trim())}` : '/search/advanced')}
+          onClick={() => {
+            const q = query.trim();
+            leaveLiveSearchFor(q ? `/search/advanced?q=${encodeURIComponent(q)}` : '/search/advanced');
+          }}
           data-tooltip={t('search.advanced')}
           data-tooltip-pos="bottom"
           aria-label={t('search.advanced')}
