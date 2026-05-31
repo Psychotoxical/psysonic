@@ -106,6 +106,8 @@ describe('advancedSearchScrollSnapshot', () => {
       songsHasMore: false,
       genreNote: false,
       basicSearchMode: false,
+      tracksBrowseMode: false,
+      tracksBrowseUnsupported: false,
       scrollTop: 50,
       albumRowScrollLeft: 20,
       artistRowScrollLeft: 15,
@@ -137,6 +139,7 @@ describe('advancedSearchScrollSnapshot', () => {
       songsHasMore: false,
       genreNote: false,
       basicSearchMode: false,
+      tracksBrowseMode: false,
     }));
 
     saveAdvancedSearchLeaveSnapshot();

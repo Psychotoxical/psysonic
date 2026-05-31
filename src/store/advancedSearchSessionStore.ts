@@ -36,6 +36,9 @@ export type AdvancedSearchSessionStash = AdvancedSearchFormStash & {
   genreNote: boolean;
   /** `/search?q=` quick results (no advanced filter panel). */
   basicSearchMode: boolean;
+  /** `/tracks` hub — browse-all list with toolbar filter. */
+  tracksBrowseMode: boolean;
+  tracksBrowseUnsupported?: boolean;
   scrollTop?: number;
   albumRowScrollLeft?: number;
   artistRowScrollLeft?: number;
@@ -114,9 +117,14 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
   },
 }));
 
-/** True when pathname is the unified search page (`/search` or `/search/advanced`). */
+/** True when pathname is the unified search page (`/search`, `/search/advanced`, or `/tracks`). */
 export function isAdvancedSearchPath(pathname: string): boolean {
-  return pathname === '/search' || pathname === '/search/advanced';
+  return pathname === '/search' || pathname === '/search/advanced' || pathname === '/tracks';
+}
+
+/** True when pathname is the Tracks hub (`/tracks`). */
+export function isTracksBrowsePath(pathname: string): boolean {
+  return pathname === '/tracks';
 }
 
 /** True when the advanced filter panel should be shown. */

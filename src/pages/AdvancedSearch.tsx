@@ -18,6 +18,7 @@ import { isAdvancedSearchLeaveTargetPath } from '../store/albumBrowseSessionStor
 import {
   isAdvancedSearchPath,
   isAdvancedSearchPanelPath,
+  isTracksBrowsePath,
   useAdvancedSearchSessionStore,
   type AdvancedSearchSessionStash,
 } from '../store/advancedSearchSessionStore';
@@ -55,6 +56,10 @@ import {
 } from '../utils/library/browseTextSearch';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { MOOD_GROUP_IDS } from '../config/moodGroups';
+import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { useSongBrowseList, type SongBrowseListRestore } from '../hooks/useSongBrowseList';
+import TracksPageChrome from '../components/tracks/TracksPageChrome';
+import SongBrowseSection from '../components/tracks/SongBrowseSection';
 
 const MOOD_UI_ENABLED = OXIMEDIA_MOOD_SEARCH_ENABLED;
 
@@ -94,12 +99,14 @@ function peekAdvancedSearchRestoreStash(
 }
 
 export default function AdvancedSearch() {
+  const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
   const navigationType = useNavigationType();
   const location = useLocation();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const qFromUrl = params.get('q') ?? '';
+  const showTracksChrome = isTracksBrowsePath(location.pathname);
   const showAdvancedPanel = isAdvancedSearchPanelPath(location.pathname);
   const restoreStash = peekAdvancedSearchRestoreStash(navigationType, location.state);
   const hadRestoreOnMountRef = useRef(restoreStash != null);
@@ -139,7 +146,7 @@ export default function AdvancedSearch() {
   // pagination branch — local pages every result type, network only free-text).
   const [localMode, setLocalMode] = useState(() => restoreStash?.localMode ?? false);
   const [basicSearchMode, setBasicSearchMode] = useState(
-    () => restoreStash?.basicSearchMode ?? !showAdvancedPanel,
+    () => restoreStash?.basicSearchMode ?? (!showAdvancedPanel && !showTracksChrome),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
@@ -156,6 +163,24 @@ export default function AdvancedSearch() {
   const [songsHasMore, setSongsHasMore] = useState(() => restoreStash?.songsHasMore ?? false);
   const [loadingMoreSongs, setLoadingMoreSongs] = useState(false);
 
+  const songBrowseInitialRestore: SongBrowseListRestore | null =
+    restoreStash && showTracksChrome
+      ? {
+          query: restoreStash.query,
+          songs: restoreStash.results?.songs ?? [],
+          offset: restoreStash.songsServerOffset,
+          hasMore: restoreStash.songsHasMore,
+          localSearchMode: restoreStash.localMode,
+          browseUnsupported: restoreStash.tracksBrowseUnsupported ?? false,
+          hasSearched: restoreStash.hasSearched,
+        }
+      : null;
+
+  const songBrowse = useSongBrowseList({
+    enabled: showTracksChrome,
+    initialRestore: songBrowseInitialRestore,
+  });
+
   const restoringSession =
     shouldRestoreAdvancedSearchSession(navigationType, location.state) || restoreStash != null;
   const leaveSnapshotRef = useRef<AdvancedSearchLeaveSnapshot | null>(
@@ -170,9 +195,16 @@ export default function AdvancedSearch() {
   const skipSearchAutoFocusRef = useRef(restoreStash != null);
   const skipEnterAnimationRef = useRef(restoreStash != null || leaveSnapshotRef.current != null);
   const leaveRestoreUiFinishedRef = useRef(leaveSnapshotRef.current == null);
+  const [tracksChromeLayoutReady, setTracksChromeLayoutReady] = useState(
+    () => !showTracksChrome || leaveSnapshotRef.current == null,
+  );
   const [isLeaveRestorePending, setIsLeaveRestorePending] = useState(
     () => leaveSnapshotRef.current != null,
   );
+
+  const handleTracksChromeLayoutReady = useCallback(() => {
+    setTracksChromeLayoutReady(true);
+  }, []);
 
   const finishLeaveRestoreUi = useCallback(() => {
     if (leaveRestoreUiFinishedRef.current) return;
@@ -204,9 +236,11 @@ export default function AdvancedSearch() {
     songsHasMore: false,
     genreNote: false,
     basicSearchMode: false,
+    tracksBrowseMode: false,
+    tracksBrowseUnsupported: false,
   });
   sessionRef.current = {
-    query,
+    query: showTracksChrome ? songBrowse.query : query,
     genre,
     yearFrom,
     yearTo,
@@ -216,14 +250,18 @@ export default function AdvancedSearch() {
     losslessOnly,
     resultType,
     starredOnly,
-    results,
-    hasSearched,
+    results: showTracksChrome
+      ? { artists: [], albums: [], songs: songBrowse.songs }
+      : results,
+    hasSearched: showTracksChrome ? songBrowse.hasSearched : hasSearched,
     activeSearch,
-    localMode,
-    songsServerOffset,
-    songsHasMore,
+    localMode: showTracksChrome ? songBrowse.localSearchMode : localMode,
+    songsServerOffset: showTracksChrome ? songBrowse.offset : songsServerOffset,
+    songsHasMore: showTracksChrome ? songBrowse.hasMore : songsHasMore,
     genreNote,
-    basicSearchMode,
+    basicSearchMode: showTracksChrome ? false : basicSearchMode,
+    tracksBrowseMode: showTracksChrome,
+    tracksBrowseUnsupported: showTracksChrome ? songBrowse.browseUnsupported : false,
   };
 
   useEffect(() => {
@@ -573,23 +611,19 @@ export default function AdvancedSearch() {
     useAdvancedSearchSessionStore.getState().clearReturnStash();
   }, [navigationType, location.state]);
 
-  const leaveRestoreContentReady =
-    (hadRestoreOnMountRef.current && results !== null) || (hasSearched && !loading);
+  const leaveRestoreContentReady = showTracksChrome
+    ? tracksChromeLayoutReady
+      && ((hadRestoreOnMountRef.current && songBrowse.hasSearched) || (songBrowse.hasSearched && !songBrowse.loading))
+    : ((hadRestoreOnMountRef.current && results !== null) || (hasSearched && !loading));
 
   useLayoutEffect(() => {
     if (!leaveRestoreContentReady || leaveRestoreUiFinishedRef.current) return;
     const target = scrollTopRestoreTargetRef.current;
-    const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
-    if (el && target > 0) {
-      const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-      el.scrollTop = Math.min(Math.max(0, target), maxScroll);
+    if (target <= 0) {
+      finishLeaveRestoreUi();
+      return;
     }
-    finishLeaveRestoreUi();
-
-    if (!el || target <= 0) return;
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-    if (target <= maxScroll + 1) return;
-    return restoreMainViewportScroll(target, () => {});
+    return restoreMainViewportScroll(target, finishLeaveRestoreUi);
   }, [leaveRestoreContentReady, finishLeaveRestoreUi]);
 
   useEffect(() => {
@@ -605,6 +639,7 @@ export default function AdvancedSearch() {
 
   useEffect(() => {
     if (hadRestoreOnMountRef.current) return;
+    if (showTracksChrome) return;
     const q = qFromUrl.trim();
     if (!q) {
       if (!showAdvancedPanel) {
@@ -628,7 +663,7 @@ export default function AdvancedSearch() {
     } else {
       void runBasicSearch(q);
     }
-  }, [musicLibraryFilterVersion, qFromUrl, showAdvancedPanel, serverId, indexEnabled]);
+  }, [musicLibraryFilterVersion, qFromUrl, showAdvancedPanel, showTracksChrome, serverId, indexEnabled]);
 
   const loadMoreSongs = useCallback(async () => {
     if (loadingMoreSongs || !songsHasMore || !activeSearch) return;
@@ -750,12 +785,35 @@ export default function AdvancedSearch() {
 
   return (
     <div
-      className={`content-body${skipEnterAnimationRef.current ? '' : ' animate-fade-in'}`}
+      className={`content-body${skipEnterAnimationRef.current ? '' : ' animate-fade-in'}${showTracksChrome ? ' tracks-page' : ''}`}
       style={{ position: 'relative' }}
       data-advanced-search-root
     >
       <div style={{ visibility: isLeaveRestorePending ? 'hidden' : 'visible' }}>
       <div>
+      {showTracksChrome ? (
+        <>
+          <TracksPageChrome
+            onLayoutReady={
+              isLeaveRestorePending && showTracksChrome ? handleTracksChromeLayoutReady : undefined
+            }
+          />
+          {!perfFlags.disableMainstageVirtualLists && (
+            <SongBrowseSection
+              title={t('tracks.browseTitle')}
+              emptyBrowseText={t('tracks.browseUnsupported')}
+              query={songBrowse.query}
+              onQueryChange={songBrowse.setQuery}
+              songs={songBrowse.songs}
+              hasMore={songBrowse.hasMore}
+              loading={songBrowse.loading}
+              browseUnsupported={songBrowse.browseUnsupported}
+              onLoadMore={() => { void songBrowse.loadMore(); }}
+            />
+          )}
+        </>
+      ) : (
+      <>
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {showAdvancedPanel ? (
@@ -1056,6 +1114,9 @@ export default function AdvancedSearch() {
           )}
         </div>
       )}
+      </>
+      )}
+
       </div>
       </div>
       {isLeaveRestorePending && (

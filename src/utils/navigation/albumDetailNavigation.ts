@@ -103,7 +103,8 @@ function isAlbumsBrowseReturnPath(path: string): boolean {
 
 function isSearchReturnPath(path: string): boolean {
   return path === '/search' || path.startsWith('/search?')
-    || path === '/search/advanced' || path.startsWith('/search/advanced?');
+    || path === '/search/advanced' || path.startsWith('/search/advanced?')
+    || path === '/tracks' || path.startsWith('/tracks?');
 }
 
 function isArtistsBrowseReturnPath(path: string): boolean {
