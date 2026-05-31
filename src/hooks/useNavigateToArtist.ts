@@ -7,8 +7,8 @@ export function useNavigateToArtist() {
   const navigate = useNavigate();
   const location = useLocation();
   return useCallback(
-    (artistId: string) => {
-      navigateToArtistDetail(navigate, location, artistId);
+    (artistId: string, opts?: { search?: string }) => {
+      navigateToArtistDetail(navigate, location, artistId, opts);
     },
     [navigate, location],
   );

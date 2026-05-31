@@ -1,5 +1,5 @@
 import type { SubsonicArtist } from '../api/subsonicTypes';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import ArtistCardLocal from './ArtistCardLocal';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -12,22 +12,78 @@ interface Props {
   artistLinkQuery?: string;
   /** Search results: use API coverArt ids only. */
   libraryResolve?: boolean;
+  /** Restored horizontal scroll (e.g. Advanced Search session return). */
+  restoreScrollLeft?: number;
+  /** Parent stashes horizontal scroll when leaving the page. */
+  onScrollLeftSnapshot?: (scrollLeft: number) => void;
 }
 
 export default function ArtistRow({
   title, artists, moreLink, moreText, artistLinkQuery, libraryResolve = false,
+  restoreScrollLeft,
+  onScrollLeftSnapshot,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
+  const scrollRestoreTargetRef = useRef(restoreScrollLeft);
+  const scrollRestoreDoneRef = useRef(false);
+  const rowResetKey = artists[0]?.id ?? '';
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
     setShowLeft(scrollLeft > 0);
     setShowRight(scrollLeft < scrollWidth - clientWidth - 5);
+    onScrollLeftSnapshot?.(scrollLeft);
   };
+
+  useEffect(() => {
+    if (restoreScrollLeft == null || restoreScrollLeft <= 0) return;
+    scrollRestoreTargetRef.current = restoreScrollLeft;
+    scrollRestoreDoneRef.current = false;
+  }, [restoreScrollLeft]);
+
+  useLayoutEffect(() => {
+    if (scrollRestoreDoneRef.current) return;
+    const target = scrollRestoreTargetRef.current;
+    if (target == null || target <= 0) {
+      scrollRestoreDoneRef.current = true;
+      return;
+    }
+
+    let attempts = 0;
+    let cancelled = false;
+
+    const attempt = () => {
+      if (cancelled || scrollRestoreDoneRef.current) return;
+      const el = scrollRef.current;
+      if (!el) {
+        if (++attempts < 12) requestAnimationFrame(attempt);
+        else scrollRestoreDoneRef.current = true;
+        return;
+      }
+
+      const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+      const desired = Math.min(Math.max(0, target), maxScroll);
+      el.scrollLeft = desired;
+      handleScroll();
+
+      const stuck = Math.abs(el.scrollLeft - desired) <= 1;
+      const layoutStillGrowing = desired > el.scrollLeft + 1 && maxScroll < target;
+      if ((!stuck || layoutStillGrowing) && ++attempts < 12) {
+        requestAnimationFrame(attempt);
+        return;
+      }
+      scrollRestoreDoneRef.current = true;
+    };
+
+    attempt();
+    return () => {
+      cancelled = true;
+    };
+  }, [rowResetKey, artists.length]);
 
   useEffect(() => {
     handleScroll();

@@ -30,6 +30,7 @@ describe('advancedSearchScrollSnapshot', () => {
     expect(peekPersistedAdvancedSearchLeaveSnapshot()).toEqual({
       scrollTop: 640,
       albumRowScrollLeft: 0,
+      artistRowScrollLeft: 0,
     });
   });
 
@@ -50,22 +51,41 @@ describe('advancedSearchScrollSnapshot', () => {
     const unregister = registerAdvancedSearchLeaveScrollProvider(() => ({
       scrollTop: 100,
       albumRowScrollLeft: 45,
+      artistRowScrollLeft: 10,
     }));
     expect(readAdvancedSearchLeaveSnapshot()).toEqual({
       scrollTop: 512,
       albumRowScrollLeft: 80,
+      artistRowScrollLeft: 10,
     });
     unregister();
+  });
+
+  it('reads artist row scroll from DOM', () => {
+    const artistGrid = document.createElement('div');
+    artistGrid.className = 'album-grid';
+    Object.defineProperty(artistGrid, 'scrollLeft', { value: 120, writable: true });
+    const row = document.createElement('div');
+    row.setAttribute('data-advanced-search-artist-row', '');
+    row.appendChild(artistGrid);
+    document.body.appendChild(row);
+
+    expect(readAdvancedSearchLeaveSnapshot()).toEqual({
+      scrollTop: 0,
+      albumRowScrollLeft: 0,
+      artistRowScrollLeft: 120,
+    });
   });
 
   it('merges leave snapshot, sessionStorage, and stash scroll fields', () => {
     useAdvancedSearchSessionStore.getState().setLeaveScrollSnapshot({
       scrollTop: 300,
       albumRowScrollLeft: 0,
+      artistRowScrollLeft: 0,
     });
     sessionStorage.setItem(
       'psysonic:advanced-search-leave-v1',
-      JSON.stringify({ scrollTop: 100, albumRowScrollLeft: 80 }),
+      JSON.stringify({ scrollTop: 100, albumRowScrollLeft: 80, artistRowScrollLeft: 55 }),
     );
     expect(resolveAdvancedSearchLeaveSnapshot({
       query: '',
@@ -87,7 +107,8 @@ describe('advancedSearchScrollSnapshot', () => {
       genreNote: false,
       scrollTop: 50,
       albumRowScrollLeft: 20,
-    })).toEqual({ scrollTop: 300, albumRowScrollLeft: 80 });
+      artistRowScrollLeft: 15,
+    })).toEqual({ scrollTop: 300, albumRowScrollLeft: 80, artistRowScrollLeft: 55 });
   });
 
   it('saves session stash together with leave snapshot on navigate away', () => {

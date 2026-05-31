@@ -7,6 +7,7 @@ import {
 export type AdvancedSearchLeaveSnapshot = {
   scrollTop: number;
   albumRowScrollLeft: number;
+  artistRowScrollLeft: number;
 };
 
 const STORAGE_KEY = 'psysonic:advanced-search-leave-v1';
@@ -51,6 +52,11 @@ function readAlbumRowScrollLeftFromDom(): number {
   return albumGrid?.scrollLeft ?? 0;
 }
 
+function readArtistRowScrollLeftFromDom(): number {
+  const artistGrid = document.querySelector<HTMLElement>('[data-advanced-search-artist-row] .album-grid');
+  return artistGrid?.scrollLeft ?? 0;
+}
+
 function readMainScrollTopFromDom(): number {
   return document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTop ?? 0;
 }
@@ -62,6 +68,10 @@ export function readAdvancedSearchLeaveSnapshot(): AdvancedSearchLeaveSnapshot {
     albumRowScrollLeft: Math.max(
       readAlbumRowScrollLeftFromDom(),
       providerSnap?.albumRowScrollLeft ?? 0,
+    ),
+    artistRowScrollLeft: Math.max(
+      readArtistRowScrollLeftFromDom(),
+      providerSnap?.artistRowScrollLeft ?? 0,
     ),
   };
 }
@@ -83,8 +93,11 @@ export function peekPersistedAdvancedSearchLeaveSnapshot(): AdvancedSearchLeaveS
     const albumRowScrollLeft = typeof parsed.albumRowScrollLeft === 'number'
       ? Math.max(0, parsed.albumRowScrollLeft)
       : 0;
-    if (scrollTop <= 0 && albumRowScrollLeft <= 0) return null;
-    return { scrollTop, albumRowScrollLeft };
+    const artistRowScrollLeft = typeof parsed.artistRowScrollLeft === 'number'
+      ? Math.max(0, parsed.artistRowScrollLeft)
+      : 0;
+    if (scrollTop <= 0 && albumRowScrollLeft <= 0 && artistRowScrollLeft <= 0) return null;
+    return { scrollTop, albumRowScrollLeft, artistRowScrollLeft };
   } catch {
     return null;
   }
@@ -109,6 +122,7 @@ export function saveAdvancedSearchLeaveSnapshot(): AdvancedSearchLeaveSnapshot {
       ...session,
       scrollTop: snapshot.scrollTop,
       albumRowScrollLeft: snapshot.albumRowScrollLeft,
+      artistRowScrollLeft: snapshot.artistRowScrollLeft,
     });
   }
   markAdvancedSearchLeavingForDetail();
@@ -136,6 +150,11 @@ export function resolveAdvancedSearchLeaveSnapshot(
     persisted?.albumRowScrollLeft ?? 0,
     stash?.albumRowScrollLeft ?? 0,
   );
-  if (scrollTop <= 0 && albumRowScrollLeft <= 0) return null;
-  return { scrollTop, albumRowScrollLeft };
+  const artistRowScrollLeft = Math.max(
+    leave?.artistRowScrollLeft ?? 0,
+    persisted?.artistRowScrollLeft ?? 0,
+    stash?.artistRowScrollLeft ?? 0,
+  );
+  if (scrollTop <= 0 && albumRowScrollLeft <= 0 && artistRowScrollLeft <= 0) return null;
+  return { scrollTop, albumRowScrollLeft, artistRowScrollLeft };
 }

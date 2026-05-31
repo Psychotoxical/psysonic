@@ -127,10 +127,13 @@ export function navigateToArtistDetail(
   navigate: NavigateFunction,
   location: Pick<Location, 'pathname' | 'search' | 'hash' | 'state'>,
   artistId: string,
+  opts?: { search?: string },
 ): void {
   saveAdvancedSearchLeaveIfNeeded(location);
   const returnTo = buildReturnTo(location);
-  navigate(`/artist/${artistId}`, { state: { returnTo } satisfies AlbumDetailLocationState });
+  const raw = opts?.search ?? '';
+  const qs = raw ? (raw.startsWith('?') ? raw : `?${raw}`) : '';
+  navigate(`/artist/${artistId}${qs}`, { state: { returnTo } satisfies AlbumDetailLocationState });
 }
 
 /** Route any path; album detail links get a `returnTo` snapshot in location state. */

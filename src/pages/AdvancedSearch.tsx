@@ -148,8 +148,11 @@ export default function AdvancedSearch() {
     restoringSession ? resolveAdvancedSearchLeaveSnapshot(restoreStash) : null,
   );
   const scrollTopRestoreTargetRef = useRef(leaveSnapshotRef.current?.scrollTop ?? 0);
+  const albumRowScrollLeftRestoreRef = useRef(leaveSnapshotRef.current?.albumRowScrollLeft ?? 0);
+  const artistRowScrollLeftRestoreRef = useRef(leaveSnapshotRef.current?.artistRowScrollLeft ?? 0);
   const mainScrollTopRef = useRef(0);
   const albumRowScrollLeftRef = useRef(0);
+  const artistRowScrollLeftRef = useRef(0);
   const skipSearchAutoFocusRef = useRef(restoreStash != null);
   const skipEnterAnimationRef = useRef(restoreStash != null || leaveSnapshotRef.current != null);
   const leaveRestoreUiFinishedRef = useRef(leaveSnapshotRef.current == null);
@@ -167,8 +170,6 @@ export default function AdvancedSearch() {
       useAdvancedSearchSessionStore.getState().clearReturnStash();
     }
   }, []);
-
-  const albumRowScrollLeftTarget = leaveSnapshotRef.current?.albumRowScrollLeft;
 
   const sessionRef = useRef<AdvancedSearchSessionStash>({
     query: '',
@@ -213,6 +214,7 @@ export default function AdvancedSearch() {
     const unregisterScroll = registerAdvancedSearchLeaveScrollProvider(() => ({
       scrollTop: mainScrollTopRef.current,
       albumRowScrollLeft: albumRowScrollLeftRef.current,
+      artistRowScrollLeft: artistRowScrollLeftRef.current,
     }));
     const unregisterSession = registerAdvancedSearchSessionProvider(() => sessionRef.current);
     return () => {
@@ -442,6 +444,7 @@ export default function AdvancedSearch() {
           ...sessionRef.current,
           scrollTop: snapshot.scrollTop,
           albumRowScrollLeft: snapshot.albumRowScrollLeft,
+          artistRowScrollLeft: snapshot.artistRowScrollLeft,
         });
       } else if (!isAdvancedSearchPath(path)) {
         useAdvancedSearchSessionStore.getState().clearReturnStash();
@@ -850,11 +853,21 @@ export default function AdvancedSearch() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
 
           {filteredResults && filteredResults.artists.length > 0 && (
+            <div data-advanced-search-artist-row>
             <ArtistRow
               title={`${t('search.artists')} (${filteredResults.artists.length})`}
               artists={filteredResults.artists}
               artistLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
+              restoreScrollLeft={
+                artistRowScrollLeftRestoreRef.current > 0
+                  ? artistRowScrollLeftRestoreRef.current
+                  : undefined
+              }
+              onScrollLeftSnapshot={(left) => {
+                artistRowScrollLeftRef.current = left;
+              }}
             />
+            </div>
           )}
 
           {filteredResults && filteredResults.albums.length > 0 && (
@@ -866,8 +879,8 @@ export default function AdvancedSearch() {
               windowArtworkByViewport
               initialArtworkBudget={12}
               restoreScrollLeft={
-                albumRowScrollLeftTarget && albumRowScrollLeftTarget > 0
-                  ? albumRowScrollLeftTarget
+                albumRowScrollLeftRestoreRef.current > 0
+                  ? albumRowScrollLeftRestoreRef.current
                   : undefined
               }
               onScrollLeftSnapshot={(left) => {

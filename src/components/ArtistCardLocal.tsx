@@ -1,11 +1,11 @@
 import type { SubsonicArtist } from '../api/subsonicTypes';
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useArtistCoverRef } from '../cover/useLibraryCoverRef';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
+import { useNavigateToArtist } from '../hooks/useNavigateToArtist';
 
 interface Props {
   artist: SubsonicArtist;
@@ -17,12 +17,14 @@ interface Props {
 
 export default function ArtistCardLocal({ artist, linkQuery, libraryResolve = false }: Props) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const navigateToArtist = useNavigateToArtist();
   const coverRef = useArtistCoverRef(artist.id, artist.coverArt, undefined, { libraryResolve });
-  const href = linkQuery ? `/artist/${artist.id}?${linkQuery}` : `/artist/${artist.id}`;
 
   return (
-    <div className="artist-card" onClick={() => navigate(href)}>
+    <div
+      className="artist-card"
+      onClick={() => navigateToArtist(artist.id, linkQuery ? { search: linkQuery } : undefined)}
+    >
       <div className="artist-card-avatar">
         {coverRef ? (
           <CoverArtImage

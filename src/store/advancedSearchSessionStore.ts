@@ -36,6 +36,7 @@ export type AdvancedSearchSessionStash = AdvancedSearchFormStash & {
   genreNote: boolean;
   scrollTop?: number;
   albumRowScrollLeft?: number;
+  artistRowScrollLeft?: number;
 };
 
 interface AdvancedSearchSessionStore {
@@ -69,6 +70,9 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
         ...(typeof stash.albumRowScrollLeft === 'number'
           ? { albumRowScrollLeft: stash.albumRowScrollLeft }
           : {}),
+        ...(typeof stash.artistRowScrollLeft === 'number'
+          ? { artistRowScrollLeft: stash.artistRowScrollLeft }
+          : {}),
       },
     });
   },
@@ -100,6 +104,9 @@ export const useAdvancedSearchSessionStore = create<AdvancedSearchSessionStore>(
       ...(typeof stash.scrollTop === 'number' ? { scrollTop: stash.scrollTop } : {}),
       ...(typeof stash.albumRowScrollLeft === 'number'
         ? { albumRowScrollLeft: stash.albumRowScrollLeft }
+        : {}),
+      ...(typeof stash.artistRowScrollLeft === 'number'
+        ? { artistRowScrollLeft: stash.artistRowScrollLeft }
         : {}),
     };
   },

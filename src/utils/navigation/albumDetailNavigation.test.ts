@@ -105,6 +105,7 @@ describe('albumDetailNavigation', () => {
     useAdvancedSearchSessionStore.getState().setLeaveScrollSnapshot({
       scrollTop: 420,
       albumRowScrollLeft: 0,
+      artistRowScrollLeft: 0,
     });
     expect(shouldSkipMainScrollResetOnRouteChange('/search/advanced', null)).toBe(true);
   });
