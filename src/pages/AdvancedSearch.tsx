@@ -1,6 +1,6 @@
 import { getGenres, getAlbumsByGenre } from '../api/subsonicGenres';
 import { search, searchSongsPaged } from '../api/subsonicSearch';
-import { getAlbumList, getRandomSongs } from '../api/subsonicLibrary';
+import { getRandomSongs } from '../api/subsonicLibrary';
 import type { SubsonicGenre, SubsonicArtist, SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
@@ -34,7 +34,12 @@ import {
   type AdvancedSearchLeaveSnapshot,
 } from '../utils/navigation/advancedSearchScrollSnapshot';
 import { restoreMainViewportScroll } from '../utils/navigation/restoreMainViewportScroll';
-import { runLocalAdvancedSearch, loadMoreLocalSongs, runNetworkAdvancedTextSearch } from '../utils/library/advancedSearchLocal';
+import {
+  loadMoreLocalSongs,
+  runNetworkAdvancedTextSearch,
+  runNetworkAdvancedYearAlbums,
+  tryRunLocalAdvancedSearch,
+} from '../utils/library/advancedSearchLocal';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 import { OXIMEDIA_MOOD_SEARCH_ENABLED } from '../utils/library/trackEnrichment';
@@ -145,18 +150,16 @@ export default function AdvancedSearch() {
   const scrollTopRestoreTargetRef = useRef(leaveSnapshotRef.current?.scrollTop ?? 0);
   const mainScrollTopRef = useRef(0);
   const albumRowScrollLeftRef = useRef(0);
-  const mainScrollRestoreDoneRef = useRef(!(leaveSnapshotRef.current?.scrollTop ?? 0));
-  const albumRowRestoreDoneRef = useRef(!(leaveSnapshotRef.current?.albumRowScrollLeft ?? 0));
   const skipSearchAutoFocusRef = useRef(restoreStash != null);
+  const skipEnterAnimationRef = useRef(restoreStash != null || leaveSnapshotRef.current != null);
+  const leaveRestoreUiFinishedRef = useRef(leaveSnapshotRef.current == null);
   const [isLeaveRestorePending, setIsLeaveRestorePending] = useState(
     () => leaveSnapshotRef.current != null,
   );
 
-  const tryFinishLeaveRestore = useCallback(() => {
-    const snap = leaveSnapshotRef.current;
-    if (!snap) return;
-    if (snap.scrollTop > 0 && !mainScrollRestoreDoneRef.current) return;
-    if (snap.albumRowScrollLeft > 0 && !albumRowRestoreDoneRef.current) return;
+  const finishLeaveRestoreUi = useCallback(() => {
+    if (leaveRestoreUiFinishedRef.current) return;
+    leaveRestoreUiFinishedRef.current = true;
     clearAdvancedSearchLeaveSnapshots();
     leaveSnapshotRef.current = null;
     setIsLeaveRestorePending(false);
@@ -164,11 +167,6 @@ export default function AdvancedSearch() {
       useAdvancedSearchSessionStore.getState().clearReturnStash();
     }
   }, []);
-
-  const handleAlbumRowScrollRestoreComplete = useCallback(() => {
-    albumRowRestoreDoneRef.current = true;
-    tryFinishLeaveRestore();
-  }, [tryFinishLeaveRestore]);
 
   const albumRowScrollLeftTarget = leaveSnapshotRef.current?.albumRowScrollLeft;
 
@@ -278,8 +276,7 @@ export default function AdvancedSearch() {
           [
             {
               source: 'local',
-              run: () =>
-                runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL, false, true, true),
+              run: () => tryRunLocalAdvancedSearch(serverId, opts, SONGS_INITIAL, true),
             },
             {
               source: 'network',
@@ -321,7 +318,7 @@ export default function AdvancedSearch() {
       }
       setLocalMode(false);
     } else if (serverId && indexEnabled) {
-      const localPage = await runLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
+      const localPage = await tryRunLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
       if (isStale()) return;
       if (localPage) {
         setResults({
@@ -400,9 +397,9 @@ export default function AdvancedSearch() {
         if (to !== null) albums = albums.filter(a => !a.year || a.year <= to);
         if (songs.length > 0) setGenreNote(true);
       } else if (from !== null || to !== null) {
-        const fromYear = from ?? 1900;
-        const toYear = to ?? new Date().getFullYear();
-        albums = await getAlbumList('byYear', 100, 0, { fromYear, toYear });
+        if (rt !== 'artists' && rt !== 'songs') {
+          albums = await runNetworkAdvancedYearAlbums(opts, 100);
+        }
       }
 
       const finalResults = {
@@ -485,46 +482,29 @@ export default function AdvancedSearch() {
     useAdvancedSearchSessionStore.getState().clearReturnStash();
   }, [navigationType, location.state]);
 
-  const scrollRestoreReady = hasSearched && !loading;
+  const leaveRestoreContentReady =
+    (hadRestoreOnMountRef.current && results !== null) || (hasSearched && !loading);
 
   useLayoutEffect(() => {
-    if (!scrollRestoreReady) return;
+    if (!leaveRestoreContentReady || leaveRestoreUiFinishedRef.current) return;
     const target = scrollTopRestoreTargetRef.current;
-    if (target <= 0) {
-      mainScrollRestoreDoneRef.current = true;
-      tryFinishLeaveRestore();
-      return;
-    }
     const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
-    if (el) {
+    if (el && target > 0) {
       const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
       el.scrollTop = Math.min(Math.max(0, target), maxScroll);
     }
-    mainScrollRestoreDoneRef.current = false;
-    return restoreMainViewportScroll(target, () => {
-      mainScrollRestoreDoneRef.current = true;
-      tryFinishLeaveRestore();
-    });
-  }, [scrollRestoreReady, tryFinishLeaveRestore, total, filteredResults?.songs.length]);
+    finishLeaveRestoreUi();
+
+    if (!el || target <= 0) return;
+    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (target <= maxScroll + 1) return;
+    return restoreMainViewportScroll(target, () => {});
+  }, [leaveRestoreContentReady, finishLeaveRestoreUi]);
 
   useEffect(() => {
     if (isLeaveRestorePending || !readAdvancedSearchRestore(location.state)) return;
     navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
   }, [isLeaveRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
-
-  useEffect(() => {
-    if (!isLeaveRestorePending) return;
-    if (!hasSearched || loading) return;
-    if ((filteredResults?.albums.length ?? 0) > 0) return;
-    albumRowRestoreDoneRef.current = true;
-    tryFinishLeaveRestore();
-  }, [
-    isLeaveRestorePending,
-    hasSearched,
-    loading,
-    filteredResults?.albums.length,
-    tryFinishLeaveRestore,
-  ]);
 
   useEffect(() => {
     getGenres().then(data =>
@@ -646,7 +626,11 @@ export default function AdvancedSearch() {
   );
 
   return (
-    <div className="content-body animate-fade-in" style={{ position: 'relative' }} data-advanced-search-root>
+    <div
+      className={`content-body${skipEnterAnimationRef.current ? '' : ' animate-fade-in'}`}
+      style={{ position: 'relative' }}
+      data-advanced-search-root
+    >
       <div style={{ visibility: isLeaveRestorePending ? 'hidden' : 'visible' }}>
       <div>
       <div style={{ marginBottom: '1.5rem' }}>
@@ -889,7 +873,6 @@ export default function AdvancedSearch() {
               onScrollLeftSnapshot={(left) => {
                 albumRowScrollLeftRef.current = left;
               }}
-              onScrollRestoreComplete={handleAlbumRowScrollRestoreComplete}
             />
             </div>
           )}
@@ -917,20 +900,6 @@ export default function AdvancedSearch() {
       )}
       </div>
       </div>
-      {isLeaveRestorePending && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-          }}
-        >
-          <div className="spinner" />
-        </div>
-      )}
     </div>
   );
 }

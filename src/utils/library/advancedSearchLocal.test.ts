@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
@@ -6,8 +6,11 @@ import {
   resolveTrackCoverArtId,
   runLocalAdvancedSearch,
   runLocalSongBrowse,
+  runNetworkAdvancedYearAlbums,
   trackToSong,
+  tryRunLocalAdvancedSearch,
 } from './advancedSearchLocal';
+import * as albumBrowseNetwork from './albumBrowseNetwork';
 
 const opts = (over: Partial<Parameters<typeof runLocalAdvancedSearch>[1]> = {}) => ({
   query: '',
@@ -261,5 +264,62 @@ describe('runLocalSongBrowse', () => {
       throw new Error('boom');
     });
     expect(await runLocalSongBrowse('s1', 0, 50)).toBeNull();
+  });
+});
+
+describe('tryRunLocalAdvancedSearch', () => {
+  beforeEach(() => {
+    useLibraryIndexStore.setState({ masterEnabled: true });
+  });
+
+  it('retries without the ready gate when sync is still in progress', async () => {
+    onInvoke('library_get_status', () => ({
+      serverId: 's1',
+      libraryScope: '',
+      syncPhase: 'initial_sync',
+      localTrackCount: 100,
+      serverTrackCount: 1000,
+      capabilityFlags: 0,
+      libraryTier: 'unknown',
+      syncedAt: 0,
+    }));
+    let searchCalls = 0;
+    onInvoke('library_advanced_search', () => {
+      searchCalls += 1;
+      return {
+        source: 'local',
+        artists: [],
+        albums: [],
+        tracks: [],
+        totals: { artists: 0, albums: 0, tracks: 0 },
+        appliedFilters: ['year'],
+      };
+    });
+    const res = await tryRunLocalAdvancedSearch('s1', opts({ yearFrom: '2020' }), 100);
+    expect(res).not.toBeNull();
+    expect(searchCalls).toBe(1);
+  });
+});
+
+describe('runNetworkAdvancedYearAlbums', () => {
+  it('passes open-ended year bounds to album browse (not 1900…now defaults)', async () => {
+    const spy = vi.spyOn(albumBrowseNetwork, 'fetchAlbumBrowseNetwork').mockResolvedValue({
+      albums: [{
+        id: 'a1',
+        name: 'Al',
+        artist: 'Ar',
+        artistId: 'ar1',
+        songCount: 1,
+        duration: 100,
+      }],
+      hasMore: false,
+    });
+    await runNetworkAdvancedYearAlbums(opts({ yearTo: '1990' }), 100);
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ year: { to: 1990 } }),
+      0,
+      100,
+    );
+    spy.mockRestore();
   });
 });

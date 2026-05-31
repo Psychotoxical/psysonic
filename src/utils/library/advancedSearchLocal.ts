@@ -23,11 +23,16 @@ import {
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
 import { search } from '../../api/subsonicSearch';
 import { libraryScopeForServer } from '../../api/subsonicClient';
+import { fetchAlbumBrowseNetwork } from './albumBrowseNetwork';
+import type { AlbumBrowseQuery } from './albumBrowseTypes';
+import { resolveAlbumYearBounds } from './albumYearFilter';
 import { libraryIsReady } from './libraryReady';
 import { logLibrarySearch, timed } from './libraryDevLog';
 import { isLosslessSuffix } from './losslessFormats';
 import { albumIsCompilation } from './albumCompilation';
 import { OXIMEDIA_MOOD_SEARCH_ENABLED } from './trackEnrichment';
+
+export const ADVANCED_SEARCH_YEAR_ALBUM_LIMIT = 100;
 
 export type AdvancedResultType = 'all' | 'artists' | 'albums' | 'songs';
 
@@ -392,4 +397,47 @@ export async function loadMoreLocalSongs(
   const req = buildRequest(serverId, opts, ['track'], pageSize, offset, true);
   const resp = await libraryAdvancedSearch(req);
   return resp.tracks.map(trackToSong);
+}
+
+/** Local index first; retry without the ready gate when sync is still catching up. */
+export async function tryRunLocalAdvancedSearch(
+  serverId: string | null | undefined,
+  opts: LocalSearchOpts,
+  songsLimit: number,
+  suppressLog = false,
+): Promise<LocalAdvancedSearchPage | null> {
+  const readyPage = await runLocalAdvancedSearch(
+    serverId,
+    opts,
+    songsLimit,
+    false,
+    true,
+    suppressLog,
+  );
+  if (readyPage) return readyPage;
+  return runLocalAdvancedSearch(serverId, opts, songsLimit, true, true, suppressLog);
+}
+
+function yearOnlyAlbumBrowseQuery(opts: LocalSearchOpts): AlbumBrowseQuery | null {
+  const { active, bounds } = resolveAlbumYearBounds(opts.yearFrom, opts.yearTo);
+  if (!active) return null;
+  return {
+    sort: 'alphabeticalByName',
+    genres: [],
+    year: bounds,
+    losslessOnly: !!opts.losslessOnly,
+    starredOnly: false,
+    compFilter: 'all',
+  };
+}
+
+/** Network fallback for year-only Advanced Search albums (open-ended year bounds). */
+export async function runNetworkAdvancedYearAlbums(
+  opts: LocalSearchOpts,
+  pageSize = ADVANCED_SEARCH_YEAR_ALBUM_LIMIT,
+): Promise<SubsonicAlbum[]> {
+  const query = yearOnlyAlbumBrowseQuery(opts);
+  if (!query) return [];
+  const page = await fetchAlbumBrowseNetwork(query, 0, pageSize);
+  return page.albums;
 }

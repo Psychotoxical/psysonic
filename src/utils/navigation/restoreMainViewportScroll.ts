@@ -1,6 +1,6 @@
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 
-const SAFETY_TIMEOUT_MS = 10000;
+const SAFETY_TIMEOUT_MS = 3000;
 
 function clampScrollTop(el: HTMLElement, scrollTop: number): number {
   const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -45,9 +45,7 @@ export function restoreMainViewportScroll(
   };
 
   const scheduleApply = () => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(apply);
-    });
+    requestAnimationFrame(apply);
   };
 
   const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
