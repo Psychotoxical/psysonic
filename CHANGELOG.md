@@ -197,6 +197,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Genres — local index browse with Subsonic fallback
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#937](https://github.com/Psychotoxical/psysonic/pull/937)**
+
+* **Genre detail** and the **Genres** cloud load album lists and counts from the local library index when it is ready; new SQLite indexes speed genre→album browse.
+* When the index is disabled or not ready, the album grid falls back to Subsonic **byGenre** as before.
+* Returning from an album restores genre-detail scroll; **Play** uses hold-to-shuffle like other browse pages.
+* **Advanced Search** grouped album totals count distinct albums, not raw matching track rows.
+
+
+
 ## Changed
 
 ### CI — hot-path coverage gates block merges

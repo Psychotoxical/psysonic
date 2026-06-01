@@ -141,6 +141,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Analytics: Opus waveform/LUFS/enrichment decode via symphonia-adapter-libopus in the analysis pipeline (PR #883)',
       'Artist page: top-track thumbnails use the same album cover path and warm batch as the albums grid (PR #886)',
       'Library browse navigation: session restore on back for Artists, Search/Tracks, New Releases, Random Albums; unified SearchBrowsePage (PR #936)',
+      'Genres: local index genre browse with Subsonic fallback, aligned counts cache, scroll restore, hold-to-shuffle play (PR #937)',
     ],
   },
   {
