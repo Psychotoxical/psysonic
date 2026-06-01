@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { clearPerfLiveHistory } from './perfLiveHistory';
+import { perfLiveCpuSnapshotSupported } from './perfLiveCpuSnapshot';
 import { getPerfOverlayMode } from './perfOverlayMode';
 import { getPerfProbeFlags, setPerfProbeFlag, subscribePerfProbeFlags } from './perfFlags';
 
@@ -126,7 +127,16 @@ export function hasAnyPerfOverlayVisible(): boolean {
   );
 }
 
+function livePinsNeedJsPoll(pins: ReadonlySet<string>): boolean {
+  for (const id of pins) {
+    if (id.startsWith('rate:') || id.startsWith('analysis:')) return true;
+  }
+  return false;
+}
+
 export function hasAnyLiveMetricPollNeed(): boolean {
   if (getPerfOverlayMode() !== 'pinned') return false;
-  return livePins.size > 0;
+  if (livePins.size === 0) return false;
+  if (perfLiveCpuSnapshotSupported()) return true;
+  return livePinsNeedJsPoll(livePins);
 }

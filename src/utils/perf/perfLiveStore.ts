@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { clearPerfLiveHistory } from './perfLiveHistory';
 import { getAnalysisTracksPerMinute } from './analysisPerfStore';
+import { perfLiveCpuSnapshotSupported } from './perfLiveCpuSnapshot';
 import {
   buildPerfCpuSnapshotRequest,
   getPerfLivePollIntervalMs,
@@ -119,9 +120,38 @@ function nextDiagRates(
   };
 }
 
+const UNSUPPORTED_CPU: PerfLiveCpu = {
+  app: 0,
+  webkit: 0,
+  supported: false,
+  memory: [],
+  threadCpu: [],
+};
+
+function applyJsMetricsSnapshot(now: number): void {
+  const nextCounters = readUiCounters();
+  const diagRates = nextDiagRates(nextCounters, now);
+  prevCounters = nextCounters;
+  prevCountersAt = now;
+  setSnapshot({
+    cpu: snapshot.cpu ?? UNSUPPORTED_CPU,
+    diagRates,
+    analysis: buildAnalysisDiag(),
+    collecting: false,
+    updatedAt: now,
+  });
+}
+
 async function pollOnce(): Promise<void> {
   const generation = pollGeneration;
   const now = Date.now();
+
+  if (!perfLiveCpuSnapshotSupported()) {
+    if (generation !== pollGeneration) return;
+    applyJsMetricsSnapshot(now);
+    return;
+  }
+
   try {
     const snap = await invoke<ProcSnapshot>('performance_cpu_snapshot', buildPerfCpuSnapshotRequest());
     if (generation !== pollGeneration) return;
@@ -133,7 +163,7 @@ async function pollOnce(): Promise<void> {
 
     if (!snap.supported) {
       setSnapshot({
-        cpu: { app: 0, webkit: 0, supported: false, memory: [], threadCpu: [] },
+        cpu: UNSUPPORTED_CPU,
         diagRates,
         analysis: buildAnalysisDiag(),
         collecting: false,
@@ -209,7 +239,8 @@ function clampPct(value: number): number {
 
 function schedulePoll(): void {
   if (pollTimer != null) return;
-  setSnapshot({ ...snapshot, collecting: snapshot.cpu == null });
+  const collecting = perfLiveCpuSnapshotSupported() && snapshot.cpu == null;
+  setSnapshot({ ...snapshot, collecting });
   const intervalMs = getPerfLivePollIntervalMs();
   const tick = () => {
     pollTimer = null;
