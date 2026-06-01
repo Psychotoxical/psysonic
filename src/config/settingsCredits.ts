@@ -143,6 +143,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Library browse navigation: session restore on back for Artists, Search/Tracks, New Releases, Random Albums; unified SearchBrowsePage (PR #936)',
       'Genres: local index genre browse with Subsonic fallback, aligned counts cache, scroll restore, hold-to-shuffle play (PR #937)',
       'Live Search: scoped browse on Artists, Albums, New Releases, Tracks, and Composers — header badge, ghost restore, album title FTS, session stash (PR #938)',
+      'Performance: idle Rust CPU — backfill coordinator park, probe overlay stability, throttled idle polls, lazy cover prefetch restore (PR #939)',
     ],
   },
   {

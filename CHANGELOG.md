@@ -365,6 +365,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Performance — idle Rust CPU, probe overlay, and cover prefetch
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#939](https://github.com/Psychotoxical/psysonic/pull/939)**
+
+* **Advanced analytics coordinator:** park on `Notify` when disabled — no idle 2s poll loop; wake on configure or library sync-idle.
+* **Performance Probe:** run CPU snapshot on the blocking pool; skip `/proc` poll on Windows; fix overlay flicker and sparkline clock jumps; hold previous CPU % until the first rate sample (no 0% flash).
+* **Background polls:** Settings → Storage hot-cache poll 15s; cover registry full disk stats every 30s when idle instead of every 1.5s tick.
+* **Cover art:** restore lazy route prefetch so cached WebP paths warm `diskSrcCache` before grid cells mount.
+
+
+
 ### CI — npmDepsHash on app-v* tags
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#927](https://github.com/Psychotoxical/psysonic/pull/927)**
