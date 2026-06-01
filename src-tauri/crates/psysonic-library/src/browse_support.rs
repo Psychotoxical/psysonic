@@ -4,7 +4,9 @@ use rusqlite::params;
 use tauri::State;
 
 use crate::dto::CatalogYearBoundsDto;
+use crate::dto::GenreAlbumCountDto;
 use crate::runtime::LibraryRuntime;
+use crate::search::library_scope_equals_sql;
 use crate::store::LibraryStore;
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -104,6 +106,63 @@ pub fn library_get_catalog_year_bounds(
     catalog_year_bounds_for_server(&runtime.store, &server_id)
 }
 
+pub(crate) fn genre_album_counts_for_server(
+    store: &LibraryStore,
+    server_id: &str,
+    library_scope: Option<&str>,
+) -> Result<Vec<GenreAlbumCountDto>, String> {
+    store
+        .with_read_conn(|conn| {
+            let mut sql = String::from(
+                "SELECT t.genre, COUNT(DISTINCT t.album_id) AS album_count, COUNT(*) AS song_count \
+                 FROM track t \
+                 WHERE t.server_id = ?1 AND t.deleted = 0 \
+                   AND t.genre IS NOT NULL AND TRIM(t.genre) != '' \
+                   AND t.album_id IS NOT NULL AND t.album_id != '' \
+                   AND NOT EXISTS ( \
+                     SELECT 1 FROM album a \
+                     WHERE a.server_id = t.server_id AND a.id = t.album_id AND a.song_count IS NOT NULL \
+                   )",
+            );
+            let mut params: Vec<rusqlite::types::Value> =
+                vec![rusqlite::types::Value::Text(server_id.to_string())];
+            if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
+                sql.push_str(&format!(" AND {}", library_scope_equals_sql("t")));
+                params.push(rusqlite::types::Value::Text(scope.to_string()));
+            }
+            sql.push_str(
+                " GROUP BY t.genre COLLATE NOCASE \
+                 ORDER BY album_count DESC, t.genre COLLATE NOCASE ASC",
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt
+                .query_map(rusqlite::params_from_iter(params.iter()), |r| {
+                    Ok(GenreAlbumCountDto {
+                        value: r.get::<_, String>(0)?,
+                        album_count: r.get::<_, i64>(1)?.max(0) as u32,
+                        song_count: r.get::<_, i64>(2)?.max(0) as u32,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Distinct album counts per track genre — same grouping as genre album browse.
+#[tauri::command]
+pub fn library_get_genre_album_counts(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    library_scope: Option<String>,
+) -> Result<Vec<GenreAlbumCountDto>, String> {
+    genre_album_counts_for_server(
+        &runtime.store,
+        &server_id,
+        library_scope.as_deref(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -112,7 +171,10 @@ mod tests {
     use crate::runtime::LibraryRuntime;
     use crate::store::LibraryStore;
 
-    use super::{catalog_year_bounds_for_server, reconcile_album_stars, StarredAlbumReconcileItem};
+    use super::{
+        catalog_year_bounds_for_server, genre_album_counts_for_server, reconcile_album_stars,
+        StarredAlbumReconcileItem,
+    };
 
     fn make_row(server: &str, id: &str, album_id: &str, track: i64) -> crate::repos::TrackRow {
         crate::repos::TrackRow {
@@ -227,6 +289,36 @@ mod tests {
         let bounds = catalog_year_bounds_for_server(&store, "s1").unwrap();
         assert_eq!(bounds.min_year, Some(1985));
         assert_eq!(bounds.max_year, Some(2018));
+    }
+
+    #[test]
+    fn genre_album_counts_group_distinct_albums_per_genre() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let mut rock_one: Vec<_> = (0..3)
+            .map(|i| {
+                let mut t = make_row("s1", &format!("r{i}"), "al_rock_one", i + 1);
+                t.genre = Some("Rock".into());
+                t
+            })
+            .collect();
+        let mut rock_two = make_row("s1", "r3", "al_rock_two", 1);
+        rock_two.genre = Some("Rock".into());
+        let mut jazz = make_row("s1", "j1", "al_jazz", 1);
+        jazz.genre = Some("Jazz".into());
+        rock_one.push(rock_two);
+        rock_one.push(jazz);
+        TrackRepository::new(&store)
+            .upsert_batch(&rock_one)
+            .unwrap();
+
+        let counts = genre_album_counts_for_server(&store, "s1", None).unwrap();
+        assert_eq!(counts.len(), 2);
+        assert_eq!(counts[0].value, "Rock");
+        assert_eq!(counts[0].album_count, 2);
+        assert_eq!(counts[0].song_count, 4);
+        assert_eq!(counts[1].value, "Jazz");
+        assert_eq!(counts[1].album_count, 1);
+        assert_eq!(counts[1].song_count, 1);
     }
 
     #[test]

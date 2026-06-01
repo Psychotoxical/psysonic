@@ -58,6 +58,10 @@ function returnStashKey(serverId: string, surface: AlbumBrowseSurface): string {
   return `${serverId}:${surface}`;
 }
 
+function genreDetailStashKey(serverId: string, genreName: string): string {
+  return `${serverId}:genre-detail:${genreName}`;
+}
+
 function sortEntryFor(
   sortByServer: Record<string, AlbumBrowseSort>,
   serverId: string,
@@ -132,6 +136,55 @@ export function peekAlbumBrowseScrollRestore(
   };
 }
 
+/** Genre detail leave-restore (scoped per genre name). */
+export function stashGenreDetailReturnFilters(
+  serverId: string,
+  genreName: string,
+  filters: AlbumBrowseReturnFilters,
+): void {
+  if (!serverId || !genreName) return;
+  const key = genreDetailStashKey(serverId, genreName);
+  useAlbumBrowseSessionStore.setState((s) => ({
+    returnStashByKey: {
+      ...s.returnStashByKey,
+      [key]: cloneReturnFilters(filters),
+    },
+  }));
+}
+
+export function clearGenreDetailReturnStash(serverId: string, genreName: string): void {
+  if (!serverId || !genreName) return;
+  const key = genreDetailStashKey(serverId, genreName);
+  useAlbumBrowseSessionStore.setState((s) => {
+    const next = { ...s.returnStashByKey };
+    delete next[key];
+    return { returnStashByKey: next };
+  });
+}
+
+export function peekGenreDetailReturnStash(
+  serverId: string,
+  genreName: string,
+): AlbumBrowseReturnFilters | null {
+  if (!serverId || !genreName) return null;
+  const stash = useAlbumBrowseSessionStore.getState().returnStashByKey[genreDetailStashKey(serverId, genreName)];
+  if (!stash) return null;
+  return cloneReturnFilters(stash);
+}
+
+export function peekGenreDetailScrollRestore(
+  serverId: string,
+  genreName: string,
+): { scrollTop: number; displayCount: number } | null {
+  const stash = peekGenreDetailReturnStash(serverId, genreName);
+  if (!stash) return null;
+  if (typeof stash.scrollTop !== 'number' || typeof stash.displayCount !== 'number') return null;
+  return {
+    scrollTop: Math.max(0, stash.scrollTop),
+    displayCount: Math.max(0, stash.displayCount),
+  };
+}
+
 export function albumBrowseSortForServer(
   sortByServer: Record<string, AlbumBrowseSort>,
   serverId: string,
@@ -151,7 +204,19 @@ export function albumBrowseSurfaceForPath(pathname: string): AlbumBrowseSurface 
 
 /** True when pathname is a single album detail route (`/album/:id`). */
 export function isAlbumDetailPath(pathname: string): boolean {
-  return /^\/album\/[^/]+\/?$/.test(pathname);
+  return /^\/album\/[^/]+\/?$/.test(pathname.split('?')[0]?.replace(/\/$/, '') || pathname);
+}
+
+/** Single genre detail route (`/genres/:name`), not the genre cloud (`/genres`). */
+export function isGenreDetailPath(pathname: string): boolean {
+  const path = pathname.split('?')[0]?.replace(/\/$/, '') || pathname;
+  return /^\/genres\/[^/]+$/.test(path);
+}
+
+export function genreDetailGenreFromPath(pathname: string): string | null {
+  const path = pathname.split('?')[0]?.replace(/\/$/, '') || pathname;
+  const match = path.match(/^\/genres\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 /** True when pathname is a single artist detail route (`/artist/:id`). */

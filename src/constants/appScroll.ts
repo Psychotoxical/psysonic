@@ -8,6 +8,7 @@ export const NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID = 'new-releases-inpage-scrol
 export const RANDOM_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID = 'random-albums-inpage-scroll-viewport';
 export const LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID = 'lossless-albums-inpage-scroll-viewport';
 export const COMPOSERS_INPAGE_SCROLL_VIEWPORT_ID = 'composers-inpage-scroll-viewport';
+export const GENRE_DETAIL_INPAGE_SCROLL_VIEWPORT_ID = 'genre-detail-inpage-scroll-viewport';
 
 export type AlbumGridInpageScrollSurface = 'albums' | 'new-releases' | 'random-albums';
 
@@ -39,5 +40,6 @@ export function readInpageScrollTop(viewportId: string): number {
 /** Resolve in-page viewport id for the current route pathname. */
 export function mainRouteInpageScrollViewportId(pathname: string): string | undefined {
   const path = pathname.split('?')[0]?.replace(/\/$/, '') || pathname;
+  if (/^\/genres\/[^/]+$/.test(path)) return GENRE_DETAIL_INPAGE_SCROLL_VIEWPORT_ID;
   return MAIN_ROUTE_INPAGE_SCROLL_VIEWPORT_ID_BY_PATH[path];
 }

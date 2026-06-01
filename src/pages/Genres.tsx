@@ -5,6 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Tags } from 'lucide-react';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { fetchGenreCatalog } from '../utils/library/genreBrowsePlayback';
 
 const CTP_COLORS = [
   'var(--ctp-rosewater)', 'var(--ctp-flamingo)', 'var(--ctp-pink)', 'var(--ctp-mauve)',
@@ -26,14 +29,26 @@ const FONT_MAX_REM = 1.7;
 export default function Genres() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [rawGenres, setRawGenres] = useState<SubsonicGenre[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getGenres()
-      .then(data => setRawGenres(data))
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    void fetchGenreCatalog(serverId, indexEnabled)
+      .then(data => {
+        if (!cancelled) setRawGenres(data);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverId, indexEnabled, musicLibraryFilterVersion]);
 
   const genres = useMemo(
     () => [...rawGenres].sort((a, b) => b.albumCount - a.albumCount),
@@ -62,7 +77,7 @@ export default function Genres() {
   const handleGenreClick = (genreValue: string) => {
     const el = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
     if (el) sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop));
-    navigate(`/genres/${encodeURIComponent(genreValue)}`);
+    navigate(`/genres/${encodeURIComponent(genreValue)}`, { state: { returnTo: '/genres' } });
   };
 
   return (

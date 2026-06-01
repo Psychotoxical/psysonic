@@ -727,6 +727,7 @@ pub fn run() {
             psysonic_library::commands::library_patch_track,
             psysonic_library::browse_support::library_reconcile_album_stars,
             psysonic_library::browse_support::library_get_catalog_year_bounds,
+            psysonic_library::browse_support::library_get_genre_album_counts,
             psysonic_library::commands::library_put_artifact,
             psysonic_library::commands::library_put_fact,
             psysonic_library::commands::library_record_play_session,

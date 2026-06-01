@@ -1086,7 +1086,17 @@ where
         let total = if skip_totals {
             0u32
         } else {
-            count_matching_rows(conn, from, &where_sql, &w.params, false)?
+            // Grouped browse totals must count distinct groups (album/artist rows),
+            // not raw track rows matching the WHERE clause.
+            let count_sql = format!(
+                "SELECT COUNT(*) FROM (SELECT 1 FROM {from} WHERE {where_sql} {group_sql})"
+            );
+            let n: i64 = conn.query_row(
+                &count_sql,
+                rusqlite::params_from_iter(w.params.iter()),
+                |r| r.get(0),
+            )?;
+            n.max(0) as u32
         };
 
         let page_sql = format!(
@@ -1533,6 +1543,33 @@ mod tests {
         assert_eq!(resp.tracks.len(), 1);
         assert_eq!(resp.tracks[0].id, "t1");
         assert!(resp.applied_filters.contains(&"genre".to_string()));
+    }
+
+    #[test]
+    fn grouped_album_totals_count_distinct_albums_not_tracks() {
+        let store = LibraryStore::open_in_memory();
+        let mut rows: Vec<TrackRow> = Vec::new();
+        for i in 0..6 {
+            let mut t = track("s1", &format!("t{i}"), &format!("Song {i}"), "X", "Alb One");
+            t.genre = Some("Rock".into());
+            rows.push(t);
+        }
+        for i in 6..10 {
+            let mut t = track("s1", &format!("t{i}"), &format!("Song {i}"), "Y", "Alb Two");
+            t.genre = Some("Rock".into());
+            rows.push(t);
+        }
+        TrackRepository::new(&store).upsert_batch(&rows).unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![clause("genre", FilterOp::Eq, Some(json!("rock")), None)];
+        r.limit = 1;
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1, "page is capped by limit");
+        assert_eq!(
+            resp.totals.albums, 2,
+            "total must be distinct album groups, not matching track rows"
+        );
+        assert_eq!(resp.totals.tracks, 0);
     }
 
     #[test]

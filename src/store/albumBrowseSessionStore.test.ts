@@ -5,8 +5,14 @@ import {
   DEFAULT_ALBUM_BROWSE_SORT,
   albumBrowseSortForServer,
   albumBrowseSurfaceForPath,
+  clearGenreDetailReturnStash,
   isAlbumDetailPath,
+  isGenreDetailPath,
+  genreDetailGenreFromPath,
   peekAlbumBrowseScrollRestore,
+  peekGenreDetailReturnStash,
+  peekGenreDetailScrollRestore,
+  stashGenreDetailReturnFilters,
   useAlbumBrowseSessionStore,
 } from './albumBrowseSessionStore';
 
@@ -97,6 +103,22 @@ describe('albumBrowseSessionStore', () => {
     const { sortByServer } = useAlbumBrowseSessionStore.getState();
     expect(albumBrowseSortForServer(sortByServer, 'unknown')).toBe(DEFAULT_ALBUM_BROWSE_SORT);
   });
+
+  it('stashes genre detail leave snapshot separately from album grid surfaces', () => {
+    stashGenreDetailReturnFilters('srv-a', 'Rock', {
+      ...DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
+      selectedGenres: ['Rock'],
+      scrollTop: 640,
+      displayCount: 90,
+    });
+    expect(peekGenreDetailReturnStash('srv-a', 'Rock')?.scrollTop).toBe(640);
+    expect(peekGenreDetailScrollRestore('srv-a', 'Rock')).toEqual({
+      scrollTop: 640,
+      displayCount: 90,
+    });
+    clearGenreDetailReturnStash('srv-a', 'Rock');
+    expect(peekGenreDetailReturnStash('srv-a', 'Rock')).toBeNull();
+  });
 });
 
 describe('isAlbumDetailPath', () => {
@@ -106,6 +128,16 @@ describe('isAlbumDetailPath', () => {
     expect(isAlbumDetailPath('/albums')).toBe(false);
     expect(isAlbumDetailPath('/artist/abc')).toBe(false);
     expect(isAlbumDetailPath('/album/abc/tracks')).toBe(false);
+  });
+});
+
+describe('isGenreDetailPath', () => {
+  it('matches single genre detail routes only', () => {
+    expect(isGenreDetailPath('/genres/Rock')).toBe(true);
+    expect(isGenreDetailPath('/genres/Rock%20%26%20Roll')).toBe(true);
+    expect(isGenreDetailPath('/genres')).toBe(false);
+    expect(isGenreDetailPath('/genres/Rock/albums')).toBe(false);
+    expect(genreDetailGenreFromPath('/genres/Rock%20%26%20Roll')).toBe('Rock & Roll');
   });
 });
 

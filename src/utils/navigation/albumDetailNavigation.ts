@@ -113,8 +113,14 @@ function isArtistsBrowseReturnPath(path: string): boolean {
   return path === '/artists' || path.startsWith('/artists?');
 }
 
+function isGenreDetailReturnPath(path: string): boolean {
+  const bare = path.split('?')[0]?.replace(/\/$/, '') || path;
+  return /^\/genres\/[^/]+$/.test(bare);
+}
+
 function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocationState | undefined {
   if (isAlbumGridBrowseReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
+  if (isGenreDetailReturnPath(returnTo)) return albumBrowseRestoreNavigationState();
   if (isArtistsBrowseReturnPath(returnTo)) return artistBrowseRestoreNavigationState();
   if (isSearchReturnPath(returnTo)) return advancedSearchRestoreNavigationState();
   return undefined;

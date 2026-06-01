@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
 import {
+  clearGenreDetailReturnStash,
   peekAlbumBrowseScrollRestore,
+  peekGenreDetailScrollRestore,
   type AlbumBrowseSurface,
   useAlbumBrowseSessionStore,
 } from '../store/albumBrowseSessionStore';
@@ -14,7 +16,10 @@ type PendingScroll = {
 
 export type UseAlbumBrowseScrollRestoreArgs = {
   serverId: string;
-  surface: AlbumBrowseSurface;
+  /** Album grid browse surface (All Albums, New Releases, Random Albums). */
+  surface?: AlbumBrowseSurface;
+  /** Genre detail page — uses genre-scoped stash instead of `surface`. */
+  genreName?: string;
   scrollBodyEl: HTMLElement | null;
   displayAlbumsLength: number;
   loading: boolean;
@@ -30,12 +35,29 @@ export type UseAlbumBrowseScrollRestoreResult = {
 
 function readPendingScrollRestore(
   serverId: string,
-  surface: AlbumBrowseSurface,
+  surface: AlbumBrowseSurface | undefined,
+  genreName: string | undefined,
   navigationType: NavigationType,
   locationState: unknown,
 ): PendingScroll | null {
   if (!shouldRestoreAlbumBrowseSession(navigationType, locationState) || !serverId) return null;
-  return peekAlbumBrowseScrollRestore(serverId, surface);
+  if (genreName) return peekGenreDetailScrollRestore(serverId, genreName);
+  if (surface) return peekAlbumBrowseScrollRestore(serverId, surface);
+  return null;
+}
+
+function clearScrollRestoreStash(
+  serverId: string,
+  surface: AlbumBrowseSurface | undefined,
+  genreName: string | undefined,
+): void {
+  if (genreName) {
+    clearGenreDetailReturnStash(serverId, genreName);
+    return;
+  }
+  if (surface) {
+    useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, surface);
+  }
 }
 
 /**
@@ -45,6 +67,7 @@ function readPendingScrollRestore(
 export function useAlbumBrowseScrollRestore({
   serverId,
   surface,
+  genreName,
   scrollBodyEl,
   displayAlbumsLength,
   loading,
@@ -60,11 +83,17 @@ export function useAlbumBrowseScrollRestore({
 
   if (!initRef.current) {
     initRef.current = true;
-    pendingRef.current = readPendingScrollRestore(serverId, surface, navigationType, location.state);
+    pendingRef.current = readPendingScrollRestore(
+      serverId,
+      surface,
+      genreName,
+      navigationType,
+      location.state,
+    );
   }
 
   const [isScrollRestorePending, setIsScrollRestorePending] = useState(
-    () => readPendingScrollRestore(serverId, surface, navigationType, location.state) !== null,
+    () => readPendingScrollRestore(serverId, surface, genreName, navigationType, location.state) !== null,
   );
 
   useLayoutEffect(() => {
@@ -84,7 +113,7 @@ export function useAlbumBrowseScrollRestore({
     pendingRef.current = null;
     doneRef.current = true;
     setIsScrollRestorePending(false);
-    useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, surface);
+    clearScrollRestoreStash(serverId, surface, genreName);
   }, [
     scrollBodyEl,
     displayAlbumsLength,
@@ -94,6 +123,7 @@ export function useAlbumBrowseScrollRestore({
     loadMore,
     serverId,
     surface,
+    genreName,
   ]);
 
   return { isScrollRestorePending };

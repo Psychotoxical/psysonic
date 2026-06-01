@@ -64,7 +64,7 @@ describe('albumDetailNavigation', () => {
   it('navigates back to saved returnTo', () => {
     const navigate = vi.fn();
     navigateAlbumDetailBack(navigate, { state: { returnTo: '/genres/Rock' } });
-    expect(navigate).toHaveBeenCalledWith('/genres/Rock', undefined);
+    expect(navigate).toHaveBeenCalledWith('/genres/Rock', { state: { albumBrowseRestore: true } });
   });
 
   it('flags All Albums return for browse restore', () => {

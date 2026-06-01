@@ -706,10 +706,27 @@ export type CatalogYearBounds = {
   maxYear: number | null;
 };
 
+export type GenreAlbumCountRow = {
+  value: string;
+  albumCount: number;
+  songCount: number;
+};
+
 export function libraryGetCatalogYearBounds(args: { serverId: string }): Promise<CatalogYearBounds> {
   const indexKey = serverIndexKeyForId(args.serverId);
   return invoke<CatalogYearBounds>('library_get_catalog_year_bounds', {
     serverId: indexKey,
+  });
+}
+
+export function libraryGetGenreAlbumCounts(args: {
+  serverId: string;
+  libraryScope?: string;
+}): Promise<GenreAlbumCountRow[]> {
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<GenreAlbumCountRow[]>('library_get_genre_album_counts', {
+    serverId: indexKey,
+    libraryScope: args.libraryScope,
   });
 }
 

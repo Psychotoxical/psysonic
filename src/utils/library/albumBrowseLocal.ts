@@ -29,6 +29,28 @@ export async function runLocalAlbumBrowse(
   const starredOnly = useServerStarredIds ? undefined : (query.starredOnly || undefined);
 
   if (query.genres.length > 0) {
+    if (query.genres.length === 1) {
+      try {
+        const resp = await libraryAdvancedSearch({
+          serverId,
+          libraryScope: scope,
+          entityTypes: ['album'],
+          filters: [{ field: 'genre', op: 'eq', value: query.genres[0] }, ...shared],
+          starredOnly,
+          restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
+          sort: albumSortClauses(query.sort),
+          limit: pageSize,
+          offset,
+          skipTotals: true,
+        });
+        if (resp.source !== 'local') return null;
+        let albums = resp.albums.map(albumToAlbum);
+        if (useServerStarredIds) albums = markServerStarredAlbums(albums);
+        return { albums, hasMore: albums.length === pageSize };
+      } catch {
+        return null;
+      }
+    }
     if (offset > 0) return { albums: [], hasMore: false };
     try {
       const pages = await Promise.all(

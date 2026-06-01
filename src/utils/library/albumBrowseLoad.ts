@@ -36,10 +36,15 @@ export async function fetchLocalAlbumCatalogChunk(
   offset: number,
   chunkSize: number,
 ): Promise<AlbumBrowsePageResult | null> {
-  const limit = query.genres.length > 0 && offset === 0 ? GENRE_ALBUM_FETCH_LIMIT : chunkSize;
-  if (query.genres.length > 0 && offset > 0) {
+  const singleGenre = query.genres.length === 1;
+  if (query.genres.length > 1 && offset > 0) {
     return { albums: [], hasMore: false };
   }
+  const limit = singleGenre
+    ? chunkSize
+    : query.genres.length > 0 && offset === 0
+      ? GENRE_ALBUM_FETCH_LIMIT
+      : chunkSize;
   return runLocalAlbumBrowse(serverId, query, offset, limit);
 }
 

@@ -381,6 +381,15 @@ pub struct CatalogYearBoundsDto {
     pub max_year: Option<i32>,
 }
 
+/// Per-genre album/track totals from the local track catalog (Genres cloud + browse).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GenreAlbumCountDto {
+    pub value: String,
+    pub album_count: u32,
+    pub song_count: u32,
+}
+
 /// `library_purge_server` outcome.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
