@@ -48,8 +48,10 @@ export type PerfLiveSnapshot = {
   diagRates: PerfDiagRates | null;
   analysis: PerfAnalysisDiag | null;
   collecting: boolean;
-  /** Wall time of the last displayed sample change; overlay sparkline clock. */
+  /** Wall time of the last displayed sample change (memory / diag / rates). */
   updatedAt: number;
+  /** Wall time of the last CPU rate sample; stable sparkline clock between polls. */
+  sampleAt: number;
 };
 
 type ProcSnapshot = {
@@ -68,6 +70,7 @@ const EMPTY: PerfLiveSnapshot = {
   analysis: null,
   collecting: false,
   updatedAt: 0,
+  sampleAt: 0,
 };
 
 let snapshot: PerfLiveSnapshot = { ...EMPTY };
@@ -132,7 +135,7 @@ function publishLiveSnapshot(next: PerfLiveSnapshot): void {
   if (!cpuChanged && !diagChanged && !analysisChanged && next.updatedAt === snapshot.updatedAt) {
     return;
   }
-  if (cpuChanged && next.cpu?.supported && next.updatedAt > 0) {
+  if (next.sampleAt > snapshot.sampleAt && next.cpu?.supported) {
     syncPerfLiveHistoryFromPoll(getPerfLiveOverlayPins(), next, { emit: false });
   }
   setSnapshot(next);
@@ -190,6 +193,7 @@ function applyJsMetricsSnapshot(now: number): void {
     analysis: buildAnalysisDiag(),
     collecting: false,
     updatedAt: now,
+    sampleAt: snapshot.sampleAt,
   });
 }
 
@@ -219,6 +223,7 @@ async function pollOnce(): Promise<void> {
         analysis: buildAnalysisDiag(),
         collecting: false,
         updatedAt: completedAt,
+        sampleAt: snapshot.sampleAt,
       });
       return;
     }
@@ -278,6 +283,8 @@ async function pollOnce(): Promise<void> {
       ? completedAt
       : snapshot.updatedAt;
 
+    const nextSampleAt = ratesChanged ? completedAt : snapshot.sampleAt;
+
     publishLiveSnapshot({
       cpu: {
         app,
@@ -290,6 +297,7 @@ async function pollOnce(): Promise<void> {
       analysis: buildAnalysisDiag(),
       collecting: false,
       updatedAt: nextUpdatedAt,
+      sampleAt: nextSampleAt,
     });
   } catch {
     if (generation !== pollGeneration) return;
@@ -298,6 +306,7 @@ async function pollOnce(): Promise<void> {
       cpu: { app: 0, webkit: 0, supported: false, memory: [], threadCpu: [] },
       collecting: false,
       updatedAt: Date.now(),
+      sampleAt: 0,
     });
   }
 }

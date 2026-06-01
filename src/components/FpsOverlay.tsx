@@ -87,7 +87,10 @@ export default function FpsOverlay() {
     showLive,
   } = visibility;
 
-  const sparklineNow = Date.now();
+  const sparklineNow = useMemo(
+    () => (live.sampleAt > 0 ? live.sampleAt : Date.now()),
+    [live.sampleAt],
+  );
 
   useAnalysisPerfListener(showAnalysisPerfOverlay || livePins.has('analysis:tpm') || livePins.has('analysis:last'));
 

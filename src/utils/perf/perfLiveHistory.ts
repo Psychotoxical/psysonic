@@ -56,12 +56,12 @@ export function syncPerfLiveHistoryFromPoll(
   live: PerfLiveSnapshot,
   options?: { emit?: boolean },
 ): void {
-  if (!live.cpu?.supported || live.updatedAt <= 0) return;
+  if (!live.cpu?.supported || live.sampleAt <= 0) return;
   let changed = false;
   for (const pin of pins) {
     if (!isLiveHistoryPin(pin)) continue;
     const value = liveOverlayItemValue(pin, live);
-    if (value != null && appendSample(pin, value, live.updatedAt)) changed = true;
+    if (value != null && appendSample(pin, value, live.sampleAt)) changed = true;
   }
   if (changed && options?.emit !== false) emit();
 }
