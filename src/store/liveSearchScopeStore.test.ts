@@ -18,6 +18,9 @@ describe('liveSearchScopeStore', () => {
     expect(scopedBrowseSearchQuery('abbey', 'artists', 'albums')).toBe('');
     useLiveSearchScopeStore.setState({ query: 'jazz', scope: 'newReleases' });
     expect(scopedBrowseSearchQuery('jazz', 'newReleases', 'newReleases')).toBe('jazz');
+    useLiveSearchScopeStore.setState({ query: 'track', scope: 'tracks' });
+    expect(scopedBrowseSearchQuery('track', 'tracks', 'tracks')).toBe('track');
+    expect(scopedBrowseSearchQuery('track', 'albums', 'tracks')).toBe('');
   });
 
   it('undoes query and scope badge changes', () => {

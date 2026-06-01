@@ -42,16 +42,19 @@ export type SongBrowseListRestore = {
 
 type UseSongBrowseListArgs = {
   enabled: boolean;
+  /** Header scoped browse query (wide title/artist/album search). */
+  searchQuery: string;
   initialRestore?: SongBrowseListRestore | null;
 };
 
 /** Tracks hub song browse — all-library paging or filtered text search. */
-export function useSongBrowseList({ enabled, initialRestore }: UseSongBrowseListArgs) {
+export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseSongBrowseListArgs) {
   const serverId = useAuthStore(s => s.activeServerId);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
 
-  const [query, setQuery] = useState(() => initialRestore?.query ?? '');
-  const [debouncedQuery, setDebouncedQuery] = useState(() => initialRestore?.query.trim() ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(
+    () => initialRestore?.query.trim() ?? searchQuery.trim(),
+  );
   const [songs, setSongs] = useState<SubsonicSong[]>(() => initialRestore?.songs ?? []);
   const [offset, setOffset] = useState(() => initialRestore?.offset ?? 0);
   const [loading, setLoading] = useState(false);
@@ -68,9 +71,9 @@ export function useSongBrowseList({ enabled, initialRestore }: UseSongBrowseList
   useEffect(() => {
     if (!enabled) return;
     const debounceMs = indexEnabled ? BROWSE_TEXT_DEBOUNCE_RACE_MS : BROWSE_TEXT_DEBOUNCE_NETWORK_MS;
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), debounceMs);
+    const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), debounceMs);
     return () => window.clearTimeout(timer);
-  }, [query, indexEnabled, enabled]);
+  }, [searchQuery, indexEnabled, enabled]);
 
   const fetchSongPage = useCallback(
     async (q: string, pageOffset: number, isStale: () => boolean): Promise<SubsonicSong[]> => {
@@ -182,8 +185,6 @@ export function useSongBrowseList({ enabled, initialRestore }: UseSongBrowseList
   }, [enabled, loading, hasMore, debouncedQuery, offset, fetchSongPage]);
 
   return {
-    query,
-    setQuery,
     songs,
     offset,
     loading,

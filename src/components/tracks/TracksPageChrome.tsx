@@ -24,9 +24,12 @@ const TRACKS_SONG_RAIL_INITIAL_ARTWORK_BUDGET = 14;
 /** Tracks hub hero + song rails (above the browse-all list). */
 export default function TracksPageChrome({
   onLayoutReady,
+  hideDiscoveryChrome = false,
 }: {
   /** Fires once when hero + rails finish their initial load (or fail). */
   onLayoutReady?: () => void;
+  /** When true, skip hero and song rails (active scoped search). */
+  hideDiscoveryChrome?: boolean;
 }) {
   const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
@@ -79,15 +82,15 @@ export default function TracksPageChrome({
   }, []);
 
   useEffect(() => {
-    if (!activeServerId) return;
+    if (!activeServerId || hideDiscoveryChrome) return;
     rerollHero();
     rerollRandom();
     reloadRated();
-  }, [activeServerId, rerollHero, rerollRandom, reloadRated]);
+  }, [activeServerId, hideDiscoveryChrome, rerollHero, rerollRandom, reloadRated]);
 
   useEffect(() => {
     if (!onLayoutReady || layoutReadyNotifiedRef.current) return;
-    if (!activeServerId) {
+    if (hideDiscoveryChrome || !activeServerId) {
       layoutReadyNotifiedRef.current = true;
       onLayoutReady();
       return;
@@ -95,7 +98,7 @@ export default function TracksPageChrome({
     if (heroLoading || randomLoading || ratedLoading) return;
     layoutReadyNotifiedRef.current = true;
     onLayoutReady();
-  }, [activeServerId, onLayoutReady, heroLoading, randomLoading, ratedLoading]);
+  }, [activeServerId, hideDiscoveryChrome, onLayoutReady, heroLoading, randomLoading, ratedLoading]);
 
   const railSongs = useMemo(
     () => (hero ? random.filter(s => s.id !== hero.id) : random),
@@ -113,7 +116,7 @@ export default function TracksPageChrome({
         </header>
       )}
 
-      {!perfFlags.disableMainstageHero && hero && (
+      {!perfFlags.disableMainstageHero && !hideDiscoveryChrome && hero && (
         <section className="tracks-hero">
           <div className="tracks-hero-cover">
             {hero.albumId && hero.coverArt ? (
@@ -173,7 +176,7 @@ export default function TracksPageChrome({
         </section>
       )}
 
-      {!perfFlags.disableMainstageRails && ratedSupported && (ratedLoading || rated.length > 0) && (
+      {!perfFlags.disableMainstageRails && !hideDiscoveryChrome && ratedSupported && (ratedLoading || rated.length > 0) && (
         <SongRail
           title={t('tracks.railHighlyRated')}
           songs={rated}
@@ -184,7 +187,7 @@ export default function TracksPageChrome({
         />
       )}
 
-      {!perfFlags.disableMainstageRails && (
+      {!perfFlags.disableMainstageRails && !hideDiscoveryChrome && (
         <SongRail
           title={t('tracks.railRandom')}
           songs={railSongs}

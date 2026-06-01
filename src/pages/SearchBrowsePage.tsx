@@ -60,6 +60,10 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useSongBrowseList, type SongBrowseListRestore } from '../hooks/useSongBrowseList';
 import TracksPageChrome from '../components/tracks/TracksPageChrome';
 import SongBrowseSection from '../components/tracks/SongBrowseSection';
+import {
+  useLiveSearchScopeStore,
+  useScopedBrowseSearchQuery,
+} from '../store/liveSearchScopeStore';
 
 const MOOD_UI_ENABLED = OXIMEDIA_MOOD_SEARCH_ENABLED;
 
@@ -177,8 +181,24 @@ export default function SearchBrowsePage() {
         }
       : null;
 
+  const tracksLiveSearchInitRef = useRef(false);
+  if (
+    !tracksLiveSearchInitRef.current
+    && restoreStash
+    && showTracksChrome
+    && restoreStash.query
+  ) {
+    tracksLiveSearchInitRef.current = true;
+    useLiveSearchScopeStore.getState().setQuery(restoreStash.query);
+  }
+
+  const tracksSearchQuery = useScopedBrowseSearchQuery('tracks');
+  const liveSearchQuery = useLiveSearchScopeStore(s => s.query);
+  const tracksSearchActive = tracksSearchQuery.trim().length > 0;
+
   const songBrowse = useSongBrowseList({
     enabled: showTracksChrome,
+    searchQuery: tracksSearchQuery,
     initialRestore: songBrowseInitialRestore,
   });
 
@@ -241,7 +261,7 @@ export default function SearchBrowsePage() {
     tracksBrowseUnsupported: false,
   });
   sessionRef.current = {
-    query: showTracksChrome ? songBrowse.query : query,
+    query: showTracksChrome ? liveSearchQuery : query,
     genre,
     yearFrom,
     yearTo,
@@ -585,6 +605,9 @@ export default function SearchBrowsePage() {
       const stash = useAdvancedSearchSessionStore.getState().peekReturnStash();
       if (stash) {
         setQuery(stash.query);
+        if (showTracksChrome) {
+          useLiveSearchScopeStore.getState().setQuery(stash.query);
+        }
         setGenre(stash.genre);
         setYearFrom(stash.yearFrom);
         setYearTo(stash.yearTo);
@@ -795,6 +818,7 @@ export default function SearchBrowsePage() {
       {showTracksChrome ? (
         <>
           <TracksPageChrome
+            hideDiscoveryChrome={tracksSearchActive}
             onLayoutReady={
               isLeaveRestorePending && showTracksChrome ? handleTracksChromeLayoutReady : undefined
             }
@@ -803,8 +827,7 @@ export default function SearchBrowsePage() {
             <SongBrowseSection
               title={t('tracks.browseTitle')}
               emptyBrowseText={t('tracks.browseUnsupported')}
-              query={songBrowse.query}
-              onQueryChange={songBrowse.setQuery}
+              searchActive={tracksSearchActive}
               songs={songBrowse.songs}
               hasMore={songBrowse.hasMore}
               loading={songBrowse.loading}

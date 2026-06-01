@@ -37,6 +37,8 @@ describe('resolveLiveSearchScopeGhost', () => {
     expect(resolveLiveSearchScopeGhost('/albums', 'albums')).toBeNull();
     expect(resolveLiveSearchScopeGhost('/new-releases', null)).toBe('newReleases');
     expect(resolveLiveSearchScopeGhost('/new-releases', 'newReleases')).toBeNull();
+    expect(resolveLiveSearchScopeGhost('/tracks', null)).toBe('tracks');
+    expect(resolveLiveSearchScopeGhost('/tracks', 'tracks')).toBeNull();
     expect(resolveLiveSearchScopeGhost('/composers', null)).toBeNull();
   });
 });
@@ -123,6 +125,7 @@ describe('liveSearchScopePlaceholderKey', () => {
     expect(liveSearchScopePlaceholderKey('artists')).toBe('search.scopeArtistsPlaceholder');
     expect(liveSearchScopePlaceholderKey('albums')).toBe('search.scopeAlbumsPlaceholder');
     expect(liveSearchScopePlaceholderKey('newReleases')).toBe('search.scopeNewReleasesPlaceholder');
+    expect(liveSearchScopePlaceholderKey('tracks')).toBe('search.scopeTracksPlaceholder');
     expect(liveSearchScopePlaceholderKey(null)).toBe('search.placeholder');
   });
 });
