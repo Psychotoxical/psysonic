@@ -85,6 +85,12 @@
   contain-intrinsic-size: 0 220px;
 }
 
+/* Text search / plain grid: no deferred paint — stale scroll + content-visibility blanks tiles. */
+.album-grid-wrap--plain > .artist-card {
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
+}
+
 
 @media (min-width: 1024px) {
   .album-grid-wrap {

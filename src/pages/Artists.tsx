@@ -9,8 +9,6 @@ import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { APP_MAIN_SCROLL_VIEWPORT_ID, ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useElementClientHeightById, useElementClientHeightForElement } from '../hooks/useResizeClientHeight';
-import { useCardGridMetrics } from '../hooks/useCardGridMetrics';
-import { useRemeasureGridVirtualizer } from '../hooks/useRemeasureGridVirtualizer';
 import { useVirtualizerScrollMargin } from '../hooks/useVirtualizerScrollMargin';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
@@ -32,6 +30,7 @@ import { ArtistsListView } from '../components/artists/ArtistsListView';
 import InpageScrollSentinel from '../components/InpageScrollSentinel';
 import { useArtistsBrowseFilters, type ArtistBrowseScrollSnapshot } from '../hooks/useArtistsBrowseFilters';
 import { useArtistsBrowseScrollRestore } from '../hooks/useArtistsBrowseScrollRestore';
+import { useArtistsBrowseScrollReset } from '../hooks/useArtistsBrowseScrollReset';
 import { useNavigateToArtist } from '../hooks/useNavigateToArtist';
 import { peekArtistBrowseScrollRestore } from '../store/artistBrowseSessionStore';
 import { readArtistBrowseRestore } from '../utils/navigation/albumDetailNavigation';
@@ -99,6 +98,11 @@ export default function Artists() {
   const artists = textSearchArtists ?? catalogArtists;
   const loading = catalogLoading || textSearchLoading;
   const textSearchActive = textSearchArtists != null;
+  /** Scoped/plain text filter — canonical CSS grid, not row virtualization (small result sets). */
+  const artistBrowsePlainLayout =
+    perfFlags.disableMainstageVirtualLists
+    || textSearchActive
+    || artistsSearchQuery.trim().length > 0;
 
   const {
     visibleCount,
@@ -244,48 +248,6 @@ export default function Artists() {
     [getArtistsScrollRoot],
   );
 
-  const artistGridMeasureRef = useRef<HTMLDivElement>(null);
-  const { gridCols: artistGridCols, rowHeightEst: artistGridRowHeightEst } = useCardGridMetrics(
-    artistGridMeasureRef,
-    viewMode === 'grid',
-    'artist',
-    visible.length,
-  );
-
-  const artistVirtualRowCount = Math.max(0, Math.ceil(visible.length / Math.max(1, artistGridCols)));
-
-  const artistGridOverscan = Math.max(
-    2,
-    Math.ceil(artistsInpageScrollHeight / Math.max(1, artistGridRowHeightEst)),
-  );
-
-  const artistGridScrollMargin = useVirtualizerScrollMargin(
-    artistGridMeasureRef,
-    getInpageScrollElement,
-    {
-      active: !perfFlags.disableMainstageVirtualLists && viewMode === 'grid',
-      deps: [artistVirtualRowCount, artistGridCols],
-    },
-  );
-
-  const artistGridVirtualizer = useVirtualizer({
-    count:
-      perfFlags.disableMainstageVirtualLists || viewMode !== 'grid'
-        ? 0
-        : artistVirtualRowCount,
-    getScrollElement: getInpageScrollElement,
-    estimateSize: () => artistGridRowHeightEst,
-    overscan: artistGridOverscan,
-    scrollMargin: artistGridScrollMargin,
-  });
-
-  useRemeasureGridVirtualizer(artistGridVirtualizer, {
-    active: !perfFlags.disableMainstageVirtualLists && viewMode === 'grid' && artistVirtualRowCount > 0,
-    gridCols: artistGridCols,
-    rowHeightEst: artistGridRowHeightEst,
-    virtualRowCount: artistVirtualRowCount,
-  });
-
   const artistListOverscan = Math.max(
     12,
     Math.ceil(artistsInpageScrollHeight / ARTIST_LIST_ROW_EST),
@@ -296,14 +258,14 @@ export default function Artists() {
     artistListWrapRef,
     getInpageScrollElement,
     {
-      active: !perfFlags.disableMainstageVirtualLists && viewMode === 'list',
+      active: !artistBrowsePlainLayout && viewMode === 'list',
       deps: [artistListFlatRows.length],
     },
   );
 
   const artistListVirtualizer = useVirtualizer({
     count:
-      perfFlags.disableMainstageVirtualLists || viewMode !== 'list' ? 0 : artistListFlatRows.length,
+      artistBrowsePlainLayout || viewMode !== 'list' ? 0 : artistListFlatRows.length,
     getScrollElement: getInpageScrollElement,
     estimateSize: index => {
       const row = artistListFlatRows[index];
@@ -319,6 +281,27 @@ export default function Artists() {
     },
     overscan: artistListOverscan,
     scrollMargin: artistListScrollMargin,
+  });
+
+  const browseScrollResetKey = [
+    artistsSearchQuery,
+    letterFilter,
+    starredOnly,
+    viewMode,
+    serverId,
+    musicLibraryFilterVersion,
+    textSearchArtists?.length ?? '',
+    textSearchArtists?.[0]?.id ?? '',
+  ].join('\0');
+
+  useArtistsBrowseScrollReset({
+    scrollSnapshotRef,
+    getScrollRoot: getArtistsScrollRoot,
+    isScrollRestorePending,
+    resetKey: browseScrollResetKey,
+    viewMode,
+    listVirtualize: !artistBrowsePlainLayout,
+    listVirtualizer: artistListVirtualizer,
   });
 
   return (
@@ -425,13 +408,8 @@ export default function Artists() {
         {!loading && !pendingLetterMatch && viewMode === 'grid' && (
           <ArtistsGridView
             visible={visible}
-            gridCols={artistGridCols}
-            measureRef={artistGridMeasureRef}
-            virtualization={
-              perfFlags.disableMainstageVirtualLists
-                ? null
-                : { virtualizer: artistGridVirtualizer, scrollMargin: artistGridScrollMargin }
-            }
+            disableVirtualization={artistBrowsePlainLayout}
+            layoutKey={browseScrollResetKey}
             selectionMode={selectionMode}
             selectedIds={selectedIds}
             selectedArtists={selectedArtists}
@@ -445,7 +423,7 @@ export default function Artists() {
 
         {!loading && !pendingLetterMatch && viewMode === 'list' && (
           <ArtistsListView
-            virtualized={!perfFlags.disableMainstageVirtualLists}
+            virtualized={!artistBrowsePlainLayout}
             groups={groups}
             letters={letters}
             artistListFlatRows={artistListFlatRows}

@@ -1,15 +1,11 @@
 import React from 'react';
-import type { Virtualizer } from '@tanstack/react-virtual';
 import { Check } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
 import type { PlayerState } from '../../store/playerStoreTypes';
+import { ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
+import { VirtualCardGrid } from '../VirtualCardGrid';
 import { ArtistCardAvatar } from './ArtistAvatars';
-
-export type ArtistsGridVirtualization = {
-  virtualizer: Virtualizer<HTMLElement, Element>;
-  scrollMargin: number;
-};
 
 interface TileProps {
   artist: SubsonicArtist;
@@ -68,11 +64,10 @@ function ArtistGridTile({ artist, ...rest }: TileProps) {
 
 interface Props {
   visible: SubsonicArtist[];
-  /** Column count from layout (capped at six in parent); drives `repeat(n, minmax(0,1fr))`. */
-  gridCols: number;
-  /** ResizeObserver target — same node for plain and virtual grid. */
-  measureRef: React.RefObject<HTMLDivElement | null>;
-  virtualization?: ArtistsGridVirtualization | null;
+  /** Plain CSS grid (canonical card layout) vs row virtualization for large catalogs. */
+  disableVirtualization: boolean;
+  /** Remount grid when browse filters change so virtualizer state cannot go stale. */
+  layoutKey: string;
   selectionMode: boolean;
   selectedIds: Set<string>;
   selectedArtists: SubsonicArtist[];
@@ -84,14 +79,12 @@ interface Props {
 }
 
 /**
- * Card grid for the artists page. Optional row virtualization (TanStack) for
- * large libraries; column count and `measureRef` always come from the parent.
+ * Card grid for the artists page — same VirtualCardGrid path as Albums/Composers.
  */
 export function ArtistsGridView({
   visible,
-  gridCols,
-  measureRef,
-  virtualization,
+  disableVirtualization,
+  layoutKey,
   selectionMode,
   selectedIds,
   selectedArtists,
@@ -112,67 +105,19 @@ export function ArtistsGridView({
     t,
   };
 
-  const cols = Math.max(1, gridCols);
-
-  if (virtualization) {
-    const { virtualizer, scrollMargin } = virtualization;
-    const rowCount = Math.ceil(visible.length / cols);
-    return (
-      <div
-        ref={measureRef}
-        className="album-grid-wrap"
-        style={{ display: 'block', position: 'relative', width: '100%' }}
-      >
-        <div
-          style={{
-            height: rowCount === 0 ? 0 : virtualizer.getTotalSize(),
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {virtualizer.getVirtualItems().map(vRow => {
-            const start = vRow.index * cols;
-            const rowArtists = visible.slice(start, start + cols);
-            return (
-              <div
-                key={vRow.key}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${vRow.start - scrollMargin}px)`,
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                  gap: 'var(--space-4)',
-                  alignItems: 'start',
-                }}
-              >
-                {rowArtists.map(artist => (
-                  <ArtistGridTile key={artist.id} artist={artist} {...tilePropsShared} />
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      ref={measureRef}
-      className="album-grid-wrap"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-        gap: 'var(--space-4)',
-        alignItems: 'start',
-      }}
-    >
-      {visible.map(artist => (
+    <VirtualCardGrid
+      key={layoutKey}
+      items={visible}
+      itemKey={(artist) => artist.id}
+      rowVariant="artist"
+      disableVirtualization={disableVirtualization}
+      layoutSignal={visible.length}
+      scrollRootId={ARTISTS_INPAGE_SCROLL_VIEWPORT_ID}
+      wrapClassName={disableVirtualization ? 'album-grid-wrap album-grid-wrap--plain' : 'album-grid-wrap'}
+      renderItem={artist => (
         <ArtistGridTile key={artist.id} artist={artist} {...tilePropsShared} />
-      ))}
-    </div>
+      )}
+    />
   );
 }
