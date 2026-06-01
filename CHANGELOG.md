@@ -18,14 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
-### Artist detail — album year sort
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#877](https://github.com/Psychotoxical/psysonic/pull/877)**
-
-* **Albums by …** on the artist page: toggle year sort (newest/oldest) within each release-type block; preference persists for the session per server.
-
-
-
 ### Servers — edit existing profiles
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#780](https://github.com/Psychotoxical/psysonic/pull/780)**
@@ -131,6 +123,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Artist detail — album year sort
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#877](https://github.com/Psychotoxical/psysonic/pull/877)**
+
+* **Albums by …** on the artist page: toggle year sort (newest/oldest) within each release-type block; preference persists for the session per server.
+
+
+
 ### Servers — second optional address per profile (LAN + public)
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#880](https://github.com/Psychotoxical/psysonic/pull/880)**
@@ -221,11 +221,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 
-### CI — hot-path coverage gates block merges
+### Settings + Queue polish
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#921](https://github.com/Psychotoxical/psysonic/pull/921)**
+**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**
 
-* Frontend and Rust `coverage` jobs no longer carry `continue-on-error`; listed hot-path files must stay at ≥70% line coverage or the PR fails.
+* Settings toggle rows dim non-toggle content to 0.6 opacity when their switch is off; mutex-disabled rows (Crossfade/Gapless) unchanged.
+* Queue toolbar `Clear` → `Clear queue` across all 9 locales.
 
 
 
@@ -246,25 +247,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Artists**, **Albums**, **Composers**, **Lossless albums**, and **New releases** scroll inside the route on a locked in-page viewport — toolbars stay sticky, virtual grids use the matching scroll root.
 * Sidebar hover and album/artist card covers no longer jitter on WebKitGTK + Wayland during pointer moves.
-
-
-
-### Settings + Queue polish
-
-**By [@kveld9](https://github.com/kveld9) + [@Psychotoxical](https://github.com/Psychotoxical), adopted from PR [#558](https://github.com/Psychotoxical/psysonic/pull/558), rewritten in PR [#778](https://github.com/Psychotoxical/psysonic/pull/778)**
-
-* Settings toggle rows dim non-toggle content to 0.6 opacity when their switch is off; mutex-disabled rows (Crossfade/Gapless) unchanged.
-* Queue toolbar `Clear` → `Clear queue` across all 9 locales.
-
-
-
-### Development — parallel `tauri dev` alongside release
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#866](https://github.com/Psychotoxical/psysonic/pull/866)**
-
-* Debug builds skip `tauri-plugin-single-instance` so `./dev.sh` can run next to an installed release while sharing the same app data directory.
-* Debug-only chrome: window title `Psysonic (Dev)`, red sidebar brand, monochrome custom titlebar buttons, mobile `DEV` badge, horizontally flipped tray icon.
-* Debug builds do not register OS global shortcuts, MPRIS/media keys, or Windows taskbar media controls — release keeps system-wide input when both are open.
 
 
 
@@ -344,6 +326,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Development — parallel `tauri dev` alongside release
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#866](https://github.com/Psychotoxical/psysonic/pull/866)**
+
+* Debug builds skip `tauri-plugin-single-instance` so `./dev.sh` can run next to an installed release while sharing the same app data directory.
+* Debug-only chrome: window title `Psysonic (Dev)`, red sidebar brand, monochrome custom titlebar buttons, mobile `DEV` badge, horizontally flipped tray icon.
+* Debug builds do not register OS global shortcuts, MPRIS/media keys, or Windows taskbar media controls — release keeps system-wide input when both are open.
+
+
+
 ### Discord Rich Presence — track title in the member list
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#885](https://github.com/Psychotoxical/psysonic/pull/885)**
@@ -361,57 +353,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **All Albums**: client-slice infinite scroll on the local index (Artists-style).
 * Shared in-page scroll hooks and sentinel UI across browse routes; album SQL pagination prioritized over cover ensures.
 
+### CI — hot-path coverage gates block merges
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#921](https://github.com/Psychotoxical/psysonic/pull/921)**
+
+* Frontend and Rust `coverage` jobs no longer carry `continue-on-error`; listed hot-path files must stay at ≥70% line coverage or the PR fails.
+
+
+
 
 
 ## Fixed
-
-### Performance — idle Rust CPU, probe overlay, and cover prefetch
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#939](https://github.com/Psychotoxical/psysonic/pull/939)**
-
-* **Advanced analytics coordinator:** park on `Notify` when disabled — no idle 2s poll loop; wake on configure or library sync-idle.
-* **Performance Probe:** run CPU snapshot on the blocking pool; skip `/proc` poll on Windows; fix overlay flicker and sparkline clock jumps; hold previous CPU % until the first rate sample (no 0% flash).
-* **Background polls:** Settings → Storage hot-cache poll 15s; cover registry full disk stats every 30s when idle instead of every 1.5s tick.
-* **Cover art:** restore lazy route prefetch; batch disk peek before ensure so cached WebP warms `diskSrcCache` without flooding invoke slots; yield when viewport ensures are queued.
-
-
-
-### CI — npmDepsHash on app-v* tags
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#927](https://github.com/Psychotoxical/psysonic/pull/927)**
-
-* Channel publish now refreshes `nix/upstream-sources.json` and `flake.lock` on the channel branch **before** cutting `app-v*` tags, so Nix builds from release tags no longer fail with stale `npmDepsHash` (e.g. after promote finalizes `package-lock.json` version).
-
-### Queue — Infinite Queue and Smart Radio top-ups no longer show `…` / `0:00`
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#930](https://github.com/Psychotoxical/psysonic/pull/930)**
-
-* Tracks added automatically by **Infinite Queue** or by **Smart Radio** could render as `…` / `0:00` instead of their real title and duration when the queue was filled without a queue-replacing playback (single-track enqueue from a song row, search result, etc).
-* Same root cause as PR #892 — just on the auto-add paths the earlier fix did not cover. The owning server is now pinned before each auto-top-up so the resolver cache sees the fresh tracks.
-
-### Advanced Search — centered button label
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#925](https://github.com/Psychotoxical/psysonic/pull/925)**
-
-* The **Search** button's label is now centered. Buttons wider than their text (the Search button has a fixed minimum width) previously rendered the label left-aligned.
-
-
-
-### Radio — track info in OS media controls
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79 on GitHub, PR [#924](https://github.com/Psychotoxical/psysonic/pull/924)**
-
-* The Linux media overlay (MPRIS) now shows the current **radio track and artist** instead of just "Psysonic", and updates as the stream changes songs. Internet radio plays through the WebView audio element, which exposes its own OS media player — that player is now fed the live ICY/AzuraCast metadata. Streams that send no metadata still fall back to the station name.
-
-
-
-### Analytics — Opus waveform and loudness analysis
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#883](https://github.com/Psychotoxical/psysonic/pull/883)**
-
-* **Opus tracks:** waveform, LUFS, and enrichment analysis now use the same `symphonia-adapter-libopus` registry as playback — previously Symphonia could demux Ogg Opus but failed at decoder creation, leaving `.opus` libraries without analysis data.
-
-
 
 ### In-page browse — virtual scroll and cover-art priority
 
@@ -595,6 +547,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Analytics — Opus waveform and loudness analysis
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#883](https://github.com/Psychotoxical/psysonic/pull/883)**
+
+* **Opus tracks:** waveform, LUFS, and enrichment analysis now use the same `symphonia-adapter-libopus` registry as playback — previously Symphonia could demux Ogg Opus but failed at decoder creation, leaving `.opus` libraries without analysis data.
+
+
+
 ### Settings — Linux text-input freeze workaround
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#884](https://github.com/Psychotoxical/psysonic/pull/884)**
@@ -637,6 +597,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Adding tracks to the queue from Advanced Search results, song rows, or song cards right after launch could show every new entry as `…` / `0:00` instead of the real title and duration, until something else triggered a queue-replacing playback.
 * Root cause: the queue's owning server was not pinned yet, so the resolver cache skipped seeding the incoming tracks. Add-to-queue mutations now pin the active server up-front.
+
+
+
+### Radio — track info in OS media controls
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79 on GitHub, PR [#924](https://github.com/Psychotoxical/psysonic/pull/924)**
+
+* The Linux media overlay (MPRIS) now shows the current **radio track and artist** instead of just "Psysonic", and updates as the stream changes songs. Internet radio plays through the WebView audio element, which exposes its own OS media player — that player is now fed the live ICY/AzuraCast metadata. Streams that send no metadata still fall back to the station name.
+
+
+
+### Advanced Search — centered button label
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#925](https://github.com/Psychotoxical/psysonic/pull/925)**
+
+* The **Search** button's label is now centered. Buttons wider than their text (the Search button has a fixed minimum width) previously rendered the label left-aligned.
+
+
+
+### CI — npmDepsHash on app-v* tags
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#927](https://github.com/Psychotoxical/psysonic/pull/927)**
+
+* Channel publish now refreshes `nix/upstream-sources.json` and `flake.lock` on the channel branch **before** cutting `app-v*` tags, so Nix builds from release tags no longer fail with stale `npmDepsHash` (e.g. after promote finalizes `package-lock.json` version).
+
+### Queue — Infinite Queue and Smart Radio top-ups no longer show `…` / `0:00`
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#930](https://github.com/Psychotoxical/psysonic/pull/930)**
+
+* Tracks added automatically by **Infinite Queue** or by **Smart Radio** could render as `…` / `0:00` instead of their real title and duration when the queue was filled without a queue-replacing playback (single-track enqueue from a song row, search result, etc).
+* Same root cause as PR #892 — just on the auto-add paths the earlier fix did not cover. The owning server is now pinned before each auto-top-up so the resolver cache sees the fresh tracks.
+
+### Performance — idle Rust CPU, probe overlay, and cover prefetch
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#939](https://github.com/Psychotoxical/psysonic/pull/939)**
+
+* **Advanced analytics coordinator:** park on `Notify` when disabled — no idle 2s poll loop; wake on configure or library sync-idle.
+* **Performance Probe:** run CPU snapshot on the blocking pool; skip `/proc` poll on Windows; fix overlay flicker and sparkline clock jumps; hold previous CPU % until the first rate sample (no 0% flash).
+* **Background polls:** Settings → Storage hot-cache poll 15s; cover registry full disk stats every 30s when idle instead of every 1.5s tick.
+* **Cover art:** restore lazy route prefetch; batch disk peek before ensure so cached WebP warms `diskSrcCache` without flooding invoke slots; yield when viewport ensures are queued.
 
 
 
