@@ -638,6 +638,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Background polls:** Settings → Storage hot-cache poll 15s; cover registry full disk stats every 30s when idle instead of every 1.5s tick.
 * **Cover art:** restore lazy route prefetch; batch disk peek before ensure so cached WebP warms `diskSrcCache` without flooding invoke slots; yield when viewport ensures are queued.
 
+### Player stats — paused time no longer counts as listening time
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#942](https://github.com/Psychotoxical/psysonic/pull/942)**
+
+* Pausing a track and resuming later inflated the listening time in **Statistics → Player stats** — the whole paused span was billed as if the track had been playing.
+* Root cause: the session's tick baseline froze on pause, so the first progress tick after resume measured against the pre-pause timestamp. It now settles the played segment on pause and rebaselines on resume.
+
 
 
 ## [1.46.0] - 2026-05-18
