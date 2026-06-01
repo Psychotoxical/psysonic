@@ -90,6 +90,8 @@ export function shouldSkipMainScrollResetOnRouteChange(
   if (readAdvancedSearchRestore(locationState)) return true;
   const leave = useAdvancedSearchSessionStore.getState().peekLeaveScrollSnapshot();
   if ((leave?.scrollTop ?? 0) > 0) return true;
+  const stash = useAdvancedSearchSessionStore.getState().peekReturnStash();
+  if (isAdvancedSearchPath(pathname) && (stash?.scrollTop ?? 0) > 0) return true;
   if (isAdvancedSearchPath(pathname)) {
     const persisted = peekPersistedAdvancedSearchLeaveSnapshot();
     if ((persisted?.scrollTop ?? 0) > 0) return true;

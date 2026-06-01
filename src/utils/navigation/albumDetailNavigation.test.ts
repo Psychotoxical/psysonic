@@ -159,6 +159,33 @@ describe('albumDetailNavigation', () => {
       artistRowScrollLeft: 0,
     });
     expect(shouldSkipMainScrollResetOnRouteChange('/search/advanced', null)).toBe(true);
+    expect(shouldSkipMainScrollResetOnRouteChange('/tracks', null)).toBe(true);
+  });
+
+  it('skips main scroll reset when Advanced Search return stash carries scrollTop', () => {
+    useAdvancedSearchSessionStore.getState().stashReturnSession({
+      query: 'jazz',
+      genre: '',
+      yearFrom: '',
+      yearTo: '',
+      bpmFrom: '',
+      bpmTo: '',
+      moodGroup: '',
+      losslessOnly: false,
+      resultType: 'all',
+      starredOnly: false,
+      results: { artists: [], albums: [], songs: [] },
+      hasSearched: true,
+      activeSearch: null,
+      localMode: false,
+      songsServerOffset: 0,
+      songsHasMore: false,
+      genreNote: false,
+      basicSearchMode: false,
+      tracksBrowseMode: true,
+      scrollTop: 880,
+    });
+    expect(shouldSkipMainScrollResetOnRouteChange('/tracks', null)).toBe(true);
   });
 
   it('builds return path with search and hash', () => {

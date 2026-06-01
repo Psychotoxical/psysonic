@@ -61,10 +61,17 @@ function readMainScrollTopFromDom(): number {
   return document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTop ?? 0;
 }
 
+function readMainScrollTopForLeave(providerSnap?: AdvancedSearchLeaveSnapshot): number {
+  const fromDom = readMainScrollTopFromDom();
+  const fromProvider = providerSnap?.scrollTop ?? 0;
+  // After route commit the DOM viewport may already be the destination page (scrollTop 0).
+  return Math.max(fromDom, fromProvider);
+}
+
 export function readAdvancedSearchLeaveSnapshot(): AdvancedSearchLeaveSnapshot {
   const providerSnap = leaveScrollProvider?.();
   return {
-    scrollTop: Math.max(readMainScrollTopFromDom(), providerSnap?.scrollTop ?? 0),
+    scrollTop: readMainScrollTopForLeave(providerSnap),
     albumRowScrollLeft: Math.max(
       readAlbumRowScrollLeftFromDom(),
       providerSnap?.albumRowScrollLeft ?? 0,

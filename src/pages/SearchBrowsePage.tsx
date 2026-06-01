@@ -182,19 +182,17 @@ export default function SearchBrowsePage() {
       : null;
 
   const tracksLiveSearchInitRef = useRef(false);
-  if (
-    !tracksLiveSearchInitRef.current
-    && restoreStash
-    && showTracksChrome
-    && restoreStash.query
-  ) {
+  if (!tracksLiveSearchInitRef.current && restoreStash && showTracksChrome) {
     tracksLiveSearchInitRef.current = true;
-    useLiveSearchScopeStore.getState().setQuery(restoreStash.query);
+    const store = useLiveSearchScopeStore.getState();
+    store.setScope('tracks');
+    if (restoreStash.query) store.setQuery(restoreStash.query);
   }
 
   const tracksSearchQuery = useScopedBrowseSearchQuery('tracks');
   const liveSearchQuery = useLiveSearchScopeStore(s => s.query);
-  const tracksSearchActive = tracksSearchQuery.trim().length > 0;
+  const tracksSearchActive =
+    tracksSearchQuery.trim().length > 0 || liveSearchQuery.trim().length > 0;
 
   const songBrowse = useSongBrowseList({
     enabled: showTracksChrome,
@@ -208,6 +206,9 @@ export default function SearchBrowsePage() {
     restoringSession ? resolveAdvancedSearchLeaveSnapshot(restoreStash) : null,
   );
   const scrollTopRestoreTargetRef = useRef(leaveSnapshotRef.current?.scrollTop ?? 0);
+  const tracksSearchRestorePendingRef = useRef(
+    !!(songBrowseInitialRestore?.query.trim()),
+  );
   const albumRowScrollLeftRestoreRef = useRef(leaveSnapshotRef.current?.albumRowScrollLeft ?? 0);
   const artistRowScrollLeftRestoreRef = useRef(leaveSnapshotRef.current?.artistRowScrollLeft ?? 0);
   const mainScrollTopRef = useRef(0);
@@ -216,12 +217,16 @@ export default function SearchBrowsePage() {
   const skipSearchAutoFocusRef = useRef(restoreStash != null);
   const skipEnterAnimationRef = useRef(restoreStash != null || leaveSnapshotRef.current != null);
   const leaveRestoreUiFinishedRef = useRef(leaveSnapshotRef.current == null);
+  const restoringTracksSearch = !!(restoreStash?.query.trim() && showTracksChrome);
   const [tracksChromeLayoutReady, setTracksChromeLayoutReady] = useState(
-    () => !showTracksChrome || leaveSnapshotRef.current == null,
+    () => !showTracksChrome || leaveSnapshotRef.current == null || restoringTracksSearch,
   );
   const [isLeaveRestorePending, setIsLeaveRestorePending] = useState(
     () => leaveSnapshotRef.current != null,
   );
+  const tracksDiscoveryHidden =
+    tracksSearchActive
+    || (isLeaveRestorePending && !!(restoreStash?.query.trim() || songBrowseInitialRestore?.query.trim()));
 
   const handleTracksChromeLayoutReady = useCallback(() => {
     setTracksChromeLayoutReady(true);
@@ -230,12 +235,15 @@ export default function SearchBrowsePage() {
   const finishLeaveRestoreUi = useCallback(() => {
     if (leaveRestoreUiFinishedRef.current) return;
     leaveRestoreUiFinishedRef.current = true;
-    clearAdvancedSearchLeaveSnapshots();
     leaveSnapshotRef.current = null;
     setIsLeaveRestorePending(false);
-    if (hadRestoreOnMountRef.current) {
-      useAdvancedSearchSessionStore.getState().clearReturnStash();
-    }
+    // Defer stash teardown until after AppShell's route-change scroll reset effect.
+    window.setTimeout(() => {
+      clearAdvancedSearchLeaveSnapshots();
+      if (hadRestoreOnMountRef.current) {
+        useAdvancedSearchSessionStore.getState().clearReturnStash();
+      }
+    }, 0);
   }, []);
 
   const sessionRef = useRef<AdvancedSearchSessionStash>({
@@ -606,7 +614,9 @@ export default function SearchBrowsePage() {
       if (stash) {
         setQuery(stash.query);
         if (showTracksChrome) {
-          useLiveSearchScopeStore.getState().setQuery(stash.query);
+          const store = useLiveSearchScopeStore.getState();
+          store.setScope('tracks');
+          store.setQuery(stash.query);
         }
         setGenre(stash.genre);
         setYearFrom(stash.yearFrom);
@@ -635,20 +645,47 @@ export default function SearchBrowsePage() {
     useAdvancedSearchSessionStore.getState().clearReturnStash();
   }, [navigationType, location.state]);
 
+  const tracksSearchRestoreSynced =
+    !tracksSearchRestorePendingRef.current
+    || tracksSearchQuery.trim() === (songBrowseInitialRestore?.query.trim() ?? '');
+
   const leaveRestoreContentReady = showTracksChrome
     ? tracksChromeLayoutReady
-      && ((hadRestoreOnMountRef.current && songBrowse.hasSearched) || (songBrowse.hasSearched && !songBrowse.loading))
+      && tracksSearchRestoreSynced
+      && (
+        (hadRestoreOnMountRef.current && songBrowseInitialRestore != null)
+        || (songBrowse.hasSearched && !songBrowse.loading)
+      )
     : ((hadRestoreOnMountRef.current && results !== null) || (hasSearched && !loading));
 
   useLayoutEffect(() => {
     if (!leaveRestoreContentReady || leaveRestoreUiFinishedRef.current) return;
+    if (showTracksChrome) return;
     const target = scrollTopRestoreTargetRef.current;
     if (target <= 0) {
       finishLeaveRestoreUi();
       return;
     }
     return restoreMainViewportScroll(target, finishLeaveRestoreUi);
-  }, [leaveRestoreContentReady, finishLeaveRestoreUi]);
+  }, [leaveRestoreContentReady, finishLeaveRestoreUi, showTracksChrome]);
+
+  useEffect(() => {
+    if (!showTracksChrome || leaveRestoreUiFinishedRef.current) return;
+    if (!leaveRestoreContentReady) return;
+    const target = scrollTopRestoreTargetRef.current;
+    if (target <= 0) {
+      finishLeaveRestoreUi();
+      return;
+    }
+    if (songBrowse.songs.length === 0) return;
+    return restoreMainViewportScroll(target, finishLeaveRestoreUi);
+  }, [
+    showTracksChrome,
+    leaveRestoreContentReady,
+    finishLeaveRestoreUi,
+    songBrowse.songs.length,
+    tracksSearchRestoreSynced,
+  ]);
 
   useEffect(() => {
     if (isLeaveRestorePending || !readAdvancedSearchRestore(location.state)) return;
@@ -818,7 +855,7 @@ export default function SearchBrowsePage() {
       {showTracksChrome ? (
         <>
           <TracksPageChrome
-            hideDiscoveryChrome={tracksSearchActive}
+            hideDiscoveryChrome={tracksDiscoveryHidden}
             onLayoutReady={
               isLeaveRestorePending && showTracksChrome ? handleTracksChromeLayoutReady : undefined
             }

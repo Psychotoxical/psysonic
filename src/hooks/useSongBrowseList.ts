@@ -66,12 +66,23 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
 
   const requestSeqRef = useRef(0);
   const localSearchModeRef = useRef(initialRestore?.localSearchMode ?? false);
-  const skipInitialFetchRef = useRef(initialRestore != null);
+  /** Keep stashed songs until the user edits the scoped query (survives fetchSongPage identity changes). */
+  const holdRestoredListRef = useRef(initialRestore != null);
+  const heldRestoredQueryRef = useRef(initialRestore?.query.trim() ?? '');
+
+  const restoreQueryHoldRef = useRef(
+    initialRestore?.query.trim() ? initialRestore.query.trim() : null,
+  );
 
   useEffect(() => {
     if (!enabled) return;
+    const incoming = searchQuery.trim();
+    if (incoming !== '') {
+      restoreQueryHoldRef.current = null;
+    }
+    const effectiveQuery = incoming || restoreQueryHoldRef.current || '';
     const debounceMs = indexEnabled ? BROWSE_TEXT_DEBOUNCE_RACE_MS : BROWSE_TEXT_DEBOUNCE_NETWORK_MS;
-    const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), debounceMs);
+    const timer = window.setTimeout(() => setDebouncedQuery(effectiveQuery), debounceMs);
     return () => window.clearTimeout(timer);
   }, [searchQuery, indexEnabled, enabled]);
 
@@ -117,9 +128,14 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
 
   useEffect(() => {
     if (!enabled) return;
-    if (skipInitialFetchRef.current) {
-      skipInitialFetchRef.current = false;
-      return;
+
+    if (holdRestoredListRef.current) {
+      const expected = heldRestoredQueryRef.current;
+      if (searchQuery.trim() !== expected || debouncedQuery !== expected) {
+        holdRestoredListRef.current = false;
+      } else {
+        return;
+      }
     }
 
     let cancelled = false;
@@ -155,7 +171,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, fetchSongPage, enabled]);
+  }, [debouncedQuery, searchQuery, fetchSongPage, enabled]);
 
   const loadMore = useCallback(async () => {
     if (!enabled || loading || !hasMore) return;
