@@ -1,4 +1,3 @@
-import { getGenres } from '../api/subsonicGenres';
 import type { SubsonicGenre } from '../api/subsonicTypes';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +7,8 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { fetchGenreCatalog } from '../utils/library/genreBrowsePlayback';
+import { libraryScopeForServer } from '../api/subsonicClient';
+import { peekGenreCatalogCache } from '../utils/library/genreCatalogCountsCache';
 
 const CTP_COLORS = [
   'var(--ctp-rosewater)', 'var(--ctp-flamingo)', 'var(--ctp-pink)', 'var(--ctp-mauve)',
@@ -32,12 +33,21 @@ export default function Genres() {
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const [rawGenres, setRawGenres] = useState<SubsonicGenre[]>([]);
-  const [loading, setLoading] = useState(true);
+  const libraryScope = libraryScopeForServer(serverId);
+  const cachedGenres = serverId ? peekGenreCatalogCache(serverId, libraryScope, true) : null;
+  const [rawGenres, setRawGenres] = useState<SubsonicGenre[]>(cachedGenres ?? []);
+  const [loading, setLoading] = useState(!cachedGenres);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    const scope = libraryScopeForServer(serverId);
+    const cached = serverId ? peekGenreCatalogCache(serverId, scope, true) : null;
+    if (cached) {
+      setRawGenres(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     void fetchGenreCatalog(serverId, indexEnabled)
       .then(data => {
         if (!cancelled) setRawGenres(data);

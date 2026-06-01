@@ -118,11 +118,7 @@ pub(crate) fn genre_album_counts_for_server(
                  FROM track t \
                  WHERE t.server_id = ?1 AND t.deleted = 0 \
                    AND t.genre IS NOT NULL AND TRIM(t.genre) != '' \
-                   AND t.album_id IS NOT NULL AND t.album_id != '' \
-                   AND NOT EXISTS ( \
-                     SELECT 1 FROM album a \
-                     WHERE a.server_id = t.server_id AND a.id = t.album_id AND a.song_count IS NOT NULL \
-                   )",
+                   AND t.album_id IS NOT NULL AND t.album_id != ''",
             );
             let mut params: Vec<rusqlite::types::Value> =
                 vec![rusqlite::types::Value::Text(server_id.to_string())];
@@ -319,6 +315,26 @@ mod tests {
         assert_eq!(counts[1].value, "Jazz");
         assert_eq!(counts[1].album_count, 1);
         assert_eq!(counts[1].song_count, 1);
+    }
+
+    #[test]
+    fn genre_album_counts_respect_library_scope() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let mut scoped = make_row("s1", "r1", "al_a", 1);
+        scoped.genre = Some("Rock".into());
+        scoped.library_id = Some("lib1".into());
+        let mut other = make_row("s1", "r2", "al_b", 1);
+        other.genre = Some("Rock".into());
+        other.library_id = Some("lib2".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[scoped, other])
+            .unwrap();
+
+        let counts = genre_album_counts_for_server(&store, "s1", Some("lib1")).unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0].value, "Rock");
+        assert_eq!(counts[0].album_count, 1);
+        assert_eq!(counts[0].song_count, 1);
     }
 
     #[test]

@@ -730,6 +730,47 @@ export function libraryGetGenreAlbumCounts(args: {
   });
 }
 
+export type LibraryGenreAlbumsRequest = {
+  serverId: string;
+  genre: string;
+  libraryScope?: string | null;
+  sort?: LibrarySortClause[];
+  limit?: number;
+  offset?: number;
+  includeTotal?: boolean;
+};
+
+export type LibraryGenreAlbumsResponse = {
+  albums: LibraryAlbumDto[];
+  hasMore: boolean;
+  total?: number | null;
+  source: 'local';
+};
+
+/** Paginated albums for one genre from the local track index. */
+export function libraryListAlbumsByGenre(
+  request: LibraryGenreAlbumsRequest,
+): Promise<LibraryGenreAlbumsResponse> {
+  const indexKey = serverIndexKeyForId(request.serverId);
+  return invoke<LibraryGenreAlbumsResponse>('library_list_albums_by_genre', {
+    request: {
+      serverId: indexKey,
+      genre: request.genre,
+      libraryScope: request.libraryScope ?? undefined,
+      sort: request.sort ?? [],
+      limit: request.limit ?? 50,
+      offset: request.offset ?? 0,
+      includeTotal: request.includeTotal ?? false,
+    },
+  }).then(response => ({
+    ...response,
+    albums: response.albums.map(album => ({
+      ...album,
+      serverId: mapServerIdFromIndexKey(album.serverId, request.serverId),
+    })),
+  }));
+}
+
 export type PlaySessionRecentDay = {
   date: string;
   totalListenedSec: number;

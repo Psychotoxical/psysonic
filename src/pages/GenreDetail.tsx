@@ -9,7 +9,7 @@ import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { GENRE_DETAIL_INPAGE_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { useAlbumBrowseScrollSnapshotSync, type AlbumBrowseScrollSnapshot } from '../hooks/useAlbumBrowseFilters';
-import { useAlbumBrowseData } from '../hooks/useAlbumBrowseData';
+import { useGenreAlbumBrowse } from '../hooks/useGenreAlbumBrowse';
 import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
 import { useGenreDetailBrowse } from '../hooks/useGenreDetailBrowse';
 import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
@@ -17,11 +17,12 @@ import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeader
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { usePlayerStore } from '../store/playerStore';
-import { peekGenreDetailScrollRestore } from '../store/albumBrowseSessionStore';
 import {
   fetchGenreAlbumCount,
   fetchGenreTracksForPlayback,
 } from '../utils/library/genreBrowsePlayback';
+import { lookupGenreAlbumCount } from '../utils/library/genreCatalogCountsCache';
+import { libraryScopeForServer } from '../api/subsonicClient';
 import {
   readAlbumBrowseRestore,
   readAlbumDetailReturnTo,
@@ -32,7 +33,6 @@ import { runBulkEnqueue, runBulkPlayAll, runBulkShuffle } from '../utils/playbac
 export default function GenreDetail() {
   const { name } = useParams<{ name: string }>();
   const genre = decodeURIComponent(name ?? '');
-  const lockedGenres = useMemo(() => (genre ? [genre] : []), [genre]);
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const navigate = useNavigate();
@@ -42,12 +42,8 @@ export default function GenreDetail() {
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const playTrack = usePlayerStore(s => s.playTrack);
   const enqueue = usePlayerStore(s => s.enqueue);
-  const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
   const scrollSnapshotRef = useRef<AlbumBrowseScrollSnapshot>({ scrollTop: 0, displayCount: 0 });
-  const restoreDisplayCountRef = useRef<number | undefined>(
-    peekGenreDetailScrollRestore(serverId, genre)?.displayCount,
-  );
 
   const { sort, restoreDisplayCount } = useGenreDetailBrowse(serverId, genre, scrollSnapshotRef);
 
@@ -65,22 +61,16 @@ export default function GenreDetail() {
     displayAlbums,
     bindLoadMoreSentinel,
     loadMore,
-  } = useAlbumBrowseData({
+  } = useGenreAlbumBrowse(
     serverId,
+    genre,
     indexEnabled,
-    musicLibraryFilterVersion,
     sort,
-    selectedGenres: lockedGenres,
-    yearFrom: '',
-    yearTo: '',
-    losslessOnly: false,
-    starredOnly: false,
-    compFilter: 'all',
-    starredOverrides,
+    musicLibraryFilterVersion,
     getScrollRoot,
-    scrollRootEl: scrollBodyEl,
-    restoreDisplayCount: restoreDisplayCountRef.current ?? restoreDisplayCount,
-  });
+    scrollBodyEl,
+    restoreDisplayCount,
+  );
 
   useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, displayAlbums.length);
 
@@ -104,15 +94,26 @@ export default function GenreDetail() {
   const [bulkLoading, setBulkLoading] = useState(false);
 
   useEffect(() => {
-    if (!genre) return;
+    if (!genre || !serverId) return;
+    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeForServer(serverId));
+    if (cached != null) setAlbumCount(cached);
+  }, [serverId, genre, musicLibraryFilterVersion]);
+
+  useEffect(() => {
+    if (!genre || loading) return;
+    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeForServer(serverId));
+    if (cached != null) return;
     let cancelled = false;
-    void fetchGenreAlbumCount(serverId, genre, indexEnabled).then(count => {
-      if (!cancelled) setAlbumCount(count);
-    });
+    const timer = window.setTimeout(() => {
+      void fetchGenreAlbumCount(serverId, genre, indexEnabled, sort).then(count => {
+        if (!cancelled) setAlbumCount(count);
+      });
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [serverId, genre, indexEnabled, musicLibraryFilterVersion]);
+  }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, loading]);
 
   const fetchGenreTracks = useCallback(
     (shuffle?: boolean) => fetchGenreTracksForPlayback(serverId, genre, {

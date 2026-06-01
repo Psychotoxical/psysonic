@@ -24,6 +24,7 @@ pub mod cross_server;
 pub mod dto;
 pub mod enrichment;
 pub mod filter;
+pub mod genre_album_browse;
 pub mod mood_groups;
 pub mod live_search;
 pub mod lossless_albums;

@@ -7,6 +7,7 @@ import {
 } from '../../api/library';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { libraryDevEnabled, logLibrarySync } from './libraryDevLog';
+import { invalidateGenreCatalogCache } from './genreCatalogCountsCache';
 
 export type LibrarySyncQueueKind = 'full' | 'delta' | 'verify';
 
@@ -44,6 +45,7 @@ function ensureIdleListener(): Promise<UnlistenFn> {
 }
 
 function onSyncIdle(payload: LibrarySyncIdlePayload): void {
+  if (payload.ok) invalidateGenreCatalogCache(payload.serverId);
   if (!waitingForIdle || waitingForIdle.serverId !== payload.serverId) return;
   const waiter = waitingForIdle;
   waitingForIdle = null;

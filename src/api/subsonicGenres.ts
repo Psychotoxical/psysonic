@@ -2,7 +2,9 @@ import { api, libraryFilterParams } from './subsonicClient';
 import type { SubsonicAlbum, SubsonicGenre, SubsonicSong } from './subsonicTypes';
 
 export async function getGenres(): Promise<SubsonicGenre[]> {
-  const data = await api<{ genres: { genre: SubsonicGenre | SubsonicGenre[] } }>('getGenres.view');
+  const data = await api<{ genres: { genre: SubsonicGenre | SubsonicGenre[] } }>('getGenres.view', {
+    ...libraryFilterParams(),
+  });
   const raw = data.genres?.genre;
   if (!raw) return [];
   return Array.isArray(raw) ? raw : [raw];

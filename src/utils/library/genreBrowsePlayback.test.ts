@@ -25,17 +25,25 @@ vi.mock('./libraryReady', () => ({
   libraryIsReady: vi.fn(),
 }));
 
+vi.mock('./genreAlbumBrowse', () => ({
+  fetchGenreAlbumTotal: vi.fn(),
+}));
+
 import { libraryAdvancedSearch, libraryGetGenreAlbumCounts } from '../../api/library';
 import { fetchAllSongsByGenre, getGenres } from '../../api/subsonicGenres';
+import { fetchGenreAlbumTotal } from './genreAlbumBrowse';
+import { resetGenreCatalogCountsCacheForTests } from './genreCatalogCountsCache';
 import { libraryIsReady } from './libraryReady';
 
 describe('genreBrowsePlayback', () => {
   beforeEach(() => {
+    resetGenreCatalogCountsCacheForTests();
     vi.mocked(libraryIsReady).mockReset();
     vi.mocked(libraryAdvancedSearch).mockReset();
     vi.mocked(libraryGetGenreAlbumCounts).mockReset();
     vi.mocked(fetchAllSongsByGenre).mockReset();
     vi.mocked(getGenres).mockReset();
+    vi.mocked(fetchGenreAlbumTotal).mockReset();
   });
 
   it('requests random local tracks for shuffle', async () => {
@@ -84,22 +92,26 @@ describe('genreBrowsePlayback', () => {
     expect(tracks).toHaveLength(1);
   });
 
-  it('reads album totals from local index', async () => {
+  it('reads album totals from cached genre catalog', async () => {
     vi.mocked(libraryIsReady).mockResolvedValue(true);
-    vi.mocked(libraryAdvancedSearch).mockResolvedValue({
-      source: 'local',
-      tracks: [],
-      albums: [],
-      artists: [],
-      totals: { tracks: 10, albums: 42, artists: 3 },
-      appliedFilters: ['genre'],
-    });
+    vi.mocked(libraryGetGenreAlbumCounts).mockResolvedValue([
+      { value: 'Rock', albumCount: 42, songCount: 900 },
+    ]);
+    await fetchGenreCatalog('srv-1', true);
+
+    await expect(fetchGenreAlbumCount('srv-1', 'Rock', true)).resolves.toBe(42);
+    expect(fetchGenreAlbumTotal).not.toHaveBeenCalled();
+    expect(getGenres).not.toHaveBeenCalled();
+  });
+
+  it('falls back to per-genre total when catalog cache is empty', async () => {
+    vi.mocked(fetchGenreAlbumTotal).mockResolvedValue(42);
 
     await expect(fetchGenreAlbumCount('srv-1', 'Rock', true)).resolves.toBe(42);
   });
 
-  it('falls back to genre list album count', async () => {
-    vi.mocked(libraryIsReady).mockResolvedValue(false);
+  it('falls back to scoped genre list album count when local index is off', async () => {
+    vi.mocked(fetchGenreAlbumTotal).mockResolvedValue(null);
     vi.mocked(getGenres).mockResolvedValue([
       { value: 'Rock', songCount: 100, albumCount: 7 },
     ]);
@@ -116,6 +128,22 @@ describe('genreBrowsePlayback', () => {
     await expect(fetchGenreCatalog('srv-1', true)).resolves.toEqual([
       { value: 'Rock', albumCount: 42, songCount: 900 },
     ]);
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      libraryScope: 'music',
+    });
     expect(getGenres).not.toHaveBeenCalled();
+  });
+
+  it('reuses cached genre catalog without repeating SQL', async () => {
+    vi.mocked(libraryIsReady).mockResolvedValue(true);
+    vi.mocked(libraryGetGenreAlbumCounts).mockResolvedValue([
+      { value: 'Rock', albumCount: 42, songCount: 900 },
+    ]);
+
+    await fetchGenreCatalog('srv-1', true);
+    await fetchGenreCatalog('srv-1', true);
+
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledTimes(1);
   });
 });

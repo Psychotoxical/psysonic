@@ -9,7 +9,41 @@ import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
 import { shuffleArray } from '../playback/shuffleArray';
 import { trackToSong } from './advancedSearchLocal';
+import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
+import {
+  genreCatalogCacheKey,
+  getInflightGenreCatalog,
+  lookupGenreAlbumCount,
+  peekGenreCatalogCache,
+  trackInflightGenreCatalog,
+  writeGenreCatalogCache,
+} from './genreCatalogCountsCache';
+import { fetchGenreAlbumTotal } from './genreAlbumBrowse';
 import { libraryIsReady } from './libraryReady';
+
+async function loadLocalGenreCatalogRows(
+  serverId: string,
+  libraryScope: string | undefined,
+): Promise<SubsonicGenre[]> {
+  const rows = await libraryGetGenreAlbumCounts({
+    serverId,
+    libraryScope,
+  });
+  return rows.map(row => ({
+    value: row.value,
+    albumCount: row.albumCount,
+    songCount: row.songCount,
+  }));
+}
+
+async function fetchLocalGenreCatalog(
+  serverId: string,
+  libraryScope: string | undefined,
+): Promise<SubsonicGenre[]> {
+  const genres = await loadLocalGenreCatalogRows(serverId, libraryScope);
+  writeGenreCatalogCache(serverId, libraryScope, genres);
+  return genres;
+}
 
 /** Matches queueTrackResolver CACHE_CAP — whole seeded queue stays warm. */
 export const GENRE_PLAYBACK_QUEUE_CAP = 500;
@@ -66,23 +100,22 @@ export async function fetchGenreAlbumCount(
   serverId: string | null | undefined,
   genre: string,
   indexEnabled: boolean,
+  sort: AlbumBrowseSort = 'alphabeticalByName',
 ): Promise<number | null> {
   if (!genre.trim()) return null;
-  if (indexEnabled && serverId && (await libraryIsReady(serverId))) {
-    try {
-      const resp = await libraryAdvancedSearch({
-        serverId,
-        libraryScope: libraryScopeForServer(serverId) ?? undefined,
-        entityTypes: ['album'],
-        filters: [{ field: 'genre', op: 'eq', value: genre }],
-        limit: 1,
-        offset: 0,
-        skipTotals: false,
-      });
-      if (resp.source === 'local') return resp.totals.albums;
-    } catch {
-      /* network fallback */
+  if (indexEnabled && serverId) {
+    const scope = libraryScopeForServer(serverId);
+    const cached = lookupGenreAlbumCount(serverId, genre, scope);
+    if (cached != null) return cached;
+    const inflight = getInflightGenreCatalog(genreCatalogCacheKey(serverId, scope));
+    if (inflight) {
+      const catalog = await inflight;
+      const match = catalog.find(g => g.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0);
+      if (match?.albumCount != null) return match.albumCount;
     }
+    const localTotal = await fetchGenreAlbumTotal(serverId, genre, indexEnabled, sort);
+    if (localTotal != null) return localTotal;
+    return null;
   }
   try {
     const genres = await getGenres();
@@ -98,20 +131,39 @@ export async function fetchGenreCatalog(
   serverId: string | null | undefined,
   indexEnabled: boolean,
 ): Promise<SubsonicGenre[]> {
-  if (indexEnabled && serverId && (await libraryIsReady(serverId))) {
-    try {
-      const rows = await libraryGetGenreAlbumCounts({
-        serverId,
-        libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      });
-      return rows.map(row => ({
-        value: row.value,
-        albumCount: row.albumCount,
-        songCount: row.songCount,
-      }));
-    } catch {
-      /* network fallback */
-    }
+  if (!serverId) return getGenres();
+
+  const scope = libraryScopeForServer(serverId);
+  const cacheKey = genreCatalogCacheKey(serverId, scope);
+  const fresh = peekGenreCatalogCache(serverId, scope, false);
+  if (fresh) return fresh;
+
+  const stale = peekGenreCatalogCache(serverId, scope, true);
+  const inflight = getInflightGenreCatalog(cacheKey);
+  if (inflight) {
+    if (stale) return stale;
+    return inflight;
   }
-  return getGenres();
+
+  const load = async (): Promise<SubsonicGenre[]> => {
+    if (indexEnabled && (await libraryIsReady(serverId))) {
+      try {
+        return await fetchLocalGenreCatalog(serverId, scope);
+      } catch {
+        /* network fallback */
+      }
+    }
+    const genres = await getGenres();
+    writeGenreCatalogCache(serverId, scope, genres);
+    return genres;
+  };
+
+  const promise = load();
+  trackInflightGenreCatalog(cacheKey, promise);
+
+  if (stale) {
+    void promise.catch(() => {});
+    return stale;
+  }
+  return promise;
 }

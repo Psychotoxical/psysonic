@@ -483,6 +483,16 @@ pub async fn library_list_lossless_albums(
 }
 
 #[tauri::command]
+pub async fn library_list_albums_by_genre(
+    runtime: State<'_, LibraryRuntime>,
+    request: crate::dto::LibraryGenreAlbumsRequest,
+) -> Result<crate::dto::LibraryGenreAlbumsResponse, String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || crate::genre_album_browse::list_albums_by_genre(&store, &request))
+        .await
+}
+
+#[tauri::command]
 pub async fn library_get_artist_lossless_browse(
     runtime: State<'_, LibraryRuntime>,
     request: crate::dto::LibraryArtistLosslessBrowseRequest,

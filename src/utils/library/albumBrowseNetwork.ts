@@ -30,6 +30,13 @@ export async function fetchAlbumBrowseNetwork(
   pageSize: number,
 ): Promise<AlbumBrowsePageResult> {
   if (query.genres.length > 0) {
+    if (query.genres.length === 1) {
+      const data = applyNetworkPostFilters(
+        await getAlbumsByGenre(query.genres[0], pageSize, offset),
+        query,
+      );
+      return { albums: data, hasMore: data.length === pageSize };
+    }
     if (offset > 0) return { albums: [], hasMore: false };
     const data = applyNetworkPostFilters(await fetchByGenres(query.genres), query);
     return { albums: data, hasMore: false };
