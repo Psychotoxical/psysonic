@@ -20,10 +20,13 @@ import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
 import {
   LiveSearchScopeBadge,
+  createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
   handleLiveSearchScopeUndo,
   isLiveSearchDropdownBlocked,
   liveSearchScopePlaceholderKey,
+  noteLiveSearchScopeQueryInput,
+  resetLiveSearchScopeBackspaceState,
 } from './search/liveSearchScopeUi';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
@@ -109,6 +112,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   const scope = useLiveSearchScopeStore(s => s.scope);
   const clearScope = useLiveSearchScopeStore(s => s.clearScope);
   const undoLiveSearch = useLiveSearchScopeStore(s => s.undo);
+  const scopeBackspaceRef = useRef(createLiveSearchScopeBackspaceState());
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecent);
@@ -117,6 +121,14 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   const share = useShareSearch(query, onClose);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    resetLiveSearchScopeBackspaceState(scopeBackspaceRef.current);
+  }, [scope]);
+
+  useEffect(() => {
+    noteLiveSearchScopeQueryInput(scopeBackspaceRef.current, query);
+  }, [query]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -207,7 +219,8 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
           <input
             ref={inputRef}
             className="mobile-search-input"
-            type="search"
+            type="text"
+            role="searchbox"
             placeholder={t(liveSearchScopePlaceholderKey(scope))}
             data-tooltip={scope ? t(liveSearchScopePlaceholderKey(scope)) : undefined}
             data-tooltip-pos="bottom"
@@ -215,7 +228,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
             onChange={e => setQuery(e.target.value, { recordUndo: true })}
             onKeyDown={(e) => {
               if (handleLiveSearchScopeUndo(e, undoLiveSearch)) return;
-              if (handleLiveSearchScopeBackspace(e, query, scope, clearScope)) return;
+              if (handleLiveSearchScopeBackspace(e, query, scope, clearScope, scopeBackspaceRef.current)) return;
             }}
             autoComplete="off"
             autoCorrect="off"

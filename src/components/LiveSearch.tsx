@@ -40,10 +40,13 @@ import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
 import {
   LiveSearchScopeBadge,
+  createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
   handleLiveSearchScopeUndo,
   isLiveSearchDropdownBlocked,
   liveSearchScopePlaceholderKey,
+  noteLiveSearchScopeQueryInput,
+  resetLiveSearchScopeBackspaceState,
 } from './search/liveSearchScopeUi';
 import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 import { resolveIndexKey } from '../utils/server/serverIndexKey';
@@ -111,6 +114,7 @@ export default function LiveSearch() {
   const scope = useLiveSearchScopeStore(s => s.scope);
   const clearScope = useLiveSearchScopeStore(s => s.clearScope);
   const undoLiveSearch = useLiveSearchScopeStore(s => s.undo);
+  const scopeBackspaceRef = useRef(createLiveSearchScopeBackspaceState());
   const [results, setResults] = useState<SearchResults | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -149,6 +153,14 @@ export default function LiveSearch() {
   }, [refreshLocalReady, musicLibraryFilterVersion]);
 
   useEffect(() => {
+    resetLiveSearchScopeBackspaceState(scopeBackspaceRef.current);
+  }, [scope]);
+
+  useEffect(() => {
+    noteLiveSearchScopeQueryInput(scopeBackspaceRef.current, query);
+  }, [query]);
+
+  useEffect(() => {
     if (!indexEnabled || !serverId) return;
     let unlistenProgress: (() => void) | undefined;
     let unlistenIdle: (() => void) | undefined;
@@ -173,6 +185,14 @@ export default function LiveSearch() {
     setOpen(false);
     setQuery('');
     setSearchSource(null);
+  }, [setQuery]);
+
+  const clearQuery = useCallback(() => {
+    setQuery('', { recordUndo: true });
+    setResults(null);
+    setOpen(false);
+    setSearchSource(null);
+    inputRef.current?.focus();
   }, [setQuery]);
 
   /** Leave live search for a full-page route — cancel in-flight queries and reset overlay state. */
@@ -506,7 +526,7 @@ export default function LiveSearch() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (handleLiveSearchScopeUndo(e, undoLiveSearch)) return;
-    if (handleLiveSearchScopeBackspace(e, query, scope, clearScope)) return;
+    if (handleLiveSearchScopeBackspace(e, query, scope, clearScope, scopeBackspaceRef.current)) return;
     if (isLiveSearchDropdownBlocked(scope)) return;
     if (share.shareMatch) {
       if (e.key === 'Enter') {
@@ -589,7 +609,8 @@ export default function LiveSearch() {
             ref={inputRef}
             id="live-search-input"
             className="input live-search-field"
-            type="search"
+            type="text"
+            role="searchbox"
             placeholder={t(liveSearchScopePlaceholderKey(scope))}
             data-tooltip={scope ? t(liveSearchScopePlaceholderKey(scope)) : undefined}
             data-tooltip-pos="bottom"
@@ -606,39 +627,35 @@ export default function LiveSearch() {
             aria-expanded={open && !isLiveSearchDropdownBlocked(scope)}
             autoComplete="off"
           />
-        </div>
-        {query && (
           <button
-            className="live-search-clear"
-            onClick={() => {
-              setQuery('', { recordUndo: true });
-              setResults(null);
-              setOpen(false);
-              setSearchSource(null);
+            className="live-search-adv-btn"
+            type="button"
+            onMouseDown={(e) => {
+              // Keep focus on the search input so collapsed-overlay controls
+              // remain active long enough for this button click to fire.
+              e.preventDefault();
             }}
-            aria-label={t('search.clearLabel')}
+            onClick={() => {
+              const q = query.trim();
+              leaveLiveSearchFor(q ? `/search/advanced?q=${encodeURIComponent(q)}` : '/search/advanced');
+            }}
+            data-tooltip={t('search.advanced')}
+            data-tooltip-pos="bottom"
+            aria-label={t('search.advanced')}
           >
-            ×
+            <TextSearch size={14} />
           </button>
-        )}
-        <button
-          className="live-search-adv-btn"
-          type="button"
-          onMouseDown={(e) => {
-            // Keep focus on the search input so collapsed-overlay controls
-            // remain active long enough for this button click to fire.
-            e.preventDefault();
-          }}
-          onClick={() => {
-            const q = query.trim();
-            leaveLiveSearchFor(q ? `/search/advanced?q=${encodeURIComponent(q)}` : '/search/advanced');
-          }}
-          data-tooltip={t('search.advanced')}
-          data-tooltip-pos="bottom"
-          aria-label={t('search.advanced')}
-        >
-          <TextSearch size={14} />
-        </button>
+          {query && (
+            <button
+              type="button"
+              className="live-search-clear"
+              onClick={clearQuery}
+              aria-label={t('search.clearLabel')}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       {open && !isLiveSearchDropdownBlocked(scope) && (

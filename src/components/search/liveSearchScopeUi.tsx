@@ -41,23 +41,65 @@ export function LiveSearchScopeIcon({ scope, size = 14 }: LiveSearchScopeIconPro
   return <Icon size={size} aria-hidden />;
 }
 
+/** Tracks Backspace-on-empty badge removal (double after prior text input). */
+export type LiveSearchScopeBackspaceState = {
+  hadQueryInput: boolean;
+  emptyBackspaceStreak: number;
+};
+
+export function createLiveSearchScopeBackspaceState(): LiveSearchScopeBackspaceState {
+  return { hadQueryInput: false, emptyBackspaceStreak: 0 };
+}
+
+export function resetLiveSearchScopeBackspaceState(state: LiveSearchScopeBackspaceState): void {
+  state.hadQueryInput = false;
+  state.emptyBackspaceStreak = 0;
+}
+
+/** Call when the scoped field query changes (typing, paste, clear button, undo). */
+export function noteLiveSearchScopeQueryInput(
+  state: LiveSearchScopeBackspaceState,
+  query: string,
+): void {
+  if (query !== '') state.hadQueryInput = true;
+}
+
 /**
- * Backspace clears the scope badge only when the field is already empty —
- * deleting the last character leaves the badge until a second backspace.
+ * Backspace on an empty scoped field removes the badge.
+ * After the user typed text (even if cleared), two consecutive Backspaces on empty are required.
  */
 export function handleLiveSearchScopeBackspace(
   e: KeyboardEvent<HTMLInputElement>,
   query: string,
   scope: LiveSearchScope | null,
   clearScope: (options?: { recordUndo?: boolean }) => void,
+  state: LiveSearchScopeBackspaceState,
 ): boolean {
-  if (e.key !== 'Backspace' || !scope || query !== '') return false;
+  if (e.key !== 'Backspace' || !scope) return false;
+
+  if (query !== '') {
+    state.emptyBackspaceStreak = 0;
+    return false;
+  }
+
   e.preventDefault();
-  clearScope({ recordUndo: true });
+
+  if (!state.hadQueryInput) {
+    clearScope({ recordUndo: true });
+    resetLiveSearchScopeBackspaceState(state);
+    return true;
+  }
+
+  state.emptyBackspaceStreak += 1;
+  if (state.emptyBackspaceStreak >= 2) {
+    clearScope({ recordUndo: true });
+    resetLiveSearchScopeBackspaceState(state);
+    return true;
+  }
   return true;
 }
 
-/** Double-click removes the scope badge (same as backspace on an empty field). */
+/** Double-click removes the scope badge. */
 export function handleLiveSearchScopeBadgeDoubleClick(
   e: MouseEvent<HTMLElement>,
   clearScope: (options?: { recordUndo?: boolean }) => void,

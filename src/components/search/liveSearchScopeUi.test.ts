@@ -1,11 +1,14 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
   handleLiveSearchScopeBadgeDoubleClick,
   handleLiveSearchScopeUndo,
   isLiveSearchDropdownBlocked,
   liveSearchScopePlaceholderKey,
+  noteLiveSearchScopeQueryInput,
+  resetLiveSearchScopeBackspaceState,
 } from './liveSearchScopeUi';
 
 function keyEvent(
@@ -25,18 +28,54 @@ function keyEvent(
 }
 
 describe('handleLiveSearchScopeBackspace', () => {
-  it('clears scope only when the field is already empty', () => {
+  it('clears scope on first Backspace when the field was never filled', () => {
     const clearScope = vi.fn();
+    const state = createLiveSearchScopeBackspaceState();
     const e = keyEvent('Backspace');
-    expect(handleLiveSearchScopeBackspace(e, '', 'artists', clearScope)).toBe(true);
+    expect(handleLiveSearchScopeBackspace(e, '', 'artists', clearScope, state)).toBe(true);
     expect(clearScope).toHaveBeenCalledWith({ recordUndo: true });
   });
 
-  it('does not clear scope when text remains', () => {
+  it('requires two Backspaces on empty after prior input', () => {
     const clearScope = vi.fn();
-    expect(handleLiveSearchScopeBackspace(keyEvent('Backspace'), 'a', 'artists', clearScope)).toBe(false);
-    expect(handleLiveSearchScopeBackspace(keyEvent('Backspace'), 'ab', 'artists', clearScope)).toBe(false);
+    const state = createLiveSearchScopeBackspaceState();
+    noteLiveSearchScopeQueryInput(state, 'ab');
+
+    const first = keyEvent('Backspace');
+    expect(handleLiveSearchScopeBackspace(first, '', 'artists', clearScope, state)).toBe(true);
     expect(clearScope).not.toHaveBeenCalled();
+
+    const second = keyEvent('Backspace');
+    expect(handleLiveSearchScopeBackspace(second, '', 'artists', clearScope, state)).toBe(true);
+    expect(clearScope).toHaveBeenCalledWith({ recordUndo: true });
+  });
+
+  it('does not clear scope while text remains', () => {
+    const clearScope = vi.fn();
+    const state = createLiveSearchScopeBackspaceState();
+    expect(handleLiveSearchScopeBackspace(keyEvent('Backspace'), 'a', 'artists', clearScope, state)).toBe(false);
+    expect(clearScope).not.toHaveBeenCalled();
+  });
+
+  it('resets empty streak when deleting characters', () => {
+    const clearScope = vi.fn();
+    const state = createLiveSearchScopeBackspaceState();
+    noteLiveSearchScopeQueryInput(state, 'a');
+    handleLiveSearchScopeBackspace(keyEvent('Backspace'), '', 'artists', clearScope, state);
+    expect(state.emptyBackspaceStreak).toBe(1);
+    handleLiveSearchScopeBackspace(keyEvent('Backspace'), 'x', 'artists', clearScope, state);
+    expect(state.emptyBackspaceStreak).toBe(0);
+  });
+});
+
+describe('resetLiveSearchScopeBackspaceState', () => {
+  it('clears hadQueryInput and streak', () => {
+    const state = createLiveSearchScopeBackspaceState();
+    noteLiveSearchScopeQueryInput(state, 'x');
+    state.emptyBackspaceStreak = 1;
+    resetLiveSearchScopeBackspaceState(state);
+    expect(state.hadQueryInput).toBe(false);
+    expect(state.emptyBackspaceStreak).toBe(0);
   });
 });
 
