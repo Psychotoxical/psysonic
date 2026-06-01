@@ -503,8 +503,16 @@ mod macos {
 }
 
 #[tauri::command]
-pub(crate) fn performance_cpu_snapshot(include_thread_groups: Option<bool>) -> PerformanceCpuSnapshot {
+pub(crate) async fn performance_cpu_snapshot(
+    include_thread_groups: Option<bool>,
+) -> Result<PerformanceCpuSnapshot, String> {
     let include_thread_groups = include_thread_groups.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || performance_cpu_snapshot_blocking(include_thread_groups))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+fn performance_cpu_snapshot_blocking(include_thread_groups: bool) -> PerformanceCpuSnapshot {
     #[cfg(target_os = "linux")]
     {
         let total_jiffies = read_total_jiffies().unwrap_or(0);

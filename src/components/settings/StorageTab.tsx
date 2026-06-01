@@ -46,7 +46,7 @@ export function StorageTab() {
     };
     refresh();
     if (!auth.hotCacheEnabled) return;
-    const interval = window.setInterval(refresh, 2000);
+    const interval = window.setInterval(refresh, 15_000);
     return () => window.clearInterval(interval);
   }, [auth.hotCacheEnabled, auth.hotCacheDownloadDir]);
 
