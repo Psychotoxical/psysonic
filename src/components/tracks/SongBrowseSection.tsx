@@ -31,7 +31,9 @@ export default function SongBrowseSection({
 
   return (
     <section className="virtual-song-list-section">
-      {title && <h2 className="section-title virtual-song-list-title">{title}</h2>}
+      {title && !searchActive && (
+        <h2 className="section-title virtual-song-list-title">{title}</h2>
+      )}
       <div className="virtual-song-list-toolbar">
         <div className="virtual-song-list-meta">
           {songs.length > 0 && (

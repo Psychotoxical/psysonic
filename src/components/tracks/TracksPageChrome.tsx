@@ -111,7 +111,9 @@ export default function TracksPageChrome({
         <header className="tracks-header">
           <div className="tracks-header-text">
             <h1 className="page-title">{t('tracks.title')}</h1>
-            <p className="tracks-subtitle">{t('tracks.subtitle')}</p>
+            {!hideDiscoveryChrome && (
+              <p className="tracks-subtitle">{t('tracks.subtitle')}</p>
+            )}
           </div>
         </header>
       )}
