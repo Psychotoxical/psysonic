@@ -5,12 +5,14 @@ import type { LiveSearchScope } from '../../store/liveSearchScopeStore';
 import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '../../store/albumBrowseSessionStore';
 import { isTracksBrowsePath } from '../../store/advancedSearchSessionStore';
 import { isArtistsBrowsePath } from '../../store/artistBrowseSessionStore';
+import { isComposersBrowsePath } from '../../store/composerBrowseSessionStore';
 
 const SCOPE_NAV_ITEM: Record<LiveSearchScope, keyof typeof ALL_NAV_ITEMS> = {
   artists: 'artists',
   albums: 'allAlbums',
   newReleases: 'newReleases',
   tracks: 'tracks',
+  composers: 'composers',
 };
 
 /** Scope to restore when on a browse route but the badge was cleared (global search mode). */
@@ -23,6 +25,7 @@ export function resolveLiveSearchScopeGhost(
   if (isAlbumsBrowsePath(pathname)) return 'albums';
   if (isNewReleasesBrowsePath(pathname)) return 'newReleases';
   if (isTracksBrowsePath(pathname)) return 'tracks';
+  if (isComposersBrowsePath(pathname)) return 'composers';
   return null;
 }
 
@@ -36,6 +39,8 @@ export function liveSearchScopePlaceholderKey(scope: LiveSearchScope | null): st
       return 'search.scopeNewReleasesPlaceholder';
     case 'tracks':
       return 'search.scopeTracksPlaceholder';
+    case 'composers':
+      return 'search.scopeComposersPlaceholder';
     default:
       return 'search.placeholder';
   }
@@ -56,6 +61,8 @@ export function liveSearchScopeBadgeTooltipKey(scope: LiveSearchScope): string {
       return 'search.scopeNewReleasesBadgeTooltip';
     case 'tracks':
       return 'search.scopeTracksBadgeTooltip';
+    case 'composers':
+      return 'search.scopeComposersBadgeTooltip';
     default:
       return 'search.scopeArtistsBadgeTooltip';
   }
@@ -71,6 +78,8 @@ export function liveSearchScopeGhostTooltipKey(scope: LiveSearchScope): string {
       return 'search.scopeNewReleasesGhostTooltip';
     case 'tracks':
       return 'search.scopeTracksGhostTooltip';
+    case 'composers':
+      return 'search.scopeComposersGhostTooltip';
     default:
       return 'search.scopeArtistsGhostTooltip';
   }

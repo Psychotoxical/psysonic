@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '../store/albumBrowseSessionStore';
 import { isArtistsBrowsePath } from '../store/artistBrowseSessionStore';
 import { isTracksBrowsePath } from '../store/advancedSearchSessionStore';
+import { isComposersBrowsePath } from '../store/composerBrowseSessionStore';
 import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 
 /** Keep scope badge in sync with browse routes; clear field text when leaving browse. */
@@ -17,6 +18,8 @@ export function syncLiveSearchRouteScope(pathname: string): void {
     store.setScope('newReleases');
   } else if (isTracksBrowsePath(pathname)) {
     store.setScope('tracks');
+  } else if (isComposersBrowsePath(pathname)) {
+    store.setScope('composers');
   } else {
     if (store.scope != null) store.clearScope();
     if (store.query !== '') store.setQuery('');

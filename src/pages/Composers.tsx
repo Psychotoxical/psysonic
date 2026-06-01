@@ -1,6 +1,6 @@
 import type { SubsonicArtist } from '../api/subsonicTypes';
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ndListArtistsByRole } from '../api/navidromeBrowse';
 import { LayoutGrid, List } from 'lucide-react';
 import StarFilterButton from '../components/StarFilterButton';
@@ -12,7 +12,14 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID, COMPOSERS_INPAGE_SCROLL_VIEWPORT_ID } from
 import { useElementClientHeightById, useElementClientHeightForElement } from '../hooks/useResizeClientHeight';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { useBrowseArtistTextSearch } from '../hooks/useBrowseArtistTextSearch';
+import { useComposersBrowseFilters, type ComposerBrowseScrollSnapshot } from '../hooks/useComposersBrowseFilters';
+import { useComposersBrowseScrollRestore } from '../hooks/useComposersBrowseScrollRestore';
+import { useArtistsBrowseScrollReset } from '../hooks/useArtistsBrowseScrollReset';
+import { useNavigateToComposer } from '../hooks/useNavigateToComposer';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { peekComposerBrowseScrollRestore } from '../store/composerBrowseSessionStore';
+import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
+import { readComposerBrowseRestore } from '../utils/navigation/albumDetailNavigation';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
@@ -76,10 +83,24 @@ export default function Composers() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<'unsupported' | 'transient' | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
-  const [filter, setFilter] = useState('');
-  const [letterFilter, setLetterFilter] = useState(ALL_SENTINEL);
-  const [starredOnly, setStarredOnly] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  const scrollSnapshotRef = useRef<ComposerBrowseScrollSnapshot>({ scrollTop: 0, visibleCount: 0 });
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const restoreVisibleCountRef = useRef<number | undefined>(
+    peekComposerBrowseScrollRestore(serverId)?.visibleCount,
+  );
+
+  const {
+    letterFilter,
+    setLetterFilter,
+    starredOnly,
+    setStarredOnly,
+    viewMode,
+    setViewMode,
+  } = useComposersBrowseFilters(serverId, scrollSnapshotRef);
+
+  const composersSearchQuery = useScopedBrowseSearchQuery('composers');
 
   // Compact tiles + initial-letter only → 200 per page is comfortable.
   const PAGE_SIZE = 200;
@@ -89,28 +110,35 @@ export default function Composers() {
     bindScrollBody: bindComposersScrollBody,
     getScrollRoot,
   } = useInpageScrollViewport();
+  const location = useLocation();
   const navigate = useNavigate();
+  const navigateToComposer = useNavigateToComposer();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
-  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const serverId = useAuthStore(s => s.activeServerId);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
-    filter,
+    composersSearchQuery,
     indexEnabled,
     serverId,
     'composers_browse',
   );
   const composerSource = textSearchArtists ?? composers;
+  const textSearchActive = textSearchArtists != null;
+  const composerBrowsePlainLayout =
+    perfFlags.disableMainstageVirtualLists
+    || textSearchActive
+    || composersSearchQuery.trim().length > 0;
 
   const {
     visibleCount,
     loadingMore,
     bindSentinel,
+    loadMore: sliceLoadMore,
   } = useClientSliceInfiniteScroll({
     pageSize: PAGE_SIZE,
-    resetDeps: [letterFilter, effectiveFilter, starredOnly, viewMode, composerSource],
+    resetDeps: [composersSearchQuery, letterFilter, starredOnly, viewMode, composerSource, serverId],
     getScrollRoot,
     scrollRootEl: scrollBodyEl,
+    restoreDisplayCount: restoreVisibleCountRef.current,
   });
 
   useEffect(() => {
@@ -165,6 +193,26 @@ export default function Composers() {
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
 
+  scrollSnapshotRef.current = {
+    scrollTop: scrollBodyEl?.scrollTop ?? 0,
+    visibleCount,
+  };
+
+  const { isScrollRestorePending } = useComposersBrowseScrollRestore({
+    serverId,
+    scrollBodyEl,
+    visibleCount,
+    loading: loading || textSearchLoading,
+    loadingMore,
+    hasMore,
+    loadMore: sliceLoadMore,
+  });
+
+  useEffect(() => {
+    if (isScrollRestorePending || !readComposerBrowseRestore(location.state)) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [isScrollRestorePending, location.pathname, location.search, location.hash, location.state, navigate]);
+
   const { groups, letters } = useMemo(() => {
     if (viewMode !== 'list') return { groups: {} as Record<string, SubsonicArtist[]>, letters: [] as string[] };
     const g: Record<string, SubsonicArtist[]> = {};
@@ -213,14 +261,14 @@ export default function Composers() {
     composerListWrapRef,
     getInpageScrollElement,
     {
-      active: !perfFlags.disableMainstageVirtualLists && viewMode === 'list',
+      active: !composerBrowsePlainLayout && viewMode === 'list',
       deps: [composerListFlatRows.length],
     },
   );
 
   const composerListVirtualizer = useVirtualizer({
     count:
-      perfFlags.disableMainstageVirtualLists || viewMode !== 'list' ? 0 : composerListFlatRows.length,
+      composerBrowsePlainLayout || viewMode !== 'list' ? 0 : composerListFlatRows.length,
     getScrollElement: getInpageScrollElement,
     estimateSize: index => {
       const row = composerListFlatRows[index];
@@ -239,11 +287,32 @@ export default function Composers() {
   });
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
-    filter,
+    composersSearchQuery,
     letterFilter,
     starredOnly,
     viewMode,
   ]);
+
+  const browseScrollResetKey = [
+    composersSearchQuery,
+    letterFilter,
+    starredOnly,
+    viewMode,
+    serverId,
+    musicLibraryFilterVersion,
+    textSearchArtists?.length ?? '',
+    textSearchArtists?.[0]?.id ?? '',
+  ].join('\0');
+
+  useArtistsBrowseScrollReset({
+    scrollSnapshotRef,
+    getScrollRoot,
+    isScrollRestorePending,
+    resetKey: browseScrollResetKey,
+    viewMode,
+    listVirtualize: !composerBrowsePlainLayout,
+    listVirtualizer: composerListVirtualizer,
+  });
 
   if (loadError) {
     return (
@@ -272,14 +341,6 @@ export default function Composers() {
           <div className="mainstage-inpage-toolbar-row">
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <h1 className="page-title" style={{ marginBottom: 0 }}>{t('composers.title')}</h1>
-              <input
-                className="input"
-                style={{ maxWidth: 220 }}
-                placeholder={t('composers.search')}
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-                id="composer-filter-input"
-              />
               {textSearchLoading && (
                 <div className="spinner" style={{ width: 16, height: 16, flexShrink: 0 }} />
               )}
@@ -342,7 +403,7 @@ export default function Composers() {
             items={visible}
             itemKey={(a, _i) => a.id}
             rowVariant="composer"
-            disableVirtualization={perfFlags.disableMainstageVirtualLists}
+            disableVirtualization={composerBrowsePlainLayout}
             layoutSignal={visible.length}
             wrapClassName="composer-grid-wrap"
             gridGap="var(--space-2)"
@@ -350,7 +411,7 @@ export default function Composers() {
             renderItem={artist => (
               <div
                 className="composer-card"
-                onClick={() => navigate(`/composer/${artist.id}`)}
+                onClick={() => navigateToComposer(artist.id)}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   openContextMenu(e.clientX, e.clientY, artist, 'artist', undefined, undefined, undefined, 'composer');
@@ -368,7 +429,7 @@ export default function Composers() {
         )}
 
         {!loading && viewMode === 'list' && (
-          perfFlags.disableMainstageVirtualLists ? (
+          composerBrowsePlainLayout ? (
             <>
               {letters.map(letter => (
                 <div key={letter} style={{ marginBottom: '1.5rem' }}>
@@ -378,7 +439,7 @@ export default function Composers() {
                       <button
                         key={artist.id}
                         className="artist-row"
-                        onClick={() => navigate(`/composer/${artist.id}`)}
+                        onClick={() => navigateToComposer(artist.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           openContextMenu(e.clientX, e.clientY, artist, 'artist', undefined, undefined, undefined, 'composer');
@@ -442,7 +503,7 @@ export default function Composers() {
                       <button
                         type="button"
                         className="artist-row"
-                        onClick={() => navigate(`/composer/${artist.id}`)}
+                        onClick={() => navigateToComposer(artist.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           openContextMenu(e.clientX, e.clientY, artist, 'artist', undefined, undefined, undefined, 'composer');

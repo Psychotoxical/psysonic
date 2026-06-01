@@ -6,9 +6,11 @@ import {
   navigatePathWithAlbumReturnTo,
   navigateToAlbumDetail,
   navigateToArtistDetail,
+  navigateToComposerDetail,
   readAlbumDetailReturnTo,
   shouldRestoreAlbumBrowseSession,
   shouldRestoreArtistBrowseSession,
+  shouldRestoreComposerBrowseSession,
   shouldSkipMainScrollResetOnRouteChange,
 } from './albumDetailNavigation';
 import { useAdvancedSearchSessionStore } from '../../store/advancedSearchSessionStore';
@@ -88,6 +90,18 @@ describe('albumDetailNavigation', () => {
     expect(navigate).toHaveBeenCalledWith('/artists', { state: { artistBrowseRestore: true } });
   });
 
+  it('flags Composers browse return for session restore', () => {
+    const navigate = vi.fn();
+    navigateAlbumDetailBack(navigate, { state: { returnTo: '/composers' } });
+    expect(navigate).toHaveBeenCalledWith('/composers', { state: { composerBrowseRestore: true } });
+  });
+
+  it('detects composer browse restore navigation', () => {
+    expect(shouldRestoreComposerBrowseSession('POP' as NavigationType, null)).toBe(true);
+    expect(shouldRestoreComposerBrowseSession('PUSH' as NavigationType, { composerBrowseRestore: true })).toBe(true);
+    expect(shouldRestoreComposerBrowseSession('PUSH' as NavigationType, null)).toBe(false);
+  });
+
   it('detects artist browse restore navigation', () => {
     expect(shouldRestoreArtistBrowseSession('POP' as NavigationType, null)).toBe(true);
     expect(shouldRestoreArtistBrowseSession('PUSH' as NavigationType, { artistBrowseRestore: true })).toBe(true);
@@ -132,6 +146,18 @@ describe('albumDetailNavigation', () => {
     });
   });
 
+  it('navigates to composer with returnTo snapshot from Composers browse', () => {
+    const navigate = vi.fn();
+    navigateToComposerDetail(
+      navigate,
+      { pathname: '/composers', search: '', hash: '', state: null },
+      'comp-1',
+    );
+    expect(navigate).toHaveBeenCalledWith('/composer/comp-1', {
+      state: { returnTo: '/composers' },
+    });
+  });
+
   it('skips main scroll reset when All Albums browse restore is pending', () => {
     expect(shouldSkipMainScrollResetOnRouteChange('/albums', { albumBrowseRestore: true })).toBe(true);
     expect(shouldSkipMainScrollResetOnRouteChange('/new-releases', { albumBrowseRestore: true })).toBe(true);
@@ -141,6 +167,10 @@ describe('albumDetailNavigation', () => {
 
   it('skips main scroll reset when Artists browse restore is pending', () => {
     expect(shouldSkipMainScrollResetOnRouteChange('/artists', { artistBrowseRestore: true })).toBe(true);
+  });
+
+  it('skips main scroll reset when Composers browse restore is pending', () => {
+    expect(shouldSkipMainScrollResetOnRouteChange('/composers', { composerBrowseRestore: true })).toBe(true);
   });
 
   it('skips main scroll reset when Advanced Search session restore is pending', () => {

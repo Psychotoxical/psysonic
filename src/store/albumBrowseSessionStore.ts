@@ -237,6 +237,11 @@ export function isArtistDetailPath(pathname: string): boolean {
   return /^\/artist\/[^/]+\/?$/.test(pathname);
 }
 
+/** True when pathname is a single composer detail route (`/composer/:id`). */
+export function isComposerDetailPath(pathname: string): boolean {
+  return /^\/composer\/[^/]+\/?$/.test(pathname);
+}
+
 export function isAdvancedSearchLeaveTargetPath(pathname: string): boolean {
-  return isAlbumDetailPath(pathname) || isArtistDetailPath(pathname);
+  return isAlbumDetailPath(pathname) || isArtistDetailPath(pathname) || isComposerDetailPath(pathname);
 }

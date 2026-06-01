@@ -13,6 +13,9 @@ describe('syncLiveSearchRouteScope', () => {
 
     syncLiveSearchRouteScope('/tracks');
     expect(useLiveSearchScopeStore.getState().scope).toBe('tracks');
+
+    syncLiveSearchRouteScope('/composers');
+    expect(useLiveSearchScopeStore.getState().scope).toBe('composers');
   });
 
   it('clears scope and query when leaving browse routes', () => {

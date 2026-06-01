@@ -1,9 +1,12 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
-import type { ArtistBrowseScrollSnapshot } from './useArtistsBrowseFilters';
+type BrowseScrollSnapshot = {
+  scrollTop: number;
+  visibleCount: number;
+};
 
 type Args = {
-  scrollSnapshotRef: RefObject<ArtistBrowseScrollSnapshot>;
+  scrollSnapshotRef: RefObject<BrowseScrollSnapshot>;
   getScrollRoot: () => HTMLElement | null;
   isScrollRestorePending: boolean;
   resetKey: string;
