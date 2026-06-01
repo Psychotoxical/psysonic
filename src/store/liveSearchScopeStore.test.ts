@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
-  artistsBrowseSearchQuery,
+  scopedBrowseSearchQuery,
   useLiveSearchScopeStore,
 } from './liveSearchScopeStore';
 
@@ -9,10 +9,10 @@ describe('liveSearchScopeStore', () => {
     useLiveSearchScopeStore.setState({ query: '', scope: null, undoStack: [] });
   });
 
-  it('returns browse query only when artists scope is active', () => {
+  it('returns browse query only when the expected scope is active', () => {
     useLiveSearchScopeStore.setState({ query: 'beatles', scope: 'artists' });
-    expect(artistsBrowseSearchQuery('beatles', 'artists')).toBe('beatles');
-    expect(artistsBrowseSearchQuery('beatles', null)).toBe('');
+    expect(scopedBrowseSearchQuery('beatles', 'artists', 'artists')).toBe('beatles');
+    expect(scopedBrowseSearchQuery('beatles', null, 'artists')).toBe('');
   });
 
   it('undoes query and scope badge changes', () => {

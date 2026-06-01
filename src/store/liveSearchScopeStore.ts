@@ -71,16 +71,17 @@ export const useLiveSearchScopeStore = create<LiveSearchScopeStore>((set, get) =
   },
 }));
 
-/** Query that drives Artists browse text search when the scope badge is active. */
-export function artistsBrowseSearchQuery(
+/** Browse filter text when the header scope badge matches the page. */
+export function scopedBrowseSearchQuery(
   query: string,
-  scope: LiveSearchScope | null,
+  activeScope: LiveSearchScope | null,
+  expectedScope: LiveSearchScope,
 ): string {
-  return scope === 'artists' ? query : '';
+  return activeScope === expectedScope ? query : '';
 }
 
-export function useArtistsLiveSearchQuery(): string {
+export function useScopedBrowseSearchQuery(expectedScope: LiveSearchScope): string {
   const query = useLiveSearchScopeStore(s => s.query);
   const scope = useLiveSearchScopeStore(s => s.scope);
-  return artistsBrowseSearchQuery(query, scope);
+  return scopedBrowseSearchQuery(query, scope, expectedScope);
 }

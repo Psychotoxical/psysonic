@@ -35,7 +35,7 @@ import { useNavigateToArtist } from '../hooks/useNavigateToArtist';
 import { peekArtistBrowseScrollRestore } from '../store/artistBrowseSessionStore';
 import { readArtistBrowseRestore } from '../utils/navigation/albumDetailNavigation';
 
-import { useArtistsLiveSearchQuery } from '../store/liveSearchScopeStore';
+import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
 export default function Artists() {
@@ -59,7 +59,7 @@ export default function Artists() {
     setViewMode,
   } = useArtistsBrowseFilters(serverId, scrollSnapshotRef);
 
-  const artistsSearchQuery = useArtistsLiveSearchQuery();
+  const artistsSearchQuery = useScopedBrowseSearchQuery('artists');
 
   const {
     scrollBodyEl: artistsScrollBodyEl,
