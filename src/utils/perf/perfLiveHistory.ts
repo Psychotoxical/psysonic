@@ -35,7 +35,7 @@ function appendSample(id: string, value: number, at: number): boolean {
   if (!Number.isFinite(value)) return false;
   const existing = series.get(id) ?? [];
   const last = existing[existing.length - 1];
-  if (last && last.at === at && last.value === value) return false;
+  if (last && last.value === value) return false;
   const appended =
     last && last.at === at
       ? [...existing.slice(0, -1), { at, value }]
@@ -50,23 +50,20 @@ export function recordPerfLiveHistory(id: string, value: number, at = Date.now()
   if (appendSample(id, value, at)) emit();
 }
 
-/** Record pinned live samples for one poll tick; returns the new last-recorded timestamp. */
+/** Record pinned live samples for one poll tick. */
 export function syncPerfLiveHistoryFromPoll(
   pins: Iterable<string>,
   live: PerfLiveSnapshot,
-  lastRecordedAt: number,
-): number {
-  if (!live.cpu?.supported || live.updatedAt <= 0 || live.updatedAt === lastRecordedAt) {
-    return lastRecordedAt;
-  }
+  options?: { emit?: boolean },
+): void {
+  if (!live.cpu?.supported || live.updatedAt <= 0) return;
   let changed = false;
   for (const pin of pins) {
     if (!isLiveHistoryPin(pin)) continue;
     const value = liveOverlayItemValue(pin, live);
     if (value != null && appendSample(pin, value, live.updatedAt)) changed = true;
   }
-  if (changed) emit();
-  return live.updatedAt;
+  if (changed && options?.emit !== false) emit();
 }
 
 export function getPerfLiveHistoryClock(ids: Iterable<string>): number {

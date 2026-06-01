@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { usePerfLiveSnapshot } from '../../../utils/perf/perfLiveStore';
+import { isPerfLivePollWaitingForCpu, usePerfLiveSnapshot } from '../../../utils/perf/perfLiveStore';
 import { usePerfLiveIncludeThreadGroups } from '../../../utils/perf/perfLivePollSettings';
 import {
   togglePerfLiveOverlayPin,
@@ -26,7 +26,7 @@ export default function SidebarPerfProbeMonitorTab() {
   const coverPinned = usePipelineOverlayPinned('pipeline:cover');
   const cpu = live.cpu;
   const cpuSupported = cpu?.supported === true;
-  const collecting = live.collecting && cpu == null;
+  const collecting = isPerfLivePollWaitingForCpu();
   const includeThreadGroups = usePerfLiveIncludeThreadGroups();
   const peakMemoryKbRef = useRef(1);
   const peakThreadCpuRef = useRef(1);

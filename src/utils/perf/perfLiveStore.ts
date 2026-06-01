@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { clearPerfLiveHistory } from './perfLiveHistory';
+import { clearPerfLiveHistory, syncPerfLiveHistoryFromPoll } from './perfLiveHistory';
 import { getAnalysisTracksPerMinute } from './analysisPerfStore';
 import { perfLiveCpuSnapshotSupported } from './perfLiveCpuSnapshot';
+import { getPerfLiveOverlayPins } from './perfOverlayPins';
 import {
   buildPerfCpuSnapshotRequest,
   getPerfLivePollIntervalMs,
@@ -47,7 +48,7 @@ export type PerfLiveSnapshot = {
   diagRates: PerfDiagRates | null;
   analysis: PerfAnalysisDiag | null;
   collecting: boolean;
-  /** Wall time of the last CPU poll; shared clock for overlay sparklines. */
+  /** Wall time of the last displayed sample change; overlay sparkline clock. */
   updatedAt: number;
 };
 
@@ -85,6 +86,56 @@ function emit(): void {
 function setSnapshot(next: PerfLiveSnapshot): void {
   snapshot = next;
   emit();
+}
+
+function memoryRowsEqual(a: readonly PerfProcessMemory[], b: readonly PerfProcessMemory[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((row, index) => row.label === b[index].label && row.rss_kb === b[index].rss_kb);
+}
+
+function threadCpuEqual(a: readonly PerfThreadCpu[], b: readonly PerfThreadCpu[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((row, index) => (
+    row.label === b[index].label
+    && row.pct === b[index].pct
+    && row.threadCount === b[index].threadCount
+  ));
+}
+
+function diagRatesEqual(a: PerfDiagRates | null, b: PerfDiagRates | null): boolean {
+  if (a == null || b == null) return a === b;
+  return a.progress === b.progress && a.waveform === b.waveform && a.home === b.home;
+}
+
+function analysisEqual(a: PerfAnalysisDiag | null, b: PerfAnalysisDiag | null): boolean {
+  if (a == null || b == null) return a === b;
+  return a.tracksPerMinute === b.tracksPerMinute
+    && a.lastTotalMs === b.lastTotalMs
+    && a.lastFetchMs === b.lastFetchMs
+    && a.lastSeedMs === b.lastSeedMs
+    && a.lastBpmMs === b.lastBpmMs;
+}
+
+function cpuEqual(a: PerfLiveCpu | null, b: PerfLiveCpu | null): boolean {
+  if (a == null || b == null) return a === b;
+  return a.app === b.app
+    && a.webkit === b.webkit
+    && a.supported === b.supported
+    && memoryRowsEqual(a.memory, b.memory)
+    && threadCpuEqual(a.threadCpu, b.threadCpu);
+}
+
+function publishLiveSnapshot(next: PerfLiveSnapshot): void {
+  const cpuChanged = !cpuEqual(snapshot.cpu, next.cpu);
+  const diagChanged = !diagRatesEqual(snapshot.diagRates, next.diagRates);
+  const analysisChanged = !analysisEqual(snapshot.analysis, next.analysis);
+  if (!cpuChanged && !diagChanged && !analysisChanged && next.updatedAt === snapshot.updatedAt) {
+    return;
+  }
+  if (cpuChanged && next.cpu?.supported && next.updatedAt > 0) {
+    syncPerfLiveHistoryFromPoll(getPerfLiveOverlayPins(), next, { emit: false });
+  }
+  setSnapshot(next);
 }
 
 function readUiCounters(): { progress: number; waveform: number; home: number } {
@@ -133,7 +184,7 @@ function applyJsMetricsSnapshot(now: number): void {
   const diagRates = nextDiagRates(nextCounters, now);
   prevCounters = nextCounters;
   prevCountersAt = now;
-  setSnapshot({
+  publishLiveSnapshot({
     cpu: snapshot.cpu ?? UNSUPPORTED_CPU,
     diagRates,
     analysis: buildAnalysisDiag(),
@@ -144,11 +195,10 @@ function applyJsMetricsSnapshot(now: number): void {
 
 async function pollOnce(): Promise<void> {
   const generation = pollGeneration;
-  const now = Date.now();
 
   if (!perfLiveCpuSnapshotSupported()) {
     if (generation !== pollGeneration) return;
-    applyJsMetricsSnapshot(now);
+    applyJsMetricsSnapshot(Date.now());
     return;
   }
 
@@ -156,74 +206,94 @@ async function pollOnce(): Promise<void> {
     const snap = await invoke<ProcSnapshot>('performance_cpu_snapshot', buildPerfCpuSnapshotRequest());
     if (generation !== pollGeneration) return;
 
+    const completedAt = Date.now();
     const nextCounters = readUiCounters();
-    const diagRates = nextDiagRates(nextCounters, now);
+    const diagRates = nextDiagRates(nextCounters, completedAt);
     prevCounters = nextCounters;
-    prevCountersAt = now;
+    prevCountersAt = completedAt;
 
     if (!snap.supported) {
-      setSnapshot({
+      publishLiveSnapshot({
         cpu: UNSUPPORTED_CPU,
         diagRates,
         analysis: buildAnalysisDiag(),
         collecting: false,
-        updatedAt: now,
+        updatedAt: completedAt,
       });
       return;
     }
 
     const memory = snap.memory;
-    let cpu: PerfLiveCpu = {
-      app: snapshot.cpu?.app ?? 0,
-      webkit: snapshot.cpu?.webkit ?? 0,
-      supported: true,
-      memory,
-      threadCpu: snap.thread_cpu_groups.map(g => ({
-        label: g.label,
-        threadCount: g.thread_count,
-        pct: snapshot.cpu?.threadCpu.find(t => t.label === g.label)?.pct ?? 0,
-      })),
-    };
+    const baselineProc = prevProc;
+    const prevCpu = snapshot.cpu;
+    let app = prevCpu?.app ?? 0;
+    let webkit = prevCpu?.webkit ?? 0;
+    let threadCpu: PerfThreadCpu[] = prevCpu?.threadCpu ?? snap.thread_cpu_groups.map(g => ({
+      label: g.label,
+      threadCount: g.thread_count,
+      pct: 0,
+    }));
+    let rateSampleReady = false;
 
-    if (prevProc) {
-      const totalDelta = snap.total_jiffies - prevProc.total_jiffies;
-      const appDelta = snap.app_jiffies - prevProc.app_jiffies;
-      const webkitDelta = snap.webkit_jiffies - prevProc.webkit_jiffies;
+    if (baselineProc) {
+      const totalDelta = snap.total_jiffies - baselineProc.total_jiffies;
+      const appDelta = snap.app_jiffies - baselineProc.app_jiffies;
+      const webkitDelta = snap.webkit_jiffies - baselineProc.webkit_jiffies;
       if (totalDelta > 0) {
+        rateSampleReady = true;
         const cpuScale = Math.max(1, snap.logical_cpus || 1) * 100;
         const prevThreadByLabel = new Map(
-          prevProc.thread_cpu_groups.map(g => [g.label, g.jiffies]),
+          baselineProc.thread_cpu_groups.map(g => [g.label, g.jiffies]),
         );
-        cpu = {
-          app: clampPct((appDelta / totalDelta) * cpuScale),
-          webkit: clampPct((webkitDelta / totalDelta) * cpuScale),
-          supported: true,
-          memory,
-          threadCpu: snap.thread_cpu_groups.map(g => {
-            const prevJiffies = prevThreadByLabel.get(g.label) ?? g.jiffies;
-            const delta = g.jiffies - prevJiffies;
-            return {
-              label: g.label,
-              threadCount: g.thread_count,
-              pct: clampPct((delta / totalDelta) * cpuScale),
-            };
-          }),
-        };
+        app = clampPct((appDelta / totalDelta) * cpuScale);
+        webkit = clampPct((webkitDelta / totalDelta) * cpuScale);
+        threadCpu = snap.thread_cpu_groups.map(g => {
+          const prevJiffies = prevThreadByLabel.get(g.label) ?? g.jiffies;
+          const delta = g.jiffies - prevJiffies;
+          return {
+            label: g.label,
+            threadCount: g.thread_count,
+            pct: clampPct((delta / totalDelta) * cpuScale),
+          };
+        });
       }
     }
 
+    const memoryChanged = !memoryRowsEqual(prevCpu?.memory ?? [], memory);
+    const diagChanged = !diagRatesEqual(snapshot.diagRates, diagRates);
+    const ratesChanged = rateSampleReady && (
+      app !== (prevCpu?.app ?? 0)
+      || webkit !== (prevCpu?.webkit ?? 0)
+      || !threadCpuEqual(prevCpu?.threadCpu ?? [], threadCpu)
+    );
+
     prevProc = snap;
 
-    setSnapshot({
-      cpu,
+    if (!rateSampleReady) {
+      if (baselineProc == null) return;
+      if (!memoryChanged && !diagChanged) return;
+    }
+
+    const nextUpdatedAt = (ratesChanged || memoryChanged || diagChanged)
+      ? completedAt
+      : snapshot.updatedAt;
+
+    publishLiveSnapshot({
+      cpu: {
+        app,
+        webkit,
+        supported: true,
+        memory,
+        threadCpu,
+      },
       diagRates,
       analysis: buildAnalysisDiag(),
       collecting: false,
-      updatedAt: now,
+      updatedAt: nextUpdatedAt,
     });
   } catch {
     if (generation !== pollGeneration) return;
-    setSnapshot({
+    publishLiveSnapshot({
       ...snapshot,
       cpu: { app: 0, webkit: 0, supported: false, memory: [], threadCpu: [] },
       collecting: false,
@@ -239,8 +309,6 @@ function clampPct(value: number): number {
 
 function schedulePoll(): void {
   if (pollTimer != null) return;
-  const collecting = perfLiveCpuSnapshotSupported() && snapshot.cpu == null;
-  setSnapshot({ ...snapshot, collecting });
   const intervalMs = getPerfLivePollIntervalMs();
   const tick = () => {
     pollTimer = null;
@@ -296,16 +364,23 @@ export function acquirePerfLivePoll(_reason: string): () => void {
   };
 }
 
+/** True while the first CPU baseline sample is still pending. */
+export function isPerfLivePollWaitingForCpu(): boolean {
+  return pollRefCount > 0 && snapshot.cpu == null && perfLiveCpuSnapshotSupported();
+}
+
 export function patchPerfLiveAnalysis(partial: Partial<PerfAnalysisDiag>): void {
-  setSnapshot({
+  const nextAnalysis: PerfAnalysisDiag = {
+    tracksPerMinute: partial.tracksPerMinute ?? snapshot.analysis?.tracksPerMinute ?? 0,
+    lastTotalMs: partial.lastTotalMs ?? snapshot.analysis?.lastTotalMs ?? null,
+    lastFetchMs: partial.lastFetchMs ?? snapshot.analysis?.lastFetchMs ?? null,
+    lastSeedMs: partial.lastSeedMs ?? snapshot.analysis?.lastSeedMs ?? null,
+    lastBpmMs: partial.lastBpmMs ?? snapshot.analysis?.lastBpmMs ?? null,
+  };
+  if (analysisEqual(snapshot.analysis, nextAnalysis)) return;
+  publishLiveSnapshot({
     ...snapshot,
-    analysis: {
-      tracksPerMinute: partial.tracksPerMinute ?? snapshot.analysis?.tracksPerMinute ?? 0,
-      lastTotalMs: partial.lastTotalMs ?? snapshot.analysis?.lastTotalMs ?? null,
-      lastFetchMs: partial.lastFetchMs ?? snapshot.analysis?.lastFetchMs ?? null,
-      lastSeedMs: partial.lastSeedMs ?? snapshot.analysis?.lastSeedMs ?? null,
-      lastBpmMs: partial.lastBpmMs ?? snapshot.analysis?.lastBpmMs ?? null,
-    },
+    analysis: nextAnalysis,
   });
 }
 

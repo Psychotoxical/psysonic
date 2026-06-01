@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { analysisGetPipelineQueueStats, type AnalysisPipelineQueueStatsDto } from '../api/analysis';
 import { coverGetPipelineQueueStats, type CoverPipelineQueueStatsDto } from '../api/coverCache';
@@ -18,12 +18,10 @@ import {
   type LiveOverlayItem,
 } from '../utils/perf/formatLiveOverlayItems';
 import {
-  getPerfLiveHistoryClock,
-  syncPerfLiveHistoryFromPoll,
-  usePerfLiveHistorySamples,
+  getPerfLiveHistorySamples,
 } from '../utils/perf/perfLiveHistory';
-import { acquirePerfLivePoll, usePerfLiveSnapshot } from '../utils/perf/perfLiveStore';
-import { hasAnyLiveMetricPollNeed, usePerfLiveOverlayPins } from '../utils/perf/perfOverlayPins';
+import { usePerfLiveSnapshot } from '../utils/perf/perfLiveStore';
+import { usePerfLiveOverlayPins } from '../utils/perf/perfOverlayPins';
 import {
   perfOverlayCornerClass,
   usePerfOverlayAppearance,
@@ -41,11 +39,12 @@ const QUEUE_STATS_MS = 750;
 function LiveOverlayPinnedMetric({
   item,
   now,
+  history,
 }: {
   item: LiveOverlayItem;
   now: number;
+  history: ReturnType<typeof getPerfLiveHistorySamples>;
 }) {
-  const history = usePerfLiveHistorySamples(item.id);
   const sparklineKind = item.kind === 'memory' ? 'memory' : 'cpu';
 
   return (
@@ -70,7 +69,6 @@ export default function FpsOverlay() {
   const [queueStats, setQueueStats] = useState<AnalysisPipelineQueueStatsDto | null>(null);
   const [coverQueueLines, setCoverQueueLines] = useState<string[]>([]);
   const last = useAnalysisPerfLast();
-  const lastHistoryAt = useRef(0);
 
   const liveOverlayItems = useMemo(
     () => buildLiveOverlayItems(livePins, live),
@@ -89,23 +87,9 @@ export default function FpsOverlay() {
     showLive,
   } = visibility;
 
-  lastHistoryAt.current = overlayMode === 'pinned'
-    ? syncPerfLiveHistoryFromPoll(livePins, live, lastHistoryAt.current)
-    : lastHistoryAt.current;
-
-  const sparklineNow = useMemo(() => {
-    const clock = getPerfLiveHistoryClock(
-      liveOverlayItems.filter(item => item.sparkline).map(item => item.id),
-    );
-    return clock > 0 ? clock : Date.now();
-  }, [liveOverlayItems, live.updatedAt]);
+  const sparklineNow = Date.now();
 
   useAnalysisPerfListener(showAnalysisPerfOverlay || livePins.has('analysis:tpm') || livePins.has('analysis:last'));
-
-  useEffect(() => {
-    if (overlayMode !== 'pinned' || !hasAnyLiveMetricPollNeed()) return;
-    return acquirePerfLivePoll('overlay-pins');
-  }, [overlayMode, livePins.size]);
 
   useEffect(() => {
     if (!showAnalysisPerfOverlay) {
@@ -219,7 +203,12 @@ export default function FpsOverlay() {
         <div className="fps-overlay__block">
           <div className="fps-overlay__block-title">Live</div>
           {liveOverlayItems.map(item => (
-            <LiveOverlayPinnedMetric key={item.id} item={item} now={sparklineNow} />
+            <LiveOverlayPinnedMetric
+              key={item.id}
+              item={item}
+              now={sparklineNow}
+              history={item.sparkline ? getPerfLiveHistorySamples(item.id) : []}
+            />
           ))}
         </div>
       )}
