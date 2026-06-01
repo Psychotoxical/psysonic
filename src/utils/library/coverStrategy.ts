@@ -4,8 +4,8 @@ export type CoverCacheStrategy = (typeof COVER_CACHE_STRATEGIES)[number];
 
 export const DEFAULT_COVER_CACHE_STRATEGY: CoverCacheStrategy = 'lazy';
 
-export function coverStrategyAllowsRoutePrefetch(strategy: CoverCacheStrategy): boolean {
-  return strategy === 'aggressive';
+export function coverStrategyAllowsRoutePrefetch(_strategy: CoverCacheStrategy): boolean {
+  return true;
 }
 
 export function coverStrategyAllowsLibraryBackfill(strategy: CoverCacheStrategy): boolean {
