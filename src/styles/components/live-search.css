@@ -125,8 +125,21 @@
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-  cursor: default;
+  cursor: pointer;
   user-select: none;
+}
+
+.live-search-scope-badge--ghost {
+  opacity: 0.42;
+  border-style: dashed;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.live-search-scope-badge--ghost:hover {
+  opacity: 0.9;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .live-search-field {

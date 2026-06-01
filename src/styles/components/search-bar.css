@@ -48,6 +48,12 @@
   user-select: none;
 }
 
+.mobile-search-scope-badge--ghost {
+  opacity: 0.42;
+  border-style: dashed;
+  cursor: pointer;
+}
+
 .mobile-search-field--scoped .mobile-search-input {
   font-size: 16px;
 }

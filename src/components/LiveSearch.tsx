@@ -21,7 +21,7 @@ import {
   logLibrarySearch,
 } from '../utils/library/libraryDevLog';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Search, Disc3, Users, Music, TextSearch, Database, Globe } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
@@ -40,6 +40,7 @@ import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
 import {
   LiveSearchScopeBadge,
+  LiveSearchScopeGhostBadge,
   createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
   handleLiveSearchScopeUndo,
@@ -47,6 +48,7 @@ import {
   liveSearchScopePlaceholderKey,
   noteLiveSearchScopeQueryInput,
   resetLiveSearchScopeBackspaceState,
+  resolveLiveSearchScopeGhost,
 } from './search/liveSearchScopeUi';
 import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 import { resolveIndexKey } from '../utils/server/serverIndexKey';
@@ -112,9 +114,12 @@ export default function LiveSearch() {
   const query = useLiveSearchScopeStore(s => s.query);
   const setQuery = useLiveSearchScopeStore(s => s.setQuery);
   const scope = useLiveSearchScopeStore(s => s.scope);
+  const setScope = useLiveSearchScopeStore(s => s.setScope);
   const clearScope = useLiveSearchScopeStore(s => s.clearScope);
   const undoLiveSearch = useLiveSearchScopeStore(s => s.undo);
   const scopeBackspaceRef = useRef(createLiveSearchScopeBackspaceState());
+  const location = useLocation();
+  const ghostScope = resolveLiveSearchScopeGhost(location.pathname, scope);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -604,6 +609,13 @@ export default function LiveSearch() {
               scope={scope}
               className="live-search-scope-badge"
               clearScope={clearScope}
+            />
+          )}
+          {ghostScope && (
+            <LiveSearchScopeGhostBadge
+              scope={ghostScope}
+              className="live-search-scope-badge live-search-scope-badge--ghost"
+              setScope={setScope}
             />
           )}
           <input

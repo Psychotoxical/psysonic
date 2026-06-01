@@ -2,10 +2,21 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import type { LiveSearchScope } from '../../store/liveSearchScopeStore';
+import { isArtistsBrowsePath } from '../../store/artistBrowseSessionStore';
 
 const SCOPE_NAV_ITEM: Record<LiveSearchScope, keyof typeof ALL_NAV_ITEMS> = {
   artists: 'artists',
 };
+
+/** Scope to restore when on a browse route but the badge was cleared (global search mode). */
+export function resolveLiveSearchScopeGhost(
+  pathname: string,
+  activeScope: LiveSearchScope | null,
+): LiveSearchScope | null {
+  if (activeScope != null) return null;
+  if (isArtistsBrowsePath(pathname)) return 'artists';
+  return null;
+}
 
 export function liveSearchScopePlaceholderKey(scope: LiveSearchScope | null): string {
   switch (scope) {
@@ -27,6 +38,15 @@ export function liveSearchScopeBadgeTooltipKey(scope: LiveSearchScope): string {
       return 'search.scopeArtistsBadgeTooltip';
     default:
       return 'search.scopeArtistsBadgeTooltip';
+  }
+}
+
+export function liveSearchScopeGhostTooltipKey(scope: LiveSearchScope): string {
+  switch (scope) {
+    case 'artists':
+      return 'search.scopeArtistsGhostTooltip';
+    default:
+      return 'search.scopeArtistsGhostTooltip';
   }
 }
 
@@ -99,14 +119,25 @@ export function handleLiveSearchScopeBackspace(
   return true;
 }
 
-/** Double-click removes the scope badge. */
-export function handleLiveSearchScopeBadgeDoubleClick(
+/** Single click removes the scope badge. */
+export function handleLiveSearchScopeBadgeClick(
   e: MouseEvent<HTMLElement>,
   clearScope: (options?: { recordUndo?: boolean }) => void,
 ): void {
   e.preventDefault();
   e.stopPropagation();
   clearScope({ recordUndo: true });
+}
+
+/** Single click restores scope after the user cleared the badge on this browse route. */
+export function handleLiveSearchScopeGhostClick(
+  e: MouseEvent<HTMLElement>,
+  scope: LiveSearchScope,
+  setScope: (scope: LiveSearchScope, options?: { recordUndo?: boolean }) => void,
+): void {
+  e.preventDefault();
+  e.stopPropagation();
+  setScope(scope, { recordUndo: true });
 }
 
 type LiveSearchScopeBadgeProps = {
@@ -127,7 +158,32 @@ export function LiveSearchScopeBadge({ scope, className, clearScope }: LiveSearc
       data-tooltip-pos="bottom"
       aria-label={tooltip}
       onMouseDown={(e) => e.preventDefault()}
-      onDoubleClick={(e) => handleLiveSearchScopeBadgeDoubleClick(e, clearScope)}
+      onClick={(e) => handleLiveSearchScopeBadgeClick(e, clearScope)}
+    >
+      <LiveSearchScopeIcon scope={scope} size={14} />
+    </span>
+  );
+}
+
+type LiveSearchScopeGhostBadgeProps = {
+  scope: LiveSearchScope;
+  className: string;
+  setScope: (scope: LiveSearchScope, options?: { recordUndo?: boolean }) => void;
+};
+
+export function LiveSearchScopeGhostBadge({ scope, className, setScope }: LiveSearchScopeGhostBadgeProps) {
+  const { t } = useTranslation();
+  const tooltip = t(liveSearchScopeGhostTooltipKey(scope));
+  return (
+    <span
+      className={className}
+      role="button"
+      tabIndex={-1}
+      data-tooltip={tooltip}
+      data-tooltip-pos="bottom"
+      aria-label={tooltip}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => handleLiveSearchScopeGhostClick(e, scope, setScope)}
     >
       <LiveSearchScopeIcon scope={scope} size={14} />
     </span>

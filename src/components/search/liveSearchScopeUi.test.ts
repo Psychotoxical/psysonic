@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
-  handleLiveSearchScopeBadgeDoubleClick,
+  handleLiveSearchScopeBadgeClick,
+  handleLiveSearchScopeGhostClick,
   handleLiveSearchScopeUndo,
   isLiveSearchDropdownBlocked,
   liveSearchScopePlaceholderKey,
   noteLiveSearchScopeQueryInput,
   resetLiveSearchScopeBackspaceState,
+  resolveLiveSearchScopeGhost,
 } from './liveSearchScopeUi';
 
 function keyEvent(
@@ -26,6 +28,32 @@ function keyEvent(
     ...rest,
   } as unknown as KeyboardEvent<HTMLInputElement>;
 }
+
+describe('resolveLiveSearchScopeGhost', () => {
+  it('offers artists ghost on artists browse when scope was cleared', () => {
+    expect(resolveLiveSearchScopeGhost('/artists', null)).toBe('artists');
+    expect(resolveLiveSearchScopeGhost('/artists', 'artists')).toBeNull();
+    expect(resolveLiveSearchScopeGhost('/albums', null)).toBeNull();
+  });
+});
+
+describe('handleLiveSearchScopeBadgeClick', () => {
+  it('clears scope with undo', () => {
+    const clearScope = vi.fn();
+    const e = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as MouseEvent<HTMLElement>;
+    handleLiveSearchScopeBadgeClick(e, clearScope);
+    expect(clearScope).toHaveBeenCalledWith({ recordUndo: true });
+  });
+});
+
+describe('handleLiveSearchScopeGhostClick', () => {
+  it('restores scope with undo', () => {
+    const setScope = vi.fn();
+    const e = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as MouseEvent<HTMLElement>;
+    handleLiveSearchScopeGhostClick(e, 'artists', setScope);
+    expect(setScope).toHaveBeenCalledWith('artists', { recordUndo: true });
+  });
+});
 
 describe('handleLiveSearchScopeBackspace', () => {
   it('clears scope on first Backspace when the field was never filled', () => {
@@ -90,15 +118,6 @@ describe('liveSearchScopePlaceholderKey', () => {
   it('uses artists placeholder when scoped to artists', () => {
     expect(liveSearchScopePlaceholderKey('artists')).toBe('search.scopeArtistsPlaceholder');
     expect(liveSearchScopePlaceholderKey(null)).toBe('search.placeholder');
-  });
-});
-
-describe('handleLiveSearchScopeBadgeDoubleClick', () => {
-  it('clears scope with undo', () => {
-    const clearScope = vi.fn();
-    const e = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as MouseEvent<HTMLElement>;
-    handleLiveSearchScopeBadgeDoubleClick(e, clearScope);
-    expect(clearScope).toHaveBeenCalledWith({ recordUndo: true });
   });
 });
 

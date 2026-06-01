@@ -20,6 +20,7 @@ import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
 import {
   LiveSearchScopeBadge,
+  LiveSearchScopeGhostBadge,
   createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
   handleLiveSearchScopeUndo,
@@ -27,6 +28,7 @@ import {
   liveSearchScopePlaceholderKey,
   noteLiveSearchScopeQueryInput,
   resetLiveSearchScopeBackspaceState,
+  resolveLiveSearchScopeGhost,
 } from './search/liveSearchScopeUi';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
@@ -110,9 +112,11 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   const query = useLiveSearchScopeStore(s => s.query);
   const setQuery = useLiveSearchScopeStore(s => s.setQuery);
   const scope = useLiveSearchScopeStore(s => s.scope);
+  const setScope = useLiveSearchScopeStore(s => s.setScope);
   const clearScope = useLiveSearchScopeStore(s => s.clearScope);
   const undoLiveSearch = useLiveSearchScopeStore(s => s.undo);
   const scopeBackspaceRef = useRef(createLiveSearchScopeBackspaceState());
+  const ghostScope = resolveLiveSearchScopeGhost(location.pathname, scope);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecent);
@@ -214,6 +218,13 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
               scope={scope}
               className="mobile-search-scope-badge"
               clearScope={clearScope}
+            />
+          )}
+          {ghostScope && (
+            <LiveSearchScopeGhostBadge
+              scope={ghostScope}
+              className="mobile-search-scope-badge mobile-search-scope-badge--ghost"
+              setScope={setScope}
             />
           )}
           <input
