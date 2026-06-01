@@ -9,6 +9,7 @@ export const genres = {
   albumsEmpty: 'Aucun album trouvé pour ce genre.',
   loadMore: 'Charger plus',
   back: 'Retour',
+  playTooltip: 'Lire (maintenir pour mélanger)',
   shuffle: 'Aléatoire',
   addToQueue: 'Ajouter à la file',
 };

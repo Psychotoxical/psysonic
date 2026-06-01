@@ -9,6 +9,7 @@ export const genres = {
   albumsEmpty: 'Ingen album funnet for denne sjangeren.',
   loadMore: 'Last mer',
   back: 'Tilbake',
+  playTooltip: 'Spill av (hold for tilfeldig rekkefølge)',
   shuffle: 'Bland',
   addToQueue: 'Legg til i kø',
 };

@@ -9,6 +9,7 @@ export const genres = {
   albumsEmpty: '未找到该流派的专辑。',
   loadMore: '加载更多',
   back: '返回',
+  playTooltip: '播放（长按随机播放）',
   shuffle: '随机播放',
   addToQueue: '添加到队列',
 };

@@ -5,11 +5,19 @@ import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
 import {
   fetchGenreAlbumPage,
   GENRE_ALBUM_CATALOG_CHUNK,
+  GENRE_ALBUM_FIRST_PAGE,
 } from '../utils/library/genreAlbumBrowse';
 import { useClientSliceInfiniteScroll } from './useClientSliceInfiniteScroll';
 import { useInpageScrollSentinel } from './useInpageScrollSentinel';
 
-const CLIENT_SLICE_PAGE_SIZE = 60;
+const CLIENT_SLICE_PAGE_SIZE = GENRE_ALBUM_FIRST_PAGE;
+
+function initialSqlPageSize(restoreDisplayCount?: number): number {
+  if (restoreDisplayCount != null && restoreDisplayCount > CLIENT_SLICE_PAGE_SIZE) {
+    return Math.min(restoreDisplayCount, GENRE_ALBUM_CATALOG_CHUNK);
+  }
+  return CLIENT_SLICE_PAGE_SIZE;
+}
 
 export function useGenreAlbumBrowse(
   serverId: string,
@@ -31,6 +39,15 @@ export function useGenreAlbumBrowse(
   const loadingRef = useRef(false);
   const loadPendingRef = useRef(false);
   const loadMoreRef = useRef<() => void>(() => {});
+  const browseSessionRef = useRef({ key: '', restoreDisplayCount: undefined as number | undefined });
+  const browseKey = `${serverId}:${genre}`;
+  if (browseSessionRef.current.key !== browseKey) {
+    browseSessionRef.current = {
+      key: browseKey,
+      restoreDisplayCount: restoreDisplayCount,
+    };
+  }
+  const sessionRestoreDisplayCount = browseSessionRef.current.restoreDisplayCount;
 
   const {
     visibleCount,
@@ -47,7 +64,7 @@ export function useGenreAlbumBrowse(
     ],
     getScrollRoot,
     scrollRootEl,
-    restoreDisplayCount,
+    restoreDisplayCount: sessionRestoreDisplayCount,
   });
 
   const displayAlbums = useMemo(
@@ -58,7 +75,11 @@ export function useGenreAlbumBrowse(
   const hasMore = visibleCount < albums.length || catalogHasMore;
   const loadingMore = sliceLoadingMore || catalogLoadingMore;
 
-  const loadCatalogChunk = useCallback(async (offset: number, append: boolean) => {
+  const loadCatalogChunk = useCallback(async (
+    offset: number,
+    append: boolean,
+    pageSize: number = GENRE_ALBUM_CATALOG_CHUNK,
+  ) => {
     if (catalogLoadingRef.current || !genre) return;
     const generation = loadGenerationRef.current;
     catalogLoadingRef.current = true;
@@ -69,7 +90,7 @@ export function useGenreAlbumBrowse(
         genre,
         indexEnabled,
         offset,
-        GENRE_ALBUM_CATALOG_CHUNK,
+        pageSize,
         sort,
       );
       if (generation !== loadGenerationRef.current) return;
@@ -112,7 +133,8 @@ export function useGenreAlbumBrowse(
     setCatalogHasMore(false);
     setAlbums([]);
 
-    void loadCatalogChunk(0, false).finally(() => {
+    const firstPageSize = initialSqlPageSize(sessionRestoreDisplayCount);
+    void loadCatalogChunk(0, false, firstPageSize).finally(() => {
       if (cancelled || generation !== loadGenerationRef.current) return;
       loadingRef.current = false;
       loadPendingRef.current = false;

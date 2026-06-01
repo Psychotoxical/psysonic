@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Disc3, Play, Shuffle, ListPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Disc3, Play, ListPlus, Loader2 } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
+import { LongPressWaveOverlay } from '../components/LongPressWaveOverlay';
 import InpageScrollSentinel from '../components/InpageScrollSentinel';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
@@ -13,6 +14,7 @@ import { useGenreAlbumBrowse } from '../hooks/useGenreAlbumBrowse';
 import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
 import { useGenreDetailBrowse } from '../hooks/useGenreDetailBrowse';
 import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
+import { useLongPressAction } from '../hooks/useLongPressAction';
 import { useMainstageInpageHeaderTight } from '../hooks/useMainstageInpageHeaderTight';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
@@ -136,6 +138,11 @@ export default function GenreDetail() {
     [fetchGenreTracks, enqueue],
   );
 
+  const { isHolding, pressBind } = useLongPressAction({
+    onShortPress: handlePlayAll,
+    onLongPress: handleShuffleAll,
+  });
+
   const handleBack = useCallback(() => {
     navigate(readAlbumDetailReturnTo(location.state) ?? '/genres');
   }, [navigate, location.state]);
@@ -171,16 +178,18 @@ export default function GenreDetail() {
           )}
           {showPlayback && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
-              <button className="btn btn-primary" onClick={handlePlayAll} disabled={bulkLoading}>
-                {bulkLoading ? <Loader2 size={15} className="spin" /> : <Play size={15} />} {t('common.play')}
-              </button>
               <button
-                className="btn btn-surface"
-                onClick={handleShuffleAll}
+                type="button"
+                className="btn btn-primary long-press-play-btn"
+                {...pressBind}
                 disabled={bulkLoading}
-                data-tooltip={t('genres.shuffle')}
+                data-tooltip={t('genres.playTooltip')}
               >
-                <Shuffle size={16} />
+                <LongPressWaveOverlay active={isHolding} size="compact" />
+                <span className="long-press-play-btn__icon" style={{ gap: '0.35rem' }}>
+                  {bulkLoading ? <Loader2 size={15} className="spin" /> : <Play size={15} fill="currentColor" />}
+                  {t('common.play')}
+                </span>
               </button>
               <button
                 className="btn btn-surface"

@@ -8,7 +8,7 @@ import {
   genreDetailGenreFromPath,
   isAlbumDetailPath,
   isGenreDetailPath,
-  peekGenreDetailReturnStash,
+  peekGenreDetailScrollRestore,
   stashGenreDetailReturnFilters,
   useAlbumBrowseSessionStore,
 } from '../store/albumBrowseSessionStore';
@@ -25,6 +25,13 @@ export function useGenreDetailBrowse(
   const location = useLocation();
   const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.sortByServer, serverId));
   const restoredFromStashRef = useRef(false);
+  const restoreKeyRef = useRef('');
+  const restoreDisplayCountRef = useRef<number | undefined>(undefined);
+  const restoreKey = `${serverId}:${genreName}`;
+  if (restoreKeyRef.current !== restoreKey) {
+    restoreKeyRef.current = restoreKey;
+    restoreDisplayCountRef.current = peekGenreDetailScrollRestore(serverId, genreName)?.displayCount;
+  }
 
   useEffect(() => {
     restoredFromStashRef.current = false;
@@ -67,6 +74,6 @@ export function useGenreDetailBrowse(
 
   return {
     sort,
-    restoreDisplayCount: peekGenreDetailReturnStash(serverId, genreName)?.displayCount,
+    restoreDisplayCount: restoreDisplayCountRef.current,
   };
 }

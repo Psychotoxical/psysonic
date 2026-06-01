@@ -5,9 +5,10 @@ import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
 import type { AlbumBrowsePageResult } from './albumBrowseTypes';
 import { libraryIsReady } from './libraryReady';
 
-/** Background SQL chunk size — matches All Albums local slice mode. */
+/** First paint — one visible slice only. */
+export const GENRE_ALBUM_FIRST_PAGE = 60;
+/** Background SQL chunk when the in-memory buffer is exhausted. */
 export const GENRE_ALBUM_CATALOG_CHUNK = 200;
-export const GENRE_ALBUM_PAGE_SIZE = GENRE_ALBUM_CATALOG_CHUNK;
 
 /** Album grid for genre detail — local index only (`library_list_albums_by_genre`). */
 export async function fetchGenreAlbumPage(

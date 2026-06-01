@@ -40,14 +40,14 @@ describe('genreAlbumBrowse', () => {
       }],
     });
 
-    const page = await fetchGenreAlbumPage('srv-1', 'Rock', true, 0, 200, 'alphabeticalByName');
+    const page = await fetchGenreAlbumPage('srv-1', 'Rock', true, 0, 60, 'alphabeticalByName');
 
     expect(libraryListAlbumsByGenre).toHaveBeenCalledWith(expect.objectContaining({
       serverId: 'srv-1',
       genre: 'Rock',
       libraryScope: 'lib-a',
       offset: 0,
-      limit: 200,
+      limit: 60,
     }));
     expect(page.albums).toHaveLength(1);
     expect(page.hasMore).toBe(true);
