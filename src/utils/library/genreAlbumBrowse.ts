@@ -1,7 +1,8 @@
+import { getAlbumsByGenre } from '../../api/subsonicGenres';
 import { libraryListAlbumsByGenre } from '../../api/library';
 import { libraryScopeForServer } from '../../api/subsonicClient';
 import { albumToAlbum } from './advancedSearchLocal';
-import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
+import { albumSortClauses, sortSubsonicAlbums, type AlbumBrowseSort } from './albumBrowseSort';
 import type { AlbumBrowsePageResult } from './albumBrowseTypes';
 import { libraryIsReady } from './libraryReady';
 
@@ -10,19 +11,15 @@ export const GENRE_ALBUM_FIRST_PAGE = 60;
 /** Background SQL chunk when the in-memory buffer is exhausted. */
 export const GENRE_ALBUM_CATALOG_CHUNK = 200;
 
-/** Album grid for genre detail — local index only (`library_list_albums_by_genre`). */
-export async function fetchGenreAlbumPage(
+async function fetchLocalGenreAlbumPage(
   serverId: string,
   genre: string,
-  indexEnabled: boolean,
   offset: number,
   pageSize: number,
   sort: AlbumBrowseSort,
-): Promise<AlbumBrowsePageResult> {
+): Promise<AlbumBrowsePageResult | null> {
   const scope = libraryScopeForServer(serverId) ?? undefined;
-  if (!indexEnabled || !serverId || !genre.trim() || !(await libraryIsReady(serverId))) {
-    return { albums: [], hasMore: false };
-  }
+  if (!(await libraryIsReady(serverId))) return null;
   try {
     const resp = await libraryListAlbumsByGenre({
       serverId,
@@ -32,14 +29,52 @@ export async function fetchGenreAlbumPage(
       limit: pageSize,
       offset,
     });
-    if (resp.source !== 'local') return { albums: [], hasMore: false };
+    if (resp.source !== 'local') return null;
     return {
       albums: resp.albums.map(albumToAlbum),
       hasMore: resp.hasMore,
     };
   } catch {
+    return null;
+  }
+}
+
+async function fetchNetworkGenreAlbumPage(
+  genre: string,
+  offset: number,
+  pageSize: number,
+  sort: AlbumBrowseSort,
+): Promise<AlbumBrowsePageResult> {
+  try {
+    const albums = await getAlbumsByGenre(genre, pageSize, offset);
+    return {
+      albums: sortSubsonicAlbums(albums, sort),
+      hasMore: albums.length === pageSize,
+    };
+  } catch {
     return { albums: [], hasMore: false };
   }
+}
+
+/** Album grid for genre detail — local index when ready, else Subsonic `byGenre`. */
+export async function fetchGenreAlbumPage(
+  serverId: string,
+  genre: string,
+  indexEnabled: boolean,
+  offset: number,
+  pageSize: number,
+  sort: AlbumBrowseSort,
+): Promise<AlbumBrowsePageResult> {
+  if (!serverId || !genre.trim()) {
+    return { albums: [], hasMore: false };
+  }
+
+  if (indexEnabled) {
+    const local = await fetchLocalGenreAlbumPage(serverId, genre, offset, pageSize, sort);
+    if (local != null) return local;
+  }
+
+  return fetchNetworkGenreAlbumPage(genre, offset, pageSize, sort);
 }
 
 export async function fetchGenreAlbumTotal(
@@ -49,8 +84,8 @@ export async function fetchGenreAlbumTotal(
   sort: AlbumBrowseSort,
 ): Promise<number | null> {
   if (!genre.trim()) return null;
-  const scope = libraryScopeForServer(serverId) ?? undefined;
   if (indexEnabled && serverId && (await libraryIsReady(serverId))) {
+    const scope = libraryScopeForServer(serverId) ?? undefined;
     try {
       const resp = await libraryListAlbumsByGenre({
         serverId,

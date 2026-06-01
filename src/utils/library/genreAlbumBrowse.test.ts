@@ -5,6 +5,10 @@ vi.mock('../../api/library', () => ({
   libraryListAlbumsByGenre: vi.fn(),
 }));
 
+vi.mock('../../api/subsonicGenres', () => ({
+  getAlbumsByGenre: vi.fn(),
+}));
+
 vi.mock('../../api/subsonicClient', () => ({
   libraryScopeForServer: vi.fn(() => 'lib-a'),
 }));
@@ -14,15 +18,17 @@ vi.mock('./libraryReady', () => ({
 }));
 
 import { libraryListAlbumsByGenre } from '../../api/library';
+import { getAlbumsByGenre } from '../../api/subsonicGenres';
 import { libraryIsReady } from './libraryReady';
 
 describe('genreAlbumBrowse', () => {
   beforeEach(() => {
     vi.mocked(libraryIsReady).mockReset();
     vi.mocked(libraryListAlbumsByGenre).mockReset();
+    vi.mocked(getAlbumsByGenre).mockReset();
   });
 
-  it('loads albums from the local genre browse command', async () => {
+  it('loads albums from the local genre browse command when the index is ready', async () => {
     vi.mocked(libraryIsReady).mockResolvedValue(true);
     vi.mocked(libraryListAlbumsByGenre).mockResolvedValue({
       source: 'local',
@@ -49,17 +55,34 @@ describe('genreAlbumBrowse', () => {
       offset: 0,
       limit: 60,
     }));
+    expect(getAlbumsByGenre).not.toHaveBeenCalled();
     expect(page.albums).toHaveLength(1);
     expect(page.hasMore).toBe(true);
   });
 
-  it('returns empty when the local index is unavailable', async () => {
+  it('falls back to Subsonic byGenre when the local index is unavailable', async () => {
     vi.mocked(libraryIsReady).mockResolvedValue(false);
+    vi.mocked(getAlbumsByGenre).mockResolvedValue([
+      { id: 'al-1', name: 'A', artist: 'X', artistId: 'x', songCount: 1, duration: 1 },
+    ]);
 
-    const page = await fetchGenreAlbumPage('srv-1', 'Rock', true, 0, 200, 'alphabeticalByName');
+    const page = await fetchGenreAlbumPage('srv-1', 'Rock', true, 0, 60, 'alphabeticalByName');
 
     expect(libraryListAlbumsByGenre).not.toHaveBeenCalled();
-    expect(page).toEqual({ albums: [], hasMore: false });
+    expect(getAlbumsByGenre).toHaveBeenCalledWith('Rock', 60, 0);
+    expect(page.albums).toHaveLength(1);
+  });
+
+  it('uses Subsonic when the local index is disabled', async () => {
+    vi.mocked(getAlbumsByGenre).mockResolvedValue([
+      { id: 'al-1', name: 'A', artist: 'X', artistId: 'x', songCount: 1, duration: 1 },
+    ]);
+
+    const page = await fetchGenreAlbumPage('srv-1', 'Rock', false, 0, 60, 'alphabeticalByName');
+
+    expect(libraryIsReady).not.toHaveBeenCalled();
+    expect(getAlbumsByGenre).toHaveBeenCalledWith('Rock', 60, 0);
+    expect(page.albums).toHaveLength(1);
   });
 
   it('reads album totals from the local genre browse command when needed', async () => {
