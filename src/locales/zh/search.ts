@@ -39,6 +39,8 @@ export const search = {
   recentSearches: '最近搜索',
   browse: '浏览',
   emptyHint: '你想听什么？',
+  scopeArtistsPlaceholder: '搜索艺术家…',
+  scopeArtistsBadgeTooltip: '双击移除',
   genres: '流派',
   shareLink: 'Share link',
   shareTrackTitle: 'Shared track',

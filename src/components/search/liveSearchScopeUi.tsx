@@ -1,0 +1,104 @@
+import type { KeyboardEvent, MouseEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ALL_NAV_ITEMS } from '../../config/navItems';
+import type { LiveSearchScope } from '../../store/liveSearchScopeStore';
+
+const SCOPE_NAV_ITEM: Record<LiveSearchScope, keyof typeof ALL_NAV_ITEMS> = {
+  artists: 'artists',
+};
+
+export function liveSearchScopePlaceholderKey(scope: LiveSearchScope | null): string {
+  switch (scope) {
+    case 'artists':
+      return 'search.scopeArtistsPlaceholder';
+    default:
+      return 'search.placeholder';
+  }
+}
+
+/** Scoped browse mode filters the page only — no live-search dropdown. */
+export function isLiveSearchDropdownBlocked(scope: LiveSearchScope | null): boolean {
+  return scope != null;
+}
+
+export function liveSearchScopeBadgeTooltipKey(scope: LiveSearchScope): string {
+  switch (scope) {
+    case 'artists':
+      return 'search.scopeArtistsBadgeTooltip';
+    default:
+      return 'search.scopeArtistsBadgeTooltip';
+  }
+}
+
+type LiveSearchScopeIconProps = {
+  scope: LiveSearchScope;
+  size?: number;
+};
+
+/** Sidebar nav icon for the scoped browse page (e.g. Users for Artists). */
+export function LiveSearchScopeIcon({ scope, size = 14 }: LiveSearchScopeIconProps) {
+  const Icon = ALL_NAV_ITEMS[SCOPE_NAV_ITEM[scope]].icon;
+  return <Icon size={size} aria-hidden />;
+}
+
+/**
+ * Backspace clears the scope badge only when the field is already empty —
+ * deleting the last character leaves the badge until a second backspace.
+ */
+export function handleLiveSearchScopeBackspace(
+  e: KeyboardEvent<HTMLInputElement>,
+  query: string,
+  scope: LiveSearchScope | null,
+  clearScope: (options?: { recordUndo?: boolean }) => void,
+): boolean {
+  if (e.key !== 'Backspace' || !scope || query !== '') return false;
+  e.preventDefault();
+  clearScope({ recordUndo: true });
+  return true;
+}
+
+/** Double-click removes the scope badge (same as backspace on an empty field). */
+export function handleLiveSearchScopeBadgeDoubleClick(
+  e: MouseEvent<HTMLElement>,
+  clearScope: (options?: { recordUndo?: boolean }) => void,
+): void {
+  e.preventDefault();
+  e.stopPropagation();
+  clearScope({ recordUndo: true });
+}
+
+type LiveSearchScopeBadgeProps = {
+  scope: LiveSearchScope;
+  className: string;
+  clearScope: (options?: { recordUndo?: boolean }) => void;
+};
+
+export function LiveSearchScopeBadge({ scope, className, clearScope }: LiveSearchScopeBadgeProps) {
+  const { t } = useTranslation();
+  const tooltip = t(liveSearchScopeBadgeTooltipKey(scope));
+  return (
+    <span
+      className={className}
+      role="button"
+      tabIndex={-1}
+      data-tooltip={tooltip}
+      data-tooltip-pos="bottom"
+      aria-label={tooltip}
+      onMouseDown={(e) => e.preventDefault()}
+      onDoubleClick={(e) => handleLiveSearchScopeBadgeDoubleClick(e, clearScope)}
+    >
+      <LiveSearchScopeIcon scope={scope} size={14} />
+    </span>
+  );
+}
+
+/** Field-local undo (Ctrl/Cmd+Z) for live search query and scope badge. */
+export function handleLiveSearchScopeUndo(
+  e: KeyboardEvent<HTMLInputElement>,
+  undo: () => boolean,
+): boolean {
+  const isUndoKey = e.code === 'KeyZ' || e.key.toLowerCase() === 'z';
+  if (!isUndoKey || !(e.ctrlKey || e.metaKey) || e.shiftKey) return false;
+  e.preventDefault();
+  return undo();
+}

@@ -39,6 +39,8 @@ export const search = {
   recentSearches: 'Недавние запросы',
   browse: 'Обзор',
   emptyHint: 'Что хочешь послушать?',
+  scopeArtistsPlaceholder: 'Поиск исполнителя…',
+  scopeArtistsBadgeTooltip: 'Двойной щелчок — удалить',
   genres: 'Жанры',
   shareLink: 'Ссылка для обмена',
   shareTrackTitle: 'Общий трек',

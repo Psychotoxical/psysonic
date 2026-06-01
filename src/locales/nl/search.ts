@@ -39,6 +39,8 @@ export const search = {
   recentSearches: 'Recente zoekopdrachten',
   browse: 'Bladeren',
   emptyHint: 'Wat wil je horen?',
+  scopeArtistsPlaceholder: 'Artiest zoeken…',
+  scopeArtistsBadgeTooltip: 'Dubbelklik om te verwijderen',
   genres: 'Genres',
   shareLink: 'Share link',
   shareTrackTitle: 'Shared track',

@@ -48,6 +48,7 @@ import { useGlobalDndAndSelectionBlockers } from '../hooks/useGlobalDndAndSelect
 import { useAppActivityTracking } from '../hooks/useAppActivityTracking';
 import { useMainScrollingIndicator } from '../hooks/useMainScrollingIndicator';
 import { useCoverNavigationPriority } from '../hooks/useCoverNavigationPriority';
+import { useLiveSearchRouteScope } from '../hooks/useLiveSearchRouteScope';
 import { useNowPlayingPrewarm } from '../hooks/useNowPlayingPrewarm';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
@@ -101,6 +102,7 @@ export function AppShell() {
   const location = useLocation();
   const prevPathnameRef = useRef(location.pathname);
   useCoverNavigationPriority();
+  useLiveSearchRouteScope();
   useNowPlayingPrewarm();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const offlineAlbums = useOfflineStore(s => s.albums);

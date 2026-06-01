@@ -34,6 +34,24 @@
   flex-shrink: 0;
 }
 
+.mobile-search-scope-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  user-select: none;
+}
+
+.mobile-search-field--scoped .mobile-search-input {
+  font-size: 16px;
+}
+
 .mobile-search-input {
   flex: 1;
   background: none;

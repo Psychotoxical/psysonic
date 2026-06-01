@@ -1,6 +1,7 @@
 import { search } from '../api/subsonicSearch';
 import type { SearchResults, SubsonicArtist } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
+import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -17,6 +18,13 @@ import { albumCoverRefForSong } from '../cover/ref';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
+import {
+  LiveSearchScopeBadge,
+  handleLiveSearchScopeBackspace,
+  handleLiveSearchScopeUndo,
+  isLiveSearchDropdownBlocked,
+  liveSearchScopePlaceholderKey,
+} from './search/liveSearchScopeUi';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
 const MAX_RECENT = 6;
@@ -31,9 +39,12 @@ function saveRecent(q: string, prev: string[]): string[] {
   return updated;
 }
 
-function debounce(fn: (q: string) => void, ms: number): (q: string) => void {
+function debounce<A extends unknown[]>(
+  fn: (...args: A) => void,
+  ms: number,
+): (...args: A) => void {
   let timer: ReturnType<typeof setTimeout>;
-  return (q: string) => { clearTimeout(timer); timer = setTimeout(() => fn(q), ms); };
+  return (...args: A) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
 }
 
 /** Mobile search row thumb — larger than desktop live search (32px). */
@@ -93,7 +104,11 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   const location = useLocation();
   const enqueue = usePlayerStore(s => s.enqueue);
 
-  const [query, setQuery] = useState('');
+  const query = useLiveSearchScopeStore(s => s.query);
+  const setQuery = useLiveSearchScopeStore(s => s.setQuery);
+  const scope = useLiveSearchScopeStore(s => s.scope);
+  const clearScope = useLiveSearchScopeStore(s => s.clearScope);
+  const undoLiveSearch = useLiveSearchScopeStore(s => s.undo);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecent);
@@ -113,20 +128,26 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     debounce(async (q: string) => {
       if (!q.trim()) { setResults(null); setLoading(false); return; }
       setLoading(true);
-      try { setResults(await search(q)); }
-      finally { setLoading(false); }
+      try {
+        setResults(await search(q));
+      } finally { setLoading(false); }
     }, 300),
-    [musicLibraryFilterVersion]
+    [musicLibraryFilterVersion],
   );
 
   useEffect(() => {
+    if (isLiveSearchDropdownBlocked(scope)) {
+      setResults(null);
+      setLoading(false);
+      return;
+    }
     if (share.shareMatch) {
       setResults(null);
       setLoading(false);
       return;
     }
     doSearch(query);
-  }, [query, doSearch, share.shareMatch]);
+  }, [query, scope, doSearch, share.shareMatch]);
 
   const commit = (q: string) => {
     if (q.trim()) setRecentSearches(prev => saveRecent(q, prev));
@@ -146,7 +167,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     onClose();
   };
   const useRecent = (term: string) => {
-    setQuery(term);
+    setQuery(term, { recordUndo: true });
     inputRef.current?.focus();
   };
   const removeRecent = (term: string, e: React.MouseEvent) => {
@@ -159,27 +180,43 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   };
 
   const hasResults =
-    !!share.shareMatch ||
-    (results && (results.artists.length || results.albums.length || results.songs.length));
-  const showEmpty = !query;
+    !isLiveSearchDropdownBlocked(scope)
+    && (
+      !!share.shareMatch
+      || (results && (results.artists.length || results.albums.length || results.songs.length))
+    );
+  const showEmpty = !query && !scope;
 
   return createPortal(
     <div className="mobile-search-overlay">
       {/* ── Search bar ── */}
       <div className="mobile-search-bar">
-        <div className="mobile-search-field">
+        <div className={`mobile-search-field${scope ? ' mobile-search-field--scoped' : ''}`}>
           {loading ? (
             <div className="mobile-search-spinner" />
           ) : (
             <Search size={16} className="mobile-search-icon" />
           )}
+          {scope && (
+            <LiveSearchScopeBadge
+              scope={scope}
+              className="mobile-search-scope-badge"
+              clearScope={clearScope}
+            />
+          )}
           <input
             ref={inputRef}
             className="mobile-search-input"
             type="search"
-            placeholder={t('search.placeholder')}
+            placeholder={t(liveSearchScopePlaceholderKey(scope))}
+            data-tooltip={scope ? t(liveSearchScopePlaceholderKey(scope)) : undefined}
+            data-tooltip-pos="bottom"
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => setQuery(e.target.value, { recordUndo: true })}
+            onKeyDown={(e) => {
+              if (handleLiveSearchScopeUndo(e, undoLiveSearch)) return;
+              if (handleLiveSearchScopeBackspace(e, query, scope, clearScope)) return;
+            }}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -187,7 +224,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
           {query && (
             <button
               className="mobile-search-clear"
-              onClick={() => { setQuery(''); setResults(null); inputRef.current?.focus(); }}
+              onClick={() => { setQuery('', { recordUndo: true }); setResults(null); inputRef.current?.focus(); }}
               aria-label={t('search.clearLabel')}
             >
               <X size={15} />
@@ -249,7 +286,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
         )}
 
         {/* ── No results ── */}
-        {!loading && query && !hasResults && (
+        {!loading && query && !hasResults && !isLiveSearchDropdownBlocked(scope) && (
           <div className="mobile-search-noresults">
             {t('search.noResults', { query })}
           </div>

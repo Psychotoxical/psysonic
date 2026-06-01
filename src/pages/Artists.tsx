@@ -36,6 +36,7 @@ import { useNavigateToArtist } from '../hooks/useNavigateToArtist';
 import { peekArtistBrowseScrollRestore } from '../store/artistBrowseSessionStore';
 import { readArtistBrowseRestore } from '../utils/navigation/albumDetailNavigation';
 
+import { useArtistsLiveSearchQuery } from '../store/liveSearchScopeStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
 export default function Artists() {
@@ -51,8 +52,6 @@ export default function Artists() {
   );
 
   const {
-    filter,
-    setFilter,
     letterFilter,
     setLetterFilter,
     starredOnly,
@@ -60,6 +59,8 @@ export default function Artists() {
     viewMode,
     setViewMode,
   } = useArtistsBrowseFilters(serverId, scrollSnapshotRef);
+
+  const artistsSearchQuery = useArtistsLiveSearchQuery();
 
   const {
     scrollBodyEl: artistsScrollBodyEl,
@@ -91,7 +92,7 @@ export default function Artists() {
   });
 
   const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
-    filter,
+    artistsSearchQuery,
     indexEnabled,
     serverId,
   );
@@ -105,7 +106,7 @@ export default function Artists() {
     loadMore: sliceLoadMore,
   } = useClientSliceInfiniteScroll({
     pageSize: PAGE_SIZE,
-    resetDeps: [filter, letterFilter, starredOnly, viewMode, musicLibraryFilterVersion, serverId],
+    resetDeps: [artistsSearchQuery, letterFilter, starredOnly, viewMode, musicLibraryFilterVersion, serverId],
     getScrollRoot: getArtistsScrollRoot,
     scrollRootEl: artistsScrollBodyEl,
     restoreDisplayCount: restoreVisibleCountRef.current,
@@ -224,7 +225,7 @@ export default function Artists() {
   });
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(artistsScrollBodyEl, [
-    filter,
+    artistsSearchQuery,
     letterFilter,
     starredOnly,
     viewMode,
@@ -333,14 +334,6 @@ export default function Artists() {
                   ? t('artists.selectionCount', { count: selectedIds.size })
                   : t('artists.title')}
               </h1>
-              <input
-                className="input"
-                style={{ maxWidth: 220 }}
-                placeholder={t('artists.search')}
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-                id="artist-filter-input"
-              />
               {textSearchLoading && (
                 <div className="spinner" style={{ width: 16, height: 16, flexShrink: 0 }} />
               )}

@@ -39,6 +39,8 @@ export const search = {
   recentSearches: 'Búsquedas Recientes',
   browse: 'Explorar',
   emptyHint: '¿Qué quieres escuchar?',
+  scopeArtistsPlaceholder: 'Buscar artista…',
+  scopeArtistsBadgeTooltip: 'Doble clic para quitar',
   genres: 'Géneros',
   shareLink: 'Share link',
   shareTrackTitle: 'Shared track',

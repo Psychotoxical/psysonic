@@ -10,6 +10,7 @@ import {
 } from '../store/artistBrowseSessionStore';
 import { isArtistDetailPath } from '../store/albumBrowseSessionStore';
 import { shouldRestoreArtistBrowseSession } from '../utils/navigation/albumDetailNavigation';
+import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 
 export type ArtistBrowseScrollSnapshot = {
   scrollTop: number;
@@ -38,9 +39,6 @@ export function useArtistsBrowseFilters(
   const location = useLocation();
   const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
 
-  const [filter, setFilter] = useState(
-    () => returnStateForNavigation(serverId, navigationType, location.state).filter,
-  );
   const [letterFilter, setLetterFilter] = useState(
     () => returnStateForNavigation(serverId, navigationType, location.state).letterFilter,
   );
@@ -56,7 +54,7 @@ export function useArtistsBrowseFilters(
   const showArtistImages = useAuthStore(s => s.showArtistImages);
 
   browseStateRef.current = {
-    filter,
+    filter: useLiveSearchScopeStore.getState().query,
     letterFilter,
     starredOnly,
     viewMode,
@@ -74,7 +72,7 @@ export function useArtistsBrowseFilters(
       restoredFromStashRef.current = true;
       const restored = useArtistBrowseSessionStore.getState().peekReturnStash(serverId);
       if (restored) {
-        setFilter(restored.filter);
+        useLiveSearchScopeStore.getState().setQuery(restored.filter);
         setLetterFilter(restored.letterFilter);
         setStarredOnly(restored.starredOnly);
         setViewMode(restored.viewMode);
@@ -86,7 +84,7 @@ export function useArtistsBrowseFilters(
     if (restoredFromStashRef.current) return;
 
     useArtistBrowseSessionStore.getState().clearReturnStash(serverId);
-    setFilter('');
+    useLiveSearchScopeStore.getState().setQuery('');
     setLetterFilter(DEFAULT_ARTIST_BROWSE_RETURN_STATE.letterFilter);
     setStarredOnly(false);
     setViewMode('grid');
@@ -110,8 +108,6 @@ export function useArtistsBrowseFilters(
   }, [serverId, scrollSnapshotRef]);
 
   return {
-    filter,
-    setFilter,
     letterFilter,
     setLetterFilter,
     starredOnly,

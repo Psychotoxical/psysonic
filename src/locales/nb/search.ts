@@ -39,6 +39,8 @@ export const search = {
   recentSearches: 'Siste søk',
   browse: 'Utforsk',
   emptyHint: 'Hva vil du høre?',
+  scopeArtistsPlaceholder: 'Søk etter artist…',
+  scopeArtistsBadgeTooltip: 'Dobbeltklikk for å fjerne',
   genres: 'Sjangre',
   shareLink: 'Share link',
   shareTrackTitle: 'Shared track',

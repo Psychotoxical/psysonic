@@ -39,6 +39,8 @@ export const search = {
   recentSearches: 'Căutări Recente',
   browse: 'Răsfoiește',
   emptyHint: 'Ce vrei să auzi?',
+  scopeArtistsPlaceholder: 'Caută artist…',
+  scopeArtistsBadgeTooltip: 'Dublu clic pentru a elimina',
   genres: 'Genuri',
   shareLink: 'Share link',
   shareTrackTitle: 'Shared track',
