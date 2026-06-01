@@ -7,6 +7,8 @@ import {
   albumBrowseSurfaceForPath,
   clearGenreDetailReturnStash,
   isAlbumDetailPath,
+  isAlbumsBrowsePath,
+  isNewReleasesBrowsePath,
   isGenreDetailPath,
   genreDetailGenreFromPath,
   peekAlbumBrowseScrollRestore,
@@ -144,6 +146,11 @@ describe('isGenreDetailPath', () => {
 describe('albumBrowseSurfaceForPath', () => {
   it('maps album grid browse routes', () => {
     expect(albumBrowseSurfaceForPath('/albums')).toBe('albums');
+    expect(isAlbumsBrowsePath('/albums')).toBe(true);
+    expect(isAlbumsBrowsePath('/albums/')).toBe(true);
+    expect(isAlbumsBrowsePath('/new-releases')).toBe(false);
+    expect(isNewReleasesBrowsePath('/new-releases')).toBe(true);
+    expect(isNewReleasesBrowsePath('/new-releases/')).toBe(true);
     expect(albumBrowseSurfaceForPath('/new-releases')).toBe('new-releases');
     expect(albumBrowseSurfaceForPath('/random/albums')).toBe('random-albums');
     expect(albumBrowseSurfaceForPath('/artists')).toBeNull();

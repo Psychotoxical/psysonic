@@ -532,6 +532,9 @@ pub struct LibraryAdvancedSearchRequest {
     /// `starred_only` — use one or the other.
     #[serde(default)]
     pub restrict_album_ids: Option<Vec<String>>,
+    /// When true, album text search matches title/name only (not album artist).
+    #[serde(default)]
+    pub query_album_title_only: Option<bool>,
     #[serde(default)]
     pub sort: Vec<LibrarySortClause>,
     pub limit: u32,

@@ -2,10 +2,13 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import type { LiveSearchScope } from '../../store/liveSearchScopeStore';
+import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '../../store/albumBrowseSessionStore';
 import { isArtistsBrowsePath } from '../../store/artistBrowseSessionStore';
 
 const SCOPE_NAV_ITEM: Record<LiveSearchScope, keyof typeof ALL_NAV_ITEMS> = {
   artists: 'artists',
+  albums: 'allAlbums',
+  newReleases: 'newReleases',
 };
 
 /** Scope to restore when on a browse route but the badge was cleared (global search mode). */
@@ -15,6 +18,8 @@ export function resolveLiveSearchScopeGhost(
 ): LiveSearchScope | null {
   if (activeScope != null) return null;
   if (isArtistsBrowsePath(pathname)) return 'artists';
+  if (isAlbumsBrowsePath(pathname)) return 'albums';
+  if (isNewReleasesBrowsePath(pathname)) return 'newReleases';
   return null;
 }
 
@@ -22,6 +27,10 @@ export function liveSearchScopePlaceholderKey(scope: LiveSearchScope | null): st
   switch (scope) {
     case 'artists':
       return 'search.scopeArtistsPlaceholder';
+    case 'albums':
+      return 'search.scopeAlbumsPlaceholder';
+    case 'newReleases':
+      return 'search.scopeNewReleasesPlaceholder';
     default:
       return 'search.placeholder';
   }
@@ -36,6 +45,10 @@ export function liveSearchScopeBadgeTooltipKey(scope: LiveSearchScope): string {
   switch (scope) {
     case 'artists':
       return 'search.scopeArtistsBadgeTooltip';
+    case 'albums':
+      return 'search.scopeAlbumsBadgeTooltip';
+    case 'newReleases':
+      return 'search.scopeNewReleasesBadgeTooltip';
     default:
       return 'search.scopeArtistsBadgeTooltip';
   }
@@ -45,6 +58,10 @@ export function liveSearchScopeGhostTooltipKey(scope: LiveSearchScope): string {
   switch (scope) {
     case 'artists':
       return 'search.scopeArtistsGhostTooltip';
+    case 'albums':
+      return 'search.scopeAlbumsGhostTooltip';
+    case 'newReleases':
+      return 'search.scopeNewReleasesGhostTooltip';
     default:
       return 'search.scopeArtistsGhostTooltip';
   }

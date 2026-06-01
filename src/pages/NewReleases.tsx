@@ -3,7 +3,7 @@ import { getAlbumsByGenre } from '../api/subsonicGenres';
 import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { dedupeById } from '../utils/dedupeById';
-import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { CheckSquare2, Download, HardDriveDownload } from 'lucide-react';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
@@ -29,8 +29,13 @@ import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
 import InpageScrollSentinel from '../components/InpageScrollSentinel';
 import { useAlbumGridBrowseFilters, type AlbumGridBrowseSnapshot } from '../hooks/useAlbumGridBrowseFilters';
 import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
+import { useAlbumBrowseScrollReset } from '../hooks/useAlbumBrowseScrollReset';
+import { useBrowseAlbumTextSearch } from '../hooks/useBrowseAlbumTextSearch';
 import { useAlbumBrowseScrollSnapshotSync, type AlbumBrowseScrollSnapshot } from '../hooks/useAlbumBrowseFilters';
 import { readAlbumBrowseRestore } from '../utils/navigation/albumDetailNavigation';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { filterAlbumsByGenres } from '../utils/library/albumBrowseFilters';
+import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
 
 const PAGE_SIZE = 30;
 
@@ -49,6 +54,7 @@ export default function NewReleases() {
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const auth = useAuthStore();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const navigate = useNavigate();
@@ -63,6 +69,19 @@ export default function NewReleases() {
     initialHasMore,
   } = useAlbumGridBrowseFilters(serverId, 'new-releases', scrollSnapshotRef, gridSnapshotRef);
   const restoringSessionRef = useRef(initialAlbums != null);
+
+  const newReleasesSearchQuery = useScopedBrowseSearchQuery('newReleases');
+  const { textSearchAlbums, textSearchLoading } = useBrowseAlbumTextSearch(
+    newReleasesSearchQuery,
+    indexEnabled,
+    serverId,
+  );
+  const textSearchActive = textSearchAlbums != null;
+  const scopedSearchQuery = newReleasesSearchQuery.trim();
+  const albumBrowsePlainLayout =
+    perfFlags.disableMainstageVirtualLists
+    || textSearchActive
+    || scopedSearchQuery.length > 0;
 
   const [albums, setAlbums] = useState<SubsonicAlbum[]>(() => initialAlbums ?? []);
   const [hasMore, setHasMore] = useState(() => initialHasMore ?? true);
@@ -80,22 +99,35 @@ export default function NewReleases() {
     isBlocked,
   } = useAsyncInpagePagination(PAGE_SIZE, { initialLoading: initialAlbums == null });
   const [selectionMode, setSelectionMode] = useState(false);
-  const filtered = selectedGenres.length > 0;
+  const genreFiltered = selectedGenres.length > 0;
 
-  gridSnapshotRef.current = { albums, hasMore };
-  useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, albums.length);
+  const displayAlbums = useMemo(() => {
+    if (textSearchActive && textSearchAlbums) {
+      return genreFiltered
+        ? filterAlbumsByGenres(textSearchAlbums, selectedGenres)
+        : textSearchAlbums;
+    }
+    return albums;
+  }, [textSearchActive, textSearchAlbums, albums, genreFiltered, selectedGenres]);
+
+  const loadingGrid = textSearchActive ? textSearchLoading : loading;
+  const gridHasMore = textSearchActive ? false : (!genreFiltered && hasMore);
+
+  gridSnapshotRef.current = { albums: displayAlbums, hasMore: gridHasMore };
+  useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, displayAlbums.length);
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
-    filtered,
+    newReleasesSearchQuery,
+    genreFiltered,
     selectionMode,
     selectedGenres,
   ]);
 
-  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(albums);
+  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(displayAlbums);
 
   const toggleSelectionMode = () => { setSelectionMode(v => !v); resetSelection(); };
   const clearSelection = () => { setSelectionMode(false); resetSelection(); };
-  const selectedAlbums = albums.filter(a => selectedIds.has(a.id));
+  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(a.id));
 
   const handleDownloadZips = async () => {
     if (selectedAlbums.length === 0) return;
@@ -156,21 +188,21 @@ export default function NewReleases() {
   }, [musicLibraryFilterVersion]);
 
   useEffect(() => {
-    if (restoringSessionRef.current) return;
-    if (filtered) loadFiltered(selectedGenres);
+    if (restoringSessionRef.current || scopedSearchQuery) return;
+    if (genreFiltered) loadFiltered(selectedGenres);
     else {
       resetPage();
       void load(0);
     }
-  }, [filtered, selectedGenres, load, loadFiltered, resetPage]);
+  }, [genreFiltered, selectedGenres, load, loadFiltered, resetPage, scopedSearchQuery]);
 
   const loadMore = useCallback(() => {
-    if (!hasMore || filtered || isBlocked()) return;
+    if (!gridHasMore || genreFiltered || textSearchActive || isBlocked()) return;
     requestNextPage(offset => load(offset, true));
-  }, [hasMore, filtered, isBlocked, requestNextPage, load]);
+  }, [gridHasMore, genreFiltered, textSearchActive, isBlocked, requestNextPage, load]);
 
   const bindLoadMoreSentinel = useInpageScrollSentinel({
-    active: !filtered && hasMore,
+    active: gridHasMore,
     getScrollRoot,
     scrollRootEl: scrollBodyEl,
     onIntersect: loadMore,
@@ -180,11 +212,18 @@ export default function NewReleases() {
     serverId,
     surface: 'new-releases',
     scrollBodyEl,
-    displayAlbumsLength: albums.length,
-    loading,
-    loadingMore: loading,
-    hasMore,
+    displayAlbumsLength: displayAlbums.length,
+    loading: loadingGrid,
+    loadingMore: loadingGrid,
+    hasMore: gridHasMore,
     loadMore,
+  });
+
+  useAlbumBrowseScrollReset({
+    scrollSnapshotRef,
+    getScrollRoot,
+    isScrollRestorePending,
+    resetKey: [newReleasesSearchQuery, selectedGenres.join('\u0001'), serverId].join('|'),
   });
 
   useLayoutEffect(() => {
@@ -243,31 +282,36 @@ export default function NewReleases() {
         viewportRef={bindNewReleasesScrollBody}
         railInset="panel"
         measureDeps={[
-          loading,
-          albums.length,
-          filtered,
-          hasMore,
+          loadingGrid,
+          displayAlbums.length,
+          genreFiltered,
+          gridHasMore,
           selectionMode,
-          perfFlags.disableMainstageVirtualLists,
+          newReleasesSearchQuery,
+          albumBrowsePlainLayout,
         ]}
       >
-        {loading && albums.length === 0 ? (
+        {loadingGrid && displayAlbums.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <div className="spinner" />
           </div>
-        ) : !loading && albums.length === 0 && !filtered ? (
+        ) : !loadingGrid && displayAlbums.length === 0 && !genreFiltered && !scopedSearchQuery ? (
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {t('common.libraryEmpty')}
+          </div>
+        ) : !loadingGrid && textSearchActive && displayAlbums.length === 0 ? (
+          <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+            {t('albums.noMatchingFilters')}
           </div>
         ) : (
           <div style={{ position: 'relative' }}>
             <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
             <VirtualCardGrid
-              items={albums}
+              items={displayAlbums}
               itemKey={(a, _i) => a.id}
               rowVariant="album"
-              disableVirtualization={perfFlags.disableMainstageVirtualLists}
-              layoutSignal={albums.length}
+              disableVirtualization={albumBrowsePlainLayout}
+              layoutSignal={displayAlbums.length}
               scrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
               warmGridCovers={albumGridWarmCovers()}
               renderItem={a => (
@@ -281,8 +325,8 @@ export default function NewReleases() {
                 />
               )}
             />
-            {!filtered && hasMore && (
-              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loading} />
+            {gridHasMore && (
+              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loadingGrid} />
             )}
             </div>
             {isScrollRestorePending && (

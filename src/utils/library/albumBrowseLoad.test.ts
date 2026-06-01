@@ -6,6 +6,7 @@ import {
   albumBrowseStarredNeedsLocalIntersect,
   compilationFilterClauses,
   countGenresFromAlbums,
+  filterAlbumsByNameTextQuery,
   filterAlbumsByStarred,
   filterAlbumsByYearBounds,
 } from './albumBrowseFilters';
@@ -115,6 +116,19 @@ describe('countGenresFromAlbums', () => {
       { genre: 'Rock', count: 2 },
       { genre: 'Jazz', count: 1 },
     ]);
+  });
+});
+
+describe('filterAlbumsByNameTextQuery', () => {
+  const albums: SubsonicAlbum[] = [
+    { id: '1', name: 'Abbey Road', artist: 'The Beatles', artistId: 'a', songCount: 1, duration: 1 },
+    { id: '2', name: 'Beatles for Sale', artist: 'The Beatles', artistId: 'a', songCount: 1, duration: 1 },
+    { id: '3', name: 'Random Title', artist: 'Abbey Road Band', artistId: 'b', songCount: 1, duration: 1 },
+  ];
+
+  it('matches album title only, not artist name', () => {
+    expect(filterAlbumsByNameTextQuery(albums, 'abbey').map(a => a.id)).toEqual(['1']);
+    expect(filterAlbumsByNameTextQuery(albums, 'beatles').map(a => a.id)).toEqual(['2']);
   });
 });
 

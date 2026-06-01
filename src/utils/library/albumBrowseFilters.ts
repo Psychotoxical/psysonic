@@ -82,6 +82,28 @@ export function filterAlbumsByCompilation(
   return albums;
 }
 
+export function filterAlbumsByGenres(
+  albums: SubsonicAlbum[],
+  genres: string[],
+): SubsonicAlbum[] {
+  if (genres.length === 0) return albums;
+  const wanted = new Set(genres.map(g => g.toLowerCase()));
+  return albums.filter(a => {
+    const g = (a.genre ?? '').trim().toLowerCase();
+    return g !== '' && wanted.has(g);
+  });
+}
+
+/** Scoped All Albums text search — album title/name only (not performer). */
+export function filterAlbumsByNameTextQuery(
+  albums: SubsonicAlbum[],
+  query: string,
+): SubsonicAlbum[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return albums;
+  return albums.filter(a => a.name.toLowerCase().includes(needle));
+}
+
 export function countGenresFromAlbums(albums: SubsonicAlbum[]): GenreFilterOption[] {
   const counts = new Map<string, number>();
   for (const a of albums) {

@@ -10,6 +10,7 @@ import {
   useAlbumBrowseSessionStore,
 } from '../store/albumBrowseSessionStore';
 import { shouldRestoreAlbumBrowseSession } from '../utils/navigation/albumDetailNavigation';
+import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 import {
   inpageScrollViewportIdForSurface,
   readInpageScrollTop,
@@ -53,8 +54,11 @@ export function useAlbumGridBrowseFilters(
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>(() => initialState.selectedGenres);
   const restoredFromStashRef = useRef(false);
-  const filtersRef = useRef({ selectedGenres });
-  filtersRef.current = { selectedGenres };
+  const filtersRef = useRef({ selectedGenres, searchQuery: '' });
+  filtersRef.current = {
+    selectedGenres,
+    searchQuery: useLiveSearchScopeStore.getState().query,
+  };
 
   useEffect(() => {
     restoredFromStashRef.current = false;
@@ -66,8 +70,11 @@ export function useAlbumGridBrowseFilters(
     if (shouldRestoreAlbumBrowseSession(navigationType, location.state)) {
       restoredFromStashRef.current = true;
       const restored = useAlbumBrowseSessionStore.getState().peekReturnStash(serverId, surface);
-      if (restored && !sameGenreSelection(restored.selectedGenres, filtersRef.current.selectedGenres)) {
-        setSelectedGenres(restored.selectedGenres);
+      if (restored) {
+        useLiveSearchScopeStore.getState().setQuery(restored.searchQuery ?? '');
+        if (!sameGenreSelection(restored.selectedGenres, filtersRef.current.selectedGenres)) {
+          setSelectedGenres(restored.selectedGenres);
+        }
       }
       return;
     }
@@ -75,6 +82,7 @@ export function useAlbumGridBrowseFilters(
     if (restoredFromStashRef.current) return;
 
     useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, surface);
+    useLiveSearchScopeStore.getState().setQuery('');
     setSelectedGenres([]);
   }, [serverId, surface, navigationType, location.state]);
 
@@ -93,6 +101,7 @@ export function useAlbumGridBrowseFilters(
         useAlbumBrowseSessionStore.getState().stashReturnFilters(serverId, surface, {
           ...DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,
           selectedGenres: filtersRef.current.selectedGenres,
+          searchQuery: filtersRef.current.searchQuery,
           scrollTop,
           displayCount: gridSnapshot?.albums.length ?? scrollSnapshot?.displayCount,
           albums: gridSnapshot?.albums,

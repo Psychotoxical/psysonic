@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 /** Page-scoped live search mode — badge in the header search field. */
-export type LiveSearchScope = 'artists';
+export type LiveSearchScope = 'artists' | 'albums' | 'newReleases';
 
 export type LiveSearchSnapshot = {
   query: string;

@@ -26,6 +26,7 @@ export type LibrarySearchSurface =
   | 'live_search'
   | 'advanced_search'
   | 'artists_browse'
+  | 'albums_browse'
   | 'composers_browse'
   | 'tracks_browse'
   | 'search_results';

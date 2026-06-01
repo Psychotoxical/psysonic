@@ -146,6 +146,11 @@ pub(crate) fn fts_album_prefix_match_query(raw: &str) -> Option<String> {
     })
 }
 
+/// Album title column only (All Albums scoped browse — not album artist).
+pub(crate) fn fts_album_title_prefix_match_query(raw: &str) -> Option<String> {
+    fts_prefix_token_expr(raw).map(|tokens| format!("album : {tokens}"))
+}
+
 /// Live Search album match — any query word may hit album or album_artist (Navidrome parity).
 pub(crate) fn fts_album_prefix_any_token_match_query(raw: &str) -> Option<String> {
     fts_prefix_token_or_expr(raw).map(|tokens| {
@@ -426,6 +431,14 @@ mod tests {
         assert_eq!(
             fts_album_prefix_match_query("metal").as_deref(),
             Some("(album : \"metal\"* OR album_artist : \"metal\"*)")
+        );
+    }
+
+    #[test]
+    fn fts_album_title_prefix_match_query_is_album_column_only() {
+        assert_eq!(
+            fts_album_title_prefix_match_query("metal").as_deref(),
+            Some("album : \"metal\"*")
         );
     }
 

@@ -1,17 +1,24 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '../store/albumBrowseSessionStore';
 import { isArtistsBrowsePath } from '../store/artistBrowseSessionStore';
 import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 
-/** Activate the Artists scope badge when the browse route is open; clear on leave. */
+/** Activate the browse scope badge when a supported route is open; clear on leave. */
 export function useLiveSearchRouteScope() {
   const location = useLocation();
 
   useEffect(() => {
     const { scope, setScope, clearScope } = useLiveSearchScopeStore.getState();
-    if (isArtistsBrowsePath(location.pathname)) {
+    const path = location.pathname;
+
+    if (isArtistsBrowsePath(path)) {
       setScope('artists');
-    } else if (scope === 'artists') {
+    } else if (isAlbumsBrowsePath(path)) {
+      setScope('albums');
+    } else if (isNewReleasesBrowsePath(path)) {
+      setScope('newReleases');
+    } else if (scope != null) {
       clearScope();
     }
   }, [location.pathname]);

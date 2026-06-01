@@ -47,6 +47,8 @@ export interface LocalSearchOpts {
   moodGroup: string;
   losslessOnly?: boolean;
   resultType: AdvancedResultType;
+  /** When searching albums, match album title only (not album artist). */
+  albumTitleOnly?: boolean;
 }
 
 export interface LocalAdvancedSearchPage {
@@ -141,6 +143,9 @@ function buildRequest(
     limit,
     offset,
     skipTotals,
+    ...(opts.resultType === 'albums' && opts.albumTitleOnly
+      ? { queryAlbumTitleOnly: true }
+      : {}),
   };
 }
 

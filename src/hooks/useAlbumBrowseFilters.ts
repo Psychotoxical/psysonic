@@ -16,6 +16,7 @@ import {
 } from '../store/albumBrowseSessionStore';
 import type { AlbumBrowseSort } from '../utils/library/browseTextSearch';
 import { shouldRestoreAlbumBrowseSession } from '../utils/navigation/albumDetailNavigation';
+import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 
 const ALBUMS_SURFACE: AlbumBrowseSurface = 'albums';
 
@@ -106,6 +107,7 @@ export function useAlbumBrowseFilters(
     compFilter,
     starredOnly,
     losslessOnly,
+    searchQuery: useLiveSearchScopeStore.getState().query,
   };
 
   useEffect(() => {
@@ -119,6 +121,7 @@ export function useAlbumBrowseFilters(
       restoredFromStashRef.current = true;
       const restored = useAlbumBrowseSessionStore.getState().peekReturnStash(serverId, ALBUMS_SURFACE);
       if (restored) {
+        useLiveSearchScopeStore.getState().setQuery(restored.searchQuery ?? '');
         setSelectedGenres(restored.selectedGenres);
         setYearFrom(restored.yearFrom);
         setYearTo(restored.yearTo);
@@ -132,6 +135,7 @@ export function useAlbumBrowseFilters(
     if (restoredFromStashRef.current) return;
 
     useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, ALBUMS_SURFACE);
+    useLiveSearchScopeStore.getState().setQuery('');
     setSelectedGenres([]);
     setYearFrom('');
     setYearTo('');

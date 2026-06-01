@@ -13,6 +13,11 @@ describe('liveSearchScopeStore', () => {
     useLiveSearchScopeStore.setState({ query: 'beatles', scope: 'artists' });
     expect(scopedBrowseSearchQuery('beatles', 'artists', 'artists')).toBe('beatles');
     expect(scopedBrowseSearchQuery('beatles', null, 'artists')).toBe('');
+    useLiveSearchScopeStore.setState({ query: 'abbey', scope: 'albums' });
+    expect(scopedBrowseSearchQuery('abbey', 'albums', 'albums')).toBe('abbey');
+    expect(scopedBrowseSearchQuery('abbey', 'artists', 'albums')).toBe('');
+    useLiveSearchScopeStore.setState({ query: 'jazz', scope: 'newReleases' });
+    expect(scopedBrowseSearchQuery('jazz', 'newReleases', 'newReleases')).toBe('jazz');
   });
 
   it('undoes query and scope badge changes', () => {

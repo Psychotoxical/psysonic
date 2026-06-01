@@ -213,6 +213,8 @@ export interface LibraryAdvancedSearchRequest {
   offset?: number;
   /** Skip expensive COUNT queries (Live Search). */
   skipTotals?: boolean;
+  /** Album text query matches title/name only (All Albums scoped browse). */
+  queryAlbumTitleOnly?: boolean | null;
 }
 
 export interface LibraryAlbumDto {

@@ -33,7 +33,11 @@ describe('resolveLiveSearchScopeGhost', () => {
   it('offers artists ghost on artists browse when scope was cleared', () => {
     expect(resolveLiveSearchScopeGhost('/artists', null)).toBe('artists');
     expect(resolveLiveSearchScopeGhost('/artists', 'artists')).toBeNull();
-    expect(resolveLiveSearchScopeGhost('/albums', null)).toBeNull();
+    expect(resolveLiveSearchScopeGhost('/albums', null)).toBe('albums');
+    expect(resolveLiveSearchScopeGhost('/albums', 'albums')).toBeNull();
+    expect(resolveLiveSearchScopeGhost('/new-releases', null)).toBe('newReleases');
+    expect(resolveLiveSearchScopeGhost('/new-releases', 'newReleases')).toBeNull();
+    expect(resolveLiveSearchScopeGhost('/composers', null)).toBeNull();
   });
 });
 
@@ -115,8 +119,10 @@ describe('isLiveSearchDropdownBlocked', () => {
 });
 
 describe('liveSearchScopePlaceholderKey', () => {
-  it('uses artists placeholder when scoped to artists', () => {
+  it('uses scoped placeholders when a browse scope badge is active', () => {
     expect(liveSearchScopePlaceholderKey('artists')).toBe('search.scopeArtistsPlaceholder');
+    expect(liveSearchScopePlaceholderKey('albums')).toBe('search.scopeAlbumsPlaceholder');
+    expect(liveSearchScopePlaceholderKey('newReleases')).toBe('search.scopeNewReleasesPlaceholder');
     expect(liveSearchScopePlaceholderKey(null)).toBe('search.placeholder');
   });
 });

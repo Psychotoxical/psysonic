@@ -22,7 +22,7 @@ use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
 use crate::search::{
     aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
-    fts_album_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
+    fts_album_prefix_match_query, fts_album_title_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
     fts_track_prefix_match_query, library_scope_equals_sql, like_contains, PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
@@ -305,6 +305,14 @@ fn server_has_indexed_tracks(store: &LibraryStore, server_id: &str) -> Result<bo
         .map_err(|e| e.to_string())
 }
 
+fn fts_album_text_match_query(req: &LibraryAdvancedSearchRequest, text: &str) -> Option<String> {
+    if req.query_album_title_only == Some(true) {
+        fts_album_title_prefix_match_query(text)
+    } else {
+        fts_album_prefix_match_query(text)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_album(
     store: &LibraryStore,
@@ -327,7 +335,7 @@ fn build_album(
         return build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied);
     }
     if server_has_indexed_tracks(store, &req.server_id)? {
-        if let Some(q) = text.and_then(fts_album_prefix_match_query) {
+        if let Some(q) = text.and_then(|t| fts_album_text_match_query(req, t)) {
             return build_album_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
         }
         return build_album_from_tracks(
@@ -340,7 +348,7 @@ fn build_album(
             return Ok(table);
         }
     }
-    if let Some(q) = text.and_then(fts_album_prefix_match_query) {
+    if let Some(q) = text.and_then(|t| fts_album_text_match_query(req, t)) {
         return build_album_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
     }
     build_album_from_tracks(
@@ -1408,6 +1416,7 @@ mod tests {
             filters: Vec::new(),
             starred_only: None,
             restrict_album_ids: None,
+            query_album_title_only: None,
             sort: Vec::new(),
             limit: 50,
             offset: 0,

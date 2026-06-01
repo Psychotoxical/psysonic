@@ -36,11 +36,21 @@ import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useAlbumBrowseFilters, useAlbumBrowseScrollSnapshotSync, type AlbumBrowseScrollSnapshot } from '../hooks/useAlbumBrowseFilters';
 import { useAlbumBrowseData } from '../hooks/useAlbumBrowseData';
 import { useAlbumBrowseScrollRestore } from '../hooks/useAlbumBrowseScrollRestore';
+import { useAlbumBrowseScrollReset } from '../hooks/useAlbumBrowseScrollReset';
+import { useBrowseAlbumTextSearch } from '../hooks/useBrowseAlbumTextSearch';
 import { peekAlbumBrowseScrollRestore } from '../store/albumBrowseSessionStore';
 import { readAlbumBrowseRestore } from '../utils/navigation/albumDetailNavigation';
 import { useAlbumCatalogYearBounds } from '../hooks/useAlbumCatalogYearBounds';
 import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
+import { resolveAlbumYearBounds } from '../utils/library/albumYearFilter';
+import {
+  filterAlbumsByCompilation,
+  filterAlbumsByGenres,
+  filterAlbumsByStarred,
+  filterAlbumsByYearBounds,
+} from '../utils/library/albumBrowseFilters';
+import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
 
 type SortType = AlbumBrowseSort;
 
@@ -81,6 +91,14 @@ export default function Albums() {
     setLosslessOnly,
   } = useAlbumBrowseFilters(serverId, scrollSnapshotRef);
 
+  const albumsSearchQuery = useScopedBrowseSearchQuery('albums');
+  const { textSearchAlbums, textSearchLoading } = useBrowseAlbumTextSearch(
+    albumsSearchQuery,
+    indexEnabled,
+    serverId,
+    losslessOnly,
+  );
+
   const {
     scrollBodyEl,
     bindScrollBody: bindAlbumsScrollBody,
@@ -88,24 +106,7 @@ export default function Albums() {
   } = useInpageScrollViewport();
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
-  const {
-    albums,
-    loading,
-    loadingMore,
-    hasMore,
-    displayAlbums,
-    visibleAlbums,
-    genreFiltered,
-    serverFilterActive,
-    narrowGenreList,
-    genreCatalogOptions,
-    yearFilterActive,
-    debouncedYearFields,
-    compFilterActive,
-    pendingClientFilterMatch,
-    bindLoadMoreSentinel,
-    loadMore,
-  } = useAlbumBrowseData({
+  const browseData = useAlbumBrowseData({
     serverId,
     indexEnabled,
     musicLibraryFilterVersion,
@@ -122,6 +123,55 @@ export default function Albums() {
     restoreDisplayCount: restoreDisplayCountRef.current,
   });
 
+  const textSearchActive = textSearchAlbums != null;
+  const albumBrowsePlainLayout =
+    perfFlags.disableMainstageVirtualLists
+    || textSearchActive
+    || albumsSearchQuery.trim().length > 0;
+
+  const textSearchYearBounds = useMemo(
+    () => resolveAlbumYearBounds(browseData.debouncedYearFields.from, browseData.debouncedYearFields.to),
+    [browseData.debouncedYearFields.from, browseData.debouncedYearFields.to],
+  );
+
+  const textSearchVisibleAlbums = useMemo(() => {
+    if (!textSearchActive || !textSearchAlbums) return null;
+    let out = textSearchAlbums;
+    if (selectedGenres.length > 0) out = filterAlbumsByGenres(out, selectedGenres);
+    if (textSearchYearBounds.active) out = filterAlbumsByYearBounds(out, textSearchYearBounds.bounds);
+    if (compFilter !== 'all') out = filterAlbumsByCompilation(out, compFilter);
+    if (starredOnly) out = filterAlbumsByStarred(out, starredOverrides);
+    return out;
+  }, [
+    textSearchActive,
+    textSearchAlbums,
+    selectedGenres,
+    textSearchYearBounds.active,
+    textSearchYearBounds.bounds,
+    compFilter,
+    starredOnly,
+    starredOverrides,
+  ]);
+
+  const albums = textSearchActive ? (textSearchAlbums ?? []) : browseData.albums;
+  const loading = textSearchActive ? textSearchLoading : browseData.loading;
+  const loadingMore = textSearchActive ? false : browseData.loadingMore;
+  const hasMore = textSearchActive ? false : browseData.hasMore;
+  const displayAlbums = textSearchActive ? (textSearchVisibleAlbums ?? []) : browseData.displayAlbums;
+  const visibleAlbums = textSearchActive ? (textSearchVisibleAlbums ?? []) : browseData.visibleAlbums;
+  const genreFiltered = textSearchActive ? selectedGenres.length > 0 : browseData.genreFiltered;
+  const serverFilterActive = textSearchActive
+    ? selectedGenres.length > 0 || textSearchYearBounds.active || losslessOnly || starredOnly
+    : browseData.serverFilterActive;
+  const narrowGenreList = browseData.narrowGenreList;
+  const genreCatalogOptions = browseData.genreCatalogOptions;
+  const yearFilterActive = browseData.yearFilterActive;
+  const debouncedYearFields = browseData.debouncedYearFields;
+  const compFilterActive = browseData.compFilterActive;
+  const pendingClientFilterMatch = textSearchActive ? false : browseData.pendingClientFilterMatch;
+  const bindLoadMoreSentinel = browseData.bindLoadMoreSentinel;
+  const loadMore = browseData.loadMore;
+
   useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, displayAlbums.length);
 
   const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
@@ -133,6 +183,22 @@ export default function Albums() {
     loadingMore,
     hasMore,
     loadMore,
+  });
+
+  useAlbumBrowseScrollReset({
+    scrollSnapshotRef,
+    getScrollRoot,
+    isScrollRestorePending,
+    resetKey: [
+      albumsSearchQuery,
+      sort,
+      selectedGenres.join('\u0001'),
+      yearFilterActive ? `${debouncedYearFields.from}:${debouncedYearFields.to}` : '',
+      compFilter,
+      starredOnly,
+      losslessOnly,
+      serverId,
+    ].join('|'),
   });
 
   const location = useLocation();
@@ -266,6 +332,7 @@ export default function Albums() {
   );
 
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [
+    albumsSearchQuery,
     sort,
     genreFiltered,
     yearFilterActive,
@@ -394,8 +461,9 @@ export default function Albums() {
           hasMore,
           selectionMode,
           sort,
+          albumsSearchQuery,
           perfFlags.disableMainstageGridCards,
-          perfFlags.disableMainstageVirtualLists,
+          albumBrowsePlainLayout,
         ]}
       >
         {loading && albums.length === 0 ? (
@@ -418,6 +486,10 @@ export default function Albums() {
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {visibleEmptyMessage}
           </div>
+        ) : !loading && textSearchActive && visibleAlbums.length === 0 ? (
+          <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+            {t('albums.noMatchingFilters')}
+          </div>
         ) : (
           <div style={{ position: 'relative' }}>
             <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
@@ -427,7 +499,7 @@ export default function Albums() {
                     items={displayAlbums}
                     itemKey={(a, _i) => a.id}
                     rowVariant="album"
-                    disableVirtualization={perfFlags.disableMainstageVirtualLists}
+                    disableVirtualization={albumBrowsePlainLayout}
                     layoutSignal={displayAlbums.length}
                     scrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                     warmGridCovers={albumGridWarmCovers(

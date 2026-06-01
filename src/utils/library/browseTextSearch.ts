@@ -157,6 +157,11 @@ export function browseRaceCountsArtists(result: unknown): LibrarySearchDebugEntr
   return { artists: n, albums: 0, songs: 0 };
 }
 
+export function browseRaceCountsAlbums(result: unknown): LibrarySearchDebugEntry['counts'] {
+  const n = Array.isArray(result) ? result.length : 0;
+  return { artists: 0, albums: n, songs: 0 };
+}
+
 export function browseRaceCountsSongs(result: unknown): LibrarySearchDebugEntry['counts'] {
   const n = Array.isArray(result) ? result.length : 0;
   return { artists: 0, albums: 0, songs: n };
@@ -172,6 +177,7 @@ export function browseRaceCountsFullSearch(result: unknown): LibrarySearchDebugE
 }
 
 const ARTIST_BROWSE_LIMIT = 500;
+const ALBUM_BROWSE_LIMIT = 500;
 
 const emptyBrowseOpts = (query: string): LocalSearchOpts => ({
   query,
@@ -182,6 +188,19 @@ const emptyBrowseOpts = (query: string): LocalSearchOpts => ({
   bpmTo: '',
   moodGroup: '',
   resultType: 'artists',
+});
+
+const albumBrowseOpts = (query: string, losslessOnly = false): LocalSearchOpts => ({
+  query,
+  genre: '',
+  yearFrom: '',
+  yearTo: '',
+  bpmFrom: '',
+  bpmTo: '',
+  moodGroup: '',
+  losslessOnly,
+  albumTitleOnly: true,
+  resultType: 'albums',
 });
 
 const songBrowseOpts = (query: string): LocalSearchOpts => ({
@@ -234,6 +253,40 @@ export async function runNetworkBrowseArtists(
   try {
     const r = await search(q, { artistCount: limit, albumCount: 0, songCount: 0 });
     return r.artists;
+  } catch {
+    return null;
+  }
+}
+
+/** Local album title/artist search for All Albums browse. */
+export async function runLocalBrowseAlbums(
+  serverId: string | null | undefined,
+  query: string,
+  limit = ALBUM_BROWSE_LIMIT,
+  losslessOnly = false,
+): Promise<SubsonicAlbum[] | null> {
+  const page = await runLocalAdvancedSearch(
+    serverId,
+    albumBrowseOpts(query, losslessOnly),
+    limit,
+    false,
+    true,
+    true,
+  );
+  if (!page) return null;
+  return page.albums;
+}
+
+/** Network search3 album slice for All Albums browse (title match only). */
+export async function runNetworkBrowseAlbums(
+  query: string,
+  limit = ALBUM_BROWSE_LIMIT,
+): Promise<SubsonicAlbum[] | null> {
+  const q = query.trim();
+  if (!q) return null;
+  try {
+    const r = await search(q, { artistCount: 0, albumCount: limit, songCount: 0 });
+    return filterAlbumsByNameTextQuery(r.albums, q);
   } catch {
     return null;
   }
@@ -334,6 +387,7 @@ export async function loadMoreLocalBrowseSongs(
 export type { AlbumBrowseSort } from './albumBrowseSort';
 export { albumSortClauses, sortSubsonicAlbums } from './albumBrowseSort';
 import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
+import { filterAlbumsByNameTextQuery } from './albumBrowseFilters';
 import { runLocalAlbumBrowse, type AlbumBrowseQuery } from './albumBrowseLoad';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 

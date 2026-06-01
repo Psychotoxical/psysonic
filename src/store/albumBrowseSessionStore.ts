@@ -17,6 +17,8 @@ export interface AlbumBrowseReturnFilters {
   compFilter: AlbumBrowseCompFilter;
   starredOnly: boolean;
   losslessOnly: boolean;
+  /** Header live search query when leaving for album detail (All Albums scope). */
+  searchQuery?: string;
   /** In-page grid scroll position when leaving the browse surface. */
   scrollTop?: number;
   /** Row count at leave time — preload at least this many rows before scroll. */
@@ -77,6 +79,7 @@ function cloneReturnFilters(filters: AlbumBrowseReturnFilters): AlbumBrowseRetur
     compFilter: filters.compFilter,
     starredOnly: filters.starredOnly,
     losslessOnly: filters.losslessOnly,
+    ...(typeof filters.searchQuery === 'string' ? { searchQuery: filters.searchQuery } : {}),
     ...(typeof filters.scrollTop === 'number' ? { scrollTop: filters.scrollTop } : {}),
     ...(typeof filters.displayCount === 'number' ? { displayCount: filters.displayCount } : {}),
     ...(filters.albums ? { albums: [...filters.albums] } : {}),
@@ -194,6 +197,16 @@ export function albumBrowseSortForServer(
 }
 
 /** Map pathname to album grid browse surface, if any. */
+/** All Albums browse route (`/albums`) — scoped live search target. */
+export function isAlbumsBrowsePath(pathname: string): boolean {
+  return albumBrowseSurfaceForPath(pathname) === 'albums';
+}
+
+/** New Releases browse route (`/new-releases`) — scoped live search target. */
+export function isNewReleasesBrowsePath(pathname: string): boolean {
+  return albumBrowseSurfaceForPath(pathname) === 'new-releases';
+}
+
 export function albumBrowseSurfaceForPath(pathname: string): AlbumBrowseSurface | null {
   const path = pathname.split('?')[0]?.replace(/\/$/, '') || pathname;
   if (path === '/albums') return 'albums';
