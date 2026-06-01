@@ -21,6 +21,7 @@ type OpenSession = {
   durationSecHint: number;
   lastTickMs: number;
   recordingEnabled: boolean;
+  paused: boolean;
 };
 
 let open: OpenSession | null = null;
@@ -84,7 +85,24 @@ export async function playListenSessionOpen(
     durationSecHint: resolveDurationSecHint(track, engineDurationSec),
     lastTickMs: Date.now(),
     recordingEnabled: true,
+    paused: false,
   };
+}
+
+/**
+ * Freeze the listening counter when transport pauses. While paused the Rust
+ * engine stops feeding active progress ticks to the session, so without this
+ * the next tick after resume would compute its wall-clock delta against the
+ * pre-pause timestamp and bill the entire paused span as listened time. We
+ * settle the partial segment played since the last tick, then mark the session
+ * paused so the first resumed tick rebaselines instead of counting the gap.
+ */
+export function playListenSessionOnPause(): void {
+  if (!open?.recordingEnabled || open.paused) return;
+  const now = Date.now();
+  open.listenedSec += Math.max(0, (now - open.lastTickMs) / 1000);
+  open.lastTickMs = now;
+  open.paused = true;
 }
 
 export async function playListenSessionOnProgress(
@@ -104,6 +122,11 @@ export async function playListenSessionOnProgress(
     return;
   }
   const now = Date.now();
+  if (open.paused) {
+    // First tick after resume — rebaseline so the paused gap is not billed.
+    open.paused = false;
+    open.lastTickMs = now;
+  }
   const deltaSec = Math.max(0, (now - open.lastTickMs) / 1000);
   open.lastTickMs = now;
   open.listenedSec += deltaSec;

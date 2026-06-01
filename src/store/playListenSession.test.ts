@@ -7,6 +7,7 @@ import { usePreviewStore } from './previewStore';
 import {
   _resetPlayListenSessionForTest,
   playListenSessionFinalize,
+  playListenSessionOnPause,
   playListenSessionOnProgress,
   playListenSessionOpen,
   resolveDurationSecHint,
@@ -140,6 +141,40 @@ describe('playListenSession', () => {
     await playListenSessionFinalize('ended');
     vi.useRealTimers();
     expect(invoke).not.toHaveBeenCalledWith('library_record_play_session', expect.anything());
+  });
+
+  it('does not bill the paused gap as listened time after resume', async () => {
+    vi.useFakeTimers();
+    const t0 = Date.now();
+    vi.setSystemTime(t0);
+    await playListenSessionOpen(testTrack, 'server-1');
+
+    // Play for 8 s.
+    vi.setSystemTime(t0 + 8_000);
+    await playListenSessionOnProgress(8, false);
+
+    // User pauses; in production no progress ticks reach the session while
+    // paused, and the engine sits idle for several minutes.
+    usePlayerStore.setState({ isPlaying: false });
+    playListenSessionOnPause();
+    vi.setSystemTime(t0 + 8_000 + 300_000);
+
+    // User resumes and listens for 5 more seconds.
+    usePlayerStore.setState({ isPlaying: true });
+    await playListenSessionOnProgress(9, false);
+    vi.setSystemTime(t0 + 8_000 + 300_000 + 5_000);
+    await playListenSessionOnProgress(14, false);
+    await playListenSessionFinalize('ended');
+    vi.useRealTimers();
+
+    const call = vi
+      .mocked(invoke)
+      .mock.calls.find(([cmd]) => cmd === 'library_record_play_session');
+    expect(call).toBeDefined();
+    const listenedSec = (call![1] as { input: { listenedSec: number } }).input.listenedSec;
+    // ~13 s of real listening (8 + 5), never the ~300 s paused gap.
+    expect(listenedSec).toBeGreaterThanOrEqual(12);
+    expect(listenedSec).toBeLessThan(20);
   });
 
   it('skips when library is not ready', async () => {
