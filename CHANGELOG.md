@@ -208,6 +208,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Live Search — scoped browse on library pages
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#938](https://github.com/Psychotoxical/psysonic/pull/938)**
+
+* **Artists, All Albums, New Releases, Tracks, and Composers** use the header Live Search field with a scope badge (sidebar icon) instead of a separate in-page filter input.
+* While scoped, typing filters **that page only** via the same local-vs-network browse search; the global Live Search dropdown stays closed.
+* **Ghost badge** on browse routes when scope is cleared — one click restores page-only mode; query text is preserved.
+* Album browse text search uses title-only FTS in the local index; Tracks hides discovery chrome while searching; session stash restores query and scroll after back from detail.
+
+
+
 ## Changed
 
 ### CI — hot-path coverage gates block merges
