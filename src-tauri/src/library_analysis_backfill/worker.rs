@@ -2,6 +2,9 @@
 //!
 //! Replaces the webview `while` loop: top-up HTTP/CPU seed backlog without
 //! blocking the UI on `library_analysis_backfill_batch` IPC.
+//!
+//! The coordinator task **parks** on a `Notify` until Advanced analytics is
+//! configured or library sync goes idle — no idle 2 s polling while disabled.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -25,7 +28,7 @@ use psysonic_library::repos::TrackRepository;
 use psysonic_library::LibraryRuntime;
 use serde::Deserialize;
 use tauri::{AppHandle, Listener, Manager};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 
 const TOP_UP_POLL_MS: u64 = 500;
 const STEADY_POLL_MS: u64 = 2000;
@@ -48,6 +51,8 @@ pub struct LibraryAnalysisBackfillSession {
 
 pub struct LibraryAnalysisBackfillWorker {
     pub enabled: AtomicBool,
+    /// Wakes the coordinator task (configure, sync-idle, disable→enable).
+    wake: Notify,
     session: Mutex<Option<LibraryAnalysisBackfillSession>>,
     cursor: Mutex<Option<String>>,
     scan_phase: Mutex<AnalysisBackfillScanPhase>,
@@ -59,12 +64,17 @@ impl LibraryAnalysisBackfillWorker {
     pub fn new() -> Self {
         Self {
             enabled: AtomicBool::new(false),
+            wake: Notify::new(),
             session: Mutex::new(None),
             cursor: Mutex::new(None),
             scan_phase: Mutex::new(AnalysisBackfillScanPhase::Candidates),
             completed_total: Mutex::new(None),
             exhausted_streak: Mutex::new(0),
         }
+    }
+
+    fn ping_coordinator(&self) {
+        self.wake.notify_waiters();
     }
 
     pub async fn set_session(&self, enabled: bool, session: Option<LibraryAnalysisBackfillSession>) {
@@ -76,6 +86,7 @@ impl LibraryAnalysisBackfillWorker {
             *self.completed_total.lock().await = None;
             *self.exhausted_streak.lock().await = 0;
         }
+        self.ping_coordinator();
     }
 }
 
@@ -107,39 +118,64 @@ fn session_matches_server(session: &LibraryAnalysisBackfillSession, server_id: &
     server_id == session.server_index_key || server_id == session.library_server_id
 }
 
-struct CoordinatorTick {
-    sleep_ms: u64,
+enum CoordinatorStep {
+    Sleep(Duration),
+    /// Park until configure or sync-idle wakes the task (no idle polling).
+    Park,
+}
+
+async fn coordinator_sleep(worker: &LibraryAnalysisBackfillWorker, duration: Duration) {
+    if duration.is_zero() {
+        return;
+    }
+    tokio::select! {
+        _ = tokio::time::sleep(duration) => {}
+        _ = worker.wake.notified() => {}
+    }
 }
 
 async fn run_coordinator_forever(app: AppHandle, worker: Arc<LibraryAnalysisBackfillWorker>) {
     loop {
-        let tick = coordinator_tick(&app, worker.as_ref()).await;
-        tokio::time::sleep(Duration::from_millis(tick.sleep_ms)).await;
+        while !worker.enabled.load(Ordering::Relaxed) {
+            worker.wake.notified().await;
+        }
+
+        loop {
+            if !worker.enabled.load(Ordering::Relaxed) {
+                break;
+            }
+            match coordinator_tick(&app, worker.as_ref()).await {
+                CoordinatorStep::Park => break,
+                CoordinatorStep::Sleep(duration) => {
+                    coordinator_sleep(worker.as_ref(), duration).await;
+                }
+            }
+        }
     }
 }
 
 async fn coordinator_tick(
     app: &AppHandle,
     worker: &LibraryAnalysisBackfillWorker,
-) -> CoordinatorTick {
+) -> CoordinatorStep {
     if !worker.enabled.load(Ordering::Relaxed) {
-        return CoordinatorTick { sleep_ms: STEADY_POLL_MS };
+        return CoordinatorStep::Park;
     }
 
     let session = worker.session.lock().await.clone();
     let Some(session) = session else {
-        return CoordinatorTick { sleep_ms: STEADY_POLL_MS };
+        return CoordinatorStep::Park;
     };
 
     if !session_still_focused(worker, &session).await {
-        return CoordinatorTick { sleep_ms: STEADY_POLL_MS };
+        return CoordinatorStep::Park;
     }
 
     analysis_set_pipeline_parallelism(session.workers as usize);
 
     let runtime = match app.try_state::<LibraryRuntime>() {
         Some(r) => r,
-        None => return CoordinatorTick { sleep_ms: READY_POLL_MS },
+        None => return CoordinatorStep::Sleep(Duration::from_millis(READY_POLL_MS)),
     };
 
     if let Some(done_total) = *worker.completed_total.lock().await {
@@ -155,9 +191,7 @@ async fn coordinator_tick(
         .and_then(|r| r.ok())
         .unwrap_or(false);
         if still_same {
-            return CoordinatorTick {
-                sleep_ms: COMPLETED_RECHECK_MS,
-            };
+            return CoordinatorStep::Sleep(Duration::from_millis(COMPLETED_RECHECK_MS));
         }
         *worker.completed_total.lock().await = None;
         *worker.cursor.lock().await = None;
@@ -167,9 +201,9 @@ async fn coordinator_tick(
 
     while sync_blocks_backfill(&runtime.store, &session.library_server_id) {
         if !worker.enabled.load(Ordering::Relaxed) {
-            return CoordinatorTick { sleep_ms: SYNC_WAIT_MS };
+            return CoordinatorStep::Park;
         }
-        tokio::time::sleep(Duration::from_millis(SYNC_WAIT_MS)).await;
+        coordinator_sleep(worker, Duration::from_millis(SYNC_WAIT_MS)).await;
     }
 
     let store = runtime.store.clone();
@@ -180,7 +214,7 @@ async fn coordinator_tick(
         .and_then(|r| r.ok())
         .unwrap_or(false);
     if !ready {
-        return CoordinatorTick { sleep_ms: READY_POLL_MS };
+        return CoordinatorStep::Sleep(Duration::from_millis(READY_POLL_MS));
     }
 
     let stats = analysis_pipeline_queue_stats();
@@ -192,12 +226,12 @@ async fn coordinator_tick(
     };
 
     if !library_backfill_needs_top_up(counts, session.workers) {
-        return CoordinatorTick { sleep_ms: STEADY_POLL_MS };
+        return CoordinatorStep::Sleep(Duration::from_millis(STEADY_POLL_MS));
     }
 
     let fetch_limit = library_backfill_top_up_limit(counts, session.workers);
     if fetch_limit == 0 {
-        return CoordinatorTick { sleep_ms: TOP_UP_POLL_MS };
+        return CoordinatorStep::Sleep(Duration::from_millis(TOP_UP_POLL_MS));
     }
 
     let cursor = worker.cursor.lock().await.clone();
@@ -223,7 +257,7 @@ async fn coordinator_tick(
         .and_then(|r| r.ok());
 
     let Some((batch, next_phase)) = batch else {
-        return CoordinatorTick { sleep_ms: TOP_UP_POLL_MS };
+        return CoordinatorStep::Sleep(Duration::from_millis(TOP_UP_POLL_MS));
     };
 
     *worker.cursor.lock().await = batch.next_cursor.clone();
@@ -279,9 +313,7 @@ async fn coordinator_tick(
                 }
                 *worker.cursor.lock().await = None;
                 *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
-                return CoordinatorTick {
-                    sleep_ms: COMPLETED_RECHECK_MS,
-                };
+                return CoordinatorStep::Sleep(Duration::from_millis(COMPLETED_RECHECK_MS));
             }
         } else {
             *worker.exhausted_streak.lock().await = 0;
@@ -289,18 +321,14 @@ async fn coordinator_tick(
         if pending > 0 {
             *worker.cursor.lock().await = None;
             *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
-            return CoordinatorTick {
-                sleep_ms: EXHAUSTED_PENDING_RESCAN_MS,
-            };
+            return CoordinatorStep::Sleep(Duration::from_millis(EXHAUSTED_PENDING_RESCAN_MS));
         }
         *worker.cursor.lock().await = None;
         *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
-        return CoordinatorTick {
-            sleep_ms: EXHAUSTED_PAUSE_MS,
-        };
+        return CoordinatorStep::Sleep(Duration::from_millis(EXHAUSTED_PAUSE_MS));
     }
 
-    CoordinatorTick { sleep_ms: TOP_UP_POLL_MS }
+    CoordinatorStep::Sleep(Duration::from_millis(TOP_UP_POLL_MS))
 }
 
 #[derive(Debug, Deserialize)]
@@ -333,6 +361,7 @@ fn on_sync_idle(app: &AppHandle, payload: SyncIdlePayload) {
         *worker.cursor.lock().await = None;
         *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
         *worker.exhausted_streak.lock().await = 0;
+        worker.ping_coordinator();
     });
 }
 
