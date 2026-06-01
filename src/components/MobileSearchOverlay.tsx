@@ -219,8 +219,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
           <input
             ref={inputRef}
             className="mobile-search-input"
-            type="text"
-            role="searchbox"
+            type="search"
             placeholder={t(liveSearchScopePlaceholderKey(scope))}
             data-tooltip={scope ? t(liveSearchScopePlaceholderKey(scope)) : undefined}
             data-tooltip-pos="bottom"
