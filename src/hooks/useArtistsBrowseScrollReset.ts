@@ -1,4 +1,4 @@
-import { useLayoutEffect, type RefObject } from 'react';
+import { useLayoutEffect, useRef, type RefObject } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { ArtistBrowseScrollSnapshot } from './useArtistsBrowseFilters';
 
@@ -22,8 +22,13 @@ export function useArtistsBrowseScrollReset({
   listVirtualize,
   listVirtualizer,
 }: Args): void {
+  const prevResetKeyRef = useRef(resetKey);
+
   useLayoutEffect(() => {
     if (isScrollRestorePending) return;
+    if (prevResetKeyRef.current === resetKey) return;
+    prevResetKeyRef.current = resetKey;
+
     const el = getScrollRoot();
     if (!el) return;
 

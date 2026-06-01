@@ -1,4 +1,4 @@
-import { useLayoutEffect, type RefObject } from 'react';
+import { useLayoutEffect, useRef, type RefObject } from 'react';
 import type { AlbumBrowseScrollSnapshot } from './useAlbumBrowseFilters';
 
 type Args = {
@@ -15,8 +15,13 @@ export function useAlbumBrowseScrollReset({
   isScrollRestorePending,
   resetKey,
 }: Args): void {
+  const prevResetKeyRef = useRef(resetKey);
+
   useLayoutEffect(() => {
     if (isScrollRestorePending) return;
+    if (prevResetKeyRef.current === resetKey) return;
+    prevResetKeyRef.current = resetKey;
+
     const el = getScrollRoot();
     if (!el) return;
 
