@@ -187,6 +187,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Library browse — restore scroll, filters, and search when returning from detail
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#936](https://github.com/Psychotoxical/psysonic/pull/936)**
+
+* **Artists, Search, Tracks, New Releases, Random Albums:** going back from album or artist detail keeps browse filters, list scroll, and search text instead of resetting the page.
+* **Search / Advanced / Tracks** share one browse page; the separate quick-search results route is removed.
+* In-app **Back** and the browser **mouse back** button on album/artist detail use the same return path to the browse session you left.
+
+
+
 ## Changed
 
 ### CI — hot-path coverage gates block merges
