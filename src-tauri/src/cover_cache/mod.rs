@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, Semaphore};
@@ -79,10 +80,10 @@ pub(crate) fn cover_pipeline_queue_stats(
         http_active: sem_active(&cache.http_sem, COVER_HTTP_CONCURRENCY as u32),
         cpu_ui_max: COVER_CPU_UI_CONCURRENCY as u32,
         cpu_ui_active: sem_active(&cache.cover_cpu_ui_sem, COVER_CPU_UI_CONCURRENCY as u32),
-        cpu_backfill_max: COVER_CPU_BACKFILL_CONCURRENCY as u32,
+        cpu_backfill_max: cache.cover_backfill_cpu_parallel() as u32,
         cpu_backfill_active: sem_active(
             &cache.cover_cpu_backfill_sem,
-            COVER_CPU_BACKFILL_CONCURRENCY as u32,
+            cache.cover_backfill_cpu_parallel() as u32,
         ),
         library_backfill_http_max,
         library_backfill_http_active,
@@ -117,7 +118,10 @@ const COVER_HTTP_CONCURRENCY: usize = 16;
 /// UI-visible decode + WebP encode (grid, hero, player) — not shared with library backfill.
 const COVER_CPU_UI_CONCURRENCY: usize = 2;
 /// Library backfill encode ladder — separate pool so bulk warm-up cannot starve the webview.
+/// Default only; runtime-tunable from the perf probe via `set_backfill_cpu_parallel`.
 const COVER_CPU_BACKFILL_CONCURRENCY: usize = 2;
+/// Upper bound for the runtime encode-pool knob (matches the worker cap).
+const COVER_CPU_BACKFILL_MAX: usize = 16;
 
 pub struct CoverCacheState {
     pub root: PathBuf,
@@ -128,6 +132,9 @@ pub struct CoverCacheState {
     pub http_sem: Arc<Semaphore>,
     pub cover_cpu_ui_sem: Arc<Semaphore>,
     pub cover_cpu_backfill_sem: Arc<Semaphore>,
+    /// Live permit count of `cover_cpu_backfill_sem` (the semaphore itself only
+    /// exposes *available* permits, not the configured ceiling).
+    cover_cpu_backfill_max: AtomicUsize,
 }
 
 impl CoverCacheState {
@@ -147,7 +154,33 @@ impl CoverCacheState {
             http_sem: Arc::new(Semaphore::new(COVER_HTTP_CONCURRENCY)),
             cover_cpu_ui_sem: Arc::new(Semaphore::new(COVER_CPU_UI_CONCURRENCY)),
             cover_cpu_backfill_sem: Arc::new(Semaphore::new(COVER_CPU_BACKFILL_CONCURRENCY)),
+            cover_cpu_backfill_max: AtomicUsize::new(COVER_CPU_BACKFILL_CONCURRENCY),
         })
+    }
+
+    /// Current configured ceiling of the backfill encode pool.
+    pub fn cover_backfill_cpu_parallel(&self) -> usize {
+        self.cover_cpu_backfill_max.load(Ordering::Relaxed).max(1)
+    }
+
+    /// Retune the backfill encode pool to match the worker's download
+    /// concurrency. Grows/shrinks the semaphore permits in place.
+    pub fn set_backfill_cpu_parallel(&self, threads: usize) {
+        let next = threads.clamp(1, COVER_CPU_BACKFILL_MAX);
+        let prev = self.cover_cpu_backfill_max.swap(next, Ordering::SeqCst);
+        if next > prev {
+            self.cover_cpu_backfill_sem.add_permits(next - prev);
+        } else if next < prev {
+            let sem = self.cover_cpu_backfill_sem.clone();
+            let surplus = prev - next;
+            tauri::async_runtime::spawn(async move {
+                for _ in 0..surplus {
+                    if let Ok(permit) = sem.acquire().await {
+                        permit.forget();
+                    }
+                }
+            });
+        }
     }
 
     fn cpu_sem_for(&self, library_bulk: bool) -> Arc<Semaphore> {
@@ -160,11 +193,6 @@ impl CoverCacheState {
 
     fn pressure_from_bytes(&self, _bytes: u64) -> (String, bool) {
         ("ok".into(), true)
-    }
-
-    fn pressure(&self) -> (String, bool) {
-        let (bytes, _) = dir_usage_at_root(&self.root);
-        self.pressure_from_bytes(bytes)
     }
 
     pub(crate) async fn ensure_inner(
@@ -183,7 +211,11 @@ impl CoverCacheState {
             });
         }
 
-        let (_, auto_dl) = this.pressure();
+        // Cheap, no-IO gate. Previously this ran a full recursive disk walk of
+        // the entire cover cache (`pressure()` → `dir_usage_at_root`) on every
+        // ensure, under the global state lock — serializing the whole backfill
+        // pool onto filesystem stat work. The walked bytes were then discarded.
+        let (_, auto_dl) = this.pressure_from_bytes(0);
         if !auto_dl && args.tier != 2000 {
             return Ok(CoverCacheEnsureResult {
                 hit: false,
@@ -546,6 +578,24 @@ pub async fn library_cover_backfill_set_ui_priority(
         .ok_or_else(|| "cover backfill worker not initialized".to_string())?;
     worker.set_ui_priority_hold(hold);
     Ok(())
+}
+
+/// Perf-probe tuning knob: set how many threads cover backfill uses (download
+/// + encode pools move together). Not exposed in app Settings by design.
+/// Returns the clamped value actually applied.
+#[tauri::command]
+pub async fn library_cover_backfill_set_parallel(
+    app: AppHandle,
+    threads: usize,
+) -> Result<u32, String> {
+    let worker = app
+        .try_state::<Arc<CoverBackfillWorker>>()
+        .ok_or_else(|| "cover backfill worker not initialized".to_string())?;
+    let applied = worker.set_parallel(threads);
+    if let Ok(cache) = state(&app) {
+        cache.lock().await.set_backfill_cpu_parallel(applied);
+    }
+    Ok(applied as u32)
 }
 
 #[tauri::command]

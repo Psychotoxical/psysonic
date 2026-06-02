@@ -237,6 +237,11 @@ export async function libraryCoverBackfillSetUiPriority(hold: boolean): Promise<
   return invoke('library_cover_backfill_set_ui_priority', { hold });
 }
 
+/** Perf-probe only: retune cover backfill threads (download + encode). Returns the clamped value applied. */
+export async function libraryCoverBackfillSetParallel(threads: number): Promise<number> {
+  return invoke<number>('library_cover_backfill_set_parallel', { threads });
+}
+
 export async function libraryCoverClearFetchFailures(serverIndexKey: string): Promise<number> {
   return invoke<number>('library_cover_clear_fetch_failures', { serverIndexKey });
 }

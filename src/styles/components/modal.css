@@ -206,6 +206,27 @@
   color: var(--text-primary);
 }
 
+.perf-live-poll__run {
+  margin-top: 10px;
+  align-self: flex-start;
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle, color-mix(in srgb, var(--text-muted) 30%, transparent));
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.perf-live-poll__run:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.perf-live-poll__run:not(:disabled):hover {
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
+}
+
 .perf-live-poll__hint {
   margin: 6px 0 0;
   font-size: 10px;

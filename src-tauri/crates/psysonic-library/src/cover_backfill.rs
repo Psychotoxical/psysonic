@@ -3,6 +3,7 @@
 //! Catalog rows come from SQLite (`album` / `artist` tables) with explicit `kind`.
 //! On-disk paths — `psysonic_core::cover_cache_layout`.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use psysonic_core::cover_cache_layout::{self, is_fetch_only_cover_id};
@@ -13,7 +14,12 @@ use crate::cover_resolve::{
 use crate::store::LibraryStore;
 
 const DEFAULT_BATCH: u32 = 32;
-const MAX_BATCH: u32 = 48;
+/// Upper bound on items collected per `collect_cover_backfill_batch` call. The
+/// catalog scan (`fetch_catalog_page` GROUP BY over the cover UNION) is O(catalog)
+/// per page, so larger batches amortize that cost across more downloads and keep
+/// the backfill download pool fed. Per-call page count stays bounded by
+/// `MAX_SCAN_PAGES`, so a sparse backlog cannot inflate scan cost here.
+const MAX_BATCH: u32 = 256;
 const SCAN_PAGE: i64 = 256;
 const MAX_SCAN_PAGES: usize = 16;
 
@@ -222,6 +228,152 @@ fn fetch_catalog_page(
             })
             .collect())
     })
+}
+
+/// All distinct cover catalog rows in ONE query (no cursor pagination, so the
+/// expensive `GROUP BY` over the cover UNION runs once per pass instead of once
+/// per page). Caller expands + disk-diffs the result.
+pub fn fetch_all_catalog_rows(
+    store: &LibraryStore,
+    library_server_id: &str,
+) -> Result<Vec<CoverBackfillItem>, String> {
+    store.with_read_conn(|conn| {
+        let sql = format!(
+            "SELECT kind, id, MAX(fetch_id) AS fetch_id
+             FROM ({COVER_CATALOG_SUBQUERY})
+             GROUP BY kind, id
+             ORDER BY kind ASC, id ASC"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params![library_server_id], |row| {
+                let kind: String = row.get(0)?;
+                let id: String = row.get(1)?;
+                let fetch_id: String = row.get(2)?;
+                Ok(CoverBackfillItem {
+                    cache_kind: kind,
+                    cache_entity_id: id,
+                    fetch_cover_art_id: fetch_id,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows
+            .into_iter()
+            .filter(|item| {
+                !item.cache_entity_id.is_empty() && !is_fetch_only_cover_id(&item.cache_entity_id)
+            })
+            .collect())
+    })
+}
+
+/// One-pass on-disk snapshot of a server's cover bucket: which entities already
+/// have the canonical tier, and which carry a recent `.fetch-failed` marker.
+///
+/// Built once per pass so the catalog diff is pure in-memory set math — no
+/// per-row `stat` syscalls hammering the filesystem on every album/artist. Keys
+/// are `(kind, sanitized_entity_id)` to match on-disk directory names.
+#[derive(Debug, Default)]
+pub struct CoverDiskSnapshot {
+    present: HashSet<(String, String)>,
+    failed: HashSet<(String, String)>,
+}
+
+impl CoverDiskSnapshot {
+    fn key(kind: &str, entity_id: &str) -> (String, String) {
+        (
+            kind.to_string(),
+            cover_cache_layout::sanitize_path_segment(entity_id),
+        )
+    }
+
+    /// Canonical tier already on disk for this entity.
+    pub fn is_cached(&self, kind: &str, entity_id: &str) -> bool {
+        self.present.contains(&Self::key(kind, entity_id))
+    }
+
+    /// Recent `.fetch-failed` marker — skip so slots go to fetchable art.
+    pub fn is_recently_failed(&self, kind: &str, entity_id: &str) -> bool {
+        self.failed.contains(&Self::key(kind, entity_id))
+    }
+}
+
+/// Walk the server's cover bucket once (`album/` and `artist/`) and record the
+/// cached plus recently-failed entities. Cheap exactly when it matters most: an
+/// empty cache yields an empty `read_dir`, so the heavy backfill diff costs zero
+/// per-item `stat`s instead of one (or more) per catalog row.
+pub fn snapshot_cover_disk(cover_root: &Path, server_index_key: &str) -> CoverDiskSnapshot {
+    let server_dir = cover_cache_layout::cover_server_dir(cover_root, server_index_key);
+    let mut snap = CoverDiskSnapshot::default();
+    for kind in cover_cache_layout::SEGMENT_KINDS {
+        let kind_dir = server_dir.join(kind);
+        let Ok(entries) = std::fs::read_dir(&kind_dir) else {
+            continue;
+        };
+        for ent in entries.flatten() {
+            let path = ent.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()).map(str::to_string) else {
+                continue;
+            };
+            if !path.is_dir() {
+                continue;
+            }
+            let key = (kind.to_string(), name);
+            if cover_cache_layout::entity_dir_has_canonical_tier(&path) {
+                snap.present.insert(key.clone());
+            }
+            if cover_fetch_recently_failed(&path) {
+                snap.failed.insert(key);
+            }
+        }
+    }
+    snap
+}
+
+/// Diff catalog rows against a pre-built disk snapshot → the subset still needing
+/// a download. No filesystem access here: the snapshot already captured disk
+/// state once. Rows whose raw id is cached/failed are skipped without expanding;
+/// the rest get `expand_backfill_items` (DB) to resolve multi-disc `mf-*` /
+/// artist entities, which are then diffed against the same snapshot.
+pub fn diff_missing_against_snapshot(
+    store: &LibraryStore,
+    library_server_id: &str,
+    snapshot: &CoverDiskSnapshot,
+    rows: Vec<CoverBackfillItem>,
+) -> Result<Vec<CoverBackfillItem>, String> {
+    let mut out = Vec::new();
+    for row in rows {
+        if snapshot.is_cached(&row.cache_kind, &row.cache_entity_id)
+            || snapshot.is_recently_failed(&row.cache_kind, &row.cache_entity_id)
+        {
+            continue;
+        }
+        for normalized in expand_backfill_items(store, library_server_id, row)? {
+            if normalized.cache_entity_id.is_empty() {
+                continue;
+            }
+            if snapshot.is_cached(&normalized.cache_kind, &normalized.cache_entity_id)
+                || snapshot.is_recently_failed(&normalized.cache_kind, &normalized.cache_entity_id)
+            {
+                continue;
+            }
+            out.push(normalized);
+        }
+    }
+    Ok(out)
+}
+
+/// One-shot worklist of every cover target still missing its canonical tier:
+/// DB catalog snapshot minus the on-disk snapshot. The worker streams the diff
+/// in chunks against a shared snapshot; tests use this whole-catalog form.
+pub fn collect_missing_cover_targets(
+    store: &LibraryStore,
+    library_server_id: &str,
+    cover_root: &Path,
+    server_index_key: &str,
+) -> Result<Vec<CoverBackfillItem>, String> {
+    let rows = fetch_all_catalog_rows(store, library_server_id)?;
+    let snapshot = snapshot_cover_disk(cover_root, server_index_key);
+    diff_missing_against_snapshot(store, library_server_id, &snapshot, rows)
 }
 
 pub fn count_distinct_cover_ids(store: &LibraryStore, library_server_id: &str) -> Result<i64, String> {
@@ -531,6 +683,29 @@ mod tests {
         )
         .unwrap();
         assert!(batch2.cover_ids.is_empty());
+
+        let _ = std::fs::remove_dir_all(root.join(host));
+    }
+
+    #[test]
+    fn collect_missing_excludes_cached_includes_missing() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(&store, "srv", "tr1", "al-have", None);
+        seed_track(&store, "srv", "tr2", "al-need", None);
+        let root = std::env::temp_dir().join("psysonic-missing-targets-test");
+        let host = "srv-host";
+        let have_dir = cover_cache_layout::cover_dir(&root, host, "album", "al-have");
+        std::fs::create_dir_all(&have_dir).unwrap();
+        std::fs::write(
+            have_dir.join(format!("{LIBRARY_COVER_CANONICAL_TIER}.webp")),
+            b"x",
+        )
+        .unwrap();
+
+        let missing = collect_missing_cover_targets(&store, "srv", &root, host).unwrap();
+        let ids: Vec<_> = missing.iter().map(|i| i.cache_entity_id.as_str()).collect();
+        assert!(ids.contains(&"al-need"), "missing cover should be queued");
+        assert!(!ids.contains(&"al-have"), "cached cover must be skipped");
 
         let _ = std::fs::remove_dir_all(root.join(host));
     }

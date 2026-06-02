@@ -762,6 +762,7 @@ pub fn run() {
             cover_cache::library_cover_backfill_pulse,
             cover_cache::library_cover_backfill_reset_cursor,
             cover_cache::library_cover_backfill_set_ui_priority,
+            cover_cache::library_cover_backfill_set_parallel,
             cover_cache::library_cover_backfill_run_full_pass,
             cover_cache::cover_revalidate_enqueue,
             cover_cache::cover_revalidate_tick,
