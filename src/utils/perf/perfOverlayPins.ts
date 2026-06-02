@@ -17,7 +17,8 @@ export type PerfLiveOverlayPinId =
   | 'rate:home'
   | 'analysis:tpm'
   | 'analysis:last'
-  | 'cover:cpm';
+  | 'cover:cpm'
+  | 'cover:cpm:ui';
 
 const PIPELINE_PIN_TO_FLAG = {
   'pipeline:fps': 'showFpsOverlay',

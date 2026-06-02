@@ -32,7 +32,7 @@ import {
 } from '../utils/perf/perfOverlayMode';
 import { useAnalysisPerfListener } from '../hooks/useAnalysisPerfListener';
 import { useCoverPerfListener } from '../hooks/useCoverPerfListener';
-import { getCoverCachedPerMinute } from '../utils/perf/coverPerfStore';
+import { getCoverCachedPerMinute, getCoverUiPerMinute } from '../utils/perf/coverPerfStore';
 
 const SAMPLE_MS = 500;
 const TPM_REFRESH_MS = 500;
@@ -69,6 +69,7 @@ export default function FpsOverlay() {
   const [fps, setFps] = useState(0);
   const [tpm, setTpm] = useState(0);
   const [cpm, setCpm] = useState(0);
+  const [cpmUi, setCpmUi] = useState(0);
   const [queueStats, setQueueStats] = useState<AnalysisPipelineQueueStatsDto | null>(null);
   const [coverQueueLines, setCoverQueueLines] = useState<string[]>([]);
   const last = useAnalysisPerfLast();
@@ -135,9 +136,13 @@ export default function FpsOverlay() {
   useEffect(() => {
     if (!showCoverPerfOverlay) {
       setCpm(0);
+      setCpmUi(0);
       return;
     }
-    const refresh = () => setCpm(getCoverCachedPerMinute());
+    const refresh = () => {
+      setCpm(getCoverCachedPerMinute());
+      setCpmUi(getCoverUiPerMinute());
+    };
     refresh();
     const id = window.setInterval(refresh, TPM_REFRESH_MS);
     return () => window.clearInterval(id);
@@ -270,7 +275,12 @@ export default function FpsOverlay() {
           <div className="fps-overlay__row">
             {cpm.toFixed(1)}
             {' '}
-            <span className="fps-overlay__unit">cpm</span>
+            <span className="fps-overlay__unit">lib cpm</span>
+          </div>
+          <div className="fps-overlay__row">
+            {cpmUi.toFixed(1)}
+            {' '}
+            <span className="fps-overlay__unit">ui cpm</span>
           </div>
           {coverQueueLines.length > 0 ? coverQueueLines.map(line => (
             <div key={line} className="fps-overlay__row fps-overlay__row--steps">

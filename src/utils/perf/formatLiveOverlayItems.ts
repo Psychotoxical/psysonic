@@ -92,7 +92,14 @@ export function buildLiveOverlayItems(
     } else if (pin === 'cover:cpm' && live.cover) {
       items.push({
         id: pin,
-        line: `cover ${live.cover.cachedPerMinute.toFixed(1)} cpm`,
+        line: `cover lib ${live.cover.cachedPerMinute.toFixed(1)} cpm`,
+        kind: 'cover',
+        sparkline: false,
+      });
+    } else if (pin === 'cover:cpm:ui' && live.cover) {
+      items.push({
+        id: pin,
+        line: `cover ui ${live.cover.uiPerMinute.toFixed(1)} cpm`,
         kind: 'cover',
         sparkline: false,
       });

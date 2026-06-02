@@ -2,7 +2,9 @@ import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
 import {
   getCoverCachedPerMinute,
   getCoverPerfState,
+  getCoverUiPerMinute,
   recordCoverProgress,
+  recordCoverUiEnsure,
   resetCoverPerfStateForTest,
 } from './coverPerfStore';
 
@@ -47,5 +49,20 @@ describe('coverPerfStore', () => {
     // Only the new baseline remains → no rate yet.
     expect(getCoverCachedPerMinute()).toBe(0);
     expect(getCoverPerfState().done).toBe(5);
+  });
+
+  it('counts UI cover ensures per minute and prunes the window', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(4_000_000);
+    expect(getCoverUiPerMinute()).toBe(0);
+    recordCoverUiEnsure();
+    vi.advanceTimersByTime(10_000);
+    recordCoverUiEnsure();
+    recordCoverUiEnsure();
+    // 3 completions within ~10s → well above 0; lib series stays untouched.
+    expect(getCoverUiPerMinute()).toBeGreaterThan(0);
+    expect(getCoverCachedPerMinute()).toBe(0);
+    vi.advanceTimersByTime(61_000);
+    expect(getCoverUiPerMinute()).toBe(0);
   });
 });

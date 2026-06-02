@@ -223,9 +223,9 @@ export default function SidebarPerfProbeMonitorTab() {
       )}
 
       {live.cover && (
-        <PerfProbeMetricSection title="Cover backfill" defaultOpen={false}>
+        <PerfProbeMetricSection title="Cover pipeline" defaultOpen={false}>
           <PerfProbeMetricCard
-            label="Throughput"
+            label="Backfill (lib)"
             value={live.cover.cachedPerMinute.toFixed(1)}
             unit="cpm"
             detail={live.cover.total > 0
@@ -233,6 +233,14 @@ export default function SidebarPerfProbeMonitorTab() {
               : 'covers cached per minute'}
             pinned={livePinned('cover:cpm')}
             onTogglePin={toggleLive('cover:cpm')}
+          />
+          <PerfProbeMetricCard
+            label="On-demand (ui)"
+            value={live.cover.uiPerMinute.toFixed(1)}
+            unit="cpm"
+            detail="UI cover ensures per minute"
+            pinned={livePinned('cover:cpm:ui')}
+            onTogglePin={toggleLive('cover:cpm:ui')}
           />
         </PerfProbeMetricSection>
       )}

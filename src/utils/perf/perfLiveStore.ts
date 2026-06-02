@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { clearPerfLiveHistory, syncPerfLiveHistoryFromPoll } from './perfLiveHistory';
 import { getAnalysisTracksPerMinute } from './analysisPerfStore';
-import { getCoverCachedPerMinute, getCoverPerfState } from './coverPerfStore';
+import { getCoverCachedPerMinute, getCoverUiPerMinute, getCoverPerfState } from './coverPerfStore';
 import { perfLiveCpuSnapshotSupported } from './perfLiveCpuSnapshot';
 import { getPerfLiveOverlayPins } from './perfOverlayPins';
 import {
@@ -46,6 +46,7 @@ export type PerfAnalysisDiag = {
 
 export type PerfCoverDiag = {
   cachedPerMinute: number;
+  uiPerMinute: number;
   done: number;
   total: number;
   pending: number;
@@ -132,6 +133,7 @@ function analysisEqual(a: PerfAnalysisDiag | null, b: PerfAnalysisDiag | null): 
 function coverEqual(a: PerfCoverDiag | null, b: PerfCoverDiag | null): boolean {
   if (a == null || b == null) return a === b;
   return a.cachedPerMinute === b.cachedPerMinute
+    && a.uiPerMinute === b.uiPerMinute
     && a.done === b.done
     && a.total === b.total
     && a.pending === b.pending;
@@ -184,6 +186,7 @@ function buildCoverDiag(): PerfCoverDiag {
   const cover = getCoverPerfState();
   return {
     cachedPerMinute: getCoverCachedPerMinute(),
+    uiPerMinute: getCoverUiPerMinute(),
     done: cover.done,
     total: cover.total,
     pending: cover.pending,
