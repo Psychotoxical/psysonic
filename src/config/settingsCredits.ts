@@ -149,6 +149,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance Probe: cover pipeline covers-per-minute (cpm) throughput, the cover analogue of analysis tpm (PR #945)',
       'Performance Probe: live runtime logs tab with depth switch, line cap, and ordered include/exclude word filter (PR #946)',
       'Performance Probe: on-demand (ui) cover throughput alongside backfill (lib) cpm (PR #947)',
+      'Performance Probe: throughput (analysis tpm, cover cpm) measured over a trailing 5s window so the rate reacts promptly instead of coasting on minute-long inertia (PR #948)',
     ],
   },
   {

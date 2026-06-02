@@ -388,6 +388,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Performance Probe — responsive throughput windows (tpm / cpm)
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#948](https://github.com/Psychotoxical/psysonic/pull/948)**
+
+* Analysis **tpm** and cover **cpm** (lib + ui) now measure throughput over the trailing **5 seconds** instead of a full-minute rolling average. The figure is still extrapolated to per-minute, but reacts promptly to bursts/stalls and decays to 0 within the window when idle, instead of coasting on minute-long inertia.
+
+
 
 
 ## Fixed
