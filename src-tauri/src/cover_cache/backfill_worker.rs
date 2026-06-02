@@ -86,6 +86,17 @@ pub struct CoverBackfillWorker {
     /// Epoch-ms of the last `sync-idle`-driven pass, to rate-limit the idle-gate
     /// disk walk against chatty syncs. 0 = never.
     last_sync_idle_ms: AtomicU64,
+    /// Bumped on every `set_session`. A running pass captures the value at start
+    /// and aborts the moment it changes, so a connect-URL flip (same server, new
+    /// `rest_base_url`) abandons the stale-address pass instead of grinding
+    /// through every cover against the unreachable endpoint.
+    session_gen: AtomicU64,
+    /// A schedule request that arrived while a pass was already running. Drained
+    /// when that pass finishes so a mid-pass reconfigure (e.g. LAN→public at
+    /// boot) still gets a fresh pass on the new address.
+    rerun_pending: AtomicBool,
+    /// Whether the queued rerun should force (bypass idle gate + clear backoff).
+    rerun_force: AtomicBool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -124,6 +135,9 @@ impl CoverBackfillWorker {
             parallel: AtomicUsize::new(LIBRARY_BACKFILL_PARALLEL_DEFAULT),
             settled: Mutex::new(None),
             last_sync_idle_ms: AtomicU64::new(0),
+            session_gen: AtomicU64::new(0),
+            rerun_pending: AtomicBool::new(false),
+            rerun_force: AtomicBool::new(false),
         }
     }
 
@@ -174,9 +188,17 @@ impl CoverBackfillWorker {
         // Server switch or enable/disable invalidates any settled state: re-arm
         // so the next idle event runs a real pass for the new focus.
         *self.settled.lock().await = None;
+        // Invalidate any in-flight pass: a connect-URL flip keeps the same
+        // `server_index_key`, so without this the running pass would keep using
+        // the old (now-unreachable) `rest_base_url` to completion.
+        self.session_gen.fetch_add(1, Ordering::SeqCst);
         if !enabled {
             *self.cursor.lock().await = String::new();
         }
+    }
+
+    fn session_generation(&self) -> u64 {
+        self.session_gen.load(Ordering::SeqCst)
     }
 
     pub async fn reset_cursor(&self) {
@@ -204,9 +226,19 @@ fn session_matches_server(session: &CoverBackfillSession, server_id: &str) -> bo
     server_id == session.server_index_key || server_id == session.library_server_id
 }
 
-/// Backfill runs only while this session is still the configured focus (active server).
-async fn session_still_focused(worker: &CoverBackfillWorker, expected: &CoverBackfillSession) -> bool {
+/// Backfill runs only while this session is still the configured focus (active
+/// server) **and** the session generation captured at pass start is unchanged —
+/// a reconfigure (server switch, enable/disable, or connect-URL flip) bumps the
+/// generation so the running pass abandons promptly.
+async fn session_still_focused(
+    worker: &CoverBackfillWorker,
+    expected: &CoverBackfillSession,
+    pass_gen: u64,
+) -> bool {
     if !worker.enabled.load(Ordering::Relaxed) {
+        return false;
+    }
+    if worker.session_generation() != pass_gen {
         return false;
     }
     worker
@@ -284,6 +316,10 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: 
     let Some(session) = session else {
         return;
     };
+    // Generation captured for this pass — if `set_session` bumps it (server
+    // switch / enable toggle / connect-URL flip), every focus check below trips
+    // and the pass abandons instead of fetching against a stale address.
+    let pass_gen = worker.session_generation();
 
     let runtime = match app.try_state::<LibraryRuntime>() {
         Some(r) => r,
@@ -375,7 +411,7 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: 
                 // Bail the moment the strategy flips to lazy / focus changes, so a
                 // switch to "lazy" abandons the buffered backlog instead of
                 // draining the whole channel (mirrors the producer's check).
-                if !session_still_focused(&worker_arc, &session).await {
+                if !session_still_focused(&worker_arc, &session, pass_gen).await {
                     break;
                 }
                 let item = {
@@ -423,7 +459,7 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: 
     let mut rows_iter = raw_rows.into_iter();
     let mut completed = false;
     loop {
-        if !session_still_focused(&worker, &session).await {
+        if !session_still_focused(&worker, &session, pass_gen).await {
             break;
         }
         if worker.ui_priority_hold.load(Ordering::Relaxed) {
@@ -466,7 +502,7 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: 
                         break 'feed;
                     }
                     Err(tokio::sync::mpsc::error::TrySendError::Full(returned)) => {
-                        if !session_still_focused(&worker, &session).await {
+                        if !session_still_focused(&worker, &session, pass_gen).await {
                             feed_closed = true;
                             break 'feed;
                         }
@@ -531,13 +567,45 @@ pub async fn try_schedule_full_pass(app: &AppHandle, force: bool) -> bool {
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
+        // A pass is already running. Record a rerun so a reconfigure that landed
+        // mid-pass (e.g. the connect URL flipped LAN→public at boot) still gets a
+        // fresh pass on the new address once the current one abandons.
+        worker.rerun_pending.store(true, Ordering::SeqCst);
+        if force {
+            worker.rerun_force.store(true, Ordering::SeqCst);
+        }
         return false;
     }
 
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        run_full_pass(app, worker.clone(), force).await;
-        worker.pass_running.store(false, Ordering::SeqCst);
+        run_full_pass(app.clone(), worker.clone(), force).await;
+        // Drain rerun requests queued while this (or a chained) pass ran. The
+        // generation check inside `run_full_pass` makes the abandoned pass return
+        // quickly, so this loop converges on a pass against the latest config.
+        loop {
+            worker.pass_running.store(false, Ordering::SeqCst);
+            if !worker.rerun_pending.swap(false, Ordering::SeqCst) {
+                break;
+            }
+            let rerun_force = worker.rerun_force.swap(false, Ordering::SeqCst);
+            if !worker.enabled.load(Ordering::Relaxed) {
+                break;
+            }
+            if worker
+                .pass_running
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_err()
+            {
+                // Another scheduler won the slot; hand the rerun intent back to it.
+                worker.rerun_pending.store(true, Ordering::SeqCst);
+                if rerun_force {
+                    worker.rerun_force.store(true, Ordering::SeqCst);
+                }
+                break;
+            }
+            run_full_pass(app.clone(), worker.clone(), rerun_force).await;
+        }
     });
     true
 }

@@ -700,8 +700,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#952](https://github.com/Psychotoxical/psysonic/pull/952)**
 
-* On a dual-address server, library cover backfill was configured once with a snapshot of the connect URL and never followed the smart LAN↔public switch. Moving a laptop off the LAN (internet still up, playback already on the public address) left backfill hammering the now-unreachable local address and flooding the log with `error sending request` failures.
-* The connect cache is now observable and backfill reconfigures when the resolved URL flips, forcing a pass so covers that failed against the stale address retry on the reachable one. On-demand UI / playback covers already followed the switch.
+* On a dual-address server, library cover backfill was configured once with a snapshot of the connect URL and never followed the smart LAN↔public switch. Starting already off the LAN — or moving off it mid-session — (internet up, playback already on the public address) left backfill hammering the now-unreachable local address and flooding the log with `error sending request` failures.
+* The connect cache is now observable and backfill reconfigures when the resolved URL flips, forcing a pass so covers that failed against the stale address retry on the reachable one. A reconfigure now also bumps a session generation so any in-flight pass against the old address abandons promptly, and a rerun is queued if a pass was still running — covering the boot case where the initial pass starts on the primary URL before the first reachability probe resolves. On-demand UI / playback covers already followed the switch.
 
 ## [1.46.0] - 2026-05-18
 
