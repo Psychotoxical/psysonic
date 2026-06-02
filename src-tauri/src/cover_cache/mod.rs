@@ -107,6 +107,10 @@ pub struct CoverCacheEnsureArgs {
     /// Library backfill: all derived tiers, no `cover:tier-ready` floods to the webview.
     #[serde(default)]
     pub library_bulk: bool,
+    /// Library server id (DB key) — set by backfill so a failed fetch can be logged
+    /// with the album/artist name. On-demand UI ensures leave it `None`.
+    #[serde(default)]
+    pub library_server_id: Option<String>,
 }
 
 fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
@@ -266,7 +270,8 @@ impl CoverCacheState {
         } else {
             match download_cover_payload(&dir, &client, &http_sem, args).await {
                 Ok(bytes) => CoverSource::Bytes(bytes),
-                Err(_) => {
+                Err(err) => {
+                    log_cover_fetch_failure(app, args, &err);
                     let _ = std::fs::create_dir_all(&dir);
                     let _ = std::fs::write(dir.join(COVER_FETCH_FAIL_MARKER), b"1");
                     return Ok(CoverCacheEnsureResult {
@@ -356,6 +361,41 @@ impl CoverCacheState {
             path: String::new(),
             tier: requested,
         })
+    }
+}
+
+/// Log a non-200 / failed cover download with the album/artist name when known.
+/// Backfill fetches (`library_bulk`) log at the normal level — the user wants to
+/// see which covers a busy server refused; incidental on-demand UI misses stay at
+/// the debug level so they don't spam the normal log.
+fn log_cover_fetch_failure(app: &AppHandle, args: &CoverCacheEnsureArgs, err: &str) {
+    let label = args
+        .library_server_id
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .and_then(|lib_id| {
+            app.try_state::<LibraryRuntime>().and_then(|rt| {
+                psysonic_library::cover_resolve::describe_cover_entity(
+                    &rt.store,
+                    lib_id,
+                    &args.cache_kind,
+                    &args.cache_entity_id,
+                )
+            })
+        })
+        .unwrap_or_else(|| format!("{} {}", args.cache_kind, args.cache_entity_id));
+    if args.library_bulk {
+        crate::app_eprintln!(
+            "[cover-backfill] fetch failed for {label} (coverArtId={}, tier={}): {err}",
+            args.cover_art_id,
+            args.tier
+        );
+    } else {
+        crate::app_deprintln!(
+            "[cover] fetch failed for {label} (coverArtId={}, tier={}): {err}",
+            args.cover_art_id,
+            args.tier
+        );
     }
 }
 

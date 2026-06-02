@@ -203,6 +203,72 @@ pub fn cover_backfill_items_for_album(
     Ok(out)
 }
 
+/// Human-readable label for a cover target, for failure logs:
+/// `album "Name" — Artist` / `artist "Name"`. Best-effort: returns `None` when
+/// the entity is not in the local index (e.g. a stale per-disc `mf-*` id), so
+/// the caller can fall back to the raw id.
+pub fn describe_cover_entity(
+    store: &LibraryStore,
+    library_server_id: &str,
+    cache_kind: &str,
+    cache_entity_id: &str,
+) -> Option<String> {
+    let id = cache_entity_id.trim();
+    if id.is_empty() {
+        return None;
+    }
+    store
+        .with_read_conn(|conn| {
+            let label = if cache_kind == "artist" {
+                let name = conn
+                    .query_row(
+                        "SELECT name FROM artist WHERE server_id = ?1 AND id = ?2",
+                        rusqlite::params![library_server_id, id],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()?
+                    .or(conn
+                        .query_row(
+                            "SELECT artist FROM track
+                             WHERE server_id = ?1 AND artist_id = ?2 AND deleted = 0
+                               AND NULLIF(TRIM(artist), '') IS NOT NULL
+                             LIMIT 1",
+                            rusqlite::params![library_server_id, id],
+                            |row| row.get::<_, String>(0),
+                        )
+                        .optional()?);
+                name.map(|n| format!("artist \"{n}\""))
+            } else {
+                let pair = conn
+                    .query_row(
+                        "SELECT name, artist FROM album WHERE server_id = ?1 AND id = ?2",
+                        rusqlite::params![library_server_id, id],
+                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+                    )
+                    .optional()?
+                    .or(conn
+                        .query_row(
+                            "SELECT album, artist FROM track
+                             WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0
+                               AND NULLIF(TRIM(album), '') IS NOT NULL
+                             LIMIT 1",
+                            rusqlite::params![library_server_id, id],
+                            |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+                        )
+                        .optional()?);
+                pair.map(|(name, artist)| {
+                    match artist.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                        Some(a) => format!("album \"{name}\" — {a}"),
+                        None => format!("album \"{name}\""),
+                    }
+                })
+            };
+            Ok(label)
+        })
+        .ok()
+        .flatten()
+}
+
 pub fn resolve_artist_cover_entry(
     _store: &LibraryStore,
     _library_server_id: &str,
@@ -355,6 +421,35 @@ mod tests {
         let items = cover_backfill_items_for_album(&store, "srv", "al-nav").unwrap();
         let ids: Vec<_> = items.iter().map(|i| i.cache_entity_id.as_str()).collect();
         assert_eq!(ids, vec!["al-nav"]);
+    }
+
+    #[test]
+    fn describe_entity_labels_album_and_artist() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("seed_describe", |conn| {
+                conn.execute(
+                    "INSERT INTO album (server_id, id, name, artist, synced_at, raw_json)
+                     VALUES ('srv', 'al-1', 'Discovery', 'Daft Punk', 1, '{}')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO artist (server_id, id, name, synced_at, raw_json)
+                     VALUES ('srv', 'ar-1', 'Daft Punk', 1, '{}')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            describe_cover_entity(&store, "srv", "album", "al-1").as_deref(),
+            Some("album \"Discovery\" — Daft Punk"),
+        );
+        assert_eq!(
+            describe_cover_entity(&store, "srv", "artist", "ar-1").as_deref(),
+            Some("artist \"Daft Punk\""),
+        );
+        assert_eq!(describe_cover_entity(&store, "srv", "album", "al-missing"), None);
     }
 
     // Multi-disc, but each disc still exposes per-song ids (not a shared disc

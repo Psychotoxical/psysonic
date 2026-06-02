@@ -668,6 +668,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The per-disc cover detection treated each track's own `mf-<id>` coverArt as "distinct disc art", so backfill warmed one cover per track (e.g. ~520k cached elements for ~170k tracks) and filled the `album/` bucket with `mf-*` directories.
 * It now treats a release as multi-disc only when each disc has a single consistent cover that differs across discs (a genuine box set); per-song ids collapse to one cover per album (≈ albums + artists). Fixed on both the Rust backfill path and the on-demand TS `albumHasDistinctDiscCovers`.
+* Failed cover downloads are now logged with the album/artist name and the server error (e.g. `fetch failed for album "X" — Artist (coverArtId=…): cover HTTP 503`). Backfill failures log at the normal level; incidental on-demand misses stay at the debug level.
 
 ## [1.46.0] - 2026-05-18
 

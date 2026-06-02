@@ -271,6 +271,7 @@ async fn ensure_one(
         username: session.username,
         password: session.password,
         library_bulk: true,
+        library_server_id: Some(session.library_server_id),
     };
     let _ = CoverCacheState::ensure_inner(&st, &app, &args, Some(http_sem)).await;
 }
