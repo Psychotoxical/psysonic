@@ -145,6 +145,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Live Search: scoped browse on Artists, Albums, New Releases, Tracks, and Composers — header badge, ghost restore, album title FTS, session stash (PR #938)',
       'Performance: idle Rust CPU — backfill coordinator park, probe overlay stability, throttled idle polls, lazy cover prefetch restore (PR #939)',
       'Cover backfill: disk-free idle gate, snapshot-diff worklist, live-tunable parallelism, transient-error retries, and memoized offline & cache stats to stop idle CPU spin (PR #943)',
+      'Cover art: fix per-song cover over-fetch on Navidrome — only genuine per-disc artwork expands, collapsing ~520k per-track fetches to one cover per album (PR #944)',
     ],
   },
   {
