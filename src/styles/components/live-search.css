@@ -95,7 +95,7 @@
   min-width: 0;
   background: var(--ctp-base);
   border: 1px solid var(--ctp-overlay0);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 }
 
@@ -149,7 +149,7 @@
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
-  border-radius: var(--radius-full) !important;
+  border-radius: var(--radius-md) !important;
   flex: 1;
   min-width: 0;
 }
@@ -157,6 +157,9 @@
 .live-search-field:focus {
   border-color: transparent !important;
   box-shadow: none !important;
+  /* The cluster shows the focus ring (:focus-within); suppress the input's own
+     ring so there isn't a second inner pill inside it. */
+  outline: none;
 }
 
 .live-search-adv-btn {
