@@ -696,6 +696,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * It now treats a release as multi-disc only when each disc has a single consistent cover that differs across discs (a genuine box set); per-song ids collapse to one cover per album (≈ albums + artists). Fixed on both the Rust backfill path and the on-demand TS `albumHasDistinctDiscCovers`.
 * Failed cover downloads are now logged with the album/artist name and the server error (e.g. `fetch failed for album "X" — Artist (coverArtId=…): cover HTTP 503`). Backfill failures log at the normal level; incidental on-demand misses stay at the debug level.
 
+### Cover backfill — follow the local/public endpoint switch
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#952](https://github.com/Psychotoxical/psysonic/pull/952)**
+
+* On a dual-address server, library cover backfill was configured once with a snapshot of the connect URL and never followed the smart LAN↔public switch. Moving a laptop off the LAN (internet still up, playback already on the public address) left backfill hammering the now-unreachable local address and flooding the log with `error sending request` failures.
+* The connect cache is now observable and backfill reconfigures when the resolved URL flips, forcing a pass so covers that failed against the stale address retry on the reachable one. On-demand UI / playback covers already followed the switch.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
