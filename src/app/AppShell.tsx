@@ -14,7 +14,9 @@ import LiveSearch from '../components/LiveSearch';
 import NowPlayingDropdown from '../components/NowPlayingDropdown';
 import QueuePanel from '../components/QueuePanel';
 import AppRoutes from './AppRoutes';
-import FullscreenPlayer from '../components/FullscreenPlayer';
+// Old fullscreen player kept for A/B comparison (experiment/fullscreen-player-rebuild):
+// import FullscreenPlayer from '../components/FullscreenPlayer';
+import FullscreenPlayer from '../components/fullscreenPlayer/FullscreenPlayerStatic';
 import ContextMenu from '../components/ContextMenu';
 import SongInfoModal from '../components/SongInfoModal';
 import DownloadFolderModal from '../components/DownloadFolderModal';
