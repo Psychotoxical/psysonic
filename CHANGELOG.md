@@ -367,6 +367,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Performance Probe** gains a runtime cover-thread control (`library_cover_backfill_set_parallel`) that resizes the HTTP/encode pools live; "Run full pass now" forces a pass and clears fetch-failed backoff.
 * Clearing the active server's cover cache re-arms the idle gate and wakes the worker, and in-pass progress is emitted on a ticker so the offline & cache view keeps counting through the whole scan.
 
+### Performance Probe — cover pipeline throughput (cpm)
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#945](https://github.com/Psychotoxical/psysonic/pull/945)**
+
+* The cover pipeline now reports a covers-per-minute throughput (cpm), the analogue of the analysis pipeline's tpm: a rolling one-minute rate derived from the backfill `done` progress. Shown in the Monitor tab "Cover backfill" card (pinnable to the overlay) and in the Cover pipeline overlay block.
+
 
 
 
