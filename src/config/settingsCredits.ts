@@ -147,6 +147,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Cover backfill: disk-free idle gate, snapshot-diff worklist, live-tunable parallelism, transient-error retries, and memoized offline & cache stats to stop idle CPU spin (PR #943)',
       'Cover art: fix per-song cover over-fetch on Navidrome — only genuine per-disc artwork expands, collapsing ~520k per-track fetches to one cover per album (PR #944)',
       'Performance Probe: cover pipeline covers-per-minute (cpm) throughput, the cover analogue of analysis tpm (PR #945)',
+      'Performance Probe: live runtime logs tab with depth switch, line cap, and ordered include/exclude word filter (PR #946)',
     ],
   },
   {

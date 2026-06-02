@@ -217,6 +217,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Ghost badge** on browse routes when scope is cleared — one click restores page-only mode; query text is preserved.
 * Album browse text search uses title-only FTS in the local index; Tracks hides discovery chrome while searching; session stash restores query and scroll after back from detail.
 
+### Performance Probe — live runtime logs tab
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#946](https://github.com/Psychotoxical/psysonic/pull/946)**
+
+* New **Logs** tab streams the backend runtime log buffer live inside the app, so the stdout/stderr console — unreachable on Windows without exporting a file — can be read online. The buffer tags each line with a monotonic seq and a new `tail_runtime_logs` command tails it incrementally.
+* Includes an off/normal/debug **depth switch** (mirrors app Settings), a 500–5000 **line cap**, pause/clear, auto-follow, and an ordered comma-separated **word filter** where a plain word includes and `-word` excludes, applied left to right as layers (sequence matters).
+
 
 
 ## Changed
