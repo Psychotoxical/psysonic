@@ -5,6 +5,7 @@ export const tracks = {
   heroReroll: 'Pick another',
   playSong: 'Play',
   enqueueSong: 'Add to queue',
+  toAlbum: 'To album',
   railRandom: 'Random Pick',
   railHighlyRated: 'Highly Rated',
   browseTitle: 'Browse all tracks',

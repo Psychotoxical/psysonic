@@ -5,6 +5,7 @@ export const tracks = {
   heroReroll: '换一首',
   playSong: '播放',
   enqueueSong: '加入队列',
+  toAlbum: '前往专辑',
   railRandom: '随机精选',
   railHighlyRated: '高分推荐',
   browseTitle: '浏览所有曲目',

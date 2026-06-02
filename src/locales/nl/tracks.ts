@@ -5,6 +5,7 @@ export const tracks = {
   heroReroll: 'Een ander kiezen',
   playSong: 'Afspelen',
   enqueueSong: 'Aan wachtrij toevoegen',
+  toAlbum: 'Naar album',
   railRandom: 'Willekeurige selectie',
   railHighlyRated: 'Hoog beoordeeld',
   browseTitle: 'Alle nummers doorbladeren',

@@ -5,6 +5,7 @@ export const tracks = {
   heroReroll: 'Velg et annet',
   playSong: 'Spill av',
   enqueueSong: 'Legg til i kø',
+  toAlbum: 'Til album',
   railRandom: 'Tilfeldig valg',
   railHighlyRated: 'Høyt vurdert',
   browseTitle: 'Bla gjennom alle spor',

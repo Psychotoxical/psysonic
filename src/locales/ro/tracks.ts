@@ -5,6 +5,7 @@ export const tracks = {
   heroReroll: 'Alege alta',
   playSong: 'Redă',
   enqueueSong: 'Adaugă în coadă',
+  toAlbum: 'Vezi albumul',
   railRandom: 'Alegere aleatorie',
   railHighlyRated: 'Foarte apreciate',
   browseTitle: 'Caută toate piesele',

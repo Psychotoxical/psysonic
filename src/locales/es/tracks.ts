@@ -5,6 +5,7 @@ export const tracks = {
   heroReroll: 'Elegir otra',
   playSong: 'Reproducir',
   enqueueSong: 'Añadir a la cola',
+  toAlbum: 'Ver álbum',
   railRandom: 'Selección aleatoria',
   railHighlyRated: 'Mejor valoradas',
   browseTitle: 'Explorar todas las canciones',

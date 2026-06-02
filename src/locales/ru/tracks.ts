@@ -5,6 +5,7 @@ export const tracks = {
   heroReroll: 'Выбрать другой',
   playSong: 'Воспроизвести',
   enqueueSong: 'В очередь',
+  toAlbum: 'К альбому',
   railRandom: 'Случайная подборка',
   railHighlyRated: 'Высоко оценённые',
   browseTitle: 'Просмотреть все треки',
