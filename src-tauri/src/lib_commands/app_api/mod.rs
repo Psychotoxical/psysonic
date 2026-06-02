@@ -16,8 +16,8 @@ pub(crate) use cli_bridge::{
     cli_publish_server_list,
 };
 pub(crate) use core::{
-    exit_app, export_runtime_logs, frontend_debug_log, greet, set_logging_mode,
-    set_subsonic_wire_user_agent,
+    exit_app, export_runtime_logs, frontend_debug_log, get_logging_mode, greet, set_logging_mode,
+    set_subsonic_wire_user_agent, tail_runtime_logs,
 };
 pub(crate) use perf::performance_cpu_snapshot;
 pub(crate) use platform::{

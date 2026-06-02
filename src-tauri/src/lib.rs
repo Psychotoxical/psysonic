@@ -612,6 +612,8 @@ pub fn run() {
             linux_wayland_text_render_settings_available,
             set_linux_wayland_text_render_profile,
             set_logging_mode,
+            get_logging_mode,
+            tail_runtime_logs,
             export_runtime_logs,
             frontend_debug_log,
             performance_cpu_snapshot,

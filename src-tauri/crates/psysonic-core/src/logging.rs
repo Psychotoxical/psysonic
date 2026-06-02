@@ -8,7 +8,7 @@
 use std::collections::VecDeque;
 use std::io::Write;
 use std::sync::{Mutex, OnceLock};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -21,8 +21,31 @@ pub enum LoggingMode {
 static LOGGING_MODE: AtomicU8 = AtomicU8::new(LoggingMode::Normal as u8);
 const LOG_BUFFER_MAX_LINES: usize = 20_000;
 
-fn log_buffer() -> &'static Mutex<VecDeque<String>> {
-    static LOG_BUFFER: OnceLock<Mutex<VecDeque<String>>> = OnceLock::new();
+/// Monotonic sequence assigned to each appended line; lets the UI tail
+/// incrementally (request only lines newer than the last seq it has seen).
+static LOG_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// A single buffered log line plus its monotonic sequence number.
+#[derive(Clone, Debug)]
+pub struct LogLine {
+    pub seq: u64,
+    pub text: String,
+}
+
+/// Result of an incremental tail request.
+#[derive(Clone, Debug, Default)]
+pub struct LogTail {
+    pub lines: Vec<LogLine>,
+    /// Sequence to pass back on the next request (highest seq known, even if no
+    /// new lines were returned).
+    pub last_seq: u64,
+    /// True when the caller's `after_seq` predates the retained window, i.e. some
+    /// lines were dropped from the ring buffer before they could be delivered.
+    pub dropped: bool,
+}
+
+fn log_buffer() -> &'static Mutex<VecDeque<LogLine>> {
+    static LOG_BUFFER: OnceLock<Mutex<VecDeque<LogLine>>> = OnceLock::new();
     LOG_BUFFER.get_or_init(|| Mutex::new(VecDeque::with_capacity(LOG_BUFFER_MAX_LINES)))
 }
 
@@ -52,6 +75,15 @@ pub fn set_logging_mode_from_str(mode: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Current logging mode as a stable lowercase string for the UI.
+pub fn current_mode_str() -> &'static str {
+    match current_mode() {
+        LoggingMode::Off => "off",
+        LoggingMode::Normal => "normal",
+        LoggingMode::Debug => "debug",
+    }
+}
+
 fn current_mode() -> LoggingMode {
     match LOGGING_MODE.load(Ordering::Acquire) {
         0 => LoggingMode::Off,
@@ -69,12 +101,14 @@ pub fn should_log_debug() -> bool {
 }
 
 pub fn append_log_line(line: String) {
-    let mut buf = log_buffer().lock().unwrap();
-    if buf.len() >= LOG_BUFFER_MAX_LINES {
-        buf.pop_front();
+    let seq = LOG_SEQ.fetch_add(1, Ordering::Relaxed) + 1;
+    {
+        let mut buf = log_buffer().lock().unwrap();
+        if buf.len() >= LOG_BUFFER_MAX_LINES {
+            buf.pop_front();
+        }
+        buf.push_back(LogLine { seq, text: line.clone() });
     }
-    buf.push_back(line.clone());
-    drop(buf);
     let path = cli_log_channel_path();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -84,13 +118,41 @@ pub fn append_log_line(line: String) {
     }
 }
 
+/// Return retained log lines with `seq > after_seq`, capped to `max` (most
+/// recent kept). Pass `after_seq = None` to fetch the latest `max` lines.
+pub fn tail_logs(after_seq: Option<u64>, max: usize) -> LogTail {
+    let max = max.clamp(1, LOG_BUFFER_MAX_LINES);
+    let buf = log_buffer().lock().unwrap();
+    let last_seq = buf.back().map(|l| l.seq).unwrap_or(0);
+    let earliest_seq = buf.front().map(|l| l.seq).unwrap_or(0);
+
+    let after = after_seq.unwrap_or(0);
+    // A gap occurred if the caller already saw `after` lines but the buffer no
+    // longer holds the line right after it (it scrolled out of the window).
+    let dropped = after_seq.is_some()
+        && after > 0
+        && earliest_seq > 0
+        && after + 1 < earliest_seq;
+
+    let mut lines: Vec<LogLine> = buf
+        .iter()
+        .filter(|l| l.seq > after)
+        .cloned()
+        .collect();
+    if lines.len() > max {
+        lines.drain(0..lines.len() - max);
+    }
+
+    LogTail { lines, last_seq, dropped }
+}
+
 pub fn export_logs_to_file(path: &str) -> Result<usize, String> {
     let snapshot = {
         let buf = log_buffer().lock().unwrap();
         if buf.is_empty() {
             String::new()
         } else {
-            let mut s = buf.iter().cloned().collect::<Vec<_>>().join("\n");
+            let mut s = buf.iter().map(|l| l.text.clone()).collect::<Vec<_>>().join("\n");
             s.push('\n');
             s
         }

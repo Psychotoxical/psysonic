@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Activity, SlidersHorizontal, X } from 'lucide-react';
+import { Activity, ScrollText, SlidersHorizontal, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import SidebarPerfProbeMonitorTab from './perfProbe/SidebarPerfProbeMonitorTab';
 import SidebarPerfProbeTogglesTab from './perfProbe/SidebarPerfProbeTogglesTab';
+import SidebarPerfProbeLogsTab from './perfProbe/SidebarPerfProbeLogsTab';
 import { resetPerfProbeFlags, type PerfProbeFlags } from '../../utils/perf/perfFlags';
 import { clearPerfLiveOverlayPins } from '../../utils/perf/perfOverlayPins';
 import { resetPerfOverlayAppearance } from '../../utils/perf/perfOverlayAppearance';
 import { resetPerfOverlayMode } from '../../utils/perf/perfOverlayMode';
 
-type TabId = 'monitor' | 'toggles';
+type TabId = 'monitor' | 'toggles' | 'logs';
 
 interface Props {
   open: boolean;
@@ -88,12 +89,21 @@ export default function SidebarPerfProbeModal({
             <SlidersHorizontal size={15} />
             Toggles
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'logs'}
+            className={`sidebar-perf-modal__tab${tab === 'logs' ? ' sidebar-perf-modal__tab--active' : ''}`}
+            onClick={() => setTab('logs')}
+          >
+            <ScrollText size={15} />
+            Logs
+          </button>
         </div>
 
         <div className="sidebar-perf-modal__body">
-          {tab === 'monitor' ? (
-            <SidebarPerfProbeMonitorTab />
-          ) : (
+          {tab === 'monitor' && <SidebarPerfProbeMonitorTab />}
+          {tab === 'toggles' && (
             <SidebarPerfProbeTogglesTab
               perfFlags={perfFlags}
               hotCacheEnabled={hotCacheEnabled}
@@ -104,6 +114,7 @@ export default function SidebarPerfProbeModal({
               setLoggingMode={setLoggingMode}
             />
           )}
+          {tab === 'logs' && <SidebarPerfProbeLogsTab />}
         </div>
 
         <div className="sidebar-perf-modal__actions">

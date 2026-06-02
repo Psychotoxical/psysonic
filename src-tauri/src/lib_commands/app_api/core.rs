@@ -25,8 +25,45 @@ pub(crate) fn set_logging_mode(mode: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub(crate) fn get_logging_mode() -> String {
+    crate::logging::current_mode_str().to_string()
+}
+
+#[tauri::command]
 pub(crate) fn export_runtime_logs(path: String) -> Result<usize, String> {
     crate::logging::export_logs_to_file(&path)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LogLineDto {
+    pub seq: u64,
+    pub text: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LogTailDto {
+    pub lines: Vec<LogLineDto>,
+    pub last_seq: u64,
+    pub dropped: bool,
+}
+
+/// Incremental tail of the in-memory runtime log buffer for the Performance
+/// Probe Logs tab. `after_seq` is the highest seq the UI already has (omit for
+/// the initial fetch of the most recent `max` lines).
+#[tauri::command]
+pub(crate) fn tail_runtime_logs(after_seq: Option<u64>, max: Option<usize>) -> LogTailDto {
+    let tail = crate::logging::tail_logs(after_seq, max.unwrap_or(2000));
+    LogTailDto {
+        lines: tail
+            .lines
+            .into_iter()
+            .map(|l| LogLineDto { seq: l.seq, text: l.text })
+            .collect(),
+        last_seq: tail.last_seq,
+        dropped: tail.dropped,
+    }
 }
 
 #[tauri::command]

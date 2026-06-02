@@ -138,6 +138,120 @@
   padding-right: 2px;
 }
 
+.perf-logs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 8px;
+}
+
+.perf-logs__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.perf-logs__control {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.perf-logs__control-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.perf-logs__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.perf-logs__btn:hover {
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+}
+
+.perf-logs__btn[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
+}
+
+.perf-logs__filter {
+  width: 100%;
+  padding: 6px 9px;
+  font-size: 12px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.2));
+  color: var(--text-primary);
+}
+
+.perf-logs__view {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.perf-logs__line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+
+.perf-logs__line--marker {
+  color: var(--accent);
+  opacity: 0.8;
+  text-align: center;
+  padding: 2px 0;
+}
+
+.perf-logs__empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+}
+
+.perf-logs__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.perf-logs__jump {
+  padding: 3px 9px;
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.perf-logs__jump:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
 .perf-monitor-empty {
   display: flex;
   flex-direction: column;
