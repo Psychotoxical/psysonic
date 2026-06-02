@@ -710,6 +710,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On a dual-address server, library cover backfill was configured once with a snapshot of the connect URL and never followed the smart LAN↔public switch. Starting already off the LAN — or moving off it mid-session — (internet up, playback already on the public address) left backfill hammering the now-unreachable local address and flooding the log with `error sending request` failures.
 * The backfill worklist no longer carries a URL: each cover fetch now reads the current reachable address live, so a LAN↔public flip is honoured even by the pass already in flight (its remaining covers download against the new endpoint). The connect cache is observable and pushes the resolved URL to the native worker on every flip; a real change clears the stale `.fetch-failed` backoff and runs a forced pass so the handful of covers attempted against the old address retry on the reachable one. This also covers the boot case where the initial pass starts on the primary URL before the first reachability probe resolves. On-demand UI / playback covers already followed the switch.
 
+### UI polish — focus rings, search fields, column menus, settings
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#954](https://github.com/Psychotoxical/psysonic/pull/954)**
+
+* A pass of UI/CSS fixes: keyboard focus rings now sit inside the focused element, so they're no longer clipped at the edge of cards, rails, the player bar, queue tabs or search fields; the page, Help and Settings search fields share one consistent shape and focus highlight; the column-visibility dropdown on track tables no longer gets cut off on short lists (e.g. a single favorited song); and the Theme settings list rounds its corners to match its section.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
