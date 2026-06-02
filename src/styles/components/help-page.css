@@ -77,6 +77,10 @@
 .theme-accordion {
   display: flex;
   flex-direction: column;
+  /* Round the inner box so the first header / last content corners continue the
+     parent card's rounding instead of running square into it. */
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .theme-accordion-item {
