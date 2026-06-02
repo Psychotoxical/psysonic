@@ -33,21 +33,39 @@ export function resolveSongFetchCoverArtId(song: CoverArtResolvableSong): string
   return undefined;
 }
 
-/** True when 2+ discs use different cover art ids. */
+/**
+ * True only for genuine per-disc artwork: a multi-disc release where each disc
+ * has ONE consistent cover and those covers differ between discs (e.g. a box
+ * set). It must NOT be tripped by per-song cover ids — Navidrome (and other
+ * OpenSubsonic servers) give every track its own `mf-<id>` coverArt, so a disc
+ * whose tracks carry many different ids is per-song art, not per-disc art, and
+ * treating it as distinct would warm one cover per track instead of per album.
+ *
+ * Mirrors `album_has_distinct_disc_covers` in `psysonic-library/cover_resolve.rs`.
+ */
 export function albumHasDistinctDiscCovers(
   songs: ReadonlyArray<Pick<SubsonicSong, 'discNumber' | 'coverArt' | 'id' | 'albumId'>>,
 ): boolean {
-  const artByDisc = new Map<number, string>();
+  const artByDisc = new Map<number, Set<string>>();
   for (const song of songs) {
     const disc = song.discNumber ?? 1;
     const artId = resolveSongFetchCoverArtId(song);
     if (!artId) continue;
-    const prev = artByDisc.get(disc);
-    if (prev !== undefined && prev !== artId) return true;
-    artByDisc.set(disc, artId);
+    let set = artByDisc.get(disc);
+    if (!set) {
+      set = new Set<string>();
+      artByDisc.set(disc, set);
+    }
+    set.add(artId);
   }
   if (artByDisc.size <= 1) return false;
-  return new Set(artByDisc.values()).size > 1;
+  const discCovers = new Set<string>();
+  for (const covers of artByDisc.values()) {
+    // Tracks within a disc disagree → per-song ids, not a shared disc cover.
+    if (covers.size !== 1) return false;
+    for (const cover of covers) discCovers.add(cover);
+  }
+  return discCovers.size > 1;
 }
 
 /** Album entity — one cache slot per album unless `distinctDiscCovers`. */

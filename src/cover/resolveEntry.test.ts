@@ -58,4 +58,25 @@ describe('albumHasDistinctDiscCovers', () => {
       ]),
     ).toBe(true);
   });
+
+  it('false for per-song ids within a single disc (Navidrome)', () => {
+    expect(
+      albumHasDistinctDiscCovers([
+        { id: 't1', albumId: 'al-1', coverArt: 'mf-1', discNumber: 1 },
+        { id: 't2', albumId: 'al-1', coverArt: 'mf-2', discNumber: 1 },
+        { id: 't3', albumId: 'al-1', coverArt: 'mf-3', discNumber: 1 },
+      ]),
+    ).toBe(false);
+  });
+
+  it('false for per-song ids across discs (no shared disc cover)', () => {
+    expect(
+      albumHasDistinctDiscCovers([
+        { id: 't1', albumId: 'al-1', coverArt: 'mf-1', discNumber: 1 },
+        { id: 't2', albumId: 'al-1', coverArt: 'mf-2', discNumber: 1 },
+        { id: 't3', albumId: 'al-1', coverArt: 'mf-3', discNumber: 2 },
+        { id: 't4', albumId: 'al-1', coverArt: 'mf-4', discNumber: 2 },
+      ]),
+    ).toBe(false);
+  });
 });
