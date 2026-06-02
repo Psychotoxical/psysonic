@@ -24,8 +24,27 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+
+/// Cumulative count of covers newly produced by on-demand (UI) ensures — the
+/// source for the Performance Probe "on-demand (ui)" throughput. Library
+/// backfill (`library_bulk`) is excluded; it reports via `cover:library-progress`.
+static UI_ENSURE_PRODUCED: AtomicU64 = AtomicU64::new(0);
+
+/// Snapshot of covers produced by on-demand UI ensures since process start.
+pub fn ui_ensure_produced_total() -> u64 {
+    UI_ENSURE_PRODUCED.load(Ordering::Relaxed)
+}
+
+/// Count one freshly produced on-demand cover. Called from `ensure_inner` on the
+/// produce-success path only (past the early cache-hit gate), so pure cache hits
+/// and library backfill (`library_bulk`) are excluded.
+fn note_ui_cover_produced(args: &CoverCacheEnsureArgs) {
+    if !args.library_bulk {
+        UI_ENSURE_PRODUCED.fetch_add(1, Ordering::Relaxed);
+    }
+}
 use std::time::Duration;
 use tokio::sync::{Mutex, Semaphore};
 use tauri::{AppHandle, Emitter, Manager};
@@ -61,6 +80,8 @@ pub struct CoverPipelineQueueStatsDto {
     pub library_backfill_http_max: u32,
     pub library_backfill_http_active: u32,
     pub library_backfill_pass_running: bool,
+    /// Cumulative covers produced by on-demand (UI) ensures since process start.
+    pub ui_ensured_total: u64,
 }
 
 fn sem_active(sem: &Semaphore, max: u32) -> u32 {
@@ -88,6 +109,7 @@ pub(crate) fn cover_pipeline_queue_stats(
         library_backfill_http_max,
         library_backfill_http_active,
         library_backfill_pass_running,
+        ui_ensured_total: ui_ensure_produced_total(),
     }
 }
 
@@ -337,6 +359,10 @@ impl CoverCacheState {
 
         let out_path = tier_path(&dir, requested);
         if wrote_requested || out_path.is_file() {
+            // Past the early cache-hit gate, so reaching here means this ensure
+            // decoded + (re)encoded a cover. Count on-demand (non-bulk) work for
+            // the Performance Probe "on-demand (ui)" throughput.
+            note_ui_cover_produced(args);
             if !quiet {
                 if let Some(img) = load_image_from_disk(&dir) {
                     spawn_derive_remaining_tiers(

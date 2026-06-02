@@ -1,5 +1,4 @@
 import { coverCacheEnsure } from '../api/coverCache';
-import { recordCoverUiEnsure } from '../utils/perf/coverPerfStore';
 import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverIndexKeyFromRef } from './storageKeys';
@@ -73,11 +72,7 @@ function invokeEnsureForCover(
   if (existing) return existing;
 
   const flight = withEnsureTimeout(
-    coverCacheEnsure(ref, tier, priority).then(r => {
-      // One completed Rust ensure = one unit of UI cover-pipeline throughput.
-      recordCoverUiEnsure();
-      return { hit: r.hit, path: r.path };
-    }),
+    coverCacheEnsure(ref, tier, priority).then(r => ({ hit: r.hit, path: r.path })),
   ).finally(() => {
     if (coverArtInFlight.get(key) === flight) coverArtInFlight.delete(key);
   });

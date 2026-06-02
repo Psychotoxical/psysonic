@@ -3,7 +3,7 @@ import { acquirePerfLivePoll, patchPerfLiveAnalysis } from '../utils/perf/perfLi
 import { setPerfProbeTelemetryActive } from '../utils/perf/perfTelemetry';
 import { useAnalysisPerfLast } from '../utils/perf/analysisPerfStore';
 import { useAnalysisPerfListener } from './useAnalysisPerfListener';
-import { useCoverPerfListener } from './useCoverPerfListener';
+import { useCoverPerfListener, useCoverUiThroughputPoll } from './useCoverPerfListener';
 import {
   getPerfProbeFlags,
   subscribePerfProbeFlags,
@@ -39,6 +39,7 @@ function useNeedCoverTelemetry(perfProbeOpen: boolean, livePins: ReadonlySet<str
       perfProbeOpen
       || getPerfProbeFlags().showCoverPerfOverlay
       || livePins.has('cover:cpm')
+      || livePins.has('cover:cpm:ui')
     ),
     () => perfProbeOpen,
   );
@@ -54,6 +55,7 @@ export function useSidebarPerfProbe(): Result {
 
   useAnalysisPerfListener(needAnalysis);
   useCoverPerfListener(needCover);
+  useCoverUiThroughputPoll(needCover);
 
   useEffect(() => {
     setPerfProbeTelemetryActive(perfProbeOpen);

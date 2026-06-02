@@ -15,6 +15,7 @@ describe('formatCoverPipelineQueueOverlay', () => {
           libraryBackfillHttpMax: 2,
           libraryBackfillHttpActive: 1,
           libraryBackfillPassRunning: true,
+          uiEnsuredTotal: 0,
         },
         ensure: {
           queuedHigh: 2,
@@ -46,6 +47,7 @@ describe('formatCoverPipelineQueueOverlay', () => {
           libraryBackfillHttpMax: 2,
           libraryBackfillHttpActive: 0,
           libraryBackfillPassRunning: false,
+          uiEnsuredTotal: 0,
         },
         ensure: {
           queuedHigh: 0,

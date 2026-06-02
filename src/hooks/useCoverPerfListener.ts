@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { recordCoverProgress } from '../utils/perf/coverPerfStore';
+import { coverGetPipelineQueueStats } from '../api/coverCache';
+import { recordCoverProgress, recordCoverUiTotal } from '../utils/perf/coverPerfStore';
+
+/** How often to sample the backend's cumulative on-demand (UI) ensure count. */
+const UI_POLL_MS = 1000;
 
 type CoverLibraryProgressPayload = {
   serverIndexKey?: string;
@@ -34,6 +38,31 @@ export function useCoverPerfListener(active: boolean): void {
     return () => {
       cancelled = true;
       unlisten?.();
+    };
+  }, [active]);
+}
+
+/**
+ * Poll the backend's cumulative on-demand (UI) ensure total so the cover store
+ * can derive a per-minute rate. Mount once (always-mounted probe hook) to avoid
+ * duplicate polling.
+ */
+export function useCoverUiThroughputPoll(active: boolean): void {
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    const sample = (): void => {
+      void coverGetPipelineQueueStats()
+        .then(stats => {
+          if (!cancelled) recordCoverUiTotal(stats.uiEnsuredTotal);
+        })
+        .catch(() => {});
+    };
+    sample();
+    const timer = window.setInterval(sample, UI_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
     };
   }, [active]);
 }

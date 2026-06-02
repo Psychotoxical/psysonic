@@ -43,6 +43,7 @@ export type CoverPipelineQueueStatsDto = {
   libraryBackfillHttpMax: number;
   libraryBackfillHttpActive: number;
   libraryBackfillPassRunning: boolean;
+  uiEnsuredTotal: number;
 };
 
 let coverAutoDownloadEnabled = true;

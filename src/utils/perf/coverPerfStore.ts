@@ -7,13 +7,20 @@ import { useSyncExternalStore } from 'react';
  *   - **lib**: the native backfill worker emits cumulative `done` (covers
  *     cached) on `cover:library-progress`; we sample it and derive the delta
  *     rate, mirroring analysis tpm.
- *   - **ui**: on-demand cover ensures (grid/now-playing) resolve through the
- *     webview ensure queue; each completed Rust ensure records a timestamp and
- *     we count them per minute.
+ *   - **ui**: on-demand cover ensures (grid/now-playing) are counted natively —
+ *     the backend exposes a cumulative `uiEnsuredTotal` in the pipeline stats;
+ *     we sample it and derive the delta rate, exactly like lib. Sourcing the
+ *     count in Rust avoids the webview ensure-queue dedup/HMR pitfalls that made
+ *     a JS-side counter unreliable.
  */
 export type CoverProgressSample = {
   at: number;
   done: number;
+};
+
+type CoverTotalSample = {
+  at: number;
+  total: number;
 };
 
 type CoverPerfState = {
@@ -21,13 +28,13 @@ type CoverPerfState = {
   done: number;
   total: number;
   pending: number;
-  /** Completion timestamps of on-demand UI cover ensures (rolling window). */
-  uiCompletedAt: number[];
+  /** Cumulative on-demand (UI) ensure totals sampled from the backend (rolling window). */
+  uiSamples: CoverTotalSample[];
 };
 
 const WINDOW_MS = 60_000;
 
-let state: CoverPerfState = { samples: [], done: 0, total: 0, pending: 0, uiCompletedAt: [] };
+let state: CoverPerfState = { samples: [], done: 0, total: 0, pending: 0, uiSamples: [] };
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -39,9 +46,9 @@ function pruneSamples(now: number, samples: readonly CoverProgressSample[]): Cov
   return samples.filter(s => s.at >= cutoff);
 }
 
-function pruneTimestamps(now: number, times: readonly number[]): number[] {
+function pruneTotals(now: number, samples: readonly CoverTotalSample[]): CoverTotalSample[] {
   const cutoff = now - WINDOW_MS;
-  return times.filter(t => t >= cutoff);
+  return samples.filter(s => s.at >= cutoff);
 }
 
 export function recordCoverProgress(payload: {
@@ -68,13 +75,17 @@ export function recordCoverProgress(payload: {
   emit();
 }
 
-/** Record a completed on-demand (UI) cover ensure. */
-export function recordCoverUiEnsure(): void {
+/** Sample the backend's cumulative on-demand (UI) ensure total. */
+export function recordCoverUiTotal(total: number): void {
   const now = Date.now();
-  state = {
-    ...state,
-    uiCompletedAt: [...pruneTimestamps(now, state.uiCompletedAt), now],
-  };
+  const next = Math.max(0, Math.floor(total));
+  let uiSamples = pruneTotals(now, state.uiSamples);
+  // A backwards jump means the process restarted — drop the stale baseline.
+  if (uiSamples.length > 0 && next < uiSamples[uiSamples.length - 1].total) {
+    uiSamples = [];
+  }
+  uiSamples = [...uiSamples, { at: now, total: next }];
+  state = { ...state, uiSamples };
   emit();
 }
 
@@ -90,12 +101,16 @@ export function getCoverCachedPerMinute(now = Date.now()): number {
   return (delta / spanMs) * WINDOW_MS;
 }
 
-/** On-demand UI cover ensures completed per minute over the rolling window. */
+/** On-demand UI covers produced per minute over the rolling window. */
 export function getCoverUiPerMinute(now = Date.now()): number {
-  const times = pruneTimestamps(now, state.uiCompletedAt);
-  if (times.length === 0) return 0;
-  const spanMs = Math.max(1, Math.min(WINDOW_MS, now - times[0]));
-  return (times.length / spanMs) * WINDOW_MS;
+  const samples = pruneTotals(now, state.uiSamples);
+  if (samples.length < 2) return 0;
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  const delta = Math.max(0, last.total - first.total);
+  if (delta === 0) return 0;
+  const spanMs = Math.max(1, Math.min(WINDOW_MS, now - first.at));
+  return (delta / spanMs) * WINDOW_MS;
 }
 
 export function getCoverPerfState(): CoverPerfState {
@@ -113,6 +128,6 @@ export function useCoverPerfState(): CoverPerfState {
 
 /** Test-only reset. */
 export function resetCoverPerfStateForTest(): void {
-  state = { samples: [], done: 0, total: 0, pending: 0, uiCompletedAt: [] };
+  state = { samples: [], done: 0, total: 0, pending: 0, uiSamples: [] };
   emit();
 }

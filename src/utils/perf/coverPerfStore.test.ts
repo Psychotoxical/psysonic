@@ -4,7 +4,7 @@ import {
   getCoverPerfState,
   getCoverUiPerMinute,
   recordCoverProgress,
-  recordCoverUiEnsure,
+  recordCoverUiTotal,
   resetCoverPerfStateForTest,
 } from './coverPerfStore';
 
@@ -51,18 +51,28 @@ describe('coverPerfStore', () => {
     expect(getCoverPerfState().done).toBe(5);
   });
 
-  it('counts UI cover ensures per minute and prunes the window', () => {
+  it('derives UI covers-per-minute from backend total deltas and prunes the window', () => {
     vi.useFakeTimers();
     vi.setSystemTime(4_000_000);
     expect(getCoverUiPerMinute()).toBe(0);
-    recordCoverUiEnsure();
-    vi.advanceTimersByTime(10_000);
-    recordCoverUiEnsure();
-    recordCoverUiEnsure();
-    // 3 completions within ~10s → well above 0; lib series stays untouched.
-    expect(getCoverUiPerMinute()).toBeGreaterThan(0);
+    recordCoverUiTotal(100);
+    // A single sample has no delta yet.
+    expect(getCoverUiPerMinute()).toBe(0);
+    vi.advanceTimersByTime(30_000);
+    recordCoverUiTotal(130);
+    // +30 produced over 30s ≈ 60 cpm; lib series stays untouched.
+    expect(getCoverUiPerMinute()).toBeCloseTo(60, 0);
     expect(getCoverCachedPerMinute()).toBe(0);
     vi.advanceTimersByTime(61_000);
+    expect(getCoverUiPerMinute()).toBe(0);
+  });
+
+  it('resets the UI window on a backwards jump (process restart)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(5_000_000);
+    recordCoverUiTotal(500);
+    vi.advanceTimersByTime(5_000);
+    recordCoverUiTotal(3);
     expect(getCoverUiPerMinute()).toBe(0);
   });
 });
