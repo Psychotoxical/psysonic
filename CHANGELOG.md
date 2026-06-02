@@ -359,6 +359,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Frontend and Rust `coverage` jobs no longer carry `continue-on-error`; listed hot-path files must stay at ≥70% line coverage or the PR fails.
 
+### Cover backfill — live-tunable parallelism and pipeline
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#943](https://github.com/Psychotoxical/psysonic/pull/943)**
+
+* Cover backfill runs through a producer/consumer pipeline (bounded channel + fixed consumer pool) that stays saturated and bails promptly on a switch to **lazy** instead of draining the whole backlog.
+* **Performance Probe** gains a runtime cover-thread control (`library_cover_backfill_set_parallel`) that resizes the HTTP/encode pools live; "Run full pass now" forces a pass and clears fetch-failed backoff.
+* Clearing the active server's cover cache re-arms the idle gate and wakes the worker, and in-pass progress is emitted on a ticker so the offline & cache view keeps counting through the whole scan.
+
 
 
 
@@ -645,7 +653,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Pausing a track and resuming later inflated the listening time in **Statistics → Player stats** — the whole paused span was billed as if the track had been playing.
 * Root cause: the session's tick baseline froze on pause, so the first progress tick after resume measured against the pre-pause timestamp. It now settles the played segment on pause and rebaselines on resume.
 
+### Cover backfill — idle CPU spin and offline & cache menu spikes
 
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#943](https://github.com/Psychotoxical/psysonic/pull/943)**
+
+* **Aggressive** cover backfill could pin a `tokio-runtime-worker` near 100% CPU when effectively idle: it had no "nothing changed, don't rescan" gate. Added a cheap disk-free idle signature (`COUNT(DISTINCT)` covers) with a `sync-idle` cooldown; the gate settles on a completed pass even when some covers are unfetchable (404), so libraries that never reach 100% no longer trigger a wake storm.
+* Worklist is now built from a single DB `GROUP BY` plus one cover-dir snapshot and diffed in memory — no per-row `stat`, no per-batch rescan loop — so increasing parallelism actually saturates the pipeline.
+* **Settings → offline & cache** caused periodic CPU spikes: the section re-walked each server's full cover directory every 15s. The per-server walk is now memoized with a short TTL and reused by the stats/progress commands; the menu recomputes on entry and via progress/cache-cleared events, with a 5-minute safety poll instead of a tight 15s loop.
+* Transient download failures (network / 5xx / 429) retry up to 3× with exponential backoff; permanent 4xx settle without re-scanning.
 
 ## [1.46.0] - 2026-05-18
 
