@@ -173,6 +173,9 @@ export default function CoverCacheStrategySection() {
       await coverCacheClearServer(clearTarget.indexKey);
       clearDiskSrcCacheForServer(clearTarget.indexKey);
       await refreshRow(clearTarget.serverId, clearTarget.indexKey);
+      if (clearTarget.serverId === activeServerId) {
+        wakeLibraryCoverBackfill();
+      }
       showToast(t('settings.coverCacheStrategyClearSuccess'), 4000, 'success');
     } catch {
       showToast(t('settings.coverCacheStrategyClearError'), 5000, 'error');

@@ -52,7 +52,7 @@ export default function PerfCoverThreadsControl() {
     if (running) return;
     setRunning(true);
     void libraryCoverBackfillResetCursor()
-      .then(() => libraryCoverBackfillRunFullPass())
+      .then(() => libraryCoverBackfillRunFullPass(true))
       .catch(() => {})
       .finally(() => setRunning(false));
   };

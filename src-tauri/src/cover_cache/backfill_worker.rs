@@ -2,16 +2,17 @@
 
 use super::{state, CoverCacheEnsureArgs, CoverCacheState};
 use psysonic_library::cover_backfill::{
-    clear_cover_fetch_failures, collect_cover_progress, diff_missing_against_snapshot,
-    fetch_all_catalog_rows, snapshot_cover_disk, LIBRARY_COVER_CANONICAL_TIER,
+    clear_cover_fetch_failures, collect_cover_progress, count_distinct_cover_ids,
+    diff_missing_against_snapshot, fetch_all_catalog_rows, snapshot_cover_disk,
+    LIBRARY_COVER_CANONICAL_TIER,
 };
 use psysonic_library::payload::LibrarySyncProgressPayload;
 use psysonic_library::repos::sync_state::SyncStateRepository;
 use psysonic_library::LibraryRuntime;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tokio::sync::{Mutex, Semaphore};
 
@@ -28,9 +29,20 @@ pub const LIBRARY_BACKFILL_PARALLEL_MAX: usize = 16;
 /// start almost immediately after the one-shot enumeration, large enough to
 /// amortize the per-chunk `spawn_blocking` hop.
 const SCAN_CHUNK_ROWS: usize = 512;
-const PENDING_RESTART_THRESHOLD: i64 = 32;
 const SYNC_WAIT_MS: u64 = 5000;
 const PROGRESS_EVERY_BATCHES: u32 = 8;
+/// Minimum gap between `library:sync-idle`-driven passes. Each such pass runs the
+/// idle-gate signature (a full cover-dir walk + DB count), so a chatty sync (e.g.
+/// periodic delta syncs) must not make that walk fire every few seconds. Manual
+/// runs and strategy-toggle wakes bypass this.
+const SYNC_IDLE_COOLDOWN_MS: u64 = 60_000;
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 #[derive(Clone)]
 pub struct CoverBackfillSession {
@@ -41,17 +53,17 @@ pub struct CoverBackfillSession {
     pub password: String,
 }
 
-/// Catalog snapshot captured when a full pass ends with nothing left pending.
+/// Catalog signature captured when a full pass completes.
 ///
-/// While the live signature still matches, a `library:sync-idle` must NOT
-/// re-trigger a whole-catalog rescan — this mirrors the analysis coordinator's
-/// `completed_total` gate (`library_analysis_backfill/worker.rs`). A real
-/// catalog change (track add/remove shifts `total`) or a cover-cache clear
-/// (drops `done`) changes the signature and re-arms the next pass.
+/// While it still matches, `library:sync-idle` must NOT re-trigger a rescan —
+/// mirrors the analysis coordinator's `completed_total` gate. Deliberately the
+/// **cheap** `COUNT(DISTINCT)` over the catalog only: a server change (track
+/// add/remove shifts `total`) re-arms the next pass, but checking it never
+/// touches the filesystem. A cover-cache clear leaves `total` unchanged, so the
+/// clear commands re-arm the gate explicitly (`rearm_idle_gate`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CoverIdleSignature {
     total: i64,
-    done: i64,
 }
 
 pub struct CoverBackfillWorker {
@@ -68,6 +80,9 @@ pub struct CoverBackfillWorker {
     /// Set when a pass found nothing pending; suppresses idle-driven rescans
     /// until the catalog signature changes. `None` means "re-armed".
     settled: Mutex<Option<CoverIdleSignature>>,
+    /// Epoch-ms of the last `sync-idle`-driven pass, to rate-limit the idle-gate
+    /// disk walk against chatty syncs. 0 = never.
+    last_sync_idle_ms: AtomicU64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -105,11 +120,20 @@ impl CoverBackfillWorker {
             backfill_http: Arc::new(Semaphore::new(LIBRARY_BACKFILL_PARALLEL_DEFAULT)),
             parallel: AtomicUsize::new(LIBRARY_BACKFILL_PARALLEL_DEFAULT),
             settled: Mutex::new(None),
+            last_sync_idle_ms: AtomicU64::new(0),
         }
     }
 
     pub fn set_ui_priority_hold(&self, hold: bool) {
         self.ui_priority_hold.store(hold, Ordering::Relaxed);
+    }
+
+    /// Re-arm the idle gate so the next opportunistic pass runs even though the
+    /// catalog `total` is unchanged — used after a cover-cache clear, which
+    /// drops files the cheap signature cannot see.
+    pub async fn rearm_idle_gate(&self) {
+        *self.settled.lock().await = None;
+        self.last_sync_idle_ms.store(0, Ordering::Relaxed);
     }
 
     /// Current backfill download/encode concurrency.
@@ -248,7 +272,7 @@ async fn ensure_one(
     let _ = CoverCacheState::ensure_inner(&st, &app, &args, Some(http_sem)).await;
 }
 
-async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
+async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: bool) {
     if !worker.enabled.load(Ordering::Relaxed) {
         return;
     }
@@ -261,6 +285,14 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
         Some(r) => r,
         None => return,
     };
+
+    // Opportunistic triggers (wake on track change, sync-idle) skip the whole
+    // scan when a prior pass already settled and nothing changed — otherwise a
+    // library with permanently-unfetchable covers (404s) would re-scan on every
+    // wake forever. The manual "Run full pass now" sets `force` to bypass this.
+    if !force && cover_idle_gate_should_skip(&app, &worker, &session).await {
+        return;
+    }
 
     while !sync_allows_cover_backfill(&runtime.store, &session.library_server_id) {
         if !worker.enabled.load(Ordering::Relaxed) {
@@ -281,6 +313,19 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
 
     worker.reset_cursor().await;
     let http_sem = worker.backfill_http.clone();
+
+    // A forced pass is an explicit user retry: drop the `.fetch-failed` backoff
+    // markers and the settled gate so previously-404'd covers are attempted
+    // again. Opportunistic passes leave the markers in place (30-min TTL).
+    if force {
+        *worker.settled.lock().await = None;
+        let root2 = root.clone();
+        let index_key2 = session.server_index_key.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            clear_cover_fetch_failures(&root2, &index_key2)
+        })
+        .await;
+    }
 
     // Two snapshots, taken ONCE per pass: the DB catalog (single GROUP BY) and
     // the on-disk cover bucket (one directory walk). The delta = catalog minus
@@ -440,19 +485,13 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
         .await
         {
             Ok((done, total, pending)) => {
-                if pending > PENDING_RESTART_THRESHOLD {
-                    let root3 = root.clone();
-                    let index_key3 = session.server_index_key.clone();
-                    let _ = tauri::async_runtime::spawn_blocking(move || {
-                        clear_cover_fetch_failures(&root3, &index_key3)
-                    })
-                    .await;
-                }
-                *worker.settled.lock().await = if pending <= 0 {
-                    Some(CoverIdleSignature { total, done })
-                } else {
-                    None
-                };
+                // Settle on a full scan regardless of `pending`: whatever is left
+                // is unfetchable for now (404s with a fresh `.fetch-failed`
+                // marker). The cheap `total` signature re-triggers a pass only if
+                // the server catalog changes; a cache clear re-arms via the clear
+                // command. This stops the wake storm on libraries whose covers
+                // can never reach 100%.
+                *worker.settled.lock().await = Some(CoverIdleSignature { total });
                 emit_library_progress(&app, &session, done, total, pending, &root).await;
             }
             Err(_) => {
@@ -463,7 +502,9 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>) {
 }
 
 /// Start one full-catalog pass on the Tokio runtime (survives inactive webview).
-pub async fn try_schedule_full_pass(app: &AppHandle) -> bool {
+/// `force` bypasses the idle gate and clears fetch-failed backoff (explicit user
+/// retry); opportunistic callers (wake / sync-idle) pass `false`.
+pub async fn try_schedule_full_pass(app: &AppHandle, force: bool) -> bool {
     let worker = match app.try_state::<Arc<CoverBackfillWorker>>() {
         Some(w) => w.inner().clone(),
         None => return false,
@@ -481,35 +522,26 @@ pub async fn try_schedule_full_pass(app: &AppHandle) -> bool {
 
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        run_full_pass(app, worker.clone()).await;
+        run_full_pass(app, worker.clone(), force).await;
         worker.pass_running.store(false, Ordering::SeqCst);
     });
     true
 }
 
-/// Cheap catalog signature for the idle gate: one `COUNT(DISTINCT)` over the
-/// cover catalog plus the on-disk cached count — never the full per-entity
-/// disk walk that a real pass performs.
+/// Cheap catalog signature for the idle gate: a single `COUNT(DISTINCT)` over
+/// the cover catalog. No filesystem access — checking "did anything change on
+/// the server?" must never walk the on-disk cover cache.
 async fn current_cover_signature(
     app: &AppHandle,
     session: &CoverBackfillSession,
 ) -> Option<CoverIdleSignature> {
     let runtime = app.try_state::<LibraryRuntime>()?;
-    let st = state(app).ok()?;
-    let root = {
-        let guard = st.lock().await;
-        guard.root.clone()
-    };
     let store = runtime.store.clone();
     let lib_id = session.library_server_id.clone();
-    let index_key = session.server_index_key.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let cached = count_cached_cover_ids(&root, &index_key);
-        let p = collect_cover_progress(&store, &lib_id, &root, &index_key, cached).ok()?;
-        Some(CoverIdleSignature {
-            total: p.total_distinct,
-            done: p.done,
-        })
+        count_distinct_cover_ids(&store, &lib_id)
+            .ok()
+            .map(|total| CoverIdleSignature { total })
     })
     .await
     .ok()
@@ -548,12 +580,18 @@ fn on_sync_idle(app: &AppHandle, payload: SyncIdlePayload) {
         if !session_matches_server(&session, &payload.server_id) {
             return;
         }
-        // Skip the whole-catalog rescan when a prior pass already settled and
-        // nothing in the catalog changed since (mirrors the analysis gate).
-        if cover_idle_gate_should_skip(&app, &worker, &session).await {
+        // Rate-limit sync-idle passes: each runs the idle-gate disk walk, so a
+        // chatty sync must not trigger it every few seconds. The gate inside the
+        // pass still skips the actual rescan when nothing changed.
+        let now = now_ms();
+        let last = worker.last_sync_idle_ms.load(Ordering::Relaxed);
+        if last != 0 && now.saturating_sub(last) < SYNC_IDLE_COOLDOWN_MS {
             return;
         }
-        let _ = try_schedule_full_pass(&app).await;
+        worker.last_sync_idle_ms.store(now, Ordering::Relaxed);
+        // Opportunistic: the gate (checked inside the pass) skips the rescan when
+        // a prior pass settled and nothing changed (mirrors the analysis gate).
+        let _ = try_schedule_full_pass(&app, false).await;
     });
 }
 
@@ -570,7 +608,7 @@ pub fn setup_library_sync_idle_listener(app: &AppHandle) {
 
 /// Legacy single-step API (optional diagnostics).
 pub async fn pulse_backfill(app: &AppHandle, _worker: &Arc<CoverBackfillWorker>) -> CoverBackfillPulseDto {
-    if try_schedule_full_pass(app).await {
+    if try_schedule_full_pass(app, false).await {
         return CoverBackfillPulseDto {
             scheduled: 0,
             exhausted: false,

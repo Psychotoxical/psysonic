@@ -544,9 +544,12 @@ pub fn init_cover_cache(app: &AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn library_cover_backfill_run_full_pass(app: AppHandle) -> Result<CoverBackfillRunDto, String> {
+pub async fn library_cover_backfill_run_full_pass(
+    app: AppHandle,
+    force: Option<bool>,
+) -> Result<CoverBackfillRunDto, String> {
     Ok(CoverBackfillRunDto {
-        started: try_schedule_full_pass(&app).await,
+        started: try_schedule_full_pass(&app, force.unwrap_or(false)).await,
     })
 }
 
@@ -626,7 +629,7 @@ pub async fn library_cover_backfill_configure(
         .set_session(enabled && session.is_some(), session)
         .await;
     if enabled {
-        let _ = try_schedule_full_pass(&app).await;
+        let _ = try_schedule_full_pass(&app, false).await;
     }
     Ok(())
 }
@@ -792,6 +795,11 @@ pub async fn cover_cache_clear_server(
         std::fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
     }
     drop(guard);
+    // Clearing drops files the cheap idle-gate signature can't see, so re-arm
+    // the backfill worker — otherwise the next sync-idle would skip the rescan.
+    if let Some(worker) = app.try_state::<Arc<CoverBackfillWorker>>() {
+        worker.rearm_idle_gate().await;
+    }
     let _ = app.emit(
         "cover:cache-cleared",
         serde_json::json!({ "serverIndexKey": server_index_key }),
@@ -954,6 +962,9 @@ pub async fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
         }
     }
     drop(guard);
+    if let Some(worker) = app.try_state::<Arc<CoverBackfillWorker>>() {
+        worker.rearm_idle_gate().await;
+    }
     let _ = app.emit("cover:cache-cleared", serde_json::json!({}));
     Ok(())
 }

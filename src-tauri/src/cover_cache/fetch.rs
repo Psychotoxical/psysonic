@@ -1,8 +1,15 @@
 use reqwest::Client;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use url::Url;
 
 const SUBSONIC_CLIENT: &str = "Psysonic";
+
+/// Total cover fetch attempts (1 initial + retries). A busy server can answer
+/// covers with 5xx/429/timeouts under our own backfill load, so a couple of
+/// backed-off retries recover those without a permanent `.fetch-failed` marker.
+const COVER_FETCH_ATTEMPTS: usize = 3;
+/// Base backoff between attempts (grows linearly: 1×, 2×, …).
+const COVER_FETCH_BACKOFF_MS: u64 = 400;
 
 fn random_salt() -> String {
     let nanos = SystemTime::now()
@@ -46,16 +53,54 @@ pub fn build_cover_art_url(
     }
 }
 
-pub async fn fetch_cover_bytes(client: &Client, url: &str) -> Result<Vec<u8>, String> {
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(format!("cover HTTP {}", resp.status()));
+/// Outcome of a single fetch attempt: transient errors are worth retrying,
+/// permanent ones (a real 4xx like 404 — the cover simply does not exist) are
+/// not, so we never hammer the server for genuinely-missing art.
+enum FetchAttempt {
+    Ok(Vec<u8>),
+    Transient(String),
+    Permanent(String),
+}
+
+async fn fetch_cover_once(client: &Client, url: &str) -> FetchAttempt {
+    let resp = match client.get(url).send().await {
+        Ok(r) => r,
+        // Connection reset / timeout / DNS — transient under server load.
+        Err(e) => return FetchAttempt::Transient(e.to_string()),
+    };
+    let status = resp.status();
+    if status.is_success() {
+        return match resp.bytes().await {
+            Ok(b) => FetchAttempt::Ok(b.to_vec()),
+            Err(e) => FetchAttempt::Transient(e.to_string()),
+        };
     }
-    resp.bytes().await.map(|b| b.to_vec()).map_err(|e| e.to_string())
+    let msg = format!("cover HTTP {status}");
+    if status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        FetchAttempt::Transient(msg)
+    } else {
+        FetchAttempt::Permanent(msg)
+    }
+}
+
+pub async fn fetch_cover_bytes(client: &Client, url: &str) -> Result<Vec<u8>, String> {
+    let mut last_err = String::from("cover fetch failed");
+    for attempt in 0..COVER_FETCH_ATTEMPTS {
+        match fetch_cover_once(client, url).await {
+            FetchAttempt::Ok(bytes) => return Ok(bytes),
+            FetchAttempt::Permanent(e) => return Err(e),
+            FetchAttempt::Transient(e) => {
+                last_err = e;
+                if attempt + 1 < COVER_FETCH_ATTEMPTS {
+                    tokio::time::sleep(Duration::from_millis(
+                        COVER_FETCH_BACKOFF_MS * (attempt as u64 + 1),
+                    ))
+                    .await;
+                }
+            }
+        }
+    }
+    Err(last_err)
 }
 
 #[cfg(test)]

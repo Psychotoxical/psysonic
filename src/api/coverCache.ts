@@ -223,9 +223,15 @@ export async function libraryCoverBackfillPulse(): Promise<CoverBackfillPulseRes
   return invoke<CoverBackfillPulseResult>('library_cover_backfill_pulse');
 }
 
-/** Start one full-catalog pass on the native runtime (works when the window is inactive). */
-export async function libraryCoverBackfillRunFullPass(): Promise<{ started: boolean }> {
-  return invoke<{ started: boolean }>('library_cover_backfill_run_full_pass');
+/**
+ * Start one full-catalog pass on the native runtime (works when the window is inactive).
+ * `force` bypasses the idle gate and clears the fetch-failed backoff so previously
+ * unfetchable (404) covers are retried — used by the manual "Run full pass now".
+ */
+export async function libraryCoverBackfillRunFullPass(
+  force = false,
+): Promise<{ started: boolean }> {
+  return invoke<{ started: boolean }>('library_cover_backfill_run_full_pass', { force });
 }
 
 export async function libraryCoverBackfillResetCursor(): Promise<void> {
