@@ -101,7 +101,7 @@ export default function SidebarPerfProbeModal({
           </button>
         </div>
 
-        <div className="sidebar-perf-modal__body">
+        <div className={`sidebar-perf-modal__body${tab === 'logs' ? ' sidebar-perf-modal__body--logs' : ''}`}>
           {tab === 'monitor' && <SidebarPerfProbeMonitorTab />}
           {tab === 'toggles' && (
             <SidebarPerfProbeTogglesTab

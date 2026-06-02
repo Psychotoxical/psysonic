@@ -138,10 +138,19 @@
   padding-right: 2px;
 }
 
+/* Logs tab manages its own internal scroll: the body becomes a flex column with
+   hidden overflow so only the log view scrolls, not the controls/filter. */
+.sidebar-perf-modal__body--logs {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-right: 0;
+}
+
 .perf-logs {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1 1 auto;
   min-height: 0;
   gap: 8px;
 }
@@ -151,6 +160,7 @@
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
+  flex: 0 0 auto;
 }
 
 .perf-logs__control {
@@ -188,6 +198,7 @@
 
 .perf-logs__filter {
   width: 100%;
+  flex: 0 0 auto;
   padding: 6px 9px;
   font-size: 12px;
   border-radius: 7px;
@@ -235,6 +246,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex: 0 0 auto;
   font-size: 11px;
   color: var(--text-muted);
 }
