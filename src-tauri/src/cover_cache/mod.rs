@@ -485,6 +485,42 @@ pub(crate) fn dir_usage_for_server(root: &Path, server_index_key: &str) -> (u64,
     server_cover_disk_usage(&cover_server_dir(root, server_index_key))
 }
 
+/// TTL-memoized per-server cover dir walk. The "offline & cache" settings menu
+/// polls byte usage + cached count every few seconds for every server; on a full
+/// cache that is several full directory walks per tick. Reuse a recent walk so we
+/// don't re-stat thousands of files when nothing has changed. Active backfill still
+/// pushes live numbers through the `cover:library-progress` event, so a short TTL
+/// only de-dupes the idle polling, it does not hide real progress.
+const DIR_USAGE_CACHE_TTL: Duration = Duration::from_secs(10);
+
+type DirUsageCache = std::sync::Mutex<HashMap<String, (std::time::Instant, (u64, u64))>>;
+
+fn dir_usage_cache() -> &'static DirUsageCache {
+    static CACHE: std::sync::OnceLock<DirUsageCache> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+pub(crate) fn cached_dir_usage_for_server(root: &Path, server_index_key: &str) -> (u64, u64) {
+    if let Ok(map) = dir_usage_cache().lock() {
+        if let Some((at, value)) = map.get(server_index_key) {
+            if at.elapsed() < DIR_USAGE_CACHE_TTL {
+                return *value;
+            }
+        }
+    }
+    let value = dir_usage_for_server(root, server_index_key);
+    if let Ok(mut map) = dir_usage_cache().lock() {
+        map.insert(server_index_key.to_string(), (std::time::Instant::now(), value));
+    }
+    value
+}
+
+pub(crate) fn invalidate_dir_usage_cache(server_index_key: &str) {
+    if let Ok(mut map) = dir_usage_cache().lock() {
+        map.remove(server_index_key);
+    }
+}
+
 pub(crate) fn dir_usage_at_root(root: &Path) -> (u64, u64) {
     cover_root_disk_usage(root)
 }
@@ -759,7 +795,7 @@ pub async fn cover_cache_stats_server(
 ) -> Result<CoverCacheStatsDto, String> {
     let st = state(&app)?;
     let guard = st.lock().await;
-    let (bytes, entry_count) = dir_usage_for_server(&guard.root, &server_index_key);
+    let (bytes, entry_count) = cached_dir_usage_for_server(&guard.root, &server_index_key);
     let (pressure, auto_download_enabled) = guard.pressure_from_bytes(bytes);
     Ok(CoverCacheStatsDto {
         bytes,
@@ -794,6 +830,7 @@ pub async fn cover_cache_clear_server(
     if path.is_dir() {
         std::fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
     }
+    invalidate_dir_usage_cache(&server_index_key);
     drop(guard);
     // Clearing drops files the cheap idle-gate signature can't see, so re-arm
     // the backfill worker — otherwise the next sync-idle would skip the rescan.
@@ -962,6 +999,9 @@ pub async fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
         }
     }
     drop(guard);
+    if let Ok(mut map) = dir_usage_cache().lock() {
+        map.clear();
+    }
     if let Some(worker) = app.try_state::<Arc<CoverBackfillWorker>>() {
         worker.rearm_idle_gate().await;
     }
@@ -1017,7 +1057,7 @@ pub async fn library_cover_progress(
     let index_key = server_index_key.clone();
     let store = runtime.store.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let cached_dirs = count_cached_cover_ids(&root, &index_key);
+        let cached_dirs = cached_dir_usage_for_server(&root, &index_key).1 as i64;
         collect_cover_progress(
             &store,
             &library_server_id,
