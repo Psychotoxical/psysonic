@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { clearPerfLiveHistory, syncPerfLiveHistoryFromPoll } from './perfLiveHistory';
 import { getAnalysisTracksPerMinute } from './analysisPerfStore';
+import { getCoverCachedPerMinute, getCoverPerfState } from './coverPerfStore';
 import { perfLiveCpuSnapshotSupported } from './perfLiveCpuSnapshot';
 import { getPerfLiveOverlayPins } from './perfOverlayPins';
 import {
@@ -43,10 +44,18 @@ export type PerfAnalysisDiag = {
   lastBpmMs: number | null;
 };
 
+export type PerfCoverDiag = {
+  cachedPerMinute: number;
+  done: number;
+  total: number;
+  pending: number;
+};
+
 export type PerfLiveSnapshot = {
   cpu: PerfLiveCpu | null;
   diagRates: PerfDiagRates | null;
   analysis: PerfAnalysisDiag | null;
+  cover: PerfCoverDiag | null;
   collecting: boolean;
   /** Wall time of the last displayed sample change (memory / diag / rates). */
   updatedAt: number;
@@ -68,6 +77,7 @@ const EMPTY: PerfLiveSnapshot = {
   cpu: null,
   diagRates: null,
   analysis: null,
+  cover: null,
   collecting: false,
   updatedAt: 0,
   sampleAt: 0,
@@ -119,6 +129,14 @@ function analysisEqual(a: PerfAnalysisDiag | null, b: PerfAnalysisDiag | null): 
     && a.lastBpmMs === b.lastBpmMs;
 }
 
+function coverEqual(a: PerfCoverDiag | null, b: PerfCoverDiag | null): boolean {
+  if (a == null || b == null) return a === b;
+  return a.cachedPerMinute === b.cachedPerMinute
+    && a.done === b.done
+    && a.total === b.total
+    && a.pending === b.pending;
+}
+
 function cpuEqual(a: PerfLiveCpu | null, b: PerfLiveCpu | null): boolean {
   if (a == null || b == null) return a === b;
   return a.app === b.app
@@ -132,7 +150,8 @@ function publishLiveSnapshot(next: PerfLiveSnapshot): void {
   const cpuChanged = !cpuEqual(snapshot.cpu, next.cpu);
   const diagChanged = !diagRatesEqual(snapshot.diagRates, next.diagRates);
   const analysisChanged = !analysisEqual(snapshot.analysis, next.analysis);
-  if (!cpuChanged && !diagChanged && !analysisChanged && next.updatedAt === snapshot.updatedAt) {
+  const coverChanged = !coverEqual(snapshot.cover, next.cover);
+  if (!cpuChanged && !diagChanged && !analysisChanged && !coverChanged && next.updatedAt === snapshot.updatedAt) {
     return;
   }
   if (next.sampleAt > snapshot.sampleAt && next.cpu?.supported) {
@@ -158,6 +177,16 @@ function buildAnalysisDiag(): PerfAnalysisDiag {
     lastFetchMs: snapshot.analysis?.lastFetchMs ?? null,
     lastSeedMs: snapshot.analysis?.lastSeedMs ?? null,
     lastBpmMs: snapshot.analysis?.lastBpmMs ?? null,
+  };
+}
+
+function buildCoverDiag(): PerfCoverDiag {
+  const cover = getCoverPerfState();
+  return {
+    cachedPerMinute: getCoverCachedPerMinute(),
+    done: cover.done,
+    total: cover.total,
+    pending: cover.pending,
   };
 }
 
@@ -191,6 +220,7 @@ function applyJsMetricsSnapshot(now: number): void {
     cpu: snapshot.cpu ?? UNSUPPORTED_CPU,
     diagRates,
     analysis: buildAnalysisDiag(),
+    cover: buildCoverDiag(),
     collecting: false,
     updatedAt: now,
     sampleAt: snapshot.sampleAt,
@@ -221,6 +251,7 @@ async function pollOnce(): Promise<void> {
         cpu: UNSUPPORTED_CPU,
         diagRates,
         analysis: buildAnalysisDiag(),
+    cover: buildCoverDiag(),
         collecting: false,
         updatedAt: completedAt,
         sampleAt: snapshot.sampleAt,
@@ -295,6 +326,7 @@ async function pollOnce(): Promise<void> {
       },
       diagRates,
       analysis: buildAnalysisDiag(),
+    cover: buildCoverDiag(),
       collecting: false,
       updatedAt: nextUpdatedAt,
       sampleAt: nextSampleAt,

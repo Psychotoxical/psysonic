@@ -16,7 +16,8 @@ export type PerfLiveOverlayPinId =
   | 'rate:waveform'
   | 'rate:home'
   | 'analysis:tpm'
-  | 'analysis:last';
+  | 'analysis:last'
+  | 'cover:cpm';
 
 const PIPELINE_PIN_TO_FLAG = {
   'pipeline:fps': 'showFpsOverlay',
@@ -129,7 +130,7 @@ export function hasAnyPerfOverlayVisible(): boolean {
 
 function livePinsNeedJsPoll(pins: ReadonlySet<string>): boolean {
   for (const id of pins) {
-    if (id.startsWith('rate:') || id.startsWith('analysis:')) return true;
+    if (id.startsWith('rate:') || id.startsWith('analysis:') || id.startsWith('cover:')) return true;
   }
   return false;
 }

@@ -31,6 +31,8 @@ import {
   usePerfOverlayMode,
 } from '../utils/perf/perfOverlayMode';
 import { useAnalysisPerfListener } from '../hooks/useAnalysisPerfListener';
+import { useCoverPerfListener } from '../hooks/useCoverPerfListener';
+import { getCoverCachedPerMinute } from '../utils/perf/coverPerfStore';
 
 const SAMPLE_MS = 500;
 const TPM_REFRESH_MS = 500;
@@ -66,6 +68,7 @@ export default function FpsOverlay() {
   const overlayAppearance = usePerfOverlayAppearance();
   const [fps, setFps] = useState(0);
   const [tpm, setTpm] = useState(0);
+  const [cpm, setCpm] = useState(0);
   const [queueStats, setQueueStats] = useState<AnalysisPipelineQueueStatsDto | null>(null);
   const [coverQueueLines, setCoverQueueLines] = useState<string[]>([]);
   const last = useAnalysisPerfLast();
@@ -93,6 +96,7 @@ export default function FpsOverlay() {
   );
 
   useAnalysisPerfListener(showAnalysisPerfOverlay || livePins.has('analysis:tpm') || livePins.has('analysis:last'));
+  useCoverPerfListener(showCoverPerfOverlay || livePins.has('cover:cpm'));
 
   useEffect(() => {
     if (!showAnalysisPerfOverlay) {
@@ -127,6 +131,17 @@ export default function FpsOverlay() {
       window.clearInterval(id);
     };
   }, [showAnalysisPerfOverlay]);
+
+  useEffect(() => {
+    if (!showCoverPerfOverlay) {
+      setCpm(0);
+      return;
+    }
+    const refresh = () => setCpm(getCoverCachedPerMinute());
+    refresh();
+    const id = window.setInterval(refresh, TPM_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [showCoverPerfOverlay]);
 
   useEffect(() => {
     if (!showCoverPerfOverlay) {
@@ -252,6 +267,11 @@ export default function FpsOverlay() {
       {showCoverPerfOverlay && (
         <div className="fps-overlay__block">
           <div className="fps-overlay__block-title">Cover pipeline</div>
+          <div className="fps-overlay__row">
+            {cpm.toFixed(1)}
+            {' '}
+            <span className="fps-overlay__unit">cpm</span>
+          </div>
           {coverQueueLines.length > 0 ? coverQueueLines.map(line => (
             <div key={line} className="fps-overlay__row fps-overlay__row--steps">
               {line}

@@ -221,6 +221,21 @@ export default function SidebarPerfProbeMonitorTab() {
           )}
         </PerfProbeMetricSection>
       )}
+
+      {live.cover && (
+        <PerfProbeMetricSection title="Cover backfill" defaultOpen={false}>
+          <PerfProbeMetricCard
+            label="Throughput"
+            value={live.cover.cachedPerMinute.toFixed(1)}
+            unit="cpm"
+            detail={live.cover.total > 0
+              ? `${live.cover.done.toLocaleString()} / ${live.cover.total.toLocaleString()} cached`
+              : 'covers cached per minute'}
+            pinned={livePinned('cover:cpm')}
+            onTogglePin={toggleLive('cover:cpm')}
+          />
+        </PerfProbeMetricSection>
+      )}
     </div>
   );
 }

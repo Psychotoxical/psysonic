@@ -1,6 +1,6 @@
 import type { PerfLiveSnapshot } from './perfLiveStore';
 
-export type LiveOverlayItemKind = 'cpu' | 'memory' | 'rate' | 'analysis';
+export type LiveOverlayItemKind = 'cpu' | 'memory' | 'rate' | 'analysis' | 'cover';
 
 export type LiveOverlayItem = {
   id: string;
@@ -87,6 +87,13 @@ export function buildLiveOverlayItems(
         id: pin,
         line: `last track ${(live.analysis.lastTotalMs / 1000).toFixed(1)}s`,
         kind: 'analysis',
+        sparkline: false,
+      });
+    } else if (pin === 'cover:cpm' && live.cover) {
+      items.push({
+        id: pin,
+        line: `cover ${live.cover.cachedPerMinute.toFixed(1)} cpm`,
+        kind: 'cover',
         sparkline: false,
       });
     }

@@ -3,6 +3,7 @@ import { acquirePerfLivePoll, patchPerfLiveAnalysis } from '../utils/perf/perfLi
 import { setPerfProbeTelemetryActive } from '../utils/perf/perfTelemetry';
 import { useAnalysisPerfLast } from '../utils/perf/analysisPerfStore';
 import { useAnalysisPerfListener } from './useAnalysisPerfListener';
+import { useCoverPerfListener } from './useCoverPerfListener';
 import {
   getPerfProbeFlags,
   subscribePerfProbeFlags,
@@ -31,14 +32,28 @@ function useNeedAnalysisTelemetry(perfProbeOpen: boolean, livePins: ReadonlySet<
   );
 }
 
+function useNeedCoverTelemetry(perfProbeOpen: boolean, livePins: ReadonlySet<string>): boolean {
+  return useSyncExternalStore(
+    subscribePerfProbeFlags,
+    () => (
+      perfProbeOpen
+      || getPerfProbeFlags().showCoverPerfOverlay
+      || livePins.has('cover:cpm')
+    ),
+    () => perfProbeOpen,
+  );
+}
+
 /** Wires Ctrl+Shift+D probe modal and shared live metric polling. */
 export function useSidebarPerfProbe(): Result {
   const [perfProbeOpen, setPerfProbeOpen] = useState(false);
   const livePins = usePerfLiveOverlayPins();
   const analysisLast = useAnalysisPerfLast();
   const needAnalysis = useNeedAnalysisTelemetry(perfProbeOpen, livePins);
+  const needCover = useNeedCoverTelemetry(perfProbeOpen, livePins);
 
   useAnalysisPerfListener(needAnalysis);
+  useCoverPerfListener(needCover);
 
   useEffect(() => {
     setPerfProbeTelemetryActive(perfProbeOpen);
