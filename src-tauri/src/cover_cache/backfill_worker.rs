@@ -30,7 +30,10 @@ pub const LIBRARY_BACKFILL_PARALLEL_MAX: usize = 16;
 /// amortize the per-chunk `spawn_blocking` hop.
 const SCAN_CHUNK_ROWS: usize = 512;
 const SYNC_WAIT_MS: u64 = 5000;
-const PROGRESS_EVERY_BATCHES: u32 = 8;
+/// Cadence of the in-pass progress ticker (drives the "offline & cache" menu and
+/// the perf-probe overlay while a pass downloads). Only runs for the duration of
+/// an active pass.
+const PROGRESS_TICK_SECS: u64 = 3;
 /// Minimum gap between `library:sync-idle`-driven passes. Each such pass runs the
 /// idle-gate signature (a full cover-dir walk + DB count), so a chatty sync (e.g.
 /// periodic delta syncs) must not make that walk fire every few seconds. Manual
@@ -392,8 +395,31 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: 
         });
     }
 
+    // Progress ticker: the producer finishes enumerating the worklist long before
+    // the consumers finish downloading it, so emitting only while feeding would
+    // freeze the "offline & cache" menu through the whole drain phase. Tick a
+    // periodic snapshot for the lifetime of the pass instead; aborted once the
+    // consumers drain (a final accurate emit happens at settle below).
+    let progress_ticker = {
+        let app = app.clone();
+        let store = runtime.store.clone();
+        let root = root.clone();
+        let session = session.clone();
+        let lib_id = session.library_server_id.clone();
+        let index_key = session.server_index_key.clone();
+        tauri::async_runtime::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(PROGRESS_TICK_SECS)).await;
+                if let Ok((done, total, pending)) =
+                    progress_snapshot(&store, &root, &lib_id, &index_key).await
+                {
+                    emit_library_progress(&app, &session, done, total, pending, &root).await;
+                }
+            }
+        })
+    };
+
     let mut rows_iter = raw_rows.into_iter();
-    let mut chunk_count = 0u32;
     let mut completed = false;
     loop {
         if !session_still_focused(&worker, &session).await {
@@ -409,7 +435,6 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: 
             completed = true;
             break;
         }
-        chunk_count += 1;
 
         // Diff this chunk against the captured snapshot off-thread (in-memory set
         // math + DB expand only for rows not already cached) → misses to download.
@@ -453,24 +478,12 @@ async fn run_full_pass(app: AppHandle, worker: Arc<CoverBackfillWorker>, force: 
         if feed_closed {
             break;
         }
-
-        if chunk_count.is_multiple_of(PROGRESS_EVERY_BATCHES) {
-            if let Ok((done, total, pending)) = progress_snapshot(
-                &runtime.store,
-                &root,
-                &session.library_server_id,
-                &session.server_index_key,
-            )
-            .await
-            {
-                emit_library_progress(&app, &session, done, total, pending, &root).await;
-            }
-        }
     }
 
     // Close the channel so consumers drain the remaining backlog and exit.
     drop(tx);
     while consumers.join_next().await.is_some() {}
+    progress_ticker.abort();
 
     // Only settle the idle gate on a natural finish (worklist drained), never on
     // a session-switch break — that belongs to the previous focus.
