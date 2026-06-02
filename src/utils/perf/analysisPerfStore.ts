@@ -14,7 +14,14 @@ type AnalysisPerfState = {
   completedAt: number[];
 };
 
+/** Completion-timestamp retention (kept generous; the live rate uses a shorter window). */
 const WINDOW_MS = 60_000;
+/**
+ * Throughput is measured over the trailing few seconds only — a full-minute
+ * average has too much inertia and flattens real bursts/stalls. The count in
+ * this window is extrapolated to a per-minute figure for display.
+ */
+const RATE_WINDOW_MS = 5_000;
 
 let state: AnalysisPerfState = { last: null, completedAt: [] };
 const listeners = new Set<() => void>();
@@ -51,11 +58,12 @@ export function recordAnalysisTrackPerf(payload: {
   emit();
 }
 
+/** Tracks analyzed per minute, measured over the trailing few seconds (0 when idle). */
 export function getAnalysisTracksPerMinute(now = Date.now()): number {
-  const completedAt = pruneCompletedAt(now);
-  if (completedAt.length === 0) return 0;
-  const spanMs = Math.max(1, Math.min(WINDOW_MS, now - completedAt[0]));
-  return (completedAt.length / spanMs) * WINDOW_MS;
+  const cutoff = now - RATE_WINDOW_MS;
+  const count = state.completedAt.filter(t => t >= cutoff).length;
+  if (count === 0) return 0;
+  return (count / RATE_WINDOW_MS) * 60_000;
 }
 
 export function getAnalysisPerfState(): AnalysisPerfState {
