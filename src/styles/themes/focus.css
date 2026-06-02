@@ -1,7 +1,17 @@
 /* ─── Focus ─── */
+/* Single source of truth for keyboard focus rings. Inset (negative offset) so the
+   ring is drawn INSIDE the element and is never clipped by an ancestor's
+   overflow:hidden / scroll container (cards, rails, player bar, queue strip).
+   Outline (not box-shadow) keeps it visible in forced-colors / high-contrast mode.
+   The outline follows each element's own border-radius natively. */
+:root {
+  --focus-ring-width: 2px;
+  --focus-ring-color: var(--accent);
+  --focus-ring-offset: -2px;
+}
+
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 

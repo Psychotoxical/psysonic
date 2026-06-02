@@ -1,5 +1,6 @@
 /* ─── Card ─── */
 .card {
+  position: relative;
   background: var(--bg-card);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -9,5 +10,34 @@
 
 .card:hover {
   box-shadow: inset 0 0 0 1px var(--border), var(--shadow-md);
+}
+
+/* Card focus ring. A card's cover forms its own stacking context (transform/
+   contain for render stability), so the inset global :focus-visible outline gets
+   painted UNDER the cover. Cards instead draw the ring as a lifted overlay above
+   the cover, using the same --focus-ring-* knob as everything else. */
+.card:focus-visible,
+.because-card:focus-visible {
+  outline: none;
+}
+
+.card:focus-visible::after,
+.because-card:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  z-index: 10;
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .card:focus-visible::after,
+  .because-card:focus-visible::after {
+    box-shadow: none;
+    outline: var(--focus-ring-width) solid Highlight;
+    outline-offset: calc(-1 * var(--focus-ring-width));
+  }
 }
 

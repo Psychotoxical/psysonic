@@ -7,10 +7,10 @@
   width: 2px;
 }
 
-/* Focus ring — Dracula Purple for keyboard nav */
-[data-theme='dracula'] *:focus-visible {
-  outline: 2px solid #bd93f9;
-  outline-offset: 2px;
+/* Focus ring — Dracula only tunes the colour; width/offset/placement come from
+   the shared :focus-visible rule and card focus ring (all var-driven). */
+[data-theme='dracula'] {
+  --focus-ring-color: #bd93f9;
 }
 
 /* Scrollbar thumb — Comment colour (Dracula-authentic) */
