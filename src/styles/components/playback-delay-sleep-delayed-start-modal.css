@@ -60,8 +60,8 @@
 }
 
 .playback-delay-modal > .modal-close:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--pd-accent, var(--accent)) 60%, transparent);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid color-mix(in srgb, var(--pd-accent, var(--accent)) 60%, transparent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .playback-delay-modal > .modal-close:active {

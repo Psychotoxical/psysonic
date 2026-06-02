@@ -31,7 +31,7 @@
 }
 
 .genre-pill:focus-visible {
-  outline: 2px solid var(--genre-color, var(--accent));
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--genre-color, var(--focus-ring-color));
+  outline-offset: var(--focus-ring-offset);
 }
 

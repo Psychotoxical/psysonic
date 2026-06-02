@@ -1735,10 +1735,7 @@
   background: var(--bg-hover, var(--bg-card));
   border-color: var(--accent, var(--border-subtle));
 }
-.because-card:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
+/* Focus ring handled centrally in card.css (lifted above the cover). */
 .because-card-cover-wrap {
   position: relative;
   flex: 0 0 auto;

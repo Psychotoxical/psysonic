@@ -19,8 +19,3 @@
 .filter-quick-clear--on-active-chip:hover {
   background: color-mix(in srgb, var(--ctp-crust) 22%, transparent);
 }
-
-.filter-quick-clear:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
