@@ -183,14 +183,9 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
     localStorage.removeItem(storageKey);
   }, [columns, storageKey]);
 
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!pickerRef.current?.contains(e.target as Node)) setPickerOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [pickerOpen]);
+  // Note: outside-click / Escape close is handled inside TracklistColumnPicker,
+  // because its menu is portalled out of `pickerRef` and a wrapper-only check
+  // would close it on every in-menu click.
 
   return {
     colWidths,

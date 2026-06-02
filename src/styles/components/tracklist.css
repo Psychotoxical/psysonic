@@ -135,15 +135,15 @@
 }
 
 .tracklist-col-picker-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  /* Positioned inline (fixed) and portalled to <body> so no ancestor overflow
+     can clip it; see TracklistColumnPicker. */
   background: var(--bg-card);
   border: 1px solid var(--ctp-surface1);
   border-radius: var(--radius-md);
   padding: 6px;
   min-width: 160px;
-  z-index: 200;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 
