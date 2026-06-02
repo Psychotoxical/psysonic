@@ -24,3 +24,25 @@
   color: var(--text-muted);
 }
 
+/* ─── Circular cover utility ───
+   Shared round-cover treatment so circular cover art (single-track cards today,
+   reusable elsewhere) is defined once instead of re-rolling border-radius:50% per
+   component. Carries the paint-stability hints round image clipping needs on
+   WebKitGTK/Wayland — mirrors the artist-card avatar (see artist-card-grid-view.css). */
+.cover-circle {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  contain: paint;
+  isolation: isolate;
+  transform: translateZ(0);
+}
+
+.cover-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+

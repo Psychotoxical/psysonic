@@ -2,7 +2,7 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, ListPlus, Star } from 'lucide-react';
+import { Play, ListPlus, Star, Disc3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { CoverArtImage } from '../cover/CoverArtImage';
@@ -12,6 +12,7 @@ import { COVER_DENSE_RAIL_CELL_CSS_PX } from '../cover/layoutSizes';
 import { enqueueAndPlay } from '../utils/playback/playSong';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
+import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 
 interface SongCardProps {
   song: SubsonicSong;
@@ -41,6 +42,7 @@ function SongCard({
   const coverUrl = coverHandle.src;
   const psyDrag = useDragDrop();
   const { orbitActive, addTrackToOrbit } = useOrbitSongRowBehavior();
+  const navigateToAlbum = useNavigateToAlbum();
 
   const handlePlay = () => {
     if (orbitActive) { addTrackToOrbit(song.id); return; }
@@ -58,6 +60,12 @@ function SongCard({
     if (!song.artistId) return;
     e.stopPropagation();
     navigate(`/artist/${song.artistId}`);
+  };
+
+  const handleAlbumClick = (e: React.MouseEvent) => {
+    if (!song.albumId) return;
+    e.stopPropagation();
+    navigateToAlbum(song.albumId);
   };
 
   return (
@@ -93,7 +101,7 @@ function SongCard({
         document.addEventListener('mouseup', onUp);
       }}
     >
-      <div className="song-card-cover">
+      <div className="song-card-cover cover-circle">
         {!disableArtwork && coverRef ? (
           <CoverArtImage
             coverRef={coverRef}
@@ -140,6 +148,18 @@ function SongCard({
           onClick={handleArtistClick}
           title={song.artist}
         >{song.artist}</p>
+        {song.albumId && (
+          <button
+            type="button"
+            className="song-card-album-badge"
+            onClick={handleAlbumClick}
+            aria-label={`${t('tracks.toAlbum')} – ${song.album}`}
+            title={song.album}
+          >
+            <Disc3 size={11} />
+            <span>{t('tracks.toAlbum')}</span>
+          </button>
+        )}
         {(song.userRating ?? 0) > 0 && (
           <div className="song-card-rating" aria-label={`${song.userRating} stars`}>
             {Array.from({ length: 5 }, (_, i) => (
