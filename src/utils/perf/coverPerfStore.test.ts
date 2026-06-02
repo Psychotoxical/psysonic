@@ -17,26 +17,29 @@ afterEach(() => {
 });
 
 describe('coverPerfStore', () => {
-  it('derives covers-per-minute from done deltas over time', () => {
+  it('derives covers-per-minute from done deltas over the trailing window', () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000_000);
     recordCoverProgress({ done: 100, total: 1000, pending: 900 });
-    vi.advanceTimersByTime(30_000);
-    recordCoverProgress({ done: 130, total: 1000, pending: 870 });
-    // +30 covers over 30s ≈ 60 cpm.
-    expect(getCoverCachedPerMinute()).toBeCloseTo(60, 0);
-    expect(getCoverPerfState().done).toBe(130);
+    vi.advanceTimersByTime(1_000);
+    recordCoverProgress({ done: 110, total: 1000, pending: 890 });
+    vi.advanceTimersByTime(1_000);
+    recordCoverProgress({ done: 120, total: 1000, pending: 880 });
+    // +20 covers over the last 2s ≈ 600 cpm (no minute-long inertia).
+    expect(getCoverCachedPerMinute()).toBeCloseTo(600, 0);
+    expect(getCoverPerfState().done).toBe(120);
   });
 
-  it('returns 0 with a single sample and prunes the window after a minute', () => {
+  it('returns 0 with a single sample and decays once the trailing window empties', () => {
     vi.useFakeTimers();
     vi.setSystemTime(2_000_000);
     recordCoverProgress({ done: 10 });
     expect(getCoverCachedPerMinute()).toBe(0);
-    vi.advanceTimersByTime(20_000);
+    vi.advanceTimersByTime(1_000);
     recordCoverProgress({ done: 20 });
     expect(getCoverCachedPerMinute()).toBeGreaterThan(0);
-    vi.advanceTimersByTime(61_000);
+    // No fresh samples for >5s → trailing window empties → back to 0.
+    vi.advanceTimersByTime(6_000);
     expect(getCoverCachedPerMinute()).toBe(0);
   });
 
@@ -51,19 +54,21 @@ describe('coverPerfStore', () => {
     expect(getCoverPerfState().done).toBe(5);
   });
 
-  it('derives UI covers-per-minute from backend total deltas and prunes the window', () => {
+  it('derives UI covers-per-minute from backend total deltas over the trailing window', () => {
     vi.useFakeTimers();
     vi.setSystemTime(4_000_000);
     expect(getCoverUiPerMinute()).toBe(0);
     recordCoverUiTotal(100);
     // A single sample has no delta yet.
     expect(getCoverUiPerMinute()).toBe(0);
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(2_000);
     recordCoverUiTotal(130);
-    // +30 produced over 30s ≈ 60 cpm; lib series stays untouched.
-    expect(getCoverUiPerMinute()).toBeCloseTo(60, 0);
+    // +30 produced over the last 2s ≈ 900 cpm; lib series stays untouched.
+    expect(getCoverUiPerMinute()).toBeCloseTo(900, 0);
     expect(getCoverCachedPerMinute()).toBe(0);
-    vi.advanceTimersByTime(61_000);
+    // Idle poll keeps reporting the same total → delta 0 → rate decays to 0.
+    vi.advanceTimersByTime(6_000);
+    recordCoverUiTotal(130);
     expect(getCoverUiPerMinute()).toBe(0);
   });
 

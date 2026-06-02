@@ -32,7 +32,14 @@ type CoverPerfState = {
   uiSamples: CoverTotalSample[];
 };
 
+/** Sample-retention window (kept generous so backwards-jump detection is robust). */
 const WINDOW_MS = 60_000;
+/**
+ * Rate is measured over the trailing few seconds only — a full-minute average
+ * has too much inertia and flattens real bursts/stalls. We still extrapolate to
+ * a per-minute figure for display.
+ */
+const RATE_WINDOW_MS = 5_000;
 
 let state: CoverPerfState = { samples: [], done: 0, total: 0, pending: 0, uiSamples: [] };
 const listeners = new Set<() => void>();
@@ -89,28 +96,35 @@ export function recordCoverUiTotal(total: number): void {
   emit();
 }
 
-/** Covers cached per minute over the rolling window (0 when idle). */
-export function getCoverCachedPerMinute(now = Date.now()): number {
-  const samples = pruneSamples(now, state.samples);
-  if (samples.length < 2) return 0;
-  const first = samples[0];
-  const last = samples[samples.length - 1];
-  const delta = Math.max(0, last.done - first.done);
+/**
+ * Per-minute rate from a cumulative-counter series, measured over the trailing
+ * `RATE_WINDOW_MS`. Returns 0 when fewer than two recent samples are available
+ * (so a stalled pipeline drops to 0 within the window instead of coasting).
+ */
+function recentRatePerMinute<T extends { at: number }>(
+  now: number,
+  samples: readonly T[],
+  valueOf: (sample: T) => number,
+): number {
+  const cutoff = now - RATE_WINDOW_MS;
+  const recent = samples.filter(s => s.at >= cutoff);
+  if (recent.length < 2) return 0;
+  const first = recent[0];
+  const last = recent[recent.length - 1];
+  const delta = Math.max(0, valueOf(last) - valueOf(first));
   if (delta === 0) return 0;
-  const spanMs = Math.max(1, Math.min(WINDOW_MS, now - first.at));
-  return (delta / spanMs) * WINDOW_MS;
+  const spanMs = Math.max(1, last.at - first.at);
+  return (delta / spanMs) * 60_000;
 }
 
-/** On-demand UI covers produced per minute over the rolling window. */
+/** Covers cached per minute, averaged over the trailing few seconds (0 when idle). */
+export function getCoverCachedPerMinute(now = Date.now()): number {
+  return recentRatePerMinute(now, state.samples, s => s.done);
+}
+
+/** On-demand UI covers produced per minute, averaged over the trailing few seconds. */
 export function getCoverUiPerMinute(now = Date.now()): number {
-  const samples = pruneTotals(now, state.uiSamples);
-  if (samples.length < 2) return 0;
-  const first = samples[0];
-  const last = samples[samples.length - 1];
-  const delta = Math.max(0, last.total - first.total);
-  if (delta === 0) return 0;
-  const spanMs = Math.max(1, Math.min(WINDOW_MS, now - first.at));
-  return (delta / spanMs) * WINDOW_MS;
+  return recentRatePerMinute(now, state.uiSamples, s => s.total);
 }
 
 export function getCoverPerfState(): CoverPerfState {
