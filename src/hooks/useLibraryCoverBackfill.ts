@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import {
   coverCacheRestHost,
   libraryCoverBackfillConfigure,
@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCoverStrategyStore } from '../store/coverStrategyStore';
 import { subscribeLibraryCoverBackfillWake } from '../utils/library/coverBackfillWake';
 import { serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
+import { subscribeConnectCache } from '../utils/server/serverEndpoint';
 
 /**
  * Library cover warm-up — configure session in Rust; full pass runs natively.
@@ -26,7 +27,15 @@ export function useLibraryCoverBackfill(enabled = true): void {
   const server = useAuthStore(s =>
     s.activeServerId ? s.servers.find(srv => srv.id === s.activeServerId) : undefined,
   );
-  const getBaseUrl = useAuthStore(s => s.getBaseUrl);
+  // Re-read the runtime-probed connect URL whenever the sticky endpoint flips
+  // (e.g. laptop moves off the LAN). Backfill is configured natively with a
+  // fixed `rest_base_url`, so without this it would keep fetching covers from
+  // the now-unreachable local address while playback already switched to public.
+  const connectBaseUrl = useSyncExternalStore(
+    subscribeConnectCache,
+    () => useAuthStore.getState().getBaseUrl(),
+    () => useAuthStore.getState().getBaseUrl(),
+  );
 
   useEffect(() => {
     const kick = () => {
@@ -59,20 +68,22 @@ export function useLibraryCoverBackfill(enabled = true): void {
     }
 
     const indexKey = serverIndexKeyForProfile(server);
-    const baseUrl = getBaseUrl();
     void (async () => {
       await libraryCoverBackfillConfigure({
         enabled: true,
         serverIndexKey: indexKey,
         libraryServerId: librarySqlServerId(activeServerId),
-        restBaseUrl: baseUrl ? coverCacheRestHost(baseUrl) : '',
+        restBaseUrl: connectBaseUrl ? coverCacheRestHost(connectBaseUrl) : '',
         username: server.username,
         password: server.password,
       });
       await libraryCoverBackfillResetCursor();
-      await libraryCoverBackfillRunFullPass();
+      // Force: a (re)configure — including a connect-URL flip — must clear the
+      // `.fetch-failed` backoff so covers that 404'd / timed out against the
+      // previous (now-stale) address are retried immediately on the new one.
+      await libraryCoverBackfillRunFullPass(true);
     })();
 
     return disable;
-  }, [enabled, strategy, activeServerId, server?.url, server?.username, server?.password, getBaseUrl]);
+  }, [enabled, strategy, activeServerId, server?.url, server?.username, server?.password, connectBaseUrl]);
 }

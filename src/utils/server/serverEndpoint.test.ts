@@ -15,6 +15,7 @@ import {
   pickReachableBaseUrl,
   serverAddressEndpoints,
   serverShareBaseUrl,
+  subscribeConnectCache,
 } from './serverEndpoint';
 import type { ServerProfile } from '../../store/authStoreTypes';
 
@@ -374,6 +375,66 @@ describe('invalidateReachableEndpointCache', () => {
     await ensureConnectUrlResolved(makeProfile({ id: 'a' }));
     invalidateReachableEndpointCache();
     expect(getCachedConnectBaseUrl('a')).toBeNull();
+  });
+});
+
+describe('subscribeConnectCache — connect-URL flip notifications', () => {
+  beforeEach(() => {
+    invalidateReachableEndpointCache();
+    vi.mocked(pingWithCredentials).mockReset();
+  });
+
+  it('notifies when a probe resolves a new endpoint and on a later flip', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeConnectCache(listener);
+    const profile = makeProfile({
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10',
+    });
+
+    // First probe: LAN answers → cache set → one notification.
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(profile);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    // LAN drops, public answers → cached URL flips → another notification.
+    vi.mocked(pingWithCredentials)
+      .mockResolvedValueOnce(pingFail())
+      .mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(profile);
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+  });
+
+  it('does not notify when the sticky endpoint is unchanged', async () => {
+    const profile = makeProfile({ url: 'http://192.168.0.10' });
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(profile);
+
+    const listener = vi.fn();
+    const unsubscribe = subscribeConnectCache(listener);
+    // Re-probe, same endpoint answers → cache value identical → no notification.
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(profile);
+    expect(listener).not.toHaveBeenCalled();
+
+    unsubscribe();
+  });
+
+  it('notifies on explicit cache invalidation when an entry existed', async () => {
+    vi.mocked(pingWithCredentials).mockResolvedValueOnce(pingOk());
+    await pickReachableBaseUrl(makeProfile({ id: 'a' }));
+
+    const listener = vi.fn();
+    const unsubscribe = subscribeConnectCache(listener);
+    invalidateReachableEndpointCache('a');
+    expect(listener).toHaveBeenCalledTimes(1);
+    // No-op invalidation (nothing cached) must stay silent.
+    invalidateReachableEndpointCache('a');
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
   });
 });
 

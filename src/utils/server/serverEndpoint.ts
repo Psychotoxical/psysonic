@@ -165,6 +165,33 @@ export function serverShareBaseUrl(
 
 const connectCache = new Map<string, string>();
 
+// ── Connect-cache change notifications ───────────────────────────────────────
+// The sticky connect URL flips silently (120-s probe tick / online event /
+// switch). Long-lived consumers that snapshot the URL once — notably the native
+// **library cover backfill**, which is configured with a fixed `rest_base_url`
+// — need to react when a laptop moves off the LAN, or they keep hammering the
+// now-unreachable local address. UI/playback rebuild the URL per request and
+// don't need this. Listeners are notified only when a profile's cached URL
+// actually changes value (set to a different endpoint, dropped, or cleared).
+const connectCacheListeners = new Set<() => void>();
+let connectCacheVersion = 0;
+
+function notifyConnectCacheChanged(): void {
+  connectCacheVersion += 1;
+  connectCacheListeners.forEach(cb => cb());
+}
+
+/** Subscribe to connect-URL flips (any profile). Returns an unsubscribe fn. */
+export function subscribeConnectCache(cb: () => void): () => void {
+  connectCacheListeners.add(cb);
+  return () => connectCacheListeners.delete(cb);
+}
+
+/** Monotonic version, bumped on every effective connect-cache change. */
+export function getConnectCacheVersion(): number {
+  return connectCacheVersion;
+}
+
 /**
  * In-flight probes keyed by `profile.id`. Three call sites (useConnectionStatus
  * 120-s tick, switchActiveServer, bindIndexedServer, plus retry / online
@@ -208,14 +235,17 @@ export function connectBaseUrlForServer(
  */
 export function invalidateReachableEndpointCache(profileId?: string): void {
   if (profileId === undefined) {
-    connectCache.clear();
     // Don't clear in-flight slots — they're already racing against the
     // network, letting their own `finally` clean up keeps the dedup
     // invariant. Their results will still write to the (now empty) cache,
     // which is the right behaviour: the freshest probe wins.
+    if (connectCache.size > 0) {
+      connectCache.clear();
+      notifyConnectCacheChanged();
+    }
     return;
   }
-  connectCache.delete(profileId);
+  if (connectCache.delete(profileId)) notifyConnectCacheChanged();
 }
 
 /**
@@ -250,14 +280,16 @@ export async function pickReachableBaseUrl(
     for (const endpoint of endpoints) {
       const ping = await pingWithCredentials(endpoint.url, profile.username, profile.password);
       if (ping.ok) {
+        const prev = connectCache.get(profile.id);
         connectCache.set(profile.id, endpoint.url);
+        if (prev !== endpoint.url) notifyConnectCacheChanged();
         return { ok: true, baseUrl: endpoint.url, endpoint, ping };
       }
     }
 
     // Every endpoint failed — drop any stale cache entry so the next probe
     // starts from the natural LAN-first order.
-    connectCache.delete(profile.id);
+    if (connectCache.delete(profile.id)) notifyConnectCacheChanged();
     return { ok: false, reason: 'unreachable' };
   })();
 
