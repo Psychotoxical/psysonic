@@ -4,6 +4,7 @@ import {
   libraryCoverBackfillConfigure,
   libraryCoverBackfillResetCursor,
   libraryCoverBackfillRunFullPass,
+  libraryCoverBackfillSetBaseUrl,
   librarySqlServerId,
 } from '../api/coverCache';
 import { coverStrategyAllowsLibraryBackfill } from '../utils/library/coverStrategy';
@@ -27,10 +28,9 @@ export function useLibraryCoverBackfill(enabled = true): void {
   const server = useAuthStore(s =>
     s.activeServerId ? s.servers.find(srv => srv.id === s.activeServerId) : undefined,
   );
-  // Re-read the runtime-probed connect URL whenever the sticky endpoint flips
-  // (e.g. laptop moves off the LAN). Backfill is configured natively with a
-  // fixed `rest_base_url`, so without this it would keep fetching covers from
-  // the now-unreachable local address while playback already switched to public.
+  // Runtime-probed connect URL: it flips when the sticky endpoint changes (e.g.
+  // laptop moves off the LAN). The native worklist is URL-agnostic — we push the
+  // live URL separately (below) rather than baking it into the session.
   const connectBaseUrl = useSyncExternalStore(
     subscribeConnectCache,
     () => useAuthStore.getState().getBaseUrl(),
@@ -45,6 +45,9 @@ export function useLibraryCoverBackfill(enabled = true): void {
     return unsubWake;
   }, []);
 
+  // Session config (server identity, credentials, strategy, enable). The connect
+  // URL is intentionally NOT a dependency here: it changes far more often than
+  // these, and the worklist no longer carries it — see the flip effect below.
   useEffect(() => {
     const disable = () => {
       void libraryCoverBackfillConfigure({
@@ -69,21 +72,37 @@ export function useLibraryCoverBackfill(enabled = true): void {
 
     const indexKey = serverIndexKeyForProfile(server);
     void (async () => {
+      // Seed the URL with the current best guess; the flip effect keeps it fresh.
+      const seedUrl = useAuthStore.getState().getBaseUrl();
       await libraryCoverBackfillConfigure({
         enabled: true,
         serverIndexKey: indexKey,
         libraryServerId: librarySqlServerId(activeServerId),
-        restBaseUrl: connectBaseUrl ? coverCacheRestHost(connectBaseUrl) : '',
+        restBaseUrl: seedUrl ? coverCacheRestHost(seedUrl) : '',
         username: server.username,
         password: server.password,
       });
       await libraryCoverBackfillResetCursor();
-      // Force: a (re)configure — including a connect-URL flip — must clear the
-      // `.fetch-failed` backoff so covers that 404'd / timed out against the
-      // previous (now-stale) address are retried immediately on the new one.
-      await libraryCoverBackfillRunFullPass(true);
+      await libraryCoverBackfillRunFullPass();
     })();
 
     return disable;
-  }, [enabled, strategy, activeServerId, server?.url, server?.username, server?.password, connectBaseUrl]);
+  }, [enabled, strategy, activeServerId, server?.url, server?.username, server?.password]);
+
+  // Connect-URL flip: push the new reachable address live. The native worker
+  // swaps a single cell, so even an in-flight pass downloads its remaining
+  // covers against it; a real change also clears the stale fetch-failed backoff
+  // and kicks a retry pass for whatever failed on the old address.
+  useEffect(() => {
+    if (
+      !enabled
+      || !coverStrategyAllowsLibraryBackfill(strategy)
+      || !activeServerId
+      || !server
+      || !connectBaseUrl
+    ) {
+      return;
+    }
+    void libraryCoverBackfillSetBaseUrl(coverCacheRestHost(connectBaseUrl));
+  }, [connectBaseUrl, enabled, strategy, activeServerId, server?.url]);
 }

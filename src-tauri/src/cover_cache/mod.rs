@@ -720,7 +720,6 @@ pub async fn library_cover_backfill_configure(
         Some(CoverBackfillSession {
             server_index_key,
             library_server_id,
-            rest_base_url,
             username,
             password,
         })
@@ -728,11 +727,37 @@ pub async fn library_cover_backfill_configure(
         None
     };
     worker
-        .set_session(enabled && session.is_some(), session)
+        .set_session(enabled && session.is_some(), session, rest_base_url)
         .await;
     if enabled {
         let _ = try_schedule_full_pass(&app, false).await;
     }
+    Ok(())
+}
+
+/// Push the current reachable connect URL without rebuilding the backfill
+/// session. The worklist holds URL-agnostic items and each fetch reads this
+/// value live, so a LAN→public flip is honoured by the in-flight pass too.
+/// When the URL actually changes, the stale `.fetch-failed` backoff (covers that
+/// timed out against the old address) is cleared and a pass is kicked so they
+/// retry on the now-reachable endpoint.
+#[tauri::command]
+pub async fn library_cover_backfill_set_base_url(
+    app: AppHandle,
+    rest_base_url: String,
+) -> Result<(), String> {
+    let worker = app
+        .try_state::<Arc<CoverBackfillWorker>>()
+        .ok_or_else(|| "cover backfill worker not initialized".to_string())?;
+    if !worker.set_base_url(rest_base_url) {
+        return Ok(());
+    }
+    // Forced retry: bypass the idle gate and clear the `.fetch-failed` backoff so
+    // covers that timed out against the old address are re-attempted on the new
+    // one. If a pass is in flight it already adopted the new URL live; the forced
+    // pass is queued to run right after it.
+    worker.rearm_idle_gate().await;
+    let _ = try_schedule_full_pass(&app, true).await;
     Ok(())
 }
 

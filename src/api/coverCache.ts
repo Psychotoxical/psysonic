@@ -210,6 +210,16 @@ export async function libraryCoverBackfillConfigure(
   return invoke('library_cover_backfill_configure', args);
 }
 
+/**
+ * Push the current reachable connect URL to the native backfill worker without
+ * rebuilding the session. The worklist is URL-agnostic; each fetch reads this
+ * value live, so a LAN→public flip is honoured by the in-flight pass too. A real
+ * change clears the stale fetch-failed backoff and kicks a retry pass.
+ */
+export async function libraryCoverBackfillSetBaseUrl(restBaseUrl: string): Promise<void> {
+  return invoke('library_cover_backfill_set_base_url', { restBaseUrl });
+}
+
 export type CoverBackfillPulseResult = {
   scheduled: number;
   exhausted: boolean;
