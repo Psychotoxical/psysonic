@@ -148,6 +148,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Cover art: fix per-song cover over-fetch on Navidrome — only genuine per-disc artwork expands, collapsing ~520k per-track fetches to one cover per album (PR #944)',
       'Performance Probe: cover pipeline covers-per-minute (cpm) throughput, the cover analogue of analysis tpm (PR #945)',
       'Performance Probe: live runtime logs tab with depth switch, line cap, and ordered include/exclude word filter (PR #946)',
+      'Performance Probe: on-demand (ui) cover throughput alongside backfill (lib) cpm (PR #947)',
     ],
   },
   {

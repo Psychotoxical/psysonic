@@ -380,6 +380,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The cover pipeline now reports a covers-per-minute throughput (cpm), the analogue of the analysis pipeline's tpm: a rolling one-minute rate derived from the backfill `done` progress. Shown in the Monitor tab "Cover backfill" card (pinnable to the overlay) and in the Cover pipeline overlay block.
 
+### Performance Probe — cover pipeline on-demand (ui) throughput
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#947](https://github.com/Psychotoxical/psysonic/pull/947)**
+
+* Cover cpm previously measured only the native backfill (lib). On-demand UI cover ensures (grid / now-playing) now report their own covers-per-minute rate, shown as separate **Backfill (lib)** and **On-demand (ui)** cards in the Monitor tab (each pinnable) and as `lib`/`ui` rows in the Cover pipeline overlay block.
+
 
 
 
