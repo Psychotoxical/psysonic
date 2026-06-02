@@ -394,6 +394,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Analysis **tpm** and cover **cpm** (lib + ui) now measure throughput over the trailing **5 seconds** instead of a full-minute rolling average. The figure is still extrapolated to per-minute, but reacts promptly to bursts/stalls and decays to 0 within the window when idle, instead of coasting on minute-long inertia.
 
+### Track cards — distinct look + jump to album
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#953](https://github.com/Psychotoxical/psysonic/pull/953)**
+
+* Single tracks in the discovery rails now show a round, vinyl-style cover so they read as songs rather than albums — clicking one still plays it instantly.
+* A new **To album** badge under the artist jumps to the track's album, available in all 9 languages.
+
 
 
 
