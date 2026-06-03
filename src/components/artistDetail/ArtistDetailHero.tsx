@@ -15,6 +15,7 @@ import { useCoverLightboxSrc } from '../../cover/lightbox';
 import type { CoverArtRef } from '../../cover/types';
 import LastfmIcon from '../LastfmIcon';
 import StarRating from '../StarRating';
+import { tooltipAttrs } from '../tooltipAttrs';
 
 interface Props {
   artist: SubsonicArtist;
@@ -142,12 +143,20 @@ export default function ArtistDetailHero({
             {(info?.lastFmUrl || artist.name) && (
               <div className="artist-detail-links">
                 {info?.lastFmUrl && (
-                  <button className="artist-ext-link" onClick={() => openLink(info.lastFmUrl!, 'lastfm')}>
+                  <button
+                    className="artist-ext-link"
+                    onClick={() => openLink(info.lastFmUrl!, 'lastfm')}
+                    {...tooltipAttrs(t('artistDetail.lastfmTooltip'))}
+                  >
                     <LastfmIcon size={14} />
                     {openedLink === 'lastfm' ? t('artistDetail.openedInBrowser') : 'Last.fm'}
                   </button>
                 )}
-                <button className="artist-ext-link" onClick={() => openLink(wikiUrl, 'wiki')}>
+                <button
+                  className="artist-ext-link"
+                  onClick={() => openLink(wikiUrl, 'wiki')}
+                  {...tooltipAttrs(t('artistDetail.wikipediaTooltip'))}
+                >
                   <ExternalLink size={14} />
                   {openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}
                 </button>
@@ -168,7 +177,12 @@ export default function ArtistDetailHero({
           <div style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
             {albums.length > 0 && (
               <>
-                <button className="btn btn-primary" onClick={handlePlayAll} disabled={playAllLoading}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handlePlayAll}
+                  disabled={playAllLoading}
+                  {...tooltipAttrs(t('artistDetail.playAllTooltip'))}
+                >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Play size={16} />}
                   {t('artistDetail.playAll')}
                 </button>
@@ -176,7 +190,7 @@ export default function ArtistDetailHero({
                   className="btn btn-surface"
                   onClick={handleShuffle}
                   disabled={playAllLoading}
-                  data-tooltip={isMobile ? t('artistDetail.shuffle') : undefined}
+                  {...tooltipAttrs(t('artistDetail.shuffleTooltip'))}
                 >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Shuffle size={16} />}
                   {!isMobile && t('artistDetail.shuffle')}
@@ -187,7 +201,7 @@ export default function ArtistDetailHero({
               className="btn btn-surface"
               onClick={handleStartRadio}
               disabled={radioLoading}
-              data-tooltip={isMobile ? t('artistDetail.radio') : undefined}
+              {...tooltipAttrs(t('artistDetail.radioTooltip'))}
             >
               {radioLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Radio size={16} />}
               {!isMobile && (radioLoading ? t('artistDetail.loading') : t('artistDetail.radio'))}
