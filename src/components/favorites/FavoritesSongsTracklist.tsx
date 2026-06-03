@@ -15,8 +15,7 @@ import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import { useElementClientHeightById } from '../../hooks/useResizeClientHeight';
-
-const SORTABLE_COLUMNS = new Set(['title', 'artist', 'album', 'rating', 'duration', 'playCount', 'lastPlayed', 'bpm']);
+import { SORTABLE_COLUMNS } from '../../hooks/useFavoritesSongFiltering';
 
 interface Props {
   visibleSongs: SubsonicSong[];

@@ -6,8 +6,11 @@ import { usePlayerStore } from '../store/playerStore';
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_YEAR = 1950;
 
-// Columns that support 3-state sorting (asc → desc → reset)
-const SORTABLE_COLUMNS = new Set(['title', 'artist', 'album', 'rating', 'duration']);
+// Columns that support 3-state sorting (asc → desc → reset).
+// Single source of truth — the tracklist header imports this to decide which
+// headers show the sortable affordance, so the cursor and the click behaviour
+// can never drift apart. Every key here is handled in the comparator below.
+export const SORTABLE_COLUMNS = new Set(['title', 'artist', 'album', 'rating', 'duration', 'playCount', 'lastPlayed', 'bpm']);
 
 export type SortDir = 'asc' | 'desc';
 
