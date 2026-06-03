@@ -19,7 +19,7 @@ describe('TooltipPortal open delay', () => {
     vi.useRealTimers();
   });
 
-  it('shows the tooltip only after the 2s open delay', () => {
+  it('shows the tooltip only after the 1s open delay', () => {
     renderWithProviders(<Fixture />);
     const btn = screen.getByText('play');
 
@@ -27,7 +27,7 @@ describe('TooltipPortal open delay', () => {
     expect(screen.queryByText('Play this album')).toBeNull();
 
     act(() => {
-      vi.advanceTimersByTime(1999);
+      vi.advanceTimersByTime(999);
     });
     expect(screen.queryByText('Play this album')).toBeNull();
 
@@ -43,11 +43,11 @@ describe('TooltipPortal open delay', () => {
 
     fireEvent.mouseOver(btn);
     act(() => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(500);
     });
     fireEvent.mouseOut(btn, { relatedTarget: document.body });
     act(() => {
-      vi.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(1000);
     });
 
     expect(screen.queryByText('Play this album')).toBeNull();
@@ -59,7 +59,7 @@ describe('TooltipPortal open delay', () => {
 
     fireEvent.mouseOver(btn);
     act(() => {
-      vi.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(1000);
     });
     expect(screen.getByText('Play this album')).toBeInTheDocument();
 

@@ -9,7 +9,7 @@ interface TooltipState {
 }
 
 /** Pointer must rest on an anchor this long before the tooltip appears. */
-const TOOLTIP_OPEN_DELAY_MS = 2000;
+const TOOLTIP_OPEN_DELAY_MS = 1000;
 
 export default function TooltipPortal() {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
