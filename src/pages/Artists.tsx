@@ -331,6 +331,7 @@ export default function Artists() {
                     style={showArtistImages ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
                     data-tooltip={showArtistImages ? t('artists.imagesOn') : t('artists.imagesOff')}
                     data-tooltip-wrap
+                    data-tooltip-pos="bottom"
                   >
                     <Images size={20} />
                   </button>
@@ -339,6 +340,7 @@ export default function Artists() {
                     onClick={() => setViewMode('grid')}
                     style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
                     data-tooltip={t('artists.gridView')}
+                    data-tooltip-pos="bottom"
                   >
                     <LayoutGrid size={20} />
                   </button>
@@ -347,6 +349,7 @@ export default function Artists() {
                     onClick={() => setViewMode('list')}
                     style={viewMode === 'list' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
                     data-tooltip={t('artists.listView')}
+                    data-tooltip-pos="bottom"
                   >
                     <List size={20} />
                   </button>
