@@ -155,6 +155,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Player transport: custom delay input capped to browser timer limit; preview/countdown aligned for fractional minutes (report: zunoz on Psysonic Discord) (PR #967)',
       'Settings: in-page search indexes AudioMuse + shortcut rows; rejects junk fuzzy matches (report: zunoz on Psysonic Discord) (PR #968)',
       'Floating player bar: center shrink-wrapped pill instead of full-width background strip (report: Asra on Psysonic Discord) (PR #969)',
+      'Smart Playlist editor: themed sort dropdown, stable mode toggles, include/exclude genre colors, exclude-all → untagged tracks (report: zunoz on Psysonic Discord) (PR #970)',
     ],
   },
   {

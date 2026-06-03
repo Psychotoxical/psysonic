@@ -498,6 +498,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Floating mode no longer stretches the player bar between sidebar and queue with fixed `left`/`right` — only the centered pill is painted over the page instead of a full-width black band behind the rounded corners.
 
 
+### Smart Playlist editor — themed sort, stable toggles, exclude-all genres
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#970](https://github.com/Psychotoxical/psysonic/pull/970)**
+
+* Sort dropdown uses the themed `CustomSelect` instead of a native `<select>` whose option list followed system styling.
+* Include/Exclude genre and year-range mode buttons no longer jump ~1px when selected — matched button box model and disabled hover translate on mode toggles.
+* Selected genres are color-coded (primary for include, danger for exclude) so they are distinguishable from available chips.
+* Excluding all genres collapses to a single untagged-genre rule instead of hundreds of `notContains` filters that stalled Navidrome; empty smart playlists settle without a false "Playlist not found" after a long spinner.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
