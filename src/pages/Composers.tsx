@@ -16,7 +16,6 @@ import { useComposersBrowseFilters, type ComposerBrowseScrollSnapshot } from '..
 import { useComposersBrowseScrollRestore } from '../hooks/useComposersBrowseScrollRestore';
 import { useArtistsBrowseScrollReset } from '../hooks/useArtistsBrowseScrollReset';
 import { useNavigateToComposer } from '../hooks/useNavigateToComposer';
-import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { peekComposerBrowseScrollRestore } from '../store/composerBrowseSessionStore';
 import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
 import { readComposerBrowseRestore } from '../utils/navigation/albumDetailNavigation';
@@ -102,6 +101,21 @@ export default function Composers() {
 
   const composersSearchQuery = useScopedBrowseSearchQuery('composers');
 
+  // Full composer catalog is loaded via ndListArtistsByRole (Navidrome role stats,
+  // correctly split multi-name credits). Generic artist index/search3 returns joined
+  // performer strings — do not race that path on this page (report: zunoz, v1.47 RC3).
+  const { textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
+    composersSearchQuery,
+    false,
+    serverId,
+    'composers_browse',
+  );
+  const composerSource = composers;
+  const textSearchActive = composersSearchQuery.trim().length > 0;
+  const composerBrowsePlainLayout =
+    perfFlags.disableMainstageVirtualLists
+    || textSearchActive;
+
   // Compact tiles + initial-letter only → 200 per page is comfortable.
   const PAGE_SIZE = 200;
   const {
@@ -114,19 +128,6 @@ export default function Composers() {
   const navigate = useNavigate();
   const navigateToComposer = useNavigateToComposer();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
-  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
-  const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
-    composersSearchQuery,
-    indexEnabled,
-    serverId,
-    'composers_browse',
-  );
-  const composerSource = textSearchArtists ?? composers;
-  const textSearchActive = textSearchArtists != null;
-  const composerBrowsePlainLayout =
-    perfFlags.disableMainstageVirtualLists
-    || textSearchActive
-    || composersSearchQuery.trim().length > 0;
 
   const {
     visibleCount,
@@ -300,8 +301,6 @@ export default function Composers() {
     viewMode,
     serverId,
     musicLibraryFilterVersion,
-    textSearchArtists?.length ?? '',
-    textSearchArtists?.[0]?.id ?? '',
   ].join('\0');
 
   useArtistsBrowseScrollReset({
