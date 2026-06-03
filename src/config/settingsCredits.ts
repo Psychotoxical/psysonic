@@ -151,6 +151,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance Probe: on-demand (ui) cover throughput alongside backfill (lib) cpm (PR #947)',
       'Performance Probe: throughput (analysis tpm, cover cpm) measured over a trailing 5s window so the rate reacts promptly instead of coasting on minute-long inertia (PR #948)',
       'Cover backfill: follow the smart local/public endpoint switch so off-LAN clients stop fetching covers from the unreachable local address (PR #952)',
+      'Player: persist volume/repeat/queue visibility/Last.fm cache outside quota-bound queue blob (report: norp on Psysonic Discord) (PR #958)',
     ],
   },
   {

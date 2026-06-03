@@ -406,6 +406,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Player — prefs survive restart when queue persist hits quota
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by norp on the Psysonic Discord, PR [#958](https://github.com/Psychotoxical/psysonic/pull/958)**
+
+* Volume, repeat mode, queue panel visibility, and the Last.fm loved-track cache no longer depend on the quota-bound `psysonic-player` blob (full `queueItems` since thin-state #872). Each pref now has its own small localStorage key with legacy migration from the old blob.
+* Startup no longer overwrites saved prefs before Zustand rehydration finishes; persisted volume is pushed to the Rust engine on boot.
+
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
