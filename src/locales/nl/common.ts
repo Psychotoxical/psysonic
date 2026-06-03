@@ -20,6 +20,7 @@ export const common = {
   noFolderSelected: 'Geen map geselecteerd',
   rememberDownloadFolder: 'Deze map onthouden',
   filterGenre: 'Genre-filter',
+  filterGenreTooltip: 'Filteren op genre',
   filterSearchGenres: 'Genres zoeken…',
   filterNoGenres: 'Geen genres gevonden',
   filterClear: 'Wissen',

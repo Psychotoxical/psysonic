@@ -8,6 +8,8 @@ export const albums = {
   yearTo: 'Până la',
   yearFilterClear: 'Golește filtrul de an',
   yearFilterLabel: 'An',
+  sortTooltip: 'Schimbă ordinea de sortare',
+  yearFilterTooltip: 'Filtrează după anul lansării',
   compilationLabel: 'Compilații',
   compilationOnly: 'Doar compilații',
   compilationHide: 'Ascunde compilațiile',

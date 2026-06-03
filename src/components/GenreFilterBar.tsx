@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Check, Filter, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import FilterQuickClear from './FilterQuickClear';
+import { tooltipAttrs } from './tooltipAttrs';
 
 type GenreRow = GenreFilterOption;
 
@@ -153,6 +154,7 @@ export default function GenreFilterBar({
         onClick={() => setOpen(v => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
+        {...tooltipAttrs(t('common.filterGenreTooltip'), { pos: 'bottom' })}
         style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
       >
         <Filter size={14} />

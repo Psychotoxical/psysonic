@@ -384,6 +384,7 @@ export default function Albums() {
                     value={sort}
                     options={sortOptions}
                     onChange={onSortChange}
+                    tooltip={t('albums.sortTooltip')}
                   />
 
                   <YearFilterButton

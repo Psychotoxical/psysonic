@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { CalendarRange, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import FilterQuickClear from './FilterQuickClear';
+import { tooltipAttrs } from './tooltipAttrs';
 import {
   ALBUM_YEAR_MAX,
   ALBUM_YEAR_MIN,
@@ -136,6 +137,7 @@ export default function YearFilterButton({
         onClick={() => setOpen(v => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
+        {...tooltipAttrs(t('albums.yearFilterTooltip'), { pos: 'bottom' })}
         style={{
           display: 'flex', alignItems: 'center', gap: '0.4rem',
           ...(active ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}),

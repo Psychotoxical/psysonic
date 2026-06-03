@@ -20,6 +20,7 @@ export const common = {
   noFolderSelected: 'Папка не выбрана',
   rememberDownloadFolder: 'Запомнить папку',
   filterGenre: 'Фильтр по жанру',
+  filterGenreTooltip: 'Фильтр по жанру',
   filterSearchGenres: 'Поиск жанров…',
   filterNoGenres: 'Нет совпадений',
   filterClear: 'Сбросить',

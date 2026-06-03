@@ -20,6 +20,7 @@ export const common = {
   noFolderSelected: 'Aucun dossier sélectionné',
   rememberDownloadFolder: 'Mémoriser ce dossier',
   filterGenre: 'Filtre genre',
+  filterGenreTooltip: 'Filtrer par genre',
   filterSearchGenres: 'Rechercher des genres…',
   filterNoGenres: 'Aucun genre trouvé',
   filterClear: 'Effacer',

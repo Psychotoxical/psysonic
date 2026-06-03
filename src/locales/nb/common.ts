@@ -20,6 +20,7 @@ export const common = {
   noFolderSelected: 'Ingen mappe valgt',
   rememberDownloadFolder: 'Husk denne mappen',
   filterGenre: 'Sjangerfilter',
+  filterGenreTooltip: 'Filtrer etter sjanger',
   filterSearchGenres: 'Søk i sjangre…',
   filterNoGenres: 'Ingen sjangre samsvarer',
   filterClear: 'Tøm',

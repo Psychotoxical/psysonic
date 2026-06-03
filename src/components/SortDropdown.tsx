@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowDownUp, Check } from 'lucide-react';
+import { tooltipAttrs } from './tooltipAttrs';
 
 export interface SortOption<V extends string> {
   value: V;
@@ -12,9 +13,11 @@ interface Props<V extends string> {
   options: SortOption<V>[];
   onChange: (value: V) => void;
   ariaLabel?: string;
+  /** Hover tooltip describing the action (shown below the trigger). */
+  tooltip?: string;
 }
 
-export default function SortDropdown<V extends string>({ value, options, onChange, ariaLabel }: Props<V>) {
+export default function SortDropdown<V extends string>({ value, options, onChange, ariaLabel, tooltip }: Props<V>) {
   const [open, setOpen] = useState(false);
   const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
 
@@ -91,6 +94,7 @@ export default function SortDropdown<V extends string>({ value, options, onChang
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
+        {...(tooltip ? tooltipAttrs(tooltip, { pos: 'bottom' }) : {})}
         style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
       >
         <ArrowDownUp size={14} />

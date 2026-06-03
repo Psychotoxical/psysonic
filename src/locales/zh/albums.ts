@@ -8,6 +8,8 @@ export const albums = {
   yearTo: '到',
   yearFilterClear: '清除年份筛选',
   yearFilterLabel: '年份',
+  sortTooltip: '更改排序方式',
+  yearFilterTooltip: '按发行年份筛选',
   compilationLabel: '合辑',
   compilationOnly: '仅合辑',
   compilationHide: '隐藏合辑',

@@ -21,6 +21,7 @@ export const common = {
   noFolderSelected: 'Niciun folder selectat',
   rememberDownloadFolder: 'Ține minte acest folder',
   filterGenre: 'Filtru de gen',
+  filterGenreTooltip: 'Filtrează după gen',
   filterSearchGenres: 'Caută genuri…',
   filterNoGenres: 'Niciun gen nu corespunde',
   filterClear: 'Golește',

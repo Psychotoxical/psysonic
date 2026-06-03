@@ -8,6 +8,8 @@ export const albums = {
   yearTo: 'Tot',
   yearFilterClear: 'Jaarfilter wissen',
   yearFilterLabel: 'Jaar',
+  sortTooltip: 'Sorteervolgorde wijzigen',
+  yearFilterTooltip: 'Filteren op uitgavejaar',
   compilationLabel: 'Compilaties',
   compilationOnly: 'Alleen compilaties',
   compilationHide: 'Compilaties verbergen',

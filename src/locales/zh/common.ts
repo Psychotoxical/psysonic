@@ -20,6 +20,7 @@ export const common = {
   noFolderSelected: '未选择文件夹',
   rememberDownloadFolder: '记住此文件夹',
   filterGenre: '流派筛选',
+  filterGenreTooltip: '按流派筛选',
   filterSearchGenres: '搜索流派…',
   filterNoGenres: '未找到匹配流派',
   filterClear: '清除',
