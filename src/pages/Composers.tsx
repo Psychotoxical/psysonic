@@ -19,6 +19,7 @@ import { useNavigateToComposer } from '../hooks/useNavigateToComposer';
 import { peekComposerBrowseScrollRestore } from '../store/composerBrowseSessionStore';
 import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
 import { readComposerBrowseRestore } from '../utils/navigation/albumDetailNavigation';
+import { filterArtistsWithRoleAlbumCredits } from '../utils/library/composerBrowse';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
@@ -153,7 +154,7 @@ export default function Composers() {
     ndListArtistsByRole('composer', 0, 10000)
       .then(data => {
         if (cancelled) return;
-        setComposers(data);
+        setComposers(filterArtistsWithRoleAlbumCredits(data));
         setLoading(false);
       })
       .catch(err => {
