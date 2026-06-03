@@ -826,6 +826,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * A pass of UI/CSS fixes: keyboard focus rings now sit inside the focused element, so they're no longer clipped at the edge of cards, rails, the player bar, queue tabs or search fields; the page, Help and Settings search fields share one consistent shape and focus highlight; the column-visibility dropdown on track tables no longer gets cut off on short lists (e.g. a single favorited song); and the Theme settings list rounds its corners to match its section.
 
+### Random Mix — audiobook exclusion no longer drops normal music
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#973](https://github.com/Psychotoxical/psysonic/pull/973) — reported by zunoz on Discord**
+
+* "Exclude audiobooks & radio plays" no longer treats **Thriller** and **Fantasy** as audiobook keywords. They matched regular music (Trance/Metal genre tags, a track titled "Thriller") because the filter scans genre, title, album and artist, so a handful of legitimate songs were dropped from each mix.
+* The exclusion's toggle area is tightened so only the checkbox and its title respond to a click — the description text and surrounding empty space no longer toggle it.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
