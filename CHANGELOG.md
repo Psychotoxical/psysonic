@@ -443,6 +443,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Multi-select rings on Artists, All Albums, Playlists, and related card grids use an inset `::after` overlay (same approach as card focus rings) instead of `outline` on `overflow: hidden` tiles — fixes top-row clipping and the ~1px gap vs the inner border on Wayland/WebKitGTK.
 
 
+### Composers — hide performer-only artists from role catalog
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#963](https://github.com/Psychotoxical/psysonic/pull/963)**
+
+* Navidrome's composer role list can include artists with zero composer album credits (e.g. Apollo 440 with performer albums only). Composers browse/search now drops rows where `stats.composer.albumCount` is zero so ghost composer cards no longer appear.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
