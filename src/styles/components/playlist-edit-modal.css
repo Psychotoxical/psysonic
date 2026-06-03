@@ -216,7 +216,7 @@
   padding: 5px 12px;
   border-radius: var(--radius-sm);
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--ctp-surface1);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
@@ -227,7 +227,7 @@
 .artist-ext-link:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: var(--border-subtle);
+  border-color: var(--ctp-overlay0);
 }
 
 /* Bio section */
