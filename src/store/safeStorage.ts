@@ -1,4 +1,4 @@
-import { createJSONStorage, type StateStorage } from 'zustand/middleware';
+import { createJSONStorage, type PersistStorage, type StateStorage } from 'zustand/middleware';
 
 /**
  * `localStorage` wrapped so a failed write never throws.
@@ -56,3 +56,24 @@ const safeLocalStorage: StateStorage = {
  * never throw. Use for any persist store whose slice can grow unbounded.
  */
 export const createSafeJSONStorage = <S>() => createJSONStorage<S>(() => safeLocalStorage);
+
+/**
+ * Wraps a persist storage so `setItem` is a no-op until the store finishes its
+ * first hydration. Zustand v5 persists on every `setState`; without this gate,
+ * startup side effects (e.g. `runInitialAudioSync`) can overwrite the saved
+ * blob with in-memory defaults before async rehydration merges localStorage.
+ */
+export function createHydrationGatedStorage<S>(
+  base: PersistStorage<S> | undefined,
+  isWriteAllowed: () => boolean,
+): PersistStorage<S> | undefined {
+  if (!base) return undefined;
+  return {
+    getItem: base.getItem.bind(base),
+    removeItem: base.removeItem.bind(base),
+    setItem: (name, value) => {
+      if (!isWriteAllowed()) return;
+      return base.setItem(name, value);
+    },
+  };
+}

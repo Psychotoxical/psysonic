@@ -17,6 +17,8 @@ export function runInitialAudioSync(): void {
 
   // Initial sync of audio settings to Rust engine on startup.
   const { crossfadeEnabled, crossfadeSecs, gaplessEnabled, audioOutputDevice } = useAuthStore.getState();
+  const { volume } = usePlayerStore.getState();
+  invoke('audio_set_volume', { volume }).catch(() => {});
   invoke('audio_set_crossfade', { enabled: crossfadeEnabled, secs: crossfadeSecs }).catch(() => {});
   invoke('audio_set_gapless', { enabled: gaplessEnabled }).catch(() => {});
   const normCfg = useAuthStore.getState();

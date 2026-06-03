@@ -17,6 +17,7 @@ const BACKUP_KEYS = [
   'psysonic-eq',
   'psysonic_global_shortcuts',
   'psysonic-player',
+  'psysonic_player_prefs',
   'psysonic_home',
 ];
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { createSafeJSONStorage } from './safeStorage';
+import { readInitialPlayerPrefs, persistPlayerPrefs } from './playerPrefsStorage';
+import { createHydrationGatedStorage, createSafeJSONStorage } from './safeStorage';
 import { emitPlaybackProgress } from './playbackProgress';
 import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
@@ -18,6 +19,9 @@ import { createScheduleActions } from './scheduleActions';
 import { createTransportLightActions } from './transportLightActions';
 import { createUiStateActions } from './uiStateActions';
 import { createUndoRedoActions } from './undoRedoActions';
+
+const initialPlayerPrefs = readInitialPlayerPrefs();
+let playerPersistWritesEnabled = false;
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -48,7 +52,7 @@ export const usePlayerStore = create<PlayerState>()(
       progress: 0,
       buffered: 0,
       currentTime: 0,
-      volume: 0.8,
+      volume: initialPlayerPrefs.volume,
       scrobbled: false,
       lastfmLoved: false,
       lastfmLovedCache: {},
@@ -60,7 +64,7 @@ export const usePlayerStore = create<PlayerState>()(
       scheduledPauseStartMs: null,
       scheduledResumeAtMs: null,
       scheduledResumeStartMs: null,
-      repeatMode: 'off',
+      repeatMode: initialPlayerPrefs.repeatMode,
       contextMenu: { isOpen: false, x: 0, y: 0, item: null, type: null },
       songInfoModal: { isOpen: false, songId: null },
 
@@ -85,10 +89,13 @@ export const usePlayerStore = create<PlayerState>()(
       // Quota-safe: a failed persist write (huge queue > localStorage quota)
       // must never throw, or it aborts the `set()` it fires from — that is what
       // killed `playTrack` before `audio_play`. See safeStorage.ts.
-      storage: createSafeJSONStorage(),
+      storage: createHydrationGatedStorage(
+        createSafeJSONStorage(),
+        () => playerPersistWritesEnabled,
+      ),
       partialize: (state) => ({
-        volume: state.volume,
-        repeatMode: state.repeatMode,
+        // volume + repeatMode live in `psysonic_player_prefs` (see playerPrefsStorage.ts)
+        // so they survive when this blob exceeds the localStorage quota.
         currentTrack: state.currentTrack,
         queueServerId: state.queueServerId,
         // Thin-state: persist the whole ordered ref list (tiny) — no windowed
@@ -145,6 +152,10 @@ export const usePlayerStore = create<PlayerState>()(
 
         // Drop the obsolete windowed fat-array key — `queueItems` is canonical.
         delete blob.queue;
+        // volume/repeatMode are owned by `psysonic_player_prefs`; strip any legacy
+        // fields so an old blob cannot clobber the dedicated prefs on rehydrate.
+        delete blob.volume;
+        delete blob.repeatMode;
         // Persist the canonical form back onto the merged blob so subsequent
         // reads of state.queueServerId always see the index key.
         if (canonicalSid !== null) {
@@ -161,6 +172,19 @@ export const usePlayerStore = create<PlayerState>()(
     }
   )
 );
+
+usePlayerStore.persist.onHydrate(() => {
+  playerPersistWritesEnabled = false;
+});
+usePlayerStore.persist.onFinishHydration(() => {
+  playerPersistWritesEnabled = true;
+});
+
+usePlayerStore.subscribe((state, prev) => {
+  if (state.volume !== prev.volume || state.repeatMode !== prev.repeatMode) {
+    persistPlayerPrefs({ volume: state.volume, repeatMode: state.repeatMode });
+  }
+});
 
 usePlayerStore.subscribe((state, prev) => {
   if (
