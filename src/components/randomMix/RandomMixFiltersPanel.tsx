@@ -92,18 +92,24 @@ export default function RandomMixFiltersPanel({
             {t('randomMix.filterPanelDesc')}
           </p>
 
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: 13, marginBottom: '0.6rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: 13, marginBottom: '0.6rem' }}>
             <input
+              id="random-mix-exclude-audiobooks"
               type="checkbox"
               checked={excludeAudiobooks}
               onChange={e => setExcludeAudiobooks(e.target.checked)}
-              style={{ marginTop: 2 }}
+              style={{ marginTop: 2, flexShrink: 0, cursor: 'pointer' }}
             />
             <div>
-              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{t('randomMix.excludeAudiobooks')}</div>
+              <label
+                htmlFor="random-mix-exclude-audiobooks"
+                style={{ fontWeight: 500, color: 'var(--text-primary)', cursor: 'pointer', display: 'inline-block' }}
+              >
+                {t('randomMix.excludeAudiobooks')}
+              </label>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('randomMix.excludeAudiobooksDesc')}</div>
             </div>
-          </label>
+          </div>
 
           <button
             className="btn btn-ghost"
