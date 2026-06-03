@@ -11,6 +11,7 @@ import { usePlaybackServerId } from '../hooks/usePlaybackServerId';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import CachedImage from './CachedImage';
 import OverlayScrollArea from './OverlayScrollArea';
+import { primaryTrackArtistRef } from '../utils/playback/trackArtistRefs';
 
 const TOUR_LIMIT = 5;
 const BIO_CLAMP_LINES = 4;
@@ -88,8 +89,9 @@ export default function NowPlayingInfo() {
   const subsonicServerId = usePlaybackServerId();
   const subsonicReady = Boolean(subsonicServerId);
 
-  const artistName = currentTrack?.artist || '';
-  const artistId = currentTrack?.artistId || '';
+  const primaryArtist = currentTrack ? primaryTrackArtistRef(currentTrack) : null;
+  const artistName = primaryArtist?.name ?? currentTrack?.artist ?? '';
+  const artistId = primaryArtist?.id ?? '';
   const songId = currentTrack?.id || '';
 
   // Tuple { id, info } gates rendering on "info matches the current artistId" so
@@ -175,8 +177,8 @@ export default function NowPlayingInfo() {
   }, [bioClean]);
 
   const contributorRows = useMemo(
-    () => buildContributorRows(matchedSongDetail, artistName),
-    [matchedSongDetail, artistName],
+    () => buildContributorRows(matchedSongDetail, currentTrack?.artist ?? ''),
+    [matchedSongDetail, currentTrack?.artist],
   );
 
   if (!currentTrack) {

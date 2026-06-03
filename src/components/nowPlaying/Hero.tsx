@@ -4,7 +4,9 @@ import { Headphones, Heart, MicVocal, Music, Star } from 'lucide-react';
 import { CoverArtImage } from '../../cover/CoverArtImage';
 import type { CoverArtRef } from '../../cover/types';
 import type { LastfmArtistStats, LastfmTrackInfo } from '../../api/lastfm';
+import type { SubsonicOpenArtistRef } from '../../api/subsonicTypes';
 import LastfmIcon from '../LastfmIcon';
+import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 
 interface HeroProps {
@@ -12,6 +14,8 @@ interface HeroProps {
     duration: number; suffix?: string; bitRate?: number; samplingRate?: number;
     bitDepth?: number; artistId?: string; albumId?: string; id: string;
     userRating?: number; };
+  /** OpenSubsonic `artists` on the playing track — per-artist links in the hero subline. */
+  artistRefs?: SubsonicOpenArtistRef[];
   genre?: string;
   playCount?: number;
   userRatingOverride?: number;
@@ -42,7 +46,7 @@ function renderStars(rating?: number) {
   );
 }
 
-const Hero = memo(function Hero({ track, genre, playCount, userRatingOverride, lfmTrack, lfmArtist, starred, lfmLoved, lfmLoveEnabled, activeLyricsTab, coverRef, onNavigate, onToggleStar, onToggleLfmLove, onOpenLyrics }: HeroProps) {
+const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatingOverride, lfmTrack, lfmArtist, starred, lfmLoved, lfmLoveEnabled, activeLyricsTab, coverRef, onNavigate, onToggleStar, onToggleLfmLove, onOpenLyrics }: HeroProps) {
   const { t } = useTranslation();
   const rating = userRatingOverride ?? track.userRating;
   const hiRes  = (track.bitDepth ?? 0) > 16 || (track.samplingRate ?? 0) > 48000;
@@ -67,11 +71,22 @@ const Hero = memo(function Hero({ track, genre, playCount, userRatingOverride, l
       <div className="np-dash-hero-body">
         <div className="np-dash-hero-title">{track.title}</div>
         <div className="np-dash-hero-sub">
-          <span className="np-link"
-            onClick={() => track.artistId && onNavigate(`/artist/${track.artistId}`)}
-            style={{ cursor: track.artistId ? 'pointer' : 'default' }}>
-            {track.artist}
-          </span>
+          {artistRefs && artistRefs.length > 0 ? (
+            <OpenArtistRefInline
+              refs={artistRefs}
+              fallbackName={track.artist}
+              onGoArtist={id => onNavigate(`/artist/${id}`)}
+              as="none"
+              linkTag="span"
+              linkClassName="np-link"
+            />
+          ) : (
+            <span className="np-link"
+              onClick={() => track.artistId && onNavigate(`/artist/${track.artistId}`)}
+              style={{ cursor: track.artistId ? 'pointer' : 'default' }}>
+              {track.artist}
+            </span>
+          )}
           <span className="np-sep">·</span>
           <span className="np-link"
             onClick={() => track.albumId && onNavigate(`/album/${track.albumId}`)}

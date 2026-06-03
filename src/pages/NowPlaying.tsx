@@ -40,6 +40,9 @@ import TourCard from '../components/nowPlaying/TourCard';
 import DiscographyCard from '../components/nowPlaying/DiscographyCard';
 import { useNowPlayingFetchers } from '../hooks/useNowPlayingFetchers';
 import { useNowPlayingStarLove } from '../hooks/useNowPlayingStarLove';
+import { useArtistInfoBatch } from '../hooks/useArtistInfoBatch';
+import { primaryTrackArtistRef, resolveTrackArtistRefs } from '../utils/playback/trackArtistRefs';
+import type { ArtistCardTab } from '../components/nowPlaying/ArtistCard';
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -68,9 +71,17 @@ export default function NowPlaying() {
   const radioMeta = useRadioMetadata(currentRadio ?? null);
 
   const songId    = currentTrack?.id;
-  const artistId  = currentTrack?.artistId;
   const albumId   = currentTrack?.albumId;
-  const artistName = currentTrack?.artist ?? '';
+  const trackArtistRefs = useMemo(
+    () => (currentTrack ? resolveTrackArtistRefs(currentTrack) : []),
+    [currentTrack],
+  );
+  const primaryArtist = useMemo(
+    () => (currentTrack ? primaryTrackArtistRef(currentTrack) : null),
+    [currentTrack],
+  );
+  const artistId = primaryArtist?.id;
+  const artistName = primaryArtist?.name ?? currentTrack?.artist ?? '';
 
   // Entity fetchers (8 cached useEffects + their state)
   const {
@@ -107,8 +118,8 @@ export default function NowPlaying() {
   const resolvedRadioCover = radioCover.src;
 
   const contributorRows = useMemo(
-    () => buildContributorRows(songMeta, artistName),
-    [songMeta, artistName],
+    () => buildContributorRows(songMeta, currentTrack?.artist ?? ''),
+    [songMeta, currentTrack?.artist],
   );
 
   // Merge Subsonic artistInfo with Last.fm fallback: if Subsonic has no bio,
@@ -122,6 +133,28 @@ export default function NowPlaying() {
       biography: lfmArtist.bio,
     };
   }, [artistInfo, lfmArtist]);
+
+  const artistInfoById = useArtistInfoBatch(
+    playbackServerId,
+    trackArtistRefs,
+    audiomuseNavidromeEnabled ? 24 : undefined,
+  );
+
+  const artistTabs = useMemo((): ArtistCardTab[] | undefined => {
+    const tabs = trackArtistRefs.filter(r => r.id?.trim());
+    if (tabs.length <= 1) return undefined;
+    return tabs.map((ref, index) => {
+      const id = ref.id!.trim();
+      const info = index === 0
+        ? (effectiveArtistInfo ?? artistInfoById[id] ?? null)
+        : (artistInfoById[id] ?? null);
+      return {
+        id,
+        name: ref.name ?? id,
+        artistInfo: info,
+      };
+    });
+  }, [trackArtistRefs, artistInfoById, effectiveArtistInfo]);
 
   const handleEnableBandsintown = useCallback(() => setEnableBandsintown(true), [setEnableBandsintown]);
 
@@ -237,6 +270,7 @@ export default function NowPlaying() {
                 albumId: currentTrack.albumId,
                 userRating: currentTrack.userRating,
               }}
+              artistRefs={trackArtistRefs.length > 0 ? trackArtistRefs : undefined}
               genre={songMeta?.genre ?? undefined}
               playCount={(songMeta as (SubsonicSong & { playCount?: number }) | null)?.playCount}
               userRatingOverride={userRatingOverrides[currentTrack.id]}
@@ -283,6 +317,7 @@ export default function NowPlaying() {
                       artistName={artistName}
                       artistId={artistId}
                       artistInfo={effectiveArtistInfo}
+                      artistTabs={artistTabs}
                       onNavigate={stableNavigate}
                     />
                   );

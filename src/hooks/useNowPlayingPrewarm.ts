@@ -12,6 +12,7 @@ import { prewarmNowPlayingFetchers } from './useNowPlayingFetchers';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { usePlaybackServerId } from './usePlaybackServerId';
+import { primaryTrackArtistRef } from '../utils/playback/trackArtistRefs';
 
 const NOW_PLAYING_COVER_CSS_PX = 800;
 
@@ -52,11 +53,12 @@ export function useNowPlayingPrewarm(): void {
   useEffect(() => {
     if (!currentTrack || !playbackServerId) return;
 
+    const primary = primaryTrackArtistRef(currentTrack);
     void prewarmNowPlayingFetchers({
       songId: currentTrack.id,
-      artistId: currentTrack.artistId,
+      artistId: primary.id,
       albumId: currentTrack.albumId,
-      artistName: currentTrack.artist,
+      artistName: primary.name ?? currentTrack.artist,
       enableBandsintown,
       audiomuseNavidromeEnabled,
       lastfmUsername,
@@ -81,6 +83,7 @@ export function useNowPlayingPrewarm(): void {
   }, [
     currentTrack?.id,
     currentTrack?.artistId,
+    currentTrack?.artists,
     currentTrack?.albumId,
     currentTrack?.coverArt,
     currentTrack?.artist,

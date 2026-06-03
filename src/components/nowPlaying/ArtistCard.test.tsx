@@ -5,6 +5,7 @@
  * /artist/:id and the previously-divergent rendering).
  */
 import { describe, it, expect, vi } from 'vitest';
+import { fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import ArtistCard from './ArtistCard';
 import type { SubsonicArtistInfo } from '../../api/subsonicTypes';
@@ -47,6 +48,28 @@ describe('ArtistCard — hideArtistName / hideSimilar', () => {
   });
 });
 
+describe('ArtistCard — artistTabs', () => {
+  it('renders tabs and switches bio when a second artist tab is selected', () => {
+    const { container, getByRole } = renderWithProviders(
+      <ArtistCard
+        artistName="A"
+        artistId="a1"
+        artistInfo={infoWithImage}
+        artistTabs={[
+          { id: 'a1', name: 'Dan Balan', artistInfo: { biography: 'Bio A' } as SubsonicArtistInfo },
+          { id: 'a2', name: 'Katerina Begu', artistInfo: { biography: 'Bio B' } as SubsonicArtistInfo },
+        ]}
+      />,
+    );
+
+    expect(container.querySelectorAll('.np-artist-tab')).toHaveLength(2);
+    expect(container.querySelector('.np-bio-text')?.textContent).toContain('Bio A');
+
+    fireEvent.click(getByRole('tab', { name: 'Katerina Begu' }));
+    expect(container.querySelector('.np-bio-text')?.textContent).toContain('Bio B');
+  });
+});
+
 describe('ArtistCard — coverFallback', () => {
   it('uses coverFallback src + cacheKey when artistInfo has no hero image', () => {
     const noImageInfo = { biography: 'b', similarArtist: [] } as unknown as SubsonicArtistInfo;
@@ -60,8 +83,6 @@ describe('ArtistCard — coverFallback', () => {
     );
     const img = container.querySelector<HTMLImageElement>('img.np-dash-artist-image');
     expect(img).not.toBeNull();
-    // CachedImage swaps src to a blob URL asynchronously; the initial render
-    // shows the fetch URL — assert the *configured* fallback src is in play.
     expect(img!.getAttribute('src') || '').toContain('fallback.test');
   });
 

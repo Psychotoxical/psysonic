@@ -15,8 +15,10 @@ import { useQueueTrackEnrichment } from '../../hooks/useQueueTrackEnrichment';
 import { QueueLufsTargetMenu } from './QueueLufsTargetMenu';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { CoverArtImage } from '../../cover/CoverArtImage';
+import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import { usePlaybackTrackCoverRef } from '../../cover/useLibraryCoverRef';
 import { usePlayerStore } from '../../store/playerStore';
+import { resolveTrackArtistRefs } from '../../utils/playback/trackArtistRefs';
 
 interface Props {
   currentTrack: Track;
@@ -52,6 +54,7 @@ export function QueueCurrentTrack({
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
   const coverRef = usePlaybackTrackCoverRef(currentTrack);
+  const artistRefs = resolveTrackArtistRefs(currentTrack);
   const enrichment = useQueueTrackEnrichment(currentTrack.id);
   const bpmTech = formatQueueBpmTech(enrichment, t);
   const moodLine = formatQueueMoodLabels(enrichment.moodLabels, t);
@@ -219,10 +222,16 @@ export function QueueCurrentTrack({
         </div>
         <div className="queue-current-info">
           <h3 className="truncate">{currentTrack.title}</h3>
-          <div
-            className={`queue-current-sub truncate${currentTrack.artistId ? ' is-link' : ''}`}
-            onClick={() => currentTrack.artistId && navigate(`/artist/${currentTrack.artistId}`)}
-          >{currentTrack.artist}</div>
+          <div className="queue-current-sub truncate">
+            <OpenArtistRefInline
+              refs={artistRefs}
+              fallbackName={currentTrack.artist}
+              onGoArtist={id => navigate(`/artist/${id}`)}
+              as="none"
+              linkTag="span"
+              linkClassName="is-link"
+            />
+          </div>
           <div
             className={`queue-current-sub truncate${currentTrack.albumId ? ' is-link' : ''}`}
             onClick={() => currentTrack.albumId && navigate(`/album/${currentTrack.albumId}`)}
