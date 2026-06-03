@@ -491,6 +491,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Nonsense queries no longer return unrelated fuzzy matches (e.g. long repeated letters).
 
 
+### Floating player bar — remove full-width background strip
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#969](https://github.com/Psychotoxical/psysonic/pull/969)**
+
+* Floating mode no longer stretches the player bar between sidebar and queue with fixed `left`/`right` — only the centered pill is painted over the page instead of a full-width black band behind the rounded corners.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
