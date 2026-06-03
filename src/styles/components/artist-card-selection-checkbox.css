@@ -25,6 +25,16 @@
   color: var(--ctp-crust);
 }
 
+.artist-card--selectable {
+  cursor: pointer;
+}
+
+/* Inset ring — matches album-card--selected; positive outline-offset clipped the top/side rows. */
+.artist-card--selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* ── Albums selection bar (portal) ── */
 .albums-selection-bar {
   position: fixed;

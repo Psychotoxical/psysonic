@@ -24,7 +24,7 @@ type TilePropsShared = Omit<TileProps, 'artist'>;
 function ArtistGridTile({ artist, ...rest }: TileProps) {
   return (
     <div
-      className={`artist-card${rest.selectionMode && rest.selectedIds.has(artist.id) ? ' selected' : ''}${rest.selectionMode ? ' artist-card--selectable' : ''}`}
+      className={`artist-card${rest.selectionMode ? ' artist-card--selectable' : ''}${rest.selectionMode && rest.selectedIds.has(artist.id) ? ' artist-card--selected' : ''}`}
       onClick={() => {
         if (rest.selectionMode) {
           rest.toggleSelect(artist.id);
@@ -40,11 +40,6 @@ function ArtistGridTile({ artist, ...rest }: TileProps) {
           rest.openContextMenu(e.clientX, e.clientY, artist, 'artist');
         }
       }}
-      style={rest.selectionMode && rest.selectedIds.has(artist.id) ? {
-        outline: '2px solid var(--accent)',
-        outlineOffset: '2px',
-        borderRadius: 'var(--radius-md)',
-      } : {}}
     >
       {rest.selectionMode && (
         <div className={`artist-card-select-check${rest.selectedIds.has(artist.id) ? ' artist-card-select-check--on' : ''}`}>
