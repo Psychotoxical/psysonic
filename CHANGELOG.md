@@ -833,6 +833,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * "Exclude audiobooks & radio plays" no longer treats **Thriller** and **Fantasy** as audiobook keywords. They matched regular music (Trance/Metal genre tags, a track titled "Thriller") because the filter scans genre, title, album and artist, so a handful of legitimate songs were dropped from each mix.
 * The exclusion's toggle area is tightened so only the checkbox and its title respond to a click — the description text and surrounding empty space no longer toggle it.
 
+### Cursors and Favorites sorting
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#974](https://github.com/Psychotoxical/psysonic/pull/974) — reported by zunoz on Discord**
+
+* The queue collapse handle now shows a hand cursor like every other button; the thin resize line beside it keeps the resize cursor.
+* On Favorites, the **Plays**, **Last Played** and **BPM** columns are now actually sortable — they showed a clickable cursor but clicking did nothing.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
