@@ -43,7 +43,7 @@ export default function PlaylistCard({
 
   return (
     <div
-      className={`album-card${selectionMode && selectedIds.has(pl.id) ? ' selected' : ''}`}
+      className={`album-card${selectionMode && selectedIds.has(pl.id) ? ' album-card--selected' : ''}`}
       onClick={(e) => {
         if (selectionMode) {
           toggleSelect(pl.id, { shiftKey: e.shiftKey });
@@ -60,12 +60,6 @@ export default function PlaylistCard({
         }
       }}
       onMouseLeave={() => { if (deleteConfirmId === pl.id) setDeleteConfirmId(null); }}
-      style={selectionMode && selectedIds.has(pl.id) ? {
-        position: 'relative',
-        outline: '2px solid var(--accent)',
-        outlineOffset: '2px',
-        borderRadius: 'var(--radius-md)'
-      } : { position: 'relative' }}
     >
       {!selectionMode && (
         <div className="playlist-card-actions">

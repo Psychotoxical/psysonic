@@ -29,10 +29,19 @@
   cursor: pointer;
 }
 
-/* Inset ring — matches album-card--selected; positive outline-offset clipped the top/side rows. */
+/* Inset overlay ring — see `.album-card--selected::after` / `.card:focus-visible::after`. */
 .artist-card--selected {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: none;
+}
+
+.artist-card--selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--accent);
+  z-index: 4;
+  pointer-events: none;
 }
 
 /* ── Albums selection bar (portal) ── */

@@ -346,8 +346,21 @@
 }
 
 .album-card--selected {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: none;
+}
+
+/* Inset overlay ring — same approach as `.card:focus-visible::after` in card.css:
+   outline + overflow:hidden clips on WebKitGTK/Wayland; inset box-shadow on ::after
+   paints above the cover without growing the card box. */
+.album-card--selected::after,
+.album-card.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--accent);
+  z-index: 4;
+  pointer-events: none;
 }
 
 .album-card-select-check {
@@ -362,7 +375,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 3;
+  z-index: 5;
   pointer-events: none;
 }
 
