@@ -465,6 +465,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Genre Mix loads genres through the scoped catalog (`fetchGenreCatalog` / local index) instead of server-wide `getGenres`, matching the sidebar library filter.
 
 
+### Artist detail — external link buttons keep border on hover
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#966](https://github.com/Psychotoxical/psysonic/pull/966)**
+
+* Last.fm, Wikipedia, and Favorite used a hover border color that matched the card background — the rim disappeared instead of highlighting the inner fill like Play/Shuffle/Radio (`btn-surface`).
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
