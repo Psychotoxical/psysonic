@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { SubsonicAlbum } from './subsonicTypes';
 import { filterAlbumsByScopedAlbumIds } from './subsonicLibrary';
 
-const album = (id: string): SubsonicAlbum => ({ id, name: id, artist: 'a', artistId: '1' });
+const album = (id: string): SubsonicAlbum => ({
+  id,
+  name: id,
+  artist: 'a',
+  artistId: '1',
+  songCount: 1,
+  duration: 1,
+});
 
 describe('filterAlbumsByScopedAlbumIds', () => {
   it('returns all albums when scope is unset', () => {
