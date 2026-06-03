@@ -414,6 +414,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Startup no longer overwrites saved prefs before Zustand rehydration finishes; persisted volume is pushed to the Rust engine on boot.
 
 
+### All Albums — genre filter respects sidebar library scope
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#959](https://github.com/Psychotoxical/psysonic/pull/959)**
+
+* With multiple music libraries, narrowing the sidebar to one library no longer leaves the Genre filter showing server-wide genres — options now come from the scoped local index catalog (same scope as the album grid).
+
 
 ### In-page browse — virtual scroll and cover-art priority
 
