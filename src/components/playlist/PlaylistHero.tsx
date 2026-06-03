@@ -133,7 +133,7 @@ export default function PlaylistHero({
               )}
             </>
             <div className="album-detail-info">
-              <span>{t('playlists.songs', { n: songs.length })}</span>
+              <span>{t('playlists.songs', { count: songs.length })}</span>
               {songs.length > 0 && <span>· {totalDurationLabel(songs)}</span>}
               {playlist.public !== undefined && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
@@ -146,7 +146,12 @@ export default function PlaylistHero({
             </div>
             <div className="album-detail-actions">
               <div className="album-detail-actions-primary">
-                <button className="btn btn-primary" disabled={songs.length === 0} onClick={handlePlayAll}>
+                <button
+                  className="btn btn-primary"
+                  disabled={songs.length === 0}
+                  onClick={handlePlayAll}
+                  data-tooltip={t('playlists.playTooltip')}
+                >
                   <Play size={15} /> {t('common.play', 'Reproducir')}
                 </button>
                 <button
@@ -170,6 +175,7 @@ export default function PlaylistHero({
                 <button
                   className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
                   onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
+                  data-tooltip={t('playlists.addSongsTooltip')}
                 >
                   <Search size={16} /> {t('playlists.addSongs')}
                 </button>

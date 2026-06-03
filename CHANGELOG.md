@@ -470,6 +470,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#966](https://github.com/Psychotoxical/psysonic/pull/966)**
 
 * Last.fm, Wikipedia, and Favorite used a hover border color that matched the card background — the rim disappeared instead of highlighting the inner fill like Play/Shuffle/Radio (`btn-surface`).
+* Playlist detail — Play and Add Songs now show tooltips like the other header actions; track count uses proper pluralization (`1 song` vs `N songs`) with standard `count` interpolation.
 
 
 ### In-page browse — virtual scroll and cover-art priority

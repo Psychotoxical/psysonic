@@ -161,7 +161,7 @@ export default function PlaylistCard({
           <span>{displayPlaylistName(pl.name)}</span>
         </div>
         <div className="album-card-artist">
-          {t('playlists.songs', { n: filteredSongCountByPlaylist[pl.id] ?? pl.songCount })}
+          {t('playlists.songs', { count: filteredSongCountByPlaylist[pl.id] ?? pl.songCount })}
           {(filteredDurationByPlaylist[pl.id] ?? pl.duration) > 0 && (
             <> · {formatHumanHoursMinutes(filteredDurationByPlaylist[pl.id] ?? pl.duration)}</>
           )}
