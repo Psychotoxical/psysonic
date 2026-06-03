@@ -457,6 +457,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The recommendation rail picks albums from Last.fm similar artists via `getArtist`, which can ignore `musicFolderId` — picks are now filtered to the scoped library album set, and the rail cache invalidates when the sidebar library filter changes.
 
 
+### Build a Mix — keyword blocks and scoped genre list
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#965](https://github.com/Psychotoxical/psysonic/pull/965)**
+
+* Random Mix keyword filter (click-to-block artist/genre) now applies even when "Exclude audiobooks" is off — blocking the only track in a library shows an empty state after Remix instead of the excluded song.
+* Genre Mix loads genres through the scoped catalog (`fetchGenreCatalog` / local index) instead of server-wide `getGenres`, matching the sidebar library filter.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
