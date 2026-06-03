@@ -27,7 +27,10 @@
   border: 1px solid var(--border-subtle);
   background: var(--bg-card);
   color: var(--text-muted);
-  cursor: col-resize;
+  /* The round handle is primarily a click-to-collapse button; the seam strip
+     (.resizer) keeps col-resize, and an actual drag sets the body cursor to
+     col-resize via useQueueResizer. */
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
