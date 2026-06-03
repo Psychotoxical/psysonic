@@ -32,4 +32,14 @@ describe('filterRandomMixSongs', () => {
     expect(kept).toHaveLength(1);
     expect(kept[0].id).toBe('2');
   });
+
+  it('applies keyword blacklist even when audiobook exclusion is off', () => {
+    const blocked = { ...song('1'), artist: '[Unknown Artist]' };
+    const out = filterRandomMixSongs([blocked, song('2')], {
+      excludeAudiobooks: false,
+      customGenreBlacklist: ['[Unknown Artist]'],
+      mixRatingCfg: { enabled: false, minSong: 0, minAlbum: 0, minArtist: 0 },
+    });
+    expect(out).toEqual([song('2')]);
+  });
 });

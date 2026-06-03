@@ -32,6 +32,7 @@ export const randomMix = {
   genreMixAll: 'Alle sanger',
   genreMixLoadMore: 'Last 10 til',
   genreMixNoGenres: 'Ingen sjangre funnet på tjeneren.',
+  noSongsMatchFilters: 'Ingen spor matcher de aktuelle filtrene. Fjern nøkkelord fra blokkeringslisten eller endre mix-innstillingene.',
   shuffleGenres: 'Vis andre sjangre',
   filterPanelTitle: 'Filtre',
   filterPanelDesc: 'Klikk på en sjanger-tag eller på artistnavnet i sporlisten nedenfor, for å blokkere den fra fremtidige mikser.',

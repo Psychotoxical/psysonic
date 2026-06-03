@@ -1,11 +1,11 @@
 import { queueSongStar } from '../store/pendingStarSync';
-import { getGenres } from '../api/subsonicGenres';
 import type { SubsonicSong, SubsonicGenre } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useMemo, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
@@ -13,7 +13,8 @@ import {
   fetchRandomMixSongsUntilFull,
   getMixMinRatingsConfigFromAuth,
 } from '../utils/mix/mixRatingFilter';
-import { AUDIOBOOK_GENRES, filterRandomMixSongs, formatRandomMixDuration } from '../utils/componentHelpers/randomMixHelpers';
+import { fetchGenreCatalog } from '../utils/library/genreBrowsePlayback';
+import { AUDIOBOOK_GENRES, filterRandomMixSongs } from '../utils/componentHelpers/randomMixHelpers';
 import RandomMixHeader from '../components/randomMix/RandomMixHeader';
 import RandomMixFiltersPanel from '../components/randomMix/RandomMixFiltersPanel';
 import RandomMixGenrePanel from '../components/randomMix/RandomMixGenrePanel';
@@ -58,6 +59,8 @@ export default function RandomMix() {
     [mixMinRatingFilterEnabled, mixMinRatingSong, mixMinRatingAlbum, mixMinRatingArtist]
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
+  const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(activeServerId));
   const [addedGenre, setAddedGenre] = useState<string | null>(null);
   const [addedArtist, setAddedArtist] = useState<string | null>(null);
 
@@ -77,6 +80,7 @@ export default function RandomMix() {
   const [genreMixSongs, setGenreMixSongs] = useState<SubsonicSong[]>([]);
   const [genreMixLoading, setGenreMixLoading] = useState(false);
   const [genreMixComplete, setGenreMixComplete] = useState(false);
+  const [genresLoading, setGenresLoading] = useState(true);
 
   const fetchSongs = (overrideSize?: number) => {
     setLoading(true);
@@ -98,23 +102,36 @@ export default function RandomMix() {
 
   useEffect(() => {
     fetchSongs();
-    getGenres().then(data => {
-      setServerGenres(data);
-      const audiobookLower = AUDIOBOOK_GENRES.map(g => g.toLowerCase());
-      const available = data
-        .filter(g => g.songCount > 0 && !audiobookLower.some(ab => g.value.toLowerCase().includes(ab)))
-        .sort((a, b) => b.songCount - a.songCount)
-        .map(g => g.value);
-      setAllAvailableGenres(available);
-      setDisplayedGenres(available.slice(0, 20));
-    }).catch(() => {});
-  }, [musicLibraryFilterVersion]);
+    setGenresLoading(true);
+    void fetchGenreCatalog(activeServerId, indexEnabled)
+      .then(data => {
+        setServerGenres(data);
+        const audiobookLower = AUDIOBOOK_GENRES.map(g => g.toLowerCase());
+        const available = data
+          .filter(g => g.songCount > 0 && !audiobookLower.some(ab => g.value.toLowerCase().includes(ab)))
+          .sort((a, b) => b.songCount - a.songCount)
+          .map(g => g.value);
+        setAllAvailableGenres(available);
+        setDisplayedGenres(available.slice(0, 20));
+      })
+      .catch(() => {
+        setServerGenres([]);
+        setAllAvailableGenres([]);
+        setDisplayedGenres([]);
+      })
+      .finally(() => setGenresLoading(false));
+  }, [musicLibraryFilterVersion, activeServerId, indexEnabled]);
 
   const filteredSongs = filterRandomMixSongs(songs, { excludeAudiobooks, customGenreBlacklist, mixRatingCfg });
+  const filteredGenreMixSongs = filterRandomMixSongs(genreMixSongs, {
+    excludeAudiobooks,
+    customGenreBlacklist,
+    mixRatingCfg,
+  });
 
   const handlePlayAll = () => {
-    if (selectedGenre && genreMixSongs.length > 0) {
-      playTrack(songToTrack(genreMixSongs[0]), genreMixSongs.map(songToTrack));
+    if (selectedGenre && filteredGenreMixSongs.length > 0) {
+      playTrack(songToTrack(filteredGenreMixSongs[0]), filteredGenreMixSongs.map(songToTrack));
     } else if (filteredSongs.length > 0) {
       playTrack(songToTrack(filteredSongs[0]), filteredSongs.map(songToTrack));
     }
@@ -163,7 +180,7 @@ export default function RandomMix() {
         loading={loading}
         genreMixLoading={genreMixLoading}
         genreMixComplete={genreMixComplete}
-        genreMixSongsLength={genreMixSongs.length}
+        genreMixSongsLength={filteredGenreMixSongs.length}
         filteredSongsLength={filteredSongs.length}
         randomMixSize={randomMixSize}
         onRefresh={selectedGenre ? () => loadGenreMix(selectedGenre) : () => fetchSongs()}
@@ -204,6 +221,7 @@ export default function RandomMix() {
           isMobile={isMobile}
           genreMixExpanded={genreMixExpanded}
           setGenreMixExpanded={setGenreMixExpanded}
+          genresLoading={genresLoading}
           serverGenresLength={serverGenres.length}
           displayedGenres={displayedGenres}
           allAvailableGenresLength={allAvailableGenres.length}
@@ -216,7 +234,7 @@ export default function RandomMix() {
       </div>
 
       {/* Genre Mix tracklist (shown when a genre is selected) */}
-      {(genreMixLoading || genreMixSongs.length > 0) && (
+      {selectedGenre && (genreMixLoading || genreMixComplete || genreMixSongs.length > 0) && (
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -226,6 +244,14 @@ export default function RandomMix() {
           </div>
           {genreMixLoading && genreMixSongs.length === 0 ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
+          ) : genreMixSongs.length === 0 ? (
+            <div className="empty-state" style={{ padding: '2rem 1rem', textAlign: 'center' }}>
+              {t('randomMix.noSongsMatchFilters')}
+            </div>
+          ) : filteredGenreMixSongs.length === 0 ? (
+            <div className="empty-state" style={{ padding: '2rem 1rem', textAlign: 'center' }}>
+              {t('randomMix.noSongsMatchFilters')}
+            </div>
           ) : (
             <div className="tracklist" data-preview-loc="randomMix">
               <div className="tracklist-header" style={{ gridTemplateColumns: '60px minmax(150px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 70px 65px' }}>
@@ -236,9 +262,9 @@ export default function RandomMix() {
                 <div className="col-center">{t('randomMix.trackFavorite')}</div>
                 <div className="col-center">{t('randomMix.trackDuration')}</div>
               </div>
-              {genreMixSongs.map((song, idx) => {
+              {filteredGenreMixSongs.map((song, idx) => {
                 const track = songToTrack(song);
-                const queueSongs = genreMixSongs.map(songToTrack);
+                const queueSongs = filteredGenreMixSongs.map(songToTrack);
                 const isStarred = song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id);
                 return (
                   <RandomMixTrackRow
@@ -289,6 +315,10 @@ export default function RandomMix() {
       {!selectedGenre && (loading && songs.length === 0 ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
           <div className="spinner" />
+        </div>
+      ) : filteredSongs.length === 0 ? (
+        <div className="empty-state" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+          {t('randomMix.noSongsMatchFilters')}
         </div>
       ) : (
         <div className="tracklist" data-preview-loc="randomMix">

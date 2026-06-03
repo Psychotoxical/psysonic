@@ -32,6 +32,7 @@ export const randomMix = {
   genreMixAll: 'Todas las Canciones',
   genreMixLoadMore: 'Cargar 10 más',
   genreMixNoGenres: 'No se encontraron géneros en el servidor.',
+  noSongsMatchFilters: 'Ninguna canción coincide con los filtros actuales. Quita palabras clave de la lista o cambia los ajustes del mix.',
   shuffleGenres: 'Mostrar géneros diferentes',
   filterPanelTitle: 'Filtros',
   filterPanelDesc: 'Click en una etiqueta de género o nombre de artista en la lista para bloquearlo de futuras mezclas.',

@@ -32,6 +32,7 @@ export const randomMix = {
   genreMixAll: 'Toate piesele',
   genreMixLoadMore: 'Încarcă încă 10',
   genreMixNoGenres: 'Niciun gen găsit pe server.',
+  noSongsMatchFilters: 'Niciun titlu nu se potrivește filtrelor curente. Elimină cuvinte cheie din lista de blocare sau schimbă setările mixului.',
   shuffleGenres: 'Arată genuri diferite',
   filterPanelTitle: 'Filtre',
   filterPanelDesc: 'Apasă pe un tag de gen sau nume de artist în lista de piese de mai jos pentru a o bloca din mixuri viitoare.',

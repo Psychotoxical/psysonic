@@ -32,6 +32,7 @@ export const randomMix = {
   genreMixAll: '所有歌曲',
   genreMixLoadMore: '加载 10 首更多',
   genreMixNoGenres: '服务器上未找到流派。',
+  noSongsMatchFilters: '没有歌曲符合当前筛选条件。请从关键词过滤列表中移除条目或调整混音设置。',
   shuffleGenres: '显示其他流派',
   filterPanelTitle: '过滤器',
   filterPanelDesc: '点击下方列表中的流派标签或艺术家名称，将其从未来的混音中排除。',

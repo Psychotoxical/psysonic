@@ -32,6 +32,7 @@ export const randomMix = {
   genreMixAll: 'Alle nummers',
   genreMixLoadMore: '10 meer laden',
   genreMixNoGenres: 'Geen genres gevonden op server.',
+  noSongsMatchFilters: 'Geen nummers komen overeen met de huidige filters. Verwijder trefwoorden uit de blokkeerlijst of pas de mix-instellingen aan.',
   shuffleGenres: 'Andere genres tonen',
   filterPanelTitle: 'Filters',
   filterPanelDesc: 'Klik op een genre-tag of artiestennaam in de lijst om deze uit toekomstige mixes te weren.',

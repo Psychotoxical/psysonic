@@ -6,6 +6,7 @@ interface Props {
   isMobile: boolean;
   genreMixExpanded: boolean;
   setGenreMixExpanded: React.Dispatch<React.SetStateAction<boolean>>;
+  genresLoading: boolean;
   serverGenresLength: number;
   displayedGenres: string[];
   allAvailableGenresLength: number;
@@ -18,7 +19,7 @@ interface Props {
 
 export default function RandomMixGenrePanel({
   isMobile, genreMixExpanded, setGenreMixExpanded,
-  serverGenresLength, displayedGenres, allAvailableGenresLength,
+  genresLoading, serverGenresLength, displayedGenres, allAvailableGenresLength,
   selectedGenre, genreMixLoading, onSelectAll, onSelectGenre, onShuffle,
 }: Props) {
   const { t } = useTranslation();
@@ -43,9 +44,9 @@ export default function RandomMixGenrePanel({
         <div style={{ marginTop: isMobile ? '0.75rem' : 0 }}>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>{t('randomMix.genreMixDesc')}</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
-            {serverGenresLength === 0 ? (
+            {genresLoading ? (
               <div className="spinner" style={{ width: 14, height: 14 }} />
-            ) : displayedGenres.length === 0 ? (
+            ) : serverGenresLength === 0 || displayedGenres.length === 0 ? (
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('randomMix.genreMixNoGenres')}</span>
             ) : (
               <>

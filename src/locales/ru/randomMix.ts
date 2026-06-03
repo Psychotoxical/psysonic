@@ -33,6 +33,7 @@ export const randomMix = {
   genreMixAll: 'Все треки',
   genreMixLoadMore: 'Ещё 10 жанров',
   genreMixNoGenres: 'На сервере нет данных о жанрах.',
+  noSongsMatchFilters: 'Нет песен, подходящих под текущие фильтры. Уберите ключевые слова из чёрного списка или измените настройки микса.',
   shuffleGenres: 'Другие жанры',
   filterPanelTitle: 'Фильтры',
   filterPanelDesc:

@@ -25,17 +25,16 @@ export function filterRandomMixSongs(songs: SubsonicSong[], args: FilterArgs): S
   const { excludeAudiobooks, customGenreBlacklist, mixRatingCfg } = args;
   return songs.filter(song => {
     if (!passesMixMinRatings(song, mixRatingCfg)) return false;
-    if (!excludeAudiobooks) return true;
-    const checkText = (text: string) => {
+    const matchesExcludedText = (text: string) => {
       const t = text.toLowerCase();
-      if (AUDIOBOOK_GENRES.some(ag => t.includes(ag))) return true;
+      if (excludeAudiobooks && AUDIOBOOK_GENRES.some(ag => t.includes(ag))) return true;
       if (customGenreBlacklist.some(bg => t.includes(bg.toLowerCase()))) return true;
       return false;
     };
-    if (song.genre && checkText(song.genre)) return false;
-    if (song.title && checkText(song.title)) return false;
-    if (song.album && checkText(song.album)) return false;
-    if (song.artist && checkText(song.artist)) return false;
+    if (song.genre && matchesExcludedText(song.genre)) return false;
+    if (song.title && matchesExcludedText(song.title)) return false;
+    if (song.album && matchesExcludedText(song.album)) return false;
+    if (song.artist && matchesExcludedText(song.artist)) return false;
     return true;
   });
 }
