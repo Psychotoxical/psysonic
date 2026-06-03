@@ -18,6 +18,7 @@ import { formatLongDuration } from '../utils/format/formatDuration';
 import { formatMb } from '../utils/format/formatBytes';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
+import { tooltipAttrs } from './tooltipAttrs';
 
 /** True when the album artist label means "no single artist" — `getArtistInfo`
  *  has nothing meaningful to return for these, so the Artist Bio entry is hidden.
@@ -323,7 +324,12 @@ export default function AlbumHeader({
               ) : (
                 <div className="album-detail-actions">
                   <div className="album-detail-actions-primary">
-                    <button className="btn btn-primary" id="album-play-all-btn" onClick={onPlayAll}>
+                    <button
+                      className="btn btn-primary"
+                      id="album-play-all-btn"
+                      onClick={onPlayAll}
+                      {...tooltipAttrs(t('albumDetail.playTooltip'))}
+                    >
                       <Play size={15} /> {t('common.play', 'Reproducir')}
                     </button>
                     {onShuffleAll && (
@@ -361,7 +367,12 @@ export default function AlbumHeader({
                   </div>
 
                   {showBioButton && (
-                    <button className="btn btn-surface" id="album-bio-btn" onClick={onBio}>
+                    <button
+                      className="btn btn-surface"
+                      id="album-bio-btn"
+                      onClick={onBio}
+                      {...tooltipAttrs(t('albumDetail.artistBioTooltip'))}
+                    >
                       <Highlighter size={16} /> {t('albumDetail.artistBio')}
                     </button>
                   )}
@@ -375,7 +386,12 @@ export default function AlbumHeader({
                       <span className="download-progress-pct">{downloadProgress}%</span>
                     </div>
                   ) : (
-                    <button className="btn btn-surface" id="album-download-btn" onClick={onDownload}>
+                    <button
+                      className="btn btn-surface"
+                      id="album-download-btn"
+                      onClick={onDownload}
+                      {...tooltipAttrs(t('albumDetail.downloadTooltip'))}
+                    >
                       <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}
                     </button>
                   )}
