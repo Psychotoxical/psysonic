@@ -450,6 +450,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Navidrome's composer role list can include artists with zero composer album credits (e.g. Apollo 440 with performer albums only). Composers browse/search now drops rows where `stats.composer.albumCount` is zero so ghost composer cards no longer appear.
 
 
+### Mainstage — Because you listened respects sidebar library
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#964](https://github.com/Psychotoxical/psysonic/pull/964)**
+
+* The recommendation rail picks albums from Last.fm similar artists via `getArtist`, which can ignore `musicFolderId` — picks are now filtered to the scoped library album set, and the rail cache invalidates when the sidebar library filter changes.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
