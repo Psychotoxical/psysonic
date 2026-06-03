@@ -482,6 +482,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fractional custom minutes (e.g. `0.1`, `0.01`) now share the same delay math between the modal preview, armed timer, and play-button countdown so the displayed remaining time matches when playback starts or pauses.
 
 
+### Settings — in-page search coverage and junk-query filtering
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#968](https://github.com/Psychotoxical/psysonic/pull/968)**
+
+* AudioMuse-AI (Navidrome) is indexed and selectable from settings search; choosing it opens Servers and scrolls to the plugin toggle when shown.
+* In-app and global shortcut labels (e.g. Volume up / Volume down) appear as search hits and focus the parent shortcuts subsection.
+* Nonsense queries no longer return unrelated fuzzy matches (e.g. long repeated letters).
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**

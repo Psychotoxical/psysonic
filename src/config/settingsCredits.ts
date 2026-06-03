@@ -153,6 +153,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Cover backfill: follow the smart local/public endpoint switch so off-LAN clients stop fetching covers from the unreachable local address (PR #952)',
       'Player: persist volume/repeat/queue visibility/Last.fm cache outside quota-bound queue blob (report: norp on Psysonic Discord) (PR #958)',
       'Player transport: custom delay input capped to browser timer limit; preview/countdown aligned for fractional minutes (report: zunoz on Psysonic Discord) (PR #967)',
+      'Settings: in-page search indexes AudioMuse + shortcut rows; rejects junk fuzzy matches (report: zunoz on Psysonic Discord) (PR #968)',
     ],
   },
   {
