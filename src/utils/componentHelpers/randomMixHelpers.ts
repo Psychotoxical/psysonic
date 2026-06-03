@@ -4,8 +4,8 @@ import { passesMixMinRatings, type MixMinRatingsConfig } from '../mix/mixRatingF
 export const AUDIOBOOK_GENRES = [
   'hörbuch', 'hoerbuch', 'hörspiel', 'hoerspiel',
   'audiobook', 'audio book', 'spoken word', 'spokenword',
-  'podcast', 'kapitel', 'thriller', 'krimi', 'speech',
-  'fantasy', 'comedy', 'literature',
+  'podcast', 'kapitel', 'krimi', 'speech',
+  'comedy', 'literature',
 ];
 
 export function formatRandomMixDuration(seconds: number): string {
