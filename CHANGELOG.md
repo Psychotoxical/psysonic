@@ -421,6 +421,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * With multiple music libraries, narrowing the sidebar to one library no longer leaves the Genre filter showing server-wide genres — options now come from the scoped local index catalog (same scope as the album grid).
 
 
+### Now Playing — multi-artist links and About the Artist tabs
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#960](https://github.com/Psychotoxical/psysonic/pull/960)**
+
+* Tracks with OpenSubsonic `artists[]` (e.g. Navidrome `feat.` splits) now expose per-artist links on the Now Playing hero and in the queue current-track row — same interaction as player bar and album track lists.
+* About the Artist loads bio for each performer; when multiple artist ids are present, tabs switch between their bios, images, and similar artists instead of showing one joined name with a single profile.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
