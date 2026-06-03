@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { TFunction } from 'i18next';
 import { ndGetSmartPlaylist, ndListSmartPlaylists } from '../../api/navidromeSmart';
-import type { SubsonicPlaylist } from '../../api/subsonicTypes';
+import type { SubsonicGenre, SubsonicPlaylist } from '../../api/subsonicTypes';
 import {
   defaultSmartFilters, displayPlaylistName, isSmartPlaylistName,
   parseSmartRulesToFilters, type SmartFilters,
@@ -11,6 +11,7 @@ import { showToast } from '../ui/toast';
 export interface RunPlaylistsOpenSmartEditorDeps {
   pl: SubsonicPlaylist;
   isNavidromeServer: boolean;
+  allGenres: SubsonicGenre[];
   t: TFunction;
   setSmartFilters: React.Dispatch<React.SetStateAction<SmartFilters>>;
   setEditingSmartId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -22,7 +23,7 @@ export interface RunPlaylistsOpenSmartEditorDeps {
 
 export async function runPlaylistsOpenSmartEditor(deps: RunPlaylistsOpenSmartEditorDeps): Promise<void> {
   const {
-    pl, isNavidromeServer, t,
+    pl, isNavidromeServer, allGenres, t,
     setSmartFilters, setEditingSmartId, setGenreQuery,
     setCreating, setCreatingSmart, setCreatingSmartBusy,
   } = deps;
@@ -47,7 +48,11 @@ export async function runPlaylistsOpenSmartEditor(deps: RunPlaylistsOpenSmartEdi
       ) ?? null;
     }
     if (target) {
-      setSmartFilters(parseSmartRulesToFilters(target.rules, target.name));
+      const parsed = parseSmartRulesToFilters(target.rules, target.name);
+      if (parsed.untaggedGenresOnly) {
+        parsed.selectedGenres = allGenres.map(g => g.value);
+      }
+      setSmartFilters(parsed);
       setEditingSmartId(target.id);
     } else {
       // Fallback: allow editing even if Navidrome smart list endpoint

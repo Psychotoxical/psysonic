@@ -72,7 +72,11 @@ export function usePendingSmartPolling(
           // Wait until we see actual content and cover changed from the first placeholder-ish cover.
           // Fallback timeout keeps UI from waiting forever on servers that never update cover id.
           const hardTimeoutReached = item.attempts >= 18; // ~3 minutes (18 * 10s)
-          const ready = songCount > 0 && (!placeholderStillThere || hardTimeoutReached);
+          const emptySettled = songCount === 0 && item.attempts >= 3; // ~30s — valid empty result
+          const ready =
+            hardTimeoutReached
+            || emptySettled
+            || (songCount > 0 && (!placeholderStillThere || hardTimeoutReached));
           if (!ready) {
             next.push({
               ...item,

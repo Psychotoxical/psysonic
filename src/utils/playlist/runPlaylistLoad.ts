@@ -2,6 +2,7 @@ import type React from 'react';
 import { getPlaylist } from '../../api/subsonicPlaylists';
 import { filterSongsToActiveLibrary } from '../../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicSong } from '../../api/subsonicTypes';
+import { usePlaylistStore } from '../../store/playlistStore';
 
 export interface RunPlaylistLoadDeps {
   id: string;
@@ -31,7 +32,11 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
     setRatings(init);
     setStarredSongs(starred);
   } catch {
-    // intentional swallow; load failure leaves loading false + playlist null
+    const stub = usePlaylistStore.getState().playlists.find(p => p.id === id);
+    if (stub) {
+      setPlaylist(stub);
+      setSongs([]);
+    }
   } finally {
     setLoading(false);
   }

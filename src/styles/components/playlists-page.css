@@ -154,3 +154,10 @@
   opacity: 1;
 }
 
+/* Smart playlist editor — mode toggles stay aligned when primary/surface swaps. */
+.smart-playlist-mode-toggle .btn-primary:hover {
+  transform: none;
+  box-shadow: none;
+  filter: brightness(1.08);
+}
+

@@ -12,6 +12,7 @@ import { showToast } from '../ui/toast';
 export interface RunPlaylistsSaveSmartDeps {
   isNavidromeServer: boolean;
   smartFilters: SmartFilters;
+  allGenres: string[];
   editingSmartId: string | null;
   playlists: SubsonicPlaylist[];
   fetchPlaylists: () => Promise<void>;
@@ -26,7 +27,7 @@ export interface RunPlaylistsSaveSmartDeps {
 
 export async function runPlaylistsSaveSmart(deps: RunPlaylistsSaveSmartDeps): Promise<void> {
   const {
-    isNavidromeServer, smartFilters, editingSmartId, playlists, fetchPlaylists, t,
+    isNavidromeServer, smartFilters, allGenres, editingSmartId, playlists, fetchPlaylists, t,
     setPendingSmart, setCreatingSmart, setEditingSmartId, setSmartFilters,
     setGenreQuery, setCreatingSmartBusy,
   } = deps;
@@ -47,7 +48,7 @@ export async function runPlaylistsSaveSmart(deps: RunPlaylistsSaveSmartDeps): Pr
         ordinal += 1;
       }
     }
-    const rules = buildSmartRulesPayload(smartFilters);
+    const rules = buildSmartRulesPayload(smartFilters, { allGenres });
     const fullName = `${SMART_PREFIX}${baseName}`;
     if (editingSmartId) {
       await ndUpdateSmartPlaylist(editingSmartId, fullName, rules, true);

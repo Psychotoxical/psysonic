@@ -21,6 +21,13 @@ export type SmartFilters = {
   yearFrom: number;
   yearTo: number;
   yearMode: YearMode;
+  /** Navidrome `{ is: { genre: '' } }` — tracks with no genre tag. */
+  untaggedGenresOnly: boolean;
+};
+
+export type BuildSmartRulesOptions = {
+  /** Full genre catalog — used to collapse “exclude every genre” into an untagged-only rule. */
+  allGenres?: string[];
 };
 
 export type PendingSmartPlaylist = {
@@ -47,6 +54,7 @@ export const defaultSmartFilters: SmartFilters = {
   yearFrom: YEAR_MIN,
   yearTo: YEAR_MAX,
   yearMode: 'include',
+  untaggedGenresOnly: false,
 };
 
 export function clampYear(v: number): number {
@@ -104,6 +112,10 @@ export function parseSmartRulesToFilters(
 
     const is = asRecord(obj.is);
     if (is?.compilation === true) next.compilationOnly = true;
+    if (is && is.genre === '') {
+      next.genreMode = 'exclude';
+      next.untaggedGenresOnly = true;
+    }
 
     const notContains = asRecord(obj.notContains);
     if (notContains && typeof notContains.genre === 'string') excludeGenres.push(notContains.genre);
@@ -147,7 +159,18 @@ export function parseSmartRulesToFilters(
   return next;
 }
 
-export function buildSmartRulesPayload(filters: SmartFilters): Record<string, unknown> {
+function shouldUseUntaggedGenreRule(filters: SmartFilters, allGenres?: string[]): boolean {
+  if (filters.untaggedGenresOnly) return true;
+  if (filters.genreMode !== 'exclude' || filters.selectedGenres.length === 0) return false;
+  if (!allGenres || allGenres.length === 0) return false;
+  const selected = new Set(filters.selectedGenres);
+  return allGenres.every(g => selected.has(g));
+}
+
+export function buildSmartRulesPayload(
+  filters: SmartFilters,
+  opts?: BuildSmartRulesOptions,
+): Record<string, unknown> {
   const all: Record<string, unknown>[] = [];
   if (filters.artistContains.trim()) all.push({ contains: { artist: filters.artistContains.trim() } });
   if (filters.albumContains.trim()) all.push({ contains: { album: filters.albumContains.trim() } });
@@ -158,7 +181,9 @@ export function buildSmartRulesPayload(filters: SmartFilters): Record<string, un
   else if (filters.excludeUnrated) all.push({ gt: { rating: 0 } });
   if (filters.compilationOnly) all.push({ is: { compilation: true } });
 
-  if (filters.selectedGenres.length > 0) {
+  if (shouldUseUntaggedGenreRule(filters, opts?.allGenres)) {
+    all.push({ is: { genre: '' } });
+  } else if (filters.selectedGenres.length > 0) {
     if (filters.genreMode === 'include') {
       all.push({ any: filters.selectedGenres.map(v => ({ contains: { genre: v } })) });
     } else {

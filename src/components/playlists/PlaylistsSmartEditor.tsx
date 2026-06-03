@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import StarRating from '../StarRating';
+import CustomSelect from '../CustomSelect';
 import {
   LIMIT_MAX, YEAR_MAX, YEAR_MIN, clampYear, defaultSmartFilters,
   type SmartFilters,
@@ -27,6 +28,34 @@ export default function PlaylistsSmartEditor({
 }: Props) {
   const { t } = useTranslation();
 
+  const sortOptions = useMemo(() => ([
+    { value: '+random', label: t('smartPlaylists.sortRandom') },
+    { value: '+title', label: t('smartPlaylists.sortTitleAsc') },
+    { value: '-title', label: t('smartPlaylists.sortTitleDesc') },
+    { value: '-year', label: t('smartPlaylists.sortYearDesc') },
+    { value: '+year', label: t('smartPlaylists.sortYearAsc') },
+    { value: '-playcount', label: t('smartPlaylists.sortPlayCountDesc') },
+  ]), [t]);
+
+  const selectedGenreChipClass =
+    smartFilters.genreMode === 'include' ? 'btn btn-primary' : 'btn btn-danger';
+
+  const addGenre = (genre: string) => {
+    setSmartFilters(v => ({
+      ...v,
+      untaggedGenresOnly: false,
+      selectedGenres: [...v.selectedGenres, genre],
+    }));
+  };
+
+  const removeGenre = (genre: string) => {
+    setSmartFilters(v => ({
+      ...v,
+      untaggedGenresOnly: false,
+      selectedGenres: v.selectedGenres.filter(x => x !== genre),
+    }));
+  };
+
   return (
     <div style={{ marginBottom: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem', background: 'var(--bg-card)' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -38,22 +67,31 @@ export default function PlaylistsSmartEditor({
               <input className="input" type="number" min={1} max={LIMIT_MAX} placeholder={t('smartPlaylists.limit')} value={smartFilters.limit} onChange={e => setSmartFilters(v => ({ ...v, limit: e.target.value }))} />
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('smartPlaylists.limitHint', { max: LIMIT_MAX })}</span>
             </div>
-            <select className="input" value={smartFilters.sort} onChange={e => setSmartFilters(v => ({ ...v, sort: e.target.value }))}>
-              <option value="+random">{t('smartPlaylists.sortRandom')}</option>
-              <option value="+title">{t('smartPlaylists.sortTitleAsc')}</option>
-              <option value="-title">{t('smartPlaylists.sortTitleDesc')}</option>
-              <option value="-year">{t('smartPlaylists.sortYearDesc')}</option>
-              <option value="+year">{t('smartPlaylists.sortYearAsc')}</option>
-              <option value="-playcount">{t('smartPlaylists.sortPlayCountDesc')}</option>
-            </select>
+            <CustomSelect
+              value={smartFilters.sort}
+              options={sortOptions}
+              onChange={sort => setSmartFilters(v => ({ ...v, sort }))}
+            />
           </div>
         </section>
         <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionGenres')}</div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="smart-playlist-mode-toggle" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('smartPlaylists.genreMode')}</span>
-            <button className={`btn ${smartFilters.genreMode === 'include' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'include' }))}>{t('smartPlaylists.genreModeInclude')}</button>
-            <button className={`btn ${smartFilters.genreMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'exclude' }))}>{t('smartPlaylists.genreModeExclude')}</button>
+            <button
+              type="button"
+              className={`btn ${smartFilters.genreMode === 'include' ? 'btn-primary' : 'btn-surface'}`}
+              onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'include', untaggedGenresOnly: false }))}
+            >
+              {t('smartPlaylists.genreModeInclude')}
+            </button>
+            <button
+              type="button"
+              className={`btn ${smartFilters.genreMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`}
+              onClick={() => setSmartFilters(v => ({ ...v, genreMode: 'exclude', untaggedGenresOnly: false }))}
+            >
+              {t('smartPlaylists.genreModeExclude')}
+            </button>
           </div>
           <input className="input" placeholder={t('smartPlaylists.genreSearchPlaceholder')} value={genreQuery} onChange={e => setGenreQuery(e.target.value)} style={{ marginBottom: '0.75rem' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -61,7 +99,15 @@ export default function PlaylistsSmartEditor({
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t('smartPlaylists.availableGenres')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                 {availableGenres.map(g => (
-                  <button key={g} className="btn btn-surface" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setSmartFilters(v => ({ ...v, selectedGenres: [...v.selectedGenres, g] }))}>{g}</button>
+                  <button
+                    key={g}
+                    type="button"
+                    className="btn btn-surface"
+                    style={{ fontSize: 12, padding: '2px 8px' }}
+                    onClick={() => addGenre(g)}
+                  >
+                    {g}
+                  </button>
                 ))}
               </div>
             </div>
@@ -69,7 +115,15 @@ export default function PlaylistsSmartEditor({
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{t('smartPlaylists.selectedGenres')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                 {smartFilters.selectedGenres.map(g => (
-                  <button key={g} className="btn btn-surface" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setSmartFilters(v => ({ ...v, selectedGenres: v.selectedGenres.filter(x => x !== g) }))}>× {g}</button>
+                  <button
+                    key={g}
+                    type="button"
+                    className={selectedGenreChipClass}
+                    style={{ fontSize: 12, padding: '2px 8px' }}
+                    onClick={() => removeGenre(g)}
+                  >
+                    × {g}
+                  </button>
                 ))}
               </div>
             </div>
@@ -77,10 +131,22 @@ export default function PlaylistsSmartEditor({
         </section>
         <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: '0.65rem' }}>{t('smartPlaylists.sectionYearsAndFilters')}</div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="smart-playlist-mode-toggle" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('smartPlaylists.yearMode')}</span>
-            <button className={`btn ${smartFilters.yearMode === 'include' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'include' }))}>{t('smartPlaylists.yearModeInclude')}</button>
-            <button className={`btn ${smartFilters.yearMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`} onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'exclude' }))}>{t('smartPlaylists.yearModeExclude')}</button>
+            <button
+              type="button"
+              className={`btn ${smartFilters.yearMode === 'include' ? 'btn-primary' : 'btn-surface'}`}
+              onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'include' }))}
+            >
+              {t('smartPlaylists.yearModeInclude')}
+            </button>
+            <button
+              type="button"
+              className={`btn ${smartFilters.yearMode === 'exclude' ? 'btn-primary' : 'btn-surface'}`}
+              onClick={() => setSmartFilters(v => ({ ...v, yearMode: 'exclude' }))}
+            >
+              {t('smartPlaylists.yearModeExclude')}
+            </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
             <span>{t('smartPlaylists.fromYear')}: {smartFilters.yearFrom}</span>
@@ -113,6 +179,7 @@ export default function PlaylistsSmartEditor({
         </section>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
           <button
+            type="button"
             className="btn btn-surface"
             onClick={() => {
               setCreatingSmart(false);
@@ -123,7 +190,7 @@ export default function PlaylistsSmartEditor({
           >
             {t('playlists.cancel')}
           </button>
-          <button className="btn btn-primary" onClick={onSave} disabled={creatingSmartBusy}>
+          <button type="button" className="btn btn-primary" onClick={onSave} disabled={creatingSmartBusy}>
             <Plus size={15} /> {editingSmartId ? t('smartPlaylists.save') : t('smartPlaylists.create')}
           </button>
         </div>

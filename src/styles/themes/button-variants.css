@@ -16,6 +16,9 @@
   background: var(--accent);
   color: var(--ctp-crust);
   font-weight: 600;
+  /* Match .btn-surface border box so toggling primary/surface does not shift layout. */
+  border: 1px solid transparent;
+  box-sizing: border-box;
 }
 
 .btn-primary:hover {

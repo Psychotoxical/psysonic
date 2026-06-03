@@ -119,13 +119,13 @@ export default function Playlists() {
   };
 
   const handleOpenSmartEditor = (pl: SubsonicPlaylist) => runPlaylistsOpenSmartEditor({
-    pl, isNavidromeServer, t,
+    pl, isNavidromeServer, allGenres: genres, t,
     setSmartFilters, setEditingSmartId, setGenreQuery,
     setCreating, setCreatingSmart, setCreatingSmartBusy,
   });
 
   const handleCreateSmart = () => runPlaylistsSaveSmart({
-    isNavidromeServer, smartFilters, editingSmartId, playlists, fetchPlaylists, t,
+    isNavidromeServer, smartFilters, allGenres: genres.map(g => g.value), editingSmartId, playlists, fetchPlaylists, t,
     setPendingSmart, setCreatingSmart, setEditingSmartId, setSmartFilters,
     setGenreQuery, setCreatingSmartBusy,
   });
