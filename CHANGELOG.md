@@ -429,6 +429,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * About the Artist loads bio for each performer; when multiple artist ids are present, tabs switch between their bios, images, and similar artists instead of showing one joined name with a single profile.
 
 
+### Composers — page search keeps role-split credits
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#961](https://github.com/Psychotoxical/psysonic/pull/961)**
+
+* Scoped search on Composers no longer replaces the Navidrome role-scoped catalog with generic artist index/search3 hits that merge split composer credits into one joined name and id — results stay split like the scroll overview.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
