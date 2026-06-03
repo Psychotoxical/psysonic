@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { readInitialLastfmLovedCache, persistLastfmLovedCache } from './lastfmLovedCacheStorage';
 import { readInitialPlayerPrefs, persistPlayerPrefs } from './playerPrefsStorage';
 import { createHydrationGatedStorage, createSafeJSONStorage } from './safeStorage';
 import { emitPlaybackProgress } from './playbackProgress';
@@ -21,6 +22,7 @@ import { createUiStateActions } from './uiStateActions';
 import { createUndoRedoActions } from './undoRedoActions';
 
 const initialPlayerPrefs = readInitialPlayerPrefs();
+const initialLastfmLovedCache = readInitialLastfmLovedCache();
 let playerPersistWritesEnabled = false;
 
 export const usePlayerStore = create<PlayerState>()(
@@ -55,7 +57,7 @@ export const usePlayerStore = create<PlayerState>()(
       volume: initialPlayerPrefs.volume,
       scrobbled: false,
       lastfmLoved: false,
-      lastfmLovedCache: {},
+      lastfmLovedCache: initialLastfmLovedCache,
       starredOverrides: {},
       userRatingOverrides: {},
       isQueueVisible: readInitialQueueVisibility(),
@@ -94,8 +96,9 @@ export const usePlayerStore = create<PlayerState>()(
         () => playerPersistWritesEnabled,
       ),
       partialize: (state) => ({
-        // volume + repeatMode live in `psysonic_player_prefs` (see playerPrefsStorage.ts)
-        // so they survive when this blob exceeds the localStorage quota.
+        // volume/repeatMode → psysonic_player_prefs; isQueueVisible →
+        // psysonic_queue_visible; lastfmLovedCache → psysonic_lastfm_loved_cache.
+        // Kept out of this blob so a huge queue cannot block their writes.
         currentTrack: state.currentTrack,
         queueServerId: state.queueServerId,
         // Thin-state: persist the whole ordered ref list (tiny) — no windowed
@@ -104,12 +107,10 @@ export const usePlayerStore = create<PlayerState>()(
         // `hydrateQueueFromIndex` the refs still need a full resolve.
         queueItems: state.queueItems,
         queueItemsIndex: state.queueIndex,
-        isQueueVisible: state.isQueueVisible,
         // currentTime is intentionally NOT persisted here.
         // handleAudioProgress fires every 100ms and each setState with a
         // persisted field triggers a full JSON serialisation to localStorage.
         // Resume position is recovered from Subsonic savePlayQueue (5s debounce).
-        lastfmLovedCache: state.lastfmLovedCache,
       }),
       // Rebuild `queueItems` from ANY older persisted blob shape so an upgrade
       // restores the queue. Order of preference: an existing `queueItems` ref
@@ -156,6 +157,8 @@ export const usePlayerStore = create<PlayerState>()(
         // fields so an old blob cannot clobber the dedicated prefs on rehydrate.
         delete blob.volume;
         delete blob.repeatMode;
+        delete blob.isQueueVisible;
+        delete blob.lastfmLovedCache;
         // Persist the canonical form back onto the merged blob so subsequent
         // reads of state.queueServerId always see the index key.
         if (canonicalSid !== null) {
@@ -183,6 +186,9 @@ usePlayerStore.persist.onFinishHydration(() => {
 usePlayerStore.subscribe((state, prev) => {
   if (state.volume !== prev.volume || state.repeatMode !== prev.repeatMode) {
     persistPlayerPrefs({ volume: state.volume, repeatMode: state.repeatMode });
+  }
+  if (state.lastfmLovedCache !== prev.lastfmLovedCache) {
+    persistLastfmLovedCache(state.lastfmLovedCache);
   }
 });
 
