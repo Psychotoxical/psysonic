@@ -8,42 +8,87 @@ interface TooltipState {
   wrap: boolean;
 }
 
+/** Pointer must rest on an anchor this long before the tooltip appears. */
+const TOOLTIP_OPEN_DELAY_MS = 2000;
+
 export default function TooltipPortal() {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<React.CSSProperties>({ opacity: 0 });
 
-  const tooltipRef = useRef<TooltipState | null>(null);
-  tooltipRef.current = tooltip;
+  // Anchor counting down to show, plus its pending timer.
+  const pendingAnchorRef = useRef<HTMLElement | null>(null);
+  const pendingTimerRef = useRef<number | null>(null);
+  // Anchor whose tooltip is currently visible.
+  const shownAnchorRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const onOver = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement).closest('[data-tooltip]') as HTMLElement | null;
-      if (!target) return;
-      const text = target.getAttribute('data-tooltip');
+    const clearPending = () => {
+      if (pendingTimerRef.current !== null) {
+        clearTimeout(pendingTimerRef.current);
+        pendingTimerRef.current = null;
+      }
+      pendingAnchorRef.current = null;
+    };
+
+    const hide = () => {
+      clearPending();
+      shownAnchorRef.current = null;
+      setTooltip(null);
+    };
+
+    const showAnchor = (anchor: HTMLElement) => {
+      const text = anchor.getAttribute('data-tooltip');
       if (!text) return;
+      shownAnchorRef.current = anchor;
+      // Fresh rect: layout may have shifted during the open delay.
       setTooltip({
         text,
-        anchorRect: target.getBoundingClientRect(),
-        preferBottom: target.getAttribute('data-tooltip-pos') === 'bottom',
-        wrap: target.hasAttribute('data-tooltip-wrap'),
+        anchorRect: anchor.getBoundingClientRect(),
+        preferBottom: anchor.getAttribute('data-tooltip-pos') === 'bottom',
+        wrap: anchor.hasAttribute('data-tooltip-wrap'),
       });
     };
-    const onOut = () => setTooltip(null);
+
+    const onOver = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('[data-tooltip]') as HTMLElement | null;
+      if (!anchor) return;
+      // Already visible or already counting down for this anchor — leave it running.
+      if (anchor === shownAnchorRef.current || anchor === pendingAnchorRef.current) return;
+      // Moved onto a different anchor: drop old state and re-arm the delay.
+      clearPending();
+      if (shownAnchorRef.current) {
+        shownAnchorRef.current = null;
+        setTooltip(null);
+      }
+      pendingAnchorRef.current = anchor;
+      pendingTimerRef.current = window.setTimeout(() => {
+        pendingTimerRef.current = null;
+        pendingAnchorRef.current = null;
+        showAnchor(anchor);
+      }, TOOLTIP_OPEN_DELAY_MS);
+    };
+    const onOut = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('[data-tooltip]') as HTMLElement | null;
+      if (!anchor) return;
+      if (anchor !== shownAnchorRef.current && anchor !== pendingAnchorRef.current) return;
+      // Moving within the same anchor (e.g. onto a child icon) must not cancel the delay.
+      const to = e.relatedTarget as Node | null;
+      if (to && anchor.contains(to)) return;
+      hide();
+    };
     const onMove = (e: MouseEvent) => {
-      if (!tooltipRef.current) return;
-      const target = (e.target as HTMLElement).closest('[data-tooltip]');
-      if (!target) setTooltip(null);
+      if (!pendingAnchorRef.current && !shownAnchorRef.current) return;
+      const anchor = (e.target as HTMLElement).closest('[data-tooltip]');
+      if (!anchor) hide();
     };
     /** Clicking a tooltip anchor (e.g. opening a dropdown) keeps the cursor inside the element, so mouseout never runs — hide immediately. */
     const onDown = (e: MouseEvent) => {
-      const t = (e.target as HTMLElement).closest('[data-tooltip]');
-      if (t) setTooltip(null);
+      if ((e.target as HTMLElement).closest('[data-tooltip]')) hide();
     };
     /** Wheel interactions (e.g. volume on overflow button) should suppress tooltip immediately. */
     const onWheel = (e: WheelEvent) => {
-      const t = (e.target as HTMLElement).closest('[data-tooltip]');
-      if (t) setTooltip(null);
+      if ((e.target as HTMLElement).closest('[data-tooltip]')) hide();
     };
     document.addEventListener('mouseover', onOver);
     document.addEventListener('mouseout', onOut);
@@ -51,6 +96,7 @@ export default function TooltipPortal() {
     document.addEventListener('mousedown', onDown, true);
     document.addEventListener('wheel', onWheel, { capture: true, passive: true });
     return () => {
+      clearPending();
       document.removeEventListener('mouseover', onOver);
       document.removeEventListener('mouseout', onOut);
       document.removeEventListener('mousemove', onMove);
