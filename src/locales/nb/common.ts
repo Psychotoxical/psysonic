@@ -28,6 +28,7 @@ export const common = {
   favoritesTooltipOff: 'Vis bare favoritter',
   favoritesTooltipOn: 'Vis alle',
   play: 'Spill',
+  addToQueue: 'Legg i kø',
   bulkSelected: '{{count}} valgt',
   clearSelection: 'Fjern utvalg',
   bulkAddToPlaylist: 'Legg til i spilleliste',

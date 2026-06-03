@@ -28,6 +28,7 @@ export const common = {
   favoritesTooltipOff: 'Alleen favorieten tonen',
   favoritesTooltipOn: 'Alles tonen',
   play: 'Afspelen',
+  addToQueue: 'Aan wachtrij toevoegen',
   bulkSelected: '{{count}} geselecteerd',
   clearSelection: 'Selectie wissen',
   bulkAddToPlaylist: 'Toevoegen aan afspeellijst',

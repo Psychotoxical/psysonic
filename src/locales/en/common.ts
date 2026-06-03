@@ -29,6 +29,7 @@ export const common = {
   favoritesTooltipOff: 'Show only favorites',
   favoritesTooltipOn: 'Show all',
   play: 'Play',
+  addToQueue: 'Add to queue',
   bulkSelected: '{{count}} selected',
   clearSelection: 'Clear selection',
   bulkAddToPlaylist: 'Add to Playlist',

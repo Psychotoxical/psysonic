@@ -10,6 +10,7 @@ import { enqueueAndPlay } from '../utils/playback/playSong';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { formatTrackTime } from '../utils/format/formatDuration';
+import { tooltipAttrs } from './tooltipAttrs';
 
 interface Props {
   song: SubsonicSong;
@@ -79,14 +80,14 @@ function SongRow({ song, showBpm }: Props) {
         <button
           className="song-list-row-btn song-list-row-btn--play"
           onClick={(e) => { e.stopPropagation(); handlePlay(); }}
-          aria-label="Play"
+          {...tooltipAttrs(t('common.play'))}
         >
           <Play size={14} fill="currentColor" />
         </button>
         <button
           className="song-list-row-btn"
           onClick={(e) => { e.stopPropagation(); handleEnqueue(); }}
-          aria-label="Enqueue"
+          {...tooltipAttrs(t('common.addToQueue'))}
         >
           <ListPlus size={14} />
         </button>

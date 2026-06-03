@@ -29,6 +29,7 @@ export const common = {
   favoritesTooltipOff: 'Arată doar favorite',
   favoritesTooltipOn: 'Arată tot',
   play: 'Redă',
+  addToQueue: 'Adaugă în coadă',
   bulkSelected: '{{count}} selectate',
   clearSelection: 'Golește selecția',
   bulkAddToPlaylist: 'Adaugă la Playlist',

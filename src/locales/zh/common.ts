@@ -28,6 +28,7 @@ export const common = {
   favoritesTooltipOff: '仅显示收藏',
   favoritesTooltipOn: '显示全部',
   play: '播放',
+  addToQueue: '添加到队列',
   bulkSelected: '已选 {{count}} 首',
   clearSelection: '清除选择',
   bulkAddToPlaylist: '添加到播放列表',

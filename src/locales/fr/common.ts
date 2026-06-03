@@ -28,6 +28,7 @@ export const common = {
   favoritesTooltipOff: 'Afficher uniquement les favoris',
   favoritesTooltipOn: 'Tout afficher',
   play: 'Lire',
+  addToQueue: 'Ajouter à la file d\'attente',
   bulkSelected: '{{count}} sélectionné(s)',
   clearSelection: 'Effacer la sélection',
   bulkAddToPlaylist: 'Ajouter à la playlist',
