@@ -4,6 +4,7 @@ export type BecauseYouLikeAnchor = { id: string; name: string };
 
 export type BecauseYouLikeSnapshot = {
   serverId: string;
+  filterVersion: number;
   savedAt: number;
   anchor: BecauseYouLikeAnchor;
   recs: SubsonicAlbum[];
@@ -14,9 +15,10 @@ let snapshot: BecauseYouLikeSnapshot | null = null;
 
 export function readBecauseYouLikeCache(
   serverId: string | null | undefined,
+  filterVersion: number,
 ): BecauseYouLikeSnapshot | null {
   if (!serverId || !snapshot) return null;
-  if (snapshot.serverId !== serverId) return null;
+  if (snapshot.serverId !== serverId || snapshot.filterVersion !== filterVersion) return null;
   if (Date.now() - snapshot.savedAt > TTL_MS) return null;
   return snapshot;
 }

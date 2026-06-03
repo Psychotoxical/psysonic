@@ -162,7 +162,7 @@ export default function Home() {
       if (!wasPrePopulated) applyFeedSnapshot(cached);
       setLoading(false);
       void warmHomeMainstageCovers(cached);
-      const becauseSnap = readBecauseYouLikeCache(activeServerId);
+      const becauseSnap = readBecauseYouLikeCache(activeServerId, musicLibraryFilterVersion);
       void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
         limit: 6,
       });
@@ -193,7 +193,7 @@ export default function Home() {
         applyFeedSnapshot(snap);
         if (!cancelled) setLoading(false);
         void warmHomeMainstageCovers(snap);
-        const becauseSnap = readBecauseYouLikeCache(activeServerId);
+        const becauseSnap = readBecauseYouLikeCache(activeServerId, musicLibraryFilterVersion);
         void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
           limit: 6,
         });

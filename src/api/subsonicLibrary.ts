@@ -150,6 +150,29 @@ export async function filterSongsToActiveLibrary(songs: SubsonicSong[]): Promise
   return filterSongsToServerLibrary(songs, activeServerId);
 }
 
+/** Client-side album scope filter — same album-id set as {@link filterSongsToServerLibrary}. */
+export function filterAlbumsByScopedAlbumIds(
+  albums: SubsonicAlbum[],
+  allowed: Set<string> | null,
+): SubsonicAlbum[] {
+  if (!allowed || allowed.size === 0) return albums;
+  return albums.filter(a => allowed.has(a.id));
+}
+
+export async function filterAlbumsToServerLibrary(
+  albums: SubsonicAlbum[],
+  serverId: string,
+): Promise<SubsonicAlbum[]> {
+  const allowed = await albumIdsInLibraryScope(serverId);
+  return filterAlbumsByScopedAlbumIds(albums, allowed);
+}
+
+export async function filterAlbumsToActiveLibrary(albums: SubsonicAlbum[]): Promise<SubsonicAlbum[]> {
+  const { activeServerId } = useAuthStore.getState();
+  if (!activeServerId) return albums;
+  return filterAlbumsToServerLibrary(albums, activeServerId);
+}
+
 /** When scoped to one library, ask the server for more similar tracks — many will be filtered out client-side. */
 export function similarSongsRequestCount(desired: number): number {
   const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
