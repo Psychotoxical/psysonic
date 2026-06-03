@@ -9,6 +9,12 @@ import { useShallow } from 'zustand/react/shallow';
 import type { TFunction } from 'i18next';
 import { formatPlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
 import { formatClockTime } from '../utils/format/formatClockTime';
+import {
+  isValidPlaybackSchedulePreviewTimestamp,
+  parsePlaybackDelayCustomMinutes,
+  scheduleDelayMsFromSeconds,
+  scheduleSecondsFromCustomMinutes,
+} from '../utils/playback/playbackScheduleDelay';
 
 /** One tap = schedule; custom minutes still covers any duration. */
 const PRESET_SECONDS = [30, 60, 120, 300, 600, 900, 1800, 3600] as const;
@@ -123,9 +129,9 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
   const canStartLater = !isPlaying && (!!currentTrack || !!currentRadio);
 
   const customSeconds = useMemo(() => {
-    const n = parseFloat(customMinutes.replace(',', '.'));
-    if (!Number.isFinite(n) || n <= 0) return null;
-    return Math.round(n * 60);
+    const minutes = parsePlaybackDelayCustomMinutes(customMinutes);
+    if (minutes == null) return null;
+    return scheduleSecondsFromCustomMinutes(minutes);
   }, [customMinutes]);
 
   const applyPause = (sec: number) => {
@@ -156,8 +162,14 @@ export default function PlaybackDelayModal({ open, onClose, anchorRef }: Playbac
   // Priority: hovered chip → typed custom minutes → nothing.
   const clockFormat = useAuthStore(s => s.clockFormat);
   const previewSeconds = hoverSeconds ?? customSeconds;
-  const previewAtMs = previewSeconds != null ? nowTick + previewSeconds * 1000 : null;
-  const previewClock = previewAtMs != null ? formatClockTime(previewAtMs, clockFormat, i18n.language) : null;
+  const previewAtMs =
+    previewSeconds != null
+      ? nowTick + scheduleDelayMsFromSeconds(previewSeconds)
+      : null;
+  const previewClock =
+    previewAtMs != null && isValidPlaybackSchedulePreviewTimestamp(previewAtMs)
+      ? formatClockTime(previewAtMs, clockFormat, i18n.language)
+      : null;
 
   if (!open) return null;
 

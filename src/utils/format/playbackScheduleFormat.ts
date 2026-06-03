@@ -46,6 +46,10 @@ export function usePlaybackScheduleRemaining(): PlaybackScheduleInfo | null {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const windowHidden = useWindowVisibility();
   useEffect(() => {
+    if (deadlineMs == null) return;
+    setNowMs(Date.now());
+  }, [deadlineMs]);
+  useEffect(() => {
     if (deadlineMs == null || windowHidden) return;
     const id = window.setInterval(() => {
       if (document.hidden || window.__psyHidden) return;

@@ -1,3 +1,4 @@
+import { scheduleDeadlineMs, scheduleDelayMsFromSeconds } from '../utils/playback/playbackScheduleDelay';
 import type { PlayerState } from './playerStoreTypes';
 import {
   clearScheduledPauseTimers,
@@ -36,9 +37,9 @@ export function createScheduleActions(set: SetState, get: GetState): Pick<
     schedulePauseIn: (seconds) => {
       const s = get();
       if (!s.isPlaying) return;
-      const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
+      const delayMs = scheduleDelayMsFromSeconds(seconds);
       const startedAt = Date.now();
-      const at = startedAt + delayMs;
+      const at = scheduleDeadlineMs(startedAt, seconds);
       set({ scheduledPauseAtMs: at, scheduledPauseStartMs: startedAt });
       schedulePauseTimer(delayMs, () => {
         set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null });
@@ -50,9 +51,9 @@ export function createScheduleActions(set: SetState, get: GetState): Pick<
       const s = get();
       if (s.isPlaying) return;
       if (!s.currentTrack && !s.currentRadio) return;
-      const delayMs = Math.max(500, Math.round(Number(seconds) * 1000));
+      const delayMs = scheduleDelayMsFromSeconds(seconds);
       const startedAt = Date.now();
-      const at = startedAt + delayMs;
+      const at = scheduleDeadlineMs(startedAt, seconds);
       set({ scheduledResumeAtMs: at, scheduledResumeStartMs: startedAt });
       scheduleResumeTimer(delayMs, () => {
         set({ scheduledResumeAtMs: null, scheduledResumeStartMs: null });
