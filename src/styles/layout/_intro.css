@@ -40,3 +40,7 @@
     "sidebar main queue";
 }
 
+.app-shell.floating-player .resizer {
+  bottom: 0;
+}
+

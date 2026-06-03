@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { computeFloatingPlayerBarStyle } from './computeFloatingPlayerBarStyle';
 
 /** Computes the floating player-bar position based on the current sidebar +
  *  queue panel widths. Returns an inline-style object (left/right/width); only
@@ -14,17 +15,13 @@ export function useFloatingPlayerBar(
     if (!floatingPlayerBar) return;
 
     const updatePosition = () => {
-      const sidebar = document.querySelector('.sidebar') as HTMLElement;
-      const queue = document.querySelector('.queue-panel') as HTMLElement;
+      const sidebar = document.querySelector('.sidebar') as HTMLElement | null;
+      const queue = document.querySelector('.queue-panel') as HTMLElement | null;
 
-      const leftOffset = sidebar ? sidebar.getBoundingClientRect().right : 0;
-      const rightOffset = queue ? window.innerWidth - queue.getBoundingClientRect().left : 0;
+      const sidebarRight = sidebar ? sidebar.getBoundingClientRect().right : 0;
+      const queueLeft = queue ? queue.getBoundingClientRect().left : null;
 
-      setFloatingStyle({
-        left: leftOffset + 24,
-        right: rightOffset + 24,
-        width: 'auto',
-      });
+      setFloatingStyle(computeFloatingPlayerBarStyle(sidebarRight, queueLeft, window.innerWidth));
     };
 
     updatePosition();

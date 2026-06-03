@@ -21,19 +21,18 @@
 .player-bar.floating {
   position: fixed;
   bottom: 12px;
-  /* left/right handled dynamically by JS */
+  /* left / max-width set by useFloatingPlayerBar — center + shrink-wrap */
   z-index: 1000;
   border-radius: 50px;
-  width: auto;
-  min-width: 100px;
-  max-width: none;
+  width: max-content;
+  max-width: min(100%, calc(100vw - 48px));
   grid-area: unset;
   padding: 0 24px 0 8px;
   gap: 16px;
   background: var(--bg-player);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.8),
+    0 8px 32px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(255, 255, 255, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
