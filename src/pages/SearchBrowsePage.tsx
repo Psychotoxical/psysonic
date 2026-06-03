@@ -11,6 +11,7 @@ import ArtistRow from '../components/ArtistRow';
 import PagedSongList from '../components/PagedSongList';
 import CustomSelect from '../components/CustomSelect';
 import StarFilterButton from '../components/StarFilterButton';
+import { tooltipAttrs } from '../components/tooltipAttrs';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -821,11 +822,11 @@ export default function SearchBrowsePage() {
     });
   };
 
-  const typeOptions: { id: ResultType; label: string }[] = [
-    { id: 'all',     label: t('search.advancedAll') },
-    { id: 'artists', label: t('search.artists') },
-    { id: 'albums',  label: t('search.albums') },
-    { id: 'songs',   label: t('search.songs') },
+  const typeOptions: { id: ResultType; label: string; tooltip: string }[] = [
+    { id: 'all',     label: t('search.advancedAll'), tooltip: t('search.scopeAllTooltip') },
+    { id: 'artists', label: t('search.artists'),     tooltip: t('search.scopeArtistsChipTooltip') },
+    { id: 'albums',  label: t('search.albums'),      tooltip: t('search.scopeAlbumsChipTooltip') },
+    { id: 'songs',   label: t('search.songs'),       tooltip: t('search.scopeSongsChipTooltip') },
   ];
 
   const genreSelectOptions = [
@@ -1059,6 +1060,11 @@ export default function SearchBrowsePage() {
             {/* Row 4: Result type + Search button */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {!trackFilterActive && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: '0.15rem' }}>
+                    {t('search.scopeRowLabel')}
+                  </span>
+                )}
                 {!trackFilterActive && typeOptions.map(opt => (
                   <button
                     key={opt.id}
@@ -1066,6 +1072,7 @@ export default function SearchBrowsePage() {
                     className={`btn ${resultType === opt.id ? 'btn-primary' : 'btn-surface'}`}
                     style={{ fontSize: 12, padding: '4px 14px' }}
                     onClick={() => setResultType(opt.id)}
+                    {...tooltipAttrs(opt.tooltip)}
                   >
                     {opt.label}
                   </button>

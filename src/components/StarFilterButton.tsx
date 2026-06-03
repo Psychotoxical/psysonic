@@ -41,7 +41,6 @@ export default function StarFilterButton({ active, onChange, size = 'default' }:
         onClick={() => onChange(!active)}
         aria-pressed={active}
         data-tooltip={tooltip}
-        data-tooltip-pos="bottom"
         style={{ fontSize: 12, padding: '4px 14px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
       >
         <Star size={12} fill={active ? 'currentColor' : 'none'} />
