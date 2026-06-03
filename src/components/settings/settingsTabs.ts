@@ -29,7 +29,7 @@ export function resolveTab(input: string | undefined | null): Tab {
 
 // Statischer Suchindex ueber alle Sub-Sections aller Tabs. Mitpflegen, wenn eine
 // neue SettingsSubSection hinzukommt — sonst taucht sie nicht in der Suche auf.
-export type SearchIndexEntry = { tab: Tab; titleKey: string; keywords?: string };
+export type SearchIndexEntry = { tab: Tab; titleKey: string; keywords?: string; focusTitleKey?: string };
 
 export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'audio',          titleKey: 'settings.audioOutputDevice',        keywords: 'output device speakers headphones alsa wasapi coreaudio' },
@@ -51,6 +51,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'personalisation',titleKey: 'settings.playerBarTitle',          keywords: 'player bar playback favorites stars rating lastfm love equalizer mini player controls hide show' },
   { tab: 'appearance',     titleKey: 'settings.libraryGridMaxColumnsTitle', keywords: 'grid columns album artist playlist cards layout appearance performance scroll paint' },
   { tab: 'servers',        titleKey: 'settings.servers',                  keywords: 'local library index sync resync verify integrity offline delta background sqlite search' },
+  { tab: 'servers',        titleKey: 'settings.audiomuseTitle',           keywords: 'audiomuse audio muse navidrome plugin instant mix similar songs lucky mix' },
   { tab: 'library',        titleKey: 'settings.analyticsStrategyTitle',   keywords: 'analytics strategy analysis bpm enrichment waveform lazy advanced library backfill' },
   { tab: 'library',        titleKey: 'settings.randomMixTitle',           keywords: 'random mix blacklist genre keywords filter audiobook' },
   { tab: 'library',        titleKey: 'settings.ratingsSectionTitle',      keywords: 'ratings stars skip threshold manual' },
@@ -76,19 +77,26 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'system',         titleKey: 'licenses.title',                    keywords: 'licenses license open source attribution copyright third party dependencies oss' },
 ];
 
-// Substring-first, Fuzzy-Fallback (alle Query-Zeichen in Reihenfolge im
-// Haystack). Rueckgabe 0 = kein Match. Hoeher = besser.
+// Substring-first, compact fuzzy fallback (query chars in order within a
+// short span). Returns 0 = no match. Higher = better.
 export function matchScore(haystack: string, needle: string): number {
   if (!needle) return 0;
   const h = haystack.toLowerCase();
   const n = needle.toLowerCase();
   const idx = h.indexOf(n);
   if (idx >= 0) return 1000 - Math.min(999, idx);
+  // Repeated single-char queries ("aaaaaaa") must not match via sparse fuzzy hits.
+  if (n.length >= 4 && /^(.)\1+$/.test(n)) return 0;
   let hi = 0;
+  let start = -1;
   for (const ch of n) {
     const j = h.indexOf(ch, hi);
     if (j < 0) return 0;
+    if (start < 0) start = j;
     hi = j + 1;
   }
-  return Math.max(1, 100 - Math.min(99, hi - n.length));
+  const span = hi - start;
+  if (span > n.length * 2) return 0;
+  if (n.length >= 4 && span > n.length + 3) return 0;
+  return Math.max(1, 100 - Math.min(99, span - n.length));
 }

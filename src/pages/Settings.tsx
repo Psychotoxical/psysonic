@@ -16,7 +16,8 @@ import { PersonalisationTab } from '../components/settings/PersonalisationTab';
 import { ServersTab } from '../components/settings/ServersTab';
 import { StorageTab } from '../components/settings/StorageTab';
 import { SystemTab } from '../components/settings/SystemTab';
-import { SETTINGS_INDEX, type Tab, matchScore, resolveTab } from '../components/settings/settingsTabs';
+import { searchSettings, type SettingsSearchHit } from '../components/settings/settingsSearch';
+import { type Tab, resolveTab } from '../components/settings/settingsTabs';
 import { UserManagementSection } from '../components/settings/UserManagementSection';
 import { ndLogin } from '../api/navidromeAdmin';
 import { type ServerMagicPayload } from '../utils/server/serverMagicString';
@@ -32,7 +33,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<Tab>(resolveTab((routeState as { tab?: string } | null)?.tab));
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchResults, setSearchResults] = useState<Array<{ tab: Tab; titleKey: string; title: string; score: number }>>([]);
+  const [searchResults, setSearchResults] = useState<SettingsSearchHit[]>([]);
   const [selectedResultIdx, setSelectedResultIdx] = useState(0);
   const [pendingFocusTitle, setPendingFocusTitle] = useState<string | null>(null);
   const [pendingServerInvite, setPendingServerInvite] = useState<ServerMagicPayload | null>(null);
@@ -61,23 +62,7 @@ export default function Settings() {
   // eine Query aktiv ist, wird der Tab-Content gerendert-nicht und stattdessen
   // die Ergebnisliste angezeigt.
   useEffect(() => {
-    const q = searchQuery.trim();
-    if (!q) {
-      setSearchResults([]);
-      return;
-    }
-    const scored = SETTINGS_INDEX.map(entry => {
-      const title = t(entry.titleKey as any);
-      const hay = entry.keywords ? `${title} ${entry.keywords}` : title;
-      return { ...entry, title, score: matchScore(hay, q) };
-    }).filter(e => e.score > 0);
-    scored.sort((a, b) => {
-      const aCurrent = a.tab === activeTab ? 1 : 0;
-      const bCurrent = b.tab === activeTab ? 1 : 0;
-      if (aCurrent !== bCurrent) return bCurrent - aCurrent;
-      return b.score - a.score;
-    });
-    setSearchResults(scored);
+    setSearchResults(searchSettings(searchQuery, activeTab, t));
     setSelectedResultIdx(0);
   }, [searchQuery, activeTab, t]);
 
@@ -213,7 +198,7 @@ export default function Settings() {
                     if (!hit) return;
                     setSearchQuery('');
                     setSearchOpen(false);
-                    setPendingFocusTitle(hit.title);
+                    setPendingFocusTitle(hit.focusTitle);
                     setActiveTab(hit.tab);
                   }
                 }}
@@ -275,7 +260,7 @@ export default function Settings() {
             const tabLabelKey = TAB_LABEL_KEY[hit.tab];
             const selected = idx === selectedResultIdx;
             return (
-              <li key={`${hit.tab}:${hit.titleKey}`}>
+              <li key={hit.key}>
                 <button
                   type="button"
                   className="settings-search-result-item"
@@ -284,7 +269,7 @@ export default function Settings() {
                   onClick={() => {
                     setSearchQuery('');
                     setSearchOpen(false);
-                    setPendingFocusTitle(hit.title);
+                    setPendingFocusTitle(hit.focusTitle);
                     setActiveTab(hit.tab);
                   }}
                 >

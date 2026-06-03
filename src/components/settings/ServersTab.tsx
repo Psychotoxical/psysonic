@@ -481,6 +481,7 @@ export function ServersTab({
                   ) && (
                     <div
                       className="settings-toggle-row"
+                      data-settings-search={t('settings.audiomuseTitle')}
                       style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid color-mix(in srgb, var(--text-muted) 18%, transparent)' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', minWidth: 0 }}>
