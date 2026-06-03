@@ -474,6 +474,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Suggested Songs rows now render BPM (and other optional columns like genre, play count, last played) — the column switch was missing those cases.
 
 
+### Player transport — custom delay input validation
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#967](https://github.com/Psychotoxical/psysonic/pull/967)**
+
+* Absurd custom minute values (e.g. eleven nines) no longer arm an immediate timer while the preview still shows a far-future start time — input is capped to the browser delay limit and Apply stays disabled when out of range.
+* Fractional custom minutes (e.g. `0.1`, `0.01`) now share the same delay math between the modal preview, armed timer, and play-button countdown so the displayed remaining time matches when playback starts or pauses.
+
+
 ### In-page browse — virtual scroll and cover-art priority
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#783](https://github.com/Psychotoxical/psysonic/pull/783)**
