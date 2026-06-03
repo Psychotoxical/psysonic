@@ -401,6 +401,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Single tracks in the discovery rails now show a round, vinyl-style cover so they read as songs rather than albums — clicking one still plays it instantly.
 * A new **To album** badge under the artist jumps to the track's album, available in all 9 languages.
 
+### Tooltips — consistent hints on every button
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#972](https://github.com/Psychotoxical/psysonic/pull/972)**
+
+* Buttons across the app now show a short tooltip describing what they do, appearing after a 1-second hover so they never flash during quick mouse passes.
+* Tooltips that were missing — on the artist, album, All Albums, track-list and playlist actions — are filled in, and tooltips that used to point different directions within the same toolbar now line up consistently.
+* Advanced Search gains a **Search in:** label so the All / Artists / Albums / Songs row reads clearly as a scope limiter. Available in all 9 languages.
+
 
 
 
