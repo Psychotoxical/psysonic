@@ -163,8 +163,6 @@ export default function Albums() {
   const serverFilterActive = textSearchActive
     ? selectedGenres.length > 0 || textSearchYearBounds.active || losslessOnly || starredOnly
     : browseData.serverFilterActive;
-  const narrowGenreList = browseData.narrowGenreList;
-  const genreCatalogOptions = browseData.genreCatalogOptions;
   const yearFilterActive = browseData.yearFilterActive;
   const debouncedYearFields = browseData.debouncedYearFields;
   const compFilterActive = browseData.compFilterActive;
@@ -398,7 +396,7 @@ export default function Albums() {
 
                   <GenreFilterBar
                     selected={selectedGenres}
-                    catalogGenres={narrowGenreList ? genreCatalogOptions : null}
+                    catalogGenres={browseData.genreCatalogActive ? browseData.genreCatalogOptions : null}
                     onSelectionChange={setSelectedGenres}
                   />
 

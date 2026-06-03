@@ -26,6 +26,7 @@ import {
   type AlbumBrowseQuery,
   type GenreFilterOption,
 } from '../utils/library/albumBrowseLoad';
+import { libraryScopeForServer } from '../api/subsonicClient';
 import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
@@ -167,7 +168,10 @@ export function useAlbumBrowseData({
 
   const genreFiltered = albumBrowseHasGenreFilter(browseQuery);
   const serverFilterActive = albumBrowseHasServerFilters(browseQuery);
+  const libraryScopeActive = libraryScopeForServer(serverId) != null;
   const narrowGenreList = yearFilterActive || losslessOnly || starredOnly || compFilterActive;
+  /** When true, GenreFilterBar uses `genreCatalogOptions` instead of server `getGenres()`. */
+  const genreCatalogActive = narrowGenreList || (indexEnabled && libraryScopeActive);
 
   const compScanExhausted = useMemo(
     () => compFilterClientOnly && !genreFiltered
@@ -352,7 +356,7 @@ export function useAlbumBrowseData({
   }, [browseQuery, indexEnabled, serverId, loadBrowse, musicLibraryFilterVersion]);
 
   useEffect(() => {
-    if (!narrowGenreList) {
+    if (!genreCatalogActive) {
       setGenreCatalogOptions(null);
       return;
     }
@@ -364,7 +368,7 @@ export function useAlbumBrowseData({
       cancelled = true;
     };
   }, [
-    narrowGenreList,
+    genreCatalogActive,
     serverId,
     indexEnabled,
     browseQueryWithoutGenre,
@@ -466,6 +470,7 @@ export function useAlbumBrowseData({
     genreFiltered,
     serverFilterActive,
     narrowGenreList,
+    genreCatalogActive,
     genreCatalogOptions,
     yearFilterActive,
     debouncedYearFields,
