@@ -438,7 +438,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Browse grids — multi-select ring no longer clips (WebKitGTK)
 
-**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Telegram, PR [#962](https://github.com/Psychotoxical/psysonic/pull/962)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#962](https://github.com/Psychotoxical/psysonic/pull/962)**
 
 * Multi-select rings on Artists, All Albums, Playlists, and related card grids use an inset `::after` overlay (same approach as card focus rings) instead of `outline` on `overflow: hidden` tiles — fixes top-row clipping and the ~1px gap vs the inner border on Wayland/WebKitGTK.
 
