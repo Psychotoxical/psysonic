@@ -62,6 +62,29 @@ pub fn search_tracks(
 /// Callers clamp their requested `limit` into `1..=PAGE_LIMIT_MAX`.
 pub(crate) const PAGE_LIMIT_MAX: u32 = 500;
 
+/// Characters that must not appear inside a quoted FTS5 token — the query parser
+/// treats them as syntax (e.g. `=` splits `"1=2"*` into prefix hits on `1` and `2`).
+/// Double quotes are allowed — callers escape them as `""` before wrapping.
+const FTS_UNSAFE_TOKEN_CHARS: &[char] = &['=', ':', '*', '(', ')', '^', '<', '>', '%', '|', '\\'];
+
+/// True when `token` can be safely wrapped in FTS5 quotes for prefix/phrase match.
+pub(crate) fn fts_token_is_safe(token: &str) -> bool {
+    let t = token.trim();
+    !t.is_empty()
+        && !t.chars().any(|c| FTS_UNSAFE_TOKEN_CHARS.contains(&c))
+        && t.chars().any(|c| c.is_alphanumeric() || c as u32 >= 0x80)
+}
+
+/// Whitespace-split tokens when every segment is FTS-safe; otherwise `None`.
+pub(crate) fn fts_safe_whitespace_tokens(raw: &str) -> Option<Vec<&str>> {
+    let tokens: Vec<&str> = raw.split_whitespace().filter(|t| !t.is_empty()).collect();
+    if tokens.is_empty() || !tokens.iter().all(|t| fts_token_is_safe(t)) {
+        None
+    } else {
+        Some(tokens)
+    }
+}
+
 /// Local FTS is skipped below this length — single-character queries (e.g. Cyrillic
 /// «а», Latin «a») match huge fractions of a large library and bm25+LIMIT can
 /// take tens of seconds (§5.9: no heavy work on every keystroke).
@@ -92,13 +115,11 @@ pub(crate) fn fts_prefix_token_expr(raw: &str) -> Option<String> {
 
 /// Navidrome-style any-word prefix match (`"a"* OR "b"*`).
 pub(crate) fn fts_prefix_token_or_expr(raw: &str) -> Option<String> {
-    let tokens: Vec<String> = raw
-        .split_whitespace()
+    let tokens: Vec<String> = fts_safe_whitespace_tokens(raw)?
+        .into_iter()
         .map(|t| format!("\"{}\"*", t.replace('"', "\"\"")))
         .collect();
-    if tokens.is_empty() {
-        None
-    } else if tokens.len() == 1 {
+    if tokens.len() == 1 {
         Some(tokens.into_iter().next().unwrap())
     } else {
         Some(tokens.join(" OR "))
@@ -106,8 +127,8 @@ pub(crate) fn fts_prefix_token_or_expr(raw: &str) -> Option<String> {
 }
 
 fn fts_token_expr_with(raw: &str, prefix: bool) -> Option<String> {
-    let tokens: Vec<String> = raw
-        .split_whitespace()
+    let tokens: Vec<String> = fts_safe_whitespace_tokens(raw)?
+        .into_iter()
         .map(|t| {
             let quoted = format!("\"{}\"", t.replace('"', "\"\""));
             if prefix {
@@ -117,11 +138,7 @@ fn fts_token_expr_with(raw: &str, prefix: bool) -> Option<String> {
             }
         })
         .collect();
-    if tokens.is_empty() {
-        None
-    } else {
-        Some(tokens.join(" "))
-    }
+    Some(tokens.join(" "))
 }
 
 /// Column-scoped prefix match (`artist : "met"*` → Metallica).
@@ -468,6 +485,23 @@ mod tests {
     fn fts_query_is_none_for_blank_input() {
         assert!(fts_query("").is_none());
         assert!(fts_query("   ").is_none());
+    }
+
+    #[test]
+    fn fts_prefix_token_or_expr_rejects_syntax_metachar_tokens() {
+        assert!(fts_prefix_token_or_expr("1=2").is_none());
+        assert!(fts_prefix_token_or_expr("1=1").is_none());
+        assert!(fts_prefix_token_or_expr("M=c").is_none());
+        assert!(fts_prefix_token_or_expr("V()>P").is_none());
+    }
+
+    #[test]
+    fn fts_prefix_token_or_expr_still_builds_safe_tokens() {
+        assert_eq!(
+            fts_prefix_token_or_expr("love supreme").as_deref(),
+            Some("\"love\"* OR \"supreme\"*")
+        );
+        assert_eq!(fts_prefix_token_or_expr("25").as_deref(), Some("\"25\"*"));
     }
 
     #[test]
