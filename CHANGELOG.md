@@ -567,7 +567,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#986](https://github.com/Psychotoxical/psysonic/pull/986)**
 
-* Horizontal rails (Home New Releases, Discover, …) no longer flash the **New** cover badge on the first pointer hover — dimming sits on a cover layer below badges instead of the play overlay.
+* Horizontal rails (Home New Releases, Discover, …) no longer flash the **New** cover badge on the first pointer hover — cover stacking matches the New Releases grid (`contain: paint`, compositor layers) so the badge stays visible during hover zoom.
 
 
 ### Album view — bulk add to playlist selection
