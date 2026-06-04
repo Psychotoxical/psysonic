@@ -62,16 +62,19 @@ pub fn search_tracks(
 /// Callers clamp their requested `limit` into `1..=PAGE_LIMIT_MAX`.
 pub(crate) const PAGE_LIMIT_MAX: u32 = 500;
 
-/// Characters that must not appear inside a quoted FTS5 token — the query parser
-/// treats them as syntax (e.g. `=` splits `"1=2"*` into prefix hits on `1` and `2`).
-/// Double quotes are allowed — callers escape them as `""` before wrapping.
-const FTS_UNSAFE_TOKEN_CHARS: &[char] = &['=', ':', '*', '(', ')', '^', '<', '>', '%', '|', '\\'];
+/// Characters that break FTS5 quoted tokens — not `*` (censorship stars in titles).
+const FTS_QUERY_SYNTAX_CHARS: &[char] = &['=', ':', '(', ')', '^', '<', '>', '%', '|', '\\'];
+
+fn is_wildcard_only_token(token: &str) -> bool {
+    !token.is_empty() && token.chars().all(|c| c == '*')
+}
 
 /// True when `token` can be safely wrapped in FTS5 quotes for prefix/phrase match.
 pub(crate) fn fts_token_is_safe(token: &str) -> bool {
     let t = token.trim();
     !t.is_empty()
-        && !t.chars().any(|c| FTS_UNSAFE_TOKEN_CHARS.contains(&c))
+        && !is_wildcard_only_token(t)
+        && !t.chars().any(|c| FTS_QUERY_SYNTAX_CHARS.contains(&c))
         && t.chars().any(|c| c.is_alphanumeric() || c as u32 >= 0x80)
 }
 
@@ -493,6 +496,20 @@ mod tests {
         assert!(fts_prefix_token_or_expr("1=1").is_none());
         assert!(fts_prefix_token_or_expr("M=c").is_none());
         assert!(fts_prefix_token_or_expr("V()>P").is_none());
+        assert!(fts_prefix_token_or_expr("**").is_none());
+        assert!(fts_prefix_token_or_expr("****").is_none());
+    }
+
+    #[test]
+    fn fts_prefix_token_or_expr_allows_censorship_stars_in_titles() {
+        assert_eq!(
+            fts_prefix_token_or_expr("***Flawless").as_deref(),
+            Some("\"***Flawless\"*")
+        );
+        assert_eq!(
+            fts_prefix_token_or_expr("B********").as_deref(),
+            Some("\"B********\"*")
+        );
     }
 
     #[test]

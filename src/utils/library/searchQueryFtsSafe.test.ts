@@ -11,11 +11,14 @@ describe('searchQueryIsFtsSafe', () => {
     expect(searchQueryIsFtsSafe('V()>P')).toBe(false);
   });
 
-  it('accepts normal search terms', () => {
+  it('accepts normal search terms and censorship stars in titles', () => {
     expect(searchQueryIsFtsSafe('metallica')).toBe(true);
     expect(searchQueryIsFtsSafe('love supreme')).toBe(true);
     expect(searchQueryIsFtsSafe('25')).toBe(true);
     expect(searchQueryIsFtsSafe('AC/DC')).toBe(true);
+    expect(searchQueryIsFtsSafe('***Flawless')).toBe(true);
+    expect(searchQueryIsFtsSafe('B********')).toBe(true);
+    expect(searchQueryIsFtsSafe('F**k This Industry')).toBe(true);
   });
 
   it('rejects when any token is unsafe', () => {

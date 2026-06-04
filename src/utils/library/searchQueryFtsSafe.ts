@@ -1,14 +1,21 @@
 /**
- * Shared guard for local FTS and Subsonic search3 — tokens with FTS5 / server
- * wildcard syntax (`=`, `*`, …) produce unrelated hits (see Rust `fts_token_is_safe`).
+ * Shared guard for local FTS and Subsonic search3.
+ * - Wildcard-only tokens (`**`, `****`) match everything on search3 / FTS5.
+ * - `=` and other query syntax break quoted FTS tokens (`1=2` → junk hits).
+ * - Asterisks in real tags (`***Flawless`, `B********`) stay searchable.
  */
 
-const FTS_UNSAFE_TOKEN_CHARS = new Set(['=', ':', '*', '(', ')', '^', '<', '>', '%', '|', '\\']);
+/** FTS5 / search3 syntax — not `*` (censorship stars in titles are valid). */
+const FTS_QUERY_SYNTAX_CHARS = new Set(['=', ':', '(', ')', '^', '<', '>', '%', '|', '\\']);
+
+function isWildcardOnlyToken(token: string): boolean {
+  return token.length > 0 && [...token].every(ch => ch === '*');
+}
 
 export function searchTokenIsFtsSafe(token: string): boolean {
   const t = token.trim();
-  if (!t) return false;
-  if ([...t].some(ch => FTS_UNSAFE_TOKEN_CHARS.has(ch))) return false;
+  if (!t || isWildcardOnlyToken(t)) return false;
+  if ([...t].some(ch => FTS_QUERY_SYNTAX_CHARS.has(ch))) return false;
   return [...t].some(ch => /\p{L}|\p{N}/u.test(ch) || ch.charCodeAt(0) >= 0x80);
 }
 

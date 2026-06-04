@@ -687,6 +687,28 @@ mod tests {
     }
 
     #[test]
+    fn live_search_censorship_stars_in_title_is_searchable() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track(
+                    "s1",
+                    "t1",
+                    "***Flawless",
+                    "Beyoncé",
+                    "BEYONCÉ",
+                    "al1",
+                    "ar1",
+                ),
+                track("s1", "t2", "Other Song", "Artist", "Album", "al2", "ar2"),
+            ])
+            .unwrap();
+        let resp = run_live_search(&store, "s1", "***Flawless", None, 5, 5, 10).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].title, "***Flawless");
+    }
+
+    #[test]
     fn live_search_multiword_album_matches_any_token_not_only_first() {
         let store = LibraryStore::open_in_memory();
         TrackRepository::new(&store)
