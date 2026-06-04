@@ -852,7 +852,7 @@ export default function SearchBrowsePage() {
       data-advanced-search-root
     >
       <div style={{ visibility: isLeaveRestorePending ? 'hidden' : 'visible' }}>
-      <div>
+      <div className={showTracksChrome ? 'tracks-hub-stack' : undefined}>
       {showTracksChrome ? (
         <>
           <TracksPageChrome

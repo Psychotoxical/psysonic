@@ -39,6 +39,13 @@ function SongRow({ song, showBpm }: Props) {
     enqueue([songToTrack(song)]);
   };
 
+  // Split multi-artist tracks into individually clickable links (OpenSubsonic
+  // `artists[]`), falling back to the single flat artist when absent — mirrors
+  // the album tracklist so a "A · B" credit isn't one link to a single artist.
+  const artistRefs = song.artists && song.artists.length > 0
+    ? song.artists
+    : [{ id: song.artistId, name: song.artist }];
+
   const bpmTooltip =
     song.localBpmSource === 'analysis'
       ? t('search.bpmSourceAnalysis')
@@ -93,13 +100,17 @@ function SongRow({ song, showBpm }: Props) {
         </button>
       </div>
       <div className="song-list-row-cell song-list-row-title truncate" title={song.title}>{song.title}</div>
-      <div className="song-list-row-cell truncate">
-        <span
-          className={song.artistId ? 'track-artist-link' : ''}
-          style={{ cursor: song.artistId ? 'pointer' : 'default' }}
-          onClick={(e) => { if (song.artistId) { e.stopPropagation(); navigateToArtist(song.artistId); } }}
-          title={song.artist}
-        >{song.artist}</span>
+      <div className="song-list-row-cell truncate" title={song.artist}>
+        {artistRefs.map((a, i) => (
+          <React.Fragment key={a.id ?? a.name ?? i}>
+            {i > 0 && <span className="track-artist-sep">&nbsp;·&nbsp;</span>}
+            <span
+              className={a.id ? 'track-artist-link' : ''}
+              style={{ cursor: a.id ? 'pointer' : 'default' }}
+              onClick={(e) => { if (a.id) { e.stopPropagation(); navigateToArtist(a.id!); } }}
+            >{a.name ?? song.artist}</span>
+          </React.Fragment>
+        ))}
       </div>
       <div className="song-list-row-cell truncate">
         {song.albumId ? (

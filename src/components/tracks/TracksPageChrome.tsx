@@ -105,6 +105,14 @@ export default function TracksPageChrome({
     [random, hero],
   );
 
+  // Split a multi-artist feature into individually clickable links
+  // (OpenSubsonic `artists[]`), falling back to the single flat artist.
+  const heroArtistRefs = hero
+    ? (hero.artists && hero.artists.length > 0
+        ? hero.artists
+        : [{ id: hero.artistId, name: hero.artist }])
+    : [];
+
   return (
     <>
       {!perfFlags.disableMainstageStickyHeader && (
@@ -140,11 +148,16 @@ export default function TracksPageChrome({
             </span>
             <h2 className="tracks-hero-title" title={hero.title}>{hero.title}</h2>
             <p className="tracks-hero-meta">
-              <span
-                className={hero.artistId ? 'track-artist-link' : ''}
-                style={{ cursor: hero.artistId ? 'pointer' : 'default' }}
-                onClick={() => hero.artistId && navigateToArtist(hero.artistId)}
-              >{hero.artist}</span>
+              {heroArtistRefs.map((a, i) => (
+                <React.Fragment key={a.id ?? a.name ?? i}>
+                  {i > 0 && <span className="track-artist-sep">&nbsp;·&nbsp;</span>}
+                  <span
+                    className={a.id ? 'track-artist-link' : ''}
+                    style={{ cursor: a.id ? 'pointer' : 'default' }}
+                    onClick={() => a.id && navigateToArtist(a.id)}
+                  >{a.name ?? hero.artist}</span>
+                </React.Fragment>
+              ))}
               {hero.album && (
                 <>
                   <span className="tracks-hero-meta-dot">·</span>

@@ -2,7 +2,7 @@
 
 .song-list-row {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 110px 56px;
+  grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 110px 72px;
   gap: var(--space-3);
   align-items: center;
   height: 52px;
@@ -43,8 +43,11 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* Header is sticky and opaque — keep its card background on hover so the
+   generic .song-list-row:hover rule doesn't turn it transparent (which let
+   rows scrolling underneath bleed through). */
 .song-list-row--header:hover {
-  background: transparent;
+  background: var(--bg-card);
 }
 
 .song-list-row-cell {
@@ -75,7 +78,7 @@
 }
 
 .song-list-row--with-bpm {
-  grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 110px 48px 56px;
+  grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) 110px 48px 72px;
 }
 
 .song-list-row-bpm {
