@@ -1,7 +1,32 @@
 import type { SubsonicArtist } from '../../api/subsonicTypes';
 
 export const ALL_SENTINEL = 'ALL';
-export const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+/** Catch-all bucket for names that start with neither an A–Z letter nor a digit
+ *  (accented Latin like Æ/Ø/Å, and non-Latin scripts: CJK, Cyrillic, …). */
+export const OTHER_BUCKET = 'OTHER';
+export const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), OTHER_BUCKET];
+
+/** Stable ordering index for a bucket key — '#' first, A–Z, then 'Other' last. */
+const BUCKET_ORDER = new Map(ALPHABET.map((l, i) => [l, i]));
+
+/**
+ * Bucket an artist name into the alphabet index:
+ *  - `#`      → starts with a digit (0–9)
+ *  - `A`–`Z`  → starts with an ASCII letter
+ *  - `OTHER`  → anything else (accents, CJK, Cyrillic, symbols, empty)
+ */
+export function artistBucketKey(name: string): string {
+  const first = name?.trim()?.[0];
+  if (!first) return OTHER_BUCKET;
+  if (/^[0-9]$/.test(first)) return '#';
+  const up = first.toUpperCase();
+  return /^[A-Z]$/.test(up) ? up : OTHER_BUCKET;
+}
+
+/** Sort comparator for bucket keys following ALPHABET order (unknown keys last). */
+export function compareBuckets(a: string, b: string): number {
+  return (BUCKET_ORDER.get(a) ?? 999) - (BUCKET_ORDER.get(b) ?? 999);
+}
 
 /** Virtual row height guesses — letter heading vs dense rows vs last row in section (group gap). */
 export const ARTIST_LIST_LETTER_ROW_EST = 48;

@@ -2,6 +2,7 @@ export const artists = {
   title: 'Artiști',
   search: 'Caută…',
   all: 'Tot',
+  other: 'Altele',
   gridView: 'Vizualizare grilă',
   listView: 'Vizualizare listă',
   imagesOn: 'Imagini artist pornit — poate mări încărcarea rețelei și a sistemului',

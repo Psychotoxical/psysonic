@@ -14,6 +14,7 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
   ALL_SENTINEL,
   ALPHABET,
+  OTHER_BUCKET,
   ARTIST_LIST_LAST_IN_LETTER_EST,
   ARTIST_LIST_LETTER_ROW_EST,
   ARTIST_LIST_ROW_EST,
@@ -375,7 +376,7 @@ export default function Artists() {
                 onClick={() => setLetterFilter(l)}
                 className={`artists-alpha-btn${letterFilter === l ? ' artists-alpha-btn--active' : ''}`}
               >
-                {l === ALL_SENTINEL ? t('artists.all') : l}
+                {l === ALL_SENTINEL ? t('artists.all') : l === OTHER_BUCKET ? t('artists.other') : l}
               </button>
             ))}
           </div>

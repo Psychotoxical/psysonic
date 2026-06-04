@@ -2,6 +2,7 @@ export const artists = {
   title: 'Artistes',
   search: 'Rechercher…',
   all: 'Tous',
+  other: 'Autres',
   gridView: 'Vue en grille',
   listView: 'Vue en liste',
   imagesOn: 'Images d\'artistes activées — peut augmenter la charge réseau et système',

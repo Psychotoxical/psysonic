@@ -2,6 +2,7 @@ export const artists = {
   title: 'Künstler',
   search: 'Suchen…',
   all: 'Alle',
+  other: 'Andere',
   gridView: 'Gitteransicht',
   listView: 'Listenansicht',
   imagesOn: 'Künstlerbilder aktiv — kann Netzwerk- und Systemlast erhöhen',

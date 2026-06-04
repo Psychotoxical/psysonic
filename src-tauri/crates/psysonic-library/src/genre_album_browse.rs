@@ -137,7 +137,7 @@ pub fn list_albums_by_genre(
            COALESCE(a.cover_art_id, la.cover_art_id), \
            COALESCE(a.starred_at, la.starred_at), \
            COALESCE(a.synced_at, la.synced_at), \
-           NULL \
+           a.raw_json \
          FROM ( \
            SELECT \
              t.server_id, \

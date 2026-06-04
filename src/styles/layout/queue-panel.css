@@ -224,11 +224,17 @@
   transition: color var(--transition-fast);
 }
 
-.queue-current-sub.is-link {
+/* Album link sits on the .queue-current-sub element itself; artist links are
+   .is-link spans nested inside it (OpenArtistRefInline). Both get the same
+   accent + underline affordance on hover as clickable names everywhere else. */
+.queue-current-sub.is-link,
+.queue-current-sub .is-link {
   cursor: pointer;
 }
-.queue-current-sub.is-link:hover {
+.queue-current-sub.is-link:hover,
+.queue-current-sub .is-link:hover {
   color: var(--accent);
+  text-decoration: underline;
 }
 
 .queue-current-enrichment {

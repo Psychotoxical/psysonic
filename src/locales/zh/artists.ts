@@ -2,6 +2,7 @@ export const artists = {
   title: '艺术家',
   search: '搜索…',
   all: '全部',
+  other: '其他',
   gridView: '网格视图',
   listView: '列表视图',
   imagesOn: '艺术家图片已开启 — 可能增加网络和系统负载',

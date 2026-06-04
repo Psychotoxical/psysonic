@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { SubsonicArtist } from '../api/subsonicTypes';
 import { usePlayerStore } from '../store/playerStore';
-import { ALL_SENTINEL, type ArtistListFlatRow } from '../utils/componentHelpers/artistsHelpers';
+import { ALL_SENTINEL, artistBucketKey, compareBuckets, type ArtistListFlatRow } from '../utils/componentHelpers/artistsHelpers';
 
 interface UseArtistsFilteringArgs {
   artists: SubsonicArtist[];
@@ -48,12 +48,7 @@ export function useArtistsFiltering({
   const filtered = useMemo(() => {
     let out = artists;
     if (letterFilter !== ALL_SENTINEL) {
-      out = out.filter(a => {
-        const first = a.name[0]?.toUpperCase() ?? '#';
-        const isAlpha = /^[A-Z]$/.test(first);
-        if (letterFilter === '#') return !isAlpha;
-        return first === letterFilter;
-      });
+      out = out.filter(a => artistBucketKey(a.name) === letterFilter);
     }
     if (filter) {
       const needle = filter.toLowerCase();
@@ -72,12 +67,11 @@ export function useArtistsFiltering({
     if (viewMode !== 'list') return { groups: {} as Record<string, SubsonicArtist[]>, letters: [] as string[] };
     const g: Record<string, SubsonicArtist[]> = {};
     for (const a of visible) {
-      const letter = a.name[0]?.toUpperCase() ?? '#';
-      const key = /^[A-Z]$/.test(letter) ? letter : '#';
+      const key = artistBucketKey(a.name);
       if (!g[key]) g[key] = [];
       g[key].push(a);
     }
-    return { groups: g, letters: Object.keys(g).sort() };
+    return { groups: g, letters: Object.keys(g).sort(compareBuckets) };
   }, [visible, viewMode]);
 
   const artistListFlatRows = useMemo((): ArtistListFlatRow[] => {

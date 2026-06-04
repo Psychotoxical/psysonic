@@ -2,6 +2,7 @@ export const artists = {
   title: 'Исполнители',
   search: 'Поиск…',
   all: 'Все',
+  other: 'Другое',
   gridView: 'Сетка',
   listView: 'Список',
   imagesOn: 'Фото исполнителей — больше трафика и нагрузка на систему',

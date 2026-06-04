@@ -3,7 +3,7 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import type { TFunction } from 'i18next';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
 import type { PlayerState } from '../../store/playerStoreTypes';
-import type { ArtistListFlatRow } from '../../utils/componentHelpers/artistsHelpers';
+import { OTHER_BUCKET, type ArtistListFlatRow } from '../../utils/componentHelpers/artistsHelpers';
 import { ArtistRowAvatar } from './ArtistAvatars';
 
 interface RowProps {
@@ -123,7 +123,7 @@ export function ArtistsListView({
       <>
         {letters.map(letter => (
           <div key={letter} style={{ marginBottom: '1.5rem' }}>
-            <h3 className="letter-heading">{letter}</h3>
+            <h3 className="letter-heading">{letter === OTHER_BUCKET ? t('artists.other') : letter}</h3>
             <div className="artist-list">
               {groups[letter].map(artist => (
                 <ArtistListRow key={artist.id} artist={artist} {...rowCommonProps} />
@@ -159,7 +159,7 @@ export function ArtistsListView({
                   transform: `translateY(${vi.start - artistListScrollMargin}px)`,
                 }}
               >
-                <h3 className="letter-heading">{row.letter}</h3>
+                <h3 className="letter-heading">{row.letter === OTHER_BUCKET ? t('artists.other') : row.letter}</h3>
               </div>
             );
           }
