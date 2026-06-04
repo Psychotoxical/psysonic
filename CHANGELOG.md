@@ -899,6 +899,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The song rail's previous/next and reroll buttons are now square like every other rail instead of round.
 
+### Search — song results show their album cover
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#984](https://github.com/Psychotoxical/psysonic/pull/984)**
+
+* Song results in the search dropdown now show their album cover instead of leaving most thumbnails blank.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
